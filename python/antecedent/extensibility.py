@@ -127,11 +127,28 @@ class EffectValidator(Protocol):
 
 
 class ProviderTrust(StrEnum):
-    """Evidence status attached to a custom causal provider."""
+    """Evidence status attached to a custom causal provider.
+
+    ``value`` is the canonical wire ([`as_wire`](ProviderTrust.as_wire) in Rust).
+    Read-compat aliases parse to the same member: ``external_attested`` for
+    :attr:`EXTERNALLY_ATTESTED`; ``exact_request_verified`` and
+    ``external_exact_request_verified`` for :attr:`VERIFIED_EXTENSION`.
+    """
 
     NATIVE_LICENSED = "native_licensed"
     VERIFIED_EXTENSION = "verified_extension"
     EXTERNALLY_ATTESTED = "externally_attested"
+
+    @classmethod
+    def _missing_(cls, value: object) -> ProviderTrust | None:
+        if not isinstance(value, str):
+            return None
+        aliases = {
+            "external_attested": cls.EXTERNALLY_ATTESTED,
+            "exact_request_verified": cls.VERIFIED_EXTENSION,
+            "external_exact_request_verified": cls.VERIFIED_EXTENSION,
+        }
+        return aliases.get(value)
 
 
 @dataclass(frozen=True, slots=True)

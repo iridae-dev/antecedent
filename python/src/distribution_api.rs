@@ -1,7 +1,8 @@
 //! Bounded Python bridge for the aligned distribution artifact.
 
+use antecedent_core::ProviderTrust;
 use antecedent_io::distribution_artifact::{
-    DistributionArtifact, DistributionIdentity, DistributionMetadata, DistributionTrust,
+    DistributionArtifact, DistributionIdentity, DistributionMetadata,
     MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
 };
 use numpy::ndarray::Array2;
@@ -15,6 +16,37 @@ use crate::CausalSerializationError;
 
 fn artifact_error(error: impl std::fmt::Display) -> PyErr {
     CausalSerializationError::new_err(error.to_string())
+}
+
+/// Accept canonical and read-compat trust spellings, then store the distribution codec spelling.
+/// `native_licensed` and `verified_extension` are not caller claims.
+fn normalize_distribution_metadata(metadata_json: &str) -> PyResult<String> {
+    let mut value: serde_json::Value =
+        serde_json::from_str(metadata_json).map_err(artifact_error)?;
+    let Some(trust) = value.get("trust").and_then(|item| item.as_str()).map(str::to_owned) else {
+        return Ok(metadata_json.to_owned());
+    };
+    let parsed = ProviderTrust::from_wire(&trust)
+        .ok_or_else(|| PyValueError::new_err(format!("unknown distribution trust {trust:?}")))?;
+    match parsed {
+        ProviderTrust::NativeLicensed => {
+            return Err(crate::recalc_api::invalid(
+                "native_distribution.authority_required",
+                "native trust requires retained producer-issued execution state",
+            ));
+        }
+        ProviderTrust::ExactRequestVerified => {
+            return Err(crate::recalc_api::invalid(
+                "distribution.verified_extension_requires_receipt",
+                "verified_extension is not a caller claim; it requires an exact-request \
+                 verification receipt",
+            ));
+        }
+        other => {
+            value["trust"] = serde_json::Value::String(other.as_distribution_codec().to_owned());
+        }
+    }
+    serde_json::to_string(&value).map_err(artifact_error)
 }
 
 #[pyclass(name = "JointDistributionArtifact", skip_from_py_object)]
@@ -35,14 +67,9 @@ impl PyJointDistributionArtifact {
     #[new]
     fn new(metadata_json: &str, draws: PyReadonlyArray2<'_, f64>) -> PyResult<Self> {
         check_declared_size(metadata_json, MAX_DISTRIBUTION_ARTIFACT_BYTES, "distribution metadata")?;
+        let metadata_json = normalize_distribution_metadata(metadata_json)?;
         let metadata: DistributionMetadata =
-            serde_json::from_str(metadata_json).map_err(artifact_error)?;
-        if metadata.trust == DistributionTrust::NativeLicensed {
-            return Err(crate::recalc_api::invalid(
-                "native_distribution.authority_required",
-                "native trust requires retained producer-issued execution state",
-            ));
-        }
+            serde_json::from_str(&metadata_json).map_err(artifact_error)?;
         let shape = draws.shape();
         if shape[0] == 0
             || shape[0] > MAX_DISTRIBUTION_DRAWS

@@ -445,7 +445,7 @@ notes = "Antecedent emits the certified adjustment set and records a caller-fitt
 econml_model_composition = true
 
 [optional_adapters]
-causalml = "pending"
+causalml = "pending"  # unimplemented; a second learner uses the adjustment handoff. See adr/0025-provider-protocol.md
 tabpfn = "pending"
 
 [[capabilities]]

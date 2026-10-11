@@ -124,7 +124,8 @@ fn multi_modifier_frequentist_conditional_effect_names_the_bayesian_and_handoff_
             assert_eq!(error.reason_code(), None, "no reason code is added or changed");
             let remedy = error.remedy().expect("the refusal names the multi-modifier routes");
             assert!(remedy.contains("EstimatorId::BayesianConditional"), "{remedy}");
-            assert!(remedy.contains("handoff.econml"), "{remedy}");
+            assert!(remedy.contains("capability: adjustment handoff"), "{remedy}");
+            assert!(!remedy.contains("antecedent.handoff.econml"), "{remedy}");
             assert!(!error.to_string().contains(remedy), "the remedy is not in the message");
         }
     }

@@ -8,10 +8,11 @@
 //!
 //! Trust is never asserted from Python. A [`DecisionInput`] built from artifact
 //! metadata alone is `Unverified`: the only evidence Python can state is `none`
-//! or an external attestation, and the native execution record or the
-//! exact-request verification receipt is minted by the library object that
-//! produced the input (see [`PyTrustEvidence::native`] and
-//! [`PyTrustEvidence::verified`]), never by a caller.
+//! or an external attestation. A native execution record is minted by the
+//! library producer ([`PyTrustEvidence::native`]). A bound external claim that
+//! already retains an exact-request verification receipt is carried into
+//! [`PyTrustEvidence::verified`] by [`composition_input_from_external_claim`];
+//! a caller still cannot mint that receipt.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -21,8 +22,11 @@ use antecedent::analysis::decision_claims::{
     ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
 };
 use antecedent_core::{
-    DistributionAvailability, EvidenceKind, EvidenceRegime, ExternalCapability, ExternalRefusal,
-    ExternalTrustState, RegimeId, RegimeKind, ScientificQuantity, SupportStatus, VariableId,
+    capability_from_name, probe_from_name, verify_external_object, DistributionAvailability,
+    DistributionMeaning, EvidenceKind, EvidenceRegime, ExternalCapability, ExternalRefusal,
+    ExternalScientificObject, ExternalTrustState, LawProviderContract, ProviderObjectIdentity,
+    ProviderTrust, RegimeId, RegimeKind, ScientificQuantity, SupportStatus, VariableId,
+    VerificationProbe,
 };
 use antecedent_design::composition_boundary::{
     ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
@@ -52,6 +56,8 @@ use antecedent_design::proposal_receipt::{
 };
 use antecedent_design::repair_artifact::RepairReportArtifact;
 use antecedent_io::distribution_artifact::{DistributionCalibration, DistributionTrust};
+use antecedent_io::external_claim_artifact::ExternalClaimTrust;
+use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -144,9 +150,9 @@ impl PyTrustEvidence {
         Self { inner: DesignTrust::NativeExecution(record) }
     }
 
-    /// Evidence from an exact-request verification receipt the library issued;
-    /// for library producers only. No Python constructor exists.
-    #[allow(dead_code, reason = "minted by native producers as they adopt the boundary")]
+    /// Evidence from an exact-request verification receipt the library issued.
+    /// No Python constructor exists; [`composition_input_from_external_claim`] carries
+    /// the receipt a bound claim already retained.
     pub(crate) fn verified(state: ExternalTrustState) -> Self {
         Self { inner: DesignTrust::External(state) }
     }
@@ -178,13 +184,10 @@ impl PyTrustEvidence {
         match &self.inner {
             DesignTrust::None => "none",
             DesignTrust::NativeExecution(_) => "native_execution",
-            DesignTrust::External(ExternalTrustState::ExternallyAttested { .. }) => {
-                "externally_attested"
-            }
-            DesignTrust::External(ExternalTrustState::ExactRequestVerified(_)) => {
-                "exact_request_verified"
-            }
-            DesignTrust::External(ExternalTrustState::NativeLicensed) => "native_label",
+            DesignTrust::External(state) => match ProviderTrust::from_external_state(state) {
+                ProviderTrust::NativeLicensed => "native_label",
+                other => other.as_wire(),
+            },
         }
     }
 }
@@ -255,17 +258,17 @@ impl PyDecisionInput {
 const fn provider_kind_name(kind: ProviderKind) -> &'static str {
     match kind {
         ProviderKind::Native => "native",
-        ProviderKind::ExternalAttested => "external_attested",
-        ProviderKind::ExternalExactRequestVerified => "external_exact_request_verified",
+        ProviderKind::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+        ProviderKind::ExternalExactRequestVerified => ProviderTrust::ExactRequestVerified.as_wire(),
     }
 }
 
 const fn trust_name(trust: DistributionTrust) -> &'static str {
     match trust {
-        DistributionTrust::NativeLicensed => "native_licensed",
-        DistributionTrust::ExternalAttested => "external_attested",
-        DistributionTrust::VerifiedExtension => "verified_extension",
-        DistributionTrust::Unverified => "unverified",
+        DistributionTrust::NativeLicensed => ProviderTrust::NativeLicensed.as_wire(),
+        DistributionTrust::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+        DistributionTrust::VerifiedExtension => ProviderTrust::ExactRequestVerified.as_wire(),
+        DistributionTrust::Unverified => ProviderTrust::Unverified.as_wire(),
     }
 }
 
@@ -474,6 +477,134 @@ fn composition_input_from_distribution(
         result.source_claim.clone_from(&artifact.source_claim);
     }
     Ok((result, refusal))
+}
+
+fn evidence_from_external_claim(
+    claim: &crate::external_api::PyExternalClaimArtifact,
+) -> Result<DesignTrust, String> {
+    let identity = &claim.artifact.metadata().identity;
+    match identity.trust {
+        ExternalClaimTrust::ExternallyAttested => Ok(DesignTrust::External(
+            ExternalTrustState::ExternallyAttested { attestor: identity.provider_id.clone() },
+        )),
+        ExternalClaimTrust::ExactRequestVerified => {
+            let probes = identity.verification.as_ref().ok_or_else(|| {
+                invalid_json(
+                    "external_object_verification.missing_probe",
+                    Some(identity.provider_id.clone()),
+                )
+            })?;
+            let probes = probes
+                .iter()
+                .map(|probe| {
+                    Ok(VerificationProbe {
+                        kind: probe_from_name(&probe.kind).ok_or_else(|| {
+                            invalid_json(
+                                "external_object_verification.missing_probe",
+                                Some(probe.kind.clone()),
+                            )
+                        })?,
+                        observed: probe.observed,
+                        expected: probe.expected,
+                        tolerance: probe.tolerance,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let capabilities = identity
+                .capabilities
+                .iter()
+                .map(|name| {
+                    capability_from_name(name).ok_or_else(|| {
+                        invalid_json(
+                            "external_response_binding.malformed_capability",
+                            Some(name.clone()),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let quantities = identity
+                .quantities
+                .iter()
+                .cloned()
+                .map(ScientificQuantity::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| {
+                    invalid_json(
+                        "external_response_binding.malformed_quantity",
+                        Some(error.to_owned()),
+                    )
+                })?;
+            let meaning = serde_json::from_value::<DistributionMeaningWire>(
+                serde_json::Value::String(identity.provider_meaning.clone()),
+            )
+            .map(DistributionMeaning::from)
+            .map_err(|error| {
+                invalid_json(
+                    "external_response_binding.malformed_meaning",
+                    Some(error.to_string()),
+                )
+            })?;
+            let object = ExternalScientificObject::Law(LawProviderContract {
+                identity: ProviderObjectIdentity {
+                    provider_id: identity.provider_id.clone(),
+                    object_id: identity.object_id.clone(),
+                    version_id: identity.version_id.clone(),
+                    snapshot_id: identity.snapshot_id.clone(),
+                    request_id: identity.request_id.clone(),
+                },
+                quantities,
+                meaning,
+                capabilities,
+            });
+            let receipt = verify_external_object(&object, &probes)
+                .map_err(|error| external_refusal_json(&error.to_refusal()))?;
+            Ok(PyTrustEvidence::verified(ExternalTrustState::ExactRequestVerified(Box::new(receipt)))
+                .inner)
+        }
+    }
+}
+
+/// An input from a bound external claim. Attested claims stay attested. A claim
+/// that retains a passing exact-request receipt is carried as that receipt.
+#[pyfunction]
+fn composition_input_from_external_claim(
+    input_id: &str,
+    claim: &crate::external_api::PyExternalClaimArtifact,
+    requirement: &str,
+) -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
+    let requirement = parse_requirement(requirement)?;
+    let evidence = match evidence_from_external_claim(claim) {
+        Ok(evidence) => evidence,
+        Err(refusal) => return Ok((None, Some(refusal))),
+    };
+    let identity = &claim.artifact.metadata().identity;
+    let coordinates = identity
+        .quantities
+        .iter()
+        .cloned()
+        .map(ScientificQuantity::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| PyValueError::new_err(error))?;
+    let statuses = identity
+        .point_status
+        .iter()
+        .map(|status| parse_support(status))
+        .collect::<PyResult<Vec<_>>>()?;
+    let source = MeanSource {
+        coordinates,
+        means: claim.artifact.values().to_vec(),
+        provider_id: identity.provider_id.clone(),
+        snapshot_id: identity.snapshot_id.clone(),
+        causal_contract_id: identity.causal_contract_id.clone(),
+        rng_id: "none:mean_grid".to_owned(),
+    };
+    Ok(input_pair(DecisionInput::from_mean_source(
+        input_id,
+        source,
+        &statuses,
+        &evidence,
+        requirement,
+    )))
 }
 
 /// An input from a mean source: one mean per coordinate, one support status each.
@@ -1823,6 +1954,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(composition_input_from_native_claim, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_means, m)?)?;
+    m.add_function(wrap_pyfunction!(composition_input_from_external_claim, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_scalar, m)?)?;
     m.add_function(wrap_pyfunction!(composition_evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(composition_functional, m)?)?;

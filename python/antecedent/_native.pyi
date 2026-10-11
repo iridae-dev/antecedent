@@ -5874,6 +5874,11 @@ def composition_input_from_distribution(
     evidence: TrustEvidence,
     requirement: str,
 ) -> tuple[DecisionInput | None, str | None]: ...
+def composition_input_from_external_claim(
+    input_id: str,
+    claim: ExternalClaimArtifact,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
 def composition_input_from_means(
     input_id: str,
     coordinates_json: str,

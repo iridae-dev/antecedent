@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 
 from ._native import JointDistributionArtifact as _NativeJointDistributionArtifact
 from .errors import CausalTypeError, CausalValueError
+from .extensibility import ProviderTrust
 
 DistributionMeaning = Literal[
     "parameter_posterior",
@@ -327,7 +328,12 @@ class DistributionIdentity:
 
 
 class JointDistributionArtifact:
-    """Finite draws with typed scientific coordinates and portable identity."""
+    """Finite draws with typed scientific coordinates and portable identity.
+
+    ``claimed_trust`` is a caller label, not a grant. ``native_licensed`` and
+    ``verified_extension`` are refused here: those require retained producer state
+    or an exact-request receipt. ``trust`` is the same argument under its older name.
+    """
 
     def __init__(
         self,
@@ -337,15 +343,28 @@ class JointDistributionArtifact:
         weights: tuple[float, ...] | None = None,
         supported: tuple[bool, ...] | None = None,
         calibration: Literal["exact", "point_only", "measured", "unmeasured"] = "unmeasured",
-        trust: Literal[
-            "native_licensed", "external_attested", "verified_extension", "unverified"
-        ] = "unverified",
+        claimed_trust: str | None = None,
+        trust: str | None = None,
     ) -> None:
-        if trust == "native_licensed":
+        if claimed_trust is not None and trust is not None:
+            raise CausalValueError("pass claimed_trust once")
+        raw = "unverified" if claimed_trust is None and trust is None else (claimed_trust or trust)
+        try:
+            parsed = ProviderTrust(raw)
+        except ValueError as error:
+            raise CausalValueError(f"unknown distribution trust {raw!r}") from error
+        if parsed is ProviderTrust.NATIVE_LICENSED:
             raise CausalValueError(
                 "native_distribution.authority_required: native trust requires retained producer-issued execution state",
                 reason_code="invalid_argument",
             )
+        if parsed is ProviderTrust.VERIFIED_EXTENSION:
+            raise CausalValueError(
+                "distribution.verified_extension_requires_receipt: verified_extension is not a caller claim; it requires an exact-request verification receipt",
+                reason_code="invalid_argument",
+            )
+        # The artifact codec still stores `external_attested`; the property returns the canonical wire.
+        trust = "external_attested" if parsed is ProviderTrust.EXTERNALLY_ATTESTED else parsed.value
         if not isinstance(draws, np.ndarray) or draws.dtype != np.float64 or draws.ndim != 2:
             raise CausalValueError("draws must be a two-dimensional float64 NumPy array")
         if draws.shape[0] > 100_000 or draws.shape[1] > 1_024 or draws.size * 8 > 16 * 1024 * 1024:
@@ -432,7 +451,9 @@ class JointDistributionArtifact:
 
     @property
     def trust(self) -> str:
-        return json.loads(self._native.metadata_json)["trust"]
+        """Canonical provider-trust wire. ``external_attested`` on the artifact reads as ``externally_attested``."""
+        stored = json.loads(self._native.metadata_json)["trust"]
+        return ProviderTrust(stored).value
 
     def __array__(self, dtype: Any = None, copy: bool | None = None) -> NDArray[Any]:
         """Return a NumPy-owned copy; explicit ``copy=False`` cannot avoid it."""

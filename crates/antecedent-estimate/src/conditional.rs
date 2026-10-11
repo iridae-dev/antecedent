@@ -34,12 +34,13 @@ use crate::util::require_explicit_override;
 /// than one modifier. Its estimand, delta-method SE and calibration record are
 /// for one modifier; a joint-modifier frequentist interval would be an
 /// unmeasured coordinate, so the refusal points at the routes that take a
-/// modifier set instead.
+/// modifier set instead. The adjustment handoff is named as a capability;
+/// Python appends the call.
 const MULTI_MODIFIER_REMEDY: &str = "the frequentist interaction regression fits one modifier; \
 for several modifiers use the Bayesian conditional estimator \
 (Rust: `.estimator(EstimatorId::BayesianConditional).inference(InferenceMode::Bayesian(..))`), \
-or hand the identified adjustment set to an external CATE learner with \
-`antecedent.handoff.econml(result, modifiers=[...])`, or fit one `ConditionalEffect` per modifier";
+or hand the identified adjustment set to an external CATE learner \
+(capability: adjustment handoff), or fit one `ConditionalEffect` per modifier";
 
 /// Per-arm plugin scores for a conditional linear fit.
 ///
@@ -831,9 +832,9 @@ mod tests {
             "conditional arm scores require AllObserved and exactly one modifier"
         );
         assert_eq!(error.remedy(), Some(MULTI_MODIFIER_REMEDY));
-        for remedy in ["EstimatorId::BayesianConditional", "antecedent.handoff.econml"] {
-            assert!(MULTI_MODIFIER_REMEDY.contains(remedy));
-        }
+        assert!(MULTI_MODIFIER_REMEDY.contains("EstimatorId::BayesianConditional"));
+        assert!(MULTI_MODIFIER_REMEDY.contains("capability: adjustment handoff"));
+        assert!(!MULTI_MODIFIER_REMEDY.contains("antecedent.handoff.econml"));
     }
 
     #[test]

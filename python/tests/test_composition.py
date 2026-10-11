@@ -217,7 +217,7 @@ def test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_
 ):
     labelled = comp.DecisionInput.from_distribution("native", joint(**LABELLED_NATIVE))
     provenance = labelled.provenance
-    assert provenance.provider_kind == "external_attested"
+    assert provenance.provider_kind == "externally_attested"
     assert provenance.trust == "unverified"
     assert provenance.receipt is None
     assert provenance.calibration == "exact_claim_unverified"
@@ -231,7 +231,7 @@ def test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_
         joint(**LABELLED_NATIVE),
         evidence=comp.TrustEvidence.attested("lab"),
     )
-    assert attested.provenance.trust == "external_attested"
+    assert attested.provenance.trust == "externally_attested"
     assert attested.provenance.receipt == {"kind": "attestation", "attestor": "lab"}
     assert not attested.native
     assert attested.provenance.lineage_digest != provenance.lineage_digest
@@ -250,7 +250,12 @@ def test_composition_boundary_python_cannot_assert_a_native_or_verified_provider
 
 
 def test_composition_boundary_exact_request_verification_needs_a_matching_receipt() -> None:
-    claimed = joint("lab", "snap-x", trust="verified_extension", calibration="exact")
+    from antecedent.errors import CausalValueError
+
+    with pytest.raises(CausalValueError) as stamped:
+        joint("lab", "snap-x", trust="verified_extension", calibration="exact")
+    assert stamped.value.reason_code == "invalid_argument"
+    claimed = joint("lab", "snap-x", trust="external_attested", calibration="exact")
     for evidence in (None, comp.TrustEvidence.none(), comp.TrustEvidence.attested("lab")):
         with pytest.raises(comp.UnverifiedTrustRefusal) as refused:
             comp.DecisionInput.from_distribution(

@@ -17,13 +17,28 @@ from typing import Literal
 from ._native import temporal_response_spec as _native_temporal_response_spec
 from .errors import CausalUnsupportedError, CausalValueError
 
+# Rust names the capability. Python appends the call.
+_ADJUSTMENT_HANDOFF_CAPABILITY = "capability: adjustment handoff"
+_ADJUSTMENT_HANDOFF_CALL = "antecedent.handoff.econml(result, modifiers=[...])"
+
+
+def _append_adjustment_handoff_call(remedy: str) -> str:
+    if _ADJUSTMENT_HANDOFF_CAPABILITY in remedy and _ADJUSTMENT_HANDOFF_CALL not in remedy:
+        return remedy.replace(
+            _ADJUSTMENT_HANDOFF_CAPABILITY,
+            f"{_ADJUSTMENT_HANDOFF_CAPABILITY} ({_ADJUSTMENT_HANDOFF_CALL})",
+            1,
+        )
+    return remedy
+
+
 # What a multi-modifier ``ConditionalEffect`` refusal names instead.
-_CONDITIONAL_MULTI_MODIFIER_REMEDY = (
+_CONDITIONAL_MULTI_MODIFIER_REMEDY = _append_adjustment_handoff_call(
     "the frequentist interaction regression fits one modifier; for several "
-    "modifiers hand the identified adjustment set to an external CATE learner "
-    "with antecedent.handoff.econml(result, modifiers=[...]), fit one "
-    "ConditionalEffect per modifier, or use the Rust Bayesian conditional "
-    "estimator (EstimatorId::BayesianConditional), which takes a modifier set"
+    "modifiers use the Bayesian conditional estimator "
+    "(EstimatorId::BayesianConditional), or hand the identified adjustment set "
+    "to an external CATE learner (capability: adjustment handoff), or fit one "
+    "ConditionalEffect per modifier"
 )
 
 

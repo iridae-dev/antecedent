@@ -12,9 +12,11 @@ receipt, calibration and capabilities) and a per-coordinate support map::
 
 Trust is never taken from a label. An artifact that calls itself ``native`` or
 ``exact`` is stored as ``unverified`` unless the library object that produced it
-supplies the native execution record or the exact-request verification receipt:
+supplies the native execution record or the exact-request verification receipt.
 Python can state ``TrustEvidence.none()`` or an external attestation and nothing
-stronger, and a requirement of ``"native"`` refuses the label
+stronger. :meth:`DecisionInput.from_claim` carries a receipt the claim already
+retained, so a probe-verified claim can meet ``"exact_request_verified"``. A
+requirement of ``"native"`` still refuses an external claim
 (:class:`UnverifiedTrustRefusal`).
 
 Support is decided per action. An action whose coordinate is missing or too
@@ -44,7 +46,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from . import _native
 from ._native import composition_check as _check
@@ -53,6 +55,7 @@ from ._native import composition_check_paired_draws as _check_paired
 from ._native import composition_evaluate as _evaluate
 from ._native import composition_functional as _functional
 from ._native import composition_input_from_distribution as _from_distribution
+from ._native import composition_input_from_external_claim as _from_external_claim
 from ._native import composition_input_from_means as _from_means
 from ._native import composition_input_from_scalar as _from_scalar
 from ._refusal import raise_refusal
@@ -68,7 +71,14 @@ Operation = Literal[
     "statistical_pooling", "bayesian_borrowing", "causal_transport", "evidence_reuse"
 ]
 AtomCombination = Literal["report_each", "worst_case", "weighted_by_declared_probabilities"]
-ProviderKind = Literal["native", "external_attested", "external_exact_request_verified"]
+ProviderKind = Literal[
+    "native",
+    "externally_attested",
+    "verified_extension",
+    # Read-compat spellings. New provenance emits the canonical wires above.
+    "external_attested",
+    "external_exact_request_verified",
+]
 OPERATIONS: tuple[Operation, ...] = (
     "statistical_pooling",
     "bayesian_borrowing",
@@ -181,7 +191,7 @@ class TrustEvidence:
     @property
     def kind(self) -> str:
         """``none``, ``externally_attested``, ``native_execution`` or
-        ``exact_request_verified``."""
+        ``verified_extension``."""
         return str(self._native_value.kind)
 
     def __repr__(self) -> str:
@@ -372,30 +382,64 @@ class DecisionInput:
         *,
         requirement: TrustRequirement = "unrestricted",
     ) -> DecisionInput:
-        """An input from a bound external claim, as an attested mean source.
+        """An input from a bound external claim, as a mean source.
 
-        The claim's own per-coordinate support labels are kept. Its trust is carried
-        as an external attestation by its provider whatever its label: a
-        verification receipt can only come from the library, so a ``native``
-        requirement refuses it.
+        The claim's own per-coordinate support labels are kept. An attested claim
+        stays attested by its provider. A claim that retains a passing exact-request
+        verification receipt carries that receipt, so ``requirement``
+        ``"exact_request_verified"`` can be satisfied. A ``native`` requirement
+        still refuses: the numbers were not executed by Antecedent.
         """
         if not isinstance(claim, BoundExternalClaim):
             raise CausalTypeError("claim must be a BoundExternalClaim")
-        identity = claim.identity_fields
-        result = cls.from_means(
-            input_id,
-            claim.quantities,
-            [float(v) for v in claim.values],
-            provider_id=str(identity["provider_id"]),
-            snapshot_id=str(identity["snapshot_id"]),
-            causal_contract_id=str(identity["causal_contract_id"]),
-            support=cast("tuple[SupportLabel, ...]", claim.support),
-            evidence=TrustEvidence.attested(str(identity["provider_id"])),
-            requirement=requirement,
+        native, refusal = _from_external_claim(
+            _text(input_id, "input_id"),
+            claim._native,
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
-
+        result = cls._built(native, refusal)
         result._native_value._retain_external_source(claim._native)
         return result
+
+    @classmethod
+    def from_estimate(
+        cls,
+        input_id: str,
+        estimate: Any,
+        quantity: ScientificQuantity,
+        *,
+        support: SupportLabel = "missing_evidence",
+        requirement: TrustRequirement = "unrestricted",
+    ) -> DecisionInput:
+        """A scalar input from a caller-attested :class:`~antecedent.handoff.ExternalEstimate`.
+
+        Trust is ``externally_attested``. The estimate has no exact-request receipt,
+        so ``requirement="exact_request_verified"`` refuses it. Support defaults to
+        ``missing_evidence`` because the receipt did not assess overlap.
+        """
+        from .extensibility import ProviderTrust
+        from .handoff import ExternalEstimate
+
+        if not isinstance(estimate, ExternalEstimate):
+            raise CausalTypeError("estimate must be an ExternalEstimate")
+        if estimate.trust is not ProviderTrust.EXTERNALLY_ATTESTED:
+            raise CausalValueError("an external estimate is attested, never verified or native")
+        value = estimate.value
+        if value is None:
+            raise CausalValueError(
+                "an external estimate enters a decision only as a scalar labelled effect"
+            )
+        return cls.from_scalar(
+            input_id,
+            quantity,
+            value,
+            provider_id=estimate.attestor,
+            snapshot_id=estimate.snapshot_id,
+            causal_contract_id=estimate.claim_id or "external-estimate",
+            support=support,
+            evidence=TrustEvidence.attested(estimate.attestor),
+            requirement=requirement,
+        )
 
     @classmethod
     def _built(cls, native: Any, refusal: str | None) -> DecisionInput:

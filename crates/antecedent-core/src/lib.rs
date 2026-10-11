@@ -54,6 +54,7 @@ pub mod node;
 pub mod obligation;
 pub mod plan;
 pub mod program_binding;
+pub mod provider_trust;
 pub mod provenance;
 pub mod quantity;
 pub mod query;
@@ -155,6 +156,7 @@ pub use program_binding::{
     ExternalProgramClaim, ProgramBinding, ProgramBoundClaim, ProgramCheck,
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
+pub use provider_trust::ProviderTrust;
 pub use quantity::{
     DistributionMeaning, QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity,
 };

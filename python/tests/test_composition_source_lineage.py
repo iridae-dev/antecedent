@@ -12,6 +12,7 @@ from antecedent import composition as comp
 from antecedent import decision, program_claims
 from antecedent import design as dr
 from antecedent import sensitivity_decision as sd
+from antecedent.extensibility import ProviderTrust
 from antecedent.functional_source import LawFunctionalArtifact
 from antecedent.source_projection import consume_source_projection
 from antecedent.transport import advanced as transport
@@ -140,7 +141,12 @@ def test_rollout_ranking_handoff_consumes_original_source_and_retains_named_stat
     loaded = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
     assert loaded.source_evidence["source_verified"] is True
     assert loaded.source_evidence["unresolved_source_digests"] == []
-    assert loaded.source_trust == source.trust == "external_attested"
+    assert source.trust == "externally_attested"
+    assert (
+        ProviderTrust(loaded.source_trust)
+        is ProviderTrust(source.trust)
+        is ProviderTrust.EXTERNALLY_ATTESTED
+    )
     assert loaded.calibration == source.calibration == "unmeasured"
     assert loaded.ranking.ranking_identity == ranked.ranking_identity
     assert loaded.ranking.entries[0].evsi == pytest.approx(ranked.candidates[0].evsi)

@@ -347,10 +347,66 @@ class AdjustmentProviderAdapter:
 
 @dataclass(frozen=True, slots=True)
 class ExternalEstimate:
-    """Caller-attested external-estimate receipt. Not a native calibrated claim."""
+    """Caller-attested external-estimate receipt. Not a native calibrated claim.
+
+    :attr:`trust` is ``externally_attested``. :meth:`decision_input` is the bridge
+    into a decision; the receipt has no exact-request verification.
+    """
 
     _bytes: bytes = field(repr=False)
     _contract: Mapping[str, Any] = field(repr=False)
+
+    @property
+    def trust(self):
+        """Caller attestation. Never ``verified_extension`` or ``native_licensed``."""
+        from .extensibility import ProviderTrust
+
+        return ProviderTrust.EXTERNALLY_ATTESTED
+
+    @property
+    def value(self) -> float | None:
+        """Scalar effect when the caller labelled one; otherwise ``None``."""
+        import struct
+        from math import isfinite
+
+        claim = self._contract.get("claim")
+        if not isinstance(claim, Mapping):
+            return None
+        bits = claim.get("value_bits")
+        if not isinstance(bits, int):
+            return None
+        value = struct.unpack("<d", struct.pack("<Q", bits & 0xFFFFFFFFFFFFFFFF))[0]
+        if not isfinite(value):
+            return None
+        return float(value)
+
+    @property
+    def attestor(self) -> str:
+        """Learner name recorded on the attested evidence row."""
+        claim = self._contract.get("claim")
+        attested = claim.get("attested") if isinstance(claim, Mapping) else None
+        if isinstance(attested, list) and attested and isinstance(attested[0], Mapping):
+            name = attested[0].get("name")
+            if isinstance(name, str) and name.strip():
+                return name
+        return "external-estimate"
+
+    @property
+    def snapshot_id(self) -> str:
+        """Data-snapshot identity, or the claim id when the contract stores none as text."""
+        identities = self._contract.get("identities")
+        raw = identities.get("data_snapshot") if isinstance(identities, Mapping) else None
+        if isinstance(raw, str) and raw.strip():
+            return raw
+        if isinstance(raw, list) and raw:
+            return bytes(int(item) & 0xFF for item in raw).hex()
+        return self.claim_id or "external-estimate"
+
+    def decision_input(self, input_id: str, quantity: Any, **kwargs: Any) -> Any:
+        """A decision input at ``quantity``, attested and not exact-request verified."""
+        from .composition import DecisionInput
+
+        return DecisionInput.from_estimate(input_id, self, quantity, **kwargs)
 
     @property
     def claim_id(self) -> str:

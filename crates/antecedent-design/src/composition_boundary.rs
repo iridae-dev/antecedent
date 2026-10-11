@@ -27,8 +27,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity,
-    SupportStatus,
+    CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ProviderTrust,
+    ScientificQuantity, SupportStatus,
 };
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
@@ -60,18 +60,18 @@ impl ProviderKind {
     const fn label(self) -> &'static str {
         match self {
             Self::Native => "native",
-            Self::ExternalAttested => "external_attested",
-            Self::ExternalExactRequestVerified => "external_exact_request_verified",
+            Self::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+            Self::ExternalExactRequestVerified => ProviderTrust::ExactRequestVerified.as_wire(),
         }
     }
 }
 
 fn trust_label(trust: DistributionTrust) -> &'static str {
     match trust {
-        DistributionTrust::NativeLicensed => "native_licensed",
-        DistributionTrust::ExternalAttested => "external_attested",
-        DistributionTrust::VerifiedExtension => "verified_extension",
-        DistributionTrust::Unverified => "unverified",
+        DistributionTrust::NativeLicensed => ProviderTrust::NativeLicensed.as_wire(),
+        DistributionTrust::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+        DistributionTrust::VerifiedExtension => ProviderTrust::ExactRequestVerified.as_wire(),
+        DistributionTrust::Unverified => ProviderTrust::Unverified.as_wire(),
     }
 }
 
