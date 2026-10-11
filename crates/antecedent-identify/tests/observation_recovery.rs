@@ -15,9 +15,10 @@ use antecedent_core::{
 use antecedent_expr::ExprNode;
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
-    RecoveryDecision, RecoveryDetail, RecoveryLimits, decide_observation_recovery,
-    validate_mixed_source_query, verify_observation_recovery, verify_recovery_witness,
+    LEGACY_RECOVERY_RULE_VERSION, MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
+    RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits,
+    decide_observation_recovery, validate_mixed_source_query, verify_observation_recovery,
+    verify_recovery_witness,
 };
 use recovery_scm::{MModel, POPULATION, v};
 
@@ -53,7 +54,7 @@ fn a_compliant_m_graph_is_recovered_with_margins_bound_to_the_named_distribution
     let model = two_partial();
     let derivation = recovered(decide(&model).unwrap());
     let record = derivation.record();
-    assert_eq!(record.rule_version, "x10.recovery.v1");
+    assert_eq!(record.rule_version, "binary_observation_recovery.v1");
     assert_eq!(record.factors.len(), 2);
     // R0's propensity conditions on O only; R1's on its partially observed parent
     // X0 through (R0, X*0), never on X0 itself.
@@ -86,7 +87,9 @@ fn a_compliant_m_graph_is_recovered_with_margins_bound_to_the_named_distribution
         matches!(&descriptor.origin, LawOrigin::Recovered { derivation: d } if d.as_ref() == derivation.identity())
     );
     assert_eq!(descriptor.measured.as_ref(), &[v(0), v(1), v(2)]);
-    assert!(descriptor.canonical_identity().contains("origin=recovered:x10.recovery.v1"));
+    assert!(
+        descriptor.canonical_identity().contains("origin=recovered:binary_observation_recovery.v1")
+    );
     assert!(record.receipt.operations_consumed > 0);
 }
 
@@ -665,6 +668,71 @@ fn a_tampered_record_or_arena_fails_verification() {
     assert_eq!(error.detail, RecoveryDetail::InvalidDerivation);
 }
 
+/// Derivations that releases before the rule was renamed sealed carry the
+/// legacy spelling of the same rule. They verify under the same re-decision and
+/// keep the identity they were sealed with; any other version or edit refuses.
+#[test]
+fn a_derivation_sealed_under_the_legacy_rule_spelling_verifies_and_keeps_its_identity() {
+    let model = two_partial();
+    let effect = RecoveredEffectQuery {
+        graph: effect_graph(&model, &[(2, 0), (0, 1)]),
+        outcomes: Arc::from([v(1)]),
+        treatments: Arc::from([v(0)]),
+    };
+    let q = model.query();
+    let c = model.catalog();
+    let current = recovered(
+        decide_observation_recovery(
+            &model.graph,
+            &q,
+            &c,
+            Some(&effect),
+            RecoveryLimits::default(),
+            &ctx(),
+        )
+        .unwrap(),
+    );
+    let effect_arena = current.effect().unwrap().arena().clone();
+    let verify = |record: &antecedent_identify::RecoveryDerivationRecord| {
+        verify_observation_recovery(
+            &model.graph,
+            &q,
+            &c,
+            Some(&effect),
+            record,
+            current.arena(),
+            Some(&effect_arena),
+            RECOVERY_DEFAULT_LIMITS,
+            &ctx(),
+        )
+    };
+    let mut legacy = current.record().clone();
+    assert_eq!(legacy.rule_version, RECOVERY_RULE_VERSION);
+    legacy.rule_version = LEGACY_RECOVERY_RULE_VERSION.to_owned();
+    let verified = verify(&legacy).expect("a legacy-spelled derivation verifies");
+    assert_eq!(verified.record(), &legacy);
+    // The identity it binds is the one it was sealed with, and differs from the
+    // current spelling only in the leading rule-version token.
+    let rename = |text: &str| text.replacen(RECOVERY_RULE_VERSION, LEGACY_RECOVERY_RULE_VERSION, 1);
+    assert!(current.identity().starts_with(RECOVERY_RULE_VERSION));
+    assert_eq!(verified.identity(), rename(&current.identity()));
+    assert_eq!(
+        verified.scientific_identity().as_ref(),
+        rename(current.scientific_identity().as_ref())
+    );
+    assert_ne!(verified.identity(), current.identity());
+    // Tampering is refused whichever spelling it carries.
+    let mut other_version = legacy.clone();
+    other_version.rule_version = LEGACY_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(verify(&other_version).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
+    let mut edited = legacy.clone();
+    edited.premises.push("mar".to_owned());
+    assert_eq!(verify(&edited).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
+    let mut edited = legacy;
+    edited.margins[0].identity.push('x');
+    assert_eq!(verify(&edited).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
+}
+
 #[test]
 fn the_colluder_archetype_is_refused_as_unsupported_not_as_nonrecoverable() {
     // X0 -> R1 <- R0: a colluder. The class excludes R -> R edges, so the decision
@@ -784,7 +852,8 @@ fn a_recovered_regime_is_excluded_from_the_mixed_source_search_as_a_recovered_la
         regime.origin = origin;
         regime
     };
-    let recovered = || LawOrigin::Recovered { derivation: Arc::from("x10.recovery.v1|d") };
+    let recovered =
+        || LawOrigin::Recovered { derivation: Arc::from("binary_observation_recovery.v1|d") };
     let catalog = EvidenceCatalog::try_new(
         [],
         [

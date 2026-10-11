@@ -33,7 +33,8 @@ use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryError,
     ChainRecoveryPlan, ChainRecoveryQuery, ChainRecoveryWitness, ChainWitnessCheck,
-    ChainWitnessMechanism, decide_chain_recovery, verify_chain_witness,
+    ChainWitnessMechanism, LEGACY_CHAIN_RECOVERY_RULE_VERSION, decide_chain_recovery,
+    verify_chain_witness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -703,12 +704,23 @@ impl RecoveryChainArtifactWire {
         else {
             return Err(RecoveryChainArtifactError::UnsupportedSemantics("recovered fields"));
         };
-        if *stored_plan != ChainPlanWire::of_plan(plan) {
+        // An artifact sealed by an earlier release carries the legacy spelling of
+        // the same rule; the fresh plan and law are compared under that spelling.
+        // Any other version still differs from the fresh one and refuses.
+        let mut fresh_plan = ChainPlanWire::of_plan(plan);
+        if stored_plan.rule_version == LEGACY_CHAIN_RECOVERY_RULE_VERSION {
+            fresh_plan.rule_version = LEGACY_CHAIN_RECOVERY_RULE_VERSION.to_owned();
+        }
+        if *stored_plan != fresh_plan {
             return Err(RecoveryChainArtifactError::DecisionMismatch("plan"));
         }
         let law = observed.to_law()?;
         let recovered = evaluate_chain_recovery(plan, &law)?;
-        if !stored.replays(&ChainRecoveredWire::of_law(&recovered)) {
+        let mut fresh_law = ChainRecoveredWire::of_law(&recovered);
+        if stored.rule_version == LEGACY_CHAIN_RECOVERY_RULE_VERSION {
+            fresh_law.rule_version = LEGACY_CHAIN_RECOVERY_RULE_VERSION.to_owned();
+        }
+        if !stored.replays(&fresh_law) {
             return Err(RecoveryChainArtifactError::RecoveredMismatch);
         }
         Ok(recovered)

@@ -122,7 +122,7 @@ fn chain_formula_equals_the_enumerated_truth_for_every_chain_shape() {
             assert_close(&recovered, &truth);
             let total: f64 = recovered.cells().iter().flatten().sum();
             assert!((total - 1.0).abs() < 1e-12);
-            assert_eq!(recovered.rule_version(), "b2.recovery_chain.v1");
+            assert_eq!(recovered.rule_version(), "ordered_response_recovery_chain.v1");
         }
     }
 }
@@ -224,7 +224,7 @@ fn chain_malformed_plan_is_refused() {
     let mut wrong_formula = original.clone();
     wrong_formula.tail_depends_on_head_variable = false;
     let mut wrong_version = original.clone();
-    wrong_version.rule_version = "b2.recovery_chain.v0";
+    wrong_version.rule_version = "ordered_response_recovery_chain.v0";
     let mut wrong_premise = original.clone();
     wrong_premise.premises.clear();
     for bad in [wrong_head, wrong_formula, wrong_version, wrong_premise] {

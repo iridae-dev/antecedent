@@ -35,10 +35,11 @@ use antecedent_core::{
     VariableId, reason_code,
 };
 use antecedent_identify::{
-    MIXED_SOURCE_RULE_SET, MixedSourceDerivationRecord, MixedSourceQuery,
-    MzTransportDerivationRecord, MzTransportQuery, STUDY_PLAN_DEFAULT_LIMITS,
-    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyPlan, StudyPlanLimits, StudyPlanRoute,
-    StudyPlanStop, StudyProposalDerivation, StudySubsetOutcome, ZTransportSourceSpec,
+    LEGACY_MIXED_SOURCE_RULE_SET, LEGACY_STUDY_PLAN_RANKING, MIXED_SOURCE_RULE_SET,
+    MixedSourceDerivationRecord, MixedSourceQuery, MzTransportDerivationRecord, MzTransportQuery,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyPlan,
+    StudyPlanLimits, StudyPlanRoute, StudyPlanStop, StudyProposalDerivation, StudySubsetOutcome,
+    ZTransportSourceSpec,
 };
 use antecedent_io::mixed_source_artifact::MixedSourceQueryWire;
 use antecedent_io::mz_transport_artifact::MzSourceWire;
@@ -616,8 +617,16 @@ impl StudyPlanArtifactWire {
             return Err(StudyPlanError::invalid_artifact("a study-plan digest does not match"));
         }
         let route = route_from_wire(&self.premises.route, &self.premises.query)?;
-        if self.premises.rule_set != rule_set(&route) || self.premises.ranking != STUDY_PLAN_RANKING
-        {
+        // Plans sealed by an earlier release carry the legacy spellings of the same
+        // frozen rules and ranking key. Each is accepted only for the route that
+        // names it; any other value is another version and refuses.
+        let route_rule_set = rule_set(&route);
+        let rule_set_ok = self.premises.rule_set == route_rule_set
+            || (route_rule_set == MIXED_SOURCE_RULE_SET
+                && self.premises.rule_set == LEGACY_MIXED_SOURCE_RULE_SET);
+        let ranking_ok = self.premises.ranking == STUDY_PLAN_RANKING
+            || self.premises.ranking == LEGACY_STUDY_PLAN_RANKING;
+        if !rule_set_ok || !ranking_ok {
             return Err(StudyPlanError::invalid_artifact(
                 "the artifact names another rule set or ranking version",
             ));
@@ -658,7 +667,19 @@ impl StudyPlanArtifactWire {
                 Some(receipt.clone()),
             ));
         }
-        let again = replayed.to_artifact()?;
+        let mut again = replayed.to_artifact()?;
+        // The replay is compared under the spellings the artifact was sealed with.
+        again.premises.rule_set.clone_from(&self.premises.rule_set);
+        again.premises.ranking.clone_from(&self.premises.ranking);
+        for (fresh, stored) in again.plan.proposals.iter_mut().zip(&self.plan.proposals) {
+            if let (Some(fresh), Some(stored)) =
+                (fresh.derivation.mixed.as_mut(), stored.derivation.mixed.as_ref())
+            {
+                if stored.rule_set == LEGACY_MIXED_SOURCE_RULE_SET {
+                    fresh.rule_set.clone_from(&stored.rule_set);
+                }
+            }
+        }
         if again.premises != self.premises || again.data != self.data || again.plan != self.plan {
             return Err(StudyPlanError::invalid_artifact(
                 "the replayed plan differs from the stored plan",

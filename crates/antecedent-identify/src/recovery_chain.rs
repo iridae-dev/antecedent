@@ -77,7 +77,10 @@ use antecedent_core::{
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 
 /// Version of the ordered-response rule, bound into every plan.
-pub const CHAIN_RECOVERY_RULE_VERSION: &str = "b2.recovery_chain.v1";
+pub const CHAIN_RECOVERY_RULE_VERSION: &str = "ordered_response_recovery_chain.v1";
+/// The spelling of [`CHAIN_RECOVERY_RULE_VERSION`] carried by artifacts that
+/// earlier releases sealed. A consumer accepts it and re-decides under the same rule.
+pub const LEGACY_CHAIN_RECOVERY_RULE_VERSION: &str = "b2.recovery_chain.v1";
 /// Every witness mechanism probability is `k / CHAIN_WITNESS_SCALE`.
 pub const CHAIN_WITNESS_SCALE: u32 = 60;
 /// Search limits of one decision.

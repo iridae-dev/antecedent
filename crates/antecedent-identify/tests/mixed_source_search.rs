@@ -685,7 +685,7 @@ fn a_tampered_record_or_expression_fails_the_replay() {
     let record = derivation.to_record();
     replay(&record, derivation.arena(), &complementary()).unwrap();
     let mutations: Vec<Mutation> = vec![
-        Box::new(|r| r.rule_set = "x9.rules.v0".into()),
+        Box::new(|r| r.rule_set = "mixed_source_proof_rules.v0".into()),
         Box::new(|r| r.steps[0].rule = "product".into()),
         Box::new(|r| r.steps.last_mut().unwrap().params.push(7)),
         Box::new(|r| r.steps[0].study = Some("someone-else".into())),
@@ -717,6 +717,51 @@ fn a_tampered_record_or_expression_fails_the_replay() {
     );
 }
 
+/// Proofs that releases before the rule set was renamed sealed carry the legacy
+/// spelling of the same frozen rules. They replay under the same re-decision and
+/// keep the spelling they were sealed with; any other version still refuses.
+#[test]
+fn a_proof_sealed_under_the_legacy_rule_set_spelling_replays_and_keeps_it() {
+    use antecedent_identify::{
+        LEGACY_MIXED_SOURCE_RULE_SET, MIXED_SOURCE_RULE_SET, MixedSourceDerivation,
+    };
+    let g = chain();
+    let ctx = ExecutionContext::for_tests(1);
+    let MixedSourceDecision::Identified { derivation, .. } = decide(&g, &query(), &complementary())
+    else {
+        panic!("identified");
+    };
+    let replay = |record: &antecedent_identify::MixedSourceDerivationRecord| {
+        MixedSourceDerivation::from_record_checked(
+            &g,
+            &query(),
+            &complementary(),
+            record,
+            derivation.arena(),
+            MIXED_SOURCE_DEFAULT_LIMITS,
+            &ctx,
+        )
+    };
+    assert_eq!(derivation.rule_set(), MIXED_SOURCE_RULE_SET);
+    let mut legacy = derivation.to_record();
+    legacy.rule_set = LEGACY_MIXED_SOURCE_RULE_SET.into();
+    let replayed = replay(&legacy).expect("a legacy-spelled proof replays");
+    assert_eq!(replayed.rule_set(), LEGACY_MIXED_SOURCE_RULE_SET);
+    assert_eq!(replayed.to_record(), legacy);
+    assert_eq!(replayed.root(), derivation.root());
+    // Tampering is refused under either spelling; no other version is accepted.
+    let bad = IdentificationError::InvalidDerivation { code: "mixed_search.invalid_derivation" };
+    let mut other_version = legacy.clone();
+    other_version.rule_set = LEGACY_MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
+    assert_eq!(replay(&other_version).unwrap_err(), bad);
+    let mut edited = legacy.clone();
+    edited.operations_to_proof += 1;
+    assert_eq!(replay(&edited).unwrap_err(), bad);
+    let mut edited = legacy;
+    edited.steps.last_mut().unwrap().params.push(7);
+    assert_eq!(replay(&edited).unwrap_err(), bad);
+}
+
 #[test]
 fn the_rule_set_is_frozen() {
     assert_eq!(
@@ -734,7 +779,7 @@ fn the_rule_set_is_frozen() {
             "product",
         ]
     );
-    assert_eq!(antecedent_identify::MIXED_SOURCE_RULE_SET, "x9.rules.v1");
+    assert_eq!(antecedent_identify::MIXED_SOURCE_RULE_SET, "mixed_source_proof_rules.v1");
 }
 
 /// A trial of `do(X = true)` only is not a family regime: it supplies the

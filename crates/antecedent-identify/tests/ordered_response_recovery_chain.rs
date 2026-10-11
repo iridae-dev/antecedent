@@ -87,7 +87,7 @@ fn chain_graph_is_recovered_with_the_head_response_first() {
     let plan = recovered(decide(IDS, &IDS, &edges(IDS, 0, true, &[]), &[]).unwrap());
     assert_eq!(plan.head, 0);
     assert!(plan.tail_depends_on_head_variable);
-    assert_eq!(plan.rule_version, "b2.recovery_chain.v1");
+    assert_eq!(plan.rule_version, "ordered_response_recovery_chain.v1");
     assert!(plan.premises.contains(&"response_chain:2->3".to_owned()));
     assert!(plan.operations_consumed > 0);
 

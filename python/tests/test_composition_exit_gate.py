@@ -836,7 +836,7 @@ def s6_producer():
     )
     assert stage.outcome == "identified", stage.decision()
     decision = stage.decision()
-    assert decision["rule_set"] == "x9.rules.v1" and decision["alternatives"] == []
+    assert decision["rule_set"] == "mixed_source_proof_rules.v1" and decision["alternatives"] == []
     assert decision["cited_regimes"] == ["obs", "trial"]
     leaves = {s["source"]["regime"]: s["source"]["study"] for s in decision["steps"] if s["source"]}
     assert leaves == {"obs": "observational", "trial": "trial"}
@@ -894,4 +894,4 @@ def test_story_6_mixed_source_proof_by_bounded_search_and_incomplete_search_stay
             [s6_truth(p, 0), s6_truth(p, 1)], abs=1e-12
         )
         assert {c["study"] for c in consumed["cited_sources"]} == {"observational", "trial"}
-        assert consumed["proof"]["rule_set"] == "x9.rules.v1"
+        assert consumed["proof"]["rule_set"] == "mixed_source_proof_rules.v1"

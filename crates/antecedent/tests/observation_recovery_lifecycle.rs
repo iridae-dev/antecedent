@@ -304,6 +304,48 @@ fn consume(wire: &RecoveryArtifactWire) -> Result<(), RecoveryArtifactError> {
     .map(|_| ())
 }
 
+/// Bytes the shipped 2.3.0 producer sealed for `exported(&model())`, under the rule
+/// version's original spelling (see the fixtures README).
+const SEALED_BY_EARLIER_RELEASE: &[u8] =
+    include_bytes!("fixtures/earlier_release_artifacts/observation_recovery_point.cbor");
+
+#[test]
+fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refused() {
+    use antecedent_identify::{LEGACY_RECOVERY_RULE_VERSION, RECOVERY_RULE_VERSION};
+    let sealed = RecoveryArtifactWire::decode(SEALED_BY_EARLIER_RELEASE).unwrap();
+    assert_eq!(sealed.derivation.rule_version, LEGACY_RECOVERY_RULE_VERSION);
+    let consumed = RecoveryArtifactWire::consume_with_limits(
+        SEALED_BY_EARLIER_RELEASE,
+        RecoveryConsumeLimits::default(),
+        &ctx(),
+    )
+    .expect("the sealed artifact is consumed");
+    // The derivation and recovered-law identity are the ones the artifact was sealed
+    // with; the numbers are the current producer's for the same model.
+    assert!(consumed.derivation.identity().starts_with(LEGACY_RECOVERY_RULE_VERSION));
+    assert!(sealed.recovered_identity.contains(LEGACY_RECOVERY_RULE_VERSION));
+    let (bytes, _) = exported(&model());
+    let current = RecoveryArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(current.derivation.rule_version, RECOVERY_RULE_VERSION);
+    assert_ne!(current.premises_digest, sealed.premises_digest);
+    assert_eq!(current.recovered, consumed.wire.recovered);
+    assert_eq!(current.effects, consumed.wire.effects);
+    // Tampering is refused: an unresealed spelling swap hits the carried digest, a
+    // resealed edit fails the re-decision, and no other version is accepted.
+    let mut swapped = sealed.clone();
+    swapped.derivation.rule_version = RECOVERY_RULE_VERSION.into();
+    assert_eq!(consume(&swapped).unwrap_err(), RecoveryArtifactError::PremisesMismatch);
+    let other = LEGACY_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    let mut version = sealed.clone();
+    version.derivation.rule_version = other;
+    reseal(&mut version);
+    assert!(matches!(consume(&version).unwrap_err(), RecoveryArtifactError::ProofMismatch(_)));
+    let mut premise = sealed;
+    premise.derivation.premises.push("mar".into());
+    reseal(&mut premise);
+    assert!(matches!(consume(&premise).unwrap_err(), RecoveryArtifactError::ProofMismatch(_)));
+}
+
 #[test]
 fn a_mutated_artifact_fails_independent_consumption() {
     let model = model();

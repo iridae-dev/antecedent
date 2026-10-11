@@ -25,7 +25,10 @@ use antecedent_estimate::{
     SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
-use antecedent_identify::{RecoveredEffectQuery, RecoveryDerivation, RecoveryLimits};
+use antecedent_identify::{
+    LEGACY_RECOVERY_RULE_VERSION, RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDerivation,
+    RecoveryLimits,
+};
 use antecedent_io::IoError;
 use antecedent_io::sampled_recovery_artifact::{
     SampledRecoveryArtifactInput, SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits,
@@ -236,8 +239,9 @@ fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_r
     assert!(message.contains("sampled_recovery.invalid_input"), "{message}");
     // A tampered derivation does not verify.
     assert!(
-        consume(&resealed(&wire, |w| w.derivation.rule_version = "x10.recovery.v0".into()))
-            .is_err()
+        consume(&resealed(&wire, |w| w.derivation.rule_version =
+            "binary_observation_recovery.v0".into()))
+        .is_err()
     );
     // Without resealing, edited rows break the data identity and an edited seed breaks
     // the premises digest.
@@ -252,6 +256,52 @@ fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_r
     edited.result.recovered_cell_covariance[0] += 1e-9;
     assert!(
         refusal(&edited.export().expect("export")).contains("sampled_recovery.receipt_mismatch")
+    );
+}
+
+/// Bytes the shipped 2.3.0 producer sealed for `wire_of(&fixture(seeded_rows(4000, 17),
+/// &loose(99)))`, under the rule version's original spelling (see the fixtures README).
+const SEALED_BY_EARLIER_RELEASE: &[u8] = include_bytes!(
+    "../../antecedent/tests/fixtures/earlier_release_artifacts/sampled_recovery.cbor"
+);
+
+#[test]
+fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refused() {
+    let sealed = SampledRecoveryArtifactWire::decode(SEALED_BY_EARLIER_RELEASE).unwrap();
+    assert_eq!(sealed.derivation.rule_version, LEGACY_RECOVERY_RULE_VERSION);
+    let consumed = consume(SEALED_BY_EARLIER_RELEASE).expect("the sealed artifact replays");
+    // The identity the artifact bound is the one it was sealed with.
+    assert_eq!(consumed.derivation.record().rule_version, LEGACY_RECOVERY_RULE_VERSION);
+    assert!(consumed.derivation.identity().starts_with(LEGACY_RECOVERY_RULE_VERSION));
+    assert_eq!(consumed.wire.premises_digest, sealed.premises_digest);
+    assert_eq!(consumed.wire.receipt.receipt_digest, sealed.receipt.receipt_digest);
+    // The statistics are the current producer's for the same rows and seed; only the
+    // identity text, and so the digests that bind it, carry the other spelling.
+    let current = fixture(seeded_rows(4000, 17), &loose(99));
+    assert_eq!(consumed.result.effect.to_bits(), current.result.effect.to_bits());
+    assert_eq!(consumed.result.interval, current.result.interval);
+    let fresh = wire_of(&current);
+    assert_eq!(fresh.derivation.rule_version, RECOVERY_RULE_VERSION);
+    assert_ne!(fresh.premises_digest, sealed.premises_digest);
+    assert_ne!(fresh.receipt.receipt_digest, sealed.receipt.receipt_digest);
+    // Tampering is refused: an unresealed spelling swap hits the carried digest, a
+    // resealed edit fails the replay, and no other version spelling is accepted.
+    let mut swapped = sealed.clone();
+    swapped.derivation.rule_version = RECOVERY_RULE_VERSION.into();
+    assert!(refusal(&swapped.export().unwrap()).contains("premises digest"));
+    let mut row = sealed.clone();
+    row.rows[0].3 ^= 1;
+    assert!(
+        refusal(&resealed(&row, |_| {})).contains("sampled_recovery.receipt_mismatch"),
+        "a changed row"
+    );
+    let mut seed = sealed.clone();
+    seed.receipt.config.seed += 1;
+    assert!(refusal(&resealed(&seed, |_| {})).contains("sampled_recovery.receipt_mismatch"));
+    let other = LEGACY_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert!(
+        consume(&resealed(&sealed, |w| w.derivation.rule_version = other.clone())).is_err(),
+        "another version spelling"
     );
 }
 

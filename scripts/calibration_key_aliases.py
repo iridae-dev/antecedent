@@ -73,7 +73,33 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
         raise ValueError("identity mapping requires reviewed native construction and replay evidence")
     native = read_receipt(root, row["native_receipt"], row["native_receipt_sha256"])
     replay = read_receipt(root, row["replay_receipt"], row["replay_receipt_sha256"])
-    return [validate_evidence(root, original, native, replay)]
+    evidence = validate_evidence(root, original, native, replay)
+    return [evidence, *renamed_identities(evidence)]
+
+
+# Reviewed label renames of identity text that the measured record carries under
+# its original spelling. Each pair changes only the leading rule-version token of
+# the scientific derivation identity: the recovery rule was renamed from its
+# release-stream tag to a behavioral name, and the rule itself is unchanged
+# (identify's `rule_rename_changes_only_the_identity_label` test pins that).
+IDENTITY_RENAMES = (
+    ("recovery_scientific.v1:x10.recovery.v1|",
+     "recovery_scientific.v1:binary_observation_recovery.v1|"),
+)
+
+
+def renamed_identities(alias: dict[str, str]) -> list[dict[str, str]]:
+    """Runtime spellings of one verified alias under the reviewed label renames.
+
+    The original record and the receipts are untouched; only the canonical
+    functional a current producer emits is added, exactly once per rename.
+    """
+    result = []
+    canonical = alias["canonical_functional"]
+    for old, new in IDENTITY_RENAMES:
+        if canonical.count(old) == 1:
+            result.append(alias | {"canonical_functional": canonical.replace(old, new, 1)})
+    return result
 
 
 MAX_RECEIPT_BYTES = 4 * 1024 * 1024

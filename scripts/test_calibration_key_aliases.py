@@ -158,6 +158,28 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "main-branch source"):
             check(native_receipt(proof), replay | {"source_sha": "0" * 40}, raw)
 
+    def test_reviewed_label_rename_adds_only_the_renamed_canonical_spelling(self) -> None:
+        legacy = "recovery_scientific.v1:x10.recovery.v1|graph=g"
+        alias = {"record_id": "r", "measurement_sha": "m", "original_functional": "orig",
+                 "canonical_functional": "recovered_effect:" + legacy + ":treated=1"}
+        [renamed] = aliases.renamed_identities(alias)
+        self.assertEqual(
+            renamed["canonical_functional"],
+            "recovered_effect:recovery_scientific.v1:binary_observation_recovery.v1|graph=g"
+            ":treated=1",
+        )
+        self.assertEqual(
+            {k: v for k, v in renamed.items() if k != "canonical_functional"},
+            {k: v for k, v in alias.items() if k != "canonical_functional"},
+        )
+        # A canonical spelling that already uses the new name or lacks the token
+        # is not rewritten, and a repeated token is never guessed at.
+        for text in ("recovered_effect:recovery_scientific.v1:binary_observation_recovery.v1|g",
+                     "recovered_effect:other", legacy + ";" + legacy):
+            self.assertEqual(
+                aliases.renamed_identities(alias | {"canonical_functional": text}), [],
+            )
+
     def test_original_record_values_axes_and_provenance_are_immutable(self) -> None:
         metadata = self.pending_metadata()
         records = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))

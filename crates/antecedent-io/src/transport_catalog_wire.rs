@@ -507,16 +507,21 @@ mod tests {
         // so the canonical identity is preserved and differs from a model artifact
         // named "recovered:...".
         let mut recovered = observational(2);
-        recovered.origin = LawOrigin::Recovered { derivation: Arc::from("x10.recovery.v1|d") };
+        recovered.origin =
+            LawOrigin::Recovered { derivation: Arc::from("binary_observation_recovery.v1|d") };
         let mut lookalike = observational(3);
-        lookalike.origin =
-            LawOrigin::ModelArtifact { artifact: Arc::from("recovered:x10.recovery.v1|d") };
+        lookalike.origin = LawOrigin::ModelArtifact {
+            artifact: Arc::from("recovered:binary_observation_recovery.v1|d"),
+        };
         let catalog =
             EvidenceCatalog::try_new([], [observational(1), recovered, lookalike], [], None)
                 .unwrap();
         let wire = EvidenceCatalogWire::from_catalog(&catalog);
         assert_eq!(wire.regimes[1].model_artifact, None);
-        assert_eq!(wire.regimes[1].recovered_derivation.as_deref(), Some("x10.recovery.v1|d"));
+        assert_eq!(
+            wire.regimes[1].recovered_derivation.as_deref(),
+            Some("binary_observation_recovery.v1|d")
+        );
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded =
             serde_json::from_slice::<EvidenceCatalogWire>(&bytes).unwrap().to_catalog().unwrap();
@@ -527,7 +532,7 @@ mod tests {
         for id in 1..=3 {
             assert_eq!(identity(&decoded, id), identity(&catalog, id));
         }
-        assert!(identity(&decoded, 2).contains("|origin=recovered:x10.recovery.v1"));
+        assert!(identity(&decoded, 2).contains("|origin=recovered:binary_observation_recovery.v1"));
         assert_ne!(identity(&decoded, 2), identity(&decoded, 3));
         assert!(!matches!(decoded.regimes[1].origin, LawOrigin::Measured));
         assert!(!decoded.regimes[1].supplies_population_law());

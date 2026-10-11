@@ -16,7 +16,9 @@ use antecedent_estimate::{
     derive_sampled_recovery, estimate_sampled_recovery,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_identify::{RecoveredEffectQuery, RecoveryLimits};
+use antecedent_identify::{
+    LEGACY_RECOVERY_RULE_VERSION, RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryLimits,
+};
 use calibration::{CoverageTally, RecordKey, grid_n, grid_seed, map_replicates, n_sim};
 use std::sync::Arc;
 use support::recovery_scm::{MModel, SNAPSHOT, v};
@@ -81,9 +83,16 @@ fn recovery_bca_original_measurement_identity_receipt() {
     assert!(result.receipt.verify_digest());
     assert_eq!(result.receipt.config, config);
     assert_eq!(result.failed_replicates, 0);
+    // The measurement was taken when the rule carried its original spelling; the
+    // identity text differs from today's only in that leading rule-version token.
+    assert!(result.receipt.derivation_identity.starts_with(RECOVERY_RULE_VERSION));
+    let original_identity = result.receipt.derivation_identity.replacen(
+        RECOVERY_RULE_VERSION,
+        LEGACY_RECOVERY_RULE_VERSION,
+        1,
+    );
     let original_functional = format!(
-        "recovered_effect:{}:treated={:016x}:control={:016x}",
-        result.receipt.derivation_identity,
+        "recovered_effect:{original_identity}:treated={:016x}:control={:016x}",
         config.treated_level.to_bits(),
         config.control_level.to_bits(),
     );

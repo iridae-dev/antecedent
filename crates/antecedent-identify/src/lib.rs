@@ -53,19 +53,19 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use recovery::{
-    ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
-    RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS, RECOVERY_MAX_PARTIALLY_OBSERVED,
-    RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery, RecoveredEffectRecord,
-    RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError,
-    RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord, RecoveryReceiptRecord,
-    RecoveryWitness, WitnessCheck, WitnessMechanism, decide_observation_recovery,
-    verify_observation_recovery, verify_recovery_witness,
+    LEGACY_RECOVERY_RULE_VERSION, ObservationRecoveryQuery, PartiallyObserved,
+    RECOVERY_DEFAULT_LIMITS, RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS,
+    RECOVERY_MAX_PARTIALLY_OBSERVED, RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery,
+    RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord,
+    RecoveryDetail, RecoveryError, RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord,
+    RecoveryReceiptRecord, RecoveryWitness, WitnessCheck, WitnessMechanism,
+    decide_observation_recovery, verify_observation_recovery, verify_recovery_witness,
 };
 pub use recovery_chain::{
     CHAIN_RECOVERY_LIMITS, CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision,
     ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
-    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
-    verify_chain_witness,
+    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism,
+    LEGACY_CHAIN_RECOVERY_RULE_VERSION, decide_chain_recovery, verify_chain_witness,
 };
 pub use sid::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
@@ -76,12 +76,13 @@ pub use sid::{
     ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
 };
 pub use sid::{
-    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
-    MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
-    MixedExclusion, MixedInput, MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule,
-    MixedSearchInspection, MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation,
-    MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
-    MixedStepRecord, ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
+    BoundMixedSourceFunctional, LEGACY_MIXED_SOURCE_RULE_SET, MIXED_SOURCE_DEFAULT_LIMITS,
+    MIXED_SOURCE_MAX_DISTRIBUTIONS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
+    MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET, MixedExclusion, MixedInput,
+    MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule, MixedSearchInspection,
+    MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation, MixedSourceDerivationRecord,
+    MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep, MixedStepRecord,
+    ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
     mixed_source_rule_names, render_frontier, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
@@ -118,12 +119,12 @@ pub use sid::{
     WitnessModelRecord, WitnessSearch, search_conditional_witness, verify_conditional_witness,
 };
 pub use sid::{
-    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
-    STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
-    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan,
-    StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop,
-    StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
-    plan_study_additions,
+    LEGACY_STUDY_PLAN_RANKING, STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES,
+    STUDY_PLAN_MAX_COST_UNITS, STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE,
+    STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure,
+    StudyFactor, StudyPlan, StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute,
+    StudyPlanStop, StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome,
+    StudySubsetRecord, plan_study_additions,
 };
 mod transport_lower;
 

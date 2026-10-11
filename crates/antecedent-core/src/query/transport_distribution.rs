@@ -450,7 +450,8 @@ mod tests {
         let base = regime(1, "trial", &[0], &[1]);
         assert!(base.supplies_population_law() && base.satisfies(&need));
         let mut recovered = base.clone();
-        recovered.origin = LawOrigin::Recovered { derivation: Arc::from("x10.recovery.v1|d") };
+        recovered.origin =
+            LawOrigin::Recovered { derivation: Arc::from("binary_observation_recovery.v1|d") };
         assert!(!recovered.supplies_population_law());
         assert!(!recovered.satisfies(&need));
         assert!(!recovered.available_experiment_on("trial", &need_do));
@@ -458,7 +459,10 @@ mod tests {
         let catalog = EvidenceCatalog::try_new([], [recovered.clone()], [], None).unwrap();
         assert!(catalog.source_experiment_variables("trial").is_empty());
         let identity = catalog.distribution(RegimeId::from_raw(1)).unwrap().canonical_identity();
-        assert!(identity.contains("|origin=recovered:x10.recovery.v1"), "{identity}");
+        assert!(
+            identity.contains("|origin=recovered:binary_observation_recovery.v1"),
+            "{identity}"
+        );
         // An empty derivation identity is refused, by the descriptor and the catalog.
         for empty in ["", "  "] {
             let mut blank = base.clone();

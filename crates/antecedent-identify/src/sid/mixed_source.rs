@@ -15,7 +15,7 @@
 //! the generic search reads. Only when none of them identifies the query does
 //! the generic search
 //! run: forward chaining over the supplied distributions with a frozen rule set
-//! (`x9.rules.v1`): the probability rules (marginalize, condition, product) and
+//! (`mixed_source_proof_rules.v1`): the probability rules (marginalize, condition, product) and
 //! Pearl's three do-calculus rules on the graph's mutilated ADMGs. It is sound
 //! and incomplete: a formula is returned only after an independent checker has
 //! replayed every step; running out of rules or budget is `NotCertified` or
@@ -129,7 +129,10 @@ pub const MIXED_SOURCE_MAX_DISTRIBUTIONS: usize = 16;
 pub const MIXED_SOURCE_DEFAULT_LIMITS: SearchLimits =
     SearchLimits { operations: 20_000, depth: 16 };
 /// Version of the frozen rule set. It is bound into every proof record.
-pub const MIXED_SOURCE_RULE_SET: &str = "x9.rules.v1";
+pub const MIXED_SOURCE_RULE_SET: &str = "mixed_source_proof_rules.v1";
+/// The spelling of [`MIXED_SOURCE_RULE_SET`] carried by proofs that earlier
+/// releases sealed. A consumer accepts it and re-decides under the same rules.
+pub const LEGACY_MIXED_SOURCE_RULE_SET: &str = "x9.rules.v1";
 /// Most variables one rule application moves (marginalize, condition, insert,
 /// delete or exchange). A larger move is reached by repeated applications.
 pub const MIXED_SOURCE_MAX_MOVE: usize = 2;
@@ -172,7 +175,7 @@ const fn invalid_derivation() -> IdentificationError {
 
 // ---------------------------------------------------------------- rule set
 
-/// One rule of the frozen rule set `x9.rules.v1`.
+/// One rule of the frozen rule set `mixed_source_proof_rules.v1`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MixedRule {
     /// A supplied joint law of one catalog regime.
@@ -598,6 +601,8 @@ pub struct MixedSourceDerivation {
     root_step: usize,
     stages: Vec<MixedStageRecord>,
     summary: MixedSearchSummary,
+    /// The spelling of the rule set the proof was sealed under.
+    rule_set: &'static str,
 }
 
 /// Portable premises of a derivation; the arena travels separately.
@@ -700,7 +705,7 @@ impl MixedSourceDerivation {
     /// Frozen rule-set version.
     #[must_use]
     pub const fn rule_set(&self) -> &'static str {
-        MIXED_SOURCE_RULE_SET
+        self.rule_set
     }
 
     /// Every distribution the proof cites: `(step, source)` of each input step.
@@ -727,7 +732,7 @@ impl MixedSourceDerivation {
     pub fn to_record(&self) -> MixedSourceDerivationRecord {
         MixedSourceDerivationRecord {
             graph_signature: self.graph_signature.clone(),
-            rule_set: MIXED_SOURCE_RULE_SET.into(),
+            rule_set: self.rule_set.into(),
             steps: self.steps.iter().map(step_record).collect(),
             root_step: self.root_step,
             operations_to_proof: self.summary.operations_to_proof,
@@ -752,11 +757,17 @@ impl MixedSourceDerivation {
         limits: SearchLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IdentificationError> {
-        let MixedSourceDecision::Identified { derivation, .. } =
+        let MixedSourceDecision::Identified { mut derivation, .. } =
             decide_mixed_source(graph, query, catalog, limits, ctx)?
         else {
             return Err(invalid_derivation());
         };
+        // A proof sealed by an earlier release carries the legacy spelling of the
+        // same frozen rules. It is re-decided under the current rules and keeps
+        // the spelling it was sealed with; any other version never matches.
+        if record.rule_set == LEGACY_MIXED_SOURCE_RULE_SET {
+            derivation.rule_set = LEGACY_MIXED_SOURCE_RULE_SET;
+        }
         if derivation.to_record() != *record || derivation.arena != *arena {
             return Err(invalid_derivation());
         }
@@ -2309,6 +2320,7 @@ fn finish_found(
             arena,
             stages: stages.to_vec(),
             summary,
+            rule_set: MIXED_SOURCE_RULE_SET,
         });
     }
     let derivation = derivations.remove(0);

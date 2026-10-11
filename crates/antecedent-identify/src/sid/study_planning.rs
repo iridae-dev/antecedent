@@ -87,7 +87,10 @@ pub const STUDY_PLAN_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 /// Largest declared cost of one candidate, so a subset's total never overflows.
 pub const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
 /// Version of the ranking key: cost units, sample budget, subset size, sorted ids.
-pub const STUDY_PLAN_RANKING: &str = "x6.ranking.v1";
+pub const STUDY_PLAN_RANKING: &str = "study_plan_ranking.v1";
+/// The spelling of [`STUDY_PLAN_RANKING`] carried by plans that earlier releases
+/// sealed. A consumer accepts it and replays under the same ranking key.
+pub const LEGACY_STUDY_PLAN_RANKING: &str = "x6.ranking.v1";
 
 /// Candidates, regimes, subset size or limits beyond a declared bound.
 const BOUNDS_EXCEEDED: &str = "study_plan.bounds_exceeded";

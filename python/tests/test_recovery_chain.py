@@ -96,7 +96,7 @@ def test_chain_recovery_equals_the_enumerated_truth(head: int, dependent: bool) 
     np.testing.assert_allclose(result.law, truth, atol=1e-12)
     assert result.plan.head == head
     assert result.plan.tail_depends_on_head_variable is dependent
-    assert result.rule_version == "b2.recovery_chain.v1"
+    assert result.rule_version == "ordered_response_recovery_chain.v1"
     assert result.law.sum() == pytest.approx(1.0, abs=1e-12)
     assert result.to_dict()["interval"] == {"available": False, "status": "point_only"}
 

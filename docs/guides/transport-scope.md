@@ -485,7 +485,7 @@ different set of variables or experimenting on different ones. The theorem-scope
 routes run first (target-first sID, then the declared z or mz route, then the
 classical meta route when two or more declared sources can each experiment on every
 variable); a solved query returns `named_route` (`mixed_search.named_route`) and is never searched.
-Otherwise a generic search chains a frozen rule set (`x9.rules.v1`: input,
+Otherwise a generic search chains a frozen rule set (`mixed_source_proof_rules.v1`: input,
 marginalize, condition, product and do-calculus rules 1-3, each with at most two
 moved variables and at most three intervened variables) over the target
 population's whole-population, available, unconditioned joint laws. Every
@@ -794,7 +794,7 @@ the declared regimes.
   on the mixed route; everything else refuses as `study_plan.invalid_candidate`.
 - **Search.** At most 16 candidates, 8 regimes each; every subset of at most 3 is
   evaluated in cost order (cost units, sample budget, size, sorted ids;
-  `x6.ranking.v1`) by re-running the route's decision on the preview catalog. One
+  `study_plan_ranking.v1`) by re-running the route's decision on the preview catalog. One
   `SearchBudget` (at most 200000 operations, depth 24, 16 on the mixed route, and
   512 MiB; at most 32 proposals retained) bounds the base decision and every subset decision; a stop keeps the
   proposals verified so far with a receipt of the unevaluated subsets

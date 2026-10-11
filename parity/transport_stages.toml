@@ -1442,7 +1442,7 @@ reason_code = "estimator_inference_mismatch"
 notes = "Temporal sampling, initial-state uncertainty and new-period refresh are not licensed; an interval request refuses (temporal_transport.interval_requested)."
 
 # Mixed-source proof search (parity/promotion.toml, identify.mixed_source_proof_search).
-# Point-only; the generic search is sound and incomplete under the frozen rule set x9.rules.v1.
+# Point-only; the generic search is sound and incomplete under the frozen rule set mixed_source_proof_rules.v1.
 [[routes]]
 route = "antecedent_identify.decide_mixed_source"
 stage = "identify"

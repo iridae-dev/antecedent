@@ -6,7 +6,7 @@ query that no single study, and no named theorem route, identifies. The
 theorem-scoped routes (target-first sID, then the declared z or mz route, then classical
 meta-transport when two or more declared sources can each experiment on every
 variable) run first under one shared budget; only when none of them identifies the query does
-the generic search run, over a frozen rule set (``x9.rules.v1``): marginalize,
+the generic search run, over a frozen rule set (``mixed_source_proof_rules.v1``): marginalize,
 condition, product, and Pearl's three do-calculus rules. Every step records its
 premises and the study distribution it uses; an independent checker replays each
 one. The search is sound and incomplete: running out of rules or budget is

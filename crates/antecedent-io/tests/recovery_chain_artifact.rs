@@ -16,8 +16,9 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::{ChainPatternLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryQuery,
-    decide_chain_recovery, verify_chain_witness,
+    CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail,
+    ChainRecoveryQuery, LEGACY_CHAIN_RECOVERY_RULE_VERSION, decide_chain_recovery,
+    verify_chain_witness,
 };
 use antecedent_io::IoError;
 use antecedent_io::recovery_chain_artifact::{
@@ -156,7 +157,7 @@ fn artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shape()
                     assert!((got - expected).abs() < 1e-12, "({x1},{x2}): {got} vs {expected}");
                 }
             }
-            assert_eq!(recovered.rule_version(), "b2.recovery_chain.v1");
+            assert_eq!(recovered.rule_version(), "ordered_response_recovery_chain.v1");
             let plan = wire.plan.as_ref().unwrap();
             assert_eq!(plan.head, head);
             assert_eq!(plan.tail_depends_on_head_variable, dependent);
@@ -271,9 +272,68 @@ fn resealed_observed_and_recovered_cell_changes_are_refused() {
     );
     // A tampered rule version.
     let (mut rule, _) = recovered_wire(1, true);
-    rule.recovered.as_mut().unwrap().rule_version = "b2.recovery_chain.v0".into();
+    rule.recovered.as_mut().unwrap().rule_version = "ordered_response_recovery_chain.v0".into();
     assert_eq!(
         RecoveryChainArtifactWire::consume_typed(&reseal(rule), &ctx()).unwrap_err(),
+        RecoveryChainArtifactError::RecoveredMismatch
+    );
+}
+
+/// Bytes the shipped 2.3.0 producer sealed for `recovered_wire(0, true)`, under the
+/// rule version's original spelling (see the fixtures README).
+const SEALED_BY_EARLIER_RELEASE: &[u8] = include_bytes!(
+    "../../antecedent/tests/fixtures/earlier_release_artifacts/recovery_chain_recovered.cbor"
+);
+
+#[test]
+fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refused() {
+    let sealed = RecoveryChainArtifactWire::decode(SEALED_BY_EARLIER_RELEASE).unwrap();
+    assert_eq!(sealed.plan.as_ref().unwrap().rule_version, LEGACY_CHAIN_RECOVERY_RULE_VERSION);
+    assert_eq!(sealed.recovered.as_ref().unwrap().rule_version, LEGACY_CHAIN_RECOVERY_RULE_VERSION);
+    let consumed =
+        RecoveryChainArtifactWire::consume_typed(SEALED_BY_EARLIER_RELEASE, &ctx()).unwrap();
+    // The consumer verified the digests of the bytes as carried, and reproduces the
+    // law the current producer recovers for the same graph and observed law.
+    assert_eq!(consumed.wire.premises_digest, sealed.premises_digest);
+    assert_eq!(consumed.wire.data_digest, sealed.data_digest);
+    let (current, truth) = recovered_wire(0, true);
+    assert_eq!(current.plan.as_ref().unwrap().rule_version, CHAIN_RECOVERY_RULE_VERSION);
+    assert_ne!(current.premises_digest, sealed.premises_digest);
+    // The data digest binds only the laws' cells, which the rename does not touch.
+    assert_eq!(current.data_digest, sealed.data_digest);
+    for (x1, row) in truth.iter().enumerate() {
+        for (x2, expected) in row.iter().enumerate() {
+            let got = consumed.recovered.as_ref().unwrap().cells()[x1][x2];
+            assert!((got - expected).abs() < 1e-12, "({x1},{x2}): {got} vs {expected}");
+        }
+    }
+    // Tampering is refused: unresealed edits hit the carried digests, resealed
+    // edits fail the replay, and no other version spelling is accepted.
+    let mut unresealed = sealed.clone();
+    unresealed.plan.as_mut().unwrap().rule_version = CHAIN_RECOVERY_RULE_VERSION.into();
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&unresealed.export().unwrap(), &ctx())
+            .unwrap_err(),
+        RecoveryChainArtifactError::PremisesMismatch
+    );
+    let mut cell = sealed.clone();
+    cell.recovered.as_mut().unwrap().cells[1][1] += 1e-12;
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&reseal(cell), &ctx()).unwrap_err(),
+        RecoveryChainArtifactError::RecoveredMismatch
+    );
+    let mut plan = sealed.clone();
+    plan.plan.as_mut().unwrap().rule_version =
+        LEGACY_CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&reseal(plan), &ctx()).unwrap_err(),
+        RecoveryChainArtifactError::DecisionMismatch("plan")
+    );
+    let mut law = sealed;
+    law.recovered.as_mut().unwrap().rule_version =
+        LEGACY_CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&reseal(law), &ctx()).unwrap_err(),
         RecoveryChainArtifactError::RecoveredMismatch
     );
 }
