@@ -205,40 +205,23 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let na = a.len() as f64;
     let nb = b.len() as f64;
     // Rank all observations; average ranks for ties.
-    let mut all: Vec<(f64, u8)> = Vec::with_capacity(a.len() + b.len());
-    all.extend(a.iter().copied().map(|v| (v, 0)));
-    all.extend(b.iter().copied().map(|v| (v, 1)));
-    all.sort_by(|x, y| x.0.partial_cmp(&y.0).expect("finite values are comparable"));
-    let mut ranks = vec![0.0; all.len()];
-    let mut i = 0;
-    while i < all.len() {
-        let mut j = i + 1;
-        while j < all.len() && all[j].0 == all[i].0 {
-            j += 1;
-        }
-        let avg = (i + j + 1) as f64 / 2.0; // 1-based average rank
-        for r in ranks.iter_mut().take(j).skip(i) {
-            *r = avg;
-        }
-        i = j;
-    }
-    let mut rank_sum_a = 0.0;
-    for (k, (_, lab)) in all.iter().enumerate() {
-        if *lab == 0 {
-            rank_sum_a += ranks[k];
-        }
-    }
+    let pooled: Vec<f64> = a.iter().chain(b).copied().collect();
+    let mut ranks = vec![0.0; pooled.len()];
+    antecedent_kernels::midranks_into(&pooled, &mut ranks);
+    let rank_sum_a: f64 = ranks[..a.len()].iter().sum();
     let u_a = rank_sum_a - na * (na + 1.0) / 2.0;
     let auc = u_a / (na * nb);
     let stat = (auc - 0.5).abs();
     let mu = na * nb / 2.0;
     // Tie correction: Σ(t³ − t) over tied groups of size t.
     let n = na + nb;
+    let mut sorted = pooled;
+    sorted.sort_by(f64::total_cmp);
     let mut tie_sum = 0.0;
     let mut i = 0usize;
-    while i < all.len() {
+    while i < sorted.len() {
         let mut j = i + 1;
-        while j < all.len() && all[j].0 == all[i].0 {
+        while j < sorted.len() && sorted[j] == sorted[i] {
             j += 1;
         }
         let t = (j - i) as f64;

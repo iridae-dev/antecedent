@@ -29,6 +29,15 @@ pub fn sigmoid(x: f64) -> f64 {
     }
 }
 
+/// `softplus(x) = ln(1 + e^x)` without overflow: `x + ln_1p(e^{-x})` for `x > 0`,
+/// `ln_1p(e^{x})` otherwise. It is the negative log of [`sigmoid`]`(-x)`, so
+/// `-ln σ(η)` is `softplus(-η)`.
+#[inline]
+#[must_use]
+pub fn softplus(x: f64) -> f64 {
+    if x > 0.0 { x + (-x).exp().ln_1p() } else { x.exp().ln_1p() }
+}
+
 /// Max-shifted softmax of the logits in `values`, written back in place.
 ///
 /// The exponentials are taken against the maximum so they cannot overflow. An empty slice is
@@ -183,6 +192,17 @@ mod tests {
         assert!((tiny / (-700.0_f64).exp() - 1.0).abs() < 1e-15);
         for x in [0.3, 1.0, 5.0, 30.0] {
             assert!((sigmoid(x) + sigmoid(-x) - 1.0).abs() < 4e-16, "x={x}");
+        }
+    }
+
+    #[test]
+    fn softplus_is_stable() {
+        assert!((softplus(0.0) - std::f64::consts::LN_2).abs() < 1e-16);
+        assert_eq!(softplus(1000.0), 1000.0);
+        assert!((softplus(-800.0) - 0.0).abs() < f64::MIN_POSITIVE);
+        // softplus(-x) = -ln sigmoid(x).
+        for x in [-30.0, -2.0, 0.5, 8.0] {
+            assert!((softplus(-x) + sigmoid(x).ln()).abs() < 1e-14, "x={x}");
         }
     }
 

@@ -22,6 +22,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use antecedent_core::ExecutionContext;
+use antecedent_kernels::{sigmoid, softplus};
 use antecedent_stats::first_col_is_exact_ones;
 
 use crate::dense::{
@@ -72,15 +73,6 @@ impl LassoLogisticLearner {
             Err(LearnError::Shape { message: "logistic lasso penalty must be finite and > 0" })
         }
     }
-}
-
-fn sigmoid(value: f64) -> f64 {
-    1.0 / (1.0 + (-value).exp())
-}
-
-/// `log(1 + exp(v))` without overflow.
-fn softplus(value: f64) -> f64 {
-    if value > 0.0 { value + (-value).exp().ln_1p() } else { value.exp().ln_1p() }
 }
 
 fn soft_threshold(value: f64, threshold: f64) -> f64 {
@@ -461,7 +453,7 @@ mod tests {
                 let g: f64 = (0..n)
                     .map(|i| {
                         let eta: f64 = (0..=q).map(|c| x[c * n + i] * beta[c]).sum();
-                        x[j * n + i] * (y[i] - 1.0 / (1.0 + (-eta).exp()))
+                        x[j * n + i] * (y[i] - sigmoid(eta))
                     })
                     .sum();
                 let violation = if j == 0 {

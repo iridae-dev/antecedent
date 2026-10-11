@@ -233,8 +233,9 @@ impl FittedPredictor for PortablePredictor {
     }
 }
 
+/// The stable logistic with the provider's explicit probability clip.
 fn sigmoid(value: f64) -> f64 {
-    (1.0 / (1.0 + (-value).exp())).clamp(1e-9, 1.0 - 1e-9)
+    antecedent_kernels::sigmoid(value).clamp(1e-9, 1.0 - 1e-9)
 }
 
 #[cfg(test)]

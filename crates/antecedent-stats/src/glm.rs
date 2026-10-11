@@ -13,7 +13,7 @@
     )
 )]
 
-use antecedent_kernels::{norm_cdf, norm_pdf};
+use antecedent_kernels::{norm_cdf, norm_pdf, sigmoid};
 
 use crate::error::{GlmRefusalKind, StatsError};
 use crate::gram::{column_is_constant, invert_square};
@@ -61,7 +61,7 @@ impl GlmFamily {
     #[must_use]
     pub fn mean_from_eta(self, eta: f64) -> f64 {
         match self {
-            Self::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
+            Self::BinomialLogit => sigmoid(eta),
             Self::BinomialProbit => norm_cdf(eta),
             Self::GaussianIdentity => eta,
             Self::PoissonLog | Self::NegativeBinomial => eta.exp(),
@@ -298,7 +298,7 @@ fn binomial_diagnostics_at(
     for r in 0..nrows {
         let eta = eta_at(x_colmajor, nrows, ncols, beta, r);
         let mu = match family {
-            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
+            GlmFamily::BinomialLogit => sigmoid(eta),
             GlmFamily::BinomialProbit => norm_cdf(eta),
             _ => unreachable!("binomial diagnostics require a binomial family"),
         };
@@ -483,7 +483,7 @@ fn fit_logistic(
 
     let (beta, iterations, converged) =
         irls_fit(design, backend, workspace, options, false, |eta, yi| {
-            let mu = 1.0 / (1.0 + (-eta).exp());
+            let mu = sigmoid(eta);
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
             let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
             let z = eta + (yi - mu_clamped) / (mu_clamped * (1.0 - mu_clamped));
@@ -778,7 +778,7 @@ fn fit_binomial_ridge(
             }
             let (_mu, w_fisher, working) = match family {
                 GlmFamily::BinomialLogit => {
-                    let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+                    let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
                     let w = mu * (1.0 - mu);
                     let z = eta + (y[r] - mu) / w.max(1e-12);
                     (mu, w, z)
@@ -1233,7 +1233,6 @@ fn softmax_row(
 ) {
     let MultinomialDesignRef { x_colmajor, nrows, ncols, n_categories: k, .. } = design;
     eta[0] = 0.0;
-    let mut max_eta = 0.0_f64;
     for j in 1..k {
         let mut acc = 0.0;
         let base = (j - 1) * ncols;
@@ -1241,20 +1240,9 @@ fn softmax_row(
             acc += x_colmajor[c * nrows + r] * beta_free[base + c];
         }
         eta[j] = acc;
-        if acc > max_eta {
-            max_eta = acc;
-        }
     }
-    let mut zsum = 0.0;
-    for j in 0..k {
-        let e = (eta[j] - max_eta).exp();
-        pi[j] = e;
-        zsum += e;
-    }
-    let inv_z = 1.0 / zsum;
-    for p in pi.iter_mut().take(k) {
-        *p *= inv_z;
-    }
+    pi[..k].copy_from_slice(&eta[..k]);
+    antecedent_kernels::softmax_in_place(&mut pi[..k]);
 }
 
 /// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
@@ -1882,7 +1870,7 @@ mod tests {
         let mut logit_re = 0.0;
         for r in 0..n {
             let eta = logit.coefficients[0] + x[n + r] * logit.coefficients[1];
-            let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+            let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
             if y_bin[r] > 0.0 {
                 logit_re += -2.0 * mu.ln();
             } else {

@@ -14,7 +14,7 @@
 )]
 
 use antecedent_core::CausalRng;
-use antecedent_kernels::{categorical_from_u, standard_normal};
+use antecedent_kernels::{categorical_from_u, softmax_in_place, standard_normal};
 
 use crate::basis::ParentBasis;
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut};
@@ -923,21 +923,6 @@ fn softmax_row_probs(
     }
     softmax_in_place(&mut out[..k]);
     Ok(())
-}
-
-/// Max-shifted softmax of the logits in `values`, written back in place. The one
-/// owner of the normalization every categorical mechanism uses.
-pub(crate) fn softmax_in_place(values: &mut [f64]) {
-    let max_eta = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let mut sum = 0.0;
-    for v in values.iter_mut() {
-        *v = (*v - max_eta).exp();
-        sum += *v;
-    }
-    let inv = 1.0 / sum.max(f64::EPSILON);
-    for v in values.iter_mut() {
-        *v *= inv;
-    }
 }
 
 fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {

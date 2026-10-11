@@ -509,12 +509,12 @@ mod tests {
         for seed in 0..6 {
             for r in 0..n {
                 let z = 4.0 * unit() - 2.0;
-                let t = f64::from(unit() < 1.0 / (1.0 + (-z).exp()));
+                let t = f64::from(unit() < antecedent_kernels::sigmoid(z));
                 x[r] = 1.0;
                 x[n + r] = t;
                 x[2 * n + r] = z;
                 let eta = -0.5 + 1.2 * t + 0.8 * z + 0.01 * f64::from(seed);
-                y[r] = f64::from(unit() < 1.0 / (1.0 + (-eta).exp()));
+                y[r] = f64::from(unit() < antecedent_kernels::sigmoid(eta));
             }
             let prior = PriorSet::weakly_informative(3);
             let design = BayesDesignRef {
@@ -655,7 +655,7 @@ mod tests {
             let xi = (r as f64 - 30.0) * 0.2;
             x[r] = 1.0;
             x[n + r] = xi;
-            let p = 1.0 / (1.0 + (-(0.0 + 1.2 * xi)).exp());
+            let p = antecedent_kernels::sigmoid(1.2 * xi);
             // Overlapping labels — hard p>0.5 assignment is complete separation
             // and Laplace must refuse that posterior (M12).
             y[r] = if deterministic_unit(r) < p { 1.0 } else { 0.0 };

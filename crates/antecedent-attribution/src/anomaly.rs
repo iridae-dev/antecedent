@@ -145,12 +145,10 @@ impl OutlierTail {
     }
 }
 
+/// Median of an ascending-sorted sample; an empty sample has centre `0` here (a no-evidence
+/// robust centre), where [`antecedent_kernels::median_sorted`] is `NaN`.
 fn median_of_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return 0.0;
-    }
-    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]) }
+    if sorted.is_empty() { 0.0 } else { antecedent_kernels::median_sorted(sorted) }
 }
 
 /// Per-unit anomaly score for a target variable, with noise-term attribution.

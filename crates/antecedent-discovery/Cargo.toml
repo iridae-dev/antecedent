@@ -20,6 +20,7 @@ workspace = true
 antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
 antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
 antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
+antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
 antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }
 antecedent-state = { version = "2.4.0", path = "../antecedent-state" }
 antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }

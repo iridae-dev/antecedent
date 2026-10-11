@@ -4,7 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_kernels::{log_norm_cdf, log_norm_pdf, mills_left_tail};
+use antecedent_kernels::{log_norm_cdf, log_norm_pdf, mills_left_tail, softplus};
 
 use crate::backend::{BayesDesignRef, BayesLikelihood};
 use crate::error::ProbError;
@@ -101,10 +101,6 @@ pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, Pr
         return Err(ProbError::Numerical { message: "non-finite probit likelihood terms".into() });
     }
     Ok(terms)
-}
-
-fn softplus(x: f64) -> f64 {
-    if x > 0.0 { x + (-x).exp().ln_1p() } else { x.exp().ln_1p() }
 }
 
 pub(crate) fn validate_design(
@@ -251,7 +247,7 @@ pub(crate) fn accumulate_likelihood(
             )
         {
             let mu = if matches!(likelihood, BayesLikelihood::BernoulliLogit) {
-                1.0 / (1.0 + (-e).exp())
+                antecedent_kernels::sigmoid(e)
             } else {
                 antecedent_kernels::norm_cdf(e)
             };

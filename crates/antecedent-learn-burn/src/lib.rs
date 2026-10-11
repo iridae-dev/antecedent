@@ -196,6 +196,8 @@ impl TrainedMlp {
             let h2 = self.l2.forward_relu(&h1);
             let mut yhat = self.out.forward(&h2)[0];
             if self.binary {
+                // Deliberately an f32 logistic: this optional provider has no antecedent
+                // dependency, and its clip (1e-6) is the f32 resolution of the network.
                 yhat = (1.0 / (1.0 + (-yhat).exp())).clamp(1e-6, 1.0 - 1e-6);
                 out[r] = f64::from(yhat);
             } else {

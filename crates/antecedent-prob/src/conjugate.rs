@@ -1216,7 +1216,7 @@ mod tests {
             let z = standard_normal(&mut rng);
             x[r] = 1.0;
             x[n + r] = z;
-            let p = 1.0 / (1.0 + (-(0.3 + 0.8 * z)).exp());
+            let p = antecedent_kernels::sigmoid(0.3 + 0.8 * z);
             y[r] = f64::from(rng.next_f64() < p);
         }
         let design = BayesDesignRef {

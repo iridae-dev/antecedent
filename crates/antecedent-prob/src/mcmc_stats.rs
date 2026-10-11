@@ -14,7 +14,7 @@
     )
 )]
 
-use antecedent_kernels::{norm_inv, quantile_type7_sorted};
+use antecedent_kernels::{median_sorted, midranks_into, norm_inv, quantile_type7_sorted};
 
 /// Per-parameter MCMC diagnostics (Vehtari / Stan style).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -263,14 +263,6 @@ fn fold_about_median(x: &[f64]) -> Vec<f64> {
     x.iter().map(|&v| (v - med).abs()).collect()
 }
 
-fn median_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return f64::NAN;
-    }
-    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * sorted[n / 2 - 1] + 0.5 * sorted[n / 2] }
-}
-
 fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
     let mut sorted = x.to_vec();
     sorted.sort_by(f64::total_cmp);
@@ -280,27 +272,8 @@ fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
 /// Average ranks for ties, then Φ⁻¹((r − 3/8) / (S + 1/4)).
 fn rank_normalize(x: &[f64]) -> Vec<f64> {
     let s = x.len();
-    let mut idx: Vec<usize> = (0..s).collect();
-    idx.sort_by(|&i, &j| x[i].partial_cmp(&x[j]).unwrap_or(std::cmp::Ordering::Equal));
     let mut ranks = vec![0.0; s];
-    let mut i = 0;
-    while i < s {
-        let mut j = i + 1;
-        #[allow(
-            clippy::float_cmp,
-            reason = "ties are groups of exactly equal draws, which share an average rank"
-        )]
-        let tied = |j: usize| x[idx[j]] == x[idx[i]];
-        while j < s && tied(j) {
-            j += 1;
-        }
-        // Ranks are 1-based; average for ties.
-        let avg = (i + 1 + j) as f64 / 2.0;
-        for k in i..j {
-            ranks[idx[k]] = avg;
-        }
-        i = j;
-    }
+    midranks_into(x, &mut ranks);
     let denom = s as f64 + 0.25;
     ranks
         .into_iter()

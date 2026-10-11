@@ -15,7 +15,7 @@
 use antecedent_core::{
     CausalRng, ExecutionContext, Intervention, MechanismOverride, StochasticPolicy,
 };
-use antecedent_kernels::{kish_ess, standard_normal};
+use antecedent_kernels::{kish_ess, normalize_log_weights, standard_normal};
 
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
@@ -525,29 +525,9 @@ fn weighted_particles(
 /// Self-normalised importance weights from log-weights, refusing an all-non-finite or
 /// zero-mass weight vector (no particle can then represent the conditional law).
 fn normalized_weights(log_w: &[f64]) -> Result<Vec<f64>, ModelError> {
-    let n_particles = log_w.len();
-    let max_lw = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    if !max_lw.is_finite() {
-        return Err(ModelError::Unsupported {
-            message: "conditional do: all likelihood weights are non-finite".into(),
-        });
-    }
-    let mut weights = vec![0.0; n_particles];
-    let mut sum_w = 0.0;
-    for p in 0..n_particles {
-        let w = (log_w[p] - max_lw).exp();
-        weights[p] = w;
-        sum_w += w;
-    }
-    if sum_w <= 0.0 {
-        return Err(ModelError::Unsupported {
-            message: "conditional do: likelihood weights sum to zero".into(),
-        });
-    }
-    for w in &mut weights {
-        *w /= sum_w;
-    }
-    Ok(weights)
+    normalize_log_weights(log_w).map_err(|why| ModelError::Unsupported {
+        message: format!("conditional do: likelihood weights unusable: {why}"),
+    })
 }
 
 /// Posterior-predictive interventional sampling: for each coefficient draw block,

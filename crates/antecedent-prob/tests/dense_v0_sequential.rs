@@ -296,7 +296,7 @@ fn laplace_logit_hessian_adds_dense_prior_precision() {
     let mut expected = v0_inv;
     for row in &rows {
         let eta: f64 = (0..P).map(|c| row[c] * res.map[c]).sum();
-        let pr = 1.0 / (1.0 + (-eta).exp());
+        let pr = antecedent_kernels::sigmoid(eta);
         let w = pr * (1.0 - pr);
         for i in 0..P {
             for j in 0..P {

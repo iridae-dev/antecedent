@@ -277,12 +277,7 @@ fn refuse_block_shuffle(sig: SignificanceMethod) -> Result<(), StatsError> {
 
 /// Stable `P(M₁|data) = logistic(log BF₁₀)` under equal prior odds.
 fn logistic_from_log_bf(log_bf: f64) -> f64 {
-    if log_bf >= 0.0 {
-        1.0 / (1.0 + (-log_bf).exp())
-    } else {
-        let e = log_bf.exp();
-        e / (1.0 + e)
-    }
+    antecedent_kernels::sigmoid(log_bf)
 }
 
 struct PreparedQuery {

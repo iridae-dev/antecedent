@@ -874,34 +874,24 @@ pub fn log_prior_mask(
 
 pub use antecedent_prob::kish_ess;
 
-/// Normalize log-weights with log-sum-exp; returns normalized weights.
+/// Normalize log-weights with log-sum-exp; returns normalized weights. A `-inf` log-weight is
+/// a zero-mass graph; `NaN` or `+inf` is refused rather than silently dropped.
 ///
 /// # Errors
 ///
-/// Empty or all non-finite log-weights.
+/// Empty, invalid (`NaN`/`+inf`) or all `-inf` log-weights.
 pub fn normalize_log_weights(log_w: &[f64]) -> Result<Vec<f64>, DiscoveryError> {
-    if log_w.is_empty() {
-        return Err(DiscoveryError::unsupported("no valid graphs to normalize"));
-    }
-    let mut m = f64::NEG_INFINITY;
-    for &lw in log_w {
-        if lw.is_finite() {
-            m = m.max(lw);
+    antecedent_kernels::normalize_log_weights(log_w).map_err(|why| match why {
+        antecedent_kernels::LogWeightError::Empty => {
+            DiscoveryError::unsupported("no valid graphs to normalize")
         }
-    }
-    if !m.is_finite() {
-        return Err(DiscoveryError::unsupported("no finite graph log-weights"));
-    }
-    let mut w: Vec<f64> =
-        log_w.iter().map(|&lw| if lw.is_finite() { (lw - m).exp() } else { 0.0 }).collect();
-    let z: f64 = w.iter().sum();
-    if !(z > 0.0) {
-        return Err(DiscoveryError::unsupported("zero posterior mass after LSE"));
-    }
-    for wi in &mut w {
-        *wi /= z;
-    }
-    Ok(w)
+        antecedent_kernels::LogWeightError::Invalid => {
+            DiscoveryError::unsupported("graph log-weights contain NaN or +infinity")
+        }
+        antecedent_kernels::LogWeightError::NoMass => {
+            DiscoveryError::unsupported("no finite graph log-weights")
+        }
+    })
 }
 
 /// Accumulate edge / orientation marginals from weighted adjacency masks.

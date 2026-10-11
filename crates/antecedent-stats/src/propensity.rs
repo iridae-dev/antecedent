@@ -185,7 +185,7 @@ pub fn predict_propensity(
         for c in 0..ncols {
             eta += x_colmajor[c * nrows + r] * coefficients[c];
         }
-        out[r] = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+        out[r] = antecedent_kernels::sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
     }
     Ok(())
 }

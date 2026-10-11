@@ -225,17 +225,8 @@ fn normalized_weights(log_w: &[f64]) -> Vec<f64> {
 /// Allocation-free core of [`normalized_weights`]: same arithmetic, writing
 /// into a caller-owned buffer.
 fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) -> Result<(), StateError> {
-    let max = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    out.clear();
-    if !max.is_finite() || log_w.iter().any(|value| value.is_nan() || *value == f64::INFINITY) {
-        return Err(StateError::Numerical("particle weights have no finite positive mass".into()));
-    }
-    out.extend(log_w.iter().map(|lw| (lw - max).exp()));
-    let sum: f64 = out.iter().sum();
-    for wi in out {
-        *wi /= sum;
-    }
-    Ok(())
+    antecedent_kernels::normalize_log_weights_into(log_w, out)
+        .map_err(|why| StateError::Numerical(format!("particle weights unusable: {why}")))
 }
 
 /// Resample using the normalized weights already in `state.scratch.weights`

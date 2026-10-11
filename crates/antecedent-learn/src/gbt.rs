@@ -134,7 +134,7 @@ impl FittedPredictor for GbtPredictor {
             PredictionTask::Regression => out.copy_from_slice(&preds),
             PredictionTask::BinaryProbability => {
                 for (slot, raw) in out.iter_mut().zip(preds) {
-                    *slot = (1.0 / (1.0 + (-raw).exp())).clamp(1e-9, 1.0 - 1e-9);
+                    *slot = antecedent_kernels::sigmoid(*raw).clamp(1e-9, 1.0 - 1e-9);
                 }
             }
         }

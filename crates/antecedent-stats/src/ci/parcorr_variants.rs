@@ -39,28 +39,13 @@ const BLOCK_PIVOT_MIN: f64 = 1e-6;
 /// may legitimately mean; anything smaller is a numerical failure, not perfect dependence.
 const PERFECT_DEPENDENCE_EIGEN: f64 = 1.0 - 1e-9;
 
-#[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
+/// Midranks of a finite column (ties share the average rank), the shared kernel midrank owner
+/// behind a finiteness refusal.
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) -> Result<(), StatsError> {
     if col.iter().any(|v| !v.is_finite()) {
         return Err(StatsError::Shape { message: "non-finite values in rank transform" });
     }
-    let n = col.len();
-    let mut idx: Vec<usize> = (0..n).collect();
-    idx.sort_by(|&i, &j| col[i].partial_cmp(&col[j]).unwrap_or(std::cmp::Ordering::Equal));
-    let mut i = 0usize;
-    while i < n {
-        let mut j = i;
-        while j + 1 < n && col[idx[j + 1]] == col[idx[i]] {
-            j += 1;
-        }
-        let first = (i + 1) as f64;
-        let last = (j + 1) as f64;
-        let avg_rank = (first + last) / 2.0;
-        for k in i..=j {
-            out[idx[k]] = avg_rank;
-        }
-        i = j + 1;
-    }
+    antecedent_kernels::midranks_into(col, out);
     Ok(())
 }
 

@@ -165,7 +165,7 @@ impl FittedPredictor for LogisticPredictor {
     ) -> Result<(), LearnError> {
         predict_linear(&self.fit.coefficients, x, out)?;
         for slot in out.iter_mut() {
-            *slot = (1.0 / (1.0 + (-*slot).exp())).clamp(1e-9, 1.0 - 1e-9);
+            *slot = antecedent_kernels::sigmoid(*slot).clamp(1e-9, 1.0 - 1e-9);
         }
         Ok(())
     }

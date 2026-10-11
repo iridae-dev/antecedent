@@ -2957,7 +2957,7 @@ mod tests {
         let (mut z, mut a, mut b, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {
             z[i] = antecedent_kernels::standard_normal(&mut rng);
-            a[i] = f64::from(u8::from(rng.next_f64() < 1.0 / (1.0 + (-0.5 * z[i]).exp())));
+            a[i] = f64::from(u8::from(rng.next_f64() < antecedent_kernels::sigmoid(0.5 * z[i])));
             b[i] = f64::from(u8::from(rng.next_f64() < 0.5));
             y[i] = 0.8 * a[i]
                 + 0.5 * b[i]
@@ -3139,7 +3139,7 @@ mod tests {
             year[i] = 2015.0 + (rng.next_f64() * 11.0).floor();
             axis[i] = rng.next_f64();
             let eta = 0.4 * (year[i] - 2020.0) / 3.16 + axis[i] - 0.5;
-            lever[i] = f64::from(u8::from(rng.next_f64() < 1.0 / (1.0 + (-eta).exp())));
+            lever[i] = f64::from(u8::from(rng.next_f64() < antecedent_kernels::sigmoid(eta)));
         }
         let mean = year.iter().sum::<f64>() / n as f64;
         let sd = (year.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
