@@ -1,5 +1,10 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-10-11
+Scope: workspace crates + `python` extension (package version **2.4.0**)
+
+The package version on this branch is 2.4.0. The source review dated 2026-10-09 is recorded in the next section and names package version 2.3.0.
+
 Date: 2026-10-09
 Scope: workspace crates + `python` extension (package version **2.3.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)

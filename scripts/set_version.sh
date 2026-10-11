@@ -77,7 +77,7 @@ edits[pyproject] = py_new
 
 # Path-dep version pins must match for crates.io packaging.
 path_pat = re.compile(
-    r'(antecedent-[a-z0-9-]+\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
+    r'(antecedent(?:-[a-z0-9-]+)?\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
 )
 for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
     if not path.is_file():

@@ -1,4 +1,6 @@
-# Antecedent 2.3.0 roadmap
+# Antecedent 2.4.0
+
+The tagged release is 2.3.0. This branch's package version is 2.4.0. The milestones below are the plan that shipped as 2.3.0.
 
 Antecedent 2.3.0 connects causal claims, uncertainty, external scientific
 objects, decisions, and study design through explicit scientific identities.

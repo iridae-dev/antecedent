@@ -500,21 +500,15 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
     return lines
 
 
-def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list[str]:
-    """Compare exact coordinates with a shipped, frozen support inventory."""
-    text = baseline.read_text(encoding="utf-8")
-    if text.count(FROZEN_BEGIN) != 1 or text.count(FROZEN_END) != 1:
-        raise ValueError(
-            f"{baseline}: release delta requires one frozen support inventory"
-        )
-    block = text.split(FROZEN_BEGIN, 1)[1].split(FROZEN_END, 1)[0]
-    previous = set()
+def _support_coordinates(block: str, source: Path) -> set[tuple[str, ...]]:
+    """Expand compacted `- query × graph × structure × inference × validation` lines."""
+    found: set[tuple[str, ...]] = set()
     for line in block.splitlines():
         if not line.startswith("- "):
             continue
         parts = line[2:].split(" × ")
         if len(parts) != 5 or not parts[-1].startswith("validation "):
-            raise ValueError(f"{baseline}: invalid support coordinate {line!r}")
+            raise ValueError(f"{source}: invalid support coordinate {line!r}")
         parts[-1] = parts[-1].removeprefix("validation ")
         choices = []
         for part in parts:
@@ -522,17 +516,61 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
             if any(
                 not re.fullmatch(r"`[A-Za-z_][A-Za-z0-9_]*`", token) for token in tokens
             ):
-                raise ValueError(f"{baseline}: invalid support axis {part!r}")
+                raise ValueError(f"{source}: invalid support axis {part!r}")
             choices.append([token[1:-1] for token in tokens])
         coordinates = set(product(*choices))
-        if coordinates & previous:
-            raise ValueError(f"{baseline}: duplicate support coordinates")
-        previous.update(coordinates)
+        if coordinates & found:
+            raise ValueError(f"{source}: duplicate support coordinates")
+        found.update(coordinates)
+    return found
+
+
+def _frozen_block(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    if text.count(FROZEN_BEGIN) != 1 or text.count(FROZEN_END) != 1:
+        raise ValueError(f"{path}: release delta requires one frozen support inventory")
+    return text.split(FROZEN_BEGIN, 1)[1].split(FROZEN_END, 1)[0]
+
+
+def frozen_support_coordinates(path: Path) -> set[tuple[str, ...]]:
+    """Licensed coordinates named by a frozen notes block.
+
+    A full inventory is the ``N licensed of`` list. A later cut may freeze a
+    delta (``N added, M removed``) against an older notes file; that delta is
+    applied to the older inventory.
+    """
+    block = _frozen_block(path)
     count = re.search(r"^(\d+) licensed of ", block, re.MULTILINE)
-    if not count or len(previous) != int(count[1]):
-        raise ValueError(
-            f"{baseline}: frozen support count does not match its coordinates"
-        )
+    if count:
+        previous = _support_coordinates(block, path)
+        if len(previous) != int(count[1]):
+            raise ValueError(
+                f"{path}: frozen support count does not match its coordinates"
+            )
+        return previous
+    delta = re.search(
+        r"^Changes to generic analysis support since (\d+\.\d+\.\d+): "
+        r"(\d+) added coordinates, (\d+) removed coordinates\.",
+        block,
+        re.MULTILINE,
+    )
+    if not delta:
+        raise ValueError(f"{path}: frozen support count does not match its coordinates")
+    parent = frozen_support_coordinates(path.parent / f"v{delta[1]}.md")
+    added_text, _, removed_text = block.partition("### Removed analysis coordinates")
+    added_text = added_text.split("### Added analysis coordinates", 1)[-1]
+    added = _support_coordinates(added_text, path)
+    removed = _support_coordinates(removed_text, path)
+    if len(added) != int(delta[2]) or len(removed) != int(delta[3]):
+        raise ValueError(f"{path}: frozen support count does not match its coordinates")
+    if added & parent or not removed <= parent or added & removed:
+        raise ValueError(f"{path}: frozen support delta does not apply to its baseline")
+    return (parent - removed) | added
+
+
+def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list[str]:
+    """Compare exact coordinates with a shipped, frozen support inventory."""
+    previous = frozen_support_coordinates(baseline)
     keys = ("query", "graph_class", "structure", "inference", "validation")
     current = {tuple(cell[key] for key in keys) for cell in cells}
     added = [cell for cell in cells if tuple(cell[key] for key in keys) not in previous]

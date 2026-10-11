@@ -57,7 +57,7 @@ def test_notebook_first_code_cell_installs_antecedent_when_missing(nb):
     first = next(c for c in cells if c.get("cell_type") == "code")
     src = "".join(first["source"])
     assert 'find_spec("antecedent")' in src
-    assert "pip" in src and "antecedent>=2.3.0,<2.4" in src
+    assert "pip" in src and "antecedent>=2.4.0,<2.5" in src
     assert "sys.version_info" in src
 
 

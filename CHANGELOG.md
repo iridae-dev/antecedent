@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.0
+
+The package version on this branch is 2.4.0. The last tagged release remains 2.3.0. The [draft release notes](docs/release-notes/v2.4.0.md) list the generic analysis-support delta since that tag.
+
+### Changed
+
+- Workspace, Python package, and citation metadata carry version 2.4.0.
+- The 2.3.0 release notes keep a frozen support snapshot. Later matrix regeneration writes the 2.4.0 notes.
+
 ## 2.3.0
 
 Changes since 2.2.0. The [release notes](docs/release-notes/v2.3.0.md) describe the new workflows, validated method scopes and refusals.
