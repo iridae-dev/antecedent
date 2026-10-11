@@ -773,7 +773,9 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         let series = identified_pag_series(&pin);
         (Study::series(series.clone()), CellData::Series(series))
     } else if series {
-        let names: Vec<&str> = if cell.graph_class == "TemporalPag" && !uses_identified_temporal_pag(cell)
+        let names: Vec<&str> = if cell.graph_class == "TemporalPag"
+            && cell.structure != "graph_posterior"
+            && !uses_identified_temporal_pag(cell)
         {
             vec!["t", "m", "y", "r"]
         } else {

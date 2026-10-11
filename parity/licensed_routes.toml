@@ -3111,3 +3111,243 @@ estimator = "temporal.linear.adjustment"
 coordinate = "PathSpecificEffect:TemporalPag:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
 estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "TransportQuery:TemporalAdmg:explicit:Frequentist:none"
+identifier = "transport.sid"
+estimator = "transport.trial_ipw"
+
+[[route]]
+coordinate = "TransportQuery:TemporalAdmg:explicit:Bayesian:none"
+identifier = "transport.sid"
+estimator = "transport.trial_bayesian_bootstrap"
