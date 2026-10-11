@@ -628,6 +628,155 @@ fn literal(label: &str, text: &str) -> StageIdentity {
     StageIdentity::of(label, &[text.as_bytes()])
 }
 
+fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
+    let mut out = b"aipw.v1".to_vec();
+    out.extend_from_slice(&estimator.bootstrap_replicates.to_le_bytes());
+    match estimator.overlap {
+        antecedent_estimate::OverlapPolicy::ExplicitOverride => out.push(0),
+        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => {
+            out.push(1);
+            push_opt_f64(&mut out, clip);
+            push_opt_f64(&mut out, trim);
+        }
+    }
+    push_u32(&mut out, estimator.glm_options.max_iter);
+    push_f64(&mut out, estimator.glm_options.tol);
+    match estimator.glm_options.nb_alpha {
+        antecedent_stats::NbAlphaPolicy::Fixed(alpha) => {
+            out.push(0);
+            push_f64(&mut out, alpha);
+        }
+        antecedent_stats::NbAlphaPolicy::MethodOfMoments => out.push(1),
+        antecedent_stats::NbAlphaPolicy::NestedMle { max_outer, tol_alpha } => {
+            out.push(2);
+            push_u32(&mut out, max_outer);
+            push_f64(&mut out, tol_alpha);
+        }
+    }
+    push_opt_f64(&mut out, estimator.glm_options.ridge_on_separation);
+    match estimator.se_kind {
+        antecedent_estimate::AnalyticSeKind::Homoskedastic => out.push(0),
+        antecedent_estimate::AnalyticSeKind::Hc0 => out.push(1),
+        antecedent_estimate::AnalyticSeKind::Hc1 => out.push(2),
+        antecedent_estimate::AnalyticSeKind::Hc2 => out.push(3),
+        antecedent_estimate::AnalyticSeKind::Hc3 => out.push(4),
+        antecedent_estimate::AnalyticSeKind::Cluster => out.push(5),
+        antecedent_estimate::AnalyticSeKind::Multiway => out.push(6),
+        antecedent_estimate::AnalyticSeKind::NeweyWest { lag } => {
+            out.push(7);
+            push_usize(&mut out, lag);
+        }
+        antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => {
+            out.push(8);
+            push_usize(&mut out, lag);
+        }
+    }
+    push_opt_u32s(&mut out, estimator.cluster_ids.as_deref());
+    push_opt_u32s(&mut out, estimator.cluster_ids_second.as_deref());
+    push_opt_panel(&mut out, estimator.panel_times.as_deref());
+    match estimator.multiway_ids.as_deref() {
+        None => out.push(0),
+        Some(groups) => {
+            out.push(1);
+            push_usize(&mut out, groups.len());
+            for group in groups {
+                push_u32s(&mut out, group);
+            }
+        }
+    }
+    out.extend_from_slice(&estimator.propensity.canonical_bytes());
+    match estimator.cluster_dml.as_ref() {
+        None => out.push(0),
+        Some(cluster) => {
+            out.push(1);
+            out.extend_from_slice(cluster.canonical_key().as_bytes());
+        }
+    }
+    match estimator.population_registry.as_ref() {
+        None => out.push(0),
+        Some(registry) => {
+            out.push(1);
+            for (name, rows) in registry.predicates() {
+                out.extend_from_slice(name.as_bytes());
+                out.push(0);
+                push_usize(&mut out, rows.len());
+                for row in rows {
+                    push_usize(&mut out, *row);
+                }
+            }
+            out.push(0xff);
+            for (id, weights, parents) in registry.distributions() {
+                push_u32(&mut out, id.raw());
+                push_f64s(&mut out, weights);
+                push_usize(&mut out, parents.len());
+                for parent in parents {
+                    push_u32(&mut out, parent.raw());
+                }
+            }
+        }
+    }
+    out
+}
+
+fn push_u32(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+fn push_usize(out: &mut Vec<u8>, value: usize) {
+    out.extend_from_slice(&u64::try_from(value).unwrap_or(u64::MAX).to_le_bytes());
+}
+
+fn push_f64(out: &mut Vec<u8>, value: f64) {
+    out.extend_from_slice(&value.to_bits().to_le_bytes());
+}
+
+fn push_opt_f64(out: &mut Vec<u8>, value: Option<f64>) {
+    match value {
+        None => out.push(0),
+        Some(value) => {
+            out.push(1);
+            push_f64(out, value);
+        }
+    }
+}
+
+fn push_u32s(out: &mut Vec<u8>, values: &[u32]) {
+    push_usize(out, values.len());
+    for value in values {
+        push_u32(out, *value);
+    }
+}
+
+fn push_opt_u32s(out: &mut Vec<u8>, values: Option<&[u32]>) {
+    match values {
+        None => out.push(0),
+        Some(values) => {
+            out.push(1);
+            push_u32s(out, values);
+        }
+    }
+}
+
+fn push_opt_panel(out: &mut Vec<u8>, values: Option<&[i64]>) {
+    match values {
+        None => out.push(0),
+        Some(values) => {
+            out.push(1);
+            push_usize(out, values.len());
+            for value in values {
+                out.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+    }
+}
+
+fn push_f64s(out: &mut Vec<u8>, values: &[f64]) {
+    push_usize(out, values.len());
+    for value in values {
+        push_f64(out, *value);
+    }
+}
+
 impl RecalcRequest {
     /// Declared own-input identity of every stage of this request under `ctx`.
     #[must_use]
@@ -673,7 +822,7 @@ impl RecalcRequest {
             digest(
                 "learner_folds_rng",
                 &[
-                    format!("{:?}", self.estimator).into_bytes(),
+                    estimator_identity_bytes(&self.estimator),
                     folds.to_le_bytes().to_vec(),
                     ctx.rng.master_seed().to_le_bytes().to_vec(),
                 ],
@@ -1017,4 +1166,37 @@ pub fn execute_with_receipt(
     session.previous = request.identities(ctx);
     session.live = Some(live);
     Ok(RecalcOutcome { plan, receipt, law, decision })
+}
+
+#[cfg(test)]
+mod estimator_identity_tests {
+    use super::{RecalcRequest, UtilitySpec};
+    use antecedent_core::ExecutionContext;
+    use antecedent_core::recalc::Stage;
+    use antecedent_estimate::{AipwAte, OverlapPolicy};
+
+    fn request(estimator: AipwAte) -> RecalcRequest {
+        RecalcRequest {
+            columns: vec![("t".into(), vec![0.0, 1.0]), ("y".into(), vec![0.0, 2.0])],
+            edges: vec![(0, 1)],
+            treatment: 0,
+            outcome: 1,
+            estimator,
+            target: None,
+            utility: UtilitySpec { benefit_per_unit: 1.0, cost: 0.0 },
+        }
+    }
+
+    #[test]
+    fn aipw_fold_identity_follows_estimator_structure() {
+        let ctx = ExecutionContext::for_tests(1);
+        let stage = Stage::LearnerFoldsRng;
+        let base = request(AipwAte::new()).identities(&ctx).own(stage);
+        let again = request(AipwAte::new()).identities(&ctx).own(stage);
+        assert_eq!(base, again);
+        let mut clipped = AipwAte::new();
+        clipped.overlap = OverlapPolicy::RequireDiagnostics { clip: Some(1e-13), trim: None };
+        let changed = request(clipped).identities(&ctx).own(stage);
+        assert_ne!(base, changed);
+    }
 }

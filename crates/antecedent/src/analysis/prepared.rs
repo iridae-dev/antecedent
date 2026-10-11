@@ -3775,7 +3775,9 @@ impl PreparedStudy {
         let (query, graph, validation, horizons) = operation.inspect();
         Some(CheckedTemporalMediationInfo {
             query: query.clone(),
-            graph_signature: Arc::from(format!("{graph:?}")),
+            graph_signature: Arc::from(super::checked_temporal_effect::temporal_dag_signature(
+                graph,
+            )),
             validation,
             horizons: Arc::from(horizons),
             estimator: operation.estimator(),

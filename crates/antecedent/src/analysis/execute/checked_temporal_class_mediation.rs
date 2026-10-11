@@ -336,17 +336,17 @@ impl CheckedTemporalClassMediationOperation {
     pub(crate) fn proof_signature(&self) -> Arc<str> {
         match &self.proof {
             CheckedTemporalMediationProof::ClassEnvelope { graph, .. } => {
-                Arc::from(format!("{graph:?}"))
+                Arc::from(accepted_graph_signature(graph))
             }
             CheckedTemporalMediationProof::ClassPosterior { posterior, .. }
             | CheckedTemporalMediationProof::DbnPosterior { posterior, .. } => Arc::from(format!(
-                "{}:{:?}:{:?}:{:?}:{:?}:{:?}",
+                "{}:{}:{}:{}:{}:{}",
                 self.proof.name(),
-                posterior.weights.iter().map(|w| w.to_bits()).collect::<Vec<_>>(),
-                posterior.adjacency,
-                posterior.graph_keys,
-                posterior.lag_masks,
-                posterior.max_lag,
+                join_bits(&posterior.weights),
+                join_u64(&posterior.adjacency),
+                join_u64(&posterior.graph_keys),
+                posterior.lag_masks.as_deref().map(join_u64).unwrap_or_else(|| "none".to_string()),
+                posterior.max_lag.map_or_else(|| "none".to_string(), |lag| lag.to_string()),
             )),
         }
     }
@@ -482,4 +482,124 @@ fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {
             .iter()
             .zip(current.weights.iter())
             .all(|(a, b)| a.to_bits() == b.to_bits())
+}
+
+fn join_u64(values: &[u64]) -> String {
+    let mut out = String::new();
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&value.to_string());
+    }
+    out
+}
+
+fn join_bits(values: &[f64]) -> String {
+    let mut out = String::new();
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&value.to_bits().to_string());
+    }
+    out
+}
+
+fn accepted_graph_signature(graph: &crate::AcceptedGraph) -> String {
+    let mut out = format!("class={};version={}", graph.class().as_str(), graph.version());
+    if let Some(names) = graph.variable_names() {
+        out.push_str(";names=");
+        for (index, name) in names.iter().enumerate() {
+            if index > 0 {
+                out.push(',');
+            }
+            out.push_str(name);
+        }
+    }
+    if let Some(dag) = graph.as_temporal_dag() {
+        out.push(';');
+        out.push_str(&crate::analysis::checked_temporal_effect::temporal_dag_signature(dag));
+    } else if let Some(cpdag) = graph.as_temporal_cpdag() {
+        out.push(';');
+        out.push_str(&marked_graph_signature(cpdag.nodes(), &cpdag.edges()));
+    }
+    out
+}
+
+fn marked_graph_signature(
+    nodes: &[antecedent_graph::NodeRef],
+    edges: &[antecedent_graph::MarkedEdge],
+) -> String {
+    let mut listed = edges.to_vec();
+    listed.sort_unstable_by_key(|edge| {
+        (
+            edge.a.raw(),
+            edge.b.raw(),
+            endpoint_tag(edge.at_a),
+            endpoint_tag(edge.at_b),
+            middle_tag(edge.middle),
+        )
+    });
+    let mut out = String::from("nodes=");
+    for (index, node) in nodes.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        match node {
+            antecedent_graph::NodeRef::Lagged { variable, lag } => {
+                out.push('l');
+                out.push_str(&variable.raw().to_string());
+                out.push('@');
+                out.push_str(&lag.raw().to_string());
+            }
+            antecedent_graph::NodeRef::Context { variable, environment } => {
+                out.push('c');
+                out.push_str(&environment.map_or(u32::MAX, |id| id.raw()).to_string());
+                out.push(':');
+                out.push_str(&variable.raw().to_string());
+            }
+            antecedent_graph::NodeRef::Static(variable) => {
+                out.push('s');
+                out.push_str(&variable.raw().to_string());
+            }
+            antecedent_graph::NodeRef::Unfolded { variable, offset } => {
+                out.push('u');
+                out.push_str(&variable.raw().to_string());
+                out.push('@');
+                out.push_str(&offset.to_string());
+            }
+        }
+    }
+    out.push_str(";edges=");
+    for (index, edge) in listed.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&edge.a.raw().to_string());
+        out.push(endpoint_tag(edge.at_a));
+        out.push(middle_tag(edge.middle));
+        out.push(endpoint_tag(edge.at_b));
+        out.push_str(&edge.b.raw().to_string());
+    }
+    out
+}
+
+fn endpoint_tag(endpoint: antecedent_graph::Endpoint) -> char {
+    match endpoint {
+        antecedent_graph::Endpoint::Tail => 't',
+        antecedent_graph::Endpoint::Arrow => 'a',
+        antecedent_graph::Endpoint::Circle => 'o',
+        antecedent_graph::Endpoint::Conflict => 'x',
+    }
+}
+
+fn middle_tag(middle: antecedent_graph::MiddleMark) -> char {
+    match middle {
+        antecedent_graph::MiddleMark::Unknown => '?',
+        antecedent_graph::MiddleMark::Left => 'L',
+        antecedent_graph::MiddleMark::Right => 'R',
+        antecedent_graph::MiddleMark::Both => '!',
+        antecedent_graph::MiddleMark::Empty => '-',
+    }
 }

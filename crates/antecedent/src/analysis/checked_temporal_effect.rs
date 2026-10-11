@@ -136,15 +136,75 @@ impl CheckedTemporalEffectOperation {
     }
 
     /// Canonical structural signature of the retained temporal template.
+    ///
+    /// Node order is the template order. Edges are sorted endpoints, written
+    /// as integers, so the string does not follow `Debug`.
     #[must_use]
     pub(crate) fn graph_signature(&self) -> String {
-        format!("nodes={:?};edges={:?}", self.graph_nodes, self.graph_edges)
+        temporal_structure(&self.graph_nodes, self.graph_edges.iter().copied())
     }
 
     #[must_use]
     pub(crate) fn matches_query(&self, query: &CausalQuery) -> bool {
         matches!(query, CausalQuery::TemporalEffect(candidate) if candidate == &self.query)
     }
+}
+
+/// Structural signature of a temporal DAG: template node order, then sorted
+/// directed endpoints. The text is the identity, not `Debug` output.
+#[must_use]
+pub(crate) fn temporal_dag_signature(graph: &TemporalDag) -> String {
+    let edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw()));
+    temporal_structure(graph.nodes(), edges)
+}
+
+fn temporal_structure(nodes: &[NodeRef], edges: impl Iterator<Item = (u32, u32)>) -> String {
+    let mut out = String::from("nodes=");
+    for (index, node) in nodes.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        match node {
+            NodeRef::Static(variable) => {
+                out.push('s');
+                push_u32(&mut out, variable.raw());
+            }
+            NodeRef::Lagged { variable, lag } => {
+                out.push('l');
+                push_u32(&mut out, variable.raw());
+                out.push('@');
+                push_u32(&mut out, lag.raw());
+            }
+            NodeRef::Context { variable, environment } => {
+                out.push('c');
+                push_u32(&mut out, environment.map_or(u32::MAX, |id| id.raw()));
+                out.push(':');
+                push_u32(&mut out, variable.raw());
+            }
+            NodeRef::Unfolded { variable, offset } => {
+                out.push('u');
+                push_u32(&mut out, variable.raw());
+                out.push('@');
+                out.push_str(&offset.to_string());
+            }
+        }
+    }
+    let mut edges: Vec<(u32, u32)> = edges.collect();
+    edges.sort_unstable();
+    out.push_str(";edges=");
+    for (index, (from, to)) in edges.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        push_u32(&mut out, *from);
+        out.push('>');
+        push_u32(&mut out, *to);
+    }
+    out
+}
+
+fn push_u32(out: &mut String, value: u32) {
+    out.push_str(&value.to_string());
 }
 
 /// Confirm an unfolded temporal proof targets `query`: the identifier's query
@@ -229,4 +289,23 @@ fn intervention_matches(
         ) if proof_var.raw() == dense_treatment && proof_value == requested_value
             && *requested_var == semantic_treatment
     )
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::temporal_dag_signature;
+    use antecedent_core::{Lag, VariableId};
+    use antecedent_graph::TemporalDag;
+
+    #[test]
+    fn temporal_dag_signature_records_endpoints() {
+        let mut graph = TemporalDag::empty();
+        let from = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let to = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(from, to).unwrap();
+        let signature = temporal_dag_signature(&graph);
+        assert!(signature.starts_with("nodes=l0@1,l1@0;edges="), "{signature}");
+        assert!(signature.contains(&format!("{}>{}", from.raw(), to.raw())), "{signature}");
+        assert!(!signature.contains("TemporalDag"), "{signature}");
+    }
 }
