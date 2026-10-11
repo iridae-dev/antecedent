@@ -21,18 +21,19 @@ def joint_mechanism_sensitivity_interval(
     stage: Any,
     deviation: JointDeviation,
     *,
-    replicates: int = 40,
+    replicates: int = 199,
     level: float = 0.95,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> tuple[float, float]:
+) -> tuple[float, float, str]:
     """Conservative endpoint percentile bootstrap of the joint range.
 
-    Returns ``(lower, upper)``. Fewer than 2 or more than 2000 replicates, or a
-    level outside ``(0, 1)``, refuses.
+    Returns ``(lower, upper, coverage_target)``. Only level ``0.95`` and
+    replicate counts from 199 through 2000 are admitted
+    (``joint_sensitivity.bounds_exceeded``).
     """
     deviation = _deviation(deviation)
-    lower, upper = _joint_interval(
+    lower, upper, coverage_target = _joint_interval(
         _stage(stage),
         list(deviation._pairs),
         replicates=replicates,
@@ -41,4 +42,4 @@ def joint_mechanism_sensitivity_interval(
         memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
         cancel=cancel,
     )
-    return (lower, upper)
+    return (lower, upper, coverage_target)

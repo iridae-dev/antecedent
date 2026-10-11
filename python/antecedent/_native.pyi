@@ -3705,6 +3705,16 @@ class Admg:
     def to_networkx_node_link(self) -> str: ...
     def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
 
+class TemporalAdmg:
+    @classmethod
+    def from_lagged_edges(
+        cls,
+        names: list[str],
+        directed: list[tuple[str, int, str, int]],
+        bidirected: list[tuple[str, int, str, int]] | None = None,
+    ) -> TemporalAdmg: ...
+    def node_count(self) -> int: ...
+
 class TemporalDag:
     @classmethod
     def from_lagged_edges(
@@ -5505,10 +5515,12 @@ def z_transport_joint_sensitivity_interval(
     stage: PreparedZTransportStage,
     factors: list[tuple[str, float]],
     *,
+    replicates: int = 199,
+    level: float = 0.95,
     decision_threshold: float | None = None,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
-) -> None: ...
+) -> tuple[float, float, str]: ...
 def consume_z_transport_failure_snapshot(
     artifact: bytes,
     *,

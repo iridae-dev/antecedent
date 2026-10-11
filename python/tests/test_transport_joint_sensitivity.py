@@ -195,16 +195,19 @@ def test_the_endpoint_bootstrap_interval_replays():
     prepared = counted_stage()
     plan = json.loads(prepared.estimate())
     assert plan["status"] == "available"
-    first = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=20)
-    second = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=20)
-    assert first[0] <= first[1]
+    first = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
+    second = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
+    lower, upper, coverage_target = first
+    assert lower <= upper
+    assert coverage_target.startswith("one_sided:")
     assert first == second
-    with pytest.raises(CausalUnsupportedError) as caught:
-        transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=1)
-    assert caught.value.reason_code == "route_not_supported"
-    assert "joint_sensitivity.bounds_exceeded" in str(caught.value)
+    for kwargs in ({"replicates": 198}, {"replicates": 1}, {"replicates": 2001}, {"level": 0.9}):
+        with pytest.raises(CausalUnsupportedError) as caught:
+            transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
+        assert caught.value.reason_code == "route_not_supported"
+        assert "joint_sensitivity.bounds_exceeded" in str(caught.value)
     with pytest.raises(CausalUnsupportedError) as exact:
-        transport.joint_mechanism_sensitivity_interval(prepared_stage(), DEVIATION, replicates=20)
+        transport.joint_mechanism_sensitivity_interval(prepared_stage(), DEVIATION, replicates=199)
     assert exact.value.reason_code == "transport_numerical_failure"
     assert "exact_supplied_law_no_sampling_uncertainty" in str(exact.value)
 

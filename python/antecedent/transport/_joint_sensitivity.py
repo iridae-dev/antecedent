@@ -9,10 +9,9 @@ result is the exact assumption range over that box, the axis tipping points (the
 one-factor values), and a tipping frontier with certified brackets.
 
 The range is an assumption range, never a confidence interval. Sampling
-uncertainty is not offered: its one declared composition (the
-conservative endpoint percentile bootstrap) is closed, and
-``joint_mechanism_sensitivity_interval`` (in ``_joint_sensitivity_uncertainty``)
-always refuses with ``cell_not_licensed``.
+uncertainty is a separate route: ``joint_mechanism_sensitivity_interval``
+(in ``_joint_sensitivity_uncertainty``) returns the conservative endpoint
+percentile bootstrap. This range does not carry that interval.
 """
 
 from __future__ import annotations

@@ -1,23 +1,31 @@
-//! The closed sampling-uncertainty route of the joint mechanism sensitivity
-//! range on the prepared z stage (record `sensitivity.joint_uncertainty`,
-//! calibration unmeasured).
+//! Sampling uncertainty of the joint mechanism sensitivity range on the
+//! prepared z stage (record `sensitivity.joint_uncertainty`).
 //!
-//! The one declared composition, the conservative endpoint percentile
-//! bootstrap, has a one-sided coverage target. Its coverage harness
-//! (`crates/antecedent/tests/joint_sensitivity_calibration.rs`, a `one_sided`
-//! record) is unmeasured, so this route always refuses with
-//! `cell_not_licensed`.
+//! The public interval is the conservative endpoint percentile bootstrap at
+//! the only measured coordinate: level 0.95 and at least 199 replicates, the
+//! floor of
+//! `cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box`
+//! and `...positive_box`. The version 3 range artifact still withholds a
+//! sampling interval and its consumer still refuses a forged one.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, reason_code};
 use antecedent_io::IoError;
+use antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_BOOTSTRAP;
 use antecedent_validate::{
     JointDeviationSpec, JointSensitivityInterval, joint_sensitivity_bootstrap_interval_internal,
 };
 use serde::{Deserialize, Serialize};
 
 use super::PreparedZTransport;
+
+/// Smallest replicate count the public interval admits.
+///
+/// Both measured coverage records set `replicates_min` to this value.
+const PUBLIC_MIN_REPLICATES: u32 = 199;
+/// The only nominal level those records measured.
+const PUBLIC_LEVEL: f64 = 0.95;
 
 /// The sampling descriptor of the version 3 joint sensitivity artifact: the
 /// declared method and why its interval is withheld. It lives with this closed
@@ -42,9 +50,9 @@ pub struct JointSamplingWire {
 impl PreparedZTransport {
     /// Conservative endpoint percentile bootstrap of the joint range.
     ///
-    /// The interval is `[q_{(1-level)/2}(L*), q_{(1+level)/2}(U*)]`. A request
-    /// for fewer than 2 or more than 2000 replicates, or a level outside
-    /// `(0, 1)`, refuses.
+    /// The interval is `[q_{(1-level)/2}(L*), q_{(1+level)/2}(U*)]` at level
+    /// 0.95. A request for fewer than 199 or more than 2000 replicates, or any
+    /// other level, refuses with `joint_sensitivity.bounds_exceeded`.
     ///
     /// # Errors
     ///
@@ -56,6 +64,16 @@ impl PreparedZTransport {
         level: f64,
         ctx: &ExecutionContext,
     ) -> Result<JointSensitivityInterval, IoError> {
+        if !(PUBLIC_MIN_REPLICATES..=JOINT_SENSITIVITY_MAX_BOOTSTRAP).contains(&replicates)
+            || level != PUBLIC_LEVEL
+        {
+            return Err(IoError::Refused {
+                code: reason_code!("route_not_supported"),
+                message: format!(
+                    "joint_sensitivity.bounds_exceeded: {replicates} replicates (199-2000) or level {level} (only 0.95)"
+                ),
+            });
+        }
         match joint_sensitivity_bootstrap_interval_internal(
             self.diagram(),
             self.functional(),
@@ -70,10 +88,9 @@ impl PreparedZTransport {
                 code: reason_code!("transport_numerical_failure"),
                 message: reason.into(),
             }),
-            Err(error) => Err(IoError::Refused {
-                code: error.reason_code(),
-                message: error.to_string(),
-            }),
+            Err(error) => {
+                Err(IoError::Refused { code: error.reason_code(), message: error.to_string() })
+            }
         }
     }
 }

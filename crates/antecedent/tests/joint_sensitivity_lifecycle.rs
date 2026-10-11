@@ -1,7 +1,8 @@
 //! Lifecycle: the prepared z stage evaluates joint mechanism
 //! deviations, exports a version 3 artifact, and an independent consumer
-//! replays it; mutations fail for the right reason and the interval route is
-//! closed.
+//! replays it; mutations fail for the right reason. The public interval is
+//! the measured endpoint bootstrap; the range artifact still refuses a
+//! forged sampling interval.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -34,7 +35,8 @@ use antecedent_identify::{
 };
 use antecedent_io::IoError;
 use antecedent_validate::{
-    JointDeviationSpec, JointFactor, JointFactorBound, z_transport_joint_mechanism_sensitivity,
+    JointDeviationSpec, JointFactor, JointFactorBound,
+    joint_sensitivity_bootstrap_interval_internal, z_transport_joint_mechanism_sensitivity,
 };
 
 const W: VariableId = VariableId::from_raw(0);
@@ -731,24 +733,52 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
 
 #[test]
 fn the_endpoint_bootstrap_interval_replays() {
+    let deviation = spec();
     let mut stage_builder = builder();
     stage_builder.data = empirical_counts();
+    let diagram = stage_builder.diagram.clone();
+    let functional = stage_builder.functional.clone();
     let prepared = prepare(&stage_builder);
     drop(stage_builder);
     let ctx = ExecutionContext::for_tests(1);
     // The retained plan executes; the interval reads that plan's laws.
     let point = prepared.estimate(&ctx).unwrap();
     assert!(!point.distribution().probabilities.is_empty());
-    let first = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
-    let second = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
-    assert!(first.lower.is_finite() && first.upper.is_finite() && first.lower <= first.upper);
-    assert_eq!(first.lower.to_bits(), second.lower.to_bits());
-    assert_eq!(first.upper.to_bits(), second.upper.to_bits());
-    let error = prepared.joint_mechanism_sensitivity_interval(&spec(), 1, 0.95, &ctx).unwrap_err();
-    assert_eq!(
-        refused(&error),
-        ("route_not_supported", "joint_sensitivity.bounds_exceeded".into())
+    let published =
+        prepared.joint_mechanism_sensitivity_interval(&deviation, 199, 0.95, &ctx).unwrap();
+    assert!(
+        published.lower.is_finite()
+            && published.upper.is_finite()
+            && published.lower <= published.upper
     );
+    assert_eq!(published.level, 0.95);
+    assert!(published.coverage_target.starts_with("one_sided:"));
+    // Recompute from the cited count table, the deviation spec, and the seed
+    // stream. This path does not call the prepared-stage producer again.
+    let recomputed = joint_sensitivity_bootstrap_interval_internal(
+        &diagram,
+        &functional,
+        prepared.data(),
+        &deviation,
+        199,
+        0.95,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(published.lower.to_bits(), recomputed.lower.to_bits());
+    assert_eq!(published.upper.to_bits(), recomputed.upper.to_bits());
+    assert_eq!(published.coverage_target, recomputed.coverage_target);
+    for (replicates, level) in [(198, 0.95), (1, 0.95), (2001, 0.95), (199, 0.9), (199, 1.0)] {
+        let error = prepared
+            .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
+            .unwrap_err();
+        assert_eq!(
+            refused(&error),
+            ("route_not_supported", "joint_sensitivity.bounds_exceeded".into()),
+            "replicates={replicates} level={level}"
+        );
+    }
 }
 
 #[test]
@@ -762,11 +792,11 @@ fn the_declared_composition_names_the_endpoint_bootstrap() {
     let point = prepared.estimate(&ctx).unwrap();
     assert!(!point.distribution().probabilities.is_empty());
     assert!(!prepared.program().factor_requirements().is_empty());
-    let interval = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
+    let interval = prepared.joint_mechanism_sensitivity_interval(&spec(), 199, 0.95, &ctx).unwrap();
     assert_eq!(interval.method, "conservative_endpoint_percentile_bootstrap");
     assert!(interval.coverage_target.starts_with("one_sided:"));
     assert_eq!(interval.level, 0.95);
-    assert_eq!(interval.replicates_requested, 20);
+    assert_eq!(interval.replicates_requested, 199);
 }
 
 #[test]
