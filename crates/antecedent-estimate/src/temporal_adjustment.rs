@@ -15,7 +15,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, ExecutionContext, Lag, TargetPopulation, TemporalEffectQuery, VariableId,
+    AssumptionSet, ExecutionContext, KernelPolicy, Lag, TargetPopulation, TemporalEffectQuery,
+    VariableId,
 };
 use antecedent_data::{
     DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData,
@@ -934,6 +935,105 @@ pub fn temporal_linear_slopes(
     Ok((coef[0], coef[1..1 + treatment_count].to_vec()))
 }
 
+/// Moments of the nested natural-direct-effect regression on a time series.
+///
+/// The design is the same empty-adjustment regression
+/// [`temporal_linear_slopes`] fits for a nested point: intercept, treatment
+/// one step before the outcome, and the mediator at the outcome time. A
+/// positive `prior_scale` adds the slope-only ridge that function uses, so
+/// the intercept moment stays the aligned row count.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NestedDirectFitMoments {
+    /// Aligned rows that entered the gram.
+    pub complete_case_rows: u64,
+    /// Row-major gram of `[1, treatment, mediator]`.
+    pub gram: [f64; 9],
+    /// Cross product of that design with the outcome.
+    pub outcome_cross: [f64; 3],
+}
+
+/// Outcome-regression moments behind a temporal nested natural direct effect.
+///
+/// # Errors
+///
+/// Same row, lag, and prior-scale refusals as [`temporal_linear_slopes`] for
+/// this two-treatment design, plus a non-finite aligned column.
+pub fn nested_direct_fit_moments(
+    data: &TimeSeriesData,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    policy: &KernelPolicy,
+    prior_scale: Option<f64>,
+) -> Result<NestedDirectFitMoments, EstimationError> {
+    if treatment == outcome || mediator == outcome || treatment == mediator {
+        return Err(EstimationError::unsupported(
+            "temporal nested moments need distinct treatment, mediator, and outcome",
+        ));
+    }
+    let t_lag = offset_to_lag(-1)?;
+    let y_lag = offset_to_lag(0)?;
+    let cols = [
+        LaggedColumn { variable: treatment, lag: t_lag },
+        LaggedColumn { variable: mediator, lag: y_lag },
+        LaggedColumn { variable: outcome, lag: y_lag },
+    ];
+    let plan = data
+        .plan_lagged_sample(1, Arc::<[LaggedColumn]>::from(cols))
+        .map_err(EstimationError::from)?;
+    let mut sample_ws = LaggedSampleWorkspace::default();
+    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+    let n = prep.n;
+    if n < 8 {
+        return Err(EstimationError::data_msg("too few aligned rows for a temporal linear slope"));
+    }
+    let y = prep.column(2);
+    let treatment_column = prep.column(0);
+    let mediator_column = prep.column(1);
+    if y.iter().chain(treatment_column).chain(mediator_column).any(|value| !value.is_finite()) {
+        return Err(EstimationError::data_msg(
+            "temporal nested moments require finite treatment, mediator, and outcome rows",
+        ));
+    }
+    let ncols = 3;
+    let mut design = vec![0.0; n * ncols];
+    design[..n].fill(1.0);
+    design[n..2 * n].copy_from_slice(treatment_column);
+    design[2 * n..3 * n].copy_from_slice(mediator_column);
+    let mut gram = [0.0_f64; 9];
+    let mut outcome_cross = [0.0_f64; 3];
+    for i in 0..n {
+        let row = [design[i], design[n + i], design[2 * n + i]];
+        for left in 0..3 {
+            outcome_cross[left] += row[left] * y[i];
+            for right in 0..3 {
+                gram[left * 3 + right] += row[left] * row[right];
+            }
+        }
+    }
+    if let Some(scale) = prior_scale {
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(EstimationError::unsupported(
+                "temporal slope prior scale must be finite and positive",
+            ));
+        }
+        let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+        let coef = antecedent_stats::FaerBackend
+            .least_squares(&design, n, ncols, y, &mut ws)
+            .map_err(crate::util::stats_err)?
+            .coefficients;
+        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
+        let penalty = sigma2 / (scale * scale);
+        gram[4] += penalty;
+        gram[8] += penalty;
+    }
+    let Ok(complete_case_rows) = u64::try_from(n) else {
+        return Err(EstimationError::data_msg("aligned row count does not fit the moment record"));
+    };
+    Ok(NestedDirectFitMoments { complete_case_rows, gram, outcome_cross })
+}
+
+
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
 mod tests {
@@ -1119,5 +1219,141 @@ mod tests {
             let err = est.prepare(&data, estimand, &q, &id_res.indexer, None, policy).unwrap_err();
             assert!(matches!(err, EstimationError::TargetPopulation));
         }
+    }
+    #[test]
+    fn nested_direct_moments_solve_to_the_fitted_slope() {
+        let n = 80usize;
+        let mut b = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("m", RoleHint::Context),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(role),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut t = vec![0.0; n];
+        let mut m = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for step in 1..n {
+            t[step] = ((step as f64) * 0.17).sin();
+            m[step] = 0.3 * t[step] + ((step as f64) * 0.41).cos();
+            y[step] = 1.4 * t[step - 1] + 0.7 * m[step] + 0.01 * ((step as f64) * 0.09).sin();
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(m),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        let estimand = antecedent_expr::IdentifiedEstimand::new(
+            "backdoor.adjustment",
+            Arc::from([]),
+            Arc::from([]),
+            Arc::from([]),
+            antecedent_expr::ExprId::from_raw(0),
+            None,
+        );
+        let indexer = TemporalIndexer::new(3, 1, 1).unwrap();
+        let policy = ExecutionContext::for_tests(1).kernel_policy;
+        for prior in [None, Some(10.0)] {
+            let moments = nested_direct_fit_moments(
+                &data,
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                VariableId::from_raw(2),
+                &policy,
+                prior,
+            )
+            .unwrap();
+            assert_eq!(moments.gram[0], moments.complete_case_rows as f64);
+            let (_, slopes) = temporal_linear_slopes(
+                &data,
+                &estimand,
+                &indexer,
+                VariableId::from_raw(2),
+                &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                -1,
+                0,
+                &[VariableId::from_raw(1)],
+                &policy,
+                prior,
+            )
+            .unwrap();
+            let beta = solve_moments(moments.gram, moments.outcome_cross).unwrap();
+            let delta = 1.0 - 0.0;
+            assert!(
+                (beta[1] * delta - slopes[0] * delta).abs()
+                    <= 1e-8 * (slopes[0] * delta).abs().max(1.0),
+                "prior={prior:?} solved={} fitted={}",
+                beta[1] * delta,
+                slopes[0] * delta
+            );
+        }
+    }
+
+    fn solve_moments(gram: [f64; 9], cross: [f64; 3]) -> Option<[f64; 3]> {
+        let mut augmented = [[0.0_f64; 4]; 3];
+        for row in 0..3 {
+            augmented[row][..3].copy_from_slice(&gram[row * 3..row * 3 + 3]);
+            augmented[row][3] = cross[row];
+        }
+        for pivot in 0..3 {
+            let best = (pivot..3).max_by(|left, right| {
+                augmented[*left][pivot].abs().total_cmp(&augmented[*right][pivot].abs())
+            })?;
+            augmented.swap(pivot, best);
+            let divisor = augmented[pivot][pivot];
+            if divisor == 0.0 {
+                return None;
+            }
+            for column in pivot..4 {
+                augmented[pivot][column] /= divisor;
+            }
+            for row in 0..3 {
+                if row == pivot {
+                    continue;
+                }
+                let factor = augmented[row][pivot];
+                for column in pivot..4 {
+                    augmented[row][column] -= factor * augmented[pivot][column];
+                }
+            }
+        }
+        Some([augmented[0][3], augmented[1][3], augmented[2][3]])
     }
 }

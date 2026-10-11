@@ -982,17 +982,11 @@ impl super::Study {
                             data, graph, mediation, physical, ctx,
                         )?;
                         let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
-                        let effect = if bayesian {
-                            // The mediation path already returned the conjugate posterior
-                            // mean of this natural direct effect. Running the cross-world
-                            // engine confirms the Markovian worlds; its plugin is not the
-                            // published number, and the posterior interval is withheld.
-                            operation.execute(data, ctx)?;
-                            result.posterior = None;
-                            result.estimate.ate
-                        } else {
-                            operation.execute(data, ctx)?
-                        };
+                        // Both inference modes publish the shared-exogenous natural
+                        // direct effect. That plugin is the outcome-regression slope
+                        // the contract replays; the mediation posterior mean is not.
+                        let effect = operation.execute(data, ctx)?;
+                        result.posterior = None;
                         result.estimate.ate = effect;
                         result.estimate.se_analytic = f64::NAN;
                         result.estimate.se_bootstrap = None;
@@ -1016,7 +1010,7 @@ impl super::Study {
                                 "counterfactual.nested.posterior_mean_only",
                                 DiagnosticKind::Execution,
                                 DiagnosticSeverity::Info,
-                                "published value is the conjugate posterior mean of the natural direct effect; posterior draws and the interval are withheld".to_string(),
+                                "published value is the natural direct effect of the outcome regression; posterior draws and the interval are withheld".to_string(),
                             ));
                         }
                         Ok(result)

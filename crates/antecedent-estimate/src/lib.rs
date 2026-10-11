@@ -330,9 +330,9 @@ pub use statistical_transport::{
     mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
-    is_temporal_coefficient_name, temporal_coefficient_names, temporal_conditional_marginal_effect,
-    temporal_linear_slopes,
+    TEMPORAL_COEF_LAG_MARKER, NestedDirectFitMoments, TemporalDependenceSe,
+    TemporalLinearAdjustment, is_temporal_coefficient_name, nested_direct_fit_moments,
+    temporal_coefficient_names, temporal_conditional_marginal_effect, temporal_linear_slopes,
 };
 pub use temporal_block::{
     AlignedRows, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap, block_effective_rows,

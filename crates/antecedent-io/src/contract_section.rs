@@ -1283,7 +1283,10 @@ pub fn verify_contract_against_body(
         }
     }
     if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
-        if contract.graph_class == "TemporalDag" {
+        if matches!(
+            contract.graph_class.as_str(),
+            "TemporalDag" | "TemporalCpdag" | "TemporalPag"
+        ) {
             if let Err(reason) = verify_temporal_nested_point(contract, body) {
                 unresolved.push(Arc::from(reason));
             }

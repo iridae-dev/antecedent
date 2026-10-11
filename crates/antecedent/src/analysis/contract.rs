@@ -451,6 +451,15 @@ impl PreparedStudy {
                 snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
             }
         }
+        if let DataInput::Temporal(series) | DataInput::Event(series) = data {
+            if let CausalQuery::NestedCounterfactual(query) = &self.study().query {
+                snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+                    series,
+                    query,
+                    nested_prior_scale(&self.study().inference),
+                )?);
+            }
+        }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
         Ok(crate::result::ExecutedContract { identities: program.identities(snapshot), refute })
     }
@@ -1569,6 +1578,35 @@ fn nested_counterfactual_fit_wire(
     })
 }
 
+fn nested_prior_scale(inference: &InferenceMode) -> Option<f64> {
+    match inference {
+        InferenceMode::Bayesian(cfg) => Some(cfg.prior_scale),
+        InferenceMode::Frequentist => None,
+    }
+}
+
+/// Lagged `[1, treatment, mediator]` moments for a nested time-graph point.
+fn temporal_nested_fit_wire(
+    data: &antecedent_data::TimeSeriesData,
+    query: &antecedent_core::NestedCounterfactualQuery,
+    prior_scale: Option<f64>,
+) -> Result<antecedent_io::NestedCounterfactualFitWire, CausalError> {
+    let moments = antecedent_estimate::nested_direct_fit_moments(
+        data,
+        query.treatment,
+        query.mediator,
+        query.outcome,
+        &antecedent_core::KernelPolicy::scalar_only(),
+        prior_scale,
+    )?;
+    Ok(antecedent_io::NestedCounterfactualFitWire {
+        format: 1,
+        complete_case_rows: moments.complete_case_rows,
+        gram: moments.gram,
+        outcome_cross: moments.outcome_cross,
+    })
+}
+
 /// Retain only the moments needed to replay a point estimate and classical
 /// homoskedastic standard error. Other fit/uncertainty procedures keep their
 /// explicit dependency refusal in the independent consumer.
@@ -1666,6 +1704,15 @@ fn contract_payloads(
         }
         if let Some(operation) = prepared.checked_linear_operation() {
             data_snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
+        }
+    }
+    if let DataInput::Temporal(series) | DataInput::Event(series) = &study.data {
+        if let CausalQuery::NestedCounterfactual(query) = &study.query {
+            data_snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+                series,
+                query,
+                nested_prior_scale(&study.inference),
+            )?);
         }
     }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
