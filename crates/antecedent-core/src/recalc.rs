@@ -30,6 +30,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use crate::identity::CanonicalWriter;
+
 /// Number of external-study branches a workflow may carry.
 pub const MAX_EXTERNAL_BRANCHES: u8 = 8;
 
@@ -47,13 +49,12 @@ impl StageIdentity {
     /// `["a", "bc"]` differ.
     #[must_use]
     pub fn of(label: &str, parts: &[&[u8]]) -> Self {
-        let mut hasher = blake3::Hasher::new_derive_key(STAGE_IDENTITY_KEY);
-        put(&mut hasher, label.as_bytes());
-        hasher.update(&(parts.len() as u64).to_le_bytes());
+        let mut hasher = CanonicalWriter::new(STAGE_IDENTITY_KEY);
+        hasher.text(label).word(parts.len() as u64);
         for part in parts {
-            put(&mut hasher, part);
+            hasher.bytes(part);
         }
-        Self(*hasher.finalize().as_bytes())
+        Self(hasher.finish())
     }
 
     /// Raw digest bytes.
@@ -106,11 +107,6 @@ impl fmt::Display for StageIdentity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.to_hex())
     }
-}
-
-fn put(hasher: &mut blake3::Hasher, bytes: &[u8]) {
-    hasher.update(&(bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
 }
 
 /// Index of one external-study branch, below [`MAX_EXTERNAL_BRANCHES`].

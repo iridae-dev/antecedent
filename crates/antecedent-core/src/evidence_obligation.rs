@@ -596,8 +596,8 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
 }
 
 fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
-    let digest = blake3::hash(canonical_content(spec).as_bytes()).to_hex();
-    Arc::from(format!("eo1:{}:{}", spec.kind.as_str(), &digest.as_str()[..32]))
+    let digest = crate::identity::blake3_hex(canonical_content(spec).as_bytes());
+    Arc::from(format!("eo1:{}:{}", spec.kind.as_str(), &digest[..32]))
 }
 
 /// The `EstablishAssumption` obligations of every unresolved assumption record.

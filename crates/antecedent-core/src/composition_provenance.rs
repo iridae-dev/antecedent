@@ -9,6 +9,8 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use crate::identity::CanonicalWriter;
+
 /// Maximum links in one chain.
 pub const MAX_CHAIN_LINKS: usize = 4_096;
 
@@ -165,20 +167,14 @@ impl ProvenanceChainError {
     }
 }
 
-/// Digest of one link: BLAKE3 over the little-endian `u64` length and bytes
-/// of the id, the little-endian `u64` length and bytes of the stage wire
-/// name, then the lowercase hex digest bytes of each parent in declared order.
+/// Digest of one link: a [`CanonicalWriter`] stream under the tag
+/// `antecedent.composition_provenance.link.v1` of the id, the stage wire name,
+/// and the count and lowercase hex digest of each parent in declared order
+/// (every field a length-prefixed text or a `u64` word).
 fn link_digest(id: &str, stage: CompositionStage, parent_digests: &[&str]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    let name = stage.as_str();
-    hasher.update(&(id.len() as u64).to_le_bytes());
-    hasher.update(id.as_bytes());
-    hasher.update(&(name.len() as u64).to_le_bytes());
-    hasher.update(name.as_bytes());
-    for parent in parent_digests {
-        hasher.update(parent.as_bytes());
-    }
-    hasher.finalize().to_hex().to_string()
+    let mut hasher = CanonicalWriter::new("antecedent.composition_provenance.link.v1");
+    hasher.text(id).text(stage.as_str()).texts(parent_digests);
+    hasher.finish_hex()
 }
 
 /// A validated, acyclic derivation chain with a Merkle digest per link.

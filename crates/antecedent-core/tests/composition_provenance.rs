@@ -30,15 +30,21 @@ fn links(rows: &[Row], declared: Option<&[Vec<String>]>) -> Vec<CompositionLink>
         .collect()
 }
 
-/// BLAKE3 of the documented preimage, recomputed independently of the crate.
+/// BLAKE3 of the documented preimage, recomputed independently of the crate: the tag, the id,
+/// the stage name, the parent count and each parent digest, with every text length-prefixed by
+/// a little-endian `u64` and the count a little-endian `u64` word.
 fn expected_digest(id: &str, stage: S, parent_digests: &[&str]) -> String {
+    fn text(hasher: &mut blake3::Hasher, value: &str) {
+        hasher.update(&(value.len() as u64).to_le_bytes());
+        hasher.update(value.as_bytes());
+    }
     let mut hasher = blake3::Hasher::new();
-    hasher.update(&(id.len() as u64).to_le_bytes());
-    hasher.update(id.as_bytes());
-    hasher.update(&(stage.as_str().len() as u64).to_le_bytes());
-    hasher.update(stage.as_str().as_bytes());
+    text(&mut hasher, "antecedent.composition_provenance.link.v1");
+    text(&mut hasher, id);
+    text(&mut hasher, stage.as_str());
+    hasher.update(&(parent_digests.len() as u64).to_le_bytes());
     for parent in parent_digests {
-        hasher.update(parent.as_bytes());
+        text(&mut hasher, parent);
     }
     hasher.finalize().to_hex().to_string()
 }

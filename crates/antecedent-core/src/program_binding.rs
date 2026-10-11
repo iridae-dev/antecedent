@@ -16,6 +16,7 @@
 
 use std::num::FpCategory;
 
+use crate::identity::CanonicalWriter;
 use crate::{
     BoundExternalClaim, CheckedCausalContract, ExternalRefusal, ExternalResult, QuantityRole,
     ScientificQuantity, bind_external_result,
@@ -59,11 +60,6 @@ pub fn dose_label(value: f64) -> String {
 
 fn blank(value: &str) -> bool {
     value.trim().is_empty()
-}
-
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
 }
 
 /// The full identified-program and request identity an external claim must answer.
@@ -159,7 +155,7 @@ impl ProgramBinding {
     /// changing any one field, including the contract identity, changes it.
     #[must_use]
     pub fn identity(&self) -> String {
-        let mut hasher = blake3::Hasher::new_derive_key(IDENTITY_KEY);
+        let mut hasher = CanonicalWriter::new(IDENTITY_KEY);
         for field in [
             &self.graph_id,
             &self.contract_id,
@@ -172,23 +168,17 @@ impl ProgramBinding {
             &self.functional_id,
             &self.transform_id,
         ] {
-            put_str(&mut hasher, field);
+            hasher.text(field);
         }
-        hasher.update(&self.horizon.to_le_bytes());
-        hasher.update(&(self.dose_grid.len() as u64).to_le_bytes());
-        for dose in &self.dose_grid {
-            hasher.update(&dose.to_bits().to_le_bytes());
-        }
-        hasher.finalize().to_hex().to_string()
+        hasher.word(u64::from(self.horizon)).reals(&self.dose_grid);
+        hasher.finish_hex()
     }
 
     /// The identity a graph-only derivation would give. It is insufficient: two
     /// different questions on one graph share it, so it is always refused.
     #[must_use]
     pub fn graph_only_identity(graph_id: &str) -> String {
-        let mut hasher = blake3::Hasher::new_derive_key(GRAPH_ONLY_KEY);
-        put_str(&mut hasher, graph_id);
-        hasher.finalize().to_hex().to_string()
+        CanonicalWriter::new(GRAPH_ONLY_KEY).text(graph_id).finish_hex()
     }
 }
 

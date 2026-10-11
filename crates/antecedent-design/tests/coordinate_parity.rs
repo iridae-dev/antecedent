@@ -212,13 +212,17 @@ fn digest_of(chain: &ProvenanceChain, id: &str) -> String {
 
 /// Independent recomputation of a link digest from the documented byte layout.
 fn expected_link_digest(id: &str, stage: &str, parent_digests: &[&str]) -> String {
+    fn text(hasher: &mut blake3::Hasher, value: &str) {
+        hasher.update(&u64::try_from(value.len()).unwrap().to_le_bytes());
+        hasher.update(value.as_bytes());
+    }
     let mut hasher = blake3::Hasher::new();
-    hasher.update(&u64::try_from(id.len()).unwrap().to_le_bytes());
-    hasher.update(id.as_bytes());
-    hasher.update(&u64::try_from(stage.len()).unwrap().to_le_bytes());
-    hasher.update(stage.as_bytes());
+    text(&mut hasher, "antecedent.composition_provenance.link.v1");
+    text(&mut hasher, id);
+    text(&mut hasher, stage);
+    hasher.update(&u64::try_from(parent_digests.len()).unwrap().to_le_bytes());
     for parent in parent_digests {
-        hasher.update(parent.as_bytes());
+        text(&mut hasher, parent);
     }
     hasher.finalize().to_hex().to_string()
 }

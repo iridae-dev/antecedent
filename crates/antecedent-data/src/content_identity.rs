@@ -5,6 +5,10 @@
 //! hashed byte stream is the `antecedent.data.storage.v1` encoding; staging
 //! only changes how many bytes each `update` call receives, never the bytes.
 //!
+//! This is deliberately not `antecedent_core::CanonicalWriter`: a writer call per value is a
+//! hasher call per value, and a column holds millions of words. The framing is the same kind
+//! (little-endian `u64` counts, fixed-width little-endian words), staged 64 KiB at a time.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{CategoryCode, ColumnView, OwnedColumn, UnknownCategoryPolicy, ValidityBitmap};
