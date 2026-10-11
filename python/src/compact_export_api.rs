@@ -12,7 +12,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::bridge::check_declared_size;
+use crate::bridge::{RefusalJson, check_declared_size};
 use antecedent::analysis::compact_export::{
     CompactExport, ExportInput, ExportLimits, ExportQuery, ExportRefusal, ExportSpec, MaskRegion,
     PointWithSe, QueryValue, TermSpec,
@@ -28,7 +28,7 @@ fn invalid_argument(message: String) -> PyErr {
 }
 
 /// Largest declaration / query JSON accepted.
-const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type BuildPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -53,16 +53,9 @@ enum QueryJson {
 }
 
 fn refusal_value(error: &ExportRefusal, stage: &'static str) -> serde_json::Value {
-    serde_json::json!({
-        "code": error.code,
-        "stage": stage,
-        "detail": error.detail,
-        "offending": error.subject,
-        "expected": serde_json::Value::Null,
-        "supplied": serde_json::Value::Null,
-        "remedy": serde_json::Value::Null,
-        "message": error.to_string(),
-    })
+    RefusalJson::new(error.code, stage, error.detail, &error.to_string())
+        .field("offending", &error.subject)
+        .value()
 }
 
 fn refusal_json(error: &ExportRefusal, stage: &'static str) -> String {

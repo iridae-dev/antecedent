@@ -12,6 +12,7 @@ use antecedent_estimate::scenario_invariance_report::{EnvelopeSide, ScenarioSetI
 use antecedent_identify::sid::scenario_invariance::{
     InvarianceBody, InvarianceReport, ObstructionWitness,
 };
+use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
@@ -123,15 +124,7 @@ fn set_json(names: &[String], set: &ScenarioSetInvarianceReport) -> Value {
 }
 
 fn refusal_json(code: &str, detail: &str, message: &str) -> String {
-    json!({
-        "code": code,
-        "stage": "scenario_invariance",
-        "detail": detail,
-        "message": message,
-        "offending": Value::Null,
-        "remedy": Value::Null,
-    })
-    .to_string()
+    RefusalJson::new(code, "scenario_invariance", detail, message).json()
 }
 
 /// The invariance report of an estimated transport-scenario stage:

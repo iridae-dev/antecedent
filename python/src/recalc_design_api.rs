@@ -1,7 +1,6 @@
 //! Checked public adapter for IV, sharp RD and linear front-door recalculation.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use std::collections::BTreeMap;
-use std::fmt::Write;
 
 use antecedent::analysis::recalc_design::{
     DesignModel, DesignRequest, DesignRunError, DesignSession, consume_design_with_data,
@@ -345,8 +344,8 @@ impl PyDesignSession {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ReplayPayload> {
-        if artifact.len() > 16 * 1024 * 1024 {
-            return Err(invalid("recalc.limits_exceeded", "design artifact exceeds 16MiB"));
+        if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
+            return Err(invalid("recalc.limits_exceeded", "design artifact exceeds byte bound"));
         }
         let request = match (names, columns.as_ref(), specification) {
             (Some(names), Some(columns), Some(text)) => Some(request(names, columns, text)?),
@@ -373,13 +372,7 @@ impl PyDesignSession {
                     &session.capabilities(),
                     &replay.outcome,
                 )?;
-                let digest = replay.artifact_digest.iter().fold(
-                    String::with_capacity(64),
-                    |mut text, byte| {
-                        write!(text, "{byte:02x}").expect("String formatting cannot fail");
-                        text
-                    },
-                );
+                let digest = antecedent_core::to_hex(&replay.artifact_digest);
                 Ok((Some(session), result.0, result.1, Some(digest), None))
             }
             Err(error) => Ok((None, None, None, None, Some(design_error(&error)))),

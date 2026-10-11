@@ -19,6 +19,7 @@ use antecedent_io::temporal_initial_state_artifact::{
     TemporalInitialStateConsumeLimits, TemporalPremisesWire,
 };
 use antecedent_io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
+use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;
@@ -43,15 +44,7 @@ type WindowTuple =
 type Outcome<T> = PyResult<(Option<T>, Option<String>)>;
 
 fn refusal_json(code: &str, message: &str) -> String {
-    let (detail, text) = message.split_once(": ").unwrap_or(("", message));
-    serde_json::json!({
-        "code": code,
-        "stage": "temporal_extension",
-        "detail": detail,
-        "message": text,
-        "remedy": serde_json::Value::Null,
-    })
-    .to_string()
+    RefusalJson::from_coded_message(code, "temporal_extension", message).json()
 }
 
 /// A producer outcome: a refusal is structured, any other failure is invalid input.

@@ -22,6 +22,7 @@ use antecedent_io::external_binding_wire::{
     ContractWire, MAX_BINDING_WIRE_BYTES, RefusalWire, ResponseWire, bind_response_to_program,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
+use crate::bridge::check_declared_size;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Deserialize;
@@ -33,10 +34,9 @@ fn malformed(error: impl Display) -> PyErr {
 }
 
 fn check_size(parts: &[&str]) -> PyResult<()> {
-    if parts.iter().any(|part| part.len() > MAX_BINDING_WIRE_BYTES) {
-        return Err(PyValueError::new_err("program declaration is too large"));
-    }
-    Ok(())
+    parts.iter().try_for_each(|part| {
+        check_declared_size(part, MAX_BINDING_WIRE_BYTES, "program binding")
+    })
 }
 
 fn refusal_json(refusal: ExternalRefusal) -> PyResult<String> {

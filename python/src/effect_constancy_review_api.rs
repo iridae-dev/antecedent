@@ -87,7 +87,7 @@ fn review_effect_constancy(
                     || bindings.len() > 1024
                     || sources
                         .iter()
-                        .any(|s| s.artifact.as_ref().is_some_and(|a| a.len() > 16 * 1024 * 1024))
+                        .any(|s| s.artifact.as_ref().is_some_and(|a| a.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES))
                 {
                     return Err(invalid("prior catalog exceeds bounds"));
                 }

@@ -8,7 +8,7 @@
 //! to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.
 
-use crate::bridge::serialization;
+use crate::bridge::{RefusalJson, check_declared_size, serialization};
 use antecedent::analysis::dose_grid_functional::{
     DoseGridArtifactError, DoseGridConsumeLimits, DoseGridFunctional, DoseGridRequestWire,
     dose_support_table,
@@ -33,19 +33,7 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
         DoseGridArtifactError::Refused { message, .. } => message.clone(),
         other => other.to_string(),
     };
-    Some(
-        serde_json::json!({
-            "code": code,
-            "stage": stage,
-            "detail": detail,
-            "offending": serde_json::Value::Null,
-            "expected": serde_json::Value::Null,
-            "supplied": serde_json::Value::Null,
-            "remedy": serde_json::Value::Null,
-            "message": message,
-        })
-        .to_string(),
-    )
+    Some(RefusalJson::new(code, stage, &detail, &message).json())
 }
 
 /// The report: the premises with the table elided (its length is `result.n_rows`), the
@@ -78,9 +66,7 @@ fn evaluate_dose_grid_functional(
     dose: Vec<f64>,
     outcome: Vec<f64>,
 ) -> PyResult<EvaluatePayload> {
-    if request_json.len() > MAX_JSON_BYTES {
-        return Err(value_err("dose_grid.invalid_request: the declaration is too large"));
-    }
+    check_declared_size(request_json, MAX_JSON_BYTES, "dose grid")?;
     let mut request: DoseGridRequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("dose_grid.invalid_request: {e}")))?;
     request.dose = dose;

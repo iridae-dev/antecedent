@@ -349,7 +349,7 @@ impl PyCallbackSession {
         columns: Vec<PyReadonlyArray1<'_, f64>>,
         text: &str,
     ) -> PyResult<(Option<Self>, Option<String>)> {
-        if data.len() > 16 * 1024 * 1024 {
+        if data.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid(
                 "external_recalc.limits_exceeded",
                 "callback artifact exceeds byte bound",

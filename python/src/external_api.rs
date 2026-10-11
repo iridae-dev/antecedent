@@ -12,7 +12,7 @@ use antecedent_io::external_claim_artifact::{
 };
 use numpy::PyArray1;
 use numpy::ndarray::Array1;
-use pyo3::exceptions::PyValueError;
+use crate::bridge::{check_declared_len, check_declared_size};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -36,11 +36,8 @@ impl PyExternalClaimArtifact {
     }
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
-        if data.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES
-            || expected_identity_json.len() > MAX_BINDING_WIRE_BYTES
-        {
-            return Err(PyValueError::new_err("external claim artifact or identity is too large"));
-        }
+        check_declared_len(data.len(), MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES, "external claim artifact")?;
+        check_declared_size(expected_identity_json, MAX_BINDING_WIRE_BYTES, "external claim identity")?;
         let expected: ExternalClaimIdentity =
             serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
         let artifact =
@@ -76,10 +73,8 @@ fn bind_external_response(
     response_json: &str,
     causal_contract_id: &str,
 ) -> PyResult<(Option<PyExternalClaimArtifact>, Option<String>)> {
-    if contract_json.len() > MAX_BINDING_WIRE_BYTES || response_json.len() > MAX_BINDING_WIRE_BYTES
-    {
-        return Err(PyValueError::new_err("external binding declaration is too large"));
-    }
+    check_declared_size(contract_json, MAX_BINDING_WIRE_BYTES, "external binding contract")?;
+    check_declared_size(response_json, MAX_BINDING_WIRE_BYTES, "external binding response")?;
     let contract: ContractWire = serde_json::from_str(contract_json).map_err(artifact_error)?;
     let response: ResponseWire = serde_json::from_str(response_json).map_err(artifact_error)?;
     match bind_response(&contract, &response, causal_contract_id) {

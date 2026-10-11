@@ -118,6 +118,9 @@ impl NativeMeasuredInference {
     }
 }
 
+/// Fixed native overhead (16 MiB) added to every planned peak.
+const PLANNED_FIXED_OVERHEAD_BYTES: u64 = 16 * 1024 * 1024;
+
 /// Conservative peak bound includes decode, actual fit/draw replay, original wire,
 /// canonical envelope and explicit original source-report inspection.
 pub(crate) fn before_work(
@@ -136,7 +139,7 @@ pub(crate) fn before_work(
         .unwrap_or(u64::MAX)
         .saturating_mul(24)
         .saturating_add(u64::try_from(numerical_bytes).unwrap_or(u64::MAX).saturating_mul(16))
-        .saturating_add(16 * 1024 * 1024);
+        .saturating_add(PLANNED_FIXED_OVERHEAD_BYTES);
     if memory.is_some_and(|limit| planned > limit) {
         return Err(crate::CausalResourceError::new_err(
             "measured_inference.memory_budget_exceeded: planned native peak exceeds caller limit",

@@ -2,9 +2,10 @@
 //! Historical numerical replay preserves source standing and issues no native authority.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::bridge::serialization;
+use crate::bridge::{
+    MAX_DECLARED_ARTIFACT_BYTES, check_declared_len, check_declared_size, serialization,
+};
 use crate::{detach_catch, value_err, with_reason_code};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 fn invalid_rollout_request(error: serde_json::Error) -> PyErr {
@@ -15,10 +16,7 @@ fn invalid_rollout_request(error: serde_json::Error) -> PyErr {
 }
 
 fn check_binding_size(json: &str) -> PyResult<()> {
-    if json.len() > 16 * 1024 * 1024 {
-        return Err(PyValueError::new_err("rollout binding exceeds its JSON byte bound"));
-    }
-    Ok(())
+    check_declared_size(json, MAX_DECLARED_ARTIFACT_BYTES, "rollout binding")
 }
 
 /// Bind and independently check the original finite source law and ranking.
@@ -33,12 +31,16 @@ fn export_rollout(
     source_evidence: Option<&[u8]>,
 ) -> PyResult<(String, Vec<u8>)> {
     check_binding_size(binding_json)?;
-    if source.len() > antecedent_io::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES
-        || ranking.len()
-            > antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES
-    {
-        return Err(PyValueError::new_err("rollout source or ranking exceeds its byte bound"));
-    }
+    check_declared_len(
+        source.len(),
+        antecedent_io::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES,
+        "rollout source",
+    )?;
+    check_declared_len(
+        ranking.len(),
+        antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+        "rollout ranking",
+    )?;
     if source_evidence.is_some_and(|bytes| {
         bytes.len() > antecedent_design::source_evidence::MAX_SOURCE_EVIDENCE_BYTES
     }) {
@@ -103,9 +105,11 @@ fn rollout_json(
 #[pyfunction]
 fn consume_rollout(py: Python<'_>, artifact: &[u8], expectation_json: &str) -> PyResult<String> {
     check_binding_size(expectation_json)?;
-    if artifact.len() > antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES {
-        return Err(PyValueError::new_err("rollout artifact exceeds its byte bound"));
-    }
+    check_declared_len(
+        artifact.len(),
+        antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES,
+        "rollout artifact",
+    )?;
     let artifact = artifact.to_vec();
     let expected: antecedent_design::rollout_artifact::RolloutExpectation =
         serde_json::from_str(expectation_json).map_err(invalid_rollout_request)?;
@@ -120,9 +124,11 @@ fn consume_rollout(py: Python<'_>, artifact: &[u8], expectation_json: &str) -> P
 #[pyfunction]
 fn rollout_ranking(artifact: &[u8], expectation_json: &str) -> PyResult<Vec<u8>> {
     check_binding_size(expectation_json)?;
-    if artifact.len() > antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES {
-        return Err(PyValueError::new_err("rollout artifact exceeds its byte bound"));
-    }
+    check_declared_len(
+        artifact.len(),
+        antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES,
+        "rollout artifact",
+    )?;
     let expected = serde_json::from_str(expectation_json).map_err(invalid_rollout_request)?;
     Ok(antecedent_design::rollout_artifact::consume(artifact, &expected)
         .map_err(rollout_error)?

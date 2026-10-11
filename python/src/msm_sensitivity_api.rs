@@ -13,6 +13,7 @@ use antecedent::analysis::msm_sensitivity::{
 use antecedent_core::{ScientificQuantity, reason_code};
 use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
+use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -23,7 +24,7 @@ use serde_json::{Value, json};
 type StratumTuple = (f64, f64, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
 
 fn refusal_json(code: &str, detail: &str, message: &str) -> String {
-    json!({"code": code, "detail": detail, "message": message}).to_string()
+    RefusalJson::new(code, "msm_sensitivity", detail, message).json()
 }
 
 fn msm_refusal(error: &MsmSensitivityError) -> String {

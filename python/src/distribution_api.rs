@@ -6,6 +6,7 @@ use antecedent_io::distribution_artifact::{
 };
 use numpy::ndarray::Array2;
 use numpy::{PyArray2, PyReadonlyArray2, PyUntypedArrayMethods};
+use crate::bridge::{check_declared_len, check_declared_size};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -33,9 +34,7 @@ impl PyJointDistributionArtifact {
 impl PyJointDistributionArtifact {
     #[new]
     fn new(metadata_json: &str, draws: PyReadonlyArray2<'_, f64>) -> PyResult<Self> {
-        if metadata_json.len() > MAX_DISTRIBUTION_ARTIFACT_BYTES {
-            return Err(PyValueError::new_err("distribution metadata is too large"));
-        }
+        check_declared_size(metadata_json, MAX_DISTRIBUTION_ARTIFACT_BYTES, "distribution metadata")?;
         let metadata: DistributionMetadata =
             serde_json::from_str(metadata_json).map_err(artifact_error)?;
         if metadata.trust == DistributionTrust::NativeLicensed {
@@ -63,11 +62,12 @@ impl PyJointDistributionArtifact {
 
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
-        if data.len() > MAX_DISTRIBUTION_ARTIFACT_BYTES
-            || expected_identity_json.len() > MAX_DISTRIBUTION_ARTIFACT_BYTES
-        {
-            return Err(PyValueError::new_err("distribution artifact or identity is too large"));
-        }
+        check_declared_len(data.len(), MAX_DISTRIBUTION_ARTIFACT_BYTES, "distribution artifact")?;
+        check_declared_size(
+            expected_identity_json,
+            MAX_DISTRIBUTION_ARTIFACT_BYTES,
+            "distribution identity",
+        )?;
         let expected: DistributionIdentity =
             serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
         let artifact = DistributionArtifact::from_bytes(data, &expected).map_err(artifact_error)?;

@@ -25,18 +25,8 @@ type ConsumePayload = (Option<String>, Option<String>);
 fn refusal_json(error: &TransportedCounterfactualArtifactError) -> Option<String> {
     let refusal = error.refusal()?;
     Some(
-        serde_json::json!({
-            "code": refusal.code,
-            "stage": refusal.stage,
-            "detail": refusal.detail,
-            "offending": refusal.offending,
-            "expected": serde_json::Value::Null,
-            "supplied": serde_json::Value::Null,
-            "remedy": refusal.remedy,
-            "witness": refusal.witness,
-            "missing_factors": refusal.missing_factors,
-        })
-        .to_string(),
+        serde_json::to_string(&refusal)
+            .expect("a refusal of strings and options always serialises"),
     )
 }
 

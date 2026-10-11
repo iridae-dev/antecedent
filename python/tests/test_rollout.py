@@ -228,7 +228,7 @@ def test_rollout_native_byte_budget_refuses_before_owned_copy_and_parse() -> Non
 
     _, _, rollout = fixture()
     expected = json.dumps(rollout.expectation())
-    with pytest.raises(ValueError, match="exceeds its byte bound"):
+    with pytest.raises(ValueError, match="is too large"):
         _native.consume_rollout(bytes(32 * 1024 * 1024 + 1), expected)
-    with pytest.raises(ValueError, match="exceeds its byte bound"):
+    with pytest.raises(ValueError, match="is too large"):
         _native.export_rollout(bytes(16 * 1024 * 1024 + 1), b"", "{}", "rollout")

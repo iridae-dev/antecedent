@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::bridge::check_declared_size;
+use crate::bridge::{RefusalJson, check_declared_size};
 use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, TargetWeights, UtilitySpec,
     execute_with_receipt,
@@ -62,22 +62,21 @@ pub(crate) fn refusal_json(
     message: &str,
     plan: Option<&RecalcPlan>,
 ) -> String {
-    serde_json::json!({
-        "code": code,
-        "stage": stage,
-        "detail": detail,
-        "offending": offending,
-        "expected": serde_json::Value::Null,
-        "supplied": serde_json::Value::Null,
-        "remedy": remedy,
-        "message": message,
-        "plan": plan.map(plan_to_wire),
-    })
-    .to_string()
+    RefusalJson::new(code, stage, detail, message)
+        .offending(offending)
+        .remedy(remedy.as_deref())
+        .field("plan", plan.map(plan_to_wire))
+        .json()
 }
 
 /// The refusal a refused plan carries: its first refused stage and reason.
 pub(crate) fn plan_refusal_json(plan: &RecalcPlan) -> String {
+    plan_refusal_json_with(plan, "supply a compatible data snapshot")
+}
+
+/// [`plan_refusal_json`] with the remedy a missing data snapshot names, for the bindings
+/// that run on a live session.
+pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> String {
     let Some((stage, reason)) = plan.first_refusal() else {
         return refusal_json(
             antecedent_core::reason_code!("not_executed"),
@@ -102,9 +101,7 @@ pub(crate) fn plan_refusal_json(plan: &RecalcPlan) -> String {
             antecedent_core::recalc::MissingDependency::Fit => {
                 "supply a portable fit or scores, or the data snapshot to refit".to_owned()
             }
-            antecedent_core::recalc::MissingDependency::Data => {
-                "supply a compatible data snapshot".to_owned()
-            }
+            antecedent_core::recalc::MissingDependency::Data => data_remedy.to_owned(),
             antecedent_core::recalc::MissingDependency::Provider => {
                 "supply a compatible provider callback".to_owned()
             }

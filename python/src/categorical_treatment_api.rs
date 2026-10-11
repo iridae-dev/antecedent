@@ -8,7 +8,7 @@
 //! Python layer to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.
 
-use crate::bridge::check_declared_size;
+use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::categorical_treatment::{
     CategoricalSpecWire, CategoricalTreatment, CategoricalTreatmentArtifactError,
     CategoricalTreatmentIdentity, CategoricalTreatmentRequest,
@@ -19,7 +19,7 @@ use pyo3::prelude::*;
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
 
 /// Largest declaration / identity JSON accepted.
-const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -33,24 +33,11 @@ struct Declaration {
 }
 
 fn refusal_json(error: &CategoricalTreatmentArtifactError, stage: &'static str) -> Option<String> {
-    let (code, detail, text) = error.refusal()?;
     let offending = match error {
         CategoricalTreatmentArtifactError::IdentityMismatch { field } => Some(*field),
         _ => None,
     };
-    Some(
-        serde_json::json!({
-            "code": code,
-            "stage": stage,
-            "detail": detail,
-            "offending": offending,
-            "expected": serde_json::Value::Null,
-            "supplied": serde_json::Value::Null,
-            "remedy": serde_json::Value::Null,
-            "message": text,
-        })
-        .to_string(),
-    )
+    Some(artifact_refusal_json(stage, error.refusal()?, offending))
 }
 
 /// A non-refusal failure: a bound is a value error, everything else is a serialization error.

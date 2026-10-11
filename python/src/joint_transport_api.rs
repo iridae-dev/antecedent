@@ -23,7 +23,13 @@ mod enabled {
     use pyo3::prelude::*;
     use serde::Deserialize;
 
-    const MAX_BYTES: usize = 16 * 1024 * 1024;
+    #[cfg(feature = "calibration-internal")]
+    use crate::bridge::check_declared_len;
+    use crate::bridge::{MAX_DECLARED_ARTIFACT_BYTES as MAX_BYTES, check_declared_size};
+
+    /// Largest sealed joint-transport artifact a consumer reads.
+    #[cfg(feature = "calibration-internal")]
+    const MAX_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
     struct SourceWire {
@@ -128,9 +134,7 @@ mod enabled {
         request_json: &str,
         learned: bool,
     ) -> PyResult<Prepared> {
-        if request_json.len() > MAX_BYTES {
-            return Err(invalid("joint_transport.request_too_large"));
-        }
+        check_declared_size(request_json, MAX_BYTES, "joint transport request")?;
         let request: Request = serde_json::from_str(request_json)
             .map_err(|e| invalid(&format!("joint_transport.invalid_request: {e}")))?;
         for source in &request.sources {
@@ -331,9 +335,7 @@ mod enabled {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
-        if request_json.len() > MAX_BYTES {
-            return Err(invalid("joint_transport.request_too_large"));
-        }
+        check_declared_size(request_json, MAX_BYTES, "joint transport request")?;
         crate::measured_inference_api::before_work(
             request_json.len(),
             0,
@@ -386,9 +388,8 @@ mod enabled {
         expectation_json: &str,
         learned: bool,
     ) -> PyResult<String> {
-        if data.len() > 128 * 1024 * 1024 || expectation_json.len() > MAX_BYTES {
-            return Err(invalid("joint_transport.consumer_bounds_exceeded"));
-        }
+        check_declared_len(data.len(), MAX_ARTIFACT_BYTES, "joint transport artifact")?;
+        check_declared_size(expectation_json, MAX_BYTES, "joint transport expectation")?;
         let expected: Expectation =
             serde_json::from_str(expectation_json).map_err(|e| invalid(&e.to_string()))?;
         let ctx = antecedent_core::ExecutionContext::production_default(0);

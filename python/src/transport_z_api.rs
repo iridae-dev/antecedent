@@ -1021,14 +1021,7 @@ impl PreparedZTransportStage {
 const SENSITIVITY_ESTIMAND: &str = "target active-minus-control mean outcome response";
 
 fn digest_hex(domain: &str, bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    antecedent_io::identity::payload_digest(domain, bytes).iter().fold(
-        String::new(),
-        |mut hex, byte| {
-            let _ = write!(hex, "{byte:02x}");
-            hex
-        },
-    )
+    antecedent_core::to_hex(&antecedent_io::identity::payload_digest(domain, bytes))
 }
 
 /// Independently recheck a framed point artifact and recompute its point under

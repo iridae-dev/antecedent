@@ -12,21 +12,19 @@ use antecedent::analysis::mechanism_discrepancy::{
     run_mechanism_discrepancy, summarize_sample,
 };
 use antecedent_core::reason_code;
+use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
 
+const STAGE: &str = "mechanism_discrepancy";
+
 fn refusal_json(refusal: &MechanismDiscrepancyRefusal) -> String {
-    json!({"code": refusal.code, "detail": refusal.detail, "message": refusal.message}).to_string()
+    RefusalJson::new(refusal.code, STAGE, &refusal.detail, &refusal.message).json()
 }
 
 fn invalid_json(detail: &str, message: &str) -> String {
-    json!({
-        "code": reason_code!("invalid_argument"),
-        "detail": detail,
-        "message": message,
-    })
-    .to_string()
+    RefusalJson::new(reason_code!("invalid_argument"), STAGE, detail, message).json()
 }
 
 /// Sufficient statistics (`n`, `X'X`, `X'y`, `y'y`) of one population's raw rows; returns the

@@ -26,6 +26,7 @@ use antecedent_io::cpdag_completion_artifact::{CpdagCompletionArtifactWire, Cpda
 use antecedent_io::scenario_covariance_artifact::{
     CovarianceSpec, ScenarioCovarianceArtifactWire, ScenarioCovarianceConsumeLimits,
 };
+use crate::bridge::{RefusalJson, check_declared_size};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::sync::Arc;
@@ -47,16 +48,7 @@ type EvidenceTuple<'py> =
 type Refusal = String;
 
 fn refusal_json(code: &str, message: &str) -> Refusal {
-    let (detail, text) = match message.split_once(": ") {
-        Some((head, rest))
-            if head.contains('.')
-                && head.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') =>
-        {
-            (head, rest)
-        }
-        _ => ("", message),
-    };
-    serde_json::json!({ "code": code, "detail": detail, "message": text }).to_string()
+    RefusalJson::from_coded_message(code, "cpdag_scenario", message).json()
 }
 
 /// A coded refusal as JSON; anything else (cancellation, resource budgets,
@@ -531,9 +523,7 @@ fn scenario_shared_covariance_stage(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<(Option<ScenarioCovarianceRun>, Option<Refusal>)> {
-    if spec_json.len() > MAX_SPEC_JSON_BYTES {
-        return Err(crate::value_err("the covariance declaration is too large"));
-    }
+    check_declared_size(spec_json, MAX_SPEC_JSON_BYTES, "covariance")?;
     let spec: CovarianceSpec = match serde_json::from_str(spec_json) {
         Ok(spec) => spec,
         Err(e) => {

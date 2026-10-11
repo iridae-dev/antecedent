@@ -22,7 +22,7 @@ use serde::Deserialize;
 use crate::{detach_catch, value_err, with_reason_code};
 
 /// Largest declaration or expectation JSON accepted.
-const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);

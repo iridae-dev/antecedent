@@ -50,7 +50,7 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
         Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
     };
     if let Some(bytes) = get("prior_artifact")? {
-        if bytes.cast::<PyBytes>()?.as_bytes().len() > 16 * 1024 * 1024 {
+        if bytes.cast::<PyBytes>()?.as_bytes().len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid("recalc.limits_exceeded", "prior artifact exceeds byte bound"));
         }
     }

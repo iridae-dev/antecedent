@@ -7,7 +7,7 @@
 //! to raise as its own exception type. An assumption range is never a probability
 //! and never a sampling interval; composing the two is refused natively.
 
-use crate::bridge::{check_declared_size, serialization};
+use crate::bridge::{RefusalJson, check_declared_size, serialization};
 use antecedent::analysis::sensitivity_decision::{
     ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, IdentifiedBound,
     MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SENSITIVITY_INFERENCE_CLAIM, SamplingInterval,
@@ -41,17 +41,7 @@ fn check_size(text: &str) -> PyResult<()> {
 }
 
 fn refusal_json(code: &str, detail: &str, message: &str) -> String {
-    json!({
-        "code": code,
-        "stage": STAGE,
-        "detail": detail,
-        "offending": Value::Null,
-        "message": message,
-        "expected": Value::Null,
-        "supplied": Value::Null,
-        "remedy": Value::Null,
-    })
-    .to_string()
+    RefusalJson::new(code, STAGE, detail, message).json()
 }
 
 fn io_refusal(error: &IoError) -> String {
