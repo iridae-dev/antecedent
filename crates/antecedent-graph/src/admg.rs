@@ -4,7 +4,7 @@
 
 use antecedent_core::VariableId;
 
-use crate::algo::{bfs_reaches, is_dag, kahn_order};
+use crate::algo::{bfs_reaches, closure_into, is_dag, kahn_order};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -301,27 +301,50 @@ impl Admg {
     ///
     /// Walks [`Self::children`] only. Bidirected edges are ignored.
     pub fn descendants_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
-        let n = self.node_count();
-        out.resize(n);
-        out.clear();
-        ws.prepare(n);
-        for &v in nodes {
-            if v.as_usize() >= n {
-                continue;
-            }
-            if !out.contains(v) {
-                out.insert(v);
-                ws.frontier.push(v);
-            }
-        }
-        while let Some(u) = ws.frontier.pop() {
-            for &c in self.children(u) {
-                if !out.contains(c) {
-                    out.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
+        closure_into(
+            self.node_count(),
+            |u| self.children(u),
+            nodes.iter().copied(),
+            out,
+            ws,
+            |_, _| true,
+        );
+    }
+
+    /// Collect all ancestors of `nodes` (including `nodes`) into `out`.
+    ///
+    /// Walks [`Self::parents`] only. Bidirected edges are ignored.
+    pub fn ancestors_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
+        closure_into(
+            self.node_count(),
+            |u| self.parents(u),
+            nodes.iter().copied(),
+            out,
+            ws,
+            |_, _| true,
+        );
+    }
+
+    /// Descendants of `seeds` that stay inside `active`, with nodes of `cut` reached but not
+    /// expanded (the paths through a cut node end there). Seeds outside `active` are dropped.
+    #[must_use]
+    pub fn descendants_within(
+        &self,
+        seeds: &BitSet,
+        active: &BitSet,
+        cut: Option<&BitSet>,
+        ws: &mut GraphWorkspace,
+    ) -> BitSet {
+        let mut out = BitSet::with_len(self.node_count());
+        closure_into(
+            self.node_count(),
+            |u| self.children(u),
+            seeds.to_dense_ids().into_iter().filter(|&id| active.contains(id)),
+            &mut out,
+            ws,
+            |u, c| !cut.is_some_and(|cut| cut.contains(u)) && active.contains(c),
+        );
+        out
     }
 
     /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
@@ -420,30 +443,15 @@ impl Admg {
         bar_x: Option<&BitSet>,
         ws: &mut GraphWorkspace,
     ) -> BitSet {
-        let n = self.node_count();
-        let mut out = BitSet::with_len(n);
-        ws.prepare(n);
-        for id in seeds.to_dense_ids() {
-            if !active.contains(id) {
-                continue;
-            }
-            if !out.contains(id) {
-                out.insert(id);
-                ws.frontier.push(id);
-            }
-        }
-        while let Some(u) = ws.frontier.pop() {
-            if bar_x.is_some_and(|bx| bx.contains(u)) {
-                continue;
-            }
-            for &p in self.parents(u) {
-                if !active.contains(p) || out.contains(p) {
-                    continue;
-                }
-                out.insert(p);
-                ws.frontier.push(p);
-            }
-        }
+        let mut out = BitSet::with_len(self.node_count());
+        closure_into(
+            self.node_count(),
+            |u| self.parents(u),
+            seeds.to_dense_ids().into_iter().filter(|&id| active.contains(id)),
+            &mut out,
+            ws,
+            |u, p| !bar_x.is_some_and(|bx| bx.contains(u)) && active.contains(p),
+        );
         out
     }
 
@@ -535,6 +543,31 @@ mod tests {
         // Edges into 2 removed: ancestry stops at 2.
         let bar = set(4, &[2]);
         assert!(g.ancestors_within(&seeds, &full, Some(&bar), &mut ws).equal_set(&set(4, &[2, 3])));
+    }
+
+    #[test]
+    fn ancestor_and_descendant_closures_follow_directed_edges_only() {
+        // 0 -> 1 -> 2 -> 3, 4 <-> 2 (bidirected edges never carry ancestry).
+        let mut g = Admg::with_variables(5);
+        for (a, b) in [(0, 1), (1, 2), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        g.insert_bidirected(DenseNodeId::from_raw(4), DenseNodeId::from_raw(2)).unwrap();
+        let mut ws = GraphWorkspace::default();
+        let mut out = BitSet::with_len(0);
+        g.ancestors_of(&[DenseNodeId::from_raw(2)], &mut out, &mut ws);
+        assert!(out.equal_set(&set(5, &[0, 1, 2])));
+        g.descendants_of(&[DenseNodeId::from_raw(1)], &mut out, &mut ws);
+        assert!(out.equal_set(&set(5, &[1, 2, 3])));
+        // A cut node is reached but not expanded; seeds outside `active` are dropped.
+        let full = BitSet::full(5);
+        let seeds = set(5, &[0]);
+        let cut = set(5, &[2]);
+        assert!(
+            g.descendants_within(&seeds, &full, Some(&cut), &mut ws).equal_set(&set(5, &[0, 1, 2]))
+        );
+        let holed = set(5, &[1, 2, 3]);
+        assert!(g.descendants_within(&seeds, &holed, None, &mut ws).equal_set(&set(5, &[])));
     }
 
     #[test]

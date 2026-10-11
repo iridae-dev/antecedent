@@ -18,6 +18,19 @@ impl BitSet {
         Self { words: vec![0; len.div_ceil(64)], len }
     }
 
+    /// Create a bitset for `len` bits with every bit set.
+    #[must_use]
+    pub fn full(len: usize) -> Self {
+        let mut set = Self { words: vec![u64::MAX; len.div_ceil(64)], len };
+        let tail = len % 64;
+        if tail != 0 {
+            if let Some(last) = set.words.last_mut() {
+                *last = (1u64 << tail) - 1;
+            }
+        }
+        set
+    }
+
     /// Clear all bits (retain capacity).
     pub fn clear(&mut self) {
         for w in &mut self.words {
@@ -198,6 +211,19 @@ mod tests {
 
     fn id(i: u32) -> DenseNodeId {
         DenseNodeId::from_raw(i)
+    }
+
+    #[test]
+    fn full_sets_exactly_the_addressable_bits() {
+        for len in [0usize, 1, 5, 63, 64, 65, 130] {
+            let full = BitSet::full(len);
+            assert_eq!(full.count_ones(), len);
+            let mut built = BitSet::with_len(len);
+            for i in 0..len {
+                built.insert(id(u32::try_from(i).unwrap()));
+            }
+            assert_eq!(full, built, "len {len}");
+        }
     }
 
     #[test]

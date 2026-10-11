@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::types::DenseNodeId;
-use crate::workspace::GraphWorkspace;
+use crate::workspace::{BitSet, GraphWorkspace};
 
 /// Directed BFS reachability from `from` to `to` over `children`.
 #[must_use]
@@ -34,6 +34,42 @@ pub fn bfs_reaches(
         }
     }
     false
+}
+
+/// Closure of `seeds` along `next` (parents for ancestors, children for descendants).
+///
+/// `out` is resized to `n` and cleared, then receives the seeds (those below `n`) and every
+/// node reached through an edge `keep(from, to)` accepts. A seed outside the closure's
+/// admissible region must be filtered by the caller; `keep` gates only the traversed edges.
+pub(crate) fn closure_into<'g>(
+    n: usize,
+    next: impl Fn(DenseNodeId) -> &'g [DenseNodeId],
+    seeds: impl IntoIterator<Item = DenseNodeId>,
+    out: &mut BitSet,
+    ws: &mut GraphWorkspace,
+    mut keep: impl FnMut(DenseNodeId, DenseNodeId) -> bool,
+) {
+    out.resize(n);
+    out.clear();
+    ws.prepare(n);
+    for v in seeds {
+        if v.as_usize() >= n {
+            continue;
+        }
+        if !out.contains(v) {
+            out.insert(v);
+            ws.frontier.push(v);
+        }
+    }
+    while let Some(u) = ws.frontier.pop() {
+        for &w in next(u) {
+            if !keep(u, w) || out.contains(w) {
+                continue;
+            }
+            out.insert(w);
+            ws.frontier.push(w);
+        }
+    }
 }
 
 /// Kahn topological order. Returns `None` if a directed cycle exists.

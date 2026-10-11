@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::algo::closure_into;
 use crate::dag::Dag;
 use crate::error::GraphError;
 use crate::overlay::GraphOverlay;
@@ -22,32 +23,14 @@ impl Dag {
         ws: &mut GraphWorkspace,
         overlay: Option<&GraphOverlay>,
     ) {
-        let n = self.node_count();
-        out.resize(n);
-        out.clear();
-        ws.prepare(n);
-        for &v in nodes {
-            if v.as_usize() >= n {
-                continue;
-            }
-            if !out.contains(v) {
-                out.insert(v);
-                ws.frontier.push(v);
-            }
-        }
-        while let Some(u) = ws.frontier.pop() {
-            for &p in self.parents(u) {
-                if let Some(ov) = overlay {
-                    if !ov.edge_visible(p, u) {
-                        continue;
-                    }
-                }
-                if !out.contains(p) {
-                    out.insert(p);
-                    ws.frontier.push(p);
-                }
-            }
-        }
+        closure_into(
+            self.node_count(),
+            |u| self.parents(u),
+            nodes.iter().copied(),
+            out,
+            ws,
+            |u, p| overlay.is_none_or(|ov| ov.edge_visible(p, u)),
+        );
     }
 
     /// Collect all descendants of `nodes` (including `nodes`) into `out`.
@@ -63,32 +46,14 @@ impl Dag {
         ws: &mut GraphWorkspace,
         overlay: Option<&GraphOverlay>,
     ) {
-        let n = self.node_count();
-        out.resize(n);
-        out.clear();
-        ws.prepare(n);
-        for &v in nodes {
-            if v.as_usize() >= n {
-                continue;
-            }
-            if !out.contains(v) {
-                out.insert(v);
-                ws.frontier.push(v);
-            }
-        }
-        while let Some(u) = ws.frontier.pop() {
-            for &c in self.children(u) {
-                if let Some(ov) = overlay {
-                    if !ov.edge_visible(u, c) {
-                        continue;
-                    }
-                }
-                if !out.contains(c) {
-                    out.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
+        closure_into(
+            self.node_count(),
+            |u| self.children(u),
+            nodes.iter().copied(),
+            out,
+            ws,
+            |u, c| overlay.is_none_or(|ov| ov.edge_visible(u, c)),
+        );
     }
 
     /// Markov blanket of `node`: parents ∪ children ∪ spouses (co-parents of
