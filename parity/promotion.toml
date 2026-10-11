@@ -8414,7 +8414,7 @@ id = "transport.shared_scenario_covariance.bayesian"
 capability = "transport.shared_scenario_covariance.bayesian"
 status = "promoted"
 consumer_question = "Can the posterior mean of the shared scenario covariance be consumed as a point?"
-theorem = "Independent normal priors on the covariance entries, plug-in variance of those entries. A wide scale stays at the enumerated covariance. The scenario envelope stays a structural envelope. No interval."
+theorem = "Independent normal priors on the covariance entries would need the sampling variance of the covariance estimator. The frequentist shared-scenario covariance path does not publish that variance, so the update refuses before any calculation with scenario_covariance_posterior.sampling_variance_unavailable. A covariance that is the same in every entry is not refused for zero cross-entry spread, and that spread is not used as a sampling variance. The scenario envelope stays a structural envelope. No interval."
 reference = "provenance/transport.shared_scenario_covariance.bayesian.toml"
 guarantee = "scenario_covariance_posterior_mean_point_only"
 graph_class = "The scenario set the frequentist covariance already reads. The envelope stays structural."
@@ -8434,15 +8434,16 @@ refusals = [
   { code = "route_not_supported", detail = "scenario_covariance_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
   { code = "route_not_supported", detail = "scenario_covariance_posterior.external_power_prior", when = "An external power prior is requested." },
   { code = "cell_not_licensed", detail = "scenario_covariance_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
-  { code = "invalid_argument", detail = "scenario_covariance_posterior.empty_matrix", when = "The law, score table, or contrast cannot support a posterior mean." },
+  { code = "invalid_argument", detail = "scenario_covariance_posterior.empty_matrix", when = "The matrix is empty or an entry is not finite." },
+  { code = "cell_not_licensed", detail = "scenario_covariance_posterior.sampling_variance_unavailable", when = "The frequentist scenario covariance does not publish a sampling variance of the covariance estimator. The update refuses before any calculation, including when every entry is equal. The spread of the entries is not used as a sampling variance." },
 ]
 routes = [
   { name = "antecedent_estimate.scenario_covariance_posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "transport.shared_scenario_covariance.bayesian.enumerated.positive", role = "positive", intent = "A wide prior stays at the enumerated covariance.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix" },
+  { id = "transport.shared_scenario_covariance.bayesian.enumerated.positive", role = "positive", intent = "The enumerated covariance is refused because the sampling variance of the covariance estimator is unavailable.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_refuses_the_enumerated_matrix" },
   { id = "transport.shared_scenario_covariance.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_refuses_an_external_power_prior" },
-  { id = "transport.shared_scenario_covariance.bayesian.shrunk_entries.artifact", role = "artifact", intent = "The consumer replays the shrunk entries.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_consumer_replays_the_shrunk_entries" },
+  { id = "transport.shared_scenario_covariance.bayesian.shrunk_entries.artifact", role = "artifact", intent = "The consumer records the sampling-variance refusal for a varying matrix and for a constant matrix.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_consumer_refuses_varying_and_constant_matrices" },
 ]
 
 [[record]]

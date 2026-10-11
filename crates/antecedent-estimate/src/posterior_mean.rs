@@ -50,7 +50,9 @@ fn scale_of(
         PosteriorRequest::IndependentNormal { .. } => {
             Err(refuse(reason_code!("invalid_argument"), non_positive))
         }
-        PosteriorRequest::MappedCoefficient => Err(refuse(reason_code!("route_not_supported"), mapped)),
+        PosteriorRequest::MappedCoefficient => {
+            Err(refuse(reason_code!("route_not_supported"), mapped))
+        }
         PosteriorRequest::ExternalPower => Err(refuse(reason_code!("route_not_supported"), power)),
         PosteriorRequest::UnmeasuredBand => Err(refuse(reason_code!("cell_not_licensed"), band)),
     }
@@ -128,9 +130,8 @@ pub fn local_quadratic_posterior(
 ) -> Result<(f64, f64), EstimationError> {
     let (non_positive, mapped, power, band, weight) = namespace.details();
     let scale = scale_of(request, non_positive, mapped, power, band)?;
-    local_quadratic_mean(dose, outcome, at, bandwidth, scale).ok_or_else(|| {
-        refuse(reason_code!("cell_not_licensed"), weight)
-    })
+    local_quadratic_mean(dose, outcome, at, bandwidth, scale)
+        .ok_or_else(|| refuse(reason_code!("cell_not_licensed"), weight))
 }
 
 /// Which local-quadratic route is refusing.
@@ -586,35 +587,33 @@ pub fn known_variance_posterior(
 
 /// Posterior mean of covariance entries under independent normal priors at zero.
 ///
-/// The plug-in variance is the sample variance of the entries. A wide scale stays
-/// at the supplied matrix. No interval is returned.
+/// The frequentist scenario-covariance path publishes the covariance of the
+/// scenario estimates and no sampling variance of that estimator. This update
+/// refuses, before any calculation, when that sampling variance is unavailable.
+/// It does not treat the spread of the entries around their mean as a sampling
+/// variance, so a matrix that is the same in every entry is not refused for
+/// zero spread. No interval is returned.
 ///
 /// # Errors
 ///
 /// The scenario-covariance namespace's non-positive scale, mapped prior, external
-/// power prior, unmeasured band, or a matrix that cannot support a variance.
+/// power prior, unmeasured band, an empty or non-finite matrix, or
+/// `scenario_covariance_posterior.sampling_variance_unavailable`.
 pub fn covariance_entry_posterior(
     entries: &[f64],
     request: PosteriorRequest,
 ) -> Result<Vec<f64>, EstimationError> {
     let namespace = ScalarNamespace::ScenarioCovariance;
-    let scale = scale_of(
-        request,
-        namespace.details().0,
-        namespace.details().1,
-        namespace.details().2,
-        namespace.details().3,
-    )?;
-    if entries.len() < 2 || entries.iter().any(|value| !value.is_finite()) {
-        return Err(refuse(reason_code!("invalid_argument"), namespace.details().4));
+    let (non_positive, mapped, power, band, empty) = namespace.details();
+    scale_of(request, non_positive, mapped, power, band)?;
+    if entries.is_empty() || entries.iter().any(|value| !value.is_finite()) {
+        return Err(refuse(reason_code!("invalid_argument"), empty));
     }
-    let n = entries.len() as f64;
-    let mean = entries.iter().sum::<f64>() / n;
-    let rss = entries.iter().map(|value| (value - mean) * (value - mean)).sum::<f64>();
-    let variance = rss / (n - 1.0);
-    if !variance.is_finite() || variance <= 0.0 {
-        return Err(refuse(reason_code!("invalid_argument"), namespace.details().4));
-    }
-    let precision = 1.0 / variance;
-    Ok(entries.iter().map(|entry| shrink(*entry, precision, scale)).collect())
+    // `scenario_covariance` estimates the joint sampling covariance of the
+    // scenario estimates. It does not publish a sampling variance of that
+    // covariance estimator. Refuse before any spread calculation.
+    Err(refuse(
+        reason_code!("cell_not_licensed"),
+        "scenario_covariance_posterior.sampling_variance_unavailable",
+    ))
 }

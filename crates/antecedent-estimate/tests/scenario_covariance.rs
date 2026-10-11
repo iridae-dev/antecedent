@@ -17,9 +17,7 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
-use antecedent_estimate::posterior_mean::{
-    PosteriorRequest, covariance_entry_posterior,
-};
+use antecedent_estimate::posterior_mean::{PosteriorRequest, covariance_entry_posterior};
 use antecedent_estimate::scenario_covariance::{
     CovarianceMethod, ExactEnumerationOptions, MAX_REPLICATES, MAX_SCENARIOS, RowDependence,
     ScenarioCovariance, ScenarioRowEstimator, SharedRowBootstrapOptions,
@@ -562,39 +560,51 @@ fn covariance_replay_is_bit_identical_and_identity_sensitive() {
     assert_ne!(reseeded.replicate_digest, first.replicate_digest);
 }
 
+fn assert_sampling_variance_unavailable(entries: &[f64]) {
+    let error =
+        covariance_entry_posterior(entries, PosteriorRequest::IndependentNormal { scale: 1.0 })
+            .unwrap_err();
+    let EstimationError::Refused { code, message } = error else { panic!("expected a refusal") };
+    assert_eq!(code, "cell_not_licensed");
+    assert!(
+        message.contains("scenario_covariance_posterior.sampling_variance_unavailable"),
+        "{message}",
+    );
+    assert!(!message.contains("empty_matrix"), "{message}");
+}
+
 #[test]
-fn scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix() {
+fn scenario_covariance_posterior_refuses_the_enumerated_matrix() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
     let entries = [out.entry(0, 0), out.entry(0, 1), out.entry(1, 1)];
-    let mean = covariance_entry_posterior(
-        &entries,
-        PosteriorRequest::IndependentNormal { scale: 1e6 },
-    )
-    .unwrap();
-    for (got, expected) in mean.iter().zip(entries) {
-        assert!((got - expected).abs() < 1e-8, "{got} vs {expected}");
-    }
+    assert_ne!(entries[0], entries[1]);
+    let error =
+        covariance_entry_posterior(&entries, PosteriorRequest::IndependentNormal { scale: 1e6 })
+            .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(
+        message.contains("scenario_covariance_posterior.sampling_variance_unavailable"),
+        "{message}",
+    );
 }
 
 #[test]
 fn scenario_covariance_posterior_refuses_an_external_power_prior() {
-    let error = covariance_entry_posterior(&[0.1, 0.2, 0.3], PosteriorRequest::ExternalPower)
-        .unwrap_err();
+    let error =
+        covariance_entry_posterior(&[0.1, 0.2, 0.3], PosteriorRequest::ExternalPower).unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
     assert!(message.contains("scenario_covariance_posterior.external_power_prior"), "{message}");
 }
 
 #[test]
-fn scenario_covariance_posterior_consumer_replays_the_shrunk_entries() {
-    let entries = [17.0 / 216.0, 11.0 / 216.0, 17.0 / 216.0];
-    let produced =
-        covariance_entry_posterior(&entries, PosteriorRequest::IndependentNormal { scale: 1.0 })
-            .unwrap();
-    let mean = entries.iter().sum::<f64>() / 3.0;
-    let variance = entries.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
-    let weight = (1.0 / variance) / (1.0 / variance + 1.0);
-    for (got, entry) in produced.iter().zip(entries) {
-        assert!((got - weight * entry).abs() < 1e-12);
-    }
+fn scenario_covariance_posterior_consumer_refuses_varying_and_constant_matrices() {
+    let varying = [17.0 / 216.0, 11.0 / 216.0, 17.0 / 216.0];
+    assert_ne!(varying[0], varying[1]);
+    assert_sampling_variance_unavailable(&varying);
+
+    let constant = [17.0 / 216.0, 17.0 / 216.0, 17.0 / 216.0];
+    assert_eq!(constant[0], constant[1]);
+    assert_eq!(constant[1], constant[2]);
+    assert_sampling_variance_unavailable(&constant);
 }

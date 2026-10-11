@@ -5910,7 +5910,7 @@ evidence = "the_frequentist_record_evidence"
 functional = "posterior_mean_of_the_shared_scenario_covariance"
 guarantee = "scenario_covariance_posterior_mean_point_only"
 evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs"
-evidence_assertion = "scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix"
+evidence_assertion = "scenario_covariance_posterior_refuses_the_enumerated_matrix"
 notes = "Point-only posterior mean. No interval."
 
 [[routes]]
