@@ -78,6 +78,44 @@ pub struct DSeparationWorkspace {
 }
 
 impl DSeparationWorkspace {
+    /// Reachability from `x` to `y` over `self.undirected`, avoiding `self.conditioning`.
+    ///
+    /// The moral graph holds only ancestral nodes, so no membership test is needed.
+    /// `record_pred` fills `self.pred` for witness-path reconstruction; the frontier is a
+    /// stack, so the first witness found depends on adjacency insertion order.
+    pub(crate) fn moral_reaches(
+        &mut self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        record_pred: bool,
+    ) -> bool {
+        self.visited.clear();
+        if record_pred {
+            for p in &mut self.pred {
+                *p = None;
+            }
+        }
+        self.frontier.clear();
+        self.frontier.push(x);
+        self.visited.insert(x);
+        while let Some(u) = self.frontier.pop() {
+            if u == y {
+                return true;
+            }
+            for &v in &self.undirected[u.as_usize()] {
+                if self.conditioning.contains(v) || self.visited.contains(v) {
+                    continue;
+                }
+                self.visited.insert(v);
+                if record_pred {
+                    self.pred[v.as_usize()] = Some(u);
+                }
+                self.frontier.push(v);
+            }
+        }
+        false
+    }
+
     /// Prepare for a DAG with `n` nodes.
     pub fn prepare(&mut self, n: usize) {
         self.ancestral.resize(n);
@@ -251,36 +289,12 @@ impl Dag {
         }
 
         // BFS from x to y avoiding conditioning set.
-        ws.visited.clear();
-        for p in &mut ws.pred {
-            *p = None;
-        }
-        ws.frontier.clear();
-        ws.frontier.push(x);
-        ws.visited.insert(x);
-        while let Some(u) = ws.frontier.pop() {
-            if u == y {
-                return true;
-            }
-            for &v in &ws.undirected[u.as_usize()] {
-                if ws.conditioning.contains(v) || ws.visited.contains(v) {
-                    continue;
-                }
-                if !ws.ancestral.contains(v) {
-                    continue;
-                }
-                ws.visited.insert(v);
-                if record_path {
-                    ws.pred[v.as_usize()] = Some(u);
-                }
-                ws.frontier.push(v);
-            }
-        }
-        false
+        ws.moral_reaches(x, y, record_path)
     }
 }
 
-fn add_undirected(adj: &mut [Vec<DenseNodeId>], a: DenseNodeId, b: DenseNodeId) {
+/// Insert the undirected edge `a - b` into `adj` once, preserving insertion order.
+pub(crate) fn add_undirected(adj: &mut [Vec<DenseNodeId>], a: DenseNodeId, b: DenseNodeId) {
     if a == b {
         return;
     }

@@ -3,7 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::admg::Admg;
-use crate::dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
+use crate::dsep::{
+    DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult, add_undirected,
+};
 use crate::error::GraphError;
 use crate::pag::Pag;
 use crate::types::DenseNodeId;
@@ -82,7 +84,7 @@ impl Admg {
     ) -> bool {
         self.build_moral_ancestral(x, y, z, ws);
         // Remove conditioning nodes from undirected graph by skipping them in BFS.
-        !self.undirected_reaches(x, y, ws, false)
+        !ws.moral_reaches(x, y, false)
     }
 
     fn m_sep_active_path(
@@ -93,7 +95,7 @@ impl Admg {
         ws: &mut DSeparationWorkspace,
     ) -> Option<Vec<PathStep>> {
         self.build_moral_ancestral(x, y, z, ws);
-        if !self.undirected_reaches(x, y, ws, true) {
+        if !ws.moral_reaches(x, y, true) {
             return None;
         }
         let mut path = Vec::new();
@@ -119,36 +121,17 @@ impl Admg {
     ) {
         let n = self.node_count();
         ws.prepare(n);
-        ws.ancestral.clear();
         ws.conditioning.clear();
         for &v in z {
             ws.conditioning.insert(v);
         }
 
-        // Seeds: x, y, z
-        ws.graph_ws.prepare(n);
-        ws.graph_ws.frontier.clear();
-        for &s in &[x, y] {
-            if !ws.ancestral.contains(s) {
-                ws.ancestral.insert(s);
-                ws.graph_ws.frontier.push(s);
-            }
-        }
-        for &s in z {
-            if !ws.ancestral.contains(s) {
-                ws.ancestral.insert(s);
-                ws.graph_ws.frontier.push(s);
-            }
-        }
-        // Walk parents (directed ancestors).
-        while let Some(u) = ws.graph_ws.frontier.pop() {
-            for &p in self.parents(u) {
-                if !ws.ancestral.contains(p) {
-                    ws.ancestral.insert(p);
-                    ws.graph_ws.frontier.push(p);
-                }
-            }
-        }
+        // Ancestral set of {x, y} ∪ z (directed ancestors).
+        ws.frontier.push(x);
+        ws.frontier.push(y);
+        ws.frontier.extend_from_slice(z);
+        self.ancestors_of(&ws.frontier, &mut ws.ancestral, &mut ws.graph_ws);
+        ws.frontier.clear();
 
         self.moralize_ancestral_set(ws);
     }
@@ -176,12 +159,12 @@ impl Admg {
             }
             for &c in self.children(u) {
                 if ws.ancestral.contains(c) {
-                    Self::add_undirected(ws, u, c);
+                    add_undirected(&mut ws.undirected, u, c);
                 }
             }
             for &b in self.bidirected_neighbors(u) {
                 if b.raw() > u.raw() && ws.ancestral.contains(b) {
-                    Self::add_undirected(ws, u, b);
+                    add_undirected(&mut ws.undirected, u, b);
                 }
             }
         }
@@ -218,7 +201,7 @@ impl Admg {
             }
             for (ai, &a) in clique.iter().enumerate() {
                 for &b in &clique[ai + 1..] {
-                    Self::add_undirected(ws, a, b);
+                    add_undirected(&mut ws.undirected, a, b);
                 }
             }
             for &u in &clique {
@@ -263,56 +246,6 @@ impl Admg {
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
             .filter(|&id| bits.contains(id))
             .collect())
-    }
-
-    fn add_undirected(ws: &mut DSeparationWorkspace, a: DenseNodeId, b: DenseNodeId) {
-        if a == b {
-            return;
-        }
-        let ai = a.as_usize();
-        let bi = b.as_usize();
-        if !ws.undirected[ai].contains(&b) {
-            ws.undirected[ai].push(b);
-        }
-        if !ws.undirected[bi].contains(&a) {
-            ws.undirected[bi].push(a);
-        }
-    }
-
-    /// Undirected reachability avoiding conditioning nodes.
-    fn undirected_reaches(
-        &self,
-        x: DenseNodeId,
-        y: DenseNodeId,
-        ws: &mut DSeparationWorkspace,
-        record_pred: bool,
-    ) -> bool {
-        let _ = self;
-        ws.visited.clear();
-        ws.frontier.clear();
-        if record_pred {
-            for p in &mut ws.pred {
-                *p = None;
-            }
-        }
-        ws.frontier.push(x);
-        ws.visited.insert(x);
-        while let Some(u) = ws.frontier.pop() {
-            if u == y {
-                return true;
-            }
-            for &v in &ws.undirected[u.as_usize()] {
-                if ws.conditioning.contains(v) || ws.visited.contains(v) {
-                    continue;
-                }
-                ws.visited.insert(v);
-                if record_pred {
-                    ws.pred[v.as_usize()] = Some(u);
-                }
-                ws.frontier.push(v);
-            }
-        }
-        false
     }
 }
 
