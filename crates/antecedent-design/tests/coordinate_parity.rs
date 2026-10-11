@@ -893,9 +893,12 @@ fn regenerate_rust_fixtures() {
     );
     let dir = fixture_dir();
     let ranking = seal_guess();
-    // The artifact id is part of the committed fixture bytes; keep it unchanged.
-    std::fs::write(dir.join("rust_design_ranking.bin"), ranking.to_bytes("a0r-ranking").unwrap())
-        .unwrap();
+    // The artifact id is part of the committed fixture bytes.
+    std::fs::write(
+        dir.join("rust_design_ranking.bin"),
+        ranking.to_bytes("design_ranking").unwrap(),
+    )
+    .unwrap();
     std::fs::write(
         dir.join("rust_coordinate_obligation.identity.json"),
         obligation_fixture_json(&backdoor_obligation()),
