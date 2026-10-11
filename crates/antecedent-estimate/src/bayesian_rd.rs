@@ -229,39 +229,8 @@ fn posterior(
     Ok((beta, inv.map(|r| r.map(|z| z * v))))
 }
 fn invert(a: [[f64; 4]; 4]) -> Result<[[f64; 4]; 4], EstimationError> {
-    let mut aug = [[0.0; 8]; 4];
-    for i in 0..4 {
-        for j in 0..4 {
-            aug[i][j] = a[i][j];
-        }
-        aug[i][i + 4] = 1.0;
-    }
-    for c in 0..4 {
-        let p = (c..4).max_by(|i, j| aug[*i][c].abs().total_cmp(&aug[*j][c].abs())).unwrap_or(c);
-        if aug[p][c].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("Bayesian RD posterior design is singular"));
-        }
-        aug.swap(c, p);
-        let d = aug[c][c];
-        for j in 0..8 {
-            aug[c][j] /= d;
-        }
-        for i in 0..4 {
-            if i != c {
-                let f = aug[i][c];
-                for j in 0..8 {
-                    aug[i][j] -= f * aug[c][j];
-                }
-            }
-        }
-    }
-    let mut out = [[0.0; 4]; 4];
-    for i in 0..4 {
-        for j in 0..4 {
-            out[i][j] = aug[i][j + 4];
-        }
-    }
-    Ok(out)
+    crate::util::invert_fixed(&a)
+        .ok_or_else(|| EstimationError::stats_msg("Bayesian RD posterior design is singular"))
 }
 fn draw_column(
     mean: [f64; 4],
@@ -344,5 +313,24 @@ mod tests {
         let y = r.clone();
         let e = fit_bayesian_sharp_rd(&r, &t, &y, 0.0, 5.0, 2.0, 20, 3).unwrap_err();
         assert!(e.to_string().contains("rd_assignment_not_sharp"));
+    }
+    #[test]
+    fn the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs() {
+        // Pivots of order 1e-16 were refused by the former absolute 1e-12 cutoff.
+        let tiny = [
+            [1e-16, 0.0, 0.0, 0.0],
+            [0.0, 4e-16, 0.0, 0.0],
+            [0.0, 0.0, 9e-16, 0.0],
+            [0.0, 0.0, 0.0, 16e-16],
+        ];
+        assert!(invert(tiny).is_ok());
+        let collinear = [
+            [1.0, 2.0, 0.0, 0.0],
+            [2.0, 4.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+        let e = invert(collinear).unwrap_err();
+        assert!(e.to_string().contains("Bayesian RD posterior design is singular"), "{e}");
     }
 }

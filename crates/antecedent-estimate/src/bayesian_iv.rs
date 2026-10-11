@@ -177,7 +177,8 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     for (i, row) in precision.iter_mut().enumerate() {
         row[i] += 1.0 / prior_sd.powi(2);
     }
-    let covariance = invert4(precision)?;
+    let covariance = crate::util::invert_fixed(&precision)
+        .ok_or_else(|| EstimationError::stats_msg("joint Bayesian IV precision is singular"))?;
     let posterior_mean: [f64; 4] =
         std::array::from_fn(|i| (0..4).map(|j| covariance[i][j] * rhs[j]).sum());
     let mut chol = [[0.0; 4]; 4];
@@ -212,37 +213,6 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
         prior_sd,
         model: "joint Gaussian structural IV; fixed unit disturbance loading and declared stage variances",
     })
-}
-
-fn invert4(a: [[f64; 4]; 4]) -> Result<[[f64; 4]; 4], EstimationError> {
-    let mut aug = [[0.0; 8]; 4];
-    for i in 0..4 {
-        for j in 0..4 {
-            aug[i][j] = a[i][j];
-        }
-        aug[i][i + 4] = 1.0;
-    }
-    for c in 0..4 {
-        let pivot = (c..4).max_by(|i, j| aug[*i][c].abs().total_cmp(&aug[*j][c].abs())).unwrap();
-        if aug[pivot][c].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("joint Bayesian IV precision is singular"));
-        }
-        aug.swap(c, pivot);
-        let divisor = aug[c][c];
-        for j in 0..8 {
-            aug[c][j] /= divisor;
-        }
-        for i in 0..4 {
-            if i == c {
-                continue;
-            }
-            let factor = aug[i][c];
-            for j in 0..8 {
-                aug[i][j] -= factor * aug[c][j];
-            }
-        }
-    }
-    Ok(std::array::from_fn(|i| std::array::from_fn(|j| aug[i][j + 4])))
 }
 
 #[expect(
@@ -483,39 +453,8 @@ fn first_stage_draws(
     Ok(out)
 }
 fn invert(a: [[f64; 3]; 3]) -> Result<[[f64; 3]; 3], EstimationError> {
-    let mut aug = [[0.0; 6]; 3];
-    for i in 0..3 {
-        for j in 0..3 {
-            aug[i][j] = a[i][j];
-        }
-        aug[i][i + 3] = 1.0;
-    }
-    for c in 0..3 {
-        let p = (c..3).max_by(|i, j| aug[*i][c].abs().total_cmp(&aug[*j][c].abs())).unwrap_or(c);
-        if aug[p][c].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("Bayesian IV posterior design is singular"));
-        }
-        aug.swap(c, p);
-        let d = aug[c][c];
-        for j in 0..6 {
-            aug[c][j] /= d;
-        }
-        for i in 0..3 {
-            if i != c {
-                let f = aug[i][c];
-                for j in 0..6 {
-                    aug[i][j] -= f * aug[c][j];
-                }
-            }
-        }
-    }
-    let mut out = [[0.0; 3]; 3];
-    for i in 0..3 {
-        for j in 0..3 {
-            out[i][j] = aug[i][j + 3];
-        }
-    }
-    Ok(out)
+    crate::util::invert_fixed(&a)
+        .ok_or_else(|| EstimationError::stats_msg("Bayesian IV posterior design is singular"))
 }
 fn mul_vec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
     std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
@@ -648,5 +587,14 @@ mod tests {
         let y = t.clone();
         let e = fit_bayesian_iv(&z, &t, &y, 2.0, 100, 9, 10.0).unwrap_err();
         assert!(e.to_string().contains("weak_instrument"));
+    }
+    #[test]
+    fn the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs() {
+        // Pivots of order 1e-16 were refused by the former absolute 1e-12 cutoff.
+        let tiny = [[1e-16, 0.0, 0.0], [0.0, 4e-16, 0.0], [0.0, 0.0, 9e-16]];
+        assert!(invert(tiny).is_ok());
+        let collinear = [[1.0, 2.0, 0.0], [2.0, 4.0, 0.0], [0.0, 0.0, 1.0]];
+        let e = invert(collinear).unwrap_err();
+        assert!(e.to_string().contains("Bayesian IV posterior design is singular"), "{e}");
     }
 }

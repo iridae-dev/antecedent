@@ -271,17 +271,17 @@ fn fit_ridge(
         ));
     }
     let p = x[0].len();
-    let mut gram = vec![vec![0.0; p]; p];
+    let mut gram = vec![0.0; p * p];
     let mut rhs = vec![0.0; p];
     for &i in rows {
         for j in 0..p {
             rhs[j] += weights[i] * x[i][j] * y[i];
             for k in 0..p {
-                gram[j][k] += weights[i] * x[i][j] * x[i][k];
+                gram[j * p + k] += weights[i] * x[i][j] * x[i][k];
             }
         }
     }
-    solve_penalized(gram, rhs, lambda)
+    solve_penalized(&mut gram, &rhs, lambda)
 }
 
 fn fit_logistic(
@@ -300,7 +300,7 @@ fn fit_logistic(
     let mut beta = vec![0.0; p];
     let mut converged = false;
     for _ in 0..80 {
-        let mut info = vec![vec![0.0; p]; p];
+        let mut info = vec![0.0; p * p];
         let mut score = vec![0.0; p];
         for &i in rows {
             let prob = logistic(dot(&beta, &x[i]));
@@ -308,15 +308,15 @@ fn fit_logistic(
             for j in 0..p {
                 score[j] += weights[i] * x[i][j] * (f64::from(t[i]) - prob);
                 for k in 0..p {
-                    info[j][k] += weights[i] * variance * x[i][j] * x[i][k];
+                    info[j * p + k] += weights[i] * variance * x[i][j] * x[i][k];
                 }
             }
         }
         for j in 1..p {
-            info[j][j] += lambda;
+            info[j * p + j] += lambda;
             score[j] -= lambda * beta[j];
         }
-        let step = solve(info, score)?;
+        let step = solve_spd_system(&info, &score)?;
         let max_step = step.iter().map(|v| v.abs()).fold(0.0, f64::max);
         for j in 0..p {
             beta[j] += step[j].clamp(-2.0, 2.0);
@@ -332,43 +332,23 @@ fn fit_logistic(
     Ok(beta)
 }
 
+/// Ridge-penalise every non-intercept diagonal entry of the weighted Gram and solve.
 fn solve_penalized(
-    mut gram: Vec<Vec<f64>>,
-    rhs: Vec<f64>,
+    gram: &mut [f64],
+    rhs: &[f64],
     lambda: f64,
 ) -> Result<Vec<f64>, EstimationError> {
-    for (j, row) in gram.iter_mut().enumerate().skip(1) {
-        row[j] += lambda;
+    let p = rhs.len();
+    for j in 1..p {
+        gram[j * p + j] += lambda;
     }
-    solve(gram, rhs)
+    solve_spd_system(gram, rhs)
 }
 
-fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Result<Vec<f64>, EstimationError> {
-    let p = b.len();
-    for col in 0..p {
-        let pivot = (col..p).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
-        if a[pivot][col].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("singular weighted nuisance system"));
-        }
-        a.swap(col, pivot);
-        b.swap(col, pivot);
-        let d = a[col][col];
-        for j in col..p {
-            a[col][j] /= d;
-        }
-        b[col] /= d;
-        for i in 0..p {
-            if i == col {
-                continue;
-            }
-            let f = a[i][col];
-            for j in col..p {
-                a[i][j] -= f * a[col][j];
-            }
-            b[i] -= f * b[col];
-        }
-    }
-    Ok(b)
+/// Solve the symmetric positive-definite weighted nuisance system with the shared Cholesky rule.
+fn solve_spd_system(a: &[f64], b: &[f64]) -> Result<Vec<f64>, EstimationError> {
+    crate::util::solve_spd(a, b, b.len())
+        .ok_or_else(|| EstimationError::stats_msg("singular weighted nuisance system"))
 }
 
 fn dot(a: &[f64], b: &[f64]) -> f64 {
@@ -490,5 +470,16 @@ mod tests {
                 assert!(draw.iter().any(|fit| fit.fold == fold && fit.role == "outcome_treated"));
             }
         }
+    }
+
+    #[test]
+    fn the_nuisance_solve_is_scale_free_and_refuses_collinear_columns() {
+        // Weighted Gram entries of order 1e-14 were refused by the former absolute 1e-12 pivot.
+        let mut gram = vec![1e-14, 0.0, 0.0, 4e-14];
+        let beta = solve_penalized(&mut gram, &[1e-14, 8e-14], 0.0).unwrap();
+        assert!((beta[0] - 1.0).abs() < 1e-9 && (beta[1] - 2.0).abs() < 1e-9, "{beta:?}");
+        let mut collinear = vec![1.0, 2.0, 2.0, 4.0];
+        let e = solve_penalized(&mut collinear, &[1.0, 2.0], 0.0).unwrap_err();
+        assert!(e.to_string().contains("singular weighted nuisance system"), "{e}");
     }
 }

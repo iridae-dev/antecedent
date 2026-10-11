@@ -510,6 +510,18 @@ pub(crate) fn xtx_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Opt
     invert_square(&xtx, ncols)
 }
 
+/// Invert a small fixed-size matrix with [`invert_square`]'s scale-free rule, or `None` when it
+/// is singular or non-finite.
+///
+/// The one inverse for the Bayesian IV / RD and local-polynomial families, which carry their
+/// moment matrices as `[[f64; N]; N]`.
+#[must_use]
+pub(crate) fn invert_fixed<const N: usize>(a: &[[f64; N]; N]) -> Option<[[f64; N]; N]> {
+    let flat: Vec<f64> = a.iter().flatten().copied().collect();
+    let inv = invert_square(&flat, N)?;
+    Some(std::array::from_fn(|i| std::array::from_fn(|j| inv[i * N + j])))
+}
+
 /// Gather `idx`-selected entries of `src` into `out` (a reused scratch buffer) for one IID
 /// bootstrap resample: `out[r] = src[idx[r]]`.
 pub(crate) fn gather_bootstrap_vector(out: &mut [f64], src: &[f64], idx: &[usize]) {
@@ -575,6 +587,22 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
+
+    #[test]
+    fn fixed_inverse_judges_singularity_scale_free() {
+        // A design in units of 1e-8 has pivots far below the old absolute 1e-12 cutoff but is
+        // perfectly conditioned once equilibrated.
+        let tiny = [[1e-16, 0.0, 0.0], [0.0, 4e-16, 0.0], [0.0, 0.0, 9e-16]];
+        let inv = invert_fixed(&tiny).expect("a scaled diagonal is not singular");
+        assert!((inv[1][1] * 4e-16 - 1.0).abs() < 1e-12);
+        // A genuinely collinear pair is still refused, at any scale.
+        let collinear = [[1.0, 2.0], [2.0, 4.0]];
+        assert!(invert_fixed(&collinear).is_none());
+        let scaled = [[1e12, 2e12], [2e12, 4e12]];
+        assert!(invert_fixed(&scaled).is_none());
+        // Non-finite entries are refused rather than propagated.
+        assert!(invert_fixed(&[[f64::NAN, 0.0], [0.0, 1.0]]).is_none());
+    }
 
     #[test]
     fn cancelled_bootstrap_retains_actual_failures() {
