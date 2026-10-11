@@ -47,7 +47,7 @@ def measure(fn, repeats=15):
     )
 
 
-from antecedent import transport as tr
+from antecedent.transport import advanced as tr
 
 
 def grid_preparer():
