@@ -1165,9 +1165,12 @@ impl super::Study {
 
     #[inline(never)]
     fn run_other_routes(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        // Shape is parsed once. Estimator, validation, and structure-source checks
+        // stay here: they choose which sealed operation to commit to, and a match
+        // that does not retain that operation is still a compile error.
+        let route = self.route_input_classified();
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.structure_source == crate::support::StructureSource::Explicit
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
@@ -1176,87 +1179,83 @@ impl super::Study {
                 .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::AverageEffect(query)
-                if mean_all_observed(&query.outcome_functional, &query.target_population))
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_bayesian_basis_ate_info().is_some(),
-                    "one-shot Bayesian basis ATE did not retain its checked operation",
-                );
+            if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
+                if mean_all_observed(&query.outcome_functional, &query.target_population) {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_bayesian_basis_ate_info().is_some(),
+                        "one-shot Bayesian basis ATE did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.structure_source == crate::support::StructureSource::Explicit
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianRobustAte)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::AverageEffect(query)
-                if mean_all_observed(&query.outcome_functional, &query.target_population))
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_bayesian_robust_ate_info().is_some(),
-                    "one-shot Bayesian robust ATE did not retain its checked operation",
-                );
+            if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
+                if mean_all_observed(&query.outcome_functional, &query.target_population) {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_bayesian_robust_ate_info().is_some(),
+                        "one-shot Bayesian robust ATE did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.structure_source == crate::support::StructureSource::Explicit
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::ConditionalEffect(query)
-                if mean_all_observed(&query.inner.outcome_functional, &query.inner.target_population))
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_bayesian_basis_cate_query().is_some(),
-                    "one-shot Bayesian basis CATE did not retain its checked operation",
-                );
+            if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
+                if mean_all_observed(
+                    &query.inner.outcome_functional,
+                    &query.inner.target_population,
+                ) {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_bayesian_basis_cate_query().is_some(),
+                        "one-shot Bayesian basis CATE did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianGcomp)
             && self
                 .identifier
                 .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
-            && matches!(
-                &self.query,
-                CausalQuery::AverageEffect(query)
-                    if mean_all_observed(&query.outcome_functional, &query.target_population)
-            )
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_bayesian_gcomp_operation().is_some(),
-                    "one-shot Bayesian DAG effect did not retain its checked operation",
-                );
+            if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
+                if mean_all_observed(&query.outcome_functional, &query.target_population) {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_bayesian_gcomp_operation().is_some(),
+                        "one-shot Bayesian DAG effect did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianConditional)
@@ -1265,27 +1264,30 @@ impl super::Study {
                 .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
             && self.point_validation()
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::ConditionalEffect(query)
-                if !query.inner.effect_modifiers.is_empty())
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_bayesian_conditional_operation().is_some(),
-                    "one-shot Bayesian DAG conditional effect did not retain its checked operation",
-                );
+            if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
+                if !query.inner.effect_modifiers.is_empty() {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_bayesian_conditional_operation().is_some(),
+                        "one-shot Bayesian DAG conditional effect did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
-            && matches!(self.query, CausalQuery::Mediation(_))
         {
-            if let DataInput::Tabular(data) = &self.data {
+            if let Some(RouteInput::StaticMediationDag {
+                data,
+                source: StaticMediationSource::Mediation(_),
+                ..
+            }) = route
+            {
                 return self.run_sealed_tabular(
                     data,
                     ctx,
@@ -1296,61 +1298,60 @@ impl super::Study {
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::TemporalDag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.split.is_none()
             && self.custom_validators.is_empty()
             && self.point_validation()
-            && matches!(&self.query, CausalQuery::TemporalEffect(query)
-            if query.policy.is_pulse_or_sustained()
-                && self.estimator.is_none_or(|id| {
-                    id == EstimatorId::temporal_effect_procedure(query, false)
-                }))
         {
-            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
-                return self.run_sealed_series(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_temporal_dag_effect_operation,
-                    "one-shot temporal DAG effect did not retain its checked operation",
-                );
+            if let Some(RouteInput::TemporalEffectDag { data, query, .. }) = route {
+                if query.policy.is_pulse_or_sustained()
+                    && self
+                        .estimator
+                        .is_none_or(|id| id == EstimatorId::temporal_effect_procedure(query, false))
+                {
+                    return self.run_sealed_series(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_temporal_dag_effect_operation,
+                        "one-shot temporal DAG effect did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::TemporalDag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::Response(query)
-                if query.temporal.is_some()
-                    && query.temporal.as_ref().is_some_and(|spec| spec.policy.is_single_step())
-                    && complete_mean_response(query)
-                    && crate::analysis::temporal_response_is_direct(query))
             && self
                 .estimator
                 .is_none_or(|id| id == EstimatorId::temporal_response_for(&self.inference))
         {
-            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
-                return self.run_sealed_series(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_temporal_dag_response_operation,
-                    "one-shot temporal DAG response did not retain its checked operation",
-                );
+            if let Some(RouteInput::TemporalResponseDag { data, query, .. }) = route {
+                if query.temporal.is_some()
+                    && query.temporal.as_ref().is_some_and(|spec| spec.policy.is_single_step())
+                    && complete_mean_response(query)
+                    && crate::analysis::temporal_response_is_direct(query)
+                {
+                    return self.run_sealed_series(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_temporal_dag_response_operation,
+                        "one-shot temporal DAG response did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.as_ref().is_some_and(|posterior| {
             posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
         }) && matches!(self.inference, InferenceMode::Frequentist)
-            && matches!(self.query, CausalQuery::AverageEffect(_))
             && self.point_validation()
             && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
-            if let DataInput::Tabular(data) = &self.data {
+            if let Some(RouteInput::StaticAteDag { data, .. }) = route {
                 return self.run_sealed_tabular(
                     data,
                     ctx,
@@ -1366,105 +1367,119 @@ impl super::Study {
                     | antecedent_discovery::GraphPosteriorAtomKind::Pag
             )
         }) && matches!(self.inference, InferenceMode::Frequentist)
-            && matches!(&self.query, CausalQuery::AverageEffect(query)
-                if Self::graph_posterior_target_is_sealable(self, query))
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_class_graph_posterior_effect_operation,
-                    "one-shot class graph-posterior effect did not retain its checked operation",
-                );
+            if let Some(
+                RouteInput::StaticAteCpdag { data, query, .. }
+                | RouteInput::StaticAtePag { data, query, .. },
+            ) = route
+            {
+                if Self::graph_posterior_target_is_sealable(self, query) {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_class_graph_posterior_effect_operation,
+                        "one-shot class graph-posterior effect did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist)
-            && matches!(&self.query, CausalQuery::ConditionalEffect(query)
-                if query.inner.effect_modifiers.len() == 1)
             && self.point_validation()
             && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::ConditionalLinearAdjustment)
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_conditional_effect_info().is_some(),
-                    "one-shot conditional effect did not retain its checked operation",
-                );
+            if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
+                if query.inner.effect_modifiers.len() == 1 {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_conditional_effect_info().is_some(),
+                        "one-shot conditional effect did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::Response(query)
-            if query.temporal.is_none()
-                && complete_mean_response(query)
-                && match (&query.functional, &self.inference) {
-                    (antecedent_core::ResponseFunctional::MeanCurve { .. }, InferenceMode::Frequentist) => {
-                        self.refute == RefuteSuite::None
-                            && self.estimator.is_none_or(|id| id == EstimatorId::ResponseKennedyDr)
-                    }
-                    (antecedent_core::ResponseFunctional::InterventionResponse { .. }, InferenceMode::Frequentist) => {
-                        self.estimator.is_none_or(|id| id == EstimatorId::ResponseInterventionGcomp)
-                    }
-                    (
-                        antecedent_core::ResponseFunctional::MeanCurve { .. }
-                        | antecedent_core::ResponseFunctional::InterventionResponse { .. },
-                        InferenceMode::Bayesian(_),
-                    ) => {
-                        self.refute == RefuteSuite::None
-                            && self.estimator.is_none_or(|id| id == EstimatorId::ResponseBayesian)
-                    }
-                    _ => false,
-                })
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_static_dag_response_operation,
-                    "one-shot static DAG response did not retain its checked operation",
-                );
+            if let Some(RouteInput::StaticResponseDag { data, query, .. }) = route {
+                if query.temporal.is_none()
+                    && complete_mean_response(query)
+                    && match (&query.functional, &self.inference) {
+                        (
+                            antecedent_core::ResponseFunctional::MeanCurve { .. },
+                            InferenceMode::Frequentist,
+                        ) => {
+                            self.refute == RefuteSuite::None
+                                && self
+                                    .estimator
+                                    .is_none_or(|id| id == EstimatorId::ResponseKennedyDr)
+                        }
+                        (
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            InferenceMode::Frequentist,
+                        ) => self
+                            .estimator
+                            .is_none_or(|id| id == EstimatorId::ResponseInterventionGcomp),
+                        (
+                            antecedent_core::ResponseFunctional::MeanCurve { .. }
+                            | antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            InferenceMode::Bayesian(_),
+                        ) => {
+                            self.refute == RefuteSuite::None
+                                && self
+                                    .estimator
+                                    .is_none_or(|id| id == EstimatorId::ResponseBayesian)
+                        }
+                        _ => false,
+                    }
+                {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_static_dag_response_operation,
+                        "one-shot static DAG response did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::Response(query)
+        {
+            if let Some(RouteInput::StaticResponseDag { data, query, .. }) = route {
                 if query.temporal.is_none()
                     && complete_mean_response(query)
-                    && matches!(query.functional,
+                    && matches!(
+                        query.functional,
                         antecedent_core::ResponseFunctional::PointDerivative { .. }
-                        | antecedent_core::ResponseFunctional::AverageDerivative { .. }
-                        | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
-                        | antecedent_core::ResponseFunctional::Jacobian { .. }))
-        {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_derivative_response_operation,
-                    "one-shot derivative response did not retain its checked operation",
-                );
+                            | antecedent_core::ResponseFunctional::AverageDerivative { .. }
+                            | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+                            | antecedent_core::ResponseFunctional::Jacobian { .. }
+                    )
+                {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_derivative_response_operation,
+                        "one-shot derivative response did not retain its checked operation",
+                    );
+                }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.graph.class() == GraphClass::Dag
-            && matches!(self.query, CausalQuery::Counterfactual(_))
-        {
-            if let DataInput::Tabular(data) = &self.data {
+        if self.graph_posterior.is_none() {
+            if let Some(RouteInput::GcmDag { data, route: AnalysisRoute::Counterfactual, .. }) =
+                route
+            {
                 return self.run_sealed_tabular(
                     data,
                     ctx,
@@ -1498,7 +1513,6 @@ impl super::Study {
         // preparation; nearby estimators execute through the ordinary dispatcher.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
             && matches!(
@@ -1514,23 +1528,21 @@ impl super::Study {
                                 | crate::estimator_spec::EstimatorSpec::Aipw(_),
                         )
                     )))
-            && matches!(
-                &self.query,
-                CausalQuery::AverageEffect(query)
-                    if mean_all_observed(&query.outcome_functional, &query.target_population)
-                        && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
-                            if *variable == query.treatment && value.as_f64() == Some(1.0))
-                        && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
-                            if *variable == query.treatment && value.as_f64() == Some(0.0))
-            )
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_sealed_aipw_operation,
-                    "one-shot AIPW route did not retain its complete checked operation",
-                );
+            if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
+                if mean_all_observed(&query.outcome_functional, &query.target_population)
+                    && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment && value.as_f64() == Some(1.0))
+                    && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment && value.as_f64() == Some(0.0))
+                {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_sealed_aipw_operation,
+                        "one-shot AIPW route did not retain its complete checked operation",
+                    );
+                }
             }
         }
         // Checked GLM adjustment and sharp-RD operations retain the selected
@@ -1538,44 +1550,50 @@ impl super::Study {
         let selected_estimator =
             self.estimator.or_else(|| self.estimator_spec.as_ref().map(crate::EstimatorSpec::id));
         let checked_glm = selected_estimator == Some(EstimatorId::GlmAdjustment)
-            && self.graph.class() == GraphClass::Dag
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
             && matches!(
-                &self.query,
-                CausalQuery::AverageEffect(query)
+                route,
+                Some(RouteInput::StaticAteDag { query, .. })
                     if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
             );
         let checked_rd = selected_estimator == Some(EstimatorId::RdSharp)
             && self.rd.is_some()
-            && self.graph.class() == GraphClass::Dag
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::AverageEffect(_));
+            && matches!(route, Some(RouteInput::StaticAteDag { .. }));
         let checked_propensity = matches!(
             selected_estimator,
             Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
-        ) && self.graph.class() == GraphClass::Dag
-            && self.graph_posterior.is_none()
+        ) && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::AverageEffect(query)
-                if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-                    && query.effect_modifiers.is_empty()
-                    && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
-                        if *variable == query.treatment && value.as_f64() == Some(1.0))
-                    && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
-                        if *variable == query.treatment && value.as_f64() == Some(0.0)));
+            && matches!(
+                route,
+                Some(RouteInput::StaticAteDag { query, .. })
+                    if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                        && query.effect_modifiers.is_empty()
+                        && matches!(
+                            &query.active,
+                            antecedent_core::Intervention::Set { variable, value }
+                                if *variable == query.treatment && value.as_f64() == Some(1.0)
+                        )
+                        && matches!(
+                            &query.control,
+                            antecedent_core::Intervention::Set { variable, value }
+                                if *variable == query.treatment && value.as_f64() == Some(0.0)
+                        )
+            );
         if checked_rd {
-            if let DataInput::Tabular(data) = &self.data {
+            if let Some(RouteInput::StaticAteDag { data, .. }) = route {
                 // A sharp-RD design that does not fit its data (assignment not
                 // sharp, no rows in the bandwidth window) is not retained; the
                 // ordinary dispatch below then reports that refusal at execute,
@@ -1586,7 +1604,7 @@ impl super::Study {
                 }
             }
         } else if checked_glm || checked_propensity {
-            if let DataInput::Tabular(data) = &self.data {
+            if let Some(RouteInput::StaticAteDag { data, .. }) = route {
                 return self.run_sealed_tabular(
                     data,
                     ctx,
@@ -1602,7 +1620,11 @@ impl super::Study {
             }
         }
         if super::CheckedStaticClassResponse::admits(self) {
-            if let DataInput::Tabular(data) = &self.data {
+            if let Some(
+                RouteInput::StaticResponseCpdag { data, .. }
+                | RouteInput::StaticResponsePag { data, .. },
+            ) = route
+            {
                 return self.run_sealed_tabular(
                     data,
                     ctx,
@@ -1611,70 +1633,79 @@ impl super::Study {
                 );
             }
         }
-        if self.graph_posterior.as_ref().is_some_and(|posterior| {
-            matches!(
-                posterior.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Dag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        }) && self.tiered.is_none()
+        if self.tiered.is_none()
             && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::Response(query)
-            if graph_posterior_response_supported(query).is_ok()
-                && mean_all_observed(&query.outcome_functional, &query.target_population)
-                && match &query.functional {
-                    antecedent_core::ResponseFunctional::MeanCurve { .. } => {
-                        self.refute == RefuteSuite::None
-                    }
-                    antecedent_core::ResponseFunctional::InterventionResponse { .. } => {
-                        matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
-                    }
-                    _ => false,
-                }
-                && self.estimator.is_none_or(|id| {
-                    id == EstimatorId::static_response_for(&query.functional, &self.inference)
-                }))
+            && self.graph_posterior.as_ref().is_some_and(|posterior| {
+                matches!(
+                    posterior.atom_kind,
+                    antecedent_discovery::GraphPosteriorAtomKind::Dag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
+                )
+            })
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_graph_posterior_response_operation,
-                    "one-shot graph-posterior response did not retain its checked operation",
-                );
+            if let Some(
+                RouteInput::StaticResponseDag { data, query, .. }
+                | RouteInput::StaticResponseCpdag { data, query, .. }
+                | RouteInput::StaticResponsePag { data, query, .. },
+            ) = route
+            {
+                if graph_posterior_response_supported(query).is_ok()
+                    && mean_all_observed(&query.outcome_functional, &query.target_population)
+                    && match &query.functional {
+                        antecedent_core::ResponseFunctional::MeanCurve { .. } => {
+                            self.refute == RefuteSuite::None
+                        }
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. } => {
+                            matches!(
+                                self.refute,
+                                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                            )
+                        }
+                        _ => false,
+                    }
+                    && self.estimator.is_none_or(|id| {
+                        id == EstimatorId::static_response_for(&query.functional, &self.inference)
+                    })
+                {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_graph_posterior_response_operation,
+                        "one-shot graph-posterior response did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
-            && self.tiered.as_ref().is_some_and(|background| {
-                background.within_tier == antecedent_graph::WithinTier::CoDetermined
-            })
-            && self.graph.class() == GraphClass::Admg
             && self.structure_source == crate::support::StructureSource::Explicit
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
             && self.shared_batch_design.is_none()
             && self.continuous_cell.is_none()
             && self.estimator == Some(EstimatorId::CellAipw)
-            && matches!(&self.query, CausalQuery::Response(query)
+        {
+            if let Some(RouteInput::CodeterminedJoint { data, query, .. }) = route {
                 if query.temporal.is_none()
                     && query.observation == antecedent_core::ObservationSpec::Complete
                     && query.target_population == antecedent_core::TargetPopulation::AllObserved
-                    && matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. }))
-        {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    |prepared| prepared.checked_cell_aipw_response_info().is_some(),
-                    "one-shot CoDetermined joint cell response did not retain its checked operation",
-                );
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                    )
+                {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_cell_aipw_response_info().is_some(),
+                        "one-shot CoDetermined joint cell response did not retain its checked operation",
+                    );
+                }
             }
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
@@ -1687,16 +1718,20 @@ impl super::Study {
             )
             && self.point_validation_or_placebo()
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::AverageEffect(query)
-                if mean_all_observed(&query.outcome_functional, &query.target_population))
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_static_class_effect_operation,
-                    "one-shot Bayesian static class effect did not retain its checked operation",
-                );
+            if let Some(
+                RouteInput::StaticAteCpdag { data, query, .. }
+                | RouteInput::StaticAtePag { data, query, .. },
+            ) = route
+            {
+                if mean_all_observed(&query.outcome_functional, &query.target_population) {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_static_class_effect_operation,
+                        "one-shot Bayesian static class effect did not retain its checked operation",
+                    );
+                }
             }
         }
         // Graph-posterior conditional effects on DAG and class atoms, and
@@ -1747,28 +1782,28 @@ impl super::Study {
         }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
             && self.fixed_structure()
             && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && self.observation_delayed_entry.is_none()
-            && matches!(&self.query, CausalQuery::Response(query)
-                if query.temporal.as_ref().is_some_and(|spec| spec.policy.is_single_step())
-                    && complete_mean_response(query)
-                    && crate::analysis::temporal_response_is_direct(query))
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
             && self
                 .estimator
                 .is_none_or(|id| id == EstimatorId::temporal_response_for(&self.inference))
         {
-            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
-                return self.run_sealed_series(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_temporal_class_response_operation,
-                    "one-shot temporal class response did not retain its checked operation",
-                );
+            if let Some(RouteInput::TemporalResponseClass { data, query, .. }) = route {
+                if query.temporal.as_ref().is_some_and(|spec| spec.policy.is_single_step())
+                    && complete_mean_response(query)
+                    && crate::analysis::temporal_response_is_direct(query)
+                {
+                    return self.run_sealed_series(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_temporal_class_response_operation,
+                        "one-shot temporal class response did not retain its checked operation",
+                    );
+                }
             }
         }
         if crate::analysis::CheckedTemporalGraphPosteriorResponse::admits(self) {
@@ -1818,7 +1853,6 @@ impl super::Study {
             Some(EstimatorId::BayesianIvJointLinear | EstimatorId::BayesianRdLocalLinear)
         );
         if specialist_estimator
-            && self.graph.class() == GraphClass::Dag
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.split.is_none()
@@ -1826,28 +1860,27 @@ impl super::Study {
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
-            && matches!(&self.query, CausalQuery::AverageEffect(query)
-            if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-                && matches!(
-                    query.target_population,
-                    antecedent_core::TargetPopulation::AllObserved
-                        | antecedent_core::TargetPopulation::LocalAtCutoff { .. }
-                ))
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.run_sealed_tabular(
-                    data,
-                    ctx,
-                    crate::PreparedStudy::has_checked_bayesian_specialist_operation,
-                    "one-shot Bayesian specialist route did not retain its checked operation",
-                );
+            if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
+                if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && matches!(
+                        query.target_population,
+                        antecedent_core::TargetPopulation::AllObserved
+                            | antecedent_core::TargetPopulation::LocalAtCutoff { .. }
+                    )
+                {
+                    return self.run_sealed_tabular(
+                        data,
+                        ctx,
+                        crate::PreparedStudy::has_checked_bayesian_specialist_operation,
+                        "one-shot Bayesian specialist route did not retain its checked operation",
+                    );
+                }
             }
         }
         // Certified trial-to-target transport executes from its retained sID
         // proof and design columns even for the one-shot facade.
-        if matches!(&self.query, CausalQuery::Transport(_))
-            && self.graph.class() == GraphClass::Admg
-            && self.selection_diagram.is_some()
+        if self.selection_diagram.is_some()
             && self.transport_trial.is_some()
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
@@ -1856,7 +1889,7 @@ impl super::Study {
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
         {
-            if let DataInput::Tabular(data) = &self.data {
+            if let Some(RouteInput::TransportMixed { data, class: GraphClass::Admg, .. }) = route {
                 return self.run_sealed_tabular(
                     data,
                     ctx,
@@ -1870,13 +1903,7 @@ impl super::Study {
         // operation admits executes through the ordinary dispatcher below.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && self.graph.class() == GraphClass::Dag
             && matches!(self.inference, InferenceMode::Frequentist)
-            && matches!(
-                &self.query,
-                CausalQuery::AverageEffect(query)
-                    if mean_all_observed(&query.outcome_functional, &query.target_population)
-            )
             && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
             && matches!(
                 &self.estimator_spec,
@@ -1886,8 +1913,10 @@ impl super::Study {
                 )
             )
         {
-            if let DataInput::Tabular(data) = &self.data {
-                return self.prepare(ctx)?.estimate(data, ctx);
+            if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
+                if mean_all_observed(&query.outcome_functional, &query.target_population) {
+                    return self.prepare(ctx)?.estimate(data, ctx);
+                }
             }
         }
         let compiled = self.compile(ctx)?;

@@ -339,6 +339,8 @@ mod class_posterior_response;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
 pub(super) use compile::compile_logical_admg_response;
+mod route_input;
+pub(crate) use route_input::{RouteInput, StaticMediationSource};
 mod dbn_mediation_frequentist;
 mod dispatch;
 mod identified_set_diagnostics;

@@ -35,10 +35,10 @@ impl super::Study {
     ///
     /// # Panics
     ///
-    /// Never in practice. Each `expect` below asserts an invariant that
-    /// [`crate::accepted::AcceptedGraph::class`] itself establishes — the class tag is
+    /// Never in practice. [`Study::route_input`] asserts the
+    /// [`crate::accepted::AcceptedGraph::class`] invariant once: the class tag is
     /// derived from the stored graph, so the matching accessor (`as_dag`, `as_pag`, …)
-    /// is always `Some` once the match arm has already selected on that class.
+    /// is always `Some` for the variant that accessor feeds.
     pub fn compile_logical(&self) -> Result<LogicalAnalysisPlan, CausalError> {
         if self.graph_posterior.is_some() {
             // A graph posterior is a mixture over structures, not one structure — there is
@@ -49,12 +49,15 @@ impl super::Study {
                           use compile()/run() instead",
             });
         }
-        self.ensure_supported_combination()?;
-        match (classify_analysis_route(&self.data, &self.query), self.graph.class()) {
-            (Some(AnalysisRoute::Response), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+        self.compile_logical_from(&self.route_input()?)
+    }
+
+    fn compile_logical_from(
+        &self,
+        input: &RouteInput<'_>,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        match *input {
+            RouteInput::StaticResponseDag { data, query: q, graph } => {
                 let (identifier, estimator) = self.resolve_response_pair(q);
                 compile_logical_static_response(StaticResponseCompileInput {
                     data,
@@ -65,10 +68,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Response), GraphClass::Pag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let pag = self.graph.as_pag().expect("class() == Pag implies as_pag() is Some");
+            RouteInput::StaticResponsePag { data, query: q, pag } => {
                 let (identifier, estimator) = self.resolve_class_response_pair(q);
                 compile_logical_static_pag_response(StaticPagResponseCompileInput {
                     data,
@@ -79,11 +79,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Response), GraphClass::Cpdag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let cpdag =
-                    self.graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
+            RouteInput::StaticResponseCpdag { data, query: q, cpdag } => {
                 let (identifier, estimator) = self.resolve_class_response_pair(q);
                 compile_logical_static_cpdag_response(StaticCpdagResponseCompileInput {
                     data,
@@ -94,14 +90,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Response), GraphClass::Admg)
-                if self.tiered.as_ref().is_some_and(|b| {
-                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
-                }) =>
-            {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
+            RouteInput::CodeterminedJoint { data, query: q, admg } => {
                 let (identifier, estimator) = self.resolve_codetermined_joint_pair();
                 compile_logical_codetermined_joint(
                     data,
@@ -112,9 +101,7 @@ impl super::Study {
                     estimator,
                 )
             }
-            (Some(AnalysisRoute::Response), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+            RouteInput::MixedAdmgResponse { data, query: q } => {
                 let admg = mixed_admg(self)?;
                 if admg_has_bidirected(&admg) {
                     compile_logical_admg_response(data, q, self.validation_suite_id(), self)
@@ -131,10 +118,7 @@ impl super::Study {
                     })
                 }
             }
-            (Some(AnalysisRoute::StaticAte), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+            RouteInput::StaticAteDag { data, query: q, graph } => {
                 let (identifier, estimator) = self.resolve_static_pair();
                 self.ensure_rd_config_present(&estimator)?;
                 compile_logical_static_ate(StaticAteCompileInput {
@@ -146,10 +130,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Distribution), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+            RouteInput::DistributionDag { data, query: q, graph } => {
                 let (identifier, estimator) = self.resolve_distribution_pair();
                 compile_logical_distribution(StaticDistributionCompileInput {
                     data,
@@ -160,9 +141,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Distribution), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
+            RouteInput::DistributionMixed { data, query: q } => {
                 super::static_path::ensure_admg_distribution_licensed(q, self.refute)?;
                 let (identifier, estimator) = self.resolve_distribution_pair();
                 let treatment =
@@ -193,10 +172,7 @@ impl super::Study {
                 logical.validate()?;
                 Ok(logical)
             }
-            (Some(AnalysisRoute::PathSpecific), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+            RouteInput::PathSpecificDag { data, query: q, graph } => {
                 let (identifier, estimator) = self.resolve_path_pair();
                 compile_logical_path_specific(StaticPathSpecificCompileInput {
                     data,
@@ -207,25 +183,23 @@ impl super::Study {
                     estimator,
                 })
             }
-            (
-                Some(AnalysisRoute::TemporalEffect),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_logical_temporal_class(),
-            (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalDag) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                let class = match &self.data {
-                    DataInput::Event(_) => DataClassification::Event,
-                    _ => DataClassification::Temporal,
-                };
+            RouteInput::TemporalEffectClass { data, query, classification } => self
+                .compile_logical_class_effect(
+                    data,
+                    query,
+                    self.graph.class(),
+                    classification,
+                    "temporal_cpdag_effect",
+                    "temporal_pag_effect",
+                ),
+            RouteInput::TemporalEffectDag { data, query: q, graph, classification } => {
                 let mut plan = compile_logical_temporal_effect_classified(
-                    data, graph, q, self.split, false, class,
+                    data,
+                    graph,
+                    q,
+                    self.split,
+                    false,
+                    classification,
                 )?;
                 if q.is_multi_step_sustained() {
                     plan.record.estimator =
@@ -238,15 +212,7 @@ impl super::Study {
                 }
                 Ok(plan)
             }
-            (Some(AnalysisRoute::TemporalResponse), GraphClass::TemporalDag) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+            RouteInput::TemporalResponseDag { data, query: q, graph } => {
                 let mut plan = compile_logical_temporal_response(data, graph, q, false)?;
                 if matches!(self.inference, InferenceMode::Bayesian(_)) {
                     plan.record.estimator =
@@ -254,14 +220,7 @@ impl super::Study {
                 }
                 Ok(plan)
             }
-            (
-                Some(AnalysisRoute::TemporalResponse),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+            RouteInput::TemporalResponseClass { data, query: q } => {
                 let mut plan =
                     compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
                 plan.record.identifier =
@@ -270,13 +229,7 @@ impl super::Study {
                     Some(Arc::from(temporal_response_estimator_id(&self.inference)));
                 Ok(plan)
             }
-            (Some(AnalysisRoute::MultiEnvTemporalEffect), GraphClass::TemporalDag) => {
-                let DataInput::MultiEnv(multi) = &self.data else { unreachable!() };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+            RouteInput::MultiEnvTemporalEffect { multi, query: q, graph } => {
                 let data = multi
                     .environment(0)
                     .map_err(|e| CausalError::Compile { message: format!("multi-env: {e}") })?;
@@ -289,13 +242,7 @@ impl super::Study {
                     DataClassification::MultiEnvironment,
                 )
             }
-            (Some(AnalysisRoute::PanelTemporalResponse), GraphClass::TemporalDag) => {
-                let DataInput::Panel(panel) = &self.data else { unreachable!() };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+            RouteInput::PanelTemporalResponseDag { panel, query: q, graph } => {
                 let mut plan = compile_logical_temporal_response(
                     panel_compile_series(panel)?,
                     graph,
@@ -307,21 +254,13 @@ impl super::Study {
                     Some(Arc::from(temporal_response_estimator_id(&self.inference)));
                 Ok(plan)
             }
-            (
-                Some(AnalysisRoute::PanelTemporalResponse),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_logical_panel_class_response(),
-            (
-                Some(AnalysisRoute::PanelTemporalEffect),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_logical_panel_class(),
-            (Some(AnalysisRoute::PanelTemporalEffect), GraphClass::TemporalDag) => {
-                let DataInput::Panel(panel) = &self.data else { unreachable!() };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+            RouteInput::PanelTemporalResponseClass { panel, query } => {
+                self.compile_logical_panel_class_response_from(panel, query)
+            }
+            RouteInput::PanelTemporalEffectClass { panel, query } => {
+                self.compile_logical_panel_class_from(panel, query)
+            }
+            RouteInput::PanelTemporalEffectDag { panel, query: q, graph } => {
                 let mut plan = compile_logical_temporal_effect_classified(
                     panel_compile_series(panel)?,
                     graph,
@@ -336,10 +275,7 @@ impl super::Study {
                 }
                 Ok(plan)
             }
-            (Some(AnalysisRoute::StaticAte), GraphClass::Pag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
-                let pag = self.graph.as_pag().expect("class() == Pag implies as_pag() is Some");
+            RouteInput::StaticAtePag { data, query: q, pag } => {
                 let (identifier, estimator) = self.resolve_pag_pair();
                 reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
                 compile_logical_static_pag_ate(StaticPagAteCompileInput {
@@ -351,11 +287,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::StaticAte), GraphClass::Cpdag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
-                let cpdag =
-                    self.graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
+            RouteInput::StaticAteCpdag { data, query: q, cpdag } => {
                 let (identifier, estimator) = self.resolve_pag_pair();
                 compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
                     data,
@@ -366,10 +298,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Conditional), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+            RouteInput::ConditionalDag { data, query: q, graph } => {
                 let (identifier, estimator) = self.resolve_conditional_pair();
                 // Logical plan reuses static ATE metadata with conditional estimator.
                 let mut plan = compile_logical_static_ate(StaticAteCompileInput {
@@ -384,11 +313,7 @@ impl super::Study {
                 plan.query = CausalQuery::ConditionalEffect(q.clone());
                 Ok(plan)
             }
-            (Some(AnalysisRoute::Conditional), GraphClass::Cpdag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
-                let cpdag =
-                    self.graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
+            RouteInput::ConditionalCpdag { data, query: q, cpdag } => {
                 let (identifier, estimator) = self.resolve_class_conditional_pair();
                 let mut plan =
                     compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
@@ -403,10 +328,7 @@ impl super::Study {
                 plan.query = CausalQuery::ConditionalEffect(q.clone());
                 Ok(plan)
             }
-            (Some(AnalysisRoute::Conditional), GraphClass::Pag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
-                let pag = self.graph.as_pag().expect("class() == Pag implies as_pag() is Some");
+            RouteInput::ConditionalPag { data, query: q, pag } => {
                 let (identifier, estimator) = self.resolve_class_conditional_pair();
                 let mut plan = compile_logical_static_pag_ate(StaticPagAteCompileInput {
                     data,
@@ -420,15 +342,7 @@ impl super::Study {
                 plan.query = CausalQuery::ConditionalEffect(q.clone());
                 Ok(plan)
             }
-            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalDag) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+            RouteInput::TemporalMediationDag { data, query: q, graph } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 let mut plan = compile_logical_temporal_effect(
                     data,
@@ -450,18 +364,12 @@ impl super::Study {
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)
             }
-            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalPag) => {
-                Err(CausalError::Unsupported {
-                    message: "Latent-confounded TemporalPag natural mediation is outside the \
+            RouteInput::TemporalMediationPag => Err(CausalError::Unsupported {
+                message: "Latent-confounded TemporalPag natural mediation is outside the \
                               existing cross-world identification theory; the linear DAG \
                               mechanism product on completions cannot license it",
-                })
-            }
-            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalCpdag) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
-                let CausalQuery::Mediation(query) = &self.query else { unreachable!() };
+            }),
+            RouteInput::TemporalMediationCpdag { data, query } => {
                 query
                     .validate()
                     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
@@ -487,9 +395,7 @@ impl super::Study {
                 plan.query = CausalQuery::Mediation(query.clone());
                 Ok(plan)
             }
-            (Some(AnalysisRoute::StaticMediation), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+            RouteInput::StaticMediationDag { data, graph, source } => {
                 if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
                     || self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
                     || self.estimator_spec.is_some()
@@ -500,10 +406,9 @@ impl super::Study {
                         message: "static mediation requires path_specific.natural and mediation.linear without custom estimators, scalar validators, or discovery split",
                     });
                 }
-                let q = match &self.query {
-                    CausalQuery::Mediation(q) => q.clone(),
-                    CausalQuery::NestedCounterfactual(q) => q.as_mediation_query(),
-                    _ => unreachable!(),
+                let q = match source {
+                    StaticMediationSource::Mediation(query) => (*query).clone(),
+                    StaticMediationSource::Nested(query) => query.as_mediation_query(),
                 };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 let path = antecedent_core::PathSpecificEffectQuery {
@@ -523,17 +428,15 @@ impl super::Study {
                 })?;
                 plan.record.plan_id = Arc::from("static_mediation");
                 plan.record.estimator = Some(Arc::from("mediation.linear"));
-                plan.query = match &self.query {
-                    CausalQuery::NestedCounterfactual(nested) => {
-                        CausalQuery::NestedCounterfactual(*nested)
+                plan.query = match source {
+                    StaticMediationSource::Nested(nested) => {
+                        CausalQuery::NestedCounterfactual((*nested).clone())
                     }
-                    _ => CausalQuery::Mediation(q),
+                    StaticMediationSource::Mediation(_) => CausalQuery::Mediation(q),
                 };
                 Ok(plan)
             }
-            (Some(AnalysisRoute::Transport), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Transport(q) = &self.query else { unreachable!() };
+            RouteInput::TransportMixed { data, query: q, .. } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 if self.selection_diagram.is_none() || self.transport_trial.is_none() {
                     return Err(CausalError::Unsupported {
@@ -566,9 +469,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Interference(q) = &self.query else { unreachable!() };
+            RouteInput::InterferenceDag { data, query: q, .. } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 if self.interference.is_none() {
                     return Err(CausalError::Unsupported {
@@ -614,9 +515,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::RandomizedEffect), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::RandomizedEffect(q) = &self.query else { unreachable!() };
+            RouteInput::RandomizedEffect { data, query: q } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 if q.realized_assignment.len() != data.row_count() {
                     return Err(CausalError::Compile {
@@ -664,9 +563,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::PolicyValue(q) = &self.query else { unreachable!() };
+            RouteInput::PolicyValue { data, query: q } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 if q.multi_action
                     .as_ref()
@@ -705,9 +602,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::PanelDid(q) = &self.query else { unreachable!() };
+            RouteInput::PanelDid { data, query: q } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 if q.treated.len() != data.row_count() {
                     return Err(CausalError::Compile {
@@ -732,9 +627,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::SyntheticControl(q) = &self.query else { unreachable!() };
+            RouteInput::SyntheticControl { data, query: q } => {
                 q.validate()
                     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 if q.units.len() != data.row_count() {
@@ -760,9 +653,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::ContinuousDoseResponse(q) = &self.query else { unreachable!() };
+            RouteInput::ContinuousDoseResponse { data, query: q } => {
                 q.validate()
                     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 if q.baseline_groups.len() != data.row_count() {
@@ -789,9 +680,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::LocalPolynomialRatio(q) = &self.query else { unreachable!() };
+            RouteInput::LocalPolynomialRatio { data, query: q } => {
                 q.validate()
                     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 for variable in [q.outcome, q.treatment, q.running] {
@@ -817,9 +706,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Survival(q) = &self.query else { unreachable!() };
+            RouteInput::Survival { data, query: q } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
                     .into_iter()
@@ -845,9 +732,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::LongitudinalRegime(q) = &self.query else { unreachable!() };
+            RouteInput::LongitudinalRegime { data, query: q } => {
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 if q.subject_ids.len() != data.row_count() {
                     return Err(CausalError::Compile {
@@ -900,8 +785,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+            RouteInput::GcmDag { data, .. } => {
                 // Parametric SCM paths use a query- and inference-specific estimator identity.
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
                 self.query
@@ -931,13 +815,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (
-                Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution),
-                GraphClass::TemporalDag,
-            ) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
+            RouteInput::GcmTemporal { data } => {
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
                 self.query
                     .validate()
@@ -966,15 +844,9 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (
-                Some(AnalysisRoute::TemporalCrossWorld),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
+            RouteInput::TemporalCrossWorldClass { data, class } => {
                 let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
-                let plan_id = match self.graph.class() {
+                let plan_id = match class {
                     GraphClass::TemporalCpdag => "temporal_cpdag_cross_world",
                     GraphClass::TemporalPag => "temporal_pag_cross_world",
                     _ => unreachable!(),
@@ -995,10 +867,7 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::TemporalCrossWorld), GraphClass::TemporalDag) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                    unreachable!()
-                };
+            RouteInput::TemporalCrossWorldDag { data, .. } => {
                 let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
@@ -1018,7 +887,9 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            _ => Err(CausalError::Unsupported {
+            // Physical compile builds this cell itself. Logical inspection keeps the
+            // previous catch-all refusal.
+            RouteInput::StaticAteMixed { .. } => Err(CausalError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
         }
@@ -1033,121 +904,25 @@ impl super::Study {
     /// # Panics
     ///
     /// Never in practice; see [`Self::compile_logical`]'s panics note — the same
-    /// class/accessor invariant applies here.
+    /// class/accessor invariant applies here, and it is checked inside
+    /// [`Study::route_input`], not again below.
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
         if self.graph_posterior.is_some() {
             return self.compile_graph_posterior(ctx);
         }
-        self.ensure_supported_combination()?;
-        match (classify_analysis_route(&self.data, &self.query), self.graph.class()) {
-            (
-                Some(
-                    AnalysisRoute::Response
-                    | AnalysisRoute::StaticAte
-                    | AnalysisRoute::Distribution
-                    | AnalysisRoute::PathSpecific,
-                ),
-                GraphClass::Dag,
-            ) => self.compile_logical()?.compile_physical(ctx),
-            (Some(AnalysisRoute::Distribution), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (
-                Some(AnalysisRoute::TemporalCrossWorld),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_logical()?.compile_physical(ctx),
-            (
-                Some(AnalysisRoute::TemporalEffect | AnalysisRoute::TemporalCrossWorld),
-                GraphClass::TemporalDag,
-            ) => {
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
-            }
-            (
-                Some(AnalysisRoute::TemporalResponse),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_logical()?.compile_physical(ctx),
-            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalPag) => {
-                Err(CausalError::Unsupported {
-                    message: "Latent-confounded TemporalPag natural mediation is outside the \
-                              existing cross-world identification theory; the linear DAG \
-                              mechanism product on completions cannot license it",
-                })
-            }
-            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalCpdag) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::TemporalResponse), GraphClass::TemporalDag) => {
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
-            }
-            (
-                Some(AnalysisRoute::TemporalEffect),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_temporal_class(ctx),
-            (
-                Some(AnalysisRoute::PanelTemporalEffect | AnalysisRoute::PanelTemporalResponse),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-            ) => self.compile_logical()?.compile_physical(ctx),
-            (
-                Some(
-                    AnalysisRoute::MultiEnvTemporalEffect
-                    | AnalysisRoute::PanelTemporalEffect
-                    | AnalysisRoute::PanelTemporalResponse,
-                ),
-                GraphClass::TemporalDag,
-            ) => {
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
-            }
-            (
-                Some(
-                    AnalysisRoute::StaticAte | AnalysisRoute::Response | AnalysisRoute::Conditional,
-                ),
-                GraphClass::Pag,
-            ) => {
-                let pag = self.graph.as_pag().expect("class() == Pag implies as_pag() is Some");
-                self.compile_logical()?.compile_physical_with_all_graphs(
-                    ctx,
-                    None,
-                    None,
-                    Some(pag.clone()),
-                )
-            }
-            (
-                Some(
-                    AnalysisRoute::StaticAte | AnalysisRoute::Response | AnalysisRoute::Conditional,
-                ),
-                GraphClass::Cpdag,
-            ) => self.compile_logical()?.compile_physical(ctx),
-            (Some(AnalysisRoute::Response), GraphClass::Admg)
-                if self.tiered.as_ref().is_some_and(|b| {
-                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
-                }) =>
-            {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::Response), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                let admg = mixed_admg(self)?;
-                if admg_has_bidirected(&admg) {
-                    self.compile_logical()?.compile_physical(ctx)
-                } else {
-                    let dag = admg_without_latents_to_dag(&admg)?;
-                    self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(dag))
-                }
-            }
-            (Some(AnalysisRoute::StaticAte), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
+        let input = self.route_input()?;
+        self.compile_with_route(&input, ctx)
+    }
+
+    fn compile_with_route(
+        &self,
+        input: &RouteInput<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        // Copy the parsed input so graph `.clone()` resolves to the owned graph,
+        // not to cloning another reference.
+        match *input {
+            RouteInput::StaticAteMixed { data, query: q } => {
                 let admg = mixed_admg(self)?;
                 if admg_has_bidirected(&admg) {
                     let (identifier, estimator) = self.resolve_admg_pair();
@@ -1189,68 +964,75 @@ impl super::Study {
                     logical.compile_physical_with_graphs(ctx, None, Some(dag))
                 }
             }
-            (Some(AnalysisRoute::Conditional), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+            RouteInput::MixedAdmgResponse { .. } => {
+                let admg = mixed_admg(self)?;
+                if admg_has_bidirected(&admg) {
+                    self.compile_logical_from(input)?.compile_physical(ctx)
+                } else {
+                    let dag = admg_without_latents_to_dag(&admg)?;
+                    self.compile_logical_from(input)?.compile_physical_with_graphs(
+                        ctx,
+                        None,
+                        Some(dag),
+                    )
+                }
             }
-            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalDag) => {
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
+            RouteInput::TemporalEffectDag { graph, .. }
+            | RouteInput::TemporalCrossWorldDag { graph, .. }
+            | RouteInput::TemporalResponseDag { graph, .. }
+            | RouteInput::MultiEnvTemporalEffect { graph, .. }
+            | RouteInput::PanelTemporalResponseDag { graph, .. }
+            | RouteInput::PanelTemporalEffectDag { graph, .. }
+            | RouteInput::TemporalMediationDag { graph, .. } => self
+                .compile_logical_from(input)?
+                .compile_physical_with_graph(ctx, Some(graph.clone())),
+            RouteInput::StaticResponsePag { pag, .. }
+            | RouteInput::StaticAtePag { pag, .. }
+            | RouteInput::ConditionalPag { pag, .. } => self
+                .compile_logical_from(input)?
+                .compile_physical_with_all_graphs(ctx, None, None, Some(pag.clone())),
+            RouteInput::ConditionalDag { graph, .. }
+            | RouteInput::StaticMediationDag { graph, .. }
+            | RouteInput::InterferenceDag { graph, .. }
+            | RouteInput::GcmDag { graph, .. } => self
+                .compile_logical_from(input)?
+                .compile_physical_with_graphs(ctx, None, Some(graph.clone())),
+            RouteInput::StaticResponseDag { .. }
+            | RouteInput::StaticResponseCpdag { .. }
+            | RouteInput::CodeterminedJoint { .. }
+            | RouteInput::StaticAteDag { .. }
+            | RouteInput::StaticAteCpdag { .. }
+            | RouteInput::DistributionDag { .. }
+            | RouteInput::DistributionMixed { .. }
+            | RouteInput::PathSpecificDag { .. }
+            | RouteInput::TemporalEffectClass { .. }
+            | RouteInput::TemporalResponseClass { .. }
+            | RouteInput::TemporalMediationPag
+            | RouteInput::TemporalMediationCpdag { .. }
+            | RouteInput::PanelTemporalResponseClass { .. }
+            | RouteInput::PanelTemporalEffectClass { .. }
+            | RouteInput::ConditionalCpdag { .. }
+            | RouteInput::TransportMixed { .. }
+            | RouteInput::RandomizedEffect { .. }
+            | RouteInput::PolicyValue { .. }
+            | RouteInput::ContinuousDoseResponse { .. }
+            | RouteInput::PanelDid { .. }
+            | RouteInput::SyntheticControl { .. }
+            | RouteInput::LocalPolynomialRatio { .. }
+            | RouteInput::Survival { .. }
+            | RouteInput::LongitudinalRegime { .. }
+            | RouteInput::GcmTemporal { .. }
+            | RouteInput::TemporalCrossWorldClass { .. } => {
+                self.compile_logical_from(input)?.compile_physical(ctx)
             }
-            (Some(AnalysisRoute::StaticMediation), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
-            }
-            (Some(AnalysisRoute::Transport), GraphClass::Admg | GraphClass::TemporalAdmg) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
-            }
-            (Some(AnalysisRoute::RandomizedEffect), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
-            (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
-            }
-            (
-                Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution),
-                GraphClass::TemporalDag,
-            ) => self.compile_logical()?.compile_physical(ctx),
-            _ => Err(CausalError::Unsupported {
-                message: "unsupported data/graph/query combination",
-            }),
         }
     }
 
-    fn compile_logical_panel_class(&self) -> Result<LogicalAnalysisPlan, CausalError> {
-        let DataInput::Panel(panel) = &self.data else { unreachable!() };
+    fn compile_logical_panel_class_from(
+        &self,
+        panel: &PanelData,
+        query: &TemporalEffectQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
         super::super::builder::refuse_unlicensed_panel_route(
             &self.query,
             self.graph.class(),
@@ -1260,14 +1042,19 @@ impl super::Study {
         )?;
         self.compile_logical_class_effect(
             panel_compile_series(panel)?,
+            query,
+            self.graph.class(),
             DataClassification::Panel,
             "panel_cpdag_effect",
             "panel_pag_effect",
         )
     }
 
-    fn compile_logical_panel_class_response(&self) -> Result<LogicalAnalysisPlan, CausalError> {
-        let DataInput::Panel(panel) = &self.data else { unreachable!() };
+    fn compile_logical_panel_class_response_from(
+        &self,
+        panel: &PanelData,
+        query: &ResponseQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
         super::super::builder::refuse_unlicensed_panel_route(
             &self.query,
             self.graph.class(),
@@ -1275,11 +1062,10 @@ impl super::Study {
             panel,
             self.split.as_ref(),
         )?;
-        let CausalQuery::Response(q) = &self.query else { unreachable!() };
         let mut plan = compile_logical_temporal_response(
             panel_compile_series(panel)?,
             &TemporalDag::empty(),
-            q,
+            query,
             false,
         )?;
         plan.record.data_classification = DataClassification::Panel;
@@ -1293,31 +1079,16 @@ impl super::Study {
         Ok(plan)
     }
 
-    fn compile_logical_temporal_class(&self) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-            unreachable!()
-        };
-        let classification = match &self.data {
-            DataInput::Event(_) => DataClassification::Event,
-            _ => DataClassification::Temporal,
-        };
-        self.compile_logical_class_effect(
-            data,
-            classification,
-            "temporal_cpdag_effect",
-            "temporal_pag_effect",
-        )
-    }
-
     fn compile_logical_class_effect(
         &self,
         data: &TimeSeriesData,
+        query: &TemporalEffectQuery,
+        class: GraphClass,
         classification: DataClassification,
         cpdag_plan: &'static str,
         pag_plan: &'static str,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-        let (plan_id, nodes) = match self.graph.class() {
+        let (plan_id, nodes) = match class {
             GraphClass::TemporalCpdag => {
                 (cpdag_plan, self.graph.as_temporal_cpdag().expect("TemporalCpdag").nodes())
             }
@@ -1330,30 +1101,23 @@ impl super::Study {
         let mut logical = compile_logical_temporal_class_effect(
             data,
             nodes,
-            q,
+            query,
             self.split,
             classification,
             plan_id,
             identifier,
             estimator,
         )?;
-        if q.is_multi_step_sustained() {
+        if query.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
         } else if matches!(self.inference, InferenceMode::Bayesian(_))
-            && q.effect_modifiers.is_empty()
+            && query.effect_modifiers.is_empty()
         {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
         Ok(logical)
-    }
-
-    fn compile_temporal_class(
-        &self,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        self.compile_logical_temporal_class()?.compile_physical(ctx)
     }
 }
 
