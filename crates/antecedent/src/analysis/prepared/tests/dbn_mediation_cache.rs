@@ -1,14 +1,16 @@
 //! Per-horizon DBN mediation eligibility and prepared numerical reuse.
 
-use super::*;
 use crate::analysis::execute::CheckedTemporalClassMediationOperation;
+use crate::analysis::prepared::*;
+use crate::error::CausalError;
 use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalSchemaBuilder, IdentificationStatus, MeasurementSpec, MediationContrast, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, ExecutionContext, IdentificationStatus, MeasurementSpec,
+    MediationContrast, MediationQuery, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
 use antecedent_discovery::GraphPosterior;
 use antecedent_prob::InferenceDiagnostics;
