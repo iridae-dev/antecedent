@@ -12,6 +12,7 @@
 
 pub mod cholesky;
 pub mod dispatch;
+pub mod numeric;
 pub mod parcorr;
 pub mod portable;
 pub mod posterior_reduce;
@@ -29,6 +30,10 @@ pub use dispatch::{
     gather, masked_covariance, masked_mean, masked_sum, masked_variance, pairwise_l1_fill,
     partial_correlation, select_impl, standardize_inplace, weighted_dot, weighted_mean,
     weighted_sum,
+};
+pub use numeric::{
+    LogWeightError, median_sorted, midranks_into, normalize_log_weights,
+    normalize_log_weights_into, sigmoid, softmax_in_place,
 };
 pub use parcorr::{
     ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson,
