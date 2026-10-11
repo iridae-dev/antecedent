@@ -255,7 +255,7 @@ impl Dag {
 
         // Build moral undirected graph on ancestral nodes.
         for i in 0..n {
-            let u = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let u = DenseNodeId::from_index(i);
             if !ws.ancestral.contains(u) {
                 continue;
             }

@@ -318,7 +318,7 @@ impl CpdagReview {
 
     fn resolve_var(&self, var: VariableId) -> Result<DenseNodeId, GraphError> {
         for i in 0..self.graph.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::from_index(i);
             if self.graph.variable_id(id) == Some(var) {
                 return Ok(id);
             }

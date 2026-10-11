@@ -160,7 +160,7 @@ impl<'a> DagView<'a> {
         let mut out = Dag::with_variables(n);
         // Base is a valid DAG; removing edges cannot create cycles.
         for i in 0..self.dag.node_count() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let from = DenseNodeId::from_index(i);
             for &to in self.dag.children(from) {
                 if self.overlay.edge_visible(from, to) {
                     out.insert_directed_unchecked(from, to);

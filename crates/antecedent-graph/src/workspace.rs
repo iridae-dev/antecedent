@@ -103,20 +103,36 @@ impl BitSet {
         self.words.iter().map(|w| w.count_ones() as usize).sum()
     }
 
+    /// Iterate the set bits as dense node ids in ascending order.
+    ///
+    /// Word-wise (`trailing_zeros`): the cost is proportional to the number of words plus
+    /// the number of members, not to the number of addressable bits.
+    pub fn iter(&self) -> impl Iterator<Item = DenseNodeId> + '_ {
+        self.words.iter().enumerate().flat_map(|(w, &word)| {
+            let base = w * 64;
+            let mut rest = word;
+            std::iter::from_fn(move || {
+                if rest == 0 {
+                    return None;
+                }
+                let bit = rest.trailing_zeros() as usize;
+                rest &= rest - 1;
+                Some(DenseNodeId::from_index(base + bit))
+            })
+        })
+    }
+
     /// Collect set bit indices as dense node ids (ascending).
     #[must_use]
     pub fn to_dense_ids(&self) -> Vec<DenseNodeId> {
-        let mut out = Vec::with_capacity(self.count_ones());
-        for i in 0..self.len {
-            let Ok(raw) = u32::try_from(i) else {
-                break;
-            };
-            let id = DenseNodeId::from_raw(raw);
-            if self.contains(id) {
-                out.push(id);
-            }
-        }
-        out
+        self.iter().collect()
+    }
+
+    /// Whether `self` and `other` share a member (same length).
+    #[must_use]
+    pub fn intersects(&self, other: &Self) -> bool {
+        debug_assert_eq!(self.len, other.len);
+        self.words.iter().zip(other.words.iter()).any(|(a, b)| a & b != 0)
     }
 
     /// Union `other` into `self` (same length).
@@ -224,6 +240,26 @@ mod tests {
             }
             assert_eq!(full, built, "len {len}");
         }
+    }
+
+    #[test]
+    fn iter_matches_membership_and_intersects_matches_a_scan() {
+        let mut a = BitSet::with_len(130);
+        let mut b = BitSet::with_len(130);
+        for i in [0, 1, 63, 64, 100, 129] {
+            a.insert(id(i));
+        }
+        for i in [2, 62, 65, 101] {
+            b.insert(id(i));
+        }
+        let scanned: Vec<_> =
+            (0..130).map(id).filter(|&node| a.contains(node)).collect();
+        assert_eq!(a.iter().collect::<Vec<_>>(), scanned);
+        assert_eq!(a.to_dense_ids(), scanned);
+        assert!(!a.intersects(&b));
+        b.insert(id(100));
+        assert!(a.intersects(&b));
+        assert_eq!(BitSet::with_len(0).iter().count(), 0);
     }
 
     #[test]

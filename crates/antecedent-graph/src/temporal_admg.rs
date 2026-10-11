@@ -183,13 +183,13 @@ impl TemporalAdmg {
     pub fn edges(&self) -> Vec<MarkedEdge> {
         let mut edges = Vec::new();
         for (i, kids) in self.children.iter().enumerate() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let from = DenseNodeId::from_index(i);
             for &to in kids {
                 edges.push(MarkedEdge::directed(from, to));
             }
         }
         for (i, neighbors) in self.bidirected.iter().enumerate() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for &b in neighbors {
                 if a < b {
                     edges.push(MarkedEdge::bidirected(a, b));
@@ -242,13 +242,13 @@ impl TemporalAdmg {
             admg.add_node(NodeRef::Static(*variable))?;
         }
         for (i, kids) in self.children.iter().enumerate() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let from = DenseNodeId::from_index(i);
             for &to in kids {
                 admg.insert_directed(from, to)?;
             }
         }
         for (i, neighbors) in self.bidirected.iter().enumerate() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for &b in neighbors {
                 if a < b {
                     admg.insert_bidirected(a, b)?;
@@ -277,7 +277,7 @@ impl TemporalAdmg {
             graph.add_lagged(*variable, Lag::CONTEMPORANEOUS)?;
         }
         for i in 0..admg.node_count() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let from = DenseNodeId::from_index(i);
             for &to in admg.children(from) {
                 graph.insert_directed(from, to)?;
             }

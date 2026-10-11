@@ -90,7 +90,7 @@ impl Dag {
         let mut bits = BitSet::with_len(self.node_count());
         self.markov_blanket(node, &mut bits)?;
         Ok((0..self.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
+            .map(DenseNodeId::from_index)
             .filter(|&id| bits.contains(id))
             .collect())
     }

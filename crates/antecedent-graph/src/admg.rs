@@ -99,7 +99,7 @@ impl Admg {
             }
         };
         for i in 0..self.node_count() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32"));
+            let from = DenseNodeId::from_index(i);
             for &to in self.children(from) {
                 if keep_directed(from, to) {
                     out.insert_directed(from, to)?;
@@ -339,7 +339,7 @@ impl Admg {
         closure_into(
             self.node_count(),
             |u| self.children(u),
-            seeds.to_dense_ids().into_iter().filter(|&id| active.contains(id)),
+            seeds.iter().filter(|&id| active.contains(id)),
             &mut out,
             ws,
             |u, c| !cut.is_some_and(|cut| cut.contains(u)) && active.contains(c),
@@ -357,6 +357,107 @@ impl Admg {
         }
         pairs.sort_unstable();
         pairs
+    }
+
+    /// Bidirected edges as raw `(lower, higher)` dense-id pairs in ascending order.
+    #[must_use]
+    pub fn bidirected_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
+        let mut pairs = Vec::new();
+        for (i, neighbors) in self.bidirected.iter().enumerate() {
+            let from = u32::try_from(i).expect("node fit");
+            pairs.extend(neighbors.iter().filter(|to| to.raw() > from).map(|to| (from, to.raw())));
+        }
+        pairs.sort_unstable();
+        pairs
+    }
+
+    /// The variable a static node stands for, or `None` for a non-static or unknown node.
+    #[must_use]
+    pub fn static_variable(&self, id: DenseNodeId) -> Option<VariableId> {
+        match self.nodes.get(id.as_usize()) {
+            Some(NodeRef::Static(v)) => Some(*v),
+            _ => None,
+        }
+    }
+
+    /// The dense id of the static node standing for `variable`, if present.
+    #[must_use]
+    pub fn dense_of_static(&self, variable: VariableId) -> Option<DenseNodeId> {
+        self.nodes
+            .iter()
+            .position(|node| *node == NodeRef::Static(variable))
+            .map(DenseNodeId::from_index)
+    }
+
+    /// Directed edges as `(parent, child)` variable pairs in ascending order, or `None`
+    /// when any endpoint is not a static node (edges between unfolded nodes have no
+    /// variable pair).
+    #[must_use]
+    pub fn static_directed_edges_sorted(&self) -> Option<Vec<(VariableId, VariableId)>> {
+        let mut pairs = Vec::new();
+        for (from, kids) in DenseNodeId::all(self.node_count()).zip(&self.children) {
+            let from_var = self.static_variable(from)?;
+            for &to in kids {
+                pairs.push((from_var, self.static_variable(to)?));
+            }
+        }
+        pairs.sort_unstable();
+        Some(pairs)
+    }
+
+    /// Every dense node id in ascending order.
+    #[must_use]
+    pub fn node_ids(&self) -> impl DoubleEndedIterator<Item = DenseNodeId> + ExactSizeIterator {
+        DenseNodeId::all(self.node_count())
+    }
+
+    /// `An(v) \ {v}` for every node `v`, indexed by dense id: the nodes with a directed path
+    /// into `v` (the graph is acyclic, so `v` is never its own ancestor).
+    ///
+    /// One topological sweep, `O(n * (n + e) / 64)`; the owner for callers that need the
+    /// ancestry of every node rather than of a seed set.
+    #[must_use]
+    pub fn strict_ancestor_sets(&self) -> Vec<BitSet> {
+        let n = self.node_count();
+        let mut ancestors: Vec<BitSet> = (0..n).map(|_| BitSet::with_len(n)).collect();
+        let mut pending: Vec<usize> = self.parents.iter().map(Vec::len).collect();
+        let mut ready: Vec<DenseNodeId> =
+            self.node_ids().filter(|v| pending[v.as_usize()] == 0).collect();
+        while let Some(v) = ready.pop() {
+            let done = ancestors[v.as_usize()].clone();
+            for &c in self.children(v) {
+                let ci = c.as_usize();
+                ancestors[ci].union_with(&done);
+                ancestors[ci].insert(v);
+                pending[ci] -= 1;
+                if pending[ci] == 0 {
+                    ready.push(c);
+                }
+            }
+        }
+        ancestors
+    }
+
+    /// The bidirected-connected closure of `seeds` inside `active`: every active node a
+    /// chain of bidirected edges through active nodes joins to a seed (seeds outside
+    /// `active` are dropped). The district of each seed in the subgraph induced by `active`.
+    #[must_use]
+    pub fn district_closure_within(
+        &self,
+        seeds: &BitSet,
+        active: &BitSet,
+        ws: &mut GraphWorkspace,
+    ) -> BitSet {
+        let mut out = BitSet::with_len(self.node_count());
+        closure_into(
+            self.node_count(),
+            |u| self.bidirected_neighbors(u),
+            seeds.iter().filter(|&id| active.contains(id)),
+            &mut out,
+            ws,
+            |_, w| active.contains(w),
+        );
+        out
     }
 
     /// Connected components under bidirected edges (districts).
@@ -384,7 +485,7 @@ impl Admg {
         stack.clear();
         let mut next = 0u32;
         for i in 0..n {
-            let root = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let root = DenseNodeId::from_index(i);
             if label[i] != u32::MAX || !inside(root) {
                 continue;
             }
@@ -447,7 +548,7 @@ impl Admg {
         closure_into(
             self.node_count(),
             |u| self.parents(u),
-            seeds.to_dense_ids().into_iter().filter(|&id| active.contains(id)),
+            seeds.iter().filter(|&id| active.contains(id)),
             &mut out,
             ws,
             |u, p| !bar_x.is_some_and(|bx| bx.contains(u)) && active.contains(p),

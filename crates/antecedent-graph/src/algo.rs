@@ -1,6 +1,15 @@
-//! Shared graph algorithms (reachability, Kahn topo).
+//! Shared graph algorithms (reachability, closure, Kahn topo).
+//!
+//! Three closure owners cover every representation callers hold:
+//! [`closure_into`] over dense adjacency slices with a [`BitSet`] result,
+//! [`mask_closure`] over per-node bitmask adjacency (graphs of at most the mask width),
+//! and [`implicit_closure`] over a lazily expanded successor function on arbitrary ordered
+//! keys (product graphs, indexed copies, class quotients).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::BTreeSet;
+use std::ops::{BitAnd, BitOr, Not};
 
 use crate::types::DenseNodeId;
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -41,7 +50,7 @@ pub fn bfs_reaches(
 /// `out` is resized to `n` and cleared, then receives the seeds (those below `n`) and every
 /// node reached through an edge `keep(from, to)` accepts. A seed outside the closure's
 /// admissible region must be filtered by the caller; `keep` gates only the traversed edges.
-pub(crate) fn closure_into<'g>(
+pub fn closure_into<'g>(
     n: usize,
     next: impl Fn(DenseNodeId) -> &'g [DenseNodeId],
     seeds: impl IntoIterator<Item = DenseNodeId>,
@@ -72,6 +81,81 @@ pub(crate) fn closure_into<'g>(
     }
 }
 
+/// An unsigned integer used as a node bitmask by [`mask_closure`].
+pub trait MaskWord:
+    Copy + Eq + BitOr<Output = Self> + BitAnd<Output = Self> + Not<Output = Self>
+{
+    /// The empty mask.
+    const ZERO: Self;
+    /// Index of the lowest set bit, or `None` for the empty mask.
+    fn lowest_bit(self) -> Option<usize>;
+    /// The mask with only bit `index` set.
+    fn single(index: usize) -> Self;
+}
+
+macro_rules! mask_word {
+    ($($ty:ty),*) => {$(
+        impl MaskWord for $ty {
+            const ZERO: Self = 0;
+            fn lowest_bit(self) -> Option<usize> {
+                (self != 0).then(|| self.trailing_zeros() as usize)
+            }
+            fn single(index: usize) -> Self {
+                1 << index
+            }
+        }
+    )*};
+}
+mask_word!(u8, u16, u32, u64);
+
+/// Closure of the mask `seeds` along `next` (bit `u` of the graph's adjacency in `next[u]`),
+/// for graphs small enough to keep one adjacency word per node.
+///
+/// The result holds the seeds and every node reached from a member whose bit is not in
+/// `frozen`: a frozen member is included but not expanded, which is how "ancestors in the
+/// graph without the edges into `frozen`" is read off the parent masks. Linear in the number
+/// of members (each is expanded once).
+///
+/// # Panics
+///
+/// If a seed bit is at or beyond `next.len()` and is reached for expansion.
+#[must_use]
+pub fn mask_closure<M: MaskWord>(seeds: M, next: &[M], frozen: M) -> M {
+    let mut closure = seeds;
+    let mut pending = seeds;
+    while let Some(u) = pending.lowest_bit() {
+        pending = pending & !M::single(u);
+        if frozen & M::single(u) != M::ZERO {
+            continue;
+        }
+        let fresh = next[u] & !closure;
+        closure = closure | fresh;
+        pending = pending | fresh;
+    }
+    closure
+}
+
+/// Closure of `seeds` under `expand` over arbitrary ordered keys, seeds included.
+///
+/// For graphs that are never materialised as dense adjacency: `(variable, world)` product
+/// nodes, `(variable, offset)` window nodes, or merged-class quotients. `expand` may carry
+/// state (it is `FnMut`), e.g. to flag a truncated expansion.
+pub fn implicit_closure<N: Ord + Clone, I: IntoIterator<Item = N>>(
+    seeds: impl IntoIterator<Item = N>,
+    mut expand: impl FnMut(&N) -> I,
+) -> BTreeSet<N> {
+    let mut seen = BTreeSet::new();
+    let mut stack: Vec<N> = seeds.into_iter().collect();
+    while let Some(node) = stack.pop() {
+        if seen.contains(&node) {
+            continue;
+        }
+        stack.extend(expand(&node));
+        seen.insert(node);
+    }
+    seen
+}
+
 /// Kahn topological order. Returns `None` if a directed cycle exists.
 #[must_use]
 pub fn kahn_order(
@@ -88,7 +172,7 @@ pub fn kahn_order(
         .iter()
         .enumerate()
         .filter(|&(_, &d)| d == 0)
-        .map(|(i, _)| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
+        .map(|(i, _)| DenseNodeId::from_index(i))
         .collect();
     let mut order = Vec::with_capacity(n);
     while let Some(u) = q.pop() {
@@ -107,4 +191,53 @@ pub fn kahn_order(
 #[must_use]
 pub fn is_dag(parents: &[Vec<DenseNodeId>], children: &[Vec<DenseNodeId>]) -> bool {
     kahn_order(parents, children).is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id(i: u32) -> DenseNodeId {
+        DenseNodeId::from_raw(i)
+    }
+
+    /// A small DAG with a diamond and a tail, as parent lists.
+    fn parents() -> Vec<Vec<DenseNodeId>> {
+        vec![vec![], vec![id(0)], vec![id(0)], vec![id(1), id(2)], vec![id(3)], vec![]]
+    }
+
+    #[test]
+    fn mask_closure_agrees_with_closure_into_for_every_seed_and_frozen_set() {
+        let parents = parents();
+        let n = parents.len();
+        let masks: Vec<u16> =
+            parents.iter().map(|ps| ps.iter().fold(0u16, |m, p| m | 1 << p.as_usize())).collect();
+        let mut ws = GraphWorkspace::default();
+        for seeds in 0u16..(1 << n) {
+            for frozen in [0u16, 0b000100, 0b001010, 0b111111] {
+                let mut dense = BitSet::with_len(n);
+                closure_into(
+                    n,
+                    |u| parents[u.as_usize()].as_slice(),
+                    (0..n).filter(|i| seeds >> i & 1 == 1).map(DenseNodeId::from_index),
+                    &mut dense,
+                    &mut ws,
+                    |u, _| frozen >> u.as_usize() & 1 == 0,
+                );
+                let expected = dense.iter().fold(0u16, |m, v| m | 1 << v.as_usize());
+                assert_eq!(mask_closure(seeds, &masks, frozen), expected, "{seeds:b}/{frozen:b}");
+            }
+        }
+    }
+
+    #[test]
+    fn implicit_closure_follows_a_stateful_expander_once_per_key() {
+        let mut expansions = 0;
+        let reached = implicit_closure([4u32], |&v| {
+            expansions += 1;
+            if v == 0 { vec![] } else { vec![v - 1, v / 2] }
+        });
+        assert_eq!(reached.into_iter().collect::<Vec<_>>(), vec![0, 1, 2, 3, 4]);
+        assert_eq!(expansions, 5);
+    }
 }

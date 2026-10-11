@@ -143,7 +143,7 @@ impl Admg {
         ws.ancestral.clear();
         ws.conditioning.clear();
         for i in 0..n {
-            ws.ancestral.insert(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
+            ws.ancestral.insert(DenseNodeId::from_index(i));
         }
         self.moralize_ancestral_set(ws);
     }
@@ -153,7 +153,7 @@ impl Admg {
     fn moralize_ancestral_set(&self, ws: &mut DSeparationWorkspace) {
         let n = self.node_count();
         for i in 0..n {
-            let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let u = DenseNodeId::from_index(i);
             if !ws.ancestral.contains(u) {
                 continue;
             }
@@ -180,8 +180,7 @@ impl Admg {
         groups.resize_with(n_districts.max(groups.len()), Vec::new);
         for (i, &label) in ws.district_label.iter().enumerate() {
             if label != u32::MAX {
-                groups[label as usize]
-                    .push(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
+                groups[label as usize].push(DenseNodeId::from_index(i));
             }
         }
         let mut clique = core::mem::take(&mut ws.clique);
@@ -243,7 +242,7 @@ impl Admg {
         let mut bits = BitSet::with_len(self.node_count());
         self.markov_blanket(node, &mut bits)?;
         Ok((0..self.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
+            .map(DenseNodeId::from_index)
             .filter(|&id| bits.contains(id))
             .collect())
     }
@@ -388,7 +387,7 @@ mod tests {
         for node in [x, a, b, y] {
             let mb = g.markov_blanket_nodes(node).unwrap();
             for i in 0..g.node_count() {
-                let w = DenseNodeId::from_raw(u32::try_from(i).unwrap());
+                let w = DenseNodeId::from_index(i);
                 if w == node || mb.contains(&w) {
                     continue;
                 }
@@ -772,7 +771,7 @@ mod pag_msep_tests {
         }
         tally.graphs_with_members += 1;
         let mut ws = DSeparationWorkspace::default();
-        let node = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap());
+        let node = DenseNodeId::from_index;
         for x in 0..n {
             for y in (x + 1)..n {
                 let others: Vec<usize> = (0..n).filter(|&k| k != x && k != y).collect();

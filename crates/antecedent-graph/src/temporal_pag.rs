@@ -348,7 +348,7 @@ impl TemporalPag {
             p.add_node(slot).expect("static-graph node");
         }
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
@@ -375,7 +375,7 @@ impl TemporalPag {
     pub fn try_into_temporal_dag(&self) -> Result<crate::TemporalDag, GraphError> {
         use crate::TemporalDag;
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
@@ -400,7 +400,7 @@ impl TemporalPag {
             dag.add_node(*node)?;
         }
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
@@ -529,7 +529,7 @@ impl TemporalPagReview {
     pub fn from_pag(graph: TemporalPag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for i in 0..graph.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for (b, at_a, at_b) in graph.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;

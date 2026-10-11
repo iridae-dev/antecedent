@@ -581,7 +581,7 @@ impl PagReview {
     pub fn from_pag(graph: Pag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for i in 0..graph.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for (b, at_a, at_b) in graph.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;

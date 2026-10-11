@@ -190,7 +190,7 @@ fn has_descendant_in_z(g: &Dag, cur: DenseNodeId, z: &BitSet) -> bool {
     let mut desc = BitSet::with_len(g.node_count());
     g.descendants_of(&[cur], &mut desc, &mut ws);
     for i in 0..g.node_count() {
-        let id = DenseNodeId::from_raw(u32::try_from(i).unwrap());
+        let id = DenseNodeId::from_index(i);
         if id != cur && desc.contains(id) && z.contains(id) {
             return true;
         }

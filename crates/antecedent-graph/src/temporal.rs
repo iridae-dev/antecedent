@@ -155,7 +155,7 @@ impl TemporalDag {
     /// Iterate directed edges as marked edges.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
         self.children.iter().enumerate().flat_map(|(i, kids)| {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let from = DenseNodeId::from_index(i);
             kids.iter().map(move |&to| MarkedEdge::directed(from, to))
         })
     }

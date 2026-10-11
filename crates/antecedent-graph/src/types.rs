@@ -27,6 +27,28 @@ impl DenseNodeId {
         Ok(Self::from_raw(raw))
     }
 
+    /// Index → dense id for a node index known to be a valid position in a graph.
+    ///
+    /// # Panics
+    ///
+    /// If `i` exceeds `u32::MAX`; graph constructors refuse such node counts, so a
+    /// position taken from a graph (or a bitset over one) always fits.
+    #[must_use]
+    pub fn from_index(i: usize) -> Self {
+        Self::from_raw(u32::try_from(i).expect("node index fits u32"))
+    }
+
+    /// Every dense id `0..n` in ascending order.
+    ///
+    /// The iteration idiom for "all nodes of a graph with `n` nodes".
+    ///
+    /// # Panics
+    ///
+    /// If `n` exceeds `u32::MAX` (see [`Self::from_index`]).
+    pub fn all(n: usize) -> impl DoubleEndedIterator<Item = Self> + ExactSizeIterator + Clone {
+        (0..u32::try_from(n).expect("node count fits u32")).map(Self::from_raw)
+    }
+
     /// Raw index.
     #[must_use]
     pub const fn raw(self) -> u32 {

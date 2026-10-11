@@ -190,7 +190,7 @@ mod tests {
         let mut endpoints = 0usize;
         for i in 0..unfolded.pag.node_count() {
             endpoints +=
-                unfolded.pag.neighbors(DenseNodeId::from_raw(u32::try_from(i).unwrap())).count();
+                unfolded.pag.neighbors(DenseNodeId::from_index(i)).count();
         }
         assert_eq!(endpoints, 4, "two edges, two adjacency halves each");
         for offset in [-2, -1] {
