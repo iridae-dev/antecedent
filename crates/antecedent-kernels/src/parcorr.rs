@@ -7,8 +7,10 @@
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
-    /// Design matrix column-major `[Z…]` (`n * p`). Every column is centered, which is the
-    /// implicit intercept: X and Y are residualized on `[1, Z…]`.
+    /// Design matrix column-major `[Z…]` (`n * p`). Every column is centered and scaled
+    /// to unit sum of squares, which is the implicit intercept: X and Y are residualized
+    /// on `[1, Z…]` in a scale-free basis. A constant or collinear column is a refusal,
+    /// not a ridge.
     pub design: Vec<f64>,
     /// `XtX` / Gram (`p^2`).
     pub gram: Vec<f64>,
@@ -148,14 +150,38 @@ fn constant_column(css: f64, floor: f64) -> bool {
     !(css.is_finite() && css > floor)
 }
 
-fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
+/// Center each conditioning column and scale it to unit sum of squares.
+///
+/// Singularity is then a property of the correlation Gram, not of the column units.
+/// A constant or non-finite column returns `false` so the caller refuses the test
+/// instead of ridge-shrinking that column toward zero.
+fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) -> bool {
+    let nf = n as f64;
     for (j, z) in z_cols.iter().enumerate() {
         let base = j * n;
-        let mean = z.iter().sum::<f64>() / n as f64;
+        let mut mean = 0.0;
+        for &v in z.iter().take(n) {
+            if !v.is_finite() {
+                return false;
+            }
+            mean += v;
+        }
+        mean /= nf;
+        let mut css = 0.0;
         for r in 0..n {
-            design[base + r] = z[r] - mean;
+            let d = z[r] - mean;
+            design[base + r] = d;
+            css += d * d;
+        }
+        if constant_column(css, raw_floor(mean, nf)) {
+            return false;
+        }
+        let scale = css.sqrt();
+        for r in 0..n {
+            design[base + r] /= scale;
         }
     }
+    true
 }
 
 fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
@@ -186,8 +212,9 @@ fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) 
     }
 }
 
-/// Gauss–Jordan with partial pivoting; singularity is judged relative to the Gram's
-/// largest diagonal so the verdict does not depend on the data's units.
+/// Gauss–Jordan with partial pivoting. Columns are already unit-scaled, so the pivot
+/// floor is relative to a correlation Gram (diagonals are 1) and a mixed-scale
+/// conditioning column is not declared singular.
 fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> bool {
     let mut scale = 0.0_f64;
     for d in 0..ncols {
@@ -235,14 +262,8 @@ fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> bool {
     true
 }
 
-/// Relative ridge added to the Gram diagonal when the plain solve reports a singular
-/// system (exactly collinear conditioning columns). The regularized projection keeps
-/// residualization well defined — matching least-squares-based reference stacks — with
-/// an O(1e-8) relative perturbation.
-const SINGULAR_RIDGE: f64 = 1e-8;
-
-/// Solve the normal equations for `y` on `design`, retrying once with a scaled ridge
-/// when the Gram is singular. Reforms `gram`/`rhs` internally.
+/// Solve the normal equations for `y` on `design`. A singular Gram (collinear
+/// conditioning columns) is a refusal, matching `stats::ZDesign`.
 fn solve_normal_equations(
     design: &[f64],
     y: &[f64],
@@ -253,21 +274,6 @@ fn solve_normal_equations(
 ) -> bool {
     form_gram(design, n, ncols, gram);
     form_xty(design, y, n, ncols, beta);
-    if solve_inplace(gram, beta, ncols) {
-        return true;
-    }
-    form_gram(design, n, ncols, gram);
-    form_xty(design, y, n, ncols, beta);
-    let mut scale = 0.0_f64;
-    for d in 0..ncols {
-        scale = scale.max(gram[d * ncols + d].abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
-        return false;
-    }
-    for d in 0..ncols {
-        gram[d * ncols + d] += SINGULAR_RIDGE * scale;
-    }
     solve_inplace(gram, beta, ncols)
 }
 
@@ -287,7 +293,9 @@ fn residualize_into_scalar(
         }
     }
     let ncols = p;
-    build_design(z_cols, n, design);
+    if !build_design(z_cols, n, design) {
+        return false;
+    }
     if !solve_normal_equations(design, y, n, ncols, gram, beta) {
         return false;
     }
@@ -362,7 +370,9 @@ fn partial_correlation_portable_impl(
     let ncols = z_cols.len();
     {
         let design = &mut workspace.design[..n * ncols];
-        build_design(z_cols, n, design);
+        if !build_design(z_cols, n, design) {
+            return None;
+        }
         let gram = &mut workspace.gram[..ncols * ncols];
         let beta = &mut workspace.beta[..ncols];
         if !solve_normal_equations(design, x, n, ncols, gram, beta) {
@@ -534,7 +544,11 @@ impl ParCorrMode {
 
 impl From<bool> for ParCorrMode {
     fn from(portable: bool) -> Self {
-        if portable { Self::Portable } else { Self::Native }
+        if portable {
+            Self::Portable
+        } else {
+            Self::Native
+        }
     }
 }
 
@@ -574,7 +588,7 @@ mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
     use super::*;
-    use crate::dispatch::{KernelImpl, partial_correlation, select_impl};
+    use crate::dispatch::{partial_correlation, select_impl, KernelImpl};
 
     #[test]
     fn pearson_perfect() {
@@ -865,5 +879,48 @@ mod tests {
         let oracle = pearson(&xs, &ys).unwrap();
         assert!((r - oracle).abs() < 1e-12, "{r} vs {oracle}");
         assert!(pearson(&[3.0; 20], &y).is_none(), "a genuinely constant column stays None");
+    }
+
+    #[test]
+    fn mixed_scale_conditioning_column_is_actually_partialled_out() {
+        // A 0/1 flag next to a column whose sd is ~1e8 used to fail the Gram pivot
+        // (tol = 1e-12 * max diagonal) and get ridge-shrunk to ~0, so the partial
+        // correlation collapsed to the marginal correlation through the flag.
+        let n = 160;
+        let z_big: Vec<f64> = (0..n).map(|i| 1e8 * (0.17 * i as f64).sin()).collect();
+        let z_flag: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+        let ex: Vec<f64> = (0..n).map(|i| (0.9 * i as f64).sin()).collect();
+        let ey: Vec<f64> = (0..n).map(|i| (1.3 * i as f64).cos()).collect();
+        let x: Vec<f64> = (0..n).map(|i| 4.0 * z_flag[i] + ex[i]).collect();
+        let y: Vec<f64> = (0..n).map(|i| 4.0 * z_flag[i] + ey[i]).collect();
+        let mut ws = ParCorrWorkspace::default();
+        let partial = partial_correlation_scalar(&x, &y, &[&z_big, &z_flag], &mut ws)
+            .expect("mixed-scale Z is a valid design");
+        let flag_only =
+            partial_correlation_scalar(&x, &y, &[&z_flag], &mut ws).expect("flag-only design");
+        let marginal = pearson(&x, &y).expect("marginal");
+        assert!(
+            (partial - flag_only).abs() < 1e-4,
+            "partial {partial} should match conditioning on the flag alone ({flag_only}), not the marginal {marginal}"
+        );
+        assert!(
+            marginal.abs() - partial.abs() > 0.2,
+            "conditioning on the flag must move the correlation: marginal {marginal}, partial {partial}"
+        );
+        let portable = partial_correlation_portable(&x, &y, &[&z_big, &z_flag], &mut ws)
+            .expect("portable mixed-scale");
+        assert!((portable - partial).abs() < 1e-8, "{portable} vs {partial}");
+    }
+
+    #[test]
+    fn collinear_conditioning_columns_are_refused() {
+        let n = 40;
+        let z1: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let z2: Vec<f64> = z1.iter().map(|v| 2.0 * v + 3.0).collect();
+        let x: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+        let y: Vec<f64> = (0..n).map(|i| (i as f64).cos()).collect();
+        let mut ws = ParCorrWorkspace::default();
+        assert!(partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws).is_none());
+        assert!(partial_correlation_portable(&x, &y, &[&z1, &z2], &mut ws).is_none());
     }
 }

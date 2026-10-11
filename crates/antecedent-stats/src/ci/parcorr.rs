@@ -13,15 +13,15 @@
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{
-    KernelImpl, ParCorrMode, ParCorrQuery, partial_correlation_batch, select_impl,
+    partial_correlation_batch, select_impl, KernelImpl, ParCorrMode, ParCorrQuery,
 };
 
 use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::{query_stream_salt, residual_null_pvalue};
 use super::residualize::ZDesign;
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, PreparedCiTest, SignificanceMethod, permutation_min_p,
+    permutation_min_p, CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace,
+    ConditionalIndependenceTest, ConfidenceMethod, PreparedCiTest, SignificanceMethod,
 };
 use crate::error::StatsError;
 
@@ -84,8 +84,16 @@ impl PartialCorrelation {
             &mut workspace.parcorr,
             mode,
         );
-        let r = workspace.stats[0]
-            .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
+        let Some(r) = workspace.stats[0] else {
+            // A constant or collinear conditioning set has no partial correlation.
+            // That is not evidence of independence, so the p-value stays 1.
+            return Ok(CiResult {
+                statistic: 0.0,
+                p_value: 1.0,
+                df: (n as f64) - 2.0 - (z_flat.len() as f64),
+                ci: None,
+            });
+        };
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
         self.interpret(
             r,
@@ -186,8 +194,15 @@ impl ConditionalIndependenceTest for PartialCorrelation {
 
         let mut results = Vec::with_capacity(nq);
         for (i, q) in request.queries.iter().enumerate() {
-            let r = workspace.stats[i]
-                .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
+            let Some(r) = workspace.stats[i] else {
+                results.push(CiResult {
+                    statistic: 0.0,
+                    p_value: 1.0,
+                    df: (n as f64) - 2.0 - (q.z_len as f64),
+                    ci: None,
+                });
+                continue;
+            };
             results.push(self.interpret(
                 r,
                 n,
@@ -245,6 +260,27 @@ mod tests {
             .unwrap();
         assert!((base.statistic - shifted.statistic).abs() <= 1e-12);
         assert!((base.p_value - shifted.p_value).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn collinear_conditioning_does_not_claim_independence() {
+        let n = 40usize;
+        let z: Vec<_> = (0..n).map(|i| (i as f64) * 0.2).collect();
+        let x: Vec<_> = (0..n).map(|i| (i as f64 * 0.17).sin()).collect();
+        let y: Vec<_> = x.iter().map(|v| v * 3.0).collect();
+        let test = PartialCorrelation::new();
+        let ctx = ExecutionContext::for_tests(3);
+        let mut workspace = CiWorkspace::default();
+        let result = test
+            .test_one(
+                &[&x, &y, &z, &z],
+                &[2, 3],
+                SignificanceMethod::Analytic,
+                &mut workspace,
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(result.p_value, 1.0);
     }
 
     fn simple_residuals(t: &[f64], z: &[f64]) -> Vec<f64> {
