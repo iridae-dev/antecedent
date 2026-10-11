@@ -620,11 +620,9 @@ pub(crate) fn attach_quantile_from_table(
     let [d0, d1] = qte.densities;
     let influence = qte.influence;
     let mut diagnostics = Vec::new();
-    let n = influence.len() as f64;
-    let mean = influence.iter().sum::<f64>() / n;
-    let var = influence.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    let se = antecedent_stats::iid_se(&influence);
     estimate.ate = q1 - q0;
-    estimate.se_analytic = (var / n).sqrt();
+    estimate.se_analytic = se;
     estimate.influence = Some(influence.clone().into());
     estimate.se_bootstrap = None;
     diagnostics.push(Diagnostic::new(
@@ -645,7 +643,7 @@ pub(crate) fn attach_quantile_from_table(
     // attach_score_functional_grid clears multi-threshold ate; restore the QTE.
     let mut estimate = estimate;
     estimate.ate = q1 - q0;
-    estimate.se_analytic = (var / n).sqrt();
+    estimate.se_analytic = se;
     estimate.influence = Some(influence.into());
     Ok((estimate, diagnostics))
 }

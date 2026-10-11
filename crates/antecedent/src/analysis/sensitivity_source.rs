@@ -81,7 +81,7 @@ impl SourceBackedSensitivity {
         let mut links = self.surface.provenance_chain()?.links().to_vec();
         let original = &self.original.body.provenance;
         let baseline = format!("baseline_artifact:{}", original.baseline_artifact_digest);
-        let source = format!("joint_sensitivity_source:{}", blake3::hash(&self.source).to_hex());
+        let source = format!("joint_sensitivity_source:{}", antecedent_core::to_hex(blake3::hash(&self.source).as_bytes()));
         let evidence = format!("sensitivity_premises:{}", self.original.premises_digest);
         let link = |id, stage, parents| CompositionLink {
             id,
@@ -111,7 +111,7 @@ impl SourceBackedSensitivity {
     pub fn summary(&self) -> Result<serde_json::Value, IoError> {
         let chain = self.provenance_chain()?;
         Ok(serde_json::json!({
-            "source_artifact_digest":blake3::hash(&self.source).to_hex().to_string(),
+            "source_artifact_digest":antecedent_core::to_hex(blake3::hash(&self.source).as_bytes()),
             "baseline_artifact_digest":self.original.body.provenance.baseline_artifact_digest,
             "premises_digest":self.original.premises_digest,"data_digest":self.original.data_digest,
             "source_provenance":self.original.body.provenance,

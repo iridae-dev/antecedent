@@ -167,14 +167,8 @@ fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_chang
     else {
         panic!("actual mean curve")
     };
-    let snapshot = original.contract.as_ref().unwrap().identities.data_snapshot.iter().fold(
-        String::new(),
-        |mut hex, byte| {
-            use std::fmt::Write;
-            write!(hex, "{byte:02x}").unwrap();
-            hex
-        },
-    );
+    let snapshot =
+        antecedent_core::to_hex(&original.contract.as_ref().unwrap().identities.data_snapshot);
     let means = MeanSource {
         coordinates: source.coordinates().to_vec(),
         means: mean.clone(),

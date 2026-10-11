@@ -303,12 +303,12 @@ impl ExternalCallbackRequest {
         .into_bytes()];
         for (name, values) in &self.columns {
             parts.push(name.as_bytes().to_vec());
-            let mut hash = blake3::Hasher::new_derive_key("antecedent.callback.column.v1");
-            hash.update(&u64::try_from(values.len()).unwrap_or(u64::MAX).to_le_bytes());
+            let mut hash = antecedent_core::CanonicalWriter::new("antecedent.callback.column.v1");
+            hash.word(u64::try_from(values.len()).unwrap_or(u64::MAX));
             for value in values {
-                hash.update(&value.to_bits().to_le_bytes());
+                hash.real(*value);
             }
-            parts.push(hash.finalize().as_bytes().to_vec());
+            parts.push(hash.finish().to_vec());
         }
         for (name, value) in &self.model_parameters {
             parts.push(name.as_bytes().to_vec());

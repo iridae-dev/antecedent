@@ -35,9 +35,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 
-use antecedent_core::{CancellationToken, IntervalInterpretation, SupportStatus, reason_code};
+use antecedent_core::{
+    CancellationToken, CanonicalWriter, IntervalInterpretation, SupportStatus, reason_code,
+};
 
 /// Most actions one query may enumerate.
 pub const MAX_INVERSE_ACTIONS: usize = 4096;
@@ -409,30 +410,30 @@ fn point_key(point: &[f64]) -> Vec<u64> {
     point.iter().map(|value| canonical_bits(*value)).collect()
 }
 
-#[derive(Default)]
-struct Canon(Vec<u8>);
+/// The report's field vocabulary over the shared canonical writer: reals enter with
+/// `-0.0` folded onto `0.0`, flags as one word, optional reals as flag then value.
+trait ReportFields {
+    fn float(&mut self, value: f64) -> &mut Self;
+    fn flag(&mut self, value: bool) -> &mut Self;
+    fn optional(&mut self, value: Option<f64>) -> &mut Self;
+    fn count(&mut self, value: usize) -> &mut Self;
+}
 
-impl Canon {
-    fn word(&mut self, value: u64) {
-        self.0.extend_from_slice(&value.to_le_bytes());
+impl ReportFields for CanonicalWriter {
+    fn float(&mut self, value: f64) -> &mut Self {
+        self.word(canonical_bits(value))
     }
 
-    fn float(&mut self, value: f64) {
-        self.word(canonical_bits(value));
+    fn flag(&mut self, value: bool) -> &mut Self {
+        self.word(u64::from(value))
     }
 
-    fn text(&mut self, value: &str) {
-        self.word(value.len() as u64);
-        self.0.extend_from_slice(value.as_bytes());
+    fn optional(&mut self, value: Option<f64>) -> &mut Self {
+        self.flag(value.is_some()).float(value.unwrap_or(0.0))
     }
 
-    fn flag(&mut self, value: bool) {
-        self.0.push(u8::from(value));
-    }
-
-    fn optional(&mut self, value: Option<f64>) {
-        self.flag(value.is_some());
-        self.float(value.unwrap_or(0.0));
+    fn count(&mut self, value: usize) -> &mut Self {
+        self.word(value as u64)
     }
 }
 
@@ -444,8 +445,7 @@ fn identity(
     budget: Option<f64>,
     tolerance: f64,
 ) -> String {
-    let mut canon = Canon::default();
-    canon.text("inverse_outcome.target_mean.v2");
+    let mut canon = CanonicalWriter::new("inverse_outcome.target_mean.v3");
     canon.float(threshold);
     canon.text(direction.as_str());
     canon.float(tolerance);
@@ -460,11 +460,11 @@ fn identity(
     }
     canon.flag(forward.mean_response);
     canon.flag(forward.point_identified);
-    canon.word(forward.dimension as u64);
+    canon.count(forward.dimension);
     canon.text(forward.support_basis.as_str());
     let mut rows: Vec<usize> = (0..forward.points.len()).collect();
     rows.sort_by_key(|row| point_key(&forward.points[*row]));
-    canon.word(rows.len() as u64);
+    canon.count(rows.len());
     for row in &rows {
         for value in &forward.points[*row] {
             canon.float(*value);
@@ -477,7 +477,9 @@ fn identity(
                 canon.float(interval.lower[*row]);
                 canon.float(interval.upper[*row]);
             }
-            None => canon.flag(false),
+            None => {
+                canon.flag(false);
+            }
         }
     }
     match &forward.interval {
@@ -487,35 +489,33 @@ fn identity(
             canon.text(interval.interpretation.as_str());
             canon.float(interval.level);
         }
-        None => canon.flag(false),
+        None => {
+            canon.flag(false);
+        }
     }
-    canon.word(forward.assumptions.len() as u64);
+    canon.count(forward.assumptions.len());
     for assumption in &forward.assumptions {
         canon.text(assumption);
     }
     let mut ordered: Vec<&ActionSpec> = actions.iter().collect();
     ordered.sort_by(|a, b| a.label.cmp(&b.label));
-    canon.word(ordered.len() as u64);
+    canon.count(ordered.len());
     for action in ordered {
         canon.text(&action.label);
-        canon.word(action.point.len() as u64);
+        canon.count(action.point.len());
         for value in &action.point {
             canon.float(*value);
         }
         canon.float(action.cost);
         let mut constraints: Vec<&ActionConstraint> = action.constraints.iter().collect();
         constraints.sort_by(|a, b| a.name.cmp(&b.name));
-        canon.word(constraints.len() as u64);
+        canon.count(constraints.len());
         for constraint in constraints {
             canon.text(&constraint.name);
             canon.flag(constraint.satisfied);
         }
     }
-    let digest = antecedent_io::identity::payload_digest("inverse_outcome_report", &canon.0);
-    digest.iter().fold(String::new(), |mut out, byte| {
-        let _ = write!(out, "{byte:02x}");
-        out
-    })
+    antecedent_core::to_hex(&canon.finish())
 }
 
 fn validate_forward(

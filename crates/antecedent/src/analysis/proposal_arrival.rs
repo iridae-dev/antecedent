@@ -489,9 +489,8 @@ impl ArrivalArtifact {
         Ok(artifact)
     }
     fn digest(&self) -> Result<String, IoError> {
-        Ok(blake3::hash(&to_cbor(&(self.version, &self.request, &self.result))?)
-            .to_hex()
-            .to_string())
+        let bytes = to_cbor(&(self.version, &self.request, &self.result))?;
+        Ok(antecedent_core::to_hex(blake3::hash(&bytes).as_bytes()))
     }
     /// Export bounded replay input and complete scientific output.
     /// # Errors

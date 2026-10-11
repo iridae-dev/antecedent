@@ -264,17 +264,14 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
             "unresolved" => mutant.report.unresolved.clear(),
             _ => unreachable!(),
         }
-        mutant.identity = blake3::hash(
-            &antecedent_io::convert::to_cbor(&(
-                mutant.version,
-                &mutant.source,
-                &mutant.projection,
-                &mutant.report,
-            ))
-            .unwrap(),
-        )
-        .to_hex()
-        .to_string();
+        let sealed = antecedent_io::convert::to_cbor(&(
+            mutant.version,
+            &mutant.source,
+            &mutant.projection,
+            &mutant.report,
+        ))
+        .unwrap();
+        mutant.identity = antecedent_core::to_hex(blake3::hash(&sealed).as_bytes());
         let mut resealed = b"ANTE-SOURCE-PROJECTION-1\0".to_vec();
         resealed.extend(antecedent_io::convert::to_cbor(&mutant).unwrap());
         assert!(
