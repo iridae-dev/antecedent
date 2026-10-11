@@ -278,7 +278,7 @@ class AbductionReceipt:
 
     The digests bind the snapshot, graph, mechanism fit, factual histories and each world's
     action history; ``unit_draws`` holds one ``(unit, history, digest)`` of the abduced
-    exogenous draw per unit. They are integrity digests (not cryptographic).
+    exogenous draw per unit. Each is a 64-hex BLAKE3 digest under its own domain tag.
     """
 
     snapshot: str

@@ -376,6 +376,32 @@ def test_every_route_retains():
         assert row.get("retains") is True, row
 
 
+#: Graph classes the Rust licensing table covers that `analyze` cannot be handed: a
+#: `TemporalAdmg` is a native-only graph object (the contemporaneous-projection twin of the
+#: static latent-graph analyses), not an edge list, so no Python route exists to carry a row.
+RUST_ONLY_GRAPH_CLASSES = frozenset({"TemporalAdmg"})
+
+
+#: Static query kinds whose temporal cores the Rust table licenses through the temporal
+#: effect wrapper, which Python has no surface for: its static derivative, counterfactual,
+#: distribution and path-specific classes take no lag or horizon, and handing them panel or
+#: event data is refused (pinned by the refusal rows). The Python-reachable temporal
+#: conditional queries are `TemporalConditionalPulse` / `TemporalConditionalSustained`.
+RUST_ONLY_TEMPORAL_KINDS = frozenset(
+    {
+        "average_derivative",
+        "counterfactual",
+        "directional_derivative",
+        "distribution",
+        "elasticity",
+        "path_specific",
+        "point_derivative",
+        "response_jacobian",
+        "semi_elasticity",
+    }
+)
+
+
 def test_every_licensed_combination_has_a_route_row():
     licensed = tomllib.loads(read_text(ROOT / "parity" / "support_licensed.toml"))
     expected: set[tuple[str, str, str]] = set()
@@ -385,6 +411,10 @@ def test_every_licensed_combination_has_a_route_row():
             continue
         structure = cell["structure"]
         graph = cell["graph_class"]
+        if graph in RUST_ONLY_GRAPH_CLASSES:
+            continue
+        if kind in RUST_ONLY_TEMPORAL_KINDS and graph.startswith("Temporal"):
+            continue
         data = "series" if graph.startswith("Temporal") else "tabular"
         expected.add((kind, data, structure))
         if graph.startswith("Temporal"):

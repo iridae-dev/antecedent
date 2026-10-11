@@ -27,6 +27,7 @@ registry state, it does not measure anything.
 
 from __future__ import annotations
 
+import re
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -88,6 +89,13 @@ def test_ledger_covers_every_a_record_once() -> None:
     assert all(r["id"] in CELLS_BY_ID for r in PROMOTED)
 
 
+#: The path references inside a provenance `test_sources` entry (the schema gate's pattern).
+SOURCE_PATH = re.compile(
+    r"(?<![A-Za-z0-9_.-])"
+    r"((?:crates|python|conformance|tests|parity|benches|docs)/[A-Za-z0-9_./-]+)"
+)
+
+
 @pytest.mark.parametrize("record", PROMOTED, ids=ids(PROMOTED))
 def test_ledger_promoted_record_has_provenance_fixtures_and_ledger_cell(
     record: Record,
@@ -108,7 +116,12 @@ def test_ledger_promoted_record_has_provenance_fixtures_and_ledger_cell(
                 parsed = tomllib.load(handle)
             assert parsed["feature_id"], path
             for source in parsed.get("test_sources", []):
-                assert (ROOT / source).is_file(), (path, source)
+                # A source is prose that may name paths (a test file with its test names, a
+                # conformance directory): every path it names must exist, as the provenance
+                # schema gate checks.
+                for match in SOURCE_PATH.finditer(source):
+                    referenced = match.group(1).rstrip(".,);:]")
+                    assert (ROOT / referenced).exists(), (path, referenced)
         # The ledger's positive and artifact fixtures are fixtures of the record.
         fixtures = {f["id"]: f for f in record["fixtures"]}
         assert fixtures[cell["positive_fixture"]]["role"] == "positive"

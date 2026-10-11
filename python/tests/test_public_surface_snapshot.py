@@ -315,6 +315,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "ResponseJacobian",
         "SemiElasticity",
         "SustainedEffect",
+        "TemporalConditionalPulse",
+        "TemporalConditionalSustained",
         "TemporalMediationEffect",
         # Design queries: licensed cells run on analyze and retain a study
         "InterferenceQuery",

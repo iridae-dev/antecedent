@@ -159,6 +159,38 @@ _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
         },
         ["t", "y"],
     ),
+    "TemporalConditionalPulse": (
+        {
+            "temporal_effect": {
+                "treatment": 0,
+                "outcome": 1,
+                "policy": {"pulse": {"at": 0}},
+                "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                "horizon_steps": 1,
+                "max_history_lag": None,
+                "target_population": "all_observed",
+                "effect_modifiers": [2],
+            }
+        },
+        ["t", "y", "w"],
+    ),
+    "TemporalConditionalSustained": (
+        {
+            "temporal_effect": {
+                "treatment": 0,
+                "outcome": 1,
+                "policy": {"sustained": {"from": 0, "until": 0}},
+                "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                "horizon_steps": 1,
+                "max_history_lag": None,
+                "target_population": "all_observed",
+                "effect_modifiers": [2],
+            }
+        },
+        ["t", "y", "w"],
+    ),
 }
 
 # Format-0.4 temporal attachment on a response functional. The `temporal` field is

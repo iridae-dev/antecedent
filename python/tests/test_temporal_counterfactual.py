@@ -130,7 +130,7 @@ def test_receipt_records_one_shared_draw_per_unit() -> None:
     assert len({d[2] for d in receipt.unit_draws}) == 4
     assert receipt.snapshot == "snapshot-1"
     assert receipt.plus_digest != receipt.minus_digest
-    assert len(receipt.digest) == 32
+    assert len(receipt.digest) == 64
 
 
 def test_independent_noise_would_answer_a_different_question() -> None:

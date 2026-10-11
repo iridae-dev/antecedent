@@ -169,6 +169,8 @@ def test_every_population_scoped_class_has_the_field() -> None:
         ant.AverageEffect,
         ant.PulseEffect,
         ant.SustainedEffect,
+        ant.TemporalConditionalPulse,
+        ant.TemporalConditionalSustained,
         ant.TemporalMediationEffect,
         ant.MediationEffect,
         ant.ConditionalEffect,

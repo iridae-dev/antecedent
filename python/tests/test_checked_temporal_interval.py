@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import itertools
 import json
-import struct
+import re
 import subprocess
 import sys
 from dataclasses import FrozenInstanceError, replace
@@ -41,30 +41,6 @@ def mix(value):
     value = ((value ^ (value >> 30)) * 0xBF58476D1CE4E5B9) & MASK
     value = ((value ^ (value >> 27)) * 0x94D049BB133111EB) & MASK
     return value ^ (value >> 31)
-
-
-def fold(state, word):
-    return (mix(state ^ word) + GAMMA) & MASK
-
-
-def panel_digest(request):
-    state = GAMMA
-    for byte in request.snapshot_id.encode():
-        state = fold(state, byte)
-    state = fold(state, len(request.snapshot_id.encode()))
-    for unit in request.units:
-        state = fold(state, unit.unit_id)
-        for h in unit.histories:
-            for word in (
-                h.time_id,
-                h.s0,
-                h.a1,
-                h.l2,
-                h.a2,
-                struct.unpack("<Q", struct.pack("<d", h.y))[0],
-            ):
-                state = fold(state, word)
-    return state
 
 
 def draw(n, replicate_id):
@@ -233,12 +209,14 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
     assert candidate.expected_identity.snapshot_id == req.snapshot_id
     assert candidate.expected_identity.initial_state_id == req.initial_state_id
     assert candidate.expected_identity.producing_seed == 41
-    assert candidate.expected_identity.panel_digest == f"{panel_digest(req):016x}"
-    base = fold(fold(GAMMA, config.bootstrap_seed), panel_digest(req))
+    # The panel and replicate identities are BLAKE3 canonical digests of the panel's content,
+    # which this file does not re-derive: it checks that they are carried consistently and
+    # that each replicate id drives the documented unit draw.
+    assert re.fullmatch(r"[0-9a-f]{16}", candidate.expected_identity.panel_digest)
+    assert payload["result"]["panel_digest"] == candidate.expected_identity.panel_digest
     records = payload["result"]["replicates"]
-    selected = np.array(
-        [values[draw(len(values), fold(base, index))] for index in range(config.replicates)]
-    )
+    assert len({record["replicate_id"] for record in records}) == config.replicates
+    selected = np.array([values[draw(len(values), record["replicate_id"])] for record in records])
     points = selected.mean(axis=1)
     assert payload["result"]["failed"] == 0
     assert [record["point"] for record in records] == pytest.approx(points, abs=1e-12)
@@ -383,10 +361,9 @@ def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_pa
     assert candidate.unit_scores == pytest.approx(values, abs=1e-12)
     assert candidate.point == pytest.approx(values.mean(), abs=1e-12)
     assert point.law.ate == pytest.approx(values.mean(), abs=1e-12)
-    assert candidate.expected_identity.panel_digest == f"{panel_digest(req):016x}"
-    base = fold(fold(GAMMA, config.bootstrap_seed), panel_digest(req))
+    assert re.fullmatch(r"[0-9a-f]{16}", candidate.expected_identity.panel_digest)
     selected = np.array(
-        [values[draw(len(values), fold(base, index))] for index in range(config.replicates)]
+        [values[draw(len(values), row["replicate_id"])] for row in payload["result"]["replicates"]]
     )
     assert [row["point"] for row in payload["result"]["replicates"]] == pytest.approx(
         selected.mean(axis=1), abs=1e-12

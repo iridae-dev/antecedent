@@ -344,7 +344,7 @@ def test_admg_interventional_distribution_refuses_cheap_full(refute: str) -> Non
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
     with pytest.raises(
         CausalUnsupportedError,
-        match="ADMG InterventionalDistribution is licensed at validation none",
+        match="ADMG and TemporalAdmg InterventionalDistribution are licensed at validation none",
     ):
         antecedent.analyze(data, graph=graph, query=query, refute=refute)
 
