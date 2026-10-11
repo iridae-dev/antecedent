@@ -45,12 +45,14 @@ import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Protocol
 
 from ._native import mechanism_discrepancy_consume as _consume
 from ._native import mechanism_discrepancy_run as _run
 from ._native import mechanism_discrepancy_summarize as _summarize
 from ._refusal import raise_refusal
+from ._validate import real, text
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -98,10 +100,7 @@ def _raise(refusal: str | None) -> None:
     raise_refusal(refusal, MechanismDiscrepancyRefusal)
 
 
-def _number(name: str, value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CausalTypeError(f"{name} must be a number")
-    return float(value)
+_real = partial(real, type_message="{what} must be a number")
 
 
 def _floats(name: str, values: Any) -> list[float]:
@@ -110,14 +109,10 @@ def _floats(name: str, values: Any) -> list[float]:
         values = values.tolist()
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise CausalTypeError(f"{name} must be a one-dimensional numeric sequence or array")
-    return [_number(name, value) for value in values]
+    return [_real(value, name) for value in values]
 
 
-def _text(name: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise CausalTypeError(f"{name} must be a string")
-    return value
-
+_text = text
 
 # ---------------------------------------------------------------------- declarations
 
@@ -139,16 +134,16 @@ class Measurement:
     protocol_id: str
 
     def __post_init__(self) -> None:
-        _text("node", self.node)
-        _text("node_unit", self.node_unit)
-        _text("protocol_id", self.protocol_id)
+        _text(self.node, "node")
+        _text(self.node_unit, "node_unit")
+        _text(self.protocol_id, "protocol_id")
         if isinstance(self.parents, (str, bytes)) or not isinstance(self.parents, Sequence):
             raise CausalTypeError("parents must be a sequence of (name, unit) pairs")
         pairs: list[tuple[str, str]] = []
         for item in self.parents:
             if isinstance(item, (str, bytes)) or not isinstance(item, Sequence) or len(item) != 2:
                 raise CausalTypeError("every parent is a (name, unit) pair")
-            pairs.append((_text("parent name", item[0]), _text("parent unit", item[1])))
+            pairs.append((_text(item[0], "parent name"), _text(item[1], "parent unit")))
         object.__setattr__(self, "parents", tuple(pairs))
 
     @property
@@ -197,7 +192,7 @@ class SufficientStatistics:
             flat = _floats("xtx", rows)
         object.__setattr__(self, "xtx", tuple(flat))
         object.__setattr__(self, "xty", tuple(_floats("xty", self.xty)))
-        object.__setattr__(self, "yty", _number("yty", self.yty))
+        object.__setattr__(self, "yty", _real(self.yty, "yty"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,9 +277,9 @@ class Sample:
                 raise CausalValueError(
                     f"rows disagree on parents: {sorted(parent_values)} vs {sorted(names)}"
                 )
-            outcome.append(_number("outcome", value))
+            outcome.append(_real(value, "outcome"))
             for name in names:
-                columns[name].append(_number(f"parent {name!r}", parent_values[name]))
+                columns[name].append(_real(parent_values[name], f"parent {name!r}"))
         return cls(
             label, outcome=outcome, parents=columns, unit_ids=unit_ids, measurement=measurement
         )
@@ -614,8 +609,8 @@ def diagnose_mechanism_discrepancy(
         raise CausalTypeError("compare_intercept must be a bool")
     if not isinstance(dependence, str) or dependence not in _DEPENDENCES:
         raise CausalValueError(f"dependence must be one of {_DEPENDENCES}")
-    level = _number("alpha", alpha)
-    target_power = _number("power", power)
+    level = _real(alpha, "alpha")
+    target_power = _real(power, "power")
     if not (math.isfinite(level) and math.isfinite(target_power)):
         raise CausalValueError("alpha and power must be finite")
     request = {

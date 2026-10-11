@@ -38,11 +38,13 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
 from ._refusal import raise_refusal
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
 from .sensitivity_decision import SensitivityAction, SensitivityArtifact
@@ -82,16 +84,13 @@ def _raise(refusal: str | None) -> None:
     raise_refusal(refusal, MsmSensitivityRefusal)
 
 
-def _number(name: str, value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CausalTypeError(f"{name} must be a number")
-    return float(value)
+_real = partial(real, type_message="{what} must be a number")
 
 
 def _numbers(name: str, values: object) -> tuple[float, ...]:
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise CausalTypeError(f"{name} must be a sequence of numbers")
-    return tuple(_number(name, value) for value in values)
+    return tuple(_real(value, name) for value in values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,7 +116,7 @@ class OutcomeLaw:
             CausalTypeError: ``rate`` is not a number.
             CausalValueError: ``rate`` is not a probability in ``[0, 1]``.
         """
-        rate = _number("rate", rate)
+        rate = _real(rate, "rate")
         if not (math.isfinite(rate) and 0.0 <= rate <= 1.0):
             raise CausalValueError(f"rate must be a probability in [0, 1], got {rate!r}")
         return cls((0.0, 1.0), (1.0 - rate, rate))
@@ -149,8 +148,8 @@ class MsmStratum:
     control: OutcomeLaw
 
     def __post_init__(self) -> None:
-        mass = _number("mass", self.mass)
-        propensity = _number("propensity", self.propensity)
+        mass = _real(self.mass, "mass")
+        propensity = _real(self.propensity, "propensity")
         if not (math.isfinite(propensity) and 0.0 <= propensity <= 1.0):
             raise CausalValueError(
                 f"propensity must be a probability in [0, 1] (strictly inside (0, 1) to be "
@@ -545,15 +544,15 @@ def msm_ate_sensitivity(
     declared = tuple(strata)
     if any(not isinstance(stratum, MsmStratum) for stratum in declared):
         raise CausalTypeError("every stratum must be an MsmStratum")
-    lambda_value = _number("lambda_max", lambda_max)
+    lambda_value = _real(lambda_max, "lambda_max")
     if isinstance(grid_points, bool) or not isinstance(grid_points, int):
         raise CausalTypeError("grid_points must be an integer")
     if grid_points < 0:
         raise CausalValueError("grid_points must be non-negative")
     threshold = (
-        None if decision_threshold is None else _number("decision_threshold", decision_threshold)
+        None if decision_threshold is None else _real(decision_threshold, "decision_threshold")
     )
-    tol = _number("tolerance", tolerance)
+    tol = _real(tolerance, "tolerance")
     if sampling_composition is not None and not isinstance(sampling_composition, str):
         raise CausalTypeError("sampling_composition must be a string or None")
     request = _Request(declared, lambda_value, grid_points, threshold, tol)

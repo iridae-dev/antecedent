@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from ._native import composition_lineage as _composition_lineage
@@ -43,6 +44,7 @@ from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
 from ._refusal import raise_refusal
+from ._validate import real, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
@@ -142,16 +144,9 @@ def _coerce(value: Expr | float) -> Expr:
     return const(float(value))
 
 
-def _number(name: str, value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CausalTypeError(f"{name} must be a number, got {type(value).__name__}")
-    return float(value)
+_real = partial(real, type_message="{what} must be a number, got {got}")
 
-
-def _text(name: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise CausalTypeError(f"{name} must be a string, got {type(value).__name__}")
-    return value
+_text = partial(text, type_message="{what} must be a string, got {got}")
 
 
 def x(index: int) -> Expr:
@@ -196,12 +191,12 @@ class Criterion:
     @classmethod
     def threshold_probability(cls, threshold: float) -> Criterion:
         """Maximize ``P(utility >= threshold)``; ``threshold`` is a number in utility units."""
-        return cls("threshold_probability", threshold=_number("threshold", threshold))
+        return cls("threshold_probability", threshold=_real(threshold, "threshold"))
 
     @classmethod
     def quantile(cls, p: float) -> Criterion:
         """Maximize the ``p`` quantile of the utility; ``p`` is a number."""
-        return cls("quantile", p=_number("p", p))
+        return cls("quantile", p=_real(p, "p"))
 
     @classmethod
     def minimax_over_identified_set(cls) -> Criterion:
@@ -244,7 +239,7 @@ class Action:
     kind: ActionKind = "intervention"
 
     def __post_init__(self) -> None:
-        _text("Action.id", self.id)
+        _text(self.id, "Action.id")
         if isinstance(self.inputs, (str, bytes)) or not isinstance(self.inputs, Iterable):
             raise CausalTypeError("Action.inputs must be a sequence of ScientificQuantity")
         inputs = tuple(self.inputs)
@@ -291,12 +286,12 @@ class Constraint:
     applies_to: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        _text("Constraint.id", self.id)
+        _text(self.id, "Constraint.id")
         if not isinstance(self.expr, Expr):
             raise CausalTypeError("Constraint.expr must be an Expr built from decision.x(i)")
-        _number("Constraint.bound", self.bound)
-        _number("Constraint.min_probability", self.min_probability)
-        _text("Constraint.units", self.units)
+        _real(self.bound, "Constraint.bound")
+        _real(self.min_probability, "Constraint.min_probability")
+        _text(self.units, "Constraint.units")
         if isinstance(self.applies_to, (str, bytes)):
             raise CausalTypeError("Constraint.applies_to must be a sequence of action ids")
         object.__setattr__(self, "applies_to", tuple(self.applies_to))
@@ -541,8 +536,8 @@ class Contract:
         constraints = tuple(self.constraints)
         if any(not isinstance(constraint, Constraint) for constraint in constraints):
             raise CausalTypeError("Contract.constraints must hold only Constraint values")
-        _text("Contract.utility_units", self.utility_units)
-        _text("Contract.target_population", self.target_population)
+        _text(self.utility_units, "Contract.utility_units")
+        _text(self.target_population, "Contract.target_population")
         if not isinstance(self.criterion, Criterion):
             raise CausalTypeError(
                 "Contract.criterion must be a Criterion such as Criterion.expected_utility(), "
