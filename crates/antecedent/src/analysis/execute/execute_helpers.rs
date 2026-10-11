@@ -539,6 +539,136 @@ pub(super) fn bayesian_draw_count(inference: &InferenceMode) -> Result<usize, Ca
     }
 }
 
+/// Wording shared with `Study::estimate_functional_effect`. Checked functional
+/// routes call this instead of keeping a second sentence.
+const FUNCTIONAL_BAYESIAN_PRIOR_REFUSAL: &str = "functional Bayesian prior transfer requires a declared functional mapping; a backdoor coefficient artifact cannot be applied as an isotropic CPT prior";
+
+/// `None` for frequentist inference. Bayesian routes get a draw count, or the
+/// shared functional-prior / `n_draws` refusal.
+pub(crate) fn functional_bayesian_draws(
+    inference: &InferenceMode,
+) -> Result<Option<usize>, CausalError> {
+    let InferenceMode::Bayesian(config) = inference else {
+        return Ok(None);
+    };
+    if config.prior_artifact.is_some()
+        || config.external_compose.is_some()
+        || config.prior.is_some()
+    {
+        return Err(CausalError::Unsupported { message: FUNCTIONAL_BAYESIAN_PRIOR_REFUSAL });
+    }
+    Ok(Some(bayesian_draw_count(inference)?))
+}
+
+/// Frequentist or Bayesian functional-effect fit against an already checked program.
+pub(crate) fn run_functional(
+    fitter: &FunctionalEffect,
+    prepared: &antecedent_estimate::PreparedFunctionalEffect,
+    inference: &InferenceMode,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>), CausalError> {
+    if let Some(n_draws) = functional_bayesian_draws(inference)? {
+        let posterior =
+            fitter.estimate_bayesian(prepared, n_draws, status, ctx).map_err(CausalError::from)?;
+        let estimate = effect_from_posterior(&posterior)?;
+        Ok((estimate, Some(posterior)))
+    } else {
+        let mut workspace = FunctionalDistributionWorkspace::default();
+        let estimate = fitter.estimate(prepared, &mut workspace, ctx).map_err(CausalError::from)?;
+        Ok((estimate, None))
+    }
+}
+
+/// Tail shared by the checked functional, path, distribution, and ADMG-response executes.
+pub(crate) struct CheckedResultFinish<'a> {
+    pub common: &'a CheckedStaticCommon,
+    pub identification: &'a IdentificationResult,
+    pub estimand: &'a IdentifiedEstimand,
+    pub estimate: EffectEstimate,
+    pub estimate_assumptions: antecedent_core::AssumptionSet,
+    pub diagnostics: Vec<Diagnostic>,
+    pub refutations: Vec<antecedent_validate::RefutationReport>,
+    pub distribution: Option<antecedent_estimate::InterventionalDistributionEstimate>,
+    pub posterior: Option<CausalPosterior>,
+    pub treatment: VariableId,
+    pub outcome: VariableId,
+    pub wall_time_ns: u64,
+    pub bootstrap_replicates_requested: Option<u32>,
+    pub bootstrap_replicates_ok: Option<u32>,
+    pub n_draws: Option<u32>,
+    pub cancelled: bool,
+    pub early_stopped: bool,
+    pub certificate_query: CausalQuery,
+    pub certificate_graph_class: GraphClass,
+    pub response: Option<CausalResponse>,
+    pub mirror_refuted_evalue: bool,
+    pub rebind_bayesian_interval: bool,
+}
+
+pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyResult {
+    let (identify_artifact, identify_operation) =
+        crate::strategy_table::identify_provenance_step(finish.common.identifier);
+    let (estimate_artifact, estimate_operation) =
+        crate::strategy_table::estimate_provenance_step(finish.common.estimator);
+    let provenance = provenance_pair(
+        (identify_artifact, identify_operation, &[], &finish.identification.required_assumptions),
+        (estimate_artifact, estimate_operation, &[identify_artifact], &finish.estimate_assumptions),
+    );
+    let mut result = assemble_result(AssembleArgs {
+        logical: &finish.common.physical.logical.record,
+        physical: &finish.common.physical.record,
+        identification: finish.identification.clone(),
+        estimand: finish.estimand.clone(),
+        estimate: finish.estimate,
+        distribution: finish.distribution,
+        posterior: finish.posterior,
+        mediation: None,
+        mediation_grid: None,
+        counterfactual: None,
+        anomaly: None,
+        change_attribution: None,
+        mechanism_change: None,
+        unit_change: None,
+        refutations: finish.refutations,
+        diagnostics: finish.diagnostics,
+        provenance,
+        treatment: finish.treatment,
+        outcome: finish.outcome,
+        wall_time_ns: finish.wall_time_ns,
+        latency_mode: finish.common.latency_mode.map(|mode| Arc::from(mode.as_str())),
+        stage_timings_ns: Vec::new(),
+        bootstrap_replicates_requested: finish.bootstrap_replicates_requested,
+        bootstrap_replicates_ok: finish.bootstrap_replicates_ok,
+        n_draws: finish.n_draws,
+        cancelled: finish.cancelled,
+        early_stopped: finish.early_stopped,
+        bayesian: matches!(finish.common.inference, InferenceMode::Bayesian(_)),
+    });
+    result.response = finish.response;
+    result.certificate = Some(crate::AnalysisIdentification {
+        identification: crate::Identification::Point {
+            result: finish.identification.clone(),
+            temporal_indexer: None,
+            strategy: finish.common.identifier,
+            structure_version: finish.common.graph_version,
+        },
+        query: finish.certificate_query,
+        graph_class: finish.certificate_graph_class,
+    });
+    result.support_status = finish.common.support_status;
+    result.structure_source = finish.common.structure_source;
+    result.population_registry.clone_from(&finish.common.population_registry);
+    result.custom_validator_names = finish.common.custom_validator_names.to_vec();
+    if finish.mirror_refuted_evalue {
+        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+    }
+    if finish.rebind_bayesian_interval {
+        result.rebind_interval(matches!(finish.common.inference, InferenceMode::Bayesian(_)));
+    }
+    result
+}
+
 impl super::Study {
     pub(super) fn estimate_functional_effect(
         &self,
@@ -561,37 +691,7 @@ impl super::Study {
                 extra,
             )
             .map_err(CausalError::from)?;
-        if let InferenceMode::Bayesian(_) = &self.inference {
-            if let Some(cfg) = match &self.inference {
-                InferenceMode::Bayesian(c) => Some(c),
-                InferenceMode::Frequentist => None,
-            } {
-                if cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                    || cfg.prior.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "functional Bayesian prior transfer requires a declared \
-                                  functional mapping; a backdoor coefficient artifact cannot \
-                                  be applied as an isotropic CPT prior",
-                    });
-                }
-            }
-            let posterior = est
-                .estimate_bayesian(
-                    &prepared,
-                    bayesian_draw_count(&self.inference)?,
-                    identification.status,
-                    ctx,
-                )
-                .map_err(CausalError::from)?;
-            let estimate = effect_from_posterior(&posterior)?;
-            Ok((estimate, Some(posterior)))
-        } else {
-            let mut ws = FunctionalDistributionWorkspace::default();
-            let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
-            Ok((estimate, None))
-        }
+        run_functional(&est, &prepared, &self.inference, identification.status, ctx)
     }
 }
 
@@ -2667,7 +2767,7 @@ pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
 
 #[cfg(test)]
 mod bootstrap_success_floor_tests {
-    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
+    use super::{bootstrap_has_enough_successes, PERCENTILE_95_BAND_MIN_SUCCESSES};
 
     #[test]
     fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {

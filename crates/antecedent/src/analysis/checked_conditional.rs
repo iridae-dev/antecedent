@@ -14,8 +14,7 @@ use antecedent_expr::{
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 
 use crate::analysis::route_guards::{compile_error, envelope_summary};
-use crate::planner::PhysicalExecutionPlan;
-use crate::support::{CellStatus, StructureSource};
+use crate::support::StructureSource;
 use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
 
 /// Completion proof retained for a conditional effect identified on a static
@@ -117,40 +116,28 @@ pub(crate) struct CheckedConditionalOperation {
     pub(crate) source_query: CausalQuery,
     pub(crate) identification: IdentificationResult,
     pub(crate) estimand: IdentifiedEstimand,
-    pub(crate) identifier: IdentifierId,
-    pub(crate) estimator: EstimatorId,
-    pub(crate) physical: PhysicalExecutionPlan,
     pub(crate) program: FunctionalProgram,
     pub(crate) design_roles: Arc<[VariableId]>,
     pub(crate) source_rows: Arc<[u32]>,
     pub(crate) procedure: ConditionalProcedure,
-    pub(crate) refute: RefuteSuite,
-    pub(crate) graph_version: u32,
-    pub(crate) support_status: Option<CellStatus>,
-    pub(crate) structure_source: StructureSource,
-    pub(crate) population_registry: Option<antecedent_core::PopulationRegistry>,
-    pub(crate) latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
     pub(crate) class_proof: Option<ConditionalClassProof>,
+    pub(crate) common: Arc<crate::analysis::execute::CheckedStaticCommon>,
+}
+
+impl std::ops::Deref for CheckedConditionalOperation {
+    type Target = crate::analysis::execute::CheckedStaticCommon;
+    fn deref(&self) -> &Self::Target {
+        &self.common
+    }
 }
 
 impl CheckedConditionalOperation {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         data: &TabularData,
         query: ConditionalEffectQuery,
         identification: IdentificationResult,
         estimand: IdentifiedEstimand,
-        physical: PhysicalExecutionPlan,
-        refute: RefuteSuite,
-        graph_version: u32,
-        support_status: Option<CellStatus>,
-        structure_source: StructureSource,
-        population_registry: Option<antecedent_core::PopulationRegistry>,
-        latency_mode: Option<super::latency::LatencyMode>,
-        latency_bootstrap_not_applied: Option<(u32, u32)>,
+        common: Arc<crate::analysis::execute::CheckedStaticCommon>,
         class_proof: Option<ConditionalClassProof>,
     ) -> Result<Self, CausalError> {
         let source_query = CausalQuery::ConditionalEffect(query.clone());
@@ -164,9 +151,12 @@ impl CheckedConditionalOperation {
             })
             || !estimand.is_adjustment_shaped()
             || query.inner.effect_modifiers.len() != 1
-            || !matches!(structure_source, StructureSource::Explicit | StructureSource::Accepted)
-            || !matches!(refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
-            || physical.logical.record.estimator.as_deref()
+            || !matches!(
+                common.structure_source,
+                StructureSource::Explicit | StructureSource::Accepted
+            )
+            || !matches!(common.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || common.physical.logical.record.estimator.as_deref()
                 != Some(EstimatorId::ConditionalLinearAdjustment.as_str())
         {
             return Err(compile_error(
@@ -174,7 +164,8 @@ impl CheckedConditionalOperation {
             ));
         }
         query.validate().map_err(|e| compile_error(&e.to_string()))?;
-        let identifier: IdentifierId = physical
+        let identifier: IdentifierId = common
+            .physical
             .logical
             .record
             .identifier
@@ -231,26 +222,20 @@ impl CheckedConditionalOperation {
         } else {
             ConditionalProcedure::LinearInteraction
         };
+        let mut common = Arc::try_unwrap(common).unwrap_or_else(|shared| (*shared).clone());
+        common.identifier = identifier;
+        common.estimator = EstimatorId::ConditionalLinearAdjustment;
         Ok(Self {
             query,
             source_query,
             identification,
             estimand,
-            identifier,
-            estimator: EstimatorId::ConditionalLinearAdjustment,
-            physical,
             program,
             design_roles: design_roles.into(),
             source_rows,
             procedure,
-            refute,
-            graph_version,
-            support_status,
-            structure_source,
-            population_registry,
-            latency_mode,
-            latency_bootstrap_not_applied,
             class_proof,
+            common: Arc::new(common),
         })
     }
 
@@ -270,9 +255,18 @@ impl CheckedConditionalOperation {
                 "conditional refresh changed its target, schema, or procedure",
             ));
         }
-        let mut rebound = self.clone();
-        rebound.source_rows = rows(data, &self.design_roles)?;
-        Ok(rebound)
+        Ok(Self {
+            query: self.query.clone(),
+            source_query: self.source_query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            program: self.program.clone(),
+            design_roles: Arc::clone(&self.design_roles),
+            source_rows: rows(data, &self.design_roles)?,
+            procedure: self.procedure,
+            class_proof: self.class_proof.clone(),
+            common: Arc::clone(&self.common),
+        })
     }
 
     pub(crate) fn graph_class(&self) -> crate::GraphClass {

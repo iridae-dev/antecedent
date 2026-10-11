@@ -16,8 +16,8 @@ use antecedent_core::{
 };
 use antecedent_data::{PanelData, TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_estimate::{
-    AipwAte, CellSaturatedAipw, EffectEstimate, EstimationWorkspace, OverlapPolicy, RetargetResult,
-    ScoreTable, crossfit_binary_scores, exceedance_cdf_values,
+    crossfit_binary_scores, exceedance_cdf_values, AipwAte, CellSaturatedAipw, EffectEstimate,
+    EstimationWorkspace, OverlapPolicy, RetargetResult, ScoreTable,
 };
 
 use crate::accepted::GraphClass;
@@ -25,7 +25,7 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
-use crate::strategy_table::{DEFAULT_ESTIMATOR, EstimatorId, IdentifierId};
+use crate::strategy_table::{EstimatorId, IdentifierId, DEFAULT_ESTIMATOR};
 
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Pag, TemporalDag};
@@ -39,16 +39,16 @@ use super::checked_propensity::{
     CheckedPropensityContext, CheckedPropensityEstimator, CheckedPropensityOperation,
     CheckedPropensityProcedure, CheckedPropensityUncertainty,
 };
-use super::execute::Study;
+use super::execute::{CheckedStaticCommon, Study};
 use super::helpers::{
-    AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
-    run_plugin_level_refuters, run_refuters,
+    assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
+    run_plugin_level_refuters, run_refuters, AssembleArgs,
 };
 use super::route_guards::{
-    PlanRecordMode, complete_mean_response, inference_label, mean_all_observed, plan_record_is,
-    series_input,
+    complete_mean_response, inference_label, mean_all_observed, plan_record_is, series_input,
+    PlanRecordMode,
 };
-use super::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
+use super::stage::{StageClock, STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE};
 use super::{
     CheckedAdmgGraphPosteriorResponse, CheckedBayesianGraphPosteriorAte,
     CheckedClassGraphPosteriorEffect, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
@@ -76,20 +76,9 @@ pub(crate) struct CheckedDistributionOperation {
     query: InterventionalDistributionQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
     fitter: antecedent_estimate::FunctionalDistribution,
     prepared: antecedent_estimate::PreparedFunctionalDistribution,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_class: GraphClass,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
 
 /// Retained checked general-ID functional effect for finite-discrete ADMG ATEs.
@@ -100,20 +89,9 @@ pub(crate) struct CheckedFunctionalEffectOperation {
     query: AverageEffectQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
     fitter: antecedent_estimate::FunctionalEffect,
     prepared: antecedent_estimate::PreparedFunctionalEffect,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_class: GraphClass,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
 
 /// Checked path-specific natural effect retained with its graph target and program.
@@ -122,19 +100,9 @@ pub(crate) struct CheckedPathSpecificEffectOperation {
     query: antecedent_core::PathSpecificEffectQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
     fitter: antecedent_estimate::FunctionalEffect,
     prepared: antecedent_estimate::PreparedFunctionalEffect,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
 
 impl CheckedPathSpecificEffectOperation {
@@ -162,9 +130,14 @@ impl CheckedPathSpecificEffectOperation {
                 &extra,
             )
             .map_err(CausalError::from)?;
-        let mut rebound = self.clone();
-        rebound.prepared = prepared;
-        Ok(rebound)
+        Ok(Self {
+            query: self.query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            fitter: self.fitter.clone(),
+            prepared,
+            common: Arc::clone(&self.common),
+        })
     }
 
     fn execute(
@@ -184,42 +157,13 @@ impl CheckedPathSpecificEffectOperation {
                     .into(),
             });
         }
-        let (estimate, posterior) = match &self.inference {
-            InferenceMode::Frequentist => {
-                let mut workspace = antecedent_estimate::FunctionalDistributionWorkspace::default();
-                (
-                    self.fitter
-                        .estimate(&self.prepared, &mut workspace, ctx)
-                        .map_err(CausalError::from)?,
-                    None,
-                )
-            }
-            InferenceMode::Bayesian(config) => {
-                if config.prior_artifact.is_some()
-                    || config.external_compose.is_some()
-                    || config.prior.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "functional Bayesian prior transfer requires a declared functional mapping; a coefficient prior cannot be applied to CPT factors",
-                    });
-                }
-                if config.n_draws < 2 {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
-                    });
-                }
-                let posterior = self
-                    .fitter
-                    .estimate_bayesian(
-                        &self.prepared,
-                        config.n_draws,
-                        self.identification.status,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                (super::execute::effect_from_posterior(&posterior)?, Some(posterior))
-            }
-        };
+        let (estimate, posterior) = super::execute::run_functional(
+            &self.fitter,
+            &self.prepared,
+            &self.inference,
+            self.identification.status,
+            ctx,
+        )?;
         let mut diagnostics = self.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
@@ -250,61 +194,32 @@ impl CheckedPathSpecificEffectOperation {
             )
             .map_err(CausalError::from)?
         };
-        let (identify_artifact, identify_operation) =
-            crate::strategy_table::identify_provenance_step(self.identifier);
-        let (estimate_artifact, estimate_operation) =
-            crate::strategy_table::estimate_provenance_step(self.estimator);
-        let provenance = provenance_pair(
-            (identify_artifact, identify_operation, &[], &self.identification.required_assumptions),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
-        );
         let n_draws =
             posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
-        let mut result = assemble_result(AssembleArgs {
-            logical: &self.physical.logical.record,
-            physical: &self.physical.record,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+        let result = super::execute::finish_checked_result(super::execute::CheckedResultFinish {
+            common: &self.common,
+            identification: &self.identification,
+            estimand: &self.estimand,
+            estimate_assumptions: estimate.assumptions.clone(),
             estimate,
+            diagnostics,
+            refutations,
             distribution: None,
             posterior,
-            mediation: None,
-            mediation_grid: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
             treatment: self.query.treatment,
             outcome: self.query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
-            stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
             bootstrap_replicates_ok: None,
             n_draws,
             cancelled: false,
             early_stopped: false,
-            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
+            certificate_query: CausalQuery::PathSpecific(self.query.clone()),
+            certificate_graph_class: GraphClass::Dag,
+            response: None,
+            mirror_refuted_evalue: true,
+            rebind_bayesian_interval: false,
         });
-        result.certificate = Some(crate::AnalysisIdentification {
-            identification: crate::Identification::Point {
-                result: self.identification.clone(),
-                temporal_indexer: None,
-                strategy: self.identifier,
-                structure_version: self.graph_version,
-            },
-            query: CausalQuery::PathSpecific(self.query.clone()),
-            graph_class: GraphClass::Dag,
-        });
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        result.population_registry.clone_from(&self.population_registry);
-        result.custom_validator_names = self.custom_validator_names.to_vec();
-        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
     }
 }
@@ -335,9 +250,14 @@ impl CheckedFunctionalEffectOperation {
                 &[self.query.treatment, self.query.outcome],
             )
             .map_err(CausalError::from)?;
-        let mut rebound = self.clone();
-        rebound.prepared = prepared;
-        Ok(rebound)
+        Ok(Self {
+            query: self.query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            fitter: self.fitter.clone(),
+            prepared,
+            common: Arc::clone(&self.common),
+        })
     }
 
     fn execute(
@@ -356,42 +276,13 @@ impl CheckedFunctionalEffectOperation {
                     .into(),
             });
         }
-        let (estimate, posterior) = match &self.inference {
-            InferenceMode::Frequentist => {
-                let mut workspace = antecedent_estimate::FunctionalDistributionWorkspace::default();
-                (
-                    self.fitter
-                        .estimate(&self.prepared, &mut workspace, ctx)
-                        .map_err(CausalError::from)?,
-                    None,
-                )
-            }
-            InferenceMode::Bayesian(config) => {
-                if config.prior_artifact.is_some()
-                    || config.external_compose.is_some()
-                    || config.prior.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "functional Bayesian prior transfer requires a declared functional mapping; a coefficient prior cannot be applied to CPT factors",
-                    });
-                }
-                if config.n_draws < 2 {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
-                    });
-                }
-                let posterior = self
-                    .fitter
-                    .estimate_bayesian(
-                        &self.prepared,
-                        config.n_draws,
-                        self.identification.status,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                (super::execute::effect_from_posterior(&posterior)?, Some(posterior))
-            }
-        };
+        let (estimate, posterior) = super::execute::run_functional(
+            &self.fitter,
+            &self.prepared,
+            &self.inference,
+            self.identification.status,
+            ctx,
+        )?;
         let mut diagnostics = self.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
@@ -408,14 +299,6 @@ impl CheckedFunctionalEffectOperation {
         if let Some(posterior) = posterior.as_ref() {
             diagnostics.extend(super::execute::posterior_note_diagnostics([posterior]));
         }
-        let (identify_artifact, identify_operation) =
-            crate::strategy_table::identify_provenance_step(self.identifier);
-        let (estimate_artifact, estimate_operation) =
-            crate::strategy_table::estimate_provenance_step(self.estimator);
-        let provenance = provenance_pair(
-            (identify_artifact, identify_operation, &[], &self.identification.required_assumptions),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
-        );
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, extra) = if self.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
@@ -437,51 +320,30 @@ impl CheckedFunctionalEffectOperation {
         diagnostics.extend(extra);
         let n_draws =
             posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
-        let mut result = assemble_result(AssembleArgs {
-            logical: &self.physical.logical.record,
-            physical: &self.physical.record,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+        let result = super::execute::finish_checked_result(super::execute::CheckedResultFinish {
+            common: &self.common,
+            identification: &self.identification,
+            estimand: &self.estimand,
+            estimate_assumptions: estimate.assumptions.clone(),
             estimate,
+            diagnostics,
+            refutations,
             distribution: None,
             posterior,
-            mediation: None,
-            mediation_grid: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
             treatment: self.query.treatment,
             outcome: self.query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
-            stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
             bootstrap_replicates_ok: None,
             n_draws,
             cancelled: false,
             early_stopped: false,
-            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
+            certificate_query: CausalQuery::AverageEffect(self.query.clone()),
+            certificate_graph_class: self.graph_class,
+            response: None,
+            mirror_refuted_evalue: true,
+            rebind_bayesian_interval: false,
         });
-        result.certificate = Some(crate::AnalysisIdentification {
-            identification: crate::Identification::Point {
-                result: self.identification.clone(),
-                temporal_indexer: None,
-                strategy: self.identifier,
-                structure_version: self.graph_version,
-            },
-            query: CausalQuery::AverageEffect(self.query.clone()),
-            graph_class: self.graph_class,
-        });
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        result.population_registry.clone_from(&self.population_registry);
-        result.custom_validator_names = self.custom_validator_names.to_vec();
-        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
     }
 }
@@ -533,18 +395,8 @@ pub(crate) struct CheckedAdmgResponseCurveOperation {
     query: antecedent_core::ResponseQuery,
     grid: Arc<[f64]>,
     members: Arc<[CheckedFunctionalEffectResponseMember]>,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
     fitter: antecedent_estimate::FunctionalEffect,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
 
 impl CheckedAdmgResponseCurveOperation {
@@ -566,7 +418,13 @@ impl CheckedAdmgResponseCurveOperation {
             .iter()
             .map(|member| {
                 let prepared = member.prepared.rebind_checked(data).map_err(CausalError::from)?;
-                Ok(CheckedFunctionalEffectResponseMember { prepared, ..member.clone() })
+                Ok(CheckedFunctionalEffectResponseMember {
+                    grid_value: member.grid_value,
+                    query: member.query.clone(),
+                    identification: member.identification.clone(),
+                    estimand: member.estimand.clone(),
+                    prepared,
+                })
             })
             .collect::<Result<Vec<_>, CausalError>>()?;
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
@@ -584,10 +442,14 @@ impl CheckedAdmgResponseCurveOperation {
                 }
             }
         }
-        let mut rebound = self.clone();
-        rebound.members = Arc::from(members);
-        rebound.factor_snapshot_digest = data.storage().content_digest();
-        Ok(rebound)
+        Ok(Self {
+            factor_snapshot_digest: data.storage().content_digest(),
+            query: self.query.clone(),
+            grid: Arc::clone(&self.grid),
+            members: Arc::from(members),
+            fitter: self.fitter.clone(),
+            common: Arc::clone(&self.common),
+        })
     }
 
     fn execute(
@@ -639,25 +501,14 @@ impl CheckedAdmgResponseCurveOperation {
                         }
                     }
                 }
-                InferenceMode::Bayesian(config) => {
-                    if config.prior_artifact.is_some()
-                        || config.external_compose.is_some()
-                        || config.prior.is_some()
-                    {
-                        return Err(CausalError::Unsupported {
-                            message: "functional Bayesian prior transfer requires a declared functional mapping; a coefficient prior cannot be applied to CPT factors",
-                        });
-                    }
-                    if config.n_draws < 2 {
-                        return Err(CausalError::Unsupported {
-                            message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
-                        });
-                    }
+                InferenceMode::Bayesian(_) => {
+                    let n_draws = super::execute::functional_bayesian_draws(&self.inference)?
+                        .expect("Bayesian inference selects a draw count");
                     let fit = self
                         .fitter
                         .estimate_bayesian(
                             &member.prepared,
-                            config.n_draws,
+                            n_draws,
                             member.identification.status,
                             ctx,
                         )
@@ -876,74 +727,35 @@ impl CheckedAdmgResponseCurveOperation {
             refutations = reports;
             diagnostics.extend(refute_diags);
         }
-        let (identify_artifact, identify_operation) =
-            crate::strategy_table::identify_provenance_step(self.identifier);
-        let (estimate_artifact, estimate_operation) =
-            crate::strategy_table::estimate_provenance_step(self.estimator);
-        let provenance = provenance_pair(
-            (
-                identify_artifact,
-                identify_operation,
-                &[],
-                &first.identification.required_assumptions,
-            ),
-            (
-                estimate_artifact,
-                estimate_operation,
-                &[identify_artifact],
-                &first.prepared.assumptions,
-            ),
-        );
-        let mut result = assemble_result(AssembleArgs {
-            logical: &self.physical.logical.record,
-            physical: &self.physical.record,
-            identification: first.identification.clone(),
-            estimand: first.estimand.clone(),
+        let result = super::execute::finish_checked_result(super::execute::CheckedResultFinish {
+            common: &self.common,
+            identification: &first.identification,
+            estimand: &first.estimand,
             estimate: EffectEstimate::new(
                 f64::NAN,
                 f64::NAN,
                 first.identification.required_assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             ),
+            estimate_assumptions: first.prepared.assumptions.clone(),
+            diagnostics,
+            refutations,
             distribution: None,
             posterior,
-            mediation: None,
-            mediation_grid: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
-            stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: Some(0),
             bootstrap_replicates_ok: None,
             n_draws,
             cancelled: false,
             early_stopped: false,
-            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
+            certificate_query: CausalQuery::Response(self.query.clone()),
+            certificate_graph_class: GraphClass::Admg,
+            response: Some(response),
+            mirror_refuted_evalue: false,
+            rebind_bayesian_interval: false,
         });
-        result.response = Some(response);
-        result.certificate = Some(crate::AnalysisIdentification {
-            identification: crate::Identification::Point {
-                result: first.identification.clone(),
-                temporal_indexer: None,
-                strategy: self.identifier,
-                structure_version: self.graph_version,
-            },
-            query: CausalQuery::Response(self.query.clone()),
-            graph_class: GraphClass::Admg,
-        });
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        result.population_registry.clone_from(&self.population_registry);
-        result.custom_validator_names = self.custom_validator_names.to_vec();
         Ok(result)
     }
 }
@@ -1683,21 +1495,7 @@ pub(crate) struct CheckedAipwOperation {
     query: AverageEffectQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_class: GraphClass,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    latency_bootstrap_not_applied: Option<(u32, u32)>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
     /// Tier closure used to justify adjustment when this is a CoDetermined route.
     tiered_background: Option<antecedent_graph::TieredBackground>,
 }
@@ -1733,9 +1531,15 @@ impl CheckedAipwOperation {
 
     fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         let preparation = self.fitter.rebind_checked(&self.preparation, data)?;
-        let mut rebound = self.clone();
-        rebound.preparation = preparation;
-        Ok(rebound)
+        Ok(Self {
+            fitter: self.fitter.clone(),
+            preparation,
+            query: self.query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            common: Arc::clone(&self.common),
+            tiered_background: self.tiered_background.clone(),
+        })
     }
 
     fn execute(
@@ -1923,22 +1727,8 @@ pub(crate) struct CheckedLinearOperation {
     query: AverageEffectQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_class: GraphClass,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    latency_bootstrap_not_applied: Option<(u32, u32)>,
     stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
 
 impl std::fmt::Debug for CheckedLinearOperation {
@@ -1976,6 +1766,33 @@ struct CheckedStaticResultMetadata<'a> {
     custom_validator_names: &'a [Arc<str>],
 }
 
+fn static_result_metadata<'a>(
+    common: &'a CheckedStaticCommon,
+    source_query: &'a CausalQuery,
+    query: &'a AverageEffectQuery,
+    identification: &'a IdentificationResult,
+    estimand: &'a IdentifiedEstimand,
+) -> CheckedStaticResultMetadata<'a> {
+    CheckedStaticResultMetadata {
+        source_query,
+        query,
+        identification,
+        estimand,
+        identifier: common.identifier,
+        estimator: common.estimator,
+        physical: &common.physical,
+        graph_class: common.graph_class,
+        graph_version: common.graph_version,
+        support_status: common.support_status,
+        structure_source: common.structure_source,
+        population_registry: common.population_registry.as_ref(),
+        latency_mode: common.latency_mode,
+        latency_bootstrap_not_applied: common.latency_bootstrap_not_applied,
+        refute: common.refute,
+        custom_validator_names: common.custom_validator_names.as_ref(),
+    }
+}
+
 /// Retained GLM adjustment target, selected configuration, and compiled design.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedGlmAdjustmentOperation {
@@ -1983,23 +1800,9 @@ pub(crate) struct CheckedGlmAdjustmentOperation {
     query: AverageEffectQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
     fitter: antecedent_estimate::GlmAdjustmentAte,
     preparation: antecedent_estimate::PreparedGlmProblem,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_class: GraphClass,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    latency_bootstrap_not_applied: Option<(u32, u32)>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
 
 impl CheckedGlmAdjustmentOperation {
@@ -2024,9 +1827,15 @@ impl CheckedGlmAdjustmentOperation {
     fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         let preparation =
             self.fitter.prepare(data, &self.estimand, &self.query).map_err(CausalError::from)?;
-        let mut rebound = self.clone();
-        rebound.preparation = preparation;
-        Ok(rebound)
+        Ok(Self {
+            source_query: self.source_query.clone(),
+            query: self.query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            fitter: self.fitter.clone(),
+            preparation,
+            common: Arc::clone(&self.common),
+        })
     }
 }
 
@@ -2037,24 +1846,32 @@ pub(crate) struct CheckedRdOperation {
     query: AverageEffectQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    identifier: crate::strategy_table::IdentifierId,
-    estimator: crate::strategy_table::EstimatorId,
-    physical: PhysicalExecutionPlan,
     fitter: antecedent_estimate::SharpRegressionDiscontinuity,
     preparation: antecedent_estimate::CheckedRdPreparation,
-    inference: InferenceMode,
-    refute: RefuteSuite,
-    graph_class: GraphClass,
-    graph_version: u32,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<antecedent_core::PopulationRegistry>,
-    latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    latency_bootstrap_not_applied: Option<(u32, u32)>,
-    custom_validator_names: Arc<[Arc<str>]>,
+    common: Arc<CheckedStaticCommon>,
 }
+
+macro_rules! deref_checked_static {
+    ($($ty:ty),+ $(,)?) => {$(
+        impl std::ops::Deref for $ty {
+            type Target = CheckedStaticCommon;
+            fn deref(&self) -> &Self::Target {
+                &self.common
+            }
+        }
+    )+};
+}
+
+deref_checked_static!(
+    CheckedDistributionOperation,
+    CheckedFunctionalEffectOperation,
+    CheckedPathSpecificEffectOperation,
+    CheckedAdmgResponseCurveOperation,
+    CheckedAipwOperation,
+    CheckedLinearOperation,
+    CheckedGlmAdjustmentOperation,
+    CheckedRdOperation,
+);
 
 impl CheckedRdOperation {
     fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
@@ -2062,9 +1879,15 @@ impl CheckedRdOperation {
             .fitter
             .prepare_checked(data, &self.identification, 0)
             .map_err(CausalError::from)?;
-        let mut rebound = self.clone();
-        rebound.preparation = preparation;
-        Ok(rebound)
+        Ok(Self {
+            source_query: self.source_query.clone(),
+            query: self.query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            fitter: self.fitter.clone(),
+            preparation,
+            common: Arc::clone(&self.common),
+        })
     }
 }
 
@@ -2084,9 +1907,16 @@ impl CheckedLinearOperation {
 
     fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         let preparation = self.fitter.rebind_checked(&self.preparation, data)?;
-        let mut rebound = self.clone();
-        rebound.preparation = preparation;
-        Ok(rebound)
+        Ok(Self {
+            fitter: self.fitter.clone(),
+            preparation,
+            default_id: self.default_id,
+            query: self.query.clone(),
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            stage_sink: self.stage_sink.clone(),
+            common: Arc::clone(&self.common),
+        })
     }
 
     fn execute(
@@ -2363,29 +2193,12 @@ impl CheckedDistributionOperation {
                     None,
                 )
             }
-            InferenceMode::Bayesian(config) => {
-                if config.prior_artifact.is_some()
-                    || config.external_compose.is_some()
-                    || config.prior.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "functional Bayesian prior transfer requires a declared functional mapping; a backdoor coefficient artifact cannot be applied as an isotropic CPT prior",
-                    });
-                }
-                if config.n_draws < 2 {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
-                    });
-                }
+            InferenceMode::Bayesian(_) => {
+                let n_draws = super::execute::functional_bayesian_draws(&self.inference)?
+                    .expect("Bayesian inference selects a draw count");
                 let (distribution, posterior) = self
                     .fitter
-                    .estimate_bayesian(
-                        &prepared,
-                        &[],
-                        config.n_draws,
-                        self.identification.status,
-                        ctx,
-                    )
+                    .estimate_bayesian(&prepared, &[], n_draws, self.identification.status, ctx)
                     .map_err(CausalError::from)?;
                 (distribution, Some(posterior))
             }
@@ -2432,14 +2245,6 @@ impl CheckedDistributionOperation {
         if let Some(posterior) = posterior.as_ref() {
             diagnostics.extend(super::execute::posterior_note_diagnostics([posterior]));
         }
-        let (identify_artifact, identify_operation) =
-            crate::strategy_table::identify_provenance_step(self.identifier);
-        let (estimate_artifact, estimate_operation) =
-            crate::strategy_table::estimate_provenance_step(self.estimator);
-        let provenance = provenance_pair(
-            (identify_artifact, identify_operation, &[], &self.identification.required_assumptions),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
-        );
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
@@ -2457,51 +2262,30 @@ impl CheckedDistributionOperation {
         let n_draws = posterior
             .as_ref()
             .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
-        let mut result = assemble_result(AssembleArgs {
-            logical: &self.physical.logical.record,
-            physical: &self.physical.record,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+        let result = super::execute::finish_checked_result(super::execute::CheckedResultFinish {
+            common: &self.common,
+            identification: &self.identification,
+            estimand: &self.estimand,
+            estimate_assumptions: estimate.assumptions.clone(),
             estimate,
+            diagnostics,
+            refutations,
             distribution: Some(distribution),
             posterior,
-            mediation: None,
-            mediation_grid: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
-            stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap_ok,
             n_draws,
             cancelled,
             early_stopped,
-            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
+            certificate_query: CausalQuery::Distribution(self.query.clone()),
+            certificate_graph_class: self.graph_class,
+            response: None,
+            mirror_refuted_evalue: false,
+            rebind_bayesian_interval: true,
         });
-        result.certificate = Some(crate::AnalysisIdentification {
-            identification: crate::Identification::Point {
-                result: self.identification.clone(),
-                temporal_indexer: None,
-                strategy: self.identifier,
-                structure_version: self.graph_version,
-            },
-            query: CausalQuery::Distribution(self.query.clone()),
-            graph_class: self.graph_class,
-        });
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        result.population_registry.clone_from(&self.population_registry);
-        result.custom_validator_names = self.custom_validator_names.to_vec();
-        result.rebind_interval(matches!(self.inference, InferenceMode::Bayesian(_)));
         Ok(result)
     }
 }
@@ -2592,17 +2376,17 @@ pub(crate) struct CachedTemporalClassIdentification {
 }
 
 pub(crate) use crate::analysis::identification_cache::{
-    CachedClassPosteriorAtomIdentification, CachedDbnPosteriorAtomIdentification,
-    CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
-    CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
     build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
     build_temporal_class_posterior_identification_cache, temporal_dag_from_dbn_atom,
+    CachedClassPosteriorAtomIdentification, CachedDbnPosteriorAtomIdentification,
+    CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
+    CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
 };
 #[cfg(test)]
 pub(crate) use crate::analysis::identification_cache::{
-    CachedClassPosteriorCase, build_dbn_mediation_cache_with_identifier,
+    build_dbn_mediation_cache_with_identifier, CachedClassPosteriorCase,
 };
 
 /// Prepare-time identification products for one temporal horizon.
@@ -2945,155 +2729,299 @@ impl PreparedExecution {
         self.linear_operation().map(|operation| &operation.preparation)
     }
     pub(crate) fn linear_operation(&self) -> Option<&CheckedLinearOperation> {
-        if let Self::CheckedLinear(value) = self { Some(value) } else { None }
+        if let Self::CheckedLinear(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn checked_aipw(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
         self.aipw_operation().map(|operation| &operation.preparation)
     }
     pub(crate) fn aipw_operation(&self) -> Option<&CheckedAipwOperation> {
-        if let Self::CheckedAipw(value) = self { Some(value) } else { None }
+        if let Self::CheckedAipw(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn nested_counterfactual(
         &self,
     ) -> Option<&crate::gcm::NestedCounterfactualOperation> {
-        if let Self::NestedCounterfactual(value) = self { Some(value) } else { None }
+        if let Self::NestedCounterfactual(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn distribution(&self) -> Option<&CheckedDistributionOperation> {
-        if let Self::Distribution(value) = self { Some(value) } else { None }
+        if let Self::Distribution(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn functional_effect_operation(&self) -> Option<&CheckedFunctionalEffectOperation> {
-        if let Self::FunctionalEffect(value) = self { Some(value) } else { None }
+        if let Self::FunctionalEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn path_specific_effect_operation(
         &self,
     ) -> Option<&CheckedPathSpecificEffectOperation> {
-        if let Self::PathSpecificEffect(value) = self { Some(value) } else { None }
+        if let Self::PathSpecificEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn admg_response_curve(&self) -> Option<&CheckedAdmgResponseCurveOperation> {
-        if let Self::AdmgResponseCurve(value) = self { Some(value) } else { None }
+        if let Self::AdmgResponseCurve(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn admg_graph_posterior_response(
         &self,
     ) -> Option<&CheckedAdmgGraphPosteriorResponse> {
-        if let Self::AdmgGraphPosteriorResponse(value) = self { Some(value) } else { None }
+        if let Self::AdmgGraphPosteriorResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn static_class_response(
         &self,
     ) -> Option<&super::execute::CheckedStaticClassResponse> {
-        if let Self::StaticClassResponse(value) = self { Some(value) } else { None }
+        if let Self::StaticClassResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn graph_posterior_response(
         &self,
     ) -> Option<&super::execute::CheckedGraphPosteriorResponse> {
-        if let Self::GraphPosteriorResponse(value) = self { Some(value) } else { None }
+        if let Self::GraphPosteriorResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
-        if let Self::BayesianGcomp(value) = self { Some(value.operation()) } else { None }
+        if let Self::BayesianGcomp(value) = self {
+            Some(value.operation())
+        } else {
+            None
+        }
     }
     pub(crate) fn bayesian_conditional(
         &self,
     ) -> Option<&super::execute::CheckedBayesianConditionalOperation> {
-        if let Self::BayesianConditional(value) = self { Some(value) } else { None }
+        if let Self::BayesianConditional(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
-        if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
+        if let Self::StaticResponseCurve(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn static_dag_response(
         &self,
     ) -> Option<&super::execute::CheckedStaticDagResponseOperation> {
-        if let Self::StaticDagResponse(value) = self { Some(value) } else { None }
+        if let Self::StaticDagResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn static_mediation(
         &self,
     ) -> Option<&super::execute::CheckedStaticMediationOperation> {
-        if let Self::StaticMediation(value) = self { Some(value) } else { None }
+        if let Self::StaticMediation(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn bayesian_static_mediation(
         &self,
     ) -> Option<&super::execute::CheckedBayesianStaticMediationOperation> {
-        if let Self::BayesianStaticMediation(value) = self { Some(value) } else { None }
+        if let Self::BayesianStaticMediation(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn attribution(&self) -> Option<&super::execute::CheckedAttributionOperation> {
-        if let Self::Attribution(value) = self { Some(value) } else { None }
+        if let Self::Attribution(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_dag_response(
         &self,
     ) -> Option<&super::execute::CheckedTemporalResponseExecution> {
-        if let Self::TemporalDagResponse(value) = self { Some(value) } else { None }
+        if let Self::TemporalDagResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_class_response(
         &self,
     ) -> Option<&super::CheckedTemporalClassResponseOperation> {
-        if let Self::TemporalClassResponse(value) = self { Some(value) } else { None }
+        if let Self::TemporalClassResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_graph_posterior_response(
         &self,
     ) -> Option<&super::CheckedTemporalGraphPosteriorResponse> {
-        if let Self::TemporalGraphPosteriorResponse(value) = self { Some(value) } else { None }
+        if let Self::TemporalGraphPosteriorResponse(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_dag_effect(
         &self,
     ) -> Option<&super::execute::CheckedTemporalEffectExecution> {
-        if let Self::TemporalDagEffect(value) = self { Some(value) } else { None }
+        if let Self::TemporalDagEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn bayesian_temporal_dag_effect(
         &self,
     ) -> Option<&super::CheckedBayesianTemporalEffectOperation> {
-        if let Self::BayesianTemporalDagEffect(value) = self { Some(value) } else { None }
+        if let Self::BayesianTemporalDagEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_mediation(
         &self,
     ) -> Option<&super::execute::CheckedTemporalMediationOperation> {
-        if let Self::TemporalMediation(value) = self { Some(value) } else { None }
+        if let Self::TemporalMediation(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_class_mediation(
         &self,
     ) -> Option<&super::execute::CheckedTemporalClassMediationOperation> {
-        if let Self::TemporalClassMediation(value) = self { Some(value) } else { None }
+        if let Self::TemporalClassMediation(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn interference(&self) -> Option<&super::execute::CheckedInterferenceOperation> {
-        if let Self::Interference(value) = self { Some(value) } else { None }
+        if let Self::Interference(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_class_effect(
         &self,
     ) -> Option<&super::execute::CheckedTemporalClassEffectExecution> {
-        if let Self::TemporalClassEffect(value) = self { Some(value) } else { None }
+        if let Self::TemporalClassEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn propensity(&self) -> Option<&CheckedPropensityOperation> {
-        if let Self::CheckedPropensity(value) = self { Some(value) } else { None }
+        if let Self::CheckedPropensity(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn conditional(&self) -> Option<&CheckedConditionalOperation> {
-        if let Self::CheckedConditional(value) = self { Some(value) } else { None }
+        if let Self::CheckedConditional(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn bayesian_class_conditional(
         &self,
     ) -> Option<&super::CheckedBayesianClassConditional> {
-        if let Self::BayesianClassConditional(value) = self { Some(value) } else { None }
+        if let Self::BayesianClassConditional(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn static_class_effect(&self) -> Option<&CheckedStaticClassEffect> {
-        if let Self::StaticClassEffect(value) = self { Some(value) } else { None }
+        if let Self::StaticClassEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn graph_posterior_effect(&self) -> Option<&CheckedGraphPosteriorEffect> {
-        if let Self::GraphPosteriorEffect(value) = self { Some(value) } else { None }
+        if let Self::GraphPosteriorEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn class_graph_posterior_effect(&self) -> Option<&CheckedClassGraphPosteriorEffect> {
-        if let Self::ClassGraphPosteriorEffect(value) = self { Some(value) } else { None }
+        if let Self::ClassGraphPosteriorEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn frontdoor_linear(&self) -> Option<&CheckedFrontDoorOperation> {
-        if let Self::FrontDoorLinear(value) = self { Some(value) } else { None }
+        if let Self::FrontDoorLinear(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn iv(&self) -> Option<&CheckedIvOperation> {
-        if let Self::Iv(value) = self { Some(value) } else { None }
+        if let Self::Iv(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn bayesian_temporal_class_effect(
         &self,
     ) -> Option<&super::CheckedBayesianTemporalClassEffectOperation> {
-        if let Self::BayesianTemporalClassEffect(value) = self { Some(value) } else { None }
+        if let Self::BayesianTemporalClassEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
     pub(crate) fn temporal_graph_posterior_effect(
         &self,
     ) -> Option<&super::CheckedTemporalGraphPosteriorEffect> {
-        if let Self::TemporalGraphPosteriorEffect(value) = self { Some(value) } else { None }
+        if let Self::TemporalGraphPosteriorEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
     }
 }
 
@@ -3160,7 +3088,8 @@ impl PreparedStudy {
             ),
             _ => {
                 return Err(CausalError::Unsupported {
-                    message: "retained Bayesian inference rebind requires its checked Gaussian operation",
+                    message:
+                        "retained Bayesian inference rebind requires its checked Gaussian operation",
                 });
             }
         };
@@ -4393,24 +4322,13 @@ impl PreparedStudy {
             .map_err(CausalError::from)?;
         Self::assemble_checked_operation_effect(
             data,
-            &CheckedStaticResultMetadata {
-                source_query: &operation.source_query,
-                query: &operation.query,
-                identification: &operation.identification,
-                estimand: &operation.estimand,
-                identifier: operation.identifier,
-                estimator: operation.estimator,
-                physical: &operation.physical,
-                graph_class: operation.graph_class,
-                graph_version: operation.graph_version,
-                support_status: operation.support_status,
-                structure_source: operation.structure_source,
-                population_registry: operation.population_registry.as_ref(),
-                latency_mode: operation.latency_mode,
-                latency_bootstrap_not_applied: operation.latency_bootstrap_not_applied,
-                refute: operation.refute,
-                custom_validator_names: &operation.custom_validator_names,
-            },
+            &static_result_metadata(
+                &operation.common,
+                &operation.source_query,
+                &operation.query,
+                &operation.identification,
+                &operation.estimand,
+            ),
             estimate,
             Some(operation.fitter.bootstrap_replicates),
             started,
@@ -4461,24 +4379,13 @@ impl PreparedStudy {
         let source_query = CausalQuery::AverageEffect(operation.source_query.clone());
         Self::assemble_checked_operation_effect(
             data,
-            &CheckedStaticResultMetadata {
-                source_query: &source_query,
-                query: &operation.query,
-                identification: &operation.identification,
-                estimand: &operation.estimand,
-                identifier: operation.identifier,
-                estimator: operation.estimator,
-                physical: &operation.physical,
-                graph_class: operation.graph_class,
-                graph_version: operation.graph_version,
-                support_status: operation.support_status,
-                structure_source: operation.structure_source,
-                population_registry: operation.population_registry.as_ref(),
-                latency_mode: operation.latency_mode,
-                latency_bootstrap_not_applied: operation.latency_bootstrap_not_applied,
-                refute: operation.refute,
-                custom_validator_names: &operation.custom_validator_names,
-            },
+            &static_result_metadata(
+                &operation.common,
+                &source_query,
+                &operation.query,
+                &operation.identification,
+                &operation.estimand,
+            ),
             estimate,
             Some(operation.fitter.bootstrap_replicates),
             started,
@@ -4521,26 +4428,17 @@ impl PreparedStudy {
             CheckedPropensityUncertainty::AbadieImbensAnalytic { .. } => None,
         };
         let estimate = operation.execute(ctx)?;
+        let mut metadata = static_result_metadata(
+            &retained.common,
+            &retained.source_query,
+            operation.query(),
+            &retained.identification,
+            operation.target(),
+        );
+        metadata.estimator = estimator;
         Self::assemble_checked_operation_effect(
             data,
-            &CheckedStaticResultMetadata {
-                source_query: &retained.source_query,
-                query: operation.query(),
-                identification: &retained.identification,
-                estimand: operation.target(),
-                identifier: retained.identifier,
-                estimator,
-                physical: &retained.physical,
-                graph_class: retained.graph_class,
-                graph_version: retained.graph_version,
-                support_status: retained.support_status,
-                structure_source: retained.structure_source,
-                population_registry: retained.population_registry.as_ref(),
-                latency_mode: retained.latency_mode,
-                latency_bootstrap_not_applied: retained.latency_bootstrap_not_applied,
-                refute: retained.refute,
-                custom_validator_names: &retained.custom_validator_names,
-            },
+            &metadata,
             estimate,
             bootstrap_requested,
             started,
@@ -4569,31 +4467,18 @@ impl PreparedStudy {
         } else {
             operation.estimator
         };
-        let mut result = Self::assemble_checked_operation_effect(
-            data,
-            &CheckedStaticResultMetadata {
-                source_query: &operation.source_query,
-                query: &operation.query.inner,
-                identification: &operation.identification,
-                estimand: &operation.estimand,
-                identifier: operation.identifier,
-                estimator,
-                physical: &operation.physical,
-                graph_class: operation.graph_class(),
-                graph_version: operation.graph_version,
-                support_status: operation.support_status,
-                structure_source: operation.structure_source,
-                population_registry: operation.population_registry.as_ref(),
-                latency_mode: operation.latency_mode,
-                latency_bootstrap_not_applied: operation.latency_bootstrap_not_applied,
-                refute: operation.refute,
-                custom_validator_names: &[],
-            },
-            estimate,
-            None,
-            started,
-            ctx,
-        )?;
+        let mut metadata = static_result_metadata(
+            &operation.common,
+            &operation.source_query,
+            &operation.query.inner,
+            &operation.identification,
+            &operation.estimand,
+        );
+        metadata.estimator = estimator;
+        metadata.graph_class = operation.graph_class();
+        metadata.custom_validator_names = &[];
+        let mut result =
+            Self::assemble_checked_operation_effect(data, &metadata, estimate, None, started, ctx)?;
         // The checked conditional operation carries the full class proof, but
         // the shared result assembler only knows the selected invariant point
         // identification. Preserve the class envelope in the public result
@@ -7797,25 +7682,9 @@ impl Study {
                     query: query.clone(),
                     identification: cache.identification.clone(),
                     estimand: cache.estimand.clone(),
-                    identifier,
-                    estimator,
-                    physical: plan.clone(),
-                    inference: analysis.inference.clone(),
-                    refute: analysis.refute,
-                    graph_class: analysis.graph.class(),
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
                     stage_sink: analysis.stage_sink.clone(),
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|validator| Arc::from(validator.name()))
-                            .collect::<Vec<_>>(),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis, &plan, identifier, estimator,
                     ),
                 })
             }
@@ -7888,26 +7757,10 @@ impl Study {
                     query: query.clone(),
                     identification: cache.identification.clone(),
                     estimand: cache.estimand.clone(),
-                    identifier,
-                    estimator,
-                    physical: plan.clone(),
                     fitter,
                     preparation,
-                    inference: analysis.inference.clone(),
-                    refute: analysis.refute,
-                    graph_class: analysis.graph.class(),
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|v| Arc::from(v.name()))
-                            .collect::<Vec<_>>(),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis, &plan, identifier, estimator,
                     ),
                 })
             }
@@ -7994,26 +7847,10 @@ impl Study {
                         query: identified_query,
                         identification,
                         estimand,
-                        identifier,
-                        estimator,
-                        physical: plan.clone(),
                         fitter,
                         preparation,
-                        inference: analysis.inference.clone(),
-                        refute: analysis.refute,
-                        graph_class: analysis.graph.class(),
-                        graph_version: analysis.graph.version(),
-                        support_status: analysis.support_status,
-                        structure_source: analysis.structure_source,
-                        population_registry: analysis.population_registry.clone(),
-                        latency_mode: analysis.latency_mode,
-                        latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
-                        custom_validator_names: Arc::from(
-                            analysis
-                                .custom_validators
-                                .iter()
-                                .map(|v| Arc::from(v.name()))
-                                .collect::<Vec<_>>(),
+                        common: CheckedStaticCommon::from_analysis(
+                            &analysis, &plan, identifier, estimator,
                         ),
                     }
                 })
@@ -8148,14 +7985,12 @@ impl Study {
                             query.clone(),
                             identification,
                             estimand,
-                            plan.clone(),
-                            analysis.refute,
-                            analysis.graph.version(),
-                            analysis.support_status,
-                            analysis.structure_source,
-                            analysis.population_registry.clone(),
-                            analysis.latency_mode,
-                            analysis.latency_bootstrap_not_applied,
+                            CheckedStaticCommon::from_analysis(
+                                &analysis,
+                                &plan,
+                                crate::strategy_table::IdentifierId::BackdoorAdjustment,
+                                crate::strategy_table::EstimatorId::ConditionalLinearAdjustment,
+                            ),
                             class_proof,
                         )
                     })
@@ -8250,18 +8085,9 @@ impl Study {
                     source_query: analysis.query.clone(),
                     identification: cache.identification.clone(),
                     estimand_index,
-                    identifier,
-                    physical: plan.clone(),
-                    graph_class: analysis.graph.class(),
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    inference: analysis.inference.clone(),
-                    refute: analysis.refute,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
-                    custom_validator_names: Arc::from([]),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis, &plan, identifier, estimator,
+                    ),
                 };
                 Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
             }
@@ -8324,24 +8150,8 @@ impl Study {
                         query: query.clone(),
                         identification: cache.identification.clone(),
                         estimand: cache.estimand.clone(),
-                        identifier,
-                        estimator,
-                        physical: plan.clone(),
-                        inference: analysis.inference.clone(),
-                        refute: analysis.refute,
-                        graph_class: analysis.graph.class(),
-                        graph_version: analysis.graph.version(),
-                        support_status: analysis.support_status,
-                        structure_source: analysis.structure_source,
-                        population_registry: analysis.population_registry.clone(),
-                        latency_mode: analysis.latency_mode,
-                        latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
-                        custom_validator_names: Arc::from(
-                            analysis
-                                .custom_validators
-                                .iter()
-                                .map(|validator| Arc::from(validator.name()))
-                                .collect::<Vec<_>>(),
+                        common: CheckedStaticCommon::from_analysis(
+                            &analysis, &plan, identifier, estimator,
                         ),
                         tiered_background: tiered_background.cloned(),
                     })
@@ -8457,13 +8267,7 @@ impl Study {
             analysis.graph.class(),
             &analysis.inference,
         ) {
-            (
-                DataInput::Tabular(data),
-                CausalQuery::Distribution(query),
-                Some(cache),
-                graph_class,
-                inference,
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::Distribution(query), Some(cache), _, _) => {
                 let identifier = plan
                     .logical
                     .record
@@ -8491,25 +8295,10 @@ impl Study {
                     query: query.clone(),
                     identification: cache.identification.clone(),
                     estimand: cache.estimand.clone(),
-                    identifier,
-                    estimator,
-                    physical: plan.clone(),
                     fitter,
                     prepared,
-                    inference: inference.clone(),
-                    refute: analysis.refute,
-                    graph_class,
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|validator| Arc::from(validator.name()))
-                            .collect::<Vec<_>>(),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis, &plan, identifier, estimator,
                     ),
                 })
             }
@@ -8527,7 +8316,7 @@ impl Study {
                 CausalQuery::AverageEffect(query),
                 Some(cache),
                 GraphClass::Admg | GraphClass::TemporalAdmg,
-                inference,
+                _,
             ) if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && cache.estimand.method_kind().ok()
@@ -8562,25 +8351,13 @@ impl Study {
                     query: query.clone(),
                     identification: cache.identification.clone(),
                     estimand: cache.estimand.clone(),
-                    identifier: crate::strategy_table::IdentifierId::GeneralId,
-                    estimator: crate::strategy_table::EstimatorId::FunctionalEffect,
-                    physical: plan.clone(),
                     fitter,
                     prepared,
-                    inference: inference.clone(),
-                    refute: analysis.refute,
-                    graph_class: analysis.graph.class(),
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|v| Arc::from(v.name()))
-                            .collect::<Vec<_>>(),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis,
+                        &plan,
+                        crate::strategy_table::IdentifierId::GeneralId,
+                        crate::strategy_table::EstimatorId::FunctionalEffect,
                     ),
                 })
             }
@@ -8598,7 +8375,7 @@ impl Study {
                 CausalQuery::PathSpecific(query),
                 Some(cache),
                 GraphClass::Dag,
-                inference,
+                _,
             ) if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && cache.estimand.method_kind().ok()
@@ -8634,24 +8411,13 @@ impl Study {
                     query: query.clone(),
                     identification: cache.identification.clone(),
                     estimand: cache.estimand.clone(),
-                    identifier: crate::strategy_table::IdentifierId::PathSpecificNatural,
-                    estimator: crate::strategy_table::EstimatorId::FunctionalEffect,
-                    physical: plan.clone(),
                     fitter,
                     prepared,
-                    inference: inference.clone(),
-                    refute: analysis.refute,
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|v| Arc::from(v.name()))
-                            .collect::<Vec<_>>(),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis,
+                        &plan,
+                        crate::strategy_table::IdentifierId::PathSpecificNatural,
+                        crate::strategy_table::EstimatorId::FunctionalEffect,
                     ),
                 })
             }
@@ -8803,23 +8569,12 @@ impl Study {
                     query: query.clone(),
                     grid: Arc::from(grid),
                     members: Arc::from(members),
-                    identifier: crate::strategy_table::IdentifierId::GeneralId,
-                    estimator: crate::strategy_table::EstimatorId::FunctionalEffect,
-                    physical: plan.clone(),
                     fitter,
-                    inference: analysis.inference.clone(),
-                    refute: analysis.refute,
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|v| Arc::from(v.name()))
-                            .collect::<Vec<_>>(),
+                    common: CheckedStaticCommon::from_analysis(
+                        &analysis,
+                        &plan,
+                        crate::strategy_table::IdentifierId::GeneralId,
+                        crate::strategy_table::EstimatorId::FunctionalEffect,
                     ),
                 })
             }
@@ -10062,8 +9817,8 @@ impl Study {
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
-            identify_static_query_with_rd, select_claim, select_estimand,
+            identify_static, identify_static_query, identify_static_query_with_rd, select_claim,
+            select_estimand, EstimatorId, IdentifierId, DEFAULT_IDENTIFIER,
         };
         if let CausalQuery::RandomizedEffect(query) = &self.query {
             let (identification, estimand) = super::execute::randomized_identification(query);
@@ -10386,7 +10141,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedPagIdentification>, CausalError> {
-        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_pag};
+        use crate::strategy_table::{identify_pag, IdentifierId, DEFAULT_PAG_IDENTIFIER};
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -10415,7 +10170,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedCpdagIdentification>, CausalError> {
-        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_cpdag};
+        use crate::strategy_table::{identify_cpdag, IdentifierId, DEFAULT_PAG_IDENTIFIER};
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -10456,7 +10211,7 @@ impl Study {
     fn prepare_temporal_identification(
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
-        use crate::strategy_table::{EstimatorId, select_estimand};
+        use crate::strategy_table::{select_estimand, EstimatorId};
         if self.graph.class() != GraphClass::TemporalDag {
             return Ok(None);
         }
@@ -10509,7 +10264,7 @@ impl Study {
     fn prepare_temporal_class_identification(
         &self,
     ) -> Result<Option<CachedTemporalClassIdentification>, CausalError> {
-        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId};
+        use crate::strategy_table::{IdentifierId, DEFAULT_PAG_IDENTIFIER};
 
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
@@ -11252,7 +11007,8 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
                 return Err(CausalError::Unsupported {
-                    message: "continuous-dose response requires a graphless fixed baseline-group design",
+                    message:
+                        "continuous-dose response requires a graphless fixed baseline-group design",
                 });
             }
         }
@@ -11312,7 +11068,8 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
             ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
+                    message:
+                        "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
                 });
             }
         }
@@ -11471,10 +11228,10 @@ mod checked_static_operation_tests {
     use antecedent_stats::GlmFamily;
 
     use super::PreparedExecution;
-    use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::EstimatorId;
+    use crate::Study;
 
     fn data() -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -11871,7 +11628,7 @@ mod checked_iv_prepared_tests {
     use antecedent_graph::Dag;
 
     use crate::estimator_spec::EstimatorSpec;
-    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
+    use crate::{analysis::builder::RefuteSuite, strategy_table::IdentifierId, Study};
 
     use super::{CheckedIvOperation, PreparedExecution};
 
@@ -12202,7 +11959,7 @@ mod refresh_tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use antecedent_graph::{TemporalDag, ensure_lagged};
+    use antecedent_graph::{ensure_lagged, TemporalDag};
 
     use super::super::builder::{DataInput, RefuteSuite};
     use crate::analysis::execute::Study;
@@ -12322,11 +12079,11 @@ mod prepared_frontdoor_tests {
     use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage};
     use antecedent_graph::Dag;
 
-    use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::prepared::PreparedExecution;
     use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::{EstimatorId, IdentifierId};
+    use crate::Study;
 
     fn data(outcome_shift: f64) -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -12474,11 +12231,9 @@ mod prepared_frontdoor_tests {
         let result = prepared.estimate(&data, &context).unwrap();
         let bytes =
             prepared.encode_contracted_result(&result, "default-frontdoor", &context).unwrap();
-        assert!(
-            antecedent_io::consume_analysis_result(&bytes)
-                .unwrap()
-                .acceptance
-                .accepts_as_verified_program()
-        );
+        assert!(antecedent_io::consume_analysis_result(&bytes)
+            .unwrap()
+            .acceptance
+            .accepts_as_verified_program());
     }
 }

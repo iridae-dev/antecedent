@@ -25,9 +25,8 @@ use crate::analysis::builder::RefuteSuite;
 use crate::analysis::route_guards::compile_error;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{EstimatorId, IdentifierId};
-use crate::support::{CellStatus, StructureSource};
+use crate::strategy_table::EstimatorId;
+use crate::support::StructureSource;
 
 /// Procedure identity for a checked propensity estimator.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,20 +68,14 @@ pub(crate) struct CheckedPropensityContext {
     pub(crate) source_query: CausalQuery,
     pub(crate) identification: IdentificationResult,
     pub(crate) estimand_index: usize,
-    pub(crate) identifier: IdentifierId,
-    pub(crate) physical: PhysicalExecutionPlan,
-    pub(crate) graph_class: GraphClass,
-    pub(crate) graph_version: u32,
-    pub(crate) support_status: Option<CellStatus>,
-    pub(crate) structure_source: StructureSource,
-    pub(crate) inference: InferenceMode,
-    pub(crate) refute: RefuteSuite,
-    pub(crate) population_registry: Option<antecedent_core::PopulationRegistry>,
-    pub(crate) latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
-    pub(crate) custom_validator_names: Arc<[Arc<str>]>,
+    pub(crate) common: Arc<crate::analysis::execute::CheckedStaticCommon>,
+}
+
+impl std::ops::Deref for CheckedPropensityContext {
+    type Target = crate::analysis::execute::CheckedStaticCommon;
+    fn deref(&self) -> &Self::Target {
+        &self.common
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -187,7 +180,7 @@ impl CheckedPropensityOperation {
                 "checked propensity estimator does not match the selected physical plan",
             ));
         }
-        context.identifier = context
+        let identifier = context
             .physical
             .logical
             .record
@@ -195,6 +188,7 @@ impl CheckedPropensityOperation {
             .as_deref()
             .unwrap_or(context.identifier.as_str())
             .parse()?;
+        Arc::make_mut(&mut context.common).identifier = identifier;
 
         let mut arena = context.identification.arena.clone();
         let expected = arena.backdoor_ate(
@@ -431,7 +425,7 @@ mod tests {
     use super::*;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::execute::Study;
-    use crate::strategy_table::{EstimatorId, IdentifierId, identify_static_query};
+    use crate::strategy_table::{identify_static_query, EstimatorId, IdentifierId};
 
     fn inputs(
         estimator: EstimatorId,
@@ -480,18 +474,21 @@ mod tests {
             source_query,
             identification,
             estimand_index: 0,
-            identifier: IdentifierId::BackdoorAdjustment,
-            physical,
-            graph_class: GraphClass::Dag,
-            graph_version: 0,
-            support_status: None,
-            structure_source: StructureSource::Explicit,
-            inference: InferenceMode::Frequentist,
-            refute: RefuteSuite::None,
-            population_registry: None,
-            latency_mode: None,
-            latency_bootstrap_not_applied: None,
-            custom_validator_names: Arc::from([]),
+            common: Arc::new(crate::analysis::execute::CheckedStaticCommon {
+                identifier: IdentifierId::BackdoorAdjustment,
+                estimator,
+                physical,
+                inference: InferenceMode::Frequentist,
+                refute: RefuteSuite::None,
+                graph_class: GraphClass::Dag,
+                graph_version: 0,
+                support_status: None,
+                structure_source: StructureSource::Explicit,
+                population_registry: None,
+                latency_mode: None,
+                custom_validator_names: Arc::from([]),
+                latency_bootstrap_not_applied: None,
+            }),
         };
         (data, context, selected_config)
     }

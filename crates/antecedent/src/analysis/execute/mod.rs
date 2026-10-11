@@ -353,6 +353,7 @@ mod checked_bayesian_specialist;
 mod checked_bayesian_temporal_class_effect;
 mod checked_graph_posterior_effect;
 mod checked_graph_posterior_response;
+mod checked_static;
 mod checked_static_class_response;
 mod checked_temporal_class_mediation;
 mod checked_temporal_class_response;
