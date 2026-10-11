@@ -739,7 +739,7 @@ fn unit_digest(ids: &[u32]) -> String {
     for id in distinct {
         writer.word(u64::from(id));
     }
-    antecedent_core::to_hex(&writer.finish())
+    writer.finish_hex()
 }
 
 fn require_whole_clusters_per_fold(
@@ -770,7 +770,7 @@ mod digest_tests {
         let mut writer =
             antecedent_core::CanonicalWriter::new("antecedent.estimate.cluster_dml_aipw.units");
         writer.word(3).word(1).word(2).word(3);
-        let expected = antecedent_core::to_hex(&writer.finish());
+        let expected = writer.finish_hex();
         assert_eq!(unit_digest(&[3, 1, 3, 2, 1]), expected);
         assert_eq!(unit_digest(&[2, 3, 1]), expected);
         assert_ne!(unit_digest(&[1, 2, 4]), expected);

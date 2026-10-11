@@ -306,7 +306,7 @@ const REPLICATE_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.repl
 
 /// Lowercase hex of a finished canonical digest.
 fn hex_digest(digest: &CanonicalWriter) -> String {
-    antecedent_core::to_hex(&digest.finish())
+    digest.finish_hex()
 }
 
 struct FamilyIdentity {

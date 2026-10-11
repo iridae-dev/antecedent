@@ -97,7 +97,7 @@ fn write_list<'a>(
 
 /// Lowercase hex of a finished canonical digest.
 fn hex_digest(writer: &CanonicalWriter) -> String {
-    antecedent_core::to_hex(&writer.finish())
+    writer.finish_hex()
 }
 
 impl TemporalWindowIdentity {

@@ -23,7 +23,7 @@
 
 use std::hash::{Hash, Hasher};
 
-use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_core::{CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_learn::{
     cross_fit_with_folds, DesignView, FittedPredictor, LassoLogisticLearner, LearnError,
     LearnerFactory, LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView,
@@ -143,12 +143,8 @@ impl RidgeTuning {
         format!("{label}.cv(k={},grid={})", self.inner_folds, grid.join(","))
     }
 
-    fn push_bytes(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&(self.inner_folds as u64).to_le_bytes());
-        bytes.extend_from_slice(&(self.lambdas.len() as u64).to_le_bytes());
-        for lambda in &self.lambdas {
-            bytes.extend_from_slice(&lambda.to_bits().to_le_bytes());
-        }
+    fn write_identity(&self, stream: &mut CanonicalWriter) {
+        stream.word(self.inner_folds as u64).reals(&self.lambdas);
     }
 
     /// Human-readable grid for a calibration label (shortest round-trip spelling).
@@ -203,8 +199,8 @@ impl NuisanceFallback {
 
 /// Canonical, fingerprintable configuration of the binary propensity nuisance.
 ///
-/// `Eq` and `Hash` are consistent with [`Self::canonical_bytes`], the byte form a batch or
-/// contract identity digests: two configurations share nuisance fits only if equal.
+/// `Eq` and `Hash` are consistent with [`Self::identity_digest`], the form a batch or
+/// contract identity binds: two configurations share nuisance fits only if equal.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PropensityNuisance {
     penalty: PropensityPenalty,
@@ -213,7 +209,7 @@ pub struct PropensityNuisance {
 
 impl Hash for PropensityNuisance {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.canonical_bytes().hash(state);
+        self.identity_digest().hash(state);
     }
 }
 
@@ -389,35 +385,42 @@ impl PropensityNuisance {
         }
     }
 
-    /// Canonical byte form: a versioned tag, then the penalty and fallback as fixed-width
-    /// fields (counts as little-endian `u64`, penalties as little-endian `f64` bit patterns).
+    /// Domain-separated digest of the penalty and fallback: a versioned tag, a variant word
+    /// for each, then the tuning (inner folds and the penalty grid as `f64` bit patterns).
+    /// This is the form a batch, contract or recalculation identity binds.
     #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = b"antecedent.propensity_nuisance.v1\0".to_vec();
+    pub fn identity_digest(&self) -> [u8; 32] {
+        let mut stream = CanonicalWriter::new("antecedent.propensity_nuisance.v2");
         match &self.penalty {
-            PropensityPenalty::None => bytes.push(0),
+            PropensityPenalty::None => {
+                stream.word(0);
+            }
             PropensityPenalty::RidgeLogistic(tuning) => {
-                bytes.push(1);
-                tuning.push_bytes(&mut bytes);
+                stream.word(1);
+                tuning.write_identity(&mut stream);
             }
             PropensityPenalty::Lasso(tuning) => {
-                bytes.push(2);
-                tuning.push_bytes(&mut bytes);
+                stream.word(2);
+                tuning.write_identity(&mut stream);
             }
         }
         match &self.fallback {
-            NuisanceFallback::None => bytes.push(0),
-            NuisanceFallback::Ml => bytes.push(1),
+            NuisanceFallback::None => {
+                stream.word(0);
+            }
+            NuisanceFallback::Ml => {
+                stream.word(1);
+            }
             NuisanceFallback::RidgeLogistic(tuning) => {
-                bytes.push(2);
-                tuning.push_bytes(&mut bytes);
+                stream.word(2);
+                tuning.write_identity(&mut stream);
             }
             NuisanceFallback::Lasso(tuning) => {
-                bytes.push(3);
-                tuning.push_bytes(&mut bytes);
+                stream.word(3);
+                tuning.write_identity(&mut stream);
             }
         }
-        bytes
+        stream.finish()
     }
 
     /// Human-readable canonical key, stable across runs (penalties as `f64` bit patterns).
@@ -826,12 +829,28 @@ mod tests {
     }
 
     #[test]
+    fn identity_digests_are_pinned_golden_vectors() {
+        let ridge = PropensityNuisance::ridge_logistic(RidgeTuning::new(&[1.0, 10.0], 5).unwrap());
+        assert_eq!(
+            antecedent_core::to_hex(&ridge.identity_digest()),
+            "44ead11b62beaee2eecdd1107c556b88a1a7e2e04bcaf228e0fb22e051af7169"
+        );
+        let lasso_fallback = PropensityNuisance::default()
+            .with_fallback(NuisanceFallback::Lasso(RidgeTuning::default_lasso()));
+        assert_eq!(
+            antecedent_core::to_hex(&lasso_fallback.identity_digest()),
+            "ef549f5b8f9ba7d6e9f38c50c9adb9b490b1875945dbe44849f1ca4ecf65a62b"
+        );
+        assert_ne!(ridge.identity_digest(), PropensityNuisance::default().identity_digest());
+    }
+
+    #[test]
     fn canonical_identity_separates_every_declared_choice() {
         let base = PropensityNuisance::ridge_logistic(RidgeTuning::new(&[1.0, 10.0], 5).unwrap());
         let same = PropensityNuisance::ridge_logistic(RidgeTuning::new(&[10.0, 1.0], 5).unwrap());
         assert_eq!(base, same);
         assert_eq!(hash_of(&base), hash_of(&same));
-        assert_eq!(base.canonical_bytes(), same.canonical_bytes());
+        assert_eq!(base.identity_digest(), same.identity_digest());
         let others = [
             PropensityNuisance::default(),
             PropensityNuisance::lasso(),
@@ -842,7 +861,7 @@ mod tests {
         ];
         for other in &others {
             assert_ne!(&base, other);
-            assert_ne!(base.canonical_bytes(), other.canonical_bytes());
+            assert_ne!(base.identity_digest(), other.identity_digest());
             assert_ne!(base.canonical_key(), other.canonical_key());
         }
         assert!(PropensityNuisance::default().is_default());

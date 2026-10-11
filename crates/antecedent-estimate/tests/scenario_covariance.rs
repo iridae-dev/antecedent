@@ -532,7 +532,7 @@ fn row_identity_digest_is_the_canonical_stream_of_the_ordered_unit_ids() {
     for id in units("u") {
         writer.text(&id);
     }
-    assert_eq!(cov.row_identity_digest, antecedent_core::to_hex(&writer.finish()));
+    assert_eq!(cov.row_identity_digest, writer.finish_hex());
     assert_eq!(
         cov.row_identity_digest,
         "07a1c08b91f9778a2a42e520e0097ebb20e9e438bd7da562f1e21c41d74f7b7a"

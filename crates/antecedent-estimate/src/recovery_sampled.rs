@@ -609,7 +609,7 @@ fn write_pattern(digest: &mut CanonicalWriter, pattern: ObservationPattern) {
 
 /// Lowercase hex of a finished canonical digest.
 fn hex_digest(digest: &CanonicalWriter) -> String {
-    antecedent_core::to_hex(&digest.finish())
+    digest.finish_hex()
 }
 
 fn to_u64(value: usize) -> u64 {
@@ -1367,7 +1367,7 @@ mod digest_tests {
         for id in [7u64, 9] {
             writer.word(id).bytes(&[1, 1, 2]);
         }
-        let expected = antecedent_core::to_hex(&writer.finish());
+        let expected = writer.finish_hex();
         assert_eq!(input_digest(&input), expected);
         let mut other = input.clone();
         other.rows[1].id = 10;
