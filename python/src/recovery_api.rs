@@ -30,6 +30,10 @@ use std::sync::Arc;
 /// wire, framed with the m-graph's variable names.
 const RECOVERY_PREFIX: &[u8] = b"ANTECEDENT-OBSERVATION-RECOVERY\x01";
 
+/// Largest sampled-recovery artifact a consumer reads: it carries the sampled replicates.
+#[cfg(feature = "calibration-internal")]
+const MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES: usize = 2 * crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
+
 /// Graph-licensed recovery of the full law, exact laws, point only.
 const SCOPE: &str = "graph_licensed_observation_recovery_not_mar_ipcw";
 
@@ -964,7 +968,7 @@ fn consume_sampled_recovery_candidate(
     let valid_digest = |value: &str| {
         value.len() == 64 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     };
-    if artifact.len() > 32 * 1024 * 1024
+    if artifact.len() > MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES
         || !valid_digest(&premises_digest)
         || !valid_digest(&data_digest)
         || !(1..=100_000).contains(&max_rows)

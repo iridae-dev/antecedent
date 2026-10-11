@@ -19,7 +19,7 @@ use pyo3::types::PyBytes;
 use crate::{CausalSerializationError, detach_catch, value_err};
 
 /// Largest request JSON accepted (the table travels separately).
-const MAX_JSON_BYTES: usize = 8 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Py<PyBytes>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);

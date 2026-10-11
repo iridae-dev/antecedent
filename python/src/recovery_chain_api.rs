@@ -18,6 +18,7 @@ use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::bridge::RefusalJson;
 use crate::transport_common::execution_context;
 use crate::{CausalSerializationError, detach_catch, value_err};
 
@@ -38,15 +39,7 @@ fn route_refusal_json(error: &ChainRecoveryError) -> String {
     if let Some(receipt) = &error.receipt {
         message = format!("{message}; {}", receipt.summary());
     }
-    serde_json::json!({
-        "code": error.reason_code(),
-        "stage": "recovery_chain",
-        "detail": error.detail.detail(),
-        "offending": serde_json::Value::Null,
-        "remedy": serde_json::Value::Null,
-        "message": message,
-    })
-    .to_string()
+    RefusalJson::new(error.reason_code(), "recovery_chain", error.detail.detail(), &message).json()
 }
 
 /// `None` for corruption (a serialization error), otherwise the refusal JSON.
@@ -56,17 +49,8 @@ fn artifact_refusal_json(error: &RecoveryChainArtifactError) -> Option<String> {
         RecoveryChainArtifactError::Route(inner) => Some(route_refusal_json(inner)),
         other => {
             let (code, detail) = other.refusal();
-            Some(
-                serde_json::json!({
-                    "code": code,
-                    "stage": "consume",
-                    "detail": detail,
-                    "offending": serde_json::Value::Null,
-                    "remedy": serde_json::Value::Null,
-                    "message": other.to_string(),
-                })
-                .to_string(),
-            )
+            let refusal = (code, detail, other.to_string());
+            Some(crate::bridge::artifact_refusal_json("consume", refusal, None))
         }
     }
 }

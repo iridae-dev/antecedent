@@ -7,7 +7,6 @@ use antecedent_io::{
     InterferenceEstimateWire, TransportEffectEstimateWire, TransportIdentificationWire,
     decode_analysis_result_artifact, decode_causal_payload_artifact,
     encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
-    payload_digest,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
@@ -210,8 +209,8 @@ fn accept_analysis_result_contract(
             .join(","),
     );
     if let Some(contract) = &consumed.contract {
-        out.insert("program".into(), antecedent_io::digest_hex(&contract.identities.program));
-        out.insert("target".into(), antecedent_io::digest_hex(&contract.identities.target));
+        out.insert("program".into(), antecedent_core::to_hex(&contract.identities.program));
+        out.insert("target".into(), antecedent_core::to_hex(&contract.identities.target));
         out.insert("graph_class".into(), contract.graph_class.clone());
         out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
         for (key, value) in executed_functional_labels(&contract.target.query) {
@@ -259,7 +258,10 @@ fn encode_external_estimate_claim_py<'py>(
         identification.map(parse_digest_hex).transpose().map_err(serialization_error)?;
     let data_snapshot = match data_snapshot {
         Some(hex) => parse_digest_hex(hex).map_err(serialization_error)?,
-        None => payload_digest("external_estimate.data_snapshot", snapshot_payload.unwrap_or(b"")),
+        None => antecedent_core::CanonicalWriter::digest_bytes(
+            "antecedent.external_estimate.data_snapshot.v1",
+            snapshot_payload.unwrap_or(b""),
+        ),
     };
     let bytes = encode_external_estimate_claim(&ExternalEstimateAttach {
         learner: learner.into(),
@@ -322,7 +324,7 @@ impl FittedEffectModel {
             model,
             bytes: bytes.to_vec(),
             features,
-            parent_claim: antecedent_io::digest_hex(&claim.claim_id),
+            parent_claim: antecedent_core::to_hex(&claim.claim_id),
         })
     }
 

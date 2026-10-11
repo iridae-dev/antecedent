@@ -44,7 +44,7 @@ fn produce_source_projection(
     projection_json: &str,
 ) -> PyResult<(String, Vec<u8>)> {
     bounded(source)?;
-    if projection_json.len() > 1024 * 1024 {
+    if projection_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
         return Err(invalid(
             "source_projection.limits_exceeded",
             "projection declaration exceeds byte bound",

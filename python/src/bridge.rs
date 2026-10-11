@@ -7,9 +7,23 @@
 
 use pyo3::prelude::*;
 
+const MIB: usize = 1024 * 1024;
+
+/// A declaration of options and scalar settings: 1 MiB.
+pub(crate) const MAX_CONFIG_DECLARATION_BYTES: usize = MIB;
+
+/// A declaration of a structure or a grid (an edge list, a scenario set): 8 MiB.
+pub(crate) const MAX_SPEC_DECLARATION_BYTES: usize = 8 * MIB;
+
 /// The byte limit of a declaration or sealed artifact that has no tighter bound
 /// of its own: 16 MiB.
-pub(crate) const MAX_DECLARED_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const MAX_DECLARED_ARTIFACT_BYTES: usize = 16 * MIB;
+
+/// A declaration that carries data columns or per-row values: 64 MiB.
+pub(crate) const MAX_DATA_DECLARATION_BYTES: usize = 64 * MIB;
+
+/// A sealed artifact that embeds the data and law it was computed from: 128 MiB.
+pub(crate) const MAX_SEALED_ARTIFACT_BYTES: usize = 128 * MIB;
 
 /// Refuse `len` bytes beyond `limit`, as an invalid argument.
 ///
@@ -58,6 +72,11 @@ impl RefusalJson {
         map.insert("remedy".into(), Null);
         map.insert("message".into(), Text(message.to_owned()));
         Self(map)
+    }
+
+    /// A refusal with no human message beyond its detail id (`message` is `null`).
+    pub(crate) fn bare(code: &str, stage: &str, detail: &str) -> Self {
+        Self::new(code, stage, detail, "").field("message", serde_json::Value::Null)
     }
 
     /// A refusal whose message is `"{detail}: {text}"` when it starts with a

@@ -29,7 +29,7 @@ mod enabled {
 
     /// Largest sealed joint-transport artifact a consumer reads.
     #[cfg(feature = "calibration-internal")]
-    const MAX_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
+    const MAX_ARTIFACT_BYTES: usize = crate::bridge::MAX_SEALED_ARTIFACT_BYTES;
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
     struct SourceWire {

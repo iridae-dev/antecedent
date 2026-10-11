@@ -12,7 +12,10 @@ use antecedent_io::{
     EncodedArtifact, EstimandFingerprint, PosteriorQuantityWire, PriorCatalog, PriorSourceRef,
     TargetDesign, decode_posterior_artifact,
 };
-use crate::bridge::{MAX_DECLARED_ARTIFACT_BYTES, check_declared_len, check_declared_size};
+use crate::bridge::{
+    MAX_DECLARED_ARTIFACT_BYTES, RefusalJson, check_declared_len, check_declared_size,
+    external_refusal_json,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 use serde::Deserialize;
@@ -111,7 +114,7 @@ impl CheckedPriorSignal {
     }
 }
 fn refusal(detail: &str, code: &str) -> String {
-    serde_json::json!({"code":code,"stage":"declare","detail":detail,"offending":null,"expected":null,"supplied":null,"remedy":null}).to_string()
+    RefusalJson::bare(code, "declare", detail).json()
 }
 
 #[pyfunction]
@@ -253,7 +256,7 @@ pub(crate) fn adapt_prior_signal(
                 },
             });
             observations.extend(input.observation_ids.iter().cloned());
-            digests.push(antecedent_core::to_hex(blake3::hash(bytes).as_bytes()));
+            digests.push(antecedent_core::blake3_hex(bytes));
         }
         refs.push(match bytes {
             Some(bytes) => PriorSourceRef::with_bytes(meta, bytes),
@@ -287,8 +290,7 @@ pub(crate) fn adapt_prior_signal(
     {
         Ok(adapted) => adapted,
         Err(error) => {
-            let r = error.to_refusal();
-            return Ok((None, Some(serde_json::json!({"code":r.code,"stage":r.stage,"detail":r.detail,"offending":r.offending,"expected":r.expected,"supplied":r.supplied,"remedy":r.remedy}).to_string())));
+            return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
         }
     };
     let DecisionPrior::Draws(rows) = &adapted.prior else { unreachable!() };
@@ -302,7 +304,7 @@ pub(crate) fn adapt_prior_signal(
     let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"unmeasured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
     digests.push(d.source_digest.clone());
     // Bind population/maps/declared observation lineage, not only numerical adapter rows.
-    digests.push(antecedent_core::to_hex(blake3::hash(request_json.as_bytes()).as_bytes()));
+    digests.push(antecedent_core::blake3_hex(request_json.as_bytes()));
     Ok((
         Some(CheckedPriorSignal {
             adapted,

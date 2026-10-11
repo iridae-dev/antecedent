@@ -36,7 +36,7 @@ const COVARIANCE_PREFIX: &[u8] = b"ANTECEDENT-SCENARIO-COVARIANCE\x01";
 const CPDAG_SCOPE: &str = "cpdag_completion_scenarios_structural_envelope";
 const COVARIANCE_SCOPE: &str = "shared_row_covariance_point_only";
 /// Largest spec JSON the covariance bridge accepts.
-const MAX_SPEC_JSON_BYTES: usize = 8 * 1024 * 1024;
+const MAX_SPEC_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 
 /// One declared coordinate: `(name, domain, cardinality, unit)`.
 type CoordinateTuple = (String, String, Option<u32>, Option<String>);

@@ -12,7 +12,7 @@ fn export_law_functional_source(
     functional_json: &str,
     input: &crate::composition_api::PyDecisionInput,
 ) -> PyResult<(String, Vec<u8>)> {
-    if contract_json.len() > 1024 * 1024 {
+    if contract_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
         return Err(crate::with_reason_code(
             crate::value_err("functional_source.invalid_contract"),
             antecedent_core::reason_code!("invalid_argument"),

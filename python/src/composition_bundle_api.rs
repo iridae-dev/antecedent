@@ -26,7 +26,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// Largest declaration JSON (facts, requirement, supplied sources) accepted.
-const MAX_DECLARATION_BYTES: usize = 1024 * 1024;
+const MAX_DECLARATION_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
 
 type Refusal = Option<String>;
 

@@ -17,7 +17,7 @@ use pyo3::prelude::*;
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
 
 /// Largest request / identity JSON accepted.
-const MAX_JSON_BYTES: usize = 64 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DATA_DECLARATION_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);

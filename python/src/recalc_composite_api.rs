@@ -14,10 +14,13 @@ fn field<'py>(dict: &Bound<'py, PyDict>, name: &str) -> PyResult<Bound<'py, PyAn
     dict.get_item(name)?
         .ok_or_else(|| invalid("composite_recalc.invalid_request", format!("missing{name}")))
 }
+/// One declared text field of a composite recalculation request.
+const MAX_TEXT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
+
 fn bounded_text(dict: &Bound<'_, PyDict>, name: &str) -> PyResult<String> {
     let value = field(dict, name)?;
     let value = value.cast::<PyString>()?;
-    if value.len()? > 1024 * 1024 || value.to_str()?.len() > 1024 * 1024 {
+    if value.len()? > MAX_TEXT_BYTES || value.to_str()?.len() > MAX_TEXT_BYTES {
         return Err(invalid("composite_recalc.invalid_request", "text exceeds byte bound"));
     }
     Ok(value.to_str()?.to_owned())

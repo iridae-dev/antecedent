@@ -22,7 +22,7 @@ use crate::{
 };
 
 /// Largest request / identity JSON accepted.
-const MAX_JSON_BYTES: usize = 128 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_SEALED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);

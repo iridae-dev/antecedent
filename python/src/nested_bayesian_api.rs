@@ -92,7 +92,7 @@ impl Candidate {
             ));
         }
         let bytes = artifact.export().map_err(error)?;
-        let identity = antecedent_core::to_hex(blake3::hash(&bytes).as_bytes());
+        let identity = antecedent_core::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
@@ -152,7 +152,7 @@ fn consume_nested_markov_posterior_candidate(
             reason_code!("invalid_argument"),
         ));
     }
-    if antecedent_core::to_hex(blake3::hash(bytes).as_bytes()) != expected_identity {
+    if antecedent_core::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.bayesian_identity_mismatch: candidate identity differs from expected",

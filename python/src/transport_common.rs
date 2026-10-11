@@ -18,10 +18,9 @@ pub(crate) fn error<E: TransportPyErr>(e: E) -> PyErr {
     e.into_transport_py_err()
 }
 
-/// A failure that can only mean the bytes do not describe what they claim.
-pub(crate) fn serialization_error(e: impl std::fmt::Display) -> PyErr {
-    crate::bridge::serialization(e)
-}
+/// The transport bindings' name for [`crate::bridge::serialization`], the one mapping of a
+/// failure that can only mean the bytes do not describe what they claim.
+pub(crate) use crate::bridge::serialization as serialization_error;
 
 /// One native transport failure kind, mapped to its `Causal*` class.
 pub(crate) trait TransportPyErr {

@@ -854,7 +854,8 @@ impl PreparedZTransportStage {
             )
             .map_err(error)
         })?;
-        let baseline_digest = digest_hex("z_transport_sensitivity_baseline", &baseline_bytes);
+        let baseline_digest =
+            antecedent::ZTransportSensitivityArtifactWire::baseline_digest(&baseline_bytes);
         let provider_snapshots = self
             .inner
             .data()
@@ -1019,10 +1020,6 @@ impl PreparedZTransportStage {
 }
 
 const SENSITIVITY_ESTIMAND: &str = "target active-minus-control mean outcome response";
-
-fn digest_hex(domain: &str, bytes: &[u8]) -> String {
-    antecedent_core::to_hex(&antecedent_io::identity::payload_digest(domain, bytes))
-}
 
 /// Independently recheck a framed point artifact and recompute its point under
 /// the consumer's limits; nothing the artifact stores raises them. The io

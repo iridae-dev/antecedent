@@ -19,6 +19,9 @@ use pyo3::types::{PyDict, PyString};
 use pyo3::{PyTraverseError, PyVisit};
 use serde::Deserialize;
 
+/// Largest output text an external recalculation callback may return.
+const MAX_CALLBACK_OUTPUT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
+
 fn invalid(detail: &str, message: impl AsRef<str>) -> PyErr {
     crate::with_reason_code(
         crate::value_err(format!("{detail}: {}", message.as_ref())),
@@ -184,14 +187,14 @@ impl ExternalMeanProvider for PythonProvider {
             )?;
             let output = self.callback.bind(py).call1((payload,))?;
             let text = output.cast::<PyString>()?;
-            if text.len()? > 1024 * 1024 {
+            if text.len()? > MAX_CALLBACK_OUTPUT_BYTES {
                 return Err(invalid(
                     "external_recalc.limits_exceeded",
                     "callback output exceeds byte bound",
                 ));
             }
             let json = text.to_str()?;
-            if json.len() > 1024 * 1024 {
+            if json.len() > MAX_CALLBACK_OUTPUT_BYTES {
                 return Err(invalid(
                     "external_recalc.limits_exceeded",
                     "callback output exceeds byte bound",
