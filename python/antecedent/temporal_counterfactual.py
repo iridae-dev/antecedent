@@ -14,7 +14,6 @@ per world would answer a different (interventional) question and is never drawn.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, NoReturn
@@ -28,6 +27,7 @@ from ._native import (
 from ._native import (
     transported_path_specific_refusal as _transported_refusal,
 )
+from ._validate import real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .temporal import TemporalRefusal, _raise_refusal
 
@@ -70,16 +70,12 @@ def _times(value: object, what: str) -> tuple[int, int]:
 
 
 def _number(value: object, what: str, *, detail: str, offending: str | None = None) -> float:
-    # `bool` is an `int` subclass, and `float` accepts numeric strings. Neither is a real.
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        raise CausalTypeError(f"{what} must be a real number")
-    try:
-        number = float(value)
-    except OverflowError as error:
-        raise CausalValueError(f"{what} is too large for a real number") from error
-    if not math.isfinite(number):
-        # JSON cannot carry a non-finite number: report it with the Rust refusal's code/detail.
-        raise TemporalRefusal(
+    # JSON cannot carry a non-finite number: report it with the Rust refusal's code/detail.
+    return real(
+        value,
+        what,
+        finite=True,
+        non_finite=lambda _: TemporalRefusal(
             {
                 "code": "invalid_argument",
                 "stage": "evaluate",
@@ -87,8 +83,8 @@ def _number(value: object, what: str, *, detail: str, offending: str | None = No
                 "offending": offending or what,
                 "message": f"{what} is not finite",
             }
-        )
-    return number
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
