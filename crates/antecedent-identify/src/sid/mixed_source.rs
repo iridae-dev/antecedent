@@ -109,14 +109,14 @@ use antecedent_core::{
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode, LeafBinding};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
 
-use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
+use super::meta::{identify_meta_catalog_metered, MetaSource, MetaTransportQuery};
 use super::z_transport::{
-    ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery, ZTransportSourceSpec,
-    decide_z_transport_reporting,
+    decide_z_transport_reporting, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery,
+    ZTransportSourceSpec,
 };
 use super::{
-    CatalogTransportResult, ClassicalTransportQuery, IdentificationError, MzTransportDecision,
-    MzTransportQuery, SearchCharge, SharedSearch, identify_catalog_transport_metered,
+    identify_catalog_transport_metered, CatalogTransportResult, ClassicalTransportQuery,
+    IdentificationError, MzTransportDecision, MzTransportQuery, SearchCharge, SharedSearch,
 };
 
 /// Observed variables in the graph.
@@ -972,13 +972,15 @@ fn mutilated(graph: &Admg, n: usize, over: Mask, under: Mask) -> Admg {
         for to in graph.children(dense(from)) {
             let to = to.as_usize();
             if over & bit(to) == 0 && under & bit(from) == 0 {
-                let _ = out.insert_directed(dense(from), dense(to));
+                out.insert_directed(dense(from), dense(to))
+                    .expect("mutilated ADMG dropped a directed edge");
             }
         }
         for to in graph.bidirected_neighbors(dense(from)) {
             let to = to.as_usize();
             if from < to && over & (bit(from) | bit(to)) == 0 {
-                let _ = out.insert_bidirected(dense(from), dense(to));
+                out.insert_bidirected(dense(from), dense(to))
+                    .expect("mutilated ADMG dropped a bidirected edge");
             }
         }
     }
@@ -1417,7 +1419,11 @@ impl Checker {
             .iter()
             .map(|v| self.variables.iter().position(|w| w == v).ok_or_else(invalid_derivation))
             .collect::<Result<Set, _>>()?;
-        if set.len() == variables.len() { Ok(set) } else { Err(invalid_derivation()) }
+        if set.len() == variables.len() {
+            Ok(set)
+        } else {
+            Err(invalid_derivation())
+        }
     }
 
     /// Ancestors of `seeds` (inclusive) along directed edges not entering `over`.
@@ -3584,7 +3590,7 @@ mod tests {
     /// Completeness against the complete ID algorithm (single observational study).
     mod reference {
         use super::*;
-        use crate::{IdIdentifier, IdentificationWorkspace, result::IdentificationStatus};
+        use crate::{result::IdentificationStatus, IdIdentifier, IdentificationWorkspace};
         use antecedent_core::{
             CausalQuery, Intervention, InterventionalDistributionQuery, SearchBudget, Value,
         };
