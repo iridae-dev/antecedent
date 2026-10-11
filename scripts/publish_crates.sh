@@ -39,7 +39,7 @@ esac
 
 # Leaves first, from the workspace graph. A hand list is how design was uploaded
 # before identify and io, which it depends on. antecedent-py is the extension
-# crate and is not published here.
+# crate and is not published here; neither is any `publish = false` crate.
 publish_order() {
   python3 - <<'PY'
 import json
@@ -56,7 +56,10 @@ meta = json.loads(
 members = {
     pkg["name"]: pkg
     for pkg in meta["packages"]
-    if pkg["id"] in set(meta["workspace_members"]) and pkg["name"] != "antecedent-py"
+    if pkg["id"] in set(meta["workspace_members"])
+    and pkg["name"] != "antecedent-py"
+    # `publish = false` crates (antecedent-test-support) are dev-only.
+    and pkg.get("publish") != []
 }
 deps = {name: set() for name in members}
 version_errors = []
