@@ -72,7 +72,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use antecedent_core::{
-    ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
+    CanonicalWriter, ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+    VariableId,
 };
 use antecedent_graph::Admg;
 
@@ -226,24 +227,22 @@ pub struct ChainRecoveryPlan {
 
 impl ChainRecoveryPlan {
     fn digest(&self) -> [u8; 32] {
-        let mut hasher = blake3::Hasher::new_derive_key("antecedent.recovery_chain.plan.v1");
+        let mut stream = CanonicalWriter::new("antecedent.recovery_chain.plan.v1");
         for part in [self.query.first, self.query.second] {
             for id in [part.variable, part.response, part.proxy] {
-                hasher.update(&id.raw().to_le_bytes());
+                stream.word(u64::from(id.raw()));
             }
         }
-        hasher.update(&(self.head as u64).to_le_bytes());
-        hasher.update(&[u8::from(self.tail_depends_on_head_variable)]);
-        for value in std::iter::once(self.rule_version)
-            .chain(self.premises.iter().map(String::as_str))
-            .chain(std::iter::once(self.formula.as_str()))
-        {
-            hasher.update(&(value.len() as u64).to_le_bytes());
-            hasher.update(value.as_bytes());
+        stream.word(self.head as u64);
+        stream.word(u64::from(self.tail_depends_on_head_variable));
+        stream.text(self.rule_version);
+        stream.word(self.premises.len() as u64);
+        for premise in &self.premises {
+            stream.text(premise);
         }
-        hasher.update(&(self.premises.len() as u64).to_le_bytes());
-        hasher.update(&(self.operations_consumed as u64).to_le_bytes());
-        *hasher.finalize().as_bytes()
+        stream.text(&self.formula);
+        stream.word(self.operations_consumed as u64);
+        stream.finish()
     }
 
     /// Whether the plan still matches the identifier's checked result.

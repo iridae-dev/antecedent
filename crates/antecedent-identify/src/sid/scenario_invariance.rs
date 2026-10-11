@@ -43,7 +43,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use antecedent_core::{NodeRef, VariableId, reason_code};
+use antecedent_core::{CanonicalWriter, NodeRef, VariableId, reason_code, to_hex};
 use antecedent_expr::LeafSignature;
 use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
@@ -357,10 +357,9 @@ fn canonical_text(status: &str, selection: &SelectionDifferences, body: &Invaria
 }
 
 fn digest(text: &str) -> String {
-    let mut hasher = blake3::Hasher::new_derive_key("antecedent.scenario_invariance.report.v1");
-    hasher.update(&(text.len() as u64).to_le_bytes());
-    hasher.update(text.as_bytes());
-    format!("inv.v1.{}", hasher.finalize().to_hex())
+    let mut stream = CanonicalWriter::new("antecedent.scenario_invariance.report.v1");
+    stream.text(text);
+    format!("inv.v1.{}", to_hex(&stream.finish()))
 }
 
 fn sorted(mut values: Vec<VariableId>) -> Vec<VariableId> {
@@ -451,12 +450,12 @@ fn district_selection_targets(
         if graph.static_variable(id).is_some_and(|variable| excluded.contains(&variable)) {
             active.remove(id);
         }
+    }
     let district = graph.district_closure_within(
         &seeds,
         &active,
         &mut antecedent_graph::GraphWorkspace::default(),
     );
-    }
     let mut found = Vec::new();
     for id in district.iter() {
         let variable = variable_at(graph, id.as_usize())?;
