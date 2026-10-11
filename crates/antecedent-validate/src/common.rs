@@ -22,7 +22,7 @@ use antecedent_estimate::{
 use antecedent_identify::IdentifiedEstimand;
 use antecedent_kernels::erfc;
 use antecedent_stats::{
-    FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity_diagnostic,
+    fit_propensity_diagnostic, FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace,
 };
 
 use crate::error::ValidationError;
@@ -333,7 +333,20 @@ pub(crate) fn fit_once(
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
     if !query.effect_modifiers.is_empty() {
+        // The conditional estimator is a different model. Settings that would
+        // change its answer and that it cannot carry are a refusal, not a silent drop.
+        if estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+            || estimator.cluster_ids.is_some()
+            || estimator.multiway_ids.is_some()
+            || estimator.panel_times.is_some()
+            || !matches!(estimator.fit_kind, antecedent_estimate::LinearFitKind::Ols)
+        {
+            return Err(ValidationError::estimation_msg(
+                "conditional refit cannot apply the caller's cluster, panel, SE, or non-OLS fit; those settings would be dropped",
+            ));
+        }
         return ConditionalLinearAdjustment::new()
+            .with_overlap(estimator.overlap)
             .estimate_ate(data, estimand, query)
             .map(|(estimate, _, _)| estimate)
             .map_err(ValidationError::from);
@@ -669,7 +682,11 @@ pub(crate) fn diagnostic_overlap_report_with(
         .zip(cols.scores.iter())
         .map(|(&t, &p)| {
             let p = p.clamp(1e-9, 1.0 - 1e-9);
-            if t > 0.5 { 1.0 / p } else { 1.0 / (1.0 - p) }
+            if t > 0.5 {
+                1.0 / p
+            } else {
+                1.0 / (1.0 - p)
+            }
         })
         .collect();
     Ok(DiagnosticOverlap {
@@ -845,7 +862,11 @@ pub(crate) fn check_replicate_count(replicates: u32) -> Result<(), ValidationErr
 
 /// Cooperative cancellation poll for replicate loops.
 pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ValidationError> {
-    if ctx.cancellation.is_cancelled() { Err(ValidationError::Cancelled) } else { Ok(()) }
+    if ctx.cancellation.is_cancelled() {
+        Err(ValidationError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 /// Mean of the replicate estimates.

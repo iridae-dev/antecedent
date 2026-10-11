@@ -174,6 +174,13 @@ pub enum ValidationOutcome {
         /// Why it was skipped.
         reason: Arc<str>,
     },
+    /// A custom validator declined this problem. The rest of the suite still runs.
+    CustomNotApplicable {
+        /// [`CustomEffectValidator::name`].
+        name: Arc<str>,
+        /// Why it was skipped.
+        reason: Arc<str>,
+    },
 }
 
 /// Ordered suite of validators .
@@ -302,16 +309,7 @@ impl ValidationSuite {
             out.push(computation_outcome(id, self.run_one(id, problem, workspace, ctx))?);
         }
         for custom in &self.custom {
-            out.push(match custom.validate(problem, ctx) {
-                Ok(report) => ValidationOutcome::Report(report),
-                Err(
-                    error @ (ValidationError::Cancelled | ValidationError::NotApplicable { .. }),
-                ) => return Err(error),
-                Err(error) => ValidationOutcome::Failed {
-                    validator: Arc::from(custom.name()),
-                    reason: Arc::from(error.to_string()),
-                },
-            });
+            out.push(custom_outcome(custom.as_ref(), custom.validate(problem, ctx))?);
         }
         Ok(out)
     }
@@ -362,16 +360,7 @@ impl ValidationSuite {
             out.push(computation_outcome(id, outcome)?);
         }
         for custom in &self.custom {
-            out.push(match custom.validate(problem, ctx) {
-                Ok(report) => ValidationOutcome::Report(report),
-                Err(
-                    error @ (ValidationError::Cancelled | ValidationError::NotApplicable { .. }),
-                ) => return Err(error),
-                Err(error) => ValidationOutcome::Failed {
-                    validator: Arc::from(custom.name()),
-                    reason: Arc::from(error.to_string()),
-                },
-            });
+            out.push(custom_outcome(custom.as_ref(), custom.validate(problem, ctx))?);
         }
         Ok(out)
     }
@@ -383,7 +372,9 @@ impl ValidationSuite {
             .iter()
             .filter_map(|o| match o {
                 ValidationOutcome::Report(r) => Some(r.clone()),
-                ValidationOutcome::NotApplicable { .. } | ValidationOutcome::Failed { .. } => None,
+                ValidationOutcome::NotApplicable { .. }
+                | ValidationOutcome::CustomNotApplicable { .. }
+                | ValidationOutcome::Failed { .. } => None,
             })
             .collect()
     }
@@ -404,7 +395,9 @@ impl ValidationSuite {
         outcomes
             .iter()
             .filter_map(|o| match o {
-                ValidationOutcome::Report(_) | ValidationOutcome::Failed { .. } => None,
+                ValidationOutcome::Report(_)
+                | ValidationOutcome::Failed { .. }
+                | ValidationOutcome::CustomNotApplicable { .. } => None,
                 ValidationOutcome::NotApplicable { validator, reason } => {
                     Some((*validator, Arc::clone(reason)))
                 }
@@ -730,6 +723,26 @@ impl ValidationSuite {
     }
 }
 
+fn custom_outcome(
+    custom: &dyn CustomEffectValidator,
+    result: Result<RefutationReport, ValidationError>,
+) -> Result<ValidationOutcome, ValidationError> {
+    match result {
+        Ok(report) => Ok(ValidationOutcome::Report(report)),
+        Err(ValidationError::Cancelled) => Err(ValidationError::Cancelled),
+        Err(ValidationError::NotApplicable { message }) => {
+            Ok(ValidationOutcome::CustomNotApplicable {
+                name: Arc::from(custom.name()),
+                reason: Arc::from(message),
+            })
+        }
+        Err(error) => Ok(ValidationOutcome::Failed {
+            validator: Arc::from(custom.name()),
+            reason: Arc::from(error.to_string()),
+        }),
+    }
+}
+
 fn na(id: ValidatorId, reason: &str) -> ValidationOutcome {
     ValidationOutcome::NotApplicable { validator: id, reason: Arc::from(reason) }
 }
@@ -799,7 +812,9 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
+    use antecedent_estimate::{
+        EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
+    };
     use antecedent_expr::ExprId;
     use antecedent_identify::IdentifiedEstimand;
 
@@ -911,6 +926,63 @@ mod tests {
             .find(|r| r.refuter.as_ref() == "sensitivity.evalue")
             .expect("e-value report");
         assert!(evalue.comparison.is_infinite(), "e-value={}", evalue.comparison);
+    }
+
+    #[test]
+    fn custom_not_applicable_does_not_abort_the_suite() {
+        struct Skip;
+        impl CustomEffectValidator for Skip {
+            fn name(&self) -> &str {
+                "skip"
+            }
+            fn validate(
+                &self,
+                _: &RefutationProblem<'_>,
+                _: &ExecutionContext,
+            ) -> Result<RefutationReport, ValidationError> {
+                Err(ValidationError::NotApplicable { message: "does not apply" })
+            }
+        }
+        struct OkReport;
+        impl CustomEffectValidator for OkReport {
+            fn name(&self) -> &str {
+                "ok"
+            }
+            fn validate(
+                &self,
+                _: &RefutationProblem<'_>,
+                _: &ExecutionContext,
+            ) -> Result<RefutationReport, ValidationError> {
+                Ok(RefutationReport {
+                    refuter: Arc::from("ok"),
+                    original_ate: 0.0,
+                    refuted_ate: 0.0,
+                    comparison: 0.0,
+                    informative: false,
+                    passed: true,
+                    failure_condition: None,
+                    replicates: 0,
+                })
+            }
+        }
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let original =
+            EffectEstimate::new(0.0, 1.0, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let problem = RefutationProblem::new(&data, &estimand, &query, &original, None, None);
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = EstimationWorkspace::default();
+        let outcomes = ValidationSuite::new()
+            .with_custom(Arc::new(Skip))
+            .with_custom(Arc::new(OkReport))
+            .run(&problem, &mut ws, &ctx)
+            .unwrap();
+        assert!(matches!(
+            &outcomes[0],
+            ValidationOutcome::CustomNotApplicable { name, .. } if name.as_ref() == "skip"
+        ));
+        assert!(matches!(&outcomes[1], ValidationOutcome::Report(_)));
     }
 
     #[test]
