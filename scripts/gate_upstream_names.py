@@ -28,12 +28,12 @@ def allowed(path: Path) -> bool:
     if s.startswith("crates/") and "/tests/" in s and "oracle" in Path(s).name:
         return True
     # The allowlist gate itself must mention the pattern.
-    if s == "scripts/gate_upstream_names.sh":
+    if s in {"scripts/gate_upstream_names.sh", "scripts/gate_upstream_names.py"}:
         return True
     # Same reason: the metadata-consistency gate checks that the oracle ledger
     # never names an upstream package its fixture does not record, which requires
     # holding the list of upstream package names.
-    if s == "scripts/gate_metadata_consistency.sh":
+    if s in {"scripts/gate_metadata_consistency.sh", "scripts/gate_metadata_consistency.py"}:
         return True
     # Parity manifests carry structured `external_oracle` / `limitations`
     # fields whose entire purpose is naming the oracle behind a done row (same
