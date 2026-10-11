@@ -31,6 +31,7 @@
 
 use std::io::Cursor;
 
+use antecedent_core::{CanonicalWriter, to_hex};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::mechanism_discrepancy::{
     DiscrepancyConclusion, DiscrepancyOptions, MECHANISM_DISCREPANCY_ALIGNMENT,
@@ -503,35 +504,7 @@ fn summary_of(
     })
 }
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-struct Canon(Vec<u8>);
-
-impl Canon {
-    fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
-}
-
-fn measurement_digest(canon: &mut Canon, m: &MechanismMeasurement) {
+fn measurement_digest(canon: &mut CanonicalWriter, m: &MechanismMeasurement) {
     canon.text(&m.node);
     canon.text(&m.node_unit);
     canon.text(&m.protocol_id);
@@ -543,14 +516,14 @@ fn measurement_digest(canon: &mut Canon, m: &MechanismMeasurement) {
 }
 
 fn evidence_digest(tag: &str, s: &MechanismSummary) -> String {
-    let mut canon = Canon::new(tag);
+    let mut canon = CanonicalWriter::new(tag);
     canon.text(&s.label);
     canon.word(s.n as u64);
     for v in s.xtx.iter().chain(&s.xty) {
         canon.real(*v);
     }
     canon.real(s.yty);
-    canon.finish()
+    to_hex(&canon.finish())
 }
 
 fn identity_of(
@@ -560,11 +533,11 @@ fn identity_of(
     dependence_kind: &str,
     result: &MechanismDiscrepancyResult,
 ) -> MechanismDiscrepancyIdentity {
-    let mut measurement = Canon::new("mechanism_discrepancy_v1.measurement");
+    let mut measurement = CanonicalWriter::new("mechanism_discrepancy_v1.measurement");
     measurement_digest(&mut measurement, &source.measurement);
     measurement_digest(&mut measurement, &target.measurement);
 
-    let mut design = Canon::new("mechanism_discrepancy_v1.design");
+    let mut design = CanonicalWriter::new("mechanism_discrepancy_v1.design");
     design.word(u64::from(options.compare_intercept));
     design.real(options.alpha);
     design.real(options.power);
@@ -575,11 +548,11 @@ fn identity_of(
         design.text(node);
     }
 
-    let measurement_id = measurement.finish();
+    let measurement_id = to_hex(&measurement.finish());
     let source_evidence_id = evidence_digest("mechanism_discrepancy_v1.source", source);
     let target_evidence_id = evidence_digest("mechanism_discrepancy_v1.target", target);
-    let design_id = design.finish();
-    let mut whole = Canon::new("mechanism_discrepancy_v1.identity");
+    let design_id = to_hex(&design.finish());
+    let mut whole = CanonicalWriter::new("mechanism_discrepancy_v1.identity");
     for part in [
         measurement_id.as_str(),
         source_evidence_id.as_str(),
@@ -595,7 +568,7 @@ fn identity_of(
         target_evidence_id,
         null: MECHANISM_DISCREPANCY_NULL.to_owned(),
         design_id,
-        digest: whole.finish(),
+        digest: to_hex(&whole.finish()),
     }
 }
 

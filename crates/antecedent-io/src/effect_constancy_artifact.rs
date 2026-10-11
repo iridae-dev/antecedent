@@ -26,6 +26,7 @@
 
 use std::io::Cursor;
 
+use antecedent_core::{CanonicalWriter, to_hex};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::effect_constancy::{
     ConstancyConclusion, ContrastFamily, EFFECT_CONSTANCY_INFERENCE_CLAIM,
@@ -491,34 +492,6 @@ fn estimate_of(wire: &PartitionWire) -> Result<PartitionEstimate, EffectConstanc
     })
 }
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-struct Canon(Vec<u8>);
-
-impl Canon {
-    fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
-}
-
 fn identity_of(
     estimates: &[PartitionEstimate],
     dependence: &PartitionDependence,
@@ -529,7 +502,7 @@ fn identity_of(
     let mut order: Vec<usize> = (0..k).collect();
     order.sort_by(|&a, &b| estimates[a].label.cmp(&estimates[b].label).then(a.cmp(&b)));
 
-    let mut partitions = Canon::new("effect_constancy_v1.partitions");
+    let mut partitions = CanonicalWriter::new("effect_constancy_v1.partitions");
     partitions.word(k as u64);
     for &i in &order {
         partitions.text(&estimates[i].label);
@@ -537,16 +510,18 @@ fn identity_of(
         partitions.text(support_tag(estimates[i].support));
     }
 
-    let mut estimand = Canon::new("effect_constancy_v1.estimand");
+    let mut estimand = CanonicalWriter::new("effect_constancy_v1.estimand");
     let shared = &estimates[0].estimand;
     estimand.text(&shared.estimand);
     estimand.text(&shared.units);
     estimand.text(&shared.regime);
     estimand.text(&shared.population);
 
-    let mut covariance = Canon::new("effect_constancy_v1.covariance");
+    let mut covariance = CanonicalWriter::new("effect_constancy_v1.covariance");
     match dependence {
-        PartitionDependence::Independent => covariance.text(DEPENDENCE_INDEPENDENT),
+        PartitionDependence::Independent => {
+            covariance.text(DEPENDENCE_INDEPENDENT);
+        }
         PartitionDependence::Covariance(matrix) => {
             covariance.text(DEPENDENCE_COVARIANCE);
             for &i in &order {
@@ -557,9 +532,11 @@ fn identity_of(
         }
     }
 
-    let mut family_id = Canon::new("effect_constancy_v1.family");
+    let mut family_id = CanonicalWriter::new("effect_constancy_v1.family");
     match family {
-        ContrastFamily::AllPairs => family_id.text(FAMILY_ALL_PAIRS),
+        ContrastFamily::AllPairs => {
+            family_id.text(FAMILY_ALL_PAIRS);
+        }
         ContrastFamily::AgainstReference(reference) => {
             family_id.text(FAMILY_AGAINST_REFERENCE);
             family_id.text(reference);
@@ -567,18 +544,18 @@ fn identity_of(
     }
     family_id.real(alpha);
 
-    let mut evidence = Canon::new("effect_constancy_v1.evidence");
+    let mut evidence = CanonicalWriter::new("effect_constancy_v1.evidence");
     for &i in &order {
         evidence.real(estimates[i].effect);
         evidence.real(estimates[i].standard_error);
     }
 
-    let partition_id = partitions.finish();
-    let estimand_id = estimand.finish();
-    let covariance_id = covariance.finish();
-    let family_digest = family_id.finish();
-    let evidence_id = evidence.finish();
-    let mut whole = Canon::new("effect_constancy_v1.identity");
+    let partition_id = to_hex(&partitions.finish());
+    let estimand_id = to_hex(&estimand.finish());
+    let covariance_id = to_hex(&covariance.finish());
+    let family_digest = to_hex(&family_id.finish());
+    let evidence_id = to_hex(&evidence.finish());
+    let mut whole = CanonicalWriter::new("effect_constancy_v1.identity");
     for part in [
         partition_id.as_str(),
         estimand_id.as_str(),
@@ -596,7 +573,7 @@ fn identity_of(
         null: EFFECT_CONSTANCY_NULL.to_owned(),
         family_id: family_digest,
         evidence_id,
-        digest: whole.finish(),
+        digest: to_hex(&whole.finish()),
     }
 }
 

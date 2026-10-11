@@ -36,6 +36,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
+use antecedent_core::{CanonicalWriter, to_hex};
 use antecedent_counterfactual::transported_gate::{PopulationRole, RegimeFactorKey};
 use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
@@ -685,29 +686,19 @@ fn evaluate(
 // Identity
 // ---------------------------------------------------------------------------------------------
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-struct Canon(Vec<u8>);
+/// Domain encodings layered over the shared [`CanonicalWriter`] primitives.
+trait CanonEncode {
+    fn flag(&mut self, value: bool);
+    fn affine(&mut self, affine: &AffineWire);
+    fn model(&mut self, model: &ModelWire);
+    fn law(&mut self, law: &LawWire);
+    fn selections(&mut self, selections: &[SelectionWire]);
+    fn assignment(&mut self, assignment: &AssignmentWire);
+    fn premises(&mut self, premises: PremisesWire);
+    fn evidence(&mut self, evidence: &[EvidenceWire]);
+}
 
-impl Canon {
-    fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
+impl CanonEncode for CanonicalWriter {
     fn flag(&mut self, value: bool) {
         self.word(u64::from(value));
     }
@@ -785,13 +776,9 @@ impl Canon {
             self.text(&item.label);
         }
     }
-
-    fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
 }
 
-fn strings(canon: &mut Canon, items: &[String]) {
+fn strings(canon: &mut CanonicalWriter, items: &[String]) {
     canon.word(items.len() as u64);
     for item in items {
         canon.text(item);
@@ -799,7 +786,7 @@ fn strings(canon: &mut Canon, items: &[String]) {
 }
 
 fn result_digest(result: &TransportedCounterfactualResultWire) -> String {
-    let mut c = Canon::new("transported_counterfactual_v1.result");
+    let mut c = CanonicalWriter::new("transported_counterfactual_v1.result");
     c.real(result.target_contrast);
     c.real(result.source_contrast);
     c.word(result.unit_contrasts.len() as u64);
@@ -816,28 +803,28 @@ fn result_digest(result: &TransportedCounterfactualResultWire) -> String {
     strings(&mut c, &result.derivation.checked);
     strings(&mut c, &result.derivation.declared);
     c.text(&result.derivation.claim);
-    c.finish()
+    to_hex(&c.finish())
 }
 
 fn identity_of(
     request: &TransportedCounterfactualRequestWire,
     result: &TransportedCounterfactualResultWire,
 ) -> TransportedCounterfactualIdentity {
-    let mut model = Canon::new("transported_counterfactual_v1.model");
+    let mut model = CanonicalWriter::new("transported_counterfactual_v1.model");
     model.model(&request.model);
-    let mut source = Canon::new("transported_counterfactual_v1.source_law");
+    let mut source = CanonicalWriter::new("transported_counterfactual_v1.source_law");
     source.law(&request.source_law);
-    let mut target = Canon::new("transported_counterfactual_v1.target_law");
+    let mut target = CanonicalWriter::new("transported_counterfactual_v1.target_law");
     target.law(&request.target_law);
-    let mut selection = Canon::new("transported_counterfactual_v1.selection");
+    let mut selection = CanonicalWriter::new("transported_counterfactual_v1.selection");
     selection.selections(&request.selections);
-    let mut assignment = Canon::new("transported_counterfactual_v1.assignment");
+    let mut assignment = CanonicalWriter::new("transported_counterfactual_v1.assignment");
     assignment.assignment(&request.assignment);
-    let mut premises = Canon::new("transported_counterfactual_v1.premises");
+    let mut premises = CanonicalWriter::new("transported_counterfactual_v1.premises");
     premises.premises(request.premises);
-    let mut evidence = Canon::new("transported_counterfactual_v1.evidence");
+    let mut evidence = CanonicalWriter::new("transported_counterfactual_v1.evidence");
     evidence.evidence(&request.evidence);
-    let mut spec = Canon::new("transported_counterfactual_v1.spec");
+    let mut spec = CanonicalWriter::new("transported_counterfactual_v1.spec");
     spec.model(&request.model);
     spec.law(&request.source_law);
     spec.law(&request.target_law);
@@ -846,14 +833,14 @@ fn identity_of(
     spec.premises(request.premises);
     spec.evidence(&request.evidence);
     TransportedCounterfactualIdentity {
-        model_digest: model.finish(),
-        source_law_digest: source.finish(),
-        target_law_digest: target.finish(),
-        selection_digest: selection.finish(),
-        assignment_digest: assignment.finish(),
-        premises_digest: premises.finish(),
-        evidence_digest: evidence.finish(),
-        spec_id: spec.finish(),
+        model_digest: to_hex(&model.finish()),
+        source_law_digest: to_hex(&source.finish()),
+        target_law_digest: to_hex(&target.finish()),
+        selection_digest: to_hex(&selection.finish()),
+        assignment_digest: to_hex(&assignment.finish()),
+        premises_digest: to_hex(&premises.finish()),
+        evidence_digest: to_hex(&evidence.finish()),
+        spec_id: to_hex(&spec.finish()),
         result_digest: result_digest(result),
     }
 }

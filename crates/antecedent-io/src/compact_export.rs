@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::ScientificQuantity;
+use antecedent_core::{CanonicalWriter, ScientificQuantity, to_hex};
 use serde::{Deserialize, Serialize};
 
 use crate::container::{
@@ -28,6 +28,7 @@ use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::quantity_wire::ScientificQuantityWire;
 use crate::reader::ArtifactReader;
+use crate::vector_treatment_artifact::CanonicalSize;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// Body format version this module reads and writes.
@@ -259,35 +260,8 @@ pub struct CompactExportBody {
     pub identity: String,
 }
 
-struct Canon(blake3::Hasher);
-
-impl Canon {
-    fn new(domain: &str) -> Self {
-        let mut canon = Self(blake3::Hasher::new());
-        canon.text(domain);
-        canon
-    }
-
-    fn count(&mut self, value: usize) {
-        self.0.update(&u64::try_from(value).unwrap_or(u64::MAX).to_le_bytes());
-    }
-
-    fn text(&mut self, value: &str) {
-        self.count(value.len());
-        self.0.update(value.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.0.update(&value.to_bits().to_le_bytes());
-    }
-
-    fn finish(self) -> String {
-        self.0.finalize().to_hex().to_string()
-    }
-}
-
-fn hash_quantity(canon: &mut Canon, quantity: &ScientificQuantityWire) {
-    canon.count(usize::from(quantity.version));
+fn hash_quantity(canon: &mut CanonicalWriter, quantity: &ScientificQuantityWire) {
+    canon.size(usize::from(quantity.version));
     for field in [
         &quantity.variable_id,
         &quantity.variable_name,
@@ -298,9 +272,9 @@ fn hash_quantity(canon: &mut Canon, quantity: &ScientificQuantityWire) {
     ] {
         canon.text(field);
     }
-    canon.count(quantity.horizon as usize);
+    canon.size(quantity.horizon as usize);
     canon.text(&quantity.functional_id);
-    canon.count(quantity.conditioning.len());
+    canon.size(quantity.conditioning.len());
     for condition in &quantity.conditioning {
         canon.text(&condition.variable_id);
         canon.text(&condition.value_id);
@@ -308,7 +282,7 @@ fn hash_quantity(canon: &mut Canon, quantity: &ScientificQuantityWire) {
     canon.text(&quantity.transform_id);
 }
 
-fn hash_support(canon: &mut Canon, support: &InputSupport) {
+fn hash_support(canon: &mut CanonicalWriter, support: &InputSupport) {
     match support {
         InputSupport::Range { lo, hi } => {
             canon.text("range");
@@ -317,7 +291,7 @@ fn hash_support(canon: &mut Canon, support: &InputSupport) {
         }
         InputSupport::Levels { levels } => {
             canon.text("levels");
-            canon.count(levels.len());
+            canon.size(levels.len());
             for level in levels {
                 canon.text(level);
             }
@@ -325,9 +299,11 @@ fn hash_support(canon: &mut Canon, support: &InputSupport) {
     }
 }
 
-fn hash_term(canon: &mut Canon, term: &TermSpec) {
+fn hash_term(canon: &mut CanonicalWriter, term: &TermSpec) {
     match term {
-        TermSpec::Intercept => canon.text("intercept"),
+        TermSpec::Intercept => {
+            canon.text("intercept");
+        }
         TermSpec::Linear { quantity } => {
             canon.text("linear");
             canon.text(quantity);
@@ -335,7 +311,7 @@ fn hash_term(canon: &mut Canon, term: &TermSpec) {
         TermSpec::Power { quantity, degree } => {
             canon.text("power");
             canon.text(quantity);
-            canon.count(*degree as usize);
+            canon.size(*degree as usize);
         }
         TermSpec::OneHot { quantity, level } => {
             canon.text("one_hot");
@@ -347,22 +323,22 @@ fn hash_term(canon: &mut Canon, term: &TermSpec) {
 
 impl CompactExportBody {
     fn premises_digest(&self) -> String {
-        let mut canon = Canon::new("antecedent.compact_export.v1.premises");
-        canon.count(usize::from(self.version));
+        let mut canon = CanonicalWriter::new("antecedent.compact_export.v1.premises");
+        canon.size(usize::from(self.version));
         hash_quantity(&mut canon, &self.response);
-        canon.count(self.inputs.len());
+        canon.size(self.inputs.len());
         for input in &self.inputs {
             hash_quantity(&mut canon, &input.quantity);
             hash_support(&mut canon, &input.support);
         }
-        canon.count(self.terms.len());
+        canon.size(self.terms.len());
         for term in &self.terms {
             hash_term(&mut canon, term);
         }
-        canon.count(self.mask.len());
+        canon.size(self.mask.len());
         for region in &self.mask {
             canon.text(&region.id);
-            canon.count(region.conditions.len());
+            canon.size(region.conditions.len());
             for condition in &region.conditions {
                 canon.text(&condition.quantity);
                 hash_support(&mut canon, &condition.within);
@@ -371,20 +347,20 @@ impl CompactExportBody {
         canon.text(&self.scope.point);
         canon.text(&self.scope.uncertainty);
         canon.text(&self.scope.calibration);
-        canon.finish()
+        to_hex(&canon.finish())
     }
 
     fn data_digest(&self) -> String {
-        let mut canon = Canon::new("antecedent.compact_export.v1.data");
-        canon.count(self.coefficients.len());
+        let mut canon = CanonicalWriter::new("antecedent.compact_export.v1.data");
+        canon.size(self.coefficients.len());
         for value in &self.coefficients {
             canon.real(*value);
         }
-        canon.count(self.covariance.len());
+        canon.size(self.covariance.len());
         for value in &self.covariance {
             canon.real(*value);
         }
-        canon.finish()
+        to_hex(&canon.finish())
     }
 
     /// Recompute `(premises, data, identity)` from the semantic fields only.
@@ -392,10 +368,10 @@ impl CompactExportBody {
     pub fn compute_digests(&self) -> (String, String, String) {
         let premises = self.premises_digest();
         let data = self.data_digest();
-        let mut canon = Canon::new("antecedent.compact_export.v1.identity");
+        let mut canon = CanonicalWriter::new("antecedent.compact_export.v1.identity");
         canon.text(&premises);
         canon.text(&data);
-        (premises, data, canon.finish())
+        (premises, data, to_hex(&canon.finish()))
     }
 
     /// Overwrite the stored digests and identity with the recomputed ones.

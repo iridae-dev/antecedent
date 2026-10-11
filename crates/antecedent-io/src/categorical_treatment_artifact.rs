@@ -33,6 +33,7 @@
 
 use std::io::Cursor;
 
+use antecedent_core::{CanonicalWriter, to_hex};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::categorical_treatment::{
     CATEGORICAL_INFERENCE_CLAIM, CATEGORICAL_OMNIBUS_NULL, CategoricalSummary,
@@ -47,7 +48,7 @@ use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_
 use crate::convert::{from_cbor, to_cbor};
 use crate::reader::ArtifactReader;
 use crate::vector_treatment_artifact::{
-    AdjustmentColumnRequest, Canon, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
+    AdjustmentColumnRequest, CanonicalSize, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
     VECTOR_TREATMENT_MAX_ADJUSTMENT, WaldWire, bytes_to_reals, reals_to_bytes,
 };
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
@@ -701,8 +702,8 @@ fn canonical_levels(spec: &CategoricalSpecWire) -> Vec<String> {
 }
 
 /// The canonical encoding of the stored result section.
-fn result_canon(result: &CategoricalResultWire) -> Canon {
-    let mut outcome = Canon::new("categorical_treatment_v1.result");
+fn result_canon(result: &CategoricalResultWire) -> CanonicalWriter {
+    let mut outcome = CanonicalWriter::new("categorical_treatment_v1.result");
     for c in &result.coefficients {
         outcome.text(&c.name);
         outcome.real(c.estimate);
@@ -745,11 +746,11 @@ fn identity_of(
     result: &CategoricalResultWire,
 ) -> CategoricalTreatmentIdentity {
     let spec = &decl.spec;
-    let mut snapshot = Canon::new("categorical_treatment_v1.snapshot");
+    let mut snapshot = CanonicalWriter::new("categorical_treatment_v1.snapshot");
     snapshot.text(&decl.row_snapshot);
     snapshot.size(decl.n_rows);
 
-    let mut adjustment = Canon::new("categorical_treatment_v1.adjustment_set");
+    let mut adjustment = CanonicalWriter::new("categorical_treatment_v1.adjustment_set");
     let mut sorted: Vec<&str> = decl.adjustment.iter().map(String::as_str).collect();
     sorted.sort_unstable();
     adjustment.size(sorted.len());
@@ -757,7 +758,7 @@ fn identity_of(
         adjustment.text(name);
     }
 
-    let mut scale = Canon::new("categorical_treatment_v1.level_scale");
+    let mut scale = CanonicalWriter::new("categorical_treatment_v1.level_scale");
     scale.text(&spec.scale);
     scale.text(&spec.reference);
     let levels = canonical_levels(spec);
@@ -766,7 +767,7 @@ fn identity_of(
         scale.text(level);
     }
 
-    let mut design = Canon::new("categorical_treatment_v1.design");
+    let mut design = CanonicalWriter::new("categorical_treatment_v1.design");
     design.text(replay.tag());
     design.size(decl.adjustment.len());
     for name in &decl.adjustment {
@@ -788,10 +789,10 @@ fn identity_of(
         design.real(*value);
     }
 
-    let mut covariance = Canon::new("categorical_treatment_v1.covariance");
+    let mut covariance = CanonicalWriter::new("categorical_treatment_v1.covariance");
     covariance.text(&spec.covariance);
 
-    let mut family = Canon::new("categorical_treatment_v1.family");
+    let mut family = CanonicalWriter::new("categorical_treatment_v1.family");
     family.word(spec.min_level_rows);
     family.size(spec.pairwise.len());
     for (from, to) in &spec.pairwise {
@@ -804,14 +805,14 @@ fn identity_of(
 
     let monotonicity_null =
         result.monotonicity.as_ref().map(|m| m.null.clone()).unwrap_or_default();
-    let snapshot_id = snapshot.finish();
-    let adjustment_set_id = adjustment.finish();
-    let level_scale_id = scale.finish();
-    let design_id = design.finish();
-    let covariance_id = covariance.finish();
-    let family_id = family.finish();
-    let result_id = outcome.finish();
-    let mut whole = Canon::new("categorical_treatment_v1.identity");
+    let snapshot_id = to_hex(&snapshot.finish());
+    let adjustment_set_id = to_hex(&adjustment.finish());
+    let level_scale_id = to_hex(&scale.finish());
+    let design_id = to_hex(&design.finish());
+    let covariance_id = to_hex(&covariance.finish());
+    let family_id = to_hex(&family.finish());
+    let result_id = to_hex(&outcome.finish());
+    let mut whole = CanonicalWriter::new("categorical_treatment_v1.identity");
     for part in [
         snapshot_id.as_str(),
         adjustment_set_id.as_str(),
@@ -835,7 +836,7 @@ fn identity_of(
         omnibus_null: CATEGORICAL_OMNIBUS_NULL.to_owned(),
         monotonicity_null,
         result_id,
-        digest: whole.finish(),
+        digest: to_hex(&whole.finish()),
     }
 }
 

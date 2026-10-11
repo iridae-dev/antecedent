@@ -34,6 +34,7 @@
 use std::collections::BTreeSet;
 use std::io::Cursor;
 
+use antecedent_core::{CanonicalWriter, to_hex};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::vector_treatment::{
     Contrast, DesignSummary, NamedColumn, TreatmentColumn, VECTOR_TREATMENT_INFERENCE_CLAIM,
@@ -437,35 +438,14 @@ fn core_contrast(wire: &ContrastWire) -> Contrast {
     Contrast { name: wire.name.clone(), weights: wire.weights.clone() }
 }
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-pub(crate) struct Canon(Vec<u8>);
+/// Count words enter the canonical stream as `u64`, saturating at `u64::MAX`.
+pub(crate) trait CanonicalSize {
+    fn size(&mut self, value: usize) -> &mut Self;
+}
 
-impl Canon {
-    pub(crate) fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    pub(crate) fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    pub(crate) fn size(&mut self, value: usize) {
-        self.word(u64::try_from(value).unwrap_or(u64::MAX));
-    }
-
-    pub(crate) fn text(&mut self, text: &str) {
-        self.size(text.len());
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    pub(crate) fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    pub(crate) fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
+impl CanonicalSize for CanonicalWriter {
+    fn size(&mut self, value: usize) -> &mut Self {
+        self.word(u64::try_from(value).unwrap_or(u64::MAX))
     }
 }
 
@@ -572,24 +552,24 @@ fn identity_of(
     numbers: &[f64],
     result: &VectorResultWire,
 ) -> VectorTreatmentIdentity {
-    let mut snapshot = Canon::new("vector_treatment_v1.snapshot");
+    let mut snapshot = CanonicalWriter::new("vector_treatment_v1.snapshot");
     snapshot.text(&decl.row_snapshot);
     snapshot.size(decl.n_rows);
 
-    let mut adjustment = Canon::new("vector_treatment_v1.adjustment_set");
+    let mut adjustment = CanonicalWriter::new("vector_treatment_v1.adjustment_set");
     let sorted: BTreeSet<&str> = decl.adjustment.iter().map(String::as_str).collect();
     adjustment.size(sorted.len());
     for name in sorted {
         adjustment.text(name);
     }
 
-    let mut treatment = Canon::new("vector_treatment_v1.treatments");
+    let mut treatment = CanonicalWriter::new("vector_treatment_v1.treatments");
     treatment.size(decl.treatments.len());
     for name in &decl.treatments {
         treatment.text(name);
     }
 
-    let mut design = Canon::new("vector_treatment_v1.design");
+    let mut design = CanonicalWriter::new("vector_treatment_v1.design");
     design.text(replay);
     design.size(decl.adjustment.len());
     for name in &decl.adjustment {
@@ -600,10 +580,10 @@ fn identity_of(
         design.real(*value);
     }
 
-    let mut covariance = Canon::new("vector_treatment_v1.covariance");
+    let mut covariance = CanonicalWriter::new("vector_treatment_v1.covariance");
     covariance.text(&decl.covariance);
 
-    let mut contrasts = Canon::new("vector_treatment_v1.contrasts");
+    let mut contrasts = CanonicalWriter::new("vector_treatment_v1.contrasts");
     contrasts.size(decl.contrasts.len());
     for contrast in &decl.contrasts {
         contrasts.text(&contrast.name);
@@ -616,7 +596,7 @@ fn identity_of(
         }
     }
 
-    let mut outcome = Canon::new("vector_treatment_v1.result");
+    let mut outcome = CanonicalWriter::new("vector_treatment_v1.result");
     for c in &result.coefficients {
         outcome.text(&c.name);
         outcome.real(c.estimate);
@@ -635,14 +615,14 @@ fn identity_of(
     outcome.real(result.joint_wald.p_value);
     outcome.real(result.residual_variance);
 
-    let snapshot_id = snapshot.finish();
-    let adjustment_set_id = adjustment.finish();
-    let treatment_id = treatment.finish();
-    let design_id = design.finish();
-    let covariance_id = covariance.finish();
-    let contrast_id = contrasts.finish();
-    let result_id = outcome.finish();
-    let mut whole = Canon::new("vector_treatment_v1.identity");
+    let snapshot_id = to_hex(&snapshot.finish());
+    let adjustment_set_id = to_hex(&adjustment.finish());
+    let treatment_id = to_hex(&treatment.finish());
+    let design_id = to_hex(&design.finish());
+    let covariance_id = to_hex(&covariance.finish());
+    let contrast_id = to_hex(&contrasts.finish());
+    let result_id = to_hex(&outcome.finish());
+    let mut whole = CanonicalWriter::new("vector_treatment_v1.identity");
     for part in [
         snapshot_id.as_str(),
         adjustment_set_id.as_str(),
@@ -664,7 +644,7 @@ fn identity_of(
         contrast_id,
         null: VECTOR_TREATMENT_NULL.to_owned(),
         result_id,
-        digest: whole.finish(),
+        digest: to_hex(&whole.finish()),
     }
 }
 

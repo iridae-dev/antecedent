@@ -27,7 +27,7 @@
 
 use std::io::Cursor;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CanonicalWriter, ExecutionContext, to_hex};
 use antecedent_counterfactual::temporal_cross_world::{
     FactualUnitHistory, HistoryId, MAX_UNITS, MECHANISM_CLASS, NamedActionHistory, NodeMechanism,
     RefusingWitness, SharedAbductionReceipt, SnapshotId, TemporalCounterfactualError,
@@ -550,36 +550,8 @@ fn spec_of(
     })
 }
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-struct Canon(Vec<u8>);
-
-impl Canon {
-    fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
-}
-
 fn spec_id(request: &TemporalCounterfactualRequestWire) -> String {
-    let mut c = Canon::new("temporal_counterfactual_v1.spec");
+    let mut c = CanonicalWriter::new("temporal_counterfactual_v1.spec");
     c.text(&request.snapshot);
     c.word(u64::from(request.graph.horizon));
     c.word(u64::from(request.graph.latent_confounding));
@@ -606,7 +578,9 @@ fn spec_id(request: &TemporalCounterfactualRequestWire) -> String {
                 c.word(1);
                 c.real(h);
             }
-            None => c.word(0),
+            None => {
+                c.word(0);
+            }
         }
     }
     let mut factual: Vec<&FactualUnitWire> = request.factual.iter().collect();
@@ -633,7 +607,7 @@ fn spec_id(request: &TemporalCounterfactualRequestWire) -> String {
             c.text(u);
         }
     }
-    c.finish()
+    to_hex(&c.finish())
 }
 
 fn identity_of(
