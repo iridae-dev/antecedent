@@ -28,13 +28,13 @@ use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientationRule, OrientationState,
-    run_static_orientation_to_fixed_point,
+    run_static_orientation_to_fixed_point, MeekR1, MeekR2, MeekR3, MeekR4, OrientationRule,
+    OrientationState,
 };
-use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
+use crate::pc::{collect_float_columns, Pc, StaticCpdagDiscoveryResult};
 use crate::result::{
-    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink, discovery_assumptions,
+    discovery_assumptions, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
+    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
 };
 
 /// Chickering GES over tabular data → CPDAG.
@@ -581,6 +581,27 @@ fn delete_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, h: &[DenseNodeId]
     is_clique(cpdag, &rest)
 }
 
+/// Parent set that `insert_delta` actually scores: `Pa(Y) ∪ NA(Y,X) ∪ T ∪ {X}`.
+///
+/// Counting only `Pa` and `T` lets neighbours in `NA(Y,X)` push a node past
+/// `max_parents` while the operator is still accepted.
+fn insert_scored_parents(
+    cpdag: &Cpdag,
+    x: DenseNodeId,
+    y: DenseNodeId,
+    t: &[DenseNodeId],
+) -> usize {
+    let na = na_yx(cpdag, y, x);
+    let mut base = parents_u32(cpdag, y);
+    for n in na.iter().chain(t.iter()) {
+        base.push(n.raw());
+    }
+    base.push(x.raw());
+    base.sort_unstable();
+    base.dedup();
+    base.len()
+}
+
 fn parents_u32(cpdag: &Cpdag, y: DenseNodeId) -> Vec<u32> {
     let mut out: Vec<_> =
         cpdag.parents(y).into_iter().map(antecedent_graph::DenseNodeId::raw).collect();
@@ -729,7 +750,7 @@ fn best_insert(
                 if !insert_valid(cpdag, x, y, &t) {
                     continue;
                 }
-                let pa_len = parents_u32(cpdag, y).len() + 1 + t.len();
+                let pa_len = insert_scored_parents(cpdag, x, y, &t);
                 if pa_len > max_parents {
                     continue;
                 }
@@ -849,7 +870,7 @@ fn best_reverse(
                 if !insert_valid(&tmp, y, x, &t) {
                     continue;
                 }
-                let pa_len = parents_u32(&tmp, x).len() + 1 + t.len();
+                let pa_len = insert_scored_parents(&tmp, y, x, &t);
                 if pa_len > max_parents {
                     continue;
                 }
@@ -1123,6 +1144,49 @@ mod tests {
         // Chain skeleton should keep 0—1 and 1—2; 0—2 may be absent.
         assert!(g.has_edge(d(0), d(1)), "expected edge 0-1");
         assert!(g.has_edge(d(1), d(2)), "expected edge 1-2");
+    }
+
+    #[test]
+    fn max_parents_counts_na_neighbors_that_are_scored() {
+        // Undirected edges 0—2 and 1—2. Inserting 0→1 scores parents {0, 2}
+        // because 2 ∈ NA(1, 0), even though T is empty and 1 has no directed parents.
+        // The old gate counted `|Pa| + 1 + |T| = 1` and accepted the operator.
+        let mut cpdag = Cpdag::with_variables(3);
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let z = DenseNodeId::from_raw(2);
+        cpdag.insert_undirected(x, z).unwrap();
+        cpdag.insert_undirected(y, z).unwrap();
+        assert_eq!(insert_scored_parents(&cpdag, x, y, &[]), 2);
+        assert!(insert_valid(&cpdag, x, y, &[]));
+
+        let (data, vars) = gaussian_chain_data(40);
+        let mut flat = Vec::new();
+        for v in &vars {
+            flat.extend(data.float64_values(*v).unwrap());
+        }
+        let score = GraphScoreData::new(40, vars.len(), Arc::from(flat)).unwrap();
+        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+            data_version: 1,
+            family: GraphScoreFamily::GaussianBic,
+            var_fingerprint: vars.len() as u64,
+            penalty_fingerprint: 40,
+        });
+        let best = best_insert(
+            &cpdag,
+            &score,
+            &mut cache,
+            1,
+            12,
+            None,
+            &DiscoveryConstraints::default(),
+            &vars,
+        )
+        .unwrap();
+        assert!(
+            best.is_none(),
+            "an insert whose scored parent set exceeds max_parents must be skipped"
+        );
     }
 
     #[test]
