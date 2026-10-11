@@ -131,7 +131,7 @@ fn known_truth_curve_under_both_designs() {
         // Provider provenance for every fitted nuisance, the fold scheme and overlap.
         assert_eq!(result.provenance.len(), 2 * 3);
         assert!(result.provenance.iter().all(|p| !p.implementation.is_empty()));
-        assert_eq!(result.folds.scheme, "stratified_round_robin_source_and_target");
+        assert_eq!(result.folds.scheme, "stratified_seeded_source_and_target");
         assert_eq!(result.folds.assignment.len(), 7000);
         assert!(result.overlap.probability_min > 0.05 && result.overlap.max_odds_weight > 1.0);
         assert!(
@@ -1294,7 +1294,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     let swapped = mutate(
         &original,
         |w| {
-            let other = w.result.folds.assignment.iter().position(|f| *f != 0).unwrap();
+            let first = w.result.folds.assignment[0];
+            let other = w.result.folds.assignment.iter().position(|f| *f != first).unwrap();
             w.result.folds.assignment.swap(0, other);
         },
         true,

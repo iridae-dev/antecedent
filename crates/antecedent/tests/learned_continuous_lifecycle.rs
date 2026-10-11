@@ -649,7 +649,7 @@ fn the_exported_point_is_replayed_by_an_independent_consumer() {
         // The artifact carries the certificate, provider provenance, folds and the point.
         assert_eq!(wire.certificate.formula, "standardize");
         assert_eq!(wire.result.provenance.len(), 9);
-        assert_eq!(wire.result.folds.scheme, "stratified_round_robin_source_arm_and_target");
+        assert_eq!(wire.result.folds.scheme, "stratified_seeded_source_arm_and_target");
         assert_eq!(wire.variable_names, ["z", "a", "y"]);
         assert_eq!(wire.result.uncertainty.status, "point_only");
         // Consumption re-exports to the same bytes without any fitting.
@@ -702,7 +702,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     let folds = mutate(
         &original,
         |w| {
-            let other = w.result.folds.assignment.iter().position(|f| *f != 0).unwrap();
+            let first = w.result.folds.assignment[0];
+            let other = w.result.folds.assignment.iter().position(|f| *f != first).unwrap();
             w.result.folds.assignment.swap(0, other);
         },
         true,

@@ -332,7 +332,7 @@ fn artifact_unresealed_tampering_does_not_replay() {
 
     // A tampered per-unit draw digest in the receipt.
     let mut forged_meta = meta.clone();
-    forged_meta.receipt.unit_draws[0].digest = "00".repeat(16);
+    forged_meta.receipt.unit_draws[0].digest = "00".repeat(32);
     let reencoded = encode_parts(&forged_meta, &values, "forged").unwrap();
     assert_eq!(
         TemporalCounterfactualArtifact::from_bytes(&reencoded, None, &ctx()).unwrap_err(),
