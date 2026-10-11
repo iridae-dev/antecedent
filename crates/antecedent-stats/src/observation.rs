@@ -10,7 +10,7 @@
     )
 )]
 
-use antecedent_kernels::{norm_cdf, norm_sf};
+use antecedent_kernels::{log_norm_pdf, log_norm_sf, norm_cdf};
 
 use crate::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, StatsError, fit_glm,
@@ -454,34 +454,6 @@ fn require_ordered(lower: f64, upper: f64) -> Result<(), StatsError> {
     } else {
         Err(StatsError::Unsupported { message: "Gaussian observation bounds must be ordered" })
     }
-}
-
-/// Standardized value from which `ln Φ̄(z)` switches from `ln(norm_sf(z))` (which underflows
-/// to `−∞` near `z ≈ 38.6`) to its asymptotic series.
-const LOG_SF_ASYMPTOTIC_FROM: f64 = 30.0;
-
-/// `ln φ(z)`, computed analytically so it stays finite (`−z²/2 − ½ ln 2π`) where `φ(z)`
-/// underflows.
-fn log_norm_pdf(z: f64) -> f64 {
-    -0.5 * z * z - 0.5 * (2.0 * std::f64::consts::PI).ln()
-}
-
-/// `ln Φ̄(z)` (log survival function) without underflow in the upper tail.
-///
-/// Beyond [`LOG_SF_ASYMPTOTIC_FROM`] it uses the Mills-ratio series
-/// `Φ̄(z) = φ(z)/z · (1 − 1/z² + 3/z⁴ − 15/z⁶ + 105/z⁸ − 945/z¹⁰ + …)`, whose truncation
-/// error there is below `2e-14`.
-fn log_norm_sf(z: f64) -> f64 {
-    if z < LOG_SF_ASYMPTOTIC_FROM {
-        return norm_sf(z).ln();
-    }
-    if z == f64::INFINITY {
-        return f64::NEG_INFINITY;
-    }
-    let inv2 = 1.0 / (z * z);
-    let series = 1.0
-        - inv2 * (1.0 - 3.0 * inv2 * (1.0 - 5.0 * inv2 * (1.0 - 7.0 * inv2 * (1.0 - 9.0 * inv2))));
-    log_norm_pdf(z) - z.ln() + series.ln()
 }
 
 /// `ln(1 − eᵈ)` for `d ≤ 0`.

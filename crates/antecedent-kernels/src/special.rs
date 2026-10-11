@@ -181,6 +181,64 @@ pub fn norm_pdf(x: f64) -> f64 {
     INV_SQRT_2PI * (-0.5 * x * x).exp()
 }
 
+/// `ln √(2π) = ½ ln 2π`.
+const LN_SQRT_2PI: f64 = 0.918_938_533_204_672_8;
+
+/// Log standard-normal density `ln φ(x) = −x²/2 − ½ ln 2π`, finite where `φ` underflows.
+#[must_use]
+pub fn log_norm_pdf(x: f64) -> f64 {
+    -LN_SQRT_2PI - 0.5 * x * x
+}
+
+/// Left-tail Mills ratio pieces for `t ≥ 8`: returns `(ratio, delta)` with
+/// `ratio = φ(t) / Φ(−t) = t + delta` and `delta = 1 / (t + 1 / (t + 2 / (t + 3 / …)))`.
+///
+/// The continued fraction (64 levels) is evaluated bottom-up. Keeping `delta` separate avoids
+/// subtracting nearly equal values when the observed curvature `ratio · delta` is needed.
+/// Accurate to a few ulps for `t ≥ 3`; not intended for smaller `t`.
+#[must_use]
+pub fn mills_left_tail(t: f64) -> (f64, f64) {
+    let mut delta = 0.0;
+    for k in (1..=64).rev() {
+        delta = f64::from(k) / (t + delta);
+    }
+    (t + delta, delta)
+}
+
+/// Below this `x`, [`log_norm_cdf`] switches from `ln Φ(x)` to the Mills continued fraction.
+const LOG_CDF_TAIL_FROM: f64 = -8.0;
+
+/// Numerically stable `ln Φ(x)`, the single owner of the log normal tail.
+///
+/// Branch policy (each branch is the accurate one for its range):
+///
+/// * `x ≤ −8`: `ln φ(x) − ln(ratio)` from the Mills continued fraction
+///   ([`mills_left_tail`]). It never underflows (`x = −40` gives `−804.6`) and keeps relative
+///   accuracy at a few ulps of the result; `norm_cdf(x).ln()` is accurate to `~1e-16`
+///   absolute here but hits subnormals near `x ≈ −37.5` and `0` at `−38.6`.
+/// * `−8 < x ≤ 0`: `ln Φ(x)` through the Cody CDF.
+/// * `x > 0`: `ln_1p(−Φ(−x))`, which keeps the tiny negative values (`−6.2e−16` at `x = 8`)
+///   that `ln Φ(x)` would round to `0`.
+///
+/// `ln Φ̄(z) = log_norm_cdf(−z)`; checked against 60-digit `mpmath` over `[−40, 10]`.
+#[must_use]
+pub fn log_norm_cdf(x: f64) -> f64 {
+    if x <= LOG_CDF_TAIL_FROM {
+        return log_norm_pdf(x) - mills_left_tail(-x).0.ln();
+    }
+    if x > 0.0 {
+        return (-norm_cdf(-x)).ln_1p();
+    }
+    norm_cdf(x).ln()
+}
+
+/// Numerically stable log survival function `ln Φ̄(z) = ln Φ(−z)`, without underflow in the
+/// upper tail. See [`log_norm_cdf`] for the branch policy.
+#[must_use]
+pub fn log_norm_sf(z: f64) -> f64 {
+    log_norm_cdf(-z)
+}
+
 /// The 97.5% standard-normal quantile `z_{0.975}`, the two-sided 95% critical value.
 ///
 /// The single workspace owner of the constant a Wald 95% interval multiplies its standard
@@ -360,6 +418,55 @@ mod tests {
         // Symmetry holds to rounding.
         for p in [1e-10, 1e-4, 0.2, 0.4] {
             assert!((norm_inv(p) + norm_inv(1.0 - p)).abs() < 1e-8 * norm_inv(1.0 - p).abs().max(1.0));
+        }
+    }
+
+    #[test]
+    fn log_norm_cdf_matches_mpmath_across_branches() {
+        // `mpmath.log(mpmath.ncdf(x))` at 60 digits; covers the 8-40 sigma band that the
+        // previous prob (cf below -8) and stats (series from 30) owners treated differently,
+        // both branch boundaries, and the upper side where ln Φ is a tiny negative.
+        let cases: [(f64, f64); 17] = [
+            (-40.0, -804.608_442_013_753_8),
+            (-38.0, -726.557_216_018_820_1),
+            (-30.0, -454.321_243_956_343_2),
+            (-20.0, -203.917_155_371_097_26),
+            (-12.0, -75.410_673_001_568_8),
+            (-9.0, -43.628_149_113_332_115),
+            (-8.0, -35.013_437_159_914_55),
+            (-7.5, -31.075_890_902_890_0),
+            (-5.0, -15.064_998_393_988_726),
+            (-3.0, -6.607_726_221_510_35),
+            (-1.0, -1.841_021_645_009_263_5),
+            (0.0, -0.693_147_180_559_945_3),
+            (1.0, -0.172_753_779_023_449_9),
+            (3.0, -0.001_350_809_964_748_193_8),
+            (5.0, -2.866_516_129_637_636e-7),
+            (8.0, -6.220_960_574_271_786e-16),
+            (10.0, -7.619_853_024_160_526e-24),
+        ];
+        for (x, expected) in cases {
+            let got = log_norm_cdf(x);
+            let tol = 1e-14 * expected.abs();
+            assert!((got - expected).abs() <= tol, "x={x}: got {got:.17e} want {expected:.17e}");
+            // The survival-function form is the same function reflected.
+            assert_eq!(log_norm_sf(-x), got);
+        }
+        assert_eq!(log_norm_sf(f64::INFINITY), f64::NEG_INFINITY);
+        assert_eq!(log_norm_cdf(f64::INFINITY), 0.0);
+        assert!(log_norm_cdf(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn log_norm_cdf_branches_agree_where_they_meet() {
+        // Left tail: the continued fraction against ln of the Cody CDF at the switch point.
+        let cf = log_norm_pdf(-8.0) - mills_left_tail(8.0).0.ln();
+        assert!((cf - norm_cdf(-8.0).ln()).abs() < 1e-14 * cf.abs());
+        // Centre: ln Φ(x) against ln_1p(−Φ(−x)) at x = 0 and a point beyond it.
+        for x in [0.0, 0.5, 2.0] {
+            let direct = norm_cdf(x).ln();
+            let stable = (-norm_cdf(-x)).ln_1p();
+            assert!((direct - stable).abs() < 1e-15 * direct.abs().max(1e-300), "x={x}");
         }
     }
 

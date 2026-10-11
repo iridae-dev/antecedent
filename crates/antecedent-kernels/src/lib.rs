@@ -40,7 +40,10 @@ pub use rng::{
     standard_normal, standard_normal_pair, unbiased_index,
 };
 pub use scalar::{kish_ess, sanitize_weight};
-pub use special::{NORMAL_Q975, erf, erfc, norm_cdf, norm_inv, norm_pdf, norm_sf};
+pub use special::{
+    NORMAL_Q975, erf, erfc, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail, norm_cdf,
+    norm_inv, norm_pdf, norm_sf,
+};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
 #[cfg(test)]
