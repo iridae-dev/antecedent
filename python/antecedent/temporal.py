@@ -42,7 +42,6 @@ estimand, covariance, null or multiplicity family.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -53,6 +52,7 @@ import numpy as np
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -99,11 +99,11 @@ def _raise_refusal(payload: str | None) -> None:
 
 
 def _finite(value: object, what: str, detail: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise TemporalRefusal(
+    return real(
+        value,
+        what,
+        finite=True,
+        non_finite=lambda _: TemporalRefusal(
             {
                 "code": "invalid_argument",
                 "stage": "test",
@@ -111,8 +111,8 @@ def _finite(value: object, what: str, detail: str) -> float:
                 "offending": what,
                 "message": f"{what} is not finite",
             }
-        )
-    return number
+        ),
+    )
 
 
 def _name(value: object, what: str) -> str:

@@ -48,6 +48,7 @@ from ._native import consume_dose_grid_artifact as _consume
 from ._native import dose_support_labels as _support_labels
 from ._native import evaluate_dose_grid_functional as _evaluate
 from ._refusal import raise_refusal
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -295,12 +296,9 @@ def _column(values: object, what: str) -> list[float]:
 
 
 def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise _invalid(f"{what} is not finite", what)
-    return number
+    return real(
+        value, what, finite=True, non_finite=lambda _: _invalid(f"{what} is not finite", what)
+    )
 
 
 def _finite_list(values: list[float], what: str) -> list[float]:

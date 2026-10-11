@@ -42,10 +42,10 @@ configuration, data or result is refused too.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -53,6 +53,7 @@ import numpy as np
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
 from ._refusal import raise_refusal
+from ._validate import count, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -403,32 +404,22 @@ def _covariate_columns(covariates: Any) -> tuple[list[str], list[np.ndarray]]:
     return names, columns
 
 
-def _count(value: object, what: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int | np.integer):
-        raise CausalTypeError(f"{what} must be an integer")
-    number = int(value)
-    if not 0 <= number <= _MAX_COUNT:
-        raise CausalValueError(
-            f"{what} must lie in 0..={_MAX_COUNT}", reason_code="invalid_argument"
-        )
-    return number
+_count = partial(count, minimum=0, maximum=_MAX_COUNT, reason_code="invalid_argument")
 
 
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise MediationRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "estimate",
-                "detail": "nonlinear_mediation.non_finite_option",
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
+def _non_finite(what: str) -> MediationRefusal:
+    return MediationRefusal(
+        {
+            "code": "invalid_argument",
+            "stage": "estimate",
+            "detail": "nonlinear_mediation.non_finite_option",
+            "offending": what,
+            "message": f"{what} is not finite",
+        }
+    )
+
+
+_real = partial(real, finite=True, non_finite=_non_finite)
 
 
 def _seed(value: object) -> int:

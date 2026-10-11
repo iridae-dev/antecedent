@@ -40,6 +40,7 @@ import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -48,6 +49,7 @@ from ._native import build_compact_export as _build
 from ._native import consume_compact_export as _consume
 from ._native import evaluate_compact_export as _evaluate
 from ._refusal import StructuredRefusal
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -85,21 +87,19 @@ def _name(value: object, what: str) -> str:
     return value
 
 
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CompactExportRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "build",
-                "detail": "compact_export.non_finite_value",
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
+def _non_finite(what: str) -> CompactExportRefusal:
+    return CompactExportRefusal(
+        {
+            "code": "invalid_argument",
+            "stage": "build",
+            "detail": "compact_export.non_finite_value",
+            "offending": what,
+            "message": f"{what} is not finite",
+        }
+    )
+
+
+_real = partial(real, finite=True, non_finite=_non_finite)
 
 
 @dataclass(frozen=True, slots=True)
