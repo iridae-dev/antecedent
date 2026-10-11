@@ -1,9 +1,11 @@
 # Security, licensing, unsafe-code, and dependency review
 
 Date: 2026-10-11
+<!-- generated:release:reviewed-version:begin -->
 Scope: workspace crates + `python` extension (package version **2.4.0**)
+<!-- generated:release:reviewed-version:end -->
 
-The package version on this branch is 2.4.0. The source review dated 2026-10-09 is recorded in the next section and names package version 2.3.0.
+The source review dated 2026-10-09 is recorded in the next section and names package version 2.3.0.
 
 Date: 2026-10-09
 Scope: workspace crates + `python` extension (package version **2.3.0**)

@@ -13,7 +13,7 @@ from pathlib import Path
 import antecedent
 import pytest
 
-from _repo_text import load_json
+from _repo_text import load_json, load_toml
 
 _NOTEBOOKS = sorted(
     (Path(__file__).resolve().parents[2] / "examples" / "notebooks").glob("*.ipynb")
@@ -46,6 +46,14 @@ def _resolve(path: str):
     return obj
 
 
+def _notebook_pin() -> str:
+    """Pip pin for `[workspace.package].version` in the workspace Cargo.toml."""
+    cargo = Path(__file__).resolve().parents[2] / "Cargo.toml"
+    version = load_toml(cargo)["workspace"]["package"]["version"]
+    major, minor, *_ = version.split(".")
+    return f"antecedent>={version},<{major}.{int(minor) + 1}"
+
+
 def test_notebooks_exist():
     assert _NOTEBOOKS, "expected README-linked notebooks under examples/notebooks"
 
@@ -57,7 +65,7 @@ def test_notebook_first_code_cell_installs_antecedent_when_missing(nb):
     first = next(c for c in cells if c.get("cell_type") == "code")
     src = "".join(first["source"])
     assert 'find_spec("antecedent")' in src
-    assert "pip" in src and "antecedent>=2.4.0,<2.5" in src
+    assert "pip" in src and _notebook_pin() in src
     assert "sys.version_info" in src
 
 

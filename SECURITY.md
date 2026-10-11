@@ -2,6 +2,7 @@
 
 ## Supported Versions
 
+<!-- generated:release:supported-lines:begin -->
 | Version | Supported |
 |---------|-----------|
 | 2.4.x   | Yes |
@@ -10,6 +11,7 @@
 | 2.1.x   | Yes |
 | 2.0.x   | Yes |
 | < 2.0   | No — upgrade to the latest release |
+<!-- generated:release:supported-lines:end -->
 
 Security fixes are made on `main` and released from there. Fixes are not backported to
 earlier minor versions; the supported upgrade path is to the latest release.

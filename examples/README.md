@@ -4,9 +4,11 @@
 
 These examples use Antecedent from PyPI and Python 3.11 or later:
 
+<!-- generated:release:python-pin:begin -->
 ```bash
 python -m pip install "antecedent>=2.4.0,<2.5" pandas matplotlib ipykernel jupyterlab
 ```
+<!-- generated:release:python-pin:end -->
 
 Download an example notebook and open it with `jupyter lab`. If you have the repository locally, run `jupyter lab examples/notebooks` from its root. Choose the kernel for the Python environment where you installed Antecedent.
 

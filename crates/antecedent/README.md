@@ -7,9 +7,11 @@ static, temporal, response, Bayesian, discovery, validation, attribution,
 design, and state workflows alongside learner-backed estimation and
 structural transport.
 
+<!-- generated:release:crate-dep:begin -->
 ```toml
 [dependencies]
 antecedent = "2.4"
 ```
+<!-- generated:release:crate-dep:end -->
 
 See the [workspace documentation](../../docs/index.md) for the current contract and its calibration limits.
