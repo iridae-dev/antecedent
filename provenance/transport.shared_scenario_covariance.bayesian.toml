@@ -8,7 +8,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Independent normal priors on the covariance entries would need the sampling variance of the covariance estimator. The frequentist shared-scenario covariance path does not publish that variance, so the update refuses before any calculation with scenario_covariance_posterior.sampling_variance_unavailable. A covariance that is the same in every entry is not refused for zero cross-entry spread, and that spread is not used as a sampling variance. The scenario envelope stays a structural envelope. No interval.",
+  "Independent normal priors at zero on the shared scenario covariance entries. The plug-in variance of each entry is the sampling variance of the covariance estimator: correction squared times the weighted second moment of the centered replicate products, divided by the number of rows. A wide scale stays at the enumerated covariance. A tight scale shrinks each entry toward 0 by the normal-normal weight. A constant matrix uses that sampling variance and is not refused for zero cross-entry spread. The scenario envelope stays a structural envelope. No interval.",
   "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
 ]
 

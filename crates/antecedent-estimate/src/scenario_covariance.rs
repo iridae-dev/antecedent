@@ -36,7 +36,7 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 
 use crate::error::EstimationError;
-use crate::splitmix::{GOLDEN_GAMMA, mix64, seed_mix, splitmix64};
+use crate::splitmix::{mix64, seed_mix, splitmix64, GOLDEN_GAMMA};
 
 /// Most scenarios one covariance may span.
 pub const MAX_SCENARIOS: usize = 64;
@@ -227,6 +227,13 @@ pub struct ScenarioCovariance {
     pub failed_mass: f64,
     /// Seed (bootstrap only).
     pub seed: Option<u64>,
+    /// Plug-in sampling variance of each covariance entry, row-major.
+    ///
+    /// `correction² * κ / n_rows`, where `κ` is the weighted second moment of the
+    /// centered replicate products `(θ_i - μ_i)(θ_j - μ_j)` the covariance already
+    /// averages. This is the variance of that covariance estimator. It is not the
+    /// spread of the covariance entries around their own mean.
+    pub entry_sampling_variance: Vec<f64>,
     /// Always [`COVARIANCE_INTERPRETATION`].
     pub interpretation: &'static str,
 }
@@ -242,7 +249,11 @@ impl ScenarioCovariance {
     #[must_use]
     pub fn entry(&self, i: usize, j: usize) -> f64 {
         let k = self.dimension();
-        if i < k && j < k { self.covariance[i * k + j] } else { f64::NAN }
+        if i < k && j < k {
+            self.covariance[i * k + j]
+        } else {
+            f64::NAN
+        }
     }
 
     /// Position of a scenario id in the matrix order.
@@ -453,6 +464,91 @@ fn moments(values: &[f64], weights: &[f64], k: usize, correction: f64) -> (Vec<f
     (means, cov)
 }
 
+/// Sampling variance of each covariance entry the [`moments`] estimator reports.
+///
+/// `weights` sum to one. For entry `(i, j)`, with `c_r = (θ_{r i} - μ_i)(θ_{r j} - μ_j)`
+/// and `m = Σ_r w_r c_r`,
+///
+/// ```text
+/// κ = Σ_r w_r (c_r - m)²
+/// v = correction² * κ / n_rows
+/// ```
+///
+/// The covariance entry itself is `correction * m`. A matrix whose entries are
+/// equal still has a positive `v` when the replicate products vary.
+fn entry_sampling_variances(
+    values: &[f64],
+    weights: &[f64],
+    means: &[f64],
+    k: usize,
+    correction: f64,
+    n_rows: usize,
+) -> Vec<f64> {
+    let scale = correction * correction / n_rows as f64;
+    let mut variance = vec![0.0; k * k];
+    for i in 0..k {
+        for j in i..k {
+            let mut m = 0.0;
+            for (row, &w) in values.chunks_exact(k).zip(weights) {
+                m += w * (row[i] - means[i]) * (row[j] - means[j]);
+            }
+            let mut kappa = 0.0;
+            for (row, &w) in values.chunks_exact(k).zip(weights) {
+                let dev = (row[i] - means[i]) * (row[j] - means[j]) - m;
+                kappa += w * dev * dev;
+            }
+            let v = scale * kappa;
+            variance[i * k + j] = v;
+            variance[j * k + i] = v;
+        }
+    }
+    variance
+}
+
+/// Covariance of scenario-estimate replicates, and the sampling variance of each entry.
+///
+/// `replicates` is replicate-major (`k` estimates per replicate). `weights` are
+/// renormalized to sum to one. `correction` is the frequentist divisor (`R / (R - 1)`
+/// for the bootstrap, `1` for exact enumeration). `n_rows` is the row sample whose
+/// covariance is being estimated, not the replicate count.
+///
+/// Returns `(covariance, entry_sampling_variance)`, both row-major `k × k`.
+#[must_use]
+pub fn covariance_estimator_moments(
+    replicates: &[f64],
+    weights: &[f64],
+    k: usize,
+    correction: f64,
+    n_rows: usize,
+) -> Option<(Vec<f64>, Vec<f64>)> {
+    if k == 0 || n_rows == 0 || !(correction.is_finite() && correction > 0.0) {
+        return None;
+    }
+    let n_rep = weights.len();
+    if n_rep == 0 || replicates.len() != n_rep * k {
+        return None;
+    }
+    if replicates.iter().any(|value| !value.is_finite())
+        || weights.iter().any(|weight| !weight.is_finite() || *weight < 0.0)
+    {
+        return None;
+    }
+    let mass = weights.iter().sum::<f64>();
+    if !(mass.is_finite() && mass > 0.0) {
+        return None;
+    }
+    let weights: Vec<f64> = weights.iter().map(|weight| weight / mass).collect();
+    let (means, covariance) = moments(replicates, &weights, k, correction);
+    if covariance.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+    let variance = entry_sampling_variances(replicates, &weights, &means, k, correction, n_rows);
+    variance
+        .iter()
+        .all(|value| value.is_finite() && *value >= 0.0)
+        .then_some((covariance, variance))
+}
+
 /// Cholesky of `cov + jitter * I`; `false` if any pivot is not positive.
 fn is_psd(cov: &[f64], k: usize) -> bool {
     let trace: f64 = (0..k).map(|i| cov[i * k + i]).sum();
@@ -509,7 +605,12 @@ fn finish(
         CovarianceMethod::ExactEnumeration => 1.0,
     };
     let (means, covariance) = moments(&tally.values, &weights, k, correction);
-    if covariance.iter().any(|v| !v.is_finite()) || !is_psd(&covariance, k) {
+    let entry_sampling_variance =
+        entry_sampling_variances(&tally.values, &weights, &means, k, correction, identity.n);
+    if covariance.iter().any(|v| !v.is_finite())
+        || entry_sampling_variance.iter().any(|v| !v.is_finite())
+        || !is_psd(&covariance, k)
+    {
         return Err(numerical(
             "scenario_covariance.not_positive_semidefinite",
             "the estimated covariance is not finite and positive semidefinite within tolerance",
@@ -531,6 +632,7 @@ fn finish(
         failed_replicates: tally.failed,
         failed_mass: tally.failed_mass / tally.total_mass,
         seed: None,
+        entry_sampling_variance,
         interpretation: COVARIANCE_INTERPRETATION,
     })
 }

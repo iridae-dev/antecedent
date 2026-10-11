@@ -16,13 +16,13 @@
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
-use antecedent_estimate::EstimationError;
-use antecedent_estimate::posterior_mean::{PosteriorRequest, covariance_entry_posterior};
+use antecedent_estimate::posterior_mean::{covariance_entry_posterior, PosteriorRequest};
 use antecedent_estimate::scenario_covariance::{
-    CovarianceMethod, ExactEnumerationOptions, MAX_REPLICATES, MAX_SCENARIOS, RowDependence,
-    ScenarioCovariance, ScenarioRowEstimator, SharedRowBootstrapOptions,
-    exact_enumeration_covariance, shared_row_bootstrap_covariance,
+    covariance_estimator_moments, exact_enumeration_covariance, shared_row_bootstrap_covariance,
+    CovarianceMethod, ExactEnumerationOptions, RowDependence, ScenarioCovariance,
+    ScenarioRowEstimator, SharedRowBootstrapOptions, MAX_REPLICATES, MAX_SCENARIOS,
 };
+use antecedent_estimate::EstimationError;
 
 type Row = (u8, u8, u8);
 
@@ -57,7 +57,11 @@ fn score_b(r: Row) -> f64 {
 }
 
 fn score_c(r: Row) -> f64 {
-    if (r.0, r.2) == (1, 1) { 1.0 } else { 0.0 }
+    if (r.0, r.2) == (1, 1) {
+        1.0
+    } else {
+        0.0
+    }
 }
 
 fn plug_in(counts: &[u32], score: fn(Row) -> f64) -> f64 {
@@ -560,51 +564,85 @@ fn covariance_replay_is_bit_identical_and_identity_sensitive() {
     assert_ne!(reseeded.replicate_digest, first.replicate_digest);
 }
 
-fn assert_sampling_variance_unavailable(entries: &[f64]) {
-    let error =
-        covariance_entry_posterior(entries, PosteriorRequest::IndependentNormal { scale: 1.0 })
-            .unwrap_err();
-    let EstimationError::Refused { code, message } = error else { panic!("expected a refusal") };
-    assert_eq!(code, "cell_not_licensed");
-    assert!(
-        message.contains("scenario_covariance_posterior.sampling_variance_unavailable"),
-        "{message}",
-    );
-    assert!(!message.contains("empty_matrix"), "{message}");
+fn normal_normal_weight(variance: f64, scale: f64) -> f64 {
+    let precision = 1.0 / variance;
+    precision / (precision + 1.0 / (scale * scale))
 }
 
 #[test]
-fn scenario_covariance_posterior_refuses_the_enumerated_matrix() {
+fn scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
-    let entries = [out.entry(0, 0), out.entry(0, 1), out.entry(1, 1)];
-    assert_ne!(entries[0], entries[1]);
-    let error =
-        covariance_entry_posterior(&entries, PosteriorRequest::IndependentNormal { scale: 1e6 })
-            .unwrap_err();
-    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(
-        message.contains("scenario_covariance_posterior.sampling_variance_unavailable"),
-        "{message}",
-    );
+    assert_eq!(out.entry_sampling_variance.len(), out.covariance.len());
+    assert!(out
+        .entry_sampling_variance
+        .iter()
+        .all(|variance| variance.is_finite() && *variance > 0.0));
+    let mean = covariance_entry_posterior(
+        &out.covariance,
+        &out.entry_sampling_variance,
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+    )
+    .unwrap();
+    for (got, expected) in mean.iter().zip(&out.covariance) {
+        assert!((got - expected).abs() < 1e-8, "{got} vs {expected}");
+    }
 }
 
 #[test]
 fn scenario_covariance_posterior_refuses_an_external_power_prior() {
     let error =
-        covariance_entry_posterior(&[0.1, 0.2, 0.3], PosteriorRequest::ExternalPower).unwrap_err();
+        covariance_entry_posterior(&[0.1, 0.2], &[0.1, 0.2], PosteriorRequest::ExternalPower)
+            .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
     assert!(message.contains("scenario_covariance_posterior.external_power_prior"), "{message}");
 }
 
 #[test]
-fn scenario_covariance_posterior_consumer_refuses_varying_and_constant_matrices() {
-    let varying = [17.0 / 216.0, 11.0 / 216.0, 17.0 / 216.0];
-    assert_ne!(varying[0], varying[1]);
-    assert_sampling_variance_unavailable(&varying);
+fn scenario_covariance_posterior_consumer_replays_the_shrunk_entries() {
+    let family = vec![linear_by_name("a"), linear_by_name("b")];
+    let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
+    assert_ne!(out.entry(0, 0), out.entry(0, 1));
+    let produced = covariance_entry_posterior(
+        &out.covariance,
+        &out.entry_sampling_variance,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    for ((got, entry), variance) in
+        produced.iter().zip(&out.covariance).zip(&out.entry_sampling_variance)
+    {
+        let weight = normal_normal_weight(*variance, 1.0);
+        assert!((got - weight * entry).abs() < 1e-12, "{got} vs {}", weight * entry);
+        assert!(got.abs() < entry.abs());
+    }
 
-    let constant = [17.0 / 216.0, 17.0 / 216.0, 17.0 / 216.0];
-    assert_eq!(constant[0], constant[1]);
-    assert_eq!(constant[1], constant[2]);
-    assert_sampling_variance_unavailable(&constant);
+    // Identical scenario replicates: every covariance entry is the same, so the
+    // cross-entry spread is 0. The sampling variance is the variance of the
+    // replicate products, and the posterior mean is finite.
+    let replicates = [0.0, 0.0, 1.0, 1.0, 3.0, 3.0];
+    let (covariance, variance) =
+        covariance_estimator_moments(&replicates, &[1.0, 1.0, 1.0], 2, 1.0, 3).unwrap();
+    assert!(covariance.iter().all(|entry| (entry - covariance[0]).abs() < 1e-12));
+    assert!(variance.iter().all(|entry| (entry - variance[0]).abs() < 1e-12));
+    assert!(variance[0] > 0.0);
+    let dev = [-4.0 / 3.0, -1.0 / 3.0, 5.0 / 3.0];
+    let products: Vec<f64> = dev.iter().map(|d| d * d).collect();
+    let moment = products.iter().sum::<f64>() / 3.0;
+    let kappa =
+        products.iter().map(|product| (product - moment) * (product - moment)).sum::<f64>() / 3.0;
+    let sampling_variance = kappa / 3.0;
+    assert!((variance[0] - sampling_variance).abs() < 1e-12);
+    assert!((covariance[0] - moment).abs() < 1e-12);
+    let constant = covariance_entry_posterior(
+        &covariance,
+        &variance,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    let weight = normal_normal_weight(sampling_variance, 1.0);
+    for got in &constant {
+        assert!(got.is_finite());
+        assert!((got - weight * moment).abs() < 1e-12);
+    }
 }

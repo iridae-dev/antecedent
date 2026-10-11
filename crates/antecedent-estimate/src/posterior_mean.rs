@@ -587,33 +587,47 @@ pub fn known_variance_posterior(
 
 /// Posterior mean of covariance entries under independent normal priors at zero.
 ///
-/// The frequentist scenario-covariance path publishes the covariance of the
-/// scenario estimates and no sampling variance of that estimator. This update
-/// refuses, before any calculation, when that sampling variance is unavailable.
-/// It does not treat the spread of the entries around their mean as a sampling
-/// variance, so a matrix that is the same in every entry is not refused for
-/// zero spread. No interval is returned.
+/// Each entry is shrunk toward 0 with precision `1 / v`, where `v` is the
+/// sampling variance of that covariance estimator
+/// ([`crate::scenario_covariance::covariance_estimator_moments`]): `correction²`
+/// times the weighted second moment of the centered replicate products, divided
+/// by the number of rows. The spread of the entries around their own mean is
+/// not used, so a constant matrix still updates. A wide scale stays at the
+/// supplied matrix. A sampling variance of 0 leaves the entry unchanged. No
+/// interval is returned.
 ///
 /// # Errors
 ///
 /// The scenario-covariance namespace's non-positive scale, mapped prior, external
-/// power prior, unmeasured band, an empty or non-finite matrix, or
-/// `scenario_covariance_posterior.sampling_variance_unavailable`.
+/// power prior, unmeasured band, or entries and variances that are empty, of
+/// different lengths, non-finite, or negative.
 pub fn covariance_entry_posterior(
     entries: &[f64],
+    sampling_variances: &[f64],
     request: PosteriorRequest,
 ) -> Result<Vec<f64>, EstimationError> {
     let namespace = ScalarNamespace::ScenarioCovariance;
     let (non_positive, mapped, power, band, empty) = namespace.details();
-    scale_of(request, non_positive, mapped, power, band)?;
-    if entries.is_empty() || entries.iter().any(|value| !value.is_finite()) {
+    let scale = scale_of(request, non_positive, mapped, power, band)?;
+    if entries.is_empty()
+        || entries.len() != sampling_variances.len()
+        || entries.iter().any(|value| !value.is_finite())
+        || sampling_variances.iter().any(|variance| !variance.is_finite() || *variance < 0.0)
+    {
         return Err(refuse(reason_code!("invalid_argument"), empty));
     }
-    // `scenario_covariance` estimates the joint sampling covariance of the
-    // scenario estimates. It does not publish a sampling variance of that
-    // covariance estimator. Refuse before any spread calculation.
-    Err(refuse(
-        reason_code!("cell_not_licensed"),
-        "scenario_covariance_posterior.sampling_variance_unavailable",
-    ))
+    Ok(entries
+        .iter()
+        .zip(sampling_variances)
+        .map(
+            |(&entry, &variance)| {
+                if variance == 0.0 {
+                    entry
+                } else {
+                    shrink(entry, 1.0 / variance, scale)
+                }
+            },
+        )
+        .collect())
 }
+
