@@ -121,10 +121,8 @@ pub(super) fn summarize_issued_values(
                 return Err(RecalcRunError::Request("recalc.bayesian_effect_unavailable"));
             }
             let n = values.len() as f64;
-            let anchor = values[0];
-            let mean = anchor + values.iter().map(|v| v - anchor).sum::<f64>() / n;
-            let standard_deviation =
-                (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
+            let mean = antecedent_kernels::mean(values);
+            let standard_deviation = antecedent_kernels::sample_std(values);
             if !mean.is_finite() || !standard_deviation.is_finite() {
                 return Err(RecalcRunError::Request("recalc.bayesian_effect_unavailable"));
             }

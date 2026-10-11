@@ -2390,6 +2390,14 @@ fn verify_linear_fit_moments(
     {
         return Err("program.checked_linear_adjustment_binding");
     }
+    // The residual sum of squares is a difference of two sums of products of the data, so
+    // an exact fit leaves only roundoff of the order of eps * outcome_square. That is a zero
+    // residual, not a standard error of its square root.
+    let residual_square = if residual_square.abs() <= 1e-12 * moments.outcome_square.abs() {
+        0.0
+    } else {
+        residual_square
+    };
     let variance =
         (residual_square.max(0.0) / dof) * inverse[treatment_column * p + treatment_column];
     if !variance.is_finite() || variance < 0.0 {

@@ -261,7 +261,10 @@ impl super::Study {
             } else if matches!(
                 aggregation_policy,
                 StructuralAggregationPolicy::IdentifiedSetEnvelope
-            ) {
+            ) || identification.status == IdentificationStatus::PartiallyIdentified
+            {
+                // A set-identified atom whose set is one point keeps its status and its
+                // set: the status ladder never promotes it to point identification.
                 ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(
                     structural_set.clone().ok_or_else(|| CausalError::Compile {
                         message: "temporal class graph-posterior identified set missing envelope"
