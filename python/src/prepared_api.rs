@@ -32,6 +32,11 @@ use crate::{
     temporal_dag_from_schema_edges,
 };
 
+#[path = "prepare_request.rs"]
+mod prepare_request;
+
+use prepare_request::{PrepareRequest, one_series};
+
 /// Execution controls for one estimate or refresh click.
 ///
 /// Cancellation and progress ride on the execution context. A stage sink is
@@ -822,19 +827,17 @@ fn dbn_posterior(
     .map_err(py_err)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn finish_static_graph_posterior(
     data: TabularData,
-    names: Vec<String>,
+    mut req: PrepareRequest,
     gp: antecedent::discovery::GraphPosterior,
     query: CausalQuery,
     spec: Option<antecedent::EstimatorSpec>,
     response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
-    mut opts: PrepareOptions,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
-    opts.refuse_prior_transfer("a graph-posterior mixture")?;
-    if spec.is_some() && opts.inference.is_bayesian() {
+    req.refuse_prior("a graph-posterior mixture")?;
+    if spec.is_some() && req.opts.inference.is_bayesian() {
         return Err(crate::refusal(
             antecedent_core::reason_code!("option_not_applicable"),
             "a Bayesian graph-posterior mixture fits \
@@ -845,9 +848,9 @@ fn finish_static_graph_posterior(
         Study::tabular(data).graph_posterior(gp).query(query),
         response_options,
     );
-    let builder = apply_estimator(opts.apply_budget_for(builder, spec.is_some()), None, spec)?;
-    let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-    Ok(finished_prepared(analysis.prepare(ctx).map_err(py_err)?, names, false))
+    let builder = apply_estimator(req.opts.apply_budget_for(builder, spec.is_some()), None, spec)?;
+    let builder = req.opts.apply_inference(builder)?;
+    req.compile_with(builder, false, ctx)
 }
 
 enum SeriesGraphQuery {
@@ -858,21 +861,21 @@ enum SeriesGraphQuery {
 
 fn finish_series_graph_posterior(
     series: TimeSeriesData,
-    names: Vec<String>,
+    mut req: PrepareRequest,
     gp: antecedent::discovery::GraphPosterior,
     query: SeriesGraphQuery,
-    mut opts: PrepareOptions,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
-    opts.refuse_prior_transfer("a DBN graph-posterior mixture")?;
+    req.refuse_prior("a DBN graph-posterior mixture")?;
     let mut builder = Study::series(series).graph_posterior(gp);
     builder = match query {
         SeriesGraphQuery::Temporal(q) => builder.temporal_query(q),
         SeriesGraphQuery::Mediation(q) => builder.query(CausalQuery::Mediation(q)),
         SeriesGraphQuery::Response(q) => builder.query(CausalQuery::Response(q)),
     };
-    let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-    Ok(finished_prepared(analysis.prepare(ctx).map_err(py_err)?, names, true))
+    let builder = req.opts.apply(builder);
+    let builder = req.opts.apply_inference(builder)?;
+    req.compile_with(builder, true, ctx)
 }
 
 /// Durable prepare-once / estimate-many handle for static ATE on a supplied DAG.
@@ -1435,22 +1438,22 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        let mut req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let parsed_estimator = crate::estimator_config::parse_estimator_config(
             estimator_config,
             estimator.as_deref(),
-            opts.ambient_bootstrap(),
+            req.opts.ambient_bootstrap(),
         )?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let (data, borrowed_bytes) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let data = req.load_columns_recording(py, columns)?;
 
-        detach_catch(py, move || {
+        req.off_gil(py, move |req| {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let mut query =
                 AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            if let Some(pop) = opts.target_population.clone() {
+            if let Some(pop) = req.opts.target_population.clone() {
                 query = query.with_target_population(pop);
             }
             if let Some(functional) = functional {
@@ -1472,8 +1475,8 @@ impl PyPreparedAnalysis {
                 merged_bandwidth,
                 |rv| data.schema().id_of(rv).map_err(py_err),
             )?;
-            let mut builder = opts.apply_budget_for(
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+            let mut builder = req.opts.apply_budget_for(
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(query),
                 parsed_estimator.spec.is_some(),
             );
@@ -1499,11 +1502,7 @@ impl PyPreparedAnalysis {
             } else if let Some(est) = estimator_id {
                 builder = builder.estimator(est);
             }
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            let mut out = finished_prepared(prepared, names, false);
-            out.borrowed_bytes = borrowed_bytes;
-            Ok(out)
+            req.finish(builder, false)
         })
     }
 
@@ -1544,30 +1543,37 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        let spec = configured_spec(estimator_config, estimator.as_deref(), &opts)?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
             let named: Vec<Vec<&str>> =
                 tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
             let background =
                 antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
                     .map_err(py_err)?;
-            let query =
-                static_ate_query(&data, &treatment, &outcome, control_level, active_level, &opts)?;
+            let query = static_ate_query(
+                &data,
+                &treatment,
+                &outcome,
+                control_level,
+                active_level,
+                &req.opts,
+            )?;
             let query = match functional {
                 Some(functional) => query.with_outcome_functional(functional),
                 None => query,
             };
             let builder =
                 Study::tabular(data).tiered_background(background).map_err(py_err)?.query(query);
-            let builder =
-                apply_estimator(opts.apply_budget_for(builder, spec.is_some()), estimator, spec)?;
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            let builder = apply_estimator(
+                req.opts.apply_budget_for(builder, spec.is_some()),
+                estimator,
+                spec,
+            )?;
+            req.finish(builder, false)
         })
     }
 
@@ -1613,31 +1619,36 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        let spec = configured_spec(estimator_config, estimator.as_deref(), &opts)?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let graph = StaticClassGraph::extract(&graph, &names)?;
+        let graph = StaticClassGraph::extract(&graph, &req.names)?;
         if matches!(graph, StaticClassGraph::Admg(_)) {
-            opts.refuse_prior_transfer("an ADMG general-ID average effect")?;
+            req.refuse_prior("an ADMG general-ID average effect")?;
         }
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
-            let query =
-                static_ate_query(&data, &treatment, &outcome, control_level, active_level, &opts)?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
+            let query = static_ate_query(
+                &data,
+                &treatment,
+                &outcome,
+                control_level,
+                active_level,
+                &req.opts,
+            )?;
             let query = match functional {
                 Some(functional) => query.with_outcome_functional(functional),
                 None => query,
             };
-            let builder =
-                graph.bind(Study::tabular(data), accepted, opts.discovery_algorithm()).query(query);
-            let mut builder = opts.apply_budget_for(builder, spec.is_some());
+            let builder = graph
+                .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                .query(query);
+            let mut builder = req.opts.apply_budget_for(builder, spec.is_some());
             if let Some(id) = parse_identifier(identifier)? {
                 builder = builder.identifier(id);
             }
             let builder = apply_estimator(builder, estimator, spec)?;
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish(builder, false)
         })
     }
 
@@ -1682,12 +1693,12 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("a Cpdag/Pag response envelope")?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("a Cpdag/Pag response envelope")?;
         let response_options = parse_response_options(response_options.as_ref())?;
-        let graph = StaticClassGraph::extract(&graph, &names)?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let graph = StaticClassGraph::extract(&graph, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
             let outcome_ids = crate::response_api::resolve_names(data.schema(), &outcomes)?;
             let functional = build_functional(
@@ -1703,9 +1714,11 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeScale::Identity,
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
-            let query = response_query(functional, &opts);
-            let mut builder = opts.apply(with_response_options(
-                graph.bind(Study::tabular(data), accepted, opts.discovery_algorithm()).query(query),
+            let query = response_query(functional, &req.opts);
+            let mut builder = req.opts.apply(with_response_options(
+                graph
+                    .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                    .query(query),
                 response_options,
             ));
             if let Some(id) = parse_identifier(identifier)? {
@@ -1714,9 +1727,7 @@ impl PyPreparedAnalysis {
             if let Some(est) = parse_estimator(estimator)? {
                 builder = builder.estimator(est);
             }
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish(builder, false)
         })
     }
 
@@ -1811,11 +1822,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         if kind == "counterfactual" || kind == "nested_counterfactual" {
-            opts.refuse_prior_transfer("a counterfactual query")?;
+            req.refuse_prior("a counterfactual query")?;
         }
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let data = req.load_columns(py, columns)?;
         let mut query = static_kind_query(
             data.schema(),
             kind,
@@ -1827,21 +1838,19 @@ impl PyPreparedAnalysis {
             active_level,
         )?;
         if let (CausalQuery::Mediation(q), Some(population)) =
-            (&mut query, opts.target_population.clone())
+            (&mut query, req.opts.target_population.clone())
         {
             q.target_population = population;
         } else {
-            opts.refuse_population("a counterfactual unit-effect query")?;
+            req.refuse_population("a counterfactual unit-effect query")?;
         }
-        detach_catch(py, move || {
+        req.off_gil(py, move |req| {
             let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let builder = opts.apply(
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+            let builder = req.opts.apply(
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(query),
             );
-            let study = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = study.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish(builder, false)
         })
     }
 
@@ -1870,13 +1879,13 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("a response derivative")?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("a response derivative")?;
         let response_options = parse_response_options(response_options.as_ref())?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let data = req.load_columns(py, columns)?;
         let scale = crate::response_api::parse_scale(scale)?;
         let weighting = crate::response_api::parse_weighting(weighting)?;
-        detach_catch(py, move || {
+        req.off_gil(py, move |req| {
             let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
             let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
             let functional = build_functional(
@@ -1884,13 +1893,11 @@ impl PyPreparedAnalysis {
             )?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder = with_response_options(
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
-                    .query(response_query(functional, &opts)),
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                    .query(response_query(functional, &req.opts)),
                 response_options,
             );
-            let study = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = study.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -1929,10 +1936,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let response_options = parse_response_options(response_options.as_ref())?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
@@ -1941,10 +1948,10 @@ impl PyPreparedAnalysis {
                     outcome: y_id,
                     treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
                 },
-                &opts,
+                &req.opts,
             );
-            let mut builder = opts.apply(with_response_options(
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+            let mut builder = req.opts.apply(with_response_options(
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(query),
                 response_options,
             ));
@@ -1954,9 +1961,7 @@ impl PyPreparedAnalysis {
             if let Some(est) = parse_estimator(estimator)? {
                 builder = builder.estimator(est);
             }
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish(builder, false)
         })
     }
 
@@ -2040,11 +2045,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        let class_graph = extract_temporal_class(class_graph, &names)?;
-        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let class_graph = extract_temporal_class(class_graph, &req.names)?;
+        let input = req.load_frame(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
-        detach_catch(py, move || {
+        req.off_gil(py, move |mut req| {
             let data = input.materialize()?;
             let schema = data.schema().clone();
             let dag = temporal_dag_from_schema_edges(&schema, &edges)?;
@@ -2090,7 +2095,7 @@ impl PyPreparedAnalysis {
                     structural_model,
                 });
             let mut response = ResponseQuery::new(functional).with_temporal(temporal);
-            if let Some(population) = opts.target_population.clone() {
+            if let Some(population) = req.opts.target_population.clone() {
                 response.target_population = population;
             }
             let query = CausalQuery::Response(crate::observation_api::maybe_with_observation(
@@ -2100,21 +2105,19 @@ impl PyPreparedAnalysis {
             )?);
             let mut builder = data.builder()?;
             builder = if let Some(graph) = class_graph {
-                bind_temporal_class(builder, graph, accepted, opts.discovery_algorithm())
+                bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
             } else {
-                with_graph(builder, dag, accepted, opts.discovery_algorithm())
+                with_graph(builder, dag, accepted, req.opts.discovery_algorithm())
             };
-            builder = opts.apply(builder.query(query));
-            builder = opts.apply_inference(builder)?;
+            builder = req.opts.apply(builder.query(query));
+            builder = req.opts.apply_inference(builder)?;
             builder = crate::temporal_api::apply_class_prior(
                 builder,
                 class_prior_ordered,
                 class_prior_pairs,
             )?;
             builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            let analysis = builder.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, true))
+            req.compile(builder, true)
         })
     }
 
@@ -2175,11 +2178,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        let class_graph = extract_temporal_class(class_graph, &names)?;
-        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let class_graph = extract_temporal_class(class_graph, &req.names)?;
+        let input = req.load_frame(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
-        detach_catch(py, move || {
+        req.off_gil(py, move |mut req| {
             let data = input.materialize()?;
             let schema = data.schema().clone();
             let t_id = schema.id_of(&treatment).map_err(py_err)?;
@@ -2194,7 +2197,7 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 max_history_lag,
-                &opts,
+                &req.opts,
             )?;
             if let Some(modifier) = modifier.as_deref() {
                 let modifier_id = schema.id_of(modifier).map_err(py_err)?;
@@ -2202,26 +2205,24 @@ impl PyPreparedAnalysis {
             }
             let mut builder = data.builder()?;
             builder = if let Some(graph) = class_graph {
-                bind_temporal_class(builder, graph, accepted, opts.discovery_algorithm())
+                bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
             } else {
                 with_graph(
                     builder,
                     temporal_dag_from_schema_edges(&schema, &edges)?,
                     accepted,
-                    opts.discovery_algorithm(),
+                    req.opts.discovery_algorithm(),
                 )
             };
-            builder = opts.apply(builder.temporal_query(q));
-            builder = opts.apply_inference(builder)?;
+            builder = req.opts.apply(builder.temporal_query(q));
+            builder = req.opts.apply_inference(builder)?;
             builder = crate::temporal_api::apply_class_prior(
                 builder,
                 class_prior_ordered,
                 class_prior_pairs,
             )?;
             builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            let analysis = builder.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, true))
+            req.compile(builder, true)
         })
     }
 
@@ -2275,12 +2276,12 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("temporal mediation")?;
-        let class_graph = extract_temporal_class(class_graph, &names)?;
-        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("temporal mediation")?;
+        let class_graph = extract_temporal_class(class_graph, &req.names)?;
+        let input = req.load_frame(py, columns, frame.as_ref())?;
         let contrast = contrast.to_string();
-        detach_catch(py, move || {
+        req.off_gil(py, move |mut req| {
             let data = input.materialize()?;
             let schema = data.schema().clone();
             let q = temporal_mediation_query(
@@ -2292,30 +2293,28 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 horizons,
-                &opts,
+                &req.opts,
             )?;
             let mut builder = data.builder()?;
             builder = if let Some(graph) = class_graph {
-                bind_temporal_class(builder, graph, accepted, opts.discovery_algorithm())
+                bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
             } else {
                 with_graph(
                     builder,
                     temporal_dag_from_schema_edges(&schema, &edges)?,
                     accepted,
-                    opts.discovery_algorithm(),
+                    req.opts.discovery_algorithm(),
                 )
             };
-            builder = opts.apply(builder.query(CausalQuery::Mediation(q)));
-            builder = opts.apply_inference(builder)?;
+            builder = req.opts.apply(builder.query(CausalQuery::Mediation(q)));
+            builder = req.opts.apply_inference(builder)?;
             builder = crate::temporal_api::apply_class_prior(
                 builder,
                 class_prior_ordered,
                 class_prior_pairs,
             )?;
             builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            let analysis = builder.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, true))
+            req.compile(builder, true)
         })
     }
 
@@ -2350,22 +2349,22 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
-        let spec = configured_spec(estimator_config, None, &opts)?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let spec = configured_spec(estimator_config, None, &req.opts)?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let query = CausalQuery::AverageEffect(static_ate_query(
                 &data,
                 &treatment,
                 &outcome,
                 control_level,
                 active_level,
-                &opts,
+                &req.opts,
             )?);
-            let ctx = opts.ctx(seed, threads);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, spec, None, opts, &ctx)
+            finish_static_graph_posterior(data, req, gp, query, spec, None, &ctx)
         })
     }
 
@@ -2402,11 +2401,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let query = conditional_query(
                 &data,
                 &treatment,
@@ -2415,11 +2414,11 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 functional,
-                &opts,
+                &req.opts,
             )?;
-            let ctx = opts.ctx(seed, threads);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, None, None, opts, &ctx)
+            finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
         })
     }
 
@@ -2452,11 +2451,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let response_options = parse_response_options(response_options.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let query = response_query(
@@ -2464,20 +2463,11 @@ impl PyPreparedAnalysis {
                     outcome: y_id,
                     treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
                 },
-                &opts,
+                &req.opts,
             );
-            let ctx = opts.ctx(seed, threads);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(
-                data,
-                names,
-                gp,
-                query,
-                None,
-                response_options,
-                opts,
-                &ctx,
-            )
+            finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)
         })
     }
 
@@ -2510,10 +2500,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
             let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
             let functional = crate::response_api::build_functional(
@@ -2529,10 +2519,10 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeScale::Identity,
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
-            let query = response_query(functional, &opts);
-            let ctx = opts.ctx(seed, threads);
+            let query = response_query(functional, &req.opts);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, None, None, opts, &ctx)
+            finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
         })
     }
 
@@ -2590,24 +2580,12 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let input = req.load_frame(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
-        detach_catch(py, move || {
-            let series = match input.materialize()? {
-                FrameData::Series(series) => series,
-                FrameData::Events(events, align) => events
-                    .align_to_grid(align)
-                    .map_err(|e| py_msg(format!("event align_to_grid: {e}")))?,
-                _ => {
-                    return Err(crate::refusal(
-                        antecedent_core::reason_code!("data_modality_not_licensed"),
-                        "a DBN graph-posterior mixture is \
-                         licensed on one series or one event stream",
-                    ));
-                }
-            };
+        req.off_gil(py, move |req| {
+            let series = one_series(input)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
             let q = temporal_effect_query(
@@ -2620,20 +2598,13 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 max_history_lag,
-                &opts,
+                &req.opts,
             )?;
-            let ctx = opts.ctx(seed, threads);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = dbn_posterior(
                 supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
             )?;
-            finish_series_graph_posterior(
-                series,
-                names,
-                gp,
-                SeriesGraphQuery::Temporal(q),
-                opts,
-                &ctx,
-            )
+            finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Temporal(q), &ctx)
         })
     }
 
@@ -2688,24 +2659,12 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let input = req.load_frame(py, columns, frame.as_ref())?;
         let contrast = contrast.to_string();
-        detach_catch(py, move || {
-            let series = match input.materialize()? {
-                FrameData::Series(series) => series,
-                FrameData::Events(events, align) => events
-                    .align_to_grid(align)
-                    .map_err(|e| py_msg(format!("event align_to_grid: {e}")))?,
-                _ => {
-                    return Err(crate::refusal(
-                        antecedent_core::reason_code!("data_modality_not_licensed"),
-                        "a DBN graph-posterior mixture is \
-                         licensed on one series or one event stream",
-                    ));
-                }
-            };
+        req.off_gil(py, move |req| {
+            let series = one_series(input)?;
             let q = temporal_mediation_query(
                 series.schema(),
                 &treatment,
@@ -2715,20 +2674,13 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 horizons,
-                &opts,
+                &req.opts,
             )?;
-            let ctx = opts.ctx(seed, threads);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = dbn_posterior(
                 supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
             )?;
-            finish_series_graph_posterior(
-                series,
-                names,
-                gp,
-                SeriesGraphQuery::Mediation(q),
-                opts,
-                &ctx,
-            )
+            finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Mediation(q), &ctx)
         })
     }
 
@@ -2786,24 +2738,12 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let opts = PrepareOptions::parse(options.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &names)?;
-        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let input = req.load_frame(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
-        detach_catch(py, move || {
-            let series = match input.materialize()? {
-                FrameData::Series(series) => series,
-                FrameData::Events(events, align) => events
-                    .align_to_grid(align)
-                    .map_err(|e| py_msg(format!("event align_to_grid: {e}")))?,
-                _ => {
-                    return Err(crate::refusal(
-                        antecedent_core::reason_code!("data_modality_not_licensed"),
-                        "a DBN graph-posterior mixture is \
-                         licensed on one series or one event stream",
-                    ));
-                }
-            };
+        req.off_gil(py, move |req| {
+            let series = one_series(input)?;
             let schema = series.schema();
             let treatment_ids: Vec<_> = treatments
                 .iter()
@@ -2833,19 +2773,18 @@ impl PyPreparedAnalysis {
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
             let mut response = ResponseQuery::new(functional).with_temporal(temporal);
-            if let Some(population) = opts.target_population.clone() {
+            if let Some(population) = req.opts.target_population.clone() {
                 response.target_population = population;
             }
-            let ctx = opts.ctx(seed, threads);
+            let ctx = req.opts.ctx(seed, threads);
             let gp = dbn_posterior(
                 supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
             )?;
             finish_series_graph_posterior(
                 series,
-                names,
+                req,
                 gp,
                 SeriesGraphQuery::Response(response),
-                opts,
                 &ctx,
             )
         })
@@ -2893,12 +2832,12 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("an InterventionResponse")?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("an InterventionResponse")?;
         let outcome_functional =
             crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let query = intervention_response_query(
                 &data,
                 &outcome,
@@ -2906,11 +2845,11 @@ impl PyPreparedAnalysis {
                 intervention_kinds,
                 intervention_parameters,
                 outcome_functional,
-                &opts,
+                &req.opts,
             )?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let mut builder = opts.apply(
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+            let mut builder = req.opts.apply(
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(query),
             );
             if let Some(id) = parse_identifier(identifier)? {
@@ -2919,9 +2858,7 @@ impl PyPreparedAnalysis {
             if let Some(est) = parse_estimator(estimator)? {
                 builder = builder.estimator(est);
             }
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish(builder, false)
         })
     }
 
@@ -2958,11 +2895,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let outcome_functional =
             crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
             let named: Vec<Vec<&str>> =
                 tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
@@ -2976,16 +2913,14 @@ impl PyPreparedAnalysis {
                 intervention_kinds,
                 intervention_parameters,
                 outcome_functional,
-                &opts,
+                &req.opts,
             )?;
             let builder = Study::tabular(data)
                 .tiered_background(background)
                 .map_err(py_err)?
                 .query(query)
                 .estimator(antecedent::EstimatorId::CellAipw);
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3033,14 +2968,14 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         if graph.is_some() {
-            opts.refuse_prior_transfer("a Cpdag/Pag conditional envelope")?;
+            req.refuse_prior("a Cpdag/Pag conditional envelope")?;
         }
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let class = graph.map(|g| StaticClassGraph::extract(&g, &names)).transpose()?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let query = conditional_query(
                 &data,
                 &treatment,
@@ -3049,24 +2984,22 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 functional,
-                &opts,
+                &req.opts,
             )?;
             let mut builder = if let Some(class) = class {
-                class.bind(Study::tabular(data), accepted, opts.discovery_algorithm())
+                class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
             } else {
                 let dag = dag_from_named_edges(data.schema(), &edges)?;
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
             };
-            builder = opts.apply(builder.query(query));
+            builder = req.opts.apply(builder.query(query));
             if let Some(id) = parse_identifier(identifier)? {
                 builder = builder.identifier(id);
             }
             if let Some(est) = parse_estimator(estimator)? {
                 builder = builder.estimator(est);
             }
-            let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish(builder, false)
         })
     }
 
@@ -3107,10 +3040,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("a path-specific effect")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("a path-specific effect")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
@@ -3118,7 +3051,7 @@ impl PyPreparedAnalysis {
                 .with_max_len(max_len);
             query.control = Intervention::set(t_id, Value::f64(control_level));
             query.active = Intervention::set(t_id, Value::f64(active_level));
-            if let Some(population) = opts.target_population.clone() {
+            if let Some(population) = req.opts.target_population.clone() {
                 query.target_population = population;
             }
             if let Some(nodes) = path_nodes {
@@ -3130,13 +3063,11 @@ impl PyPreparedAnalysis {
             }
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(CausalQuery::PathSpecific(query))
                     .identifier(IdentifierId::PathSpecificNatural)
                     .estimator(EstimatorId::FunctionalEffect);
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3172,16 +3103,16 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("an interventional distribution")?;
-        let class = graph.map(|g| StaticClassGraph::extract(&g, &names)).transpose()?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("an interventional distribution")?;
+        let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
         if matches!(&class, Some(g) if !matches!(g, StaticClassGraph::Admg(_))) {
             return Err(PyValueError::new_err(
                 "prepare_distribution graph must be an Admg; Pag/Cpdag remain refused",
             ));
         }
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let mut ivs = Vec::with_capacity(interventions.len());
             for (name, level) in &interventions {
@@ -3189,7 +3120,7 @@ impl PyPreparedAnalysis {
                 ivs.push(Intervention::set(id, Value::f64(*level)));
             }
             let mut query = InterventionalDistributionQuery::new(y_id, ivs);
-            if let Some(population) = opts.target_population.clone() {
+            if let Some(population) = req.opts.target_population.clone() {
                 query.target_population = population;
             }
             if let Some(cond) = conditioning {
@@ -3200,18 +3131,16 @@ impl PyPreparedAnalysis {
                 query = query.with_conditioning(z);
             }
             let builder = if let Some(class) = class {
-                class.bind(Study::tabular(data), accepted, opts.discovery_algorithm())
+                class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
             } else {
                 let dag = dag_from_named_edges(data.schema(), &edges)?;
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
             };
             let builder = builder
                 .query(CausalQuery::Distribution(query))
                 .identifier(IdentifierId::GeneralId)
                 .estimator(EstimatorId::FunctionalDistribution);
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3253,19 +3182,19 @@ impl PyPreparedAnalysis {
         options: Option<Bound<'_, PyDict>>,
         catalog: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("a transport query")?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("a transport query")?;
         let admg = graph
             .extract::<graphs::Admg>()
             .map_err(|_| PyValueError::new_err("TransportQuery requires graph=Admg(...)"))?;
-        require_named_graph_order(&admg.names, &names, "Admg")?;
+        require_named_graph_order(&admg.names, &req.names, "Admg")?;
         let catalog = catalog
             .map(|c| crate::transport_interference_api::parse_catalog(c, &admg))
             .transpose()?;
-        let admg = admg.aligned_to_names(&names)?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let admg = admg.aligned_to_names(&req.names)?;
+        let data = req.load_columns(py, columns)?;
         let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
-        detach_catch(py, move || {
+        req.off_gil(py, move |req| {
             use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
             let schema = data.schema().clone();
             let mut query = transport_query(
@@ -3297,13 +3226,11 @@ impl PyPreparedAnalysis {
                 treatment_probability: column(&treatment_probability)?,
             };
             let builder =
-                with_graph(Study::tabular(data), admg, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), admg, accepted, req.opts.discovery_algorithm())
                     .query(CausalQuery::Transport(query))
                     .selection_targets(schema_ids(&schema, &selections)?)
                     .transport_trial(trial_spec);
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3347,11 +3274,11 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("an interference query")?;
-        opts.refuse_population("an interference exposure contrast")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("an interference query")?;
+        req.refuse_population("an interference exposure contrast")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             use crate::transport_interference_api::{InterferenceArgs, interference_query};
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let query = interference_query(
@@ -3389,15 +3316,13 @@ impl PyPreparedAnalysis {
             )
             .map_err(py_err)?;
             let builder =
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(CausalQuery::Interference(query))
                     .interference(antecedent::InterferenceSpec {
                         network,
                         assignment: Arc::from(realized_assignment),
                     });
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3443,11 +3368,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("a randomized ITT query")?;
-        opts.refuse_population("a randomized ITT query")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("a randomized ITT query")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let design = match design_kind.as_str() {
                 "bernoulli" => antecedent_core::RandomizationDesign::Bernoulli,
@@ -3550,9 +3474,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::RandomizedEffect(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3574,11 +3496,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("panel difference-in-differences")?;
-        opts.refuse_population("panel difference-in-differences")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("panel difference-in-differences")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let subject_arc: Vec<Arc<str>> =
                 subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
@@ -3606,9 +3527,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3635,11 +3554,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("augmented panel difference-in-differences")?;
-        opts.refuse_population("augmented panel difference-in-differences")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("augmented panel difference-in-differences")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let variable = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
             let query = antecedent_core::PanelDidQuery::augmented_panel(
                 variable(&outcome_post)?,
@@ -3656,9 +3574,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3683,11 +3599,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("staggered difference-in-differences")?;
-        opts.refuse_population("staggered difference-in-differences")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("staggered difference-in-differences")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let subject_arc: Vec<Arc<str>> =
                 subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
@@ -3707,9 +3622,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3732,11 +3645,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("staggered event study")?;
-        opts.refuse_population("staggered event study")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("staggered event study")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let subject_arc: Vec<Arc<str>> =
                 subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
@@ -3754,9 +3666,7 @@ impl PyPreparedAnalysis {
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3784,11 +3694,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("synthetic control")?;
-        opts.refuse_population("synthetic control")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("synthetic control")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let unit_arc: Vec<Arc<str>> =
                 units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect();
@@ -3821,9 +3730,7 @@ impl PyPreparedAnalysis {
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3853,11 +3760,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("continuous-dose response")?;
-        opts.refuse_population("continuous-dose response")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("continuous-dose response")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let fixed_policy = match (policy_doses, reference_doses) {
                 (None, None) => None,
                 (Some(policy), Some(reference)) => Some(antecedent_core::FixedGroupDosePolicy {
@@ -3899,9 +3805,7 @@ impl PyPreparedAnalysis {
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3925,11 +3829,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("local polynomial ratio")?;
-        opts.refuse_population("local polynomial ratio")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("local polynomial ratio")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let query = antecedent_core::LocalPolynomialRatioQuery {
                 outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                 treatment: crate::graph_build::schema_var_id(data.schema(), &treatment)?,
@@ -3943,9 +3846,7 @@ impl PyPreparedAnalysis {
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LocalPolynomialRatio(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -3987,11 +3888,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("longitudinal regime")?;
-        opts.refuse_population("longitudinal regime")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("longitudinal regime")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let method = match method {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
@@ -4063,9 +3963,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LongitudinalRegime(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -4092,11 +3990,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("randomized survival")?;
-        opts.refuse_population("randomized survival")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("randomized survival")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
             let censoring_ids =
                 censoring_columns.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
@@ -4130,9 +4027,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::Survival(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -4173,11 +4068,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("held-out policy value")?;
-        opts.refuse_population("held-out policy value")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("held-out policy value")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             if regret_selected_index.is_some() == regret_candidates.is_empty()
                 || (regret_selected_index.is_none() && !regret_training_subject_ids.is_empty())
@@ -4233,9 +4127,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -4271,11 +4163,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("multi-action policy value")?;
-        opts.refuse_population("multi-action policy value")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("multi-action policy value")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let multi_action = antecedent_core::MultiActionPolicyInputs {
                 action_labels: action_labels
@@ -4329,9 +4220,7 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -4356,11 +4245,10 @@ impl PyPreparedAnalysis {
         options: Option<Bound<'_, PyDict>>,
         reference: Option<(f64, f64)>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("an anomaly attribution query")?;
-        opts.refuse_population("an anomaly attribution query")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("an anomaly attribution query")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let target_ids = targets
                 .iter()
                 .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
@@ -4372,11 +4260,9 @@ impl PyPreparedAnalysis {
             }
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(CausalQuery::AnomalyAttribution(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
@@ -4403,11 +4289,10 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut opts = PrepareOptions::parse(options.as_ref())?;
-        opts.refuse_prior_transfer("a change attribution query")?;
-        opts.refuse_population("a change attribution query")?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-        detach_catch(py, move || {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("a change attribution query")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let query = ChangeAttributionQuery::new(
                 outcome_id,
@@ -4416,11 +4301,9 @@ impl PyPreparedAnalysis {
             );
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =
-                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                     .query(CausalQuery::ChangeAttribution(query));
-            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            Ok(finished_prepared(prepared, names, false))
+            req.finish_applied(builder, false)
         })
     }
 
