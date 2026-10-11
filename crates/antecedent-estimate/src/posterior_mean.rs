@@ -187,7 +187,7 @@ pub fn consume_local_quadratic_posterior(
     let mut penalized = gram;
     penalized[1][1] += penalty;
     penalized[2][2] += penalty;
-    let inverse = inverse_3x3(penalized)?;
+    let inverse = crate::util::invert_fixed(&penalized)?;
     let beta = matvec(inverse, rhs);
     (beta[0].is_finite() && beta[1].is_finite()).then_some((beta[0], beta[1]))
 }
@@ -225,7 +225,7 @@ fn local_quadratic_mean(
     if weight_sum <= 3.0 {
         return None;
     }
-    let inverse = inverse_3x3(gram)?;
+    let inverse = crate::util::invert_fixed(&gram)?;
     let beta = matvec(inverse, rhs);
     let mut rss = 0.0;
     for (w, row, y) in &rows {
@@ -236,7 +236,7 @@ fn local_quadratic_mean(
     let penalty = sigma2 / (prior_scale * prior_scale);
     gram[1][1] += penalty;
     gram[2][2] += penalty;
-    let inverse = inverse_3x3(gram)?;
+    let inverse = crate::util::invert_fixed(&gram)?;
     let beta = matvec(inverse, rhs);
     (beta[0].is_finite() && beta[1].is_finite()).then_some((beta[0], beta[1]))
 }
@@ -247,33 +247,6 @@ fn matvec(matrix: [[f64; 3]; 3], vector: [f64; 3]) -> [f64; 3] {
         matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2],
         matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2],
     ]
-}
-
-fn inverse_3x3(m: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
-    let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
-        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
-        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-    if !det.is_finite() || det.abs() < 1e-12 {
-        return None;
-    }
-    let inv_det = 1.0 / det;
-    Some([
-        [
-            (m[1][1] * m[2][2] - m[1][2] * m[2][1]) * inv_det,
-            (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * inv_det,
-            (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * inv_det,
-        ],
-        [
-            (m[1][2] * m[2][0] - m[1][0] * m[2][2]) * inv_det,
-            (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * inv_det,
-            (m[0][2] * m[1][0] - m[0][0] * m[1][2]) * inv_det,
-        ],
-        [
-            (m[1][0] * m[2][1] - m[1][1] * m[2][0]) * inv_det,
-            (m[0][1] * m[2][0] - m[0][0] * m[2][1]) * inv_det,
-            (m[0][0] * m[1][1] - m[0][1] * m[1][0]) * inv_det,
-        ],
-    ])
 }
 
 /// Which cross-fitted score a posterior mean belongs to.
@@ -803,4 +776,24 @@ pub fn smoothed_dose_score_posterior(
             score_contrast_posterior(&zeros, scores, request, ScoreNamespace::SmoothedDose)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::consume_local_quadratic_posterior;
+
+    #[test]
+    fn the_local_quadratic_solve_is_scale_free_and_refuses_collinear_moments() {
+        // The determinant of this Gram is 1e-15, below the former absolute 1e-12 cutoff, yet
+        // the matrix is perfectly conditioned: the posterior mean is the exact coefficient.
+        let gram = [[1e-5, 0.0, 0.0], [0.0, 1e-5, 0.0], [0.0, 0.0, 1e-5]];
+        let (level, slope) =
+            consume_local_quadratic_posterior(gram, [1e-5, 2e-5, 3e-5], 10.0, 0.0, 1.0).unwrap();
+        assert!((level - 1.0).abs() < 1e-12 && (slope - 2.0).abs() < 1e-12);
+        // A rank-one Gram with no residual variance to penalise stays refused.
+        let collinear = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
+        assert!(
+            consume_local_quadratic_posterior(collinear, [1.0, 1.0, 1.0], 10.0, 0.0, 1.0).is_none()
+        );
+    }
 }

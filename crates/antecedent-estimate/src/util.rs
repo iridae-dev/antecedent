@@ -522,6 +522,19 @@ pub(crate) fn invert_fixed<const N: usize>(a: &[[f64; N]; N]) -> Option<[[f64; N
     Some(std::array::from_fn(|i| std::array::from_fn(|j| inv[i * N + j])))
 }
 
+/// [`invert_fixed`] for a runtime-sized square matrix held as rows; `None` when the rows are not
+/// square, or the matrix is singular or non-finite.
+#[must_use]
+pub(crate) fn invert_rows(rows: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
+    let n = rows.len();
+    if rows.iter().any(|r| r.len() != n) {
+        return None;
+    }
+    let flat: Vec<f64> = rows.iter().flatten().copied().collect();
+    let inv = invert_square(&flat, n)?;
+    Some(inv.chunks(n).map(<[f64]>::to_vec).collect())
+}
+
 /// Gather `idx`-selected entries of `src` into `out` (a reused scratch buffer) for one IID
 /// bootstrap resample: `out[r] = src[idx[r]]`.
 pub(crate) fn gather_bootstrap_vector(out: &mut [f64], src: &[f64], idx: &[usize]) {
@@ -602,6 +615,15 @@ mod tests {
         assert!(invert_fixed(&scaled).is_none());
         // Non-finite entries are refused rather than propagated.
         assert!(invert_fixed(&[[f64::NAN, 0.0], [0.0, 1.0]]).is_none());
+    }
+
+    #[test]
+    fn row_inverse_matches_the_fixed_inverse_and_refuses_ragged_input() {
+        let rows = vec![vec![1e-16, 0.0], vec![0.0, 4e-16]];
+        let inv = invert_rows(&rows).expect("a scaled diagonal is not singular");
+        assert!((inv[0][0] * 1e-16 - 1.0).abs() < 1e-12 && inv[0][1] == 0.0);
+        assert!(invert_rows(&[vec![1.0, 2.0], vec![2.0, 4.0]]).is_none());
+        assert!(invert_rows(&[vec![1.0, 0.0], vec![0.0]]).is_none());
     }
 
     #[test]

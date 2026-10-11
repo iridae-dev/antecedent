@@ -155,7 +155,8 @@ pub fn fit_binary_msm(
     if rhs.iter().chain(bread_input.iter().flatten()).any(|v| !v.is_finite()) {
         return Err("weighted MSM normal equations overflowed");
     }
-    let bread = invert(bread_input)?;
+    let bread =
+        crate::util::invert_rows(&bread_input).ok_or("weighted MSM design is rank-deficient")?;
     let beta = matvec(&bread, &rhs);
     if beta.iter().any(|v| !v.is_finite()) {
         return Err("MSM coefficients are non-finite");
@@ -203,40 +204,6 @@ pub fn fit_binary_msm(
     })
 }
 
-fn invert(mut a: Vec<Vec<f64>>) -> Result<Vec<Vec<f64>>, &'static str> {
-    let n = a.len();
-    let mut inverse = vec![vec![0.0; n]; n];
-    #[allow(clippy::needless_range_loop, reason = "index sets the matrix diagonal inverse[i][i]")]
-    for i in 0..n {
-        inverse[i][i] = 1.0;
-    }
-    for j in 0..n {
-        let pivot = (j..n).max_by(|&x, &y| a[x][j].abs().total_cmp(&a[y][j].abs())).unwrap();
-        let scale = a[pivot].iter().map(|v| v.abs()).fold(0.0, f64::max);
-        if a[pivot][j].abs() <= 1e-12 * scale.max(1.0) {
-            return Err("weighted MSM design is rank-deficient");
-        }
-        a.swap(j, pivot);
-        inverse.swap(j, pivot);
-        let divisor = a[j][j];
-        for k in 0..n {
-            a[j][k] /= divisor;
-            inverse[j][k] /= divisor;
-        }
-        for i in 0..n {
-            if i == j {
-                continue;
-            }
-            let factor = a[i][j];
-            for k in 0..n {
-                a[i][k] -= factor * a[j][k];
-                inverse[i][k] -= factor * inverse[j][k];
-            }
-        }
-    }
-    Ok(inverse)
-}
-
 fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
@@ -281,6 +248,17 @@ mod tests {
         assert!(fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01)
             .unwrap_err()
             .contains("censoring"));
+    }
+
+    #[test]
+    fn a_design_with_no_treatment_variation_is_rank_deficient() {
+        // The period-0 and period-1 treatment columns are identically zero, so the weighted
+        // normal equations are singular at any scale.
+        let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
+        let a = [false; 16];
+        let e = fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01)
+            .unwrap_err();
+        assert!(e.contains("rank-deficient"), "{e}");
     }
 
     #[test]

@@ -124,12 +124,12 @@ pub fn estimate_interference_bayesian(
     for (j, row) in observed_gram.iter_mut().enumerate() {
         row[j] -= prior_precision;
     }
-    if inverse_3(observed_gram).is_none() {
+    if crate::util::invert_fixed(&observed_gram).is_none() {
         return Err(EstimationError::unsupported(
             "observed interference exposure design is rank deficient",
         ));
     }
-    let covariance = inverse_3(precision)
+    let covariance = crate::util::invert_fixed(&precision)
         .ok_or_else(|| EstimationError::unsupported("posterior precision matrix is singular"))?;
     let mut mean = [0.0; 3];
     for (j, value) in mean.iter_mut().enumerate() {
@@ -163,38 +163,6 @@ pub fn estimate_interference_bayesian(
     let contrast_draws = (0..n_draws).map(|i| draws[i]).collect::<Vec<_>>();
     let mean = contrast_draws.iter().sum::<f64>() / n_draws as f64;
     Ok(BayesianInterferenceEstimate { contrast_draws, mean })
-}
-
-fn inverse_3(mut a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
-    let mut inv = [[0.0; 3]; 3];
-    for (i, row) in inv.iter_mut().enumerate() {
-        row[i] = 1.0;
-    }
-    for col in 0..3 {
-        let pivot =
-            (col..3).max_by(|&lhs, &rhs| a[lhs][col].abs().total_cmp(&a[rhs][col].abs()))?;
-        if a[pivot][col].abs() < 1e-12 {
-            return None;
-        }
-        a.swap(col, pivot);
-        inv.swap(col, pivot);
-        let d = a[col][col];
-        for j in 0..3 {
-            a[col][j] /= d;
-            inv[col][j] /= d;
-        }
-        for row in 0..3 {
-            if row == col {
-                continue;
-            }
-            let f = a[row][col];
-            for j in 0..3 {
-                a[row][j] -= f * a[col][j];
-                inv[row][j] -= f * inv[col][j];
-            }
-        }
-    }
-    Some(inv)
 }
 
 /// Estimate a randomized exposure contrast on a fixed network.
