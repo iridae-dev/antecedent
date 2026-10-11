@@ -758,33 +758,19 @@ pub(crate) fn noise_replace_refute(
         NoiseReplaceTarget::Outcome => problem.outcome(),
     };
     let n = problem.data.row_count();
-    let mut ates = Vec::with_capacity(replicates as usize);
-    for r in 0..replicates {
-        check_cancelled(ctx)?;
+    let ates = run_replicates(ctx, replicates, |r| {
         let mut noise = vec![0.0; n];
         fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
         let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
         let est = refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?;
-        ates.push(est.ate);
-    }
-    let mean_ate = ates.iter().sum::<f64>() / f64::from(replicates);
-    let p_value = replicate_p_value(&ates, 0.0)?;
-    let passed = p_value >= alpha;
-    Ok(RefutationReport {
-        refuter: Arc::from(refuter_id),
-        original_ate: problem.original.ate,
-        refuted_ate: mean_ate,
-        comparison: p_value,
-        // OLS recovery of ~0 under independent noise cannot falsify the claim.
-        informative: false,
-        passed,
-        failure_condition: (!passed).then(|| {
-            Arc::from(format!(
-                "{failure_label} ATE distribution (mean {mean_ate}) is inconsistent with zero \
-                 (p={p_value} < alpha={alpha})"
-            ))
-        }),
-        replicates,
+        Ok(est.ate)
+    })?;
+    // OLS recovery of ~0 under independent noise cannot falsify the claim.
+    finish_p_report(refuter_id, problem.original.ate, &ates, 0.0, alpha, |mean_ate, p_value| {
+        format!(
+            "{failure_label} ATE distribution (mean {mean_ate}) is inconsistent with zero \
+             (p={p_value} < alpha={alpha})"
+        )
     })
 }
 
@@ -874,6 +860,59 @@ pub(crate) fn replicate_mean(ates: &[f64]) -> f64 {
     #[allow(clippy::cast_precision_loss)]
     let n = ates.len() as f64;
     ates.iter().sum::<f64>() / n
+}
+
+/// Significance level of the replicate-stability checks that are not user-configurable
+/// (query-native mediation and functional refuters).
+pub(crate) const STABILITY_ALPHA: f64 = 0.05;
+
+/// Replicates per query-native stability check (mediation and functional refuters).
+pub(crate) const STABILITY_REPLICATES: u32 = 20;
+
+/// Serial replicate driver: poll cancellation, then run `one(r)` for `r in 0..replicates`.
+///
+/// Returns the per-replicate estimates in replicate order. The first error (including
+/// cancellation) aborts the loop. The closure owns any workspace it needs, so callers keep
+/// threading their `&mut EstimationWorkspace`; a closure may also push side outputs
+/// (interleaved refuters share one noise draw per replicate).
+pub(crate) fn run_replicates(
+    ctx: &ExecutionContext,
+    replicates: u32,
+    mut one: impl FnMut(u32) -> Result<f64, ValidationError>,
+) -> Result<Vec<f64>, ValidationError> {
+    let mut ates = Vec::with_capacity(replicates as usize);
+    for r in 0..replicates {
+        check_cancelled(ctx)?;
+        ates.push(one(r)?);
+    }
+    Ok(ates)
+}
+
+/// Finish a replicate refuter: mean, p-value of `centre` as a typical single replicate
+/// ([`replicate_p_value`]), `passed = p >= alpha`, and the (always non-informative) report.
+///
+/// `failure` renders the failure condition from `(mean, p)` and runs only on a failure.
+pub(crate) fn finish_p_report(
+    refuter: &str,
+    original_ate: f64,
+    ates: &[f64],
+    centre: f64,
+    alpha: f64,
+    failure: impl FnOnce(f64, f64) -> String,
+) -> Result<RefutationReport, ValidationError> {
+    let mean_ate = replicate_mean(ates);
+    let p_value = replicate_p_value(ates, centre)?;
+    let passed = p_value >= alpha;
+    Ok(RefutationReport {
+        refuter: Arc::from(refuter),
+        original_ate,
+        refuted_ate: mean_ate,
+        comparison: p_value,
+        informative: false,
+        passed,
+        failure_condition: (!passed).then(|| Arc::from(failure(mean_ate, p_value))),
+        replicates: u32::try_from(ates.len()).unwrap_or(u32::MAX),
+    })
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).

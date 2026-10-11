@@ -8,9 +8,9 @@ use antecedent_core::ExecutionContext;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, check_replicate_count,
-    full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect, replicate_mean,
-    replicate_p_value, with_contiguous_row_window, with_row_subset,
+    RefutationProblem, RefutationReport, check_replicate_count, finish_p_report,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect, run_replicates,
+    with_contiguous_row_window, with_row_subset,
 };
 use crate::error::ValidationError;
 
@@ -84,9 +84,7 @@ impl DataSubsetRefuter {
         // Centre on the same estimator's full-sample refit, not the published number: see
         // `full_sample_refit_ate` (a Bayesian posterior mean is not the least-squares refit).
         let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
-        let mut ates = Vec::with_capacity(self.replicates as usize);
-        for r in 0..self.replicates {
-            check_cancelled(ctx)?;
+        let ates = run_replicates(ctx, self.replicates, |r| {
             let stream = 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r));
             let data = if is_temporal_series {
                 with_contiguous_row_window(problem.data, self.subset_fraction, ctx, stream)?
@@ -102,30 +100,23 @@ impl DataSubsetRefuter {
                 workspace,
                 ctx,
             )?;
-            ates.push(est.ate);
-        }
-        let mean_ate = replicate_mean(&ates);
-        let p_value = replicate_p_value(&ates, centre)?;
-        let passed = p_value >= self.alpha;
-        Ok(RefutationReport {
-            refuter: Arc::from("data.subset"),
-            original_ate: problem.original.ate,
-            refuted_ate: mean_ate,
-            comparison: p_value,
-            // OLS subset stability is not a falsifier of the causal claim.
-            informative: false,
-            passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(format!(
+            Ok(est.ate)
+        })?;
+        // OLS subset stability is not a falsifier of the causal claim.
+        finish_p_report(
+            "data.subset",
+            problem.original.ate,
+            &ates,
+            centre,
+            self.alpha,
+            |mean_ate, p_value| {
+                format!(
                     "subset ATE distribution (mean {mean_ate}) is inconsistent with the \
                      full-sample refit {centre} (p={p_value} < alpha={}) across {}% subsets",
                     self.alpha,
                     self.subset_fraction * 100.0
-                )))
+                )
             },
-            replicates: self.replicates,
-        })
+        )
     }
 }

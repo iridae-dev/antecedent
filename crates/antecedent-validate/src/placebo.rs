@@ -17,9 +17,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::shuffle;
 
 use crate::common::{
-    NoiseReplaceTarget, RefutationProblem, RefutationReport, check_cancelled,
-    check_replicate_count, complete_case_rows, float64_full, linear_estimator_no_bootstrap,
-    noise_replace_refute, refit_effect, replicate_mean, replicate_p_value, with_replaced_float,
+    NoiseReplaceTarget, RefutationProblem, RefutationReport, check_replicate_count,
+    complete_case_rows, finish_p_report, float64_full, linear_estimator_no_bootstrap,
+    noise_replace_refute, refit_effect, run_replicates, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -117,9 +117,7 @@ impl PlaceboTreatment {
         }
         let (_, eligible) = complete_case_rows(problem.data, &ids)?;
         let observed: Vec<f64> = eligible.iter().map(|&row| factual[row]).collect();
-        let mut ates = Vec::with_capacity(self.replicates as usize);
-        for r in 0..self.replicates {
-            check_cancelled(ctx)?;
+        let ates = run_replicates(ctx, self.replicates, |r| {
             let mut perm = factual.clone();
             let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
             let mut shuffled = observed.clone();
@@ -137,28 +135,23 @@ impl PlaceboTreatment {
                 workspace,
                 ctx,
             )?;
-            ates.push(est.ate);
-        }
-        let mean_ate = replicate_mean(&ates);
-        let p_value = replicate_p_value(&ates, 0.0)?;
-        let passed = p_value >= self.alpha;
-        Ok(RefutationReport {
-            refuter: Arc::from("placebo.treatment.permute"),
-            original_ate: problem.original.ate,
-            refuted_ate: mean_ate,
-            comparison: p_value,
-            // Permuting T under OLS still yields ~0 coefficient when T ⊥ Y | Z in
-            // the fitted linear model; this is not a falsifier of the causal claim.
-            informative: false,
-            passed,
-            failure_condition: (!passed).then(|| {
-                Arc::from(format!(
+            Ok(est.ate)
+        })?;
+        // Permuting T under OLS still yields ~0 coefficient when T ⊥ Y | Z in
+        // the fitted linear model; this is not a falsifier of the causal claim.
+        finish_p_report(
+            "placebo.treatment.permute",
+            problem.original.ate,
+            &ates,
+            0.0,
+            self.alpha,
+            |mean_ate, p_value| {
+                format!(
                     "placebo permute ATE distribution (mean {mean_ate}) is inconsistent with zero \
                      (p={p_value} < alpha={})",
                     self.alpha
-                ))
-            }),
-            replicates: self.replicates,
-        })
+                )
+            },
+        )
     }
 }
