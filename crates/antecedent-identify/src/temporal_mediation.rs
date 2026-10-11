@@ -226,6 +226,7 @@ impl TemporalMediationIdentifier {
             horizon_steps,
             max_history_lag: None,
             target_population: mediation.target_population.clone(),
+            effect_modifiers: std::sync::Arc::from([]),
         };
         self.temporal.identify_temporal(template, &te)
     }

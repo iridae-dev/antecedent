@@ -1785,6 +1785,7 @@ class PreparedAnalysis:
         control_level: float = 0.0,
         active_level: float = 1.0,
         max_history_lag: int | None = None,
+        modifier: str | None = None,
         accepted: bool = False,
         class_graph: Any = None,
         class_prior_ordered: list[float] | None = None,

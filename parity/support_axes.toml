@@ -30,6 +30,8 @@ queries = [
   "ResponseJacobian",
   "SemiElasticity",
   "SustainedEffect",
+  "TemporalConditionalPulse",
+  "TemporalConditionalSustained",
   "TemporalMediationEffect",
   "TransportQuery",
   "InterferenceQuery",

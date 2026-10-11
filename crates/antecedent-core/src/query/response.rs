@@ -700,13 +700,11 @@ impl ResponseQuery {
                         )));
                     }
                 }
-                ResponseFunctional::InterventionResponse { .. } => {}
-                _ => {
-                    return Err(QueryError::InvalidResponse(
-                        "temporal attachment is licensed only for MeanCurve and InterventionResponse"
-                            .into(),
-                    ));
-                }
+                ResponseFunctional::InterventionResponse { .. }
+                | ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::PointDerivative { .. }
+                | ResponseFunctional::DirectionalDerivative { .. }
+                | ResponseFunctional::Jacobian { .. } => {}
             }
         }
         Ok(())

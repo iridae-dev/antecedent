@@ -24,7 +24,169 @@ evidence_assertion = "fixed_dag_nested_natural_direct_effect_executes_and_refuse
 checked_execution = [
   { estimator = "mediation.linear", test = "crates/antecedent/tests/nested_counterfactual_route_evidence.rs", assertion = "natural_direct_effect_retains_worlds_and_replays_outcome_fit" },
 ]
-limitations = "Natural direct effect Y(active, M(control)) - Y(control, M(control)) for the fixed Markovian DAG treatment -> mediator, treatment -> outcome, mediator -> outcome under the compatible linear-Gaussian SCM. The mediator's control-world value and both outcome worlds are replayed from one abduced exogenous table. Under this separable linear-Gaussian outcome the direct effect is a*(active - control) and does not read that draw, so neither the shared draw nor its per-unit variation moves the point value here (for the mean, sharing across worlds is immaterial by linearity of expectation); that the route reads each unit's abduced disturbance rather than a conditional-mean plug-in is proven separately by the route's non-separable-outcome path (fit_non_separable_nested_outcome / NestedCounterfactualOperation::with_non_separable_outcome), where the frozen mediator's abduced disturbance enters a non-additive outcome and the result matches the shared-abduction truth while differing from the disturbance-free value (crates/antecedent/src/gcm.rs evidence tests). This is a point-only claim: no sampling interval or repeated-sampling coverage is published. Bayesian SCM inference, latent-confounded graphs, accepted structures, graph-posterior structures, incompatible cross-world queries, and cheap/full refuters remain refused."
+limitations = "Natural direct effect Y(active, M(control)) - Y(control, M(control)) for the fixed Markovian DAG treatment -> mediator, treatment -> outcome, mediator -> outcome under the compatible linear-Gaussian SCM. The mediator's control-world value and both outcome worlds are replayed from one abduced exogenous table. Under this separable linear-Gaussian outcome the direct effect is a*(active - control) and does not read that draw, so neither the shared draw nor its per-unit variation moves the point value here (for the mean, sharing across worlds is immaterial by linearity of expectation); that the route reads each unit's abduced disturbance rather than a conditional-mean plug-in is proven separately by the route's non-separable-outcome path (fit_non_separable_nested_outcome / NestedCounterfactualOperation::with_non_separable_outcome), where the frozen mediator's abduced disturbance enters a non-additive outcome and the result matches the shared-abduction truth while differing from the disturbance-free value (crates/antecedent/src/gcm.rs evidence tests). This is a point-only claim: no sampling interval or repeated-sampling coverage is published. The Bayesian twin is a separate cell and publishes the conjugate posterior mean of this same effect, still with no interval. Latent-confounded graphs, accepted structures, graph-posterior structures, incompatible cross-world queries, and cheap/full refuters remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["mediation.linear"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/nested_counterfactual"
+evidence_test = "crates/antecedent/tests/nested_counterfactual_route_evidence.rs"
+evidence_assertion = "bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval"
+checked_execution = [
+  { estimator = "mediation.linear", test = "crates/antecedent/tests/nested_counterfactual_route_evidence.rs", assertion = "bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval" },
+]
+limitations = "Same natural direct effect as the Frequentist cell: Y(active, M(control)) - Y(control, M(control)) on the fixed Markovian DAG treatment -> mediator, treatment -> outcome, mediator -> outcome. The published number is the posterior mean of that effect under the isotropic conjugate Gaussian prior (the Study Bayesian conjugate configuration, including its prior scale). Posterior draws are computed to form that mean and then dropped; no posterior interval and no coverage record are published. A shared coefficient prior, an unmapped prior artifact, or an external power prior is refused by the mediation prior contract. Latent-confounded graphs, accepted structures, graph-posterior structures, incompatible cross-world queries, and cheap/full refuters remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal pulse on an explicit TemporalDag: (beta_T + beta_TxW * mean(W)) * (active - control) on the unfolded temporal backdoor rows. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. More than one modifier, a multi-step window, a mapped coefficient prior, bootstrap, and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "Same one-modifier marginal pulse as the explicit TemporalDag cell, on an accepted TemporalDag. Point-only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "Same marginal pulse as the Frequentist cell. The published number is the posterior mean of that functional under an isotropic Gaussian prior on the slope coefficients, with the least-squares residual variance plugged in. Posterior draws and the interval are withheld. A mapped coefficient prior is refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "Same Bayesian posterior-mean pulse as the explicit cell, on an accepted TemporalDag. No interval."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect of a single-step sustained intervention on an explicit TemporalDag. Same functional as the conditional pulse. Multi-step windows are refused. Point-only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "Same single-step conditional sustained effect as the explicit cell, on an accepted TemporalDag. Point-only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "Posterior mean of the single-step conditional sustained effect under the isotropic slope prior. No interval."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_conditional_effect.rs"
+evidence_assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_conditional_effect.rs", assertion = "temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "Same Bayesian single-step conditional sustained effect as the explicit cell, on an accepted TemporalDag. No interval."
 calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
@@ -8570,3 +8732,723 @@ checked_execution = [
 limitations = "Each PAG completion keeps its Bayesian posterior response; full validation runs overlap and sampling-stability checks against each evaluable atom's posterior-mean intervention level, mixing reports only when atoms share an estimand. Frozen graph weights, unidentified mass, failed mass, and subsampled-out mass remain in structural_response. ATE-shaped contrast refuters do not apply; this check is not a calibration claim."
 calibration = ["cov.intervention_response.pag.bayesian.posterior_quantile.l90.intervention_response_pag_graph_posterior_bayesian_nominal_coverage", "cov.intervention_response.pag.bayesian.posterior_quantile.l95.intervention_response_pag_graph_posterior_bayesian_nominal_coverage"]
 
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_derivative_effect.rs"
+evidence_assertion = "temporal_dag_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_derivative_effect.rs", assertion = "temporal_dag_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope of the unfolded temporal back-door fit at one horizon. Identity, log, elasticity, observed-weight average, Jacobian and directional derivatives are that slope, rescaled at the requested point. Point-only: no interval and no coverage record. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused. Cheap and full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_cross_world_effect.rs"
+evidence_assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"

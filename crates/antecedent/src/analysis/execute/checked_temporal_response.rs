@@ -86,7 +86,48 @@ impl CheckedTemporalResponseExecution {
                 }
             })?;
         let mut conflict_summary = None;
-        let mut response = match self.operation.inference() {
+        let mut response = if super::response_functional_is_derivative(
+            &self.operation.query().functional,
+        ) {
+            let evidence = self.operation.evidence();
+            let first = evidence.first().ok_or_else(|| CausalError::Compile {
+                message: "temporal derivative is missing its horizon proof".into(),
+            })?;
+            if evidence.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "a temporal derivative is the local slope at one horizon",
+                });
+            }
+            let prior_scale = match self.operation.inference() {
+                InferenceMode::Bayesian(cfg) => {
+                    if cfg.prior.is_some()
+                        || cfg.prior_artifact.is_some()
+                        || cfg.external_compose.is_some()
+                    {
+                        return Err(CausalError::Unsupported {
+                            message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                        });
+                    }
+                    Some(cfg.prior_scale)
+                }
+                InferenceMode::Frequentist => None,
+            };
+            super::temporal_linear_derivative_response(
+                data,
+                self.operation.query(),
+                first.estimand(),
+                first.indexer(),
+                first.identification(),
+                first
+                    .effect_query()
+                    .try_treatment_offset()
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                first.effect_query().outcome_offset(),
+                &ctx.kernel_policy,
+                prior_scale,
+            )?
+        } else {
+            match self.operation.inference() {
             InferenceMode::Frequentist => self.operation.execute(data, ctx)?,
             InferenceMode::Bayesian(cfg) => {
                 let mut bayes = bayesian_gcomp(cfg, ctx);
@@ -110,6 +151,7 @@ impl CheckedTemporalResponseExecution {
                 conflict_summary = conflict;
                 self.operation.execute_bayesian(data, &bayes, ctx)?
             }
+        }
         };
         // The estimator accepts one aggregate status; the sealed route keeps the
         // richer per-horizon proof statuses on the surface, as the fresh path does.
@@ -142,6 +184,14 @@ impl CheckedTemporalResponseExecution {
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "adjustment sets differ across requested horizons; each response slice uses its own horizon-specific proof",
+            ));
+        }
+        if response.provenance_id.as_ref() == "estimate.temporal.linear_derivative" {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal.linear_derivative",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "published value is the slope of the linear unfolded temporal fit; no interval is published",
             ));
         }
         diagnostics.push(Diagnostic::new(

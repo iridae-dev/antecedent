@@ -330,7 +330,8 @@ pub use statistical_transport::{
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
-    is_temporal_coefficient_name, temporal_coefficient_names,
+    is_temporal_coefficient_name, temporal_coefficient_names, temporal_conditional_marginal_effect,
+    temporal_linear_slopes,
 };
 pub use temporal_block::{
     AlignedRows, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap, block_effective_rows,

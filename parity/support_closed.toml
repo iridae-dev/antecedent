@@ -227,14 +227,6 @@ reason = "NestedCounterfactualEffect requires an explicitly supplied Dag; accept
 queries = ["NestedCounterfactualEffect"]
 graph_classes = ["Dag"]
 structures = ["explicit"]
-inferences = ["Bayesian"]
-reason = "NestedCounterfactualEffect is licensed only for the compatible Frequentist linear-Gaussian SCM; Bayesian SCM inference is not licensed."
-
-[[closed]]
-queries = ["NestedCounterfactualEffect"]
-graph_classes = ["Dag"]
-structures = ["explicit"]
-inferences = ["Frequentist"]
 validations = ["cheap", "full"]
 reason = "NestedCounterfactualEffect has no compatible cheap/full cross-world refuter suite."
 
@@ -259,6 +251,53 @@ graph_classes = ["Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
 reason = "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "Temporal conditional effects are licensed on TemporalDag explicit and accepted at validation none. Class graphs are not licensed."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior temporal conditional effects are not licensed."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+
+[[closed]]
+queries = ["AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "Temporal derivatives are the local linear slope on TemporalDag explicit and accepted at validation none. Class graphs are not licensed."
+
+[[closed]]
+queries = ["AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior temporal derivatives are not licensed."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "Temporal cross-world effects are the linear unfolded point on TemporalDag explicit and accepted at validation none. Class graphs are not licensed."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior temporal cross-world effects are not licensed."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "Temporal cross-world effects are point-only; cheap and full are not licensed."
 
 # -- promotion records (parity/promotion.toml): sub-cell contrasts a
 # record keeps closed. The support axes cannot name a contrast, so these rows are

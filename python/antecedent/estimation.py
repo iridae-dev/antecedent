@@ -133,6 +133,8 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalConditionalPulse,
+    TemporalConditionalSustained,
     TemporalMediationEffect,
 )
 from .regimes import LongitudinalRegime, LongitudinalRegimeEstimate
@@ -3214,7 +3216,16 @@ class _PrepareRoute:
             return self._graph_posterior()
         if self.graph is None:
             raise CausalValueError("PreparedAnalysis.prepare requires graph= or discovery=")
-        temporal = isinstance(query, (PulseEffect, SustainedEffect, TemporalMediationEffect)) or (
+        temporal = isinstance(
+            query,
+            (
+                PulseEffect,
+                SustainedEffect,
+                TemporalConditionalPulse,
+                TemporalConditionalSustained,
+                TemporalMediationEffect,
+            ),
+        ) or (
             isinstance(query, (ResponseCurve, InterventionResponse))
             and getattr(query, "is_temporal", False)
         )
@@ -3483,7 +3494,10 @@ class _PrepareRoute:
             **_class_prior_kwargs(self.class_prior),
             **_max_completions_kwargs(self.max_completions),
         }
-        if isinstance(query, (PulseEffect, SustainedEffect)):
+        if isinstance(
+            query,
+            (PulseEffect, SustainedEffect, TemporalConditionalPulse, TemporalConditionalSustained),
+        ):
             self._refuse_ids("PulseEffect / SustainedEffect (fixed temporal backdoor estimator)")
             native = _NativePreparedAnalysis.prepare_temporal_effect(
                 self.names,
@@ -3498,6 +3512,7 @@ class _PrepareRoute:
                 control_level=query.control_level,
                 active_level=query.active_level,
                 max_history_lag=query.max_history_lag,
+                modifier=getattr(query, "modifier", None),
                 **common,
             )
             return native, "average"

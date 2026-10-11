@@ -13,6 +13,51 @@ identifier = "path_specific.natural"
 estimator = "mediation.linear"
 
 [[route]]
+coordinate = "NestedCounterfactualEffect:Dag:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
 coordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:none"
 identifier = "response.backdoor"
 estimator = "response.kennedy_dr"
@@ -2366,3 +2411,203 @@ estimator = "response.bayesian"
 coordinate = "InterventionResponse:Pag:graph_posterior:Bayesian:full"
 identifier = "generalized.adjustment"
 estimator = "response.bayesian"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Counterfactual:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalDag:explicit:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalDag:explicit:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalDag:accepted:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalDag:accepted:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"

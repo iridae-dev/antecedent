@@ -7421,6 +7421,7 @@ impl Study {
         ensure_prepared_supported(self)?;
         let plan = self.compile(ctx)?;
         let counterfactual = match (&self.graph, &self.query) {
+            (graph, CausalQuery::Counterfactual(_)) if graph.as_temporal_dag().is_some() => None,
             (_, CausalQuery::Counterfactual(query)) => {
                 let graph = self
                     .graph
@@ -7434,6 +7435,9 @@ impl Study {
             _ => None,
         };
         let nested_counterfactual = match (&self.graph, &self.query) {
+            (graph, CausalQuery::NestedCounterfactual(_)) if graph.as_temporal_dag().is_some() => {
+                None
+            }
             (_, CausalQuery::NestedCounterfactual(query)) => {
                 let graph = self.graph.as_dag().ok_or(crate::unsupported_reason!(
                     "cross_world_not_identified",
@@ -10448,6 +10452,7 @@ impl Study {
                     horizon_steps: temporal.horizons.first().copied().unwrap_or(1),
                     max_history_lag: temporal.max_history_lag,
                     target_population: response.target_population.clone(),
+                    effect_modifiers: std::sync::Arc::from([]),
                 }
             }
             CausalQuery::Mediation(mediation)
@@ -10941,6 +10946,7 @@ pub(crate) fn identify_temporal_response_horizons(
                 horizon_steps: horizon,
                 max_history_lag: temporal.max_history_lag,
                 target_population: target_population.clone(),
+                effect_modifiers: std::sync::Arc::from([]),
             };
             TemporalBackdoorIdentifier::new()
                 .identify_temporal(graph, &id_query)
@@ -11252,6 +11258,20 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 panel,
                 analysis.split.as_ref(),
             )?;
+        }
+        (
+            DataInput::Temporal(_) | DataInput::Event(_),
+            CausalQuery::Counterfactual(_)
+            | CausalQuery::Distribution(_)
+            | CausalQuery::PathSpecific(_)
+            | CausalQuery::NestedCounterfactual(_),
+        ) => {
+            if analysis.graph.class() != GraphClass::TemporalDag {
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_licensed",
+                    "temporal cross-world effects require a TemporalDag"
+                ));
+            }
         }
         _ => {
             return Err(crate::unsupported_reason!(

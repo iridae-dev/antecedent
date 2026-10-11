@@ -21,7 +21,7 @@ use antecedent_data::{
     DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData,
 };
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::CompiledDesign;
+use antecedent_stats::{CompiledDesign, DenseLinearAlgebra};
 
 use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
@@ -691,6 +691,247 @@ fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     let lag = u32::try_from(-offset)
         .map_err(|_| EstimationError::unsupported("offset does not fit lag"))?;
     Ok(Lag::from_raw(lag))
+}
+
+/// Marginal temporal conditional effect for one modifier.
+///
+/// The unfolded regression is `Y ~ 1 + T + W + T×W + Z`. The published point is
+/// `(β_T + β_{T×W} · mean(W)) · (active − control)`, the same functional as the
+/// static one-modifier conditional effect, on the lag-aligned rows of the
+/// temporal backdoor design. `prior_scale` is the isotropic Gaussian prior
+/// standard deviation on the slope coefficients. `None` is ordinary least
+/// squares. `Some` replaces that point with the posterior mean under that
+/// prior, using the least-squares residual variance as a plug-in. No interval
+/// is returned.
+///
+/// # Errors
+///
+/// The query is not a single-modifier conditional effect, the design is
+/// singular or too small, or the temporal sample cannot be aligned.
+pub fn temporal_conditional_marginal_effect(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &TemporalEffectQuery,
+    indexer: &TemporalIndexer,
+    policy: &antecedent_core::KernelPolicy,
+    prior_scale: Option<f64>,
+) -> Result<f64, EstimationError> {
+    if query.effect_modifiers.len() != 1 {
+        return Err(EstimationError::unsupported(
+            "temporal conditional effect fits exactly one modifier",
+        ));
+    }
+    query.validate()?;
+    if query.target_population != TargetPopulation::AllObserved {
+        return Err(EstimationError::TargetPopulation);
+    }
+    let active = intervention_f64(&query.active)?;
+    let control = intervention_f64(&query.control)?;
+    let delta = active - control;
+    if delta == 0.0 {
+        return Err(EstimationError::unsupported(
+            "active and control treatment levels must differ",
+        ));
+    }
+    let sample_anchor = query.outcome_offset().max(0);
+    let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
+    let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
+    let modifier = query.effect_modifiers[0];
+    let mut cols = vec![
+        LaggedColumn { variable: query.treatment, lag: t_lag },
+        LaggedColumn { variable: query.outcome, lag: y_lag },
+        LaggedColumn { variable: modifier, lag: y_lag },
+    ];
+    let mut adjustment = Vec::new();
+    for &dense_var in estimand.adjustment_set.iter() {
+        let key = indexer.key_of(dense_var.raw()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        if key.variable == modifier || key.variable == query.treatment || key.variable == query.outcome {
+            continue;
+        }
+        let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
+            EstimationError::unsupported(
+                "adjustment node sits after this horizon's sample anchor and cannot be lag-aligned",
+            )
+        })?;
+        cols.push(LaggedColumn { variable: key.variable, lag });
+        adjustment.push(key.variable);
+    }
+    let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
+    let plan = data.plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols)).map_err(EstimationError::from)?;
+    let mut sample_ws = LaggedSampleWorkspace::default();
+    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+    let n = prep.n;
+    if n < 8 {
+        return Err(EstimationError::data_msg("too few aligned rows for a temporal conditional effect"));
+    }
+    let t = prep.column(0);
+    let y = prep.column(1);
+    let w = prep.column(2);
+    let n_z = adjustment.len();
+    let ncols = 4 + n_z;
+    let mut design = vec![0.0; n * ncols];
+    for i in 0..n {
+        design[i] = 1.0;
+        design[n + i] = t[i];
+        design[2 * n + i] = w[i];
+        design[3 * n + i] = t[i] * w[i];
+    }
+    for k in 0..n_z {
+        let column = prep.column(3 + k);
+        let base = (4 + k) * n;
+        design[base..base + n].copy_from_slice(column);
+    }
+    let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+    let fit = antecedent_stats::FaerBackend
+        .least_squares(&design, n, ncols, y, &mut ws)
+        .map_err(crate::util::stats_err)?;
+    let mut coef = fit.coefficients;
+    if let Some(scale) = prior_scale {
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(EstimationError::unsupported(
+                "temporal conditional prior scale must be finite and positive",
+            ));
+        }
+        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
+        let penalty = sigma2 / (scale * scale);
+        let aug_n = n + (ncols - 1);
+        let mut aug_x = vec![0.0; aug_n * ncols];
+        let mut aug_y = vec![0.0; aug_n];
+        for col in 0..ncols {
+            aug_x[col * aug_n..col * aug_n + n].copy_from_slice(&design[col * n..(col + 1) * n]);
+        }
+        aug_y[..n].copy_from_slice(y);
+        let root = penalty.sqrt();
+        for col in 1..ncols {
+            let row = n + col - 1;
+            aug_x[col * aug_n + row] = root;
+        }
+        let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
+        coef = antecedent_stats::FaerBackend
+            .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
+            .map_err(crate::util::stats_err)?
+            .coefficients;
+    }
+    let w_bar = w.iter().sum::<f64>() / n as f64;
+    Ok((coef[1] + coef[3] * w_bar) * delta)
+}
+
+/// Intercept and partial slopes of one outcome on the named treatments.
+///
+/// The design is the unfolded temporal back-door regression: intercept, each
+/// treatment at the policy origin, then the identified adjustment nodes.
+/// `prior_scale` replaces the slope coefficients with their posterior means
+/// under independent `N(0, scale²)` priors and the OLS residual variance; the
+/// intercept stays unpenalized. No interval is computed.
+///
+/// # Errors
+///
+/// Refuses an empty treatment list, a treatment equal to the outcome, a
+/// non-positive prior scale, fewer than eight aligned rows, or a lag the
+/// sample cannot place.
+pub fn temporal_linear_slopes(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    outcome: VariableId,
+    treatments: &[VariableId],
+    treatment_offset: i32,
+    outcome_offset: i32,
+    contemporaneous: &[VariableId],
+    policy: &antecedent_core::KernelPolicy,
+    prior_scale: Option<f64>,
+) -> Result<(f64, Vec<f64>), EstimationError> {
+    if treatments.is_empty() || treatments.contains(&outcome) {
+        return Err(EstimationError::unsupported(
+            "temporal linear slope needs treatments distinct from the outcome",
+        ));
+    }
+    let sample_anchor = outcome_offset.max(0);
+    let t_lag = offset_to_lag(treatment_offset - sample_anchor)?;
+    let y_lag = offset_to_lag(outcome_offset - sample_anchor)?;
+    let mut cols = Vec::with_capacity(treatments.len() + 1);
+    for &treatment in treatments {
+        let lag = if contemporaneous.contains(&treatment) { y_lag } else { t_lag };
+        cols.push(LaggedColumn { variable: treatment, lag });
+    }
+    cols.push(LaggedColumn { variable: outcome, lag: y_lag });
+    let treatment_count = treatments.len();
+    let mut adjustment = Vec::new();
+    for &dense_var in estimand.adjustment_set.iter() {
+        let key = indexer
+            .key_of(dense_var.raw())
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        if key.variable == outcome || treatments.contains(&key.variable) {
+            continue;
+        }
+        let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
+            EstimationError::unsupported(
+                "adjustment node sits after this horizon's sample anchor and cannot be lag-aligned",
+            )
+        })?;
+        cols.push(LaggedColumn { variable: key.variable, lag });
+        adjustment.push(key.variable);
+    }
+    let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
+    let plan = data
+        .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        .map_err(EstimationError::from)?;
+    let mut sample_ws = LaggedSampleWorkspace::default();
+    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+    let n = prep.n;
+    if n < 8 {
+        return Err(EstimationError::data_msg(
+            "too few aligned rows for a temporal linear slope",
+        ));
+    }
+    let y = prep.column(treatment_count);
+    let n_z = adjustment.len();
+    let ncols = 1 + treatment_count + n_z;
+    let mut design = vec![0.0; n * ncols];
+    for i in 0..n {
+        design[i] = 1.0;
+    }
+    for k in 0..treatment_count {
+        let column = prep.column(k);
+        design[(1 + k) * n..(2 + k) * n].copy_from_slice(column);
+    }
+    for k in 0..n_z {
+        let column = prep.column(treatment_count + 1 + k);
+        let base = (1 + treatment_count + k) * n;
+        design[base..base + n].copy_from_slice(column);
+    }
+    let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+    let fit = antecedent_stats::FaerBackend
+        .least_squares(&design, n, ncols, y, &mut ws)
+        .map_err(crate::util::stats_err)?;
+    let mut coef = fit.coefficients;
+    if let Some(scale) = prior_scale {
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(EstimationError::unsupported(
+                "temporal slope prior scale must be finite and positive",
+            ));
+        }
+        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
+        let penalty = sigma2 / (scale * scale);
+        let aug_n = n + (ncols - 1);
+        let mut aug_x = vec![0.0; aug_n * ncols];
+        let mut aug_y = vec![0.0; aug_n];
+        for col in 0..ncols {
+            aug_x[col * aug_n..col * aug_n + n].copy_from_slice(&design[col * n..(col + 1) * n]);
+        }
+        aug_y[..n].copy_from_slice(y);
+        let root = penalty.sqrt();
+        for col in 1..ncols {
+            let row = n + col - 1;
+            aug_x[col * aug_n + row] = root;
+        }
+        let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
+        coef = antecedent_stats::FaerBackend
+            .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
+            .map_err(crate::util::stats_err)?
+            .coefficients;
+    }
+    Ok((coef[0], coef[1..1 + treatment_count].to_vec()))
 }
 
 #[cfg(test)]

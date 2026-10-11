@@ -204,6 +204,8 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalConditionalPulse,
+    TemporalConditionalSustained,
     TemporalMediationEffect,
 )
 from .results import Analysis, AnalysisResult
@@ -242,6 +244,8 @@ __all__ = [
     "ResponseJacobian",
     "SemiElasticity",
     "SustainedEffect",
+    "TemporalConditionalPulse",
+    "TemporalConditionalSustained",
     "TemporalMediationEffect",
     # Graphs
     "Dag",

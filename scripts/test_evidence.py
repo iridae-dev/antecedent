@@ -873,6 +873,15 @@ QUERY_TOKENS: dict[str, list[str]] = {
     ],
     # A MediationQuery on a temporal graph (the graph-class check binds the class).
     "TemporalMediationEffect": [r"with_horizons", r"TemporalMediation", r"MediationQuery"],
+    "TemporalConditionalPulse": [
+        r"with_effect_modifiers",
+        r"TemporalPolicy::pulse",
+        r"TemporalConditionalPulse",
+    ],
+    "TemporalConditionalSustained": [
+        r"TemporalPolicy::sustained",
+        r"TemporalConditionalSustained",
+    ],
     "AnomalyAttribution": [r"AnomalyAttribution", r"anomaly"],
     "ChangeAttribution": [r"ChangeAttribution", r"distribution_change", r"change_attribution"],
     "TransportQuery": [r"Transport"],

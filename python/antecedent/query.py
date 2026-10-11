@@ -301,6 +301,60 @@ class SustainedEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class TemporalConditionalPulse:
+    """One-modifier conditional pulse on a temporal DAG.
+
+    The published point is the marginal effect ``(β_T + β_{T×W} · mean(W)) · (active − control)``
+    on the unfolded temporal design. No interval is published.
+    """
+
+    treatment: str
+    outcome: str
+    modifier: str
+    _: KW_ONLY
+    control_level: float = 0.0
+    active_level: float = 1.0
+    treatment_lag: int = temporal_response_spec.default_treatment_lag
+    horizon_steps: int = 1
+    max_history_lag: int | None = None
+    target_population: object | None = None
+    kind: Literal["pulse"] = field(default="pulse", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _validate_max_history_lag(self.max_history_lag)
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalConditionalSustained:
+    """One-modifier conditional sustained effect on a single time step.
+
+    Same marginal functional as :class:`TemporalConditionalPulse`. A multi-step
+    window is not this license.
+    """
+
+    treatment: str
+    outcome: str
+    modifier: str
+    _: KW_ONLY
+    control_level: float = 0.0
+    active_level: float = 1.0
+    treatment_lag: int = temporal_response_spec.default_treatment_lag
+    horizon_steps: int = 1
+    window: tuple[int, int] | None = None
+    max_history_lag: int | None = None
+    target_population: object | None = None
+    kind: Literal["sustained"] = field(default="sustained", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _validate_max_history_lag(self.max_history_lag)
+        if self.window is not None and self.window != (
+            -self.treatment_lag,
+            -self.treatment_lag,
+        ):
+            raise ValueError("temporal conditional sustained effect is a single step")
+
+
+@dataclass(frozen=True, slots=True)
 class InterventionalDistribution:
     """Interventional distribution query (static)."""
 
@@ -808,6 +862,8 @@ __all__ = [
     "ResponseJacobian",
     "SemiElasticity",
     "SustainedEffect",
+    "TemporalConditionalPulse",
+    "TemporalConditionalSustained",
     "TemporalMediationEffect",
     "TemporalResponseSpec",
     "coerce_outcome_functional",

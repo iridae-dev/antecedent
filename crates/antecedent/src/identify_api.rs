@@ -361,6 +361,7 @@ fn temporal_class_identify_query(
                 horizon_steps: temporal.horizons.first().copied().unwrap_or(1),
                 max_history_lag: temporal.max_history_lag,
                 target_population: q.target_population.clone(),
+                effect_modifiers: std::sync::Arc::from([]),
             })
         }
         CausalQuery::Mediation(q) if class_tag == "TemporalCpdag" => {

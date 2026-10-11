@@ -44,6 +44,7 @@ pub(super) enum AnalysisRoute {
     MechanismChange,
     UnitChange,
     TemporalEffect,
+    TemporalCrossWorld,
     PanelTemporalEffect,
     PanelTemporalResponse,
     MultiEnvTemporalEffect,
@@ -92,7 +93,19 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         }
         (DataModality::Tabular, CausalQuery::AverageEffect(_)) => AnalysisRoute::StaticAte,
         (DataModality::Tabular, CausalQuery::Distribution(_)) => AnalysisRoute::Distribution,
+        (DataModality::TemporalOrEvent, CausalQuery::Distribution(_)) => {
+            AnalysisRoute::TemporalCrossWorld
+        }
         (DataModality::Tabular, CausalQuery::PathSpecific(_)) => AnalysisRoute::PathSpecific,
+        (DataModality::TemporalOrEvent, CausalQuery::PathSpecific(_)) => {
+            AnalysisRoute::TemporalCrossWorld
+        }
+        (DataModality::TemporalOrEvent, CausalQuery::NestedCounterfactual(_)) => {
+            AnalysisRoute::TemporalCrossWorld
+        }
+        (DataModality::TemporalOrEvent, CausalQuery::Counterfactual(_)) => {
+            AnalysisRoute::TemporalCrossWorld
+        }
         (DataModality::Tabular, CausalQuery::ConditionalEffect(_)) => AnalysisRoute::Conditional,
         (DataModality::TemporalOrEvent, CausalQuery::Mediation(_)) => {
             AnalysisRoute::TemporalMediation

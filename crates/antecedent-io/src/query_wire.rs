@@ -672,6 +672,10 @@ pub enum CausalQueryWire {
         max_history_lag: Option<u32>,
         /// Population.
         target_population: TargetPopulationWire,
+        /// Effect modifiers. Absent on pulse and sustained artifacts that predate
+        /// the temporal conditional effect.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        effect_modifiers: Vec<u32>,
     },
     /// Counterfactual.
     Counterfactual {
@@ -1702,6 +1706,7 @@ pub fn causal_query_to_wire_with_registry(
                 &q.target_population,
                 registry,
             )?,
+            effect_modifiers: q.effect_modifiers.iter().map(|id| id.raw()).collect(),
         },
         CausalQuery::Counterfactual(q) => CausalQueryWire::Counterfactual {
             outcomes: vars_to_raw(&q.outcomes),
@@ -2113,6 +2118,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             horizon_steps,
             max_history_lag,
             target_population,
+            effect_modifiers,
         } => CausalQuery::TemporalEffect(TemporalEffectQuery {
             treatment: VariableId::from_raw(*treatment),
             outcome: VariableId::from_raw(*outcome),
@@ -2122,6 +2128,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             horizon_steps: *horizon_steps,
             max_history_lag: *max_history_lag,
             target_population: target_population.to_domain()?,
+            effect_modifiers: effect_modifiers.iter().copied().map(VariableId::from_raw).collect(),
         }),
         CausalQueryWire::Counterfactual { outcomes, interventions, control, allow_nested } => {
             let interventions: Arc<[Intervention]> =

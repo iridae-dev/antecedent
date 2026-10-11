@@ -711,6 +711,7 @@ fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, 
         horizon_steps: horizon,
         max_history_lag: temporal.max_history_lag,
         target_population: query.target_population.clone(),
+        effect_modifiers: std::sync::Arc::from([]),
     })
 }
 

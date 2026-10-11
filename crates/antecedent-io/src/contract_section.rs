@@ -1283,7 +1283,16 @@ pub fn verify_contract_against_body(
         }
     }
     if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
-        if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
+        if contract.graph_class == "TemporalDag" {
+            let point = body.estimate.is_some_and(f64::is_finite)
+                && body.interval_lower.is_none()
+                && body.interval_upper.is_none()
+                && body.posterior_artifact.is_none()
+                && !body.standard_error.is_some_and(f64::is_finite);
+            if !point {
+                unresolved.push(Arc::from("body.temporal_nested_point"));
+            }
+        } else if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
             unresolved.push(Arc::from(reason));
         }
     }
@@ -1863,11 +1872,17 @@ fn verify_nested_counterfactual_result(
             .as_ref()
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             != Some("mediation.linear")
-        || contract.inference_binding.as_ref().map(|binding| binding.inference.as_str())
-            != Some("frequentist")
+        || !matches!(
+            contract.inference_binding.as_ref().map(|binding| binding.inference.as_str()),
+            Some("frequentist" | "bayesian")
+        )
     {
         return Err("program.checked_nested_counterfactual.scope");
     }
+    let bayesian_point = contract
+        .inference_binding
+        .as_ref()
+        .is_some_and(|binding| binding.inference == "bayesian");
     if operation.format != 1
         || operation.treatment != treatment
         || operation.mediator != mediator
@@ -1920,14 +1935,24 @@ fn verify_nested_counterfactual_result(
     {
         return Err("dependencies.nested_counterfactual_fit_moments");
     }
+    let actual = body.estimate.ok_or("body.nested_counterfactual_estimate")?;
+    if !actual.is_finite() {
+        return Err("body.nested_counterfactual_estimate");
+    }
+    if bayesian_point {
+        if body.standard_error.is_some_and(f64::is_finite)
+            || body.interval_lower.is_some()
+            || body.interval_upper.is_some()
+            || body.posterior_artifact.is_some()
+        {
+            return Err("body.nested_counterfactual_estimate");
+        }
+        return Ok(());
+    }
     let beta = solve_nested_outcome_moments(fit.gram, fit.outcome_cross)
         .ok_or("dependencies.nested_counterfactual_fit_rank")?;
     let expected = beta[1] * (f64::from_bits(active_bits) - f64::from_bits(control_bits));
-    let actual = body.estimate.ok_or("body.nested_counterfactual_estimate")?;
-    if !expected.is_finite()
-        || !actual.is_finite()
-        || (actual - expected).abs() > 1e-8 * expected.abs().max(1.0)
-    {
+    if !expected.is_finite() || (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
         return Err("body.nested_counterfactual_estimate");
     }
     Ok(())

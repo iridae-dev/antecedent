@@ -227,7 +227,11 @@ fn dag_for(cell: &antecedent::SupportCell, n: u32) -> Dag {
                 chain_dag(n)
             }
         }
-        "SustainedEffect" | "PulseEffect" | "TemporalMediationEffect" => chain_dag(n),
+        "SustainedEffect"
+        | "PulseEffect"
+        | "TemporalConditionalPulse"
+        | "TemporalConditionalSustained"
+        | "TemporalMediationEffect" => chain_dag(n),
         "Counterfactual" => chain_dag(n.max(3)),
         "TransportQuery" => {
             let mut g = Dag::with_variables(n.max(5));
@@ -493,6 +497,10 @@ fn temporal_spec() -> TemporalResponseSpec {
     TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap()
 }
 
+fn temporalize(query: ResponseQuery, temporal: bool) -> CausalQuery {
+    CausalQuery::Response(if temporal { query.with_temporal(temporal_spec()) } else { query })
+}
+
 fn mean_curve(treatment: u32, outcome: u32, temporal: bool) -> CausalQuery {
     let q = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: vid(outcome),
@@ -576,61 +584,89 @@ fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
                 .with_horizon_steps(1)
                 .with_max_history_lag(Some(1)),
         ),
+        "TemporalConditionalPulse" => CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(vid(0), vid(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1))
+                .with_effect_modifiers([vid(2)]),
+        ),
+        "TemporalConditionalSustained" => CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(vid(0), vid(1), 1.0)
+                .with_policy(TemporalPolicy::sustained(-1, -1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1))
+                .with_effect_modifiers([vid(2)]),
+        ),
         "ResponseCurve" => mean_curve(0, 1, temporal_graph),
         "InterventionResponse" if cell.graph_class == "CoDetermined" => {
             intervention_response(&[1, 2], 3, false)
         }
         "InterventionResponse" => intervention_response(&[0], 1, temporal_graph),
-        "AverageDerivative" => {
-            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::AverageDerivative {
+        "AverageDerivative" => temporalize(
+            ResponseQuery::new(ResponseFunctional::AverageDerivative {
                 outcome: vid(2),
                 treatment: vid(0),
                 weighting: DerivativeWeighting::Observed,
-            }))
-        }
-        "PointDerivative" => {
-            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+            }),
+            temporal_graph,
+        ),
+        "PointDerivative" => temporalize(
+            ResponseQuery::new(ResponseFunctional::PointDerivative {
                 outcome: vid(2),
                 treatment: vid(0),
-                at: 0.5,
+                at: if temporal_graph { 2.0 } else { 0.5 },
                 order: 1,
                 scale: DerivativeScale::Identity,
-            }))
-        }
-        "Elasticity" => {
-            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+            }),
+            temporal_graph,
+        ),
+        "Elasticity" => temporalize(
+            ResponseQuery::new(ResponseFunctional::PointDerivative {
                 outcome: vid(2),
                 treatment: vid(0),
-                at: 0.5,
+                at: if temporal_graph { 2.0 } else { 0.5 },
                 order: 1,
                 scale: DerivativeScale::LogLog,
-            }))
-        }
-        "SemiElasticity" => {
-            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+            }),
+            temporal_graph,
+        ),
+        "SemiElasticity" => temporalize(
+            ResponseQuery::new(ResponseFunctional::PointDerivative {
                 outcome: vid(2),
                 treatment: vid(0),
-                at: 0.5,
+                at: if temporal_graph { 2.0 } else { 0.5 },
                 order: 1,
                 scale: DerivativeScale::LogTreatment,
-            }))
-        }
-        "DirectionalDerivative" => {
-            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::DirectionalDerivative {
+            }),
+            temporal_graph,
+        ),
+        "DirectionalDerivative" => temporalize(
+            ResponseQuery::new(ResponseFunctional::DirectionalDerivative {
                 outcomes: Arc::from([vid(2), vid(3)]),
                 treatments: Arc::from([vid(0), vid(1)]),
-                at: Arc::from([0.5, 0.0]),
+                at: if temporal_graph {
+                    Arc::from([2.0, 1.0])
+                } else {
+                    Arc::from([0.5, 0.0])
+                },
                 direction: Arc::from([1.0, 1.0]),
-            }))
-        }
-        "ResponseJacobian" => {
-            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::Jacobian {
+            }),
+            temporal_graph,
+        ),
+        "ResponseJacobian" => temporalize(
+            ResponseQuery::new(ResponseFunctional::Jacobian {
                 outcomes: Arc::from([vid(2), vid(3)]),
                 treatments: Arc::from([vid(0), vid(1)]),
-                at: Arc::from([0.5, 0.0]),
+                at: if temporal_graph {
+                    Arc::from([2.0, 1.0])
+                } else {
+                    Arc::from([0.5, 0.0])
+                },
                 scale: DerivativeScale::Identity,
-            }))
-        }
+            }),
+            temporal_graph,
+        ),
         "TransportQuery" => CausalQuery::Transport(TransportQuery::new(
             ResponseQuery::new(ResponseFunctional::MeanCurve {
                 outcome: vid(1),
@@ -668,7 +704,8 @@ fn needs_series(cell: &antecedent::SupportCell) -> bool {
 
 fn n_vars(cell: &antecedent::SupportCell) -> u32 {
     match cell.query {
-        "PathSpecificEffect" | "MediationEffect" | "TemporalMediationEffect" => 3,
+        "PathSpecificEffect" | "MediationEffect" | "TemporalMediationEffect"
+        | "NestedCounterfactualEffect" => 3,
         "AverageDerivative"
         | "PointDerivative"
         | "Elasticity"
@@ -679,7 +716,7 @@ fn n_vars(cell: &antecedent::SupportCell) -> u32 {
         "InterferenceQuery" => 2,
         "InterventionResponse" if cell.graph_class == "CoDetermined" => 4,
         "AverageEffect" if matches!(cell.graph_class, "CoDetermined" | "Unknown") => 4,
-        "ConditionalEffect" => 3,
+        "ConditionalEffect" | "TemporalConditionalPulse" | "TemporalConditionalSustained" => 3,
         _ if needs_series(cell) && cell.query == "TemporalMediationEffect" => 3,
         _ if needs_series(cell) && cell.graph_class == "TemporalPag" => 3,
         _ if needs_series(cell) => 2,
@@ -902,12 +939,12 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         other => return Err(format!("{expected}: unhandled structure {other}")),
     };
 
-    if cell.query == "PathSpecificEffect" {
+    if cell.query == "PathSpecificEffect" && cell.graph_class != "TemporalDag" {
         builder = builder
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect);
     }
-    if cell.query == "InterventionalDistribution" {
+    if cell.query == "InterventionalDistribution" && cell.graph_class != "TemporalDag" {
         builder = builder
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution);
@@ -1253,7 +1290,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 472, "licensed inventory drifted");
+    assert_eq!(n, 521, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1292,7 +1329,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 472, "licensed inventory drifted");
+    assert_eq!(n, 521, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -1313,7 +1350,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
 }
 
 /// Diagnostic sweep for retained checked execution after every source owner is
-/// dropped. This stays opt-in because the full 472-cell execution is expensive.
+/// dropped. This stays opt-in because the full 521-cell execution is expensive.
 #[test]
 #[ignore = "opt-in registry closure diagnostic; run with --ignored --exact"]
 fn diagnostic_registry_closure_after_builder_and_study_drop() {
@@ -1426,7 +1463,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 472, "licensed support inventory drifted");
+    assert_eq!(count, 521, "licensed support inventory drifted");
 }
 
 /// Opt-in probe for the separately licensed alternate estimators. It keeps

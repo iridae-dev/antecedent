@@ -885,14 +885,19 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             GraphClass::RandomizedTrial => None,
         },
         CausalQuery::TemporalEffect(q) => match &q.policy {
-            TemporalPolicy::Pulse { .. } => Some("PulseEffect"),
-            TemporalPolicy::Sustained { .. } => Some("SustainedEffect"),
+            TemporalPolicy::Pulse { .. } if q.effect_modifiers.is_empty() => Some("PulseEffect"),
+            TemporalPolicy::Sustained { .. } if q.effect_modifiers.is_empty() => {
+                Some("SustainedEffect")
+            }
+            TemporalPolicy::Pulse { .. } => Some("TemporalConditionalPulse"),
+            TemporalPolicy::Sustained { .. } => Some("TemporalConditionalSustained"),
             // A dynamic rule is classified by its evaluated schedule shape so it
             // cannot dodge the matrix: one active step rides the Pulse cell
             // (the engine estimates it as a rule-tagged pulse), any longer
             // schedule is a sustained intervention and hits the Sustained
             // refusal. Mirrors `refuse_multi_step_schedule` in
             // antecedent-estimate, which already refuses multi-step Dynamic.
+            TemporalPolicy::Dynamic { .. } if !q.effect_modifiers.is_empty() => None,
             TemporalPolicy::Dynamic { active_at, .. } => {
                 if active_at.len() == 1 {
                     Some("PulseEffect")

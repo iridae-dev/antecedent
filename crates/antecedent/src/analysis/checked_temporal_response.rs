@@ -139,6 +139,10 @@ impl TemporalResponseHorizonEvidence {
 
     /// Retained finite-unfolding proof.
     #[must_use]
+    pub(crate) const fn effect_query(&self) -> &TemporalEffectQuery {
+        &self.effect_query
+    }
+
     pub(crate) const fn identification(&self) -> &IdentificationResult {
         &self.identification
     }

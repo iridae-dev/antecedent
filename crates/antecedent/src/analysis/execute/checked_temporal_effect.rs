@@ -138,6 +138,35 @@ impl CheckedTemporalEffectExecution {
                 estimate.with_block_family(antecedent_estimate::CircularBlockFamily::Sequential);
             let ok = estimate.bootstrap_replicates_ok;
             (estimate, refutations, diagnostics, ok)
+        } else if !query.effect_modifiers.is_empty() {
+            if query.effect_modifiers.len() != 1
+                || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
+            {
+                return Err(CausalError::Unsupported {
+                    message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+                });
+            }
+            let point = antecedent_estimate::temporal_conditional_marginal_effect(
+                data,
+                &estimand,
+                query,
+                indexer,
+                &ctx.kernel_policy,
+                None,
+            )?;
+            let estimate = EffectEstimate::new(
+                point,
+                f64::NAN,
+                identification.required_assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            );
+            let diagnostics = vec![Diagnostic::new(
+                "estimate.temporal.conditional_marginal",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "published value is the one-modifier marginal effect on the unfolded temporal design; no interval is published",
+            )];
+            (estimate, Vec::new(), diagnostics, None)
         } else {
             let mut estimator = TemporalLinearAdjustment::new();
             estimator.inner.bootstrap_replicates = bootstrap_replicates;

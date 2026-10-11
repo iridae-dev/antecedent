@@ -635,6 +635,75 @@ impl super::Study {
             (id_res.result, estimand, id_res.indexer, false)
         };
         require_identified(&identification)?;
+        if !query.effect_modifiers.is_empty() {
+            if query.effect_modifiers.len() != 1
+                || matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
+            {
+                return Err(CausalError::Unsupported {
+                    message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+                });
+            }
+            if self.refute != RefuteSuite::None {
+                return Err(CausalError::Unsupported {
+                    message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
+                });
+            }
+            let prior_scale = match &self.inference {
+                InferenceMode::Bayesian(cfg) => {
+                    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                        return Err(CausalError::Unsupported {
+                            message: "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                        });
+                    }
+                    Some(cfg.prior_scale)
+                }
+                InferenceMode::Frequentist => None,
+            };
+            let point = antecedent_estimate::temporal_conditional_marginal_effect(
+                data,
+                &estimand,
+                query,
+                &indexer,
+                &ctx.kernel_policy,
+                prior_scale,
+            )?;
+            let estimate = EffectEstimate::new(
+                point,
+                f64::NAN,
+                identification.required_assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            );
+            let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+                estimator_id: EstimatorId::TemporalLinearAdjustment,
+                treatment: query.treatment,
+                outcome: query.outcome,
+                identify_cached,
+                extra_diagnostics: Vec::new(),
+                refutations: Vec::new(),
+                distribution: None,
+                mediation: None,
+                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+                bootstrap_replicates_ok: None,
+                cancelled: false,
+                early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            });
+            result.interval = None;
+            result.posterior = None;
+            result.diagnostics.push(Diagnostic::new(
+                "estimate.temporal.conditional_marginal",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "published value is the one-modifier marginal effect on the unfolded temporal design; no interval is published",
+            ));
+            return Ok(result);
+        }
         if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
         {
             if self.split.is_some() {
@@ -1551,6 +1620,92 @@ impl super::Study {
         identification.status = aggregate_status;
         identification.required_assumptions = aggregate_assumptions.clone();
         let estimand = first.estimand.clone();
+        if super::response_functional_is_derivative(&query.functional) {
+            if temporal.horizons.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "a temporal derivative is the local slope at one horizon",
+                });
+            }
+            let prior_scale = match &self.inference {
+                InferenceMode::Bayesian(cfg) => {
+                    if cfg.prior.is_some()
+                        || cfg.prior_artifact.is_some()
+                        || cfg.external_compose.is_some()
+                    {
+                        return Err(CausalError::Unsupported {
+                            message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                        });
+                    }
+                    Some(cfg.prior_scale)
+                }
+                InferenceMode::Frequentist => None,
+            };
+            let probe = TemporalEffectQuery {
+                treatment,
+                outcome,
+                policy: temporal.policy.clone(),
+                control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
+                active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+                horizon_steps: temporal.horizons[0],
+                max_history_lag: temporal.max_history_lag,
+                target_population: query.target_population.clone(),
+                effect_modifiers: std::sync::Arc::from([]),
+            };
+            let response = temporal_linear_derivative_response(
+                data,
+                query,
+                &estimand,
+                &first.indexer,
+                &identification,
+                probe.try_treatment_offset().map_err(|e| CausalError::Compile {
+                    message: e.to_string(),
+                })?,
+                probe.outcome_offset(),
+                &ctx.kernel_policy,
+                prior_scale,
+            )?;
+            let scalar = super::response_path::response_scalar_summary(&response).0;
+            let estimator_id = match &self.inference {
+                InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
+                InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
+            };
+            let estimate = EffectEstimate::new(
+                scalar,
+                f64::NAN,
+                identification.required_assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            );
+            let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+                estimator_id,
+                treatment,
+                outcome,
+                identify_cached,
+                extra_diagnostics: Vec::new(),
+                refutations: Vec::new(),
+                distribution: None,
+                mediation: None,
+                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+                bootstrap_replicates_ok: None,
+                cancelled: false,
+                early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            });
+            result.response = Some(response);
+            result.interval = None;
+            result.posterior = None;
+            result.diagnostics.push(Diagnostic::new(
+                "estimate.temporal.linear_derivative",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "published value is the slope of the linear unfolded temporal fit; no interval is published",
+            ));
+            return Ok(result);
+        }
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
 
@@ -2172,6 +2327,7 @@ impl super::Study {
                 horizon_steps: horizon,
                 max_history_lag: temporal.max_history_lag,
                 target_population: query.target_population.clone(),
+                effect_modifiers: std::sync::Arc::from([]),
             };
             let bundle =
                 self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &effect_query)?;
@@ -2554,6 +2710,7 @@ impl super::Study {
                 horizon_steps: horizon,
                 max_history_lag: temporal.max_history_lag,
                 target_population: query.target_population.clone(),
+                effect_modifiers: std::sync::Arc::from([]),
             };
             let bundle =
                 self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &effect_query)?;
@@ -5508,6 +5665,7 @@ pub(super) fn resolve_temporal_response_prior(
             horizon_steps: entry.horizon,
             max_history_lag: temporal.max_history_lag,
             target_population: antecedent_core::TargetPopulation::AllObserved,
+            effect_modifiers: std::sync::Arc::from([]),
         };
         let prep = TemporalLinearAdjustment::new()
             .prepare(data, &entry.estimand, &pulse, &entry.indexer, None, &ctx.kernel_policy)
@@ -5861,4 +6019,401 @@ pub(super) fn temporal_dependence_se_diagnostics(
     )];
     out.extend(short_series_warning(effective_rows, family));
     out
+}
+
+impl super::Study {
+    pub(super) fn execute_temporal_cross_world(
+        &self,
+        data: &TimeSeriesData,
+        graph: &TemporalDag,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if self.refute != RefuteSuite::None {
+            return Err(CausalError::Unsupported {
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
+            });
+        }
+        let prior_scale = match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    });
+                }
+                Some(cfg.prior_scale)
+            }
+            InferenceMode::Frequentist => None,
+        };
+        let (treatment, outcome, mediator, active, control) = match &self.query {
+            CausalQuery::NestedCounterfactual(q) => (
+                q.treatment,
+                q.outcome,
+                Some(q.mediator),
+                q.active_value(),
+                q.control_value(),
+            ),
+            CausalQuery::PathSpecific(q) => {
+                if q.path_nodes.len() != 1 {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal path-specific effect is the one-mediator edge product".into(),
+                    });
+                }
+                let active = hard_level(&q.active)?;
+                let control = hard_level(&q.control)?;
+                (q.treatment, q.outcome, Some(q.path_nodes[0]), active, control)
+            }
+            CausalQuery::Counterfactual(q) => {
+                let treatment = q
+                    .interventions
+                    .first()
+                    .and_then(Intervention::primary_variable)
+                    .ok_or_else(|| CausalError::Unsupported {
+                        message: "temporal counterfactual needs one hard intervention".into(),
+                    })?;
+                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
+                    message: "temporal counterfactual needs one outcome".into(),
+                })?;
+                (treatment, outcome, None, hard_level(&q.interventions[0])?, hard_level(&q.control)?)
+            }
+            CausalQuery::Distribution(q) => {
+                let treatment = q
+                    .interventions
+                    .first()
+                    .and_then(Intervention::primary_variable)
+                    .ok_or_else(|| CausalError::Unsupported {
+                        message: "temporal interventional distribution needs one hard intervention".into(),
+                    })?;
+                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
+                    message: "temporal interventional distribution needs one outcome".into(),
+                })?;
+                if !q.conditioning.is_empty() {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal interventional distribution is unconditional".into(),
+                    });
+                }
+                (treatment, outcome, None, hard_level(&q.interventions[0])?, 0.0)
+            }
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "temporal cross-world route does not estimate this query".into(),
+                });
+            }
+        };
+        let probe = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+            .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let found = TemporalBackdoorIdentifier::new()
+            .identify_temporal(graph, &probe)
+            .map_err(CausalError::from)?;
+        let identification = found.result;
+        require_identified(&identification)?;
+        let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+            CausalError::Compile { message: "temporal cross-world proof has no estimand".into() }
+        })?;
+        let fit = |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+            antecedent_estimate::temporal_linear_slopes(
+                data,
+                &estimand,
+                &found.indexer,
+                outcome,
+                treatments,
+                probe.try_treatment_offset().map_err(|e| CausalError::Compile {
+                    message: e.to_string(),
+                })?,
+                probe.outcome_offset(),
+                contemporaneous,
+                &ctx.kernel_policy,
+                prior_scale,
+            )
+            .map_err(CausalError::from)
+        };
+        let delta = active - control;
+        let point = match &self.query {
+            CausalQuery::NestedCounterfactual(_) => {
+                let mediator = mediator.expect("nested mediator");
+                let (_, slopes) = fit(outcome, &[treatment, mediator], &[mediator])?;
+                slopes[0] * delta
+            }
+            CausalQuery::PathSpecific(_) => {
+                let mediator = mediator.expect("path mediator");
+                let (_, through) = fit(mediator, &[treatment], &[])?;
+                let (_, onward) = fit(outcome, &[treatment, mediator], &[mediator])?;
+                through[0] * onward[1] * delta
+            }
+            CausalQuery::Counterfactual(_) => {
+                let (_, slopes) = fit(outcome, &[treatment], &[])?;
+                slopes[0] * delta
+            }
+            CausalQuery::Distribution(_) => {
+                if !estimand.adjustment_set.is_empty() {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal interventional mean is licensed when the back-door set is empty".into(),
+                    });
+                }
+                let (intercept, slopes) = fit(outcome, &[treatment], &[])?;
+                intercept + slopes[0] * active
+            }
+            _ => unreachable!("matched above"),
+        };
+        let identification = template_scoped_cross_world(
+            identification,
+            &found.indexer,
+            self.query.clone(),
+            treatment,
+            outcome,
+            active,
+            control,
+        );
+        let estimand = identification.estimands[0].clone();
+        let estimate = EffectEstimate::new(
+            point,
+            f64::NAN,
+            identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+            estimator_id: EstimatorId::TemporalLinearAdjustment,
+            treatment,
+            outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
+        });
+        result.interval = None;
+        result.posterior = None;
+        result.diagnostics.push(Diagnostic::new(
+            "estimate.temporal.cross_world",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            "published value is the linear unfolded cross-world point; no interval is published",
+        ));
+        Ok(result)
+    }
+}
+
+fn template_scoped_cross_world(
+    mut identification: IdentificationResult,
+    indexer: &antecedent_core::TemporalIndexer,
+    query: CausalQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+) -> IdentificationResult {
+    let map = |id: VariableId| indexer.key_of(id.raw()).map(|key| key.variable).unwrap_or(id);
+    let adjustment: Vec<VariableId> = identification
+        .estimands
+        .first()
+        .map(|estimand| {
+            let mut mapped: Vec<VariableId> = estimand.adjustment_set.iter().copied().map(map).collect();
+            mapped.sort_by_key(|id| id.raw());
+            mapped.dedup();
+            mapped
+        })
+        .unwrap_or_default();
+    let mut arena = antecedent_expr::CausalExprArena::new();
+    let functional = if matches!(query, CausalQuery::Distribution(_)) {
+        arena.backdoor_mean(treatment, outcome, &adjustment, antecedent_core::Value::f64(active))
+    } else {
+        arena.backdoor_ate(
+            treatment,
+            outcome,
+            &adjustment,
+            antecedent_core::Value::f64(active),
+            antecedent_core::Value::f64(control),
+        )
+    };
+    let method = identification
+        .estimands
+        .first()
+        .map(|estimand| estimand.method.clone())
+        .unwrap_or_else(|| std::sync::Arc::from("temporal.backdoor.unfolded"));
+    identification.query = query;
+    identification.arena = arena;
+    identification.estimands = vec![antecedent_expr::IdentifiedEstimand::new(
+        method,
+        std::sync::Arc::from(adjustment),
+        std::sync::Arc::from([]),
+        std::sync::Arc::from([]),
+        functional,
+        None,
+    )];
+    identification.hedge = None;
+    identification
+}
+
+fn hard_level(intervention: &Intervention) -> Result<f64, CausalError> {
+    match intervention {
+        Intervention::Set { value: antecedent_core::Value::Float64(level), .. } if level.is_finite() => {
+            Ok(*level)
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "temporal cross-world interventions are finite hard sets".into(),
+        }),
+    }
+}
+
+pub(super) fn temporal_linear_derivative_response(
+    data: &TimeSeriesData,
+    query: &ResponseQuery,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    identification: &IdentificationResult,
+    treatment_offset: i32,
+    outcome_offset: i32,
+    policy: &antecedent_core::KernelPolicy,
+    prior_scale: Option<f64>,
+) -> Result<CausalResponse, CausalError> {
+    use antecedent_core::{
+        DerivativeScale, DerivativeWeighting, ResponseFunctional as F, SupportRegion, SupportReport,
+        SupportStatus,
+    };
+    if query.target_population != antecedent_core::TargetPopulation::AllObserved {
+        return Err(CausalError::Unsupported {
+            message: "temporal derivative requires the all-observed population".into(),
+        });
+    }
+    let fit = |outcome, treatments: &[VariableId]| {
+        antecedent_estimate::temporal_linear_slopes(
+            data,
+            estimand,
+            indexer,
+            outcome,
+            treatments,
+            treatment_offset,
+            outcome_offset,
+            &[],
+            policy,
+            prior_scale,
+        )
+        .map_err(CausalError::from)
+    };
+    let scale_one = |scale: DerivativeScale, at: f64, intercept: f64, slope: f64| -> Result<f64, CausalError> {
+        let mean = intercept + slope * at;
+        match scale {
+            DerivativeScale::Identity => Ok(slope),
+            DerivativeScale::LogTreatment if at > 0.0 => Ok(at * slope),
+            DerivativeScale::LogOutcome if mean.is_finite() && mean != 0.0 => Ok(slope / mean),
+            DerivativeScale::LogLog if at > 0.0 && mean.is_finite() && mean != 0.0 => {
+                Ok(at * slope / mean)
+            }
+            _ => Err(CausalError::Unsupported {
+                message: "temporal derivative scale needs a positive treatment point and a non-zero fitted mean".into(),
+            }),
+        }
+    };
+    let mut support_at = vec![0.0_f64];
+    let value = match &query.functional {
+        F::AverageDerivative { outcome, treatment, weighting } => {
+            if !matches!(weighting, DerivativeWeighting::Observed) {
+                return Err(CausalError::Unsupported {
+                    message: "temporal average derivative is licensed for the observed weighting".into(),
+                });
+            }
+            let (_, slopes) = fit(*outcome, &[*treatment])?;
+            ResponseValue::Scalar(slopes[0])
+        }
+        F::PointDerivative { outcome, treatment, at, order, scale } => {
+            if *order != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal point derivative is the first derivative of the linear fit".into(),
+                });
+            }
+            let (intercept, slopes) = fit(*outcome, &[*treatment])?;
+            support_at = vec![*at];
+            ResponseValue::Scalar(scale_one(*scale, *at, intercept, slopes[0])?)
+        }
+        F::DirectionalDerivative { outcomes, treatments, at, direction } => {
+            if at.len() != treatments.len() || direction.len() != treatments.len() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal directional derivative point and direction follow the treatments".into(),
+                });
+            }
+            support_at = at.to_vec();
+            let mut values = Vec::with_capacity(outcomes.len());
+            for &outcome in outcomes.iter() {
+                let (_, slopes) = fit(outcome, treatments)?;
+                values.push(
+                    slopes.iter().zip(direction.iter()).map(|(slope, step)| slope * step).sum(),
+                );
+            }
+            ResponseValue::Vector(std::sync::Arc::from(values))
+        }
+        F::Jacobian { outcomes, treatments, at, scale } => {
+            if at.len() != treatments.len() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal Jacobian is evaluated at one point per treatment".into(),
+                });
+            }
+            support_at = at.to_vec();
+            let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
+            for &outcome in outcomes.iter() {
+                let (intercept, slopes) = fit(outcome, treatments)?;
+                let mean = intercept
+                    + slopes.iter().zip(at.iter()).map(|(slope, point)| slope * point).sum::<f64>();
+                for (&slope, &point) in slopes.iter().zip(at.iter()) {
+                    let scaled = match scale {
+                        DerivativeScale::Identity => slope,
+                        DerivativeScale::LogTreatment if point > 0.0 => point * slope,
+                        DerivativeScale::LogOutcome if mean.is_finite() && mean != 0.0 => slope / mean,
+                        DerivativeScale::LogLog if point > 0.0 && mean.is_finite() && mean != 0.0 => {
+                            point * slope / mean
+                        }
+                        _ => {
+                            return Err(CausalError::Unsupported {
+                                message: "temporal Jacobian scale needs a positive treatment point and a non-zero fitted mean".into(),
+                            });
+                        }
+                    };
+                    values.push(scaled);
+                }
+            }
+            ResponseValue::Jacobian {
+                outcomes: outcomes.len(),
+                treatments: treatments.len(),
+                values: std::sync::Arc::from(values),
+            }
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "temporal linear derivative does not estimate this functional".into(),
+            });
+        }
+    };
+    Ok(CausalResponse {
+        estimand: query.functional.clone(),
+        identification_status: identification.status,
+        estimate: ResponseIdentification::PointIdentified(value),
+        uncertainty: ResponseUncertainty::None,
+        support: SupportReport {
+            status: SupportStatus::Supported,
+            query_region: SupportRegion {
+                minima: std::sync::Arc::from(support_at.clone()),
+                maxima: std::sync::Arc::from(support_at),
+            },
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            point_status: None,
+        },
+        assumptions: identification.required_assumptions.clone(),
+        provenance_id: std::sync::Arc::from("estimate.temporal.linear_derivative"),
+        horizon_identification: None,
+        interaction_structurally_zero: false,
+    })
 }

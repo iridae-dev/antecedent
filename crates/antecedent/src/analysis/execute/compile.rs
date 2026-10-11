@@ -214,7 +214,9 @@ impl super::Study {
                 if q.is_multi_step_sustained() {
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-                } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                } else if matches!(self.inference, InferenceMode::Bayesian(_))
+                    && q.effect_modifiers.is_empty()
+                {
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
                 }
@@ -913,6 +915,27 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::TemporalCrossWorld), GraphClass::TemporalDag) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                    unreachable!()
+                };
+                let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("temporal.cross_world.linear"),
+                        data_classification: antecedent_core::DataClassification::Temporal,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(IdentifierId::TemporalBackdoorUnfolded.as_str())),
+                        estimator: Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str())),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([treatment, outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             _ => Err(CausalError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
@@ -947,7 +970,7 @@ impl super::Study {
             (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
-            (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalDag) => {
+            (Some(AnalysisRoute::TemporalEffect | AnalysisRoute::TemporalCrossWorld), GraphClass::TemporalDag) => {
                 let graph = self
                     .graph
                     .as_temporal_dag()
@@ -1237,6 +1260,27 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile_logical_temporal_class()?.compile_physical(ctx)
     }
+}
+
+fn temporal_cross_world_endpoints(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
+    let pair = match query {
+        CausalQuery::Distribution(q) => q
+            .interventions
+            .first()
+            .and_then(Intervention::primary_variable)
+            .zip(q.outcomes.first().copied()),
+        CausalQuery::PathSpecific(q) => Some((q.treatment, q.outcome)),
+        CausalQuery::NestedCounterfactual(q) => Some((q.treatment, q.outcome)),
+        CausalQuery::Counterfactual(q) => q
+            .interventions
+            .first()
+            .and_then(Intervention::primary_variable)
+            .zip(q.outcomes.first().copied()),
+        _ => None,
+    };
+    pair.ok_or_else(|| CausalError::Compile {
+        message: "temporal cross-world query needs one treatment and one outcome".into(),
+    })
 }
 
 pub(crate) fn compile_logical_admg_response(

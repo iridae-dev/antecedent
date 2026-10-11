@@ -537,6 +537,7 @@ impl TemporalBackdoorIdentifier {
                 .map_err(|_| IdentificationError::msg("outcome offset does not fit horizon"))?,
             max_history_lag,
             target_population,
+            effect_modifiers: std::sync::Arc::from([]),
         };
         let _ = first_offset;
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {

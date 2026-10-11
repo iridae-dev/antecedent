@@ -2138,6 +2138,7 @@ impl PyPreparedAnalysis {
         control_level=0.0,
         active_level=1.0,
         max_history_lag=None,
+        modifier=None,
         accepted=false,
         class_graph=None,
         class_prior_ordered=None,
@@ -2163,6 +2164,7 @@ impl PyPreparedAnalysis {
         control_level: f64,
         active_level: f64,
         max_history_lag: Option<u32>,
+        modifier: Option<String>,
         accepted: bool,
         class_graph: Option<Bound<'_, PyAny>>,
         class_prior_ordered: Option<Vec<f64>>,
@@ -2182,7 +2184,7 @@ impl PyPreparedAnalysis {
             let schema = data.schema().clone();
             let t_id = schema.id_of(&treatment).map_err(py_err)?;
             let y_id = schema.id_of(&outcome).map_err(py_err)?;
-            let q = temporal_effect_query(
+            let mut q = temporal_effect_query(
                 &policy,
                 window,
                 t_id,
@@ -2194,6 +2196,10 @@ impl PyPreparedAnalysis {
                 max_history_lag,
                 &opts,
             )?;
+            if let Some(modifier) = modifier.as_deref() {
+                let modifier_id = schema.id_of(modifier).map_err(py_err)?;
+                q = q.with_effect_modifiers([modifier_id]);
+            }
             let mut builder = data.builder()?;
             builder = if let Some(graph) = class_graph {
                 bind_temporal_class(builder, graph, accepted, opts.discovery_algorithm())

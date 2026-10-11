@@ -1,0 +1,10 @@
+{
+  "point": 2.0,
+  "elasticity": 0.5714285714285714,
+  "semi_treatment": 4.0,
+  "semi_outcome": 0.2857142857142857,
+  "average": 2.0,
+  "jacobian": [2.0, 0.5, 1.0, -1.0],
+  "directional": [3.0, -1.0],
+  "tolerance": 0.05
+}

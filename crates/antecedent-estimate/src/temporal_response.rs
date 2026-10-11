@@ -1156,6 +1156,7 @@ impl TemporalResponseEstimator {
                 horizon_steps,
                 max_history_lag: temporal.max_history_lag,
                 target_population: TargetPopulation::AllObserved,
+                effect_modifiers: std::sync::Arc::from([]),
             };
             let prep = TemporalLinearAdjustment::new().prepare(
                 data,
@@ -1584,6 +1585,7 @@ impl TemporalResponseEstimator {
             horizon_steps,
             max_history_lag: temporal.max_history_lag,
             target_population: TargetPopulation::AllObserved,
+            effect_modifiers: std::sync::Arc::from([]),
         };
         pulse_query.validate()?;
         // Multi-step Sustained/Dynamic: temporal linear adjustment currently refuses.

@@ -47,6 +47,11 @@ impl super::Study {
         let class = self.graph.class();
         if let CausalQuery::NestedCounterfactual(q) = &self.query {
             q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            if self.graph.as_temporal_dag().is_some()
+                && matches!(self.data, DataInput::Temporal(_) | DataInput::Event(_))
+            {
+                // The temporal twin is the linear direct slope on a TemporalDag.
+            } else {
             let Some(graph) = self.graph.as_dag() else {
                 return Err(crate::unsupported_reason!(
                     "cross_world_not_identified",
@@ -77,13 +82,13 @@ impl super::Study {
             }
             if self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
                 || self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
-                || matches!(self.inference, InferenceMode::Bayesian(_))
                 || self.bootstrap_replicates != 0
             {
                 return Err(crate::unsupported_reason!(
                     "cross_world_not_identified",
                     "only the point-only linear Gaussian mediation route is licensed for this query"
                 ));
+            }
             }
         }
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp)
@@ -142,6 +147,10 @@ impl super::Study {
                 if !matches!(
                     (&self.data, class),
                     (DataInput::Tabular(_), GraphClass::Dag | GraphClass::Admg)
+                        | (
+                            DataInput::Temporal(_) | DataInput::Event(_),
+                            GraphClass::TemporalDag
+                        )
                 ) =>
             {
                 return Err(CausalError::Unsupported {
@@ -149,7 +158,14 @@ impl super::Study {
                 });
             }
             (_, CausalQuery::PathSpecific(_), class)
-                if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) =>
+                if !matches!(
+                    (&self.data, class),
+                    (DataInput::Tabular(_), GraphClass::Dag)
+                        | (
+                            DataInput::Temporal(_) | DataInput::Event(_),
+                            GraphClass::TemporalDag
+                        )
+                ) =>
             {
                 return Err(CausalError::Unsupported {
                     message: "CausalQuery::PathSpecific requires tabular data and a static DAG",
@@ -521,6 +537,15 @@ impl super::Study {
                     ctx,
                 )
             }
+            Some(AnalysisRoute::TemporalCrossWorld) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+                    unreachable!()
+                };
+                let graph = physical.temporal_graph().ok_or_else(|| CausalError::Compile {
+                    message: "temporal cross-world plan is missing its TemporalDag".into(),
+                })?;
+                self.execute_temporal_cross_world(data, graph, physical, ctx)
+            }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
                     unreachable!()
@@ -671,6 +696,11 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
+            AnalysisRoute::TemporalCrossWorld => {
+                return Err(CausalError::Unsupported {
+                    message: "temporal cross-world effect requires series data and a TemporalDag",
+                });
+            }
             AnalysisRoute::Response => {
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
                 match self.graph.class() {
@@ -886,7 +916,18 @@ impl super::Study {
                         let mut result = self.execute_static_mediation_total(
                             data, graph, mediation, physical, ctx,
                         )?;
-                        let effect = operation.execute(data, ctx)?;
+                        let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
+                        let effect = if bayesian {
+                            // The mediation path already returned the conjugate posterior
+                            // mean of this natural direct effect. Running the cross-world
+                            // engine confirms the Markovian worlds; its plugin is not the
+                            // published number, and the posterior interval is withheld.
+                            operation.execute(data, ctx)?;
+                            result.posterior = None;
+                            result.estimate.ate
+                        } else {
+                            operation.execute(data, ctx)?
+                        };
                         result.estimate.ate = effect;
                         result.estimate.se_analytic = f64::NAN;
                         result.estimate.se_bootstrap = None;
@@ -905,6 +946,14 @@ impl super::Study {
                             DiagnosticSeverity::Info,
                             "both nested treatment worlds used one abduced linear-Gaussian exogenous table".to_string(),
                         ));
+                        if bayesian {
+                            result.diagnostics.push(Diagnostic::new(
+                                "counterfactual.nested.posterior_mean_only",
+                                DiagnosticKind::Execution,
+                                DiagnosticSeverity::Info,
+                                "published value is the conjugate posterior mean of the natural direct effect; posterior draws and the interval are withheld".to_string(),
+                            ));
+                        }
                         Ok(result)
                     }
                     _ => unreachable!(),
