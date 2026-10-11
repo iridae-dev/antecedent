@@ -25,6 +25,7 @@ use antecedent_core::{
     RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value, VariableCoordinate, VariableDomain,
     VariableId,
 };
+use antecedent_estimate::{percentile_interval, z_transport_bootstrap_law_draws};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
     LawTolerance,
@@ -35,8 +36,7 @@ use antecedent_identify::{
 };
 use antecedent_io::IoError;
 use antecedent_validate::{
-    JointDeviationSpec, JointFactor, JointFactorBound,
-    joint_sensitivity_bootstrap_interval_internal, z_transport_joint_mechanism_sensitivity,
+    JointDeviationSpec, JointFactor, JointFactorBound, z_transport_joint_mechanism_sensitivity,
 };
 
 const W: VariableId = VariableId::from_raw(0);
@@ -753,22 +753,31 @@ fn the_endpoint_bootstrap_interval_replays() {
     );
     assert_eq!(published.level, 0.95);
     assert!(published.coverage_target.starts_with("one_sided:"));
-    // Recompute from the cited count table, the deviation spec, and the seed
-    // stream. This path does not call the prepared-stage producer again.
-    let recomputed = joint_sensitivity_bootstrap_interval_internal(
-        &diagram,
-        &functional,
-        prepared.data(),
-        &deviation,
-        199,
-        0.95,
-        &ExecutionContext::for_tests(1),
-    )
-    .unwrap()
-    .unwrap();
-    assert_eq!(published.lower.to_bits(), recomputed.lower.to_bits());
-    assert_eq!(published.upper.to_bits(), recomputed.upper.to_bits());
-    assert_eq!(published.coverage_target, recomputed.coverage_target);
+    // Rebuild the endpoints from the saved count table, the deviation spec, and
+    // a fresh seed. The draws and the range are public; this is not a second
+    // call of the interval producer.
+    let replay = ExecutionContext::for_tests(1);
+    let draws = z_transport_bootstrap_law_draws(&functional, prepared.data(), 199, &replay)
+        .unwrap()
+        .unwrap();
+    let mut lows = Vec::new();
+    let mut highs = Vec::new();
+    for draw in draws.into_iter().flatten() {
+        let range = z_transport_joint_mechanism_sensitivity(
+            &diagram,
+            &functional,
+            &draw,
+            &deviation,
+            &replay,
+        )
+        .unwrap();
+        lows.push(range.range.minimum);
+        highs.push(range.range.maximum);
+    }
+    let (lower, _) = percentile_interval(&lows, 0.95).unwrap();
+    let (_, upper) = percentile_interval(&highs, 0.95).unwrap();
+    assert_eq!(published.lower.to_bits(), lower.to_bits());
+    assert_eq!(published.upper.to_bits(), upper.to_bits());
     for (replicates, level) in [(198, 0.95), (1, 0.95), (2001, 0.95), (199, 0.9), (199, 1.0)] {
         let error = prepared
             .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
