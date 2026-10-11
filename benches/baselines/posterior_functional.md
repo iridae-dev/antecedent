@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (posterior_functional); do not edit -->
 # Posterior functional evaluation baselines
 
 Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)

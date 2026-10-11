@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (dseparation); do not edit -->
 # d-separation benchmark baseline
 
 Commit: 6b309cd2 (the commit that added this file; the measured commit was not written down)

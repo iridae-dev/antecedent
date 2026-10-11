@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (neural_crossfit); do not edit -->
 # Cross-fitted neural workload
 
 Established: 2026-09-24 (the date this file was first committed; the measurement date was not written down)

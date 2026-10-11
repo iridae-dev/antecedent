@@ -2,6 +2,7 @@
 import sys
 
 sys.path.insert(0, "scripts")
+import gate_hot_path_baselines as hp
 import parity_rows as pr
 
 EVIDENCE = {
@@ -28,9 +29,8 @@ EXIT_ARTIFACTS = [
     "conformance/design_state/rolling_mechanism_diag_match/expected.json",
     "crates/antecedent-design/benches/design_rank.rs",
     "crates/antecedent-state/benches/state_append.rs",
-    "benches/baselines/design_state.md",
+    "benches/baselines/baselines.toml",
     "parity/design_state.toml",
-    "adr/0016-design-state.md",
     "provenance/design.eig.toml",
     "provenance/state.incremental_ols.toml",
     "provenance/state.incremental.particle_graph_score.toml",
@@ -38,4 +38,5 @@ EXIT_ARTIFACTS = [
 
 problems = pr.honesty_problems("parity/design_state.toml", EVIDENCE)
 problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+problems += hp.missing_ids(("design_state",))
 pr.finish("Design state", problems, "Design state inventory evidence map OK")

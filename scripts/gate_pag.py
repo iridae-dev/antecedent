@@ -2,6 +2,7 @@
 import sys
 
 sys.path.insert(0, "scripts")
+import gate_hot_path_baselines as hp
 import parity_rows as pr
 
 EVIDENCE = {
@@ -39,10 +40,11 @@ EXIT_ARTIFACTS = [
     "conformance/pag/dag_only_pag_reject/expected.json",
     "crates/antecedent-graph/benches/mseparation.rs",
     "crates/antecedent-discovery/benches/pag_orientation.rs",
-    "benches/baselines/pag.md",
+    "benches/baselines/baselines.toml",
     "parity/pag.toml",
 ]
 
 problems = pr.honesty_problems("parity/pag.toml", EVIDENCE)
 problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+problems += hp.missing_ids(("pag",))
 pr.finish("PAG", problems, "PAG inventory evidence map OK")

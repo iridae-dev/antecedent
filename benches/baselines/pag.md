@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (pag); do not edit -->
 # m-separation / PAG orientation baselines 
 
 Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)

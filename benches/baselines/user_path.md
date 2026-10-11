@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (user_path); do not edit -->
 # User-path jobs
 
 Established: 2026-09-19 (the date this file was first committed; the measurement date was not written down)

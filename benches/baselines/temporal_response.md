@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (temporal_response); do not edit -->
 # temporal response baselines
 
 Established: 2026-09-07 (the first measurement date the note below states)

@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (kernel_reductions); do not edit -->
 # Kernel reductions benchmark baseline
 
 Commit: 9deef739 (the commit that added this file; the measured commit was not written down)

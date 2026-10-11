@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (graph_traversal); do not edit -->
 # Graph traversal benchmark baseline
 
 Commit: 88dfb155 (the commit that added this file; the measured commit was not written down)

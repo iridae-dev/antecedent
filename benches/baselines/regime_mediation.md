@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (regime_mediation); do not edit -->
 # regime / mediation baselines
 
 Established: 2026-09-07 (the first measurement date the note below states)

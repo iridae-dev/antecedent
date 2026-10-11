@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (sample_overlay); do not edit -->
 # GCM interventional sampling baselines
 
 Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)

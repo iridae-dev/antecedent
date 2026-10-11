@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (laplace_glm); do not edit -->
 # Laplace GLM baselines
 
 Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)

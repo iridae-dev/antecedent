@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (shapley); do not edit -->
 # Shapley attribution baselines
 
 Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)

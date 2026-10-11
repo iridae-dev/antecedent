@@ -2,6 +2,7 @@
 import sys
 
 sys.path.insert(0, "scripts")
+import gate_hot_path_baselines as hp
 import parity_rows as pr
 
 EVIDENCE = {
@@ -28,12 +29,13 @@ EXIT_ARTIFACTS = [
     "conformance/context/prediction_smoke/expected.json",
     "crates/antecedent-discovery/benches/rpcmci.rs",
     "crates/antecedent-estimate/benches/temporal_mediation.rs",
-    "benches/baselines/regime_mediation.md",
+    "benches/baselines/baselines.toml",
     "parity/context.toml",
 ]
 
 problems = pr.honesty_problems("parity/context.toml", EVIDENCE)
 problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+problems += hp.missing_ids(("regime_mediation",))
 problems += pr.require_done(
     "parity/discovery.toml",
     ("discovery.jpcmci_plus", "discovery.rpcmci", "discovery.effects"),

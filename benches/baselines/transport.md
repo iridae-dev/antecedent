@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (transport); do not edit -->
 # Transport identification, catalog, evaluation, and bootstrap
 
 Commit: f5660026 (the commit that added this file; the measured commit was not written down)

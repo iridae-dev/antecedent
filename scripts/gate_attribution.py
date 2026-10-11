@@ -2,6 +2,7 @@
 import sys
 
 sys.path.insert(0, "scripts")
+import gate_hot_path_baselines as hp
 import parity_rows as pr
 
 EVIDENCE = {
@@ -37,12 +38,13 @@ EXIT_ARTIFACTS = [
     "conformance/attribution/mechanism_change_kernel_shift/expected.json",
     "conformance/attribution/mechanism_change_change_point/expected.json",
     "crates/antecedent-attribution/benches/shapley.rs",
-    "benches/baselines/shapley.md",
+    "benches/baselines/baselines.toml",
     "parity/attribution.toml",
 ]
 
 problems = pr.honesty_problems("parity/attribution.toml", EVIDENCE)
 problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+problems += hp.missing_ids(("shapley",))
 problems += pr.require_done("parity/gcm.toml", (
     "gcm.attribution.shapley",
     "gcm.attribution.distribution_change",
