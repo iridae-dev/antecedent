@@ -22,6 +22,13 @@ python3 scripts/decision_exit_report_cli_selftest.py
 python3 scripts/check_prerequisites.py --self-test
 python3 scripts/run_evidence_rows_selftest.py
 python3 scripts/test_calibration_groups.py
+python3 scripts/test_calibration_key_aliases.py
+python3 scripts/test_collect_coverage_records.py
+python3 scripts/test_promotion_refusal_helpers.py
+python3 scripts/test_publish_crates.py
+python3 scripts/test_release_support_delta.py
+python3 scripts/test_transport_replay_contract.py
+python3 scripts/verify_release_selftest.py
 python3 scripts/verify_wheel_matrix_selftest.py
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
