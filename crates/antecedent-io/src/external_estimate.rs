@@ -7,25 +7,25 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT, IdentityDomain,
-    MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IdentityDomain, MeasurementSpec,
+    RoleHint, SmallRoleSet, ValueType, VariableId, IDENTITY_FORMAT,
 };
 
-use crate::analysis_result_artifact::{AnalysisResultWire, encode_analysis_result_artifact};
+use crate::analysis_result_artifact::{encode_analysis_result_artifact, AnalysisResultWire};
 use crate::analysis_wire::{DiagnosticWire, IdentificationResultWire};
-use crate::container::{CompressPolicy, pack_section_shared};
+use crate::container::{pack_section_shared, CompressPolicy};
 use crate::contract_section::{
-    AnalysisResultContractWire, AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
-    CalibrationSlotWire, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
-    ReasoningSectionWire, SlotSectionWire, SupportSlotWire, claim_domains, contract_seal,
-    digest_hex, result_digest,
+    claim_domains, contract_seal, digest_hex, result_digest, AnalysisResultContractWire,
+    AttestedEvidenceWire, CalibrationSlotWire, ClaimSectionWire, ContractIdentitiesWire,
+    IdentificationSlotWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
+    CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
 };
 use crate::convert::schema_to_wire;
 use crate::error::IoError;
 use crate::expr_wire::ExprArenaWire;
 use crate::identity::{
-    ClaimIdentityWire, IdentificationProductWire, ObservationIdentityWire, TargetIdentityWire,
-    claim_digest,
+    claim_digest, ClaimIdentityWire, IdentificationProductWire, ObservationIdentityWire,
+    TargetIdentityWire,
 };
 use crate::payload_digest;
 use crate::query_wire::causal_query_to_wire;
@@ -501,6 +501,9 @@ pub fn parse_digest_hex(hex: &str) -> Result<[u8; 32], IoError> {
     if hex.len() != 64 {
         return Err(IoError::Convert("digest hex must be 64 characters".into()));
     }
+    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(IoError::Convert("digest hex must be hexadecimal digits".into()));
+    }
     let mut out = [0u8; 32];
     for (idx, chunk) in hex.as_bytes().chunks(2).enumerate() {
         let text = std::str::from_utf8(chunk).map_err(|err| IoError::Convert(err.to_string()))?;
@@ -532,6 +535,18 @@ pub fn decode_external_estimate_claim(
 mod tests {
     use super::*;
     use crate::from_cbor;
+
+    #[test]
+    fn digest_hex_rejects_plus_signs() {
+        let mut spelled = String::new();
+        for _ in 0..32 {
+            spelled.push_str("+a");
+        }
+        assert_eq!(spelled.len(), 64);
+        assert!(parse_digest_hex(&spelled).is_err());
+        let ok = "ab".repeat(32);
+        assert!(parse_digest_hex(&ok).is_ok());
+    }
 
     fn attach_with_payload(payload: &[u8]) -> ExternalEstimateAttach {
         ExternalEstimateAttach {
@@ -698,14 +713,12 @@ mod tests {
         use crate::wire::ValueTypeWire;
         let bytes = encode_external_estimate_claim(&attach_with_payload(&[0])).unwrap();
         let (_, contract, _) = decode_external_estimate_claim(&bytes).unwrap();
-        assert!(
-            contract
-                .target
-                .schema
-                .variables
-                .iter()
-                .all(|v| v.value_type == ValueTypeWire::Unspecified)
-        );
+        assert!(contract
+            .target
+            .schema
+            .variables
+            .iter()
+            .all(|v| v.value_type == ValueTypeWire::Unspecified));
     }
 
     #[test]
