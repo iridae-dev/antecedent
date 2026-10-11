@@ -94,9 +94,6 @@ pub const Z_POWER_80: f64 = 0.841_621;
 /// Smallest accepted `alpha`, and `1 - ` the largest accepted `power`.
 const LEVEL_FLOOR: f64 = 1e-12;
 
-/// Relative pivot tolerance of the Cholesky rank test.
-const RANK_TOLERANCE: f64 = 1e-10;
-
 /// Residual sum of squares at or below this fraction of `y'y` counts as an exact fit.
 const EXACT_FIT_TOLERANCE: f64 = 1e-12;
 
@@ -578,29 +575,6 @@ fn check_comparable(
     Ok(())
 }
 
-/// Lower Cholesky factor of a row-major symmetric matrix; `None` unless every pivot exceeds
-/// [`RANK_TOLERANCE`] times its diagonal entry (so rank deficiency is detected).
-fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = matrix[i * n + j];
-            for k in 0..j {
-                sum -= lower[i * n + k] * lower[j * n + k];
-            }
-            if i == j {
-                if sum.is_nan() || !sum.is_finite() || sum <= RANK_TOLERANCE * matrix[i * n + i] {
-                    return None;
-                }
-                lower[i * n + i] = sum.sqrt();
-            } else {
-                lower[i * n + j] = sum / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
-}
-
 /// Solve `L y = b` (forward substitution).
 fn forward_solve(lower: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
     let mut y = vec![0.0; n];
@@ -625,7 +599,7 @@ struct Ols {
 
 fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     let p = c.names.len();
-    let lower = cholesky(&c.xtx, p).ok_or_else(|| {
+    let lower = antecedent_stats::cholesky_spd(&c.xtx, p).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
             "mechanism_discrepancy.rank_deficient_design",
@@ -704,7 +678,7 @@ fn joint_wald(compared: &[usize], p: usize, s: &Ols, t: &Ols) -> Result<f64, Est
             v[a * m + b] = s.covariance[i * p + j] + t.covariance[i * p + j];
         }
     }
-    let lower = cholesky(&v, m).ok_or_else(|| {
+    let lower = antecedent_stats::cholesky_spd(&v, m).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
             "mechanism_discrepancy.degenerate_covariance",

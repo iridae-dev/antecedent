@@ -475,55 +475,6 @@ fn check_design(design: &Design, input: &VectorTreatmentInput) -> Result<(), Est
     Ok(())
 }
 
-/// Inverse of a row-major `p x p` matrix by Gauss--Jordan elimination with partial pivoting.
-fn invert(matrix: &[f64], p: usize) -> Option<Vec<f64>> {
-    let w = 2 * p;
-    let mut aug = vec![0.0; p * w];
-    for i in 0..p {
-        for j in 0..p {
-            aug[i * w + j] = matrix[i * p + j];
-        }
-        aug[i * w + p + i] = 1.0;
-    }
-    for col in 0..p {
-        let mut pivot = col;
-        for r in (col + 1)..p {
-            if aug[r * w + col].abs() > aug[pivot * w + col].abs() {
-                pivot = r;
-            }
-        }
-        let value = aug[pivot * w + col];
-        if !value.is_finite() || value.abs() < 1e-300 {
-            return None;
-        }
-        if pivot != col {
-            for j in 0..w {
-                aug.swap(col * w + j, pivot * w + j);
-            }
-        }
-        let scale = 1.0 / aug[col * w + col];
-        for j in 0..w {
-            aug[col * w + j] *= scale;
-        }
-        for r in 0..p {
-            if r != col {
-                let factor = aug[r * w + col];
-                for j in 0..w {
-                    let delta = factor * aug[col * w + j];
-                    aug[r * w + j] -= delta;
-                }
-            }
-        }
-    }
-    let mut inverse = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            inverse[i * p + j] = aug[i * w + p + j];
-        }
-    }
-    Some(inverse)
-}
-
 fn matmul(a: &[f64], b: &[f64], p: usize) -> Vec<f64> {
     let mut out = vec![0.0; p * p];
     for i in 0..p {
@@ -560,7 +511,7 @@ fn fit_ols(design: &Design, y: &[f64]) -> Result<Ols, EstimationError> {
                     gram[j * p + i] = value;
                 }
             }
-            let Some(ginv) = invert(&gram, p) else {
+            let Some(ginv) = antecedent_stats::invert_square(&gram, p) else {
                 return Err(refuse(
                     reason_code!("design_rank_deficient"),
                     "vector_treatment.rank_deficient_adjustment",
@@ -631,38 +582,10 @@ fn full_covariance(
     Ok(matmul(&matmul(&ols.ginv, &meat, p), &ols.ginv, p))
 }
 
-/// Lower Cholesky factor of a row-major symmetric matrix; `None` unless positive definite.
-fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = matrix[i * n + j];
-            for k in 0..j {
-                sum -= lower[i * n + k] * lower[j * n + k];
-            }
-            if i == j {
-                if sum.is_nan() || sum <= 0.0 || !sum.is_finite() {
-                    return None;
-                }
-                lower[i * n + i] = sum.sqrt();
-            } else {
-                lower[i * n + j] = sum / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
-}
-
 /// `x' V^-1 x` from the Cholesky factor of `V`.
 fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut sum = x[i];
-        for k in 0..i {
-            sum -= lower[i * n + k] * y[k];
-        }
-        y[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(lower, n, x, &mut y);
     y.iter().map(|v| v * v).sum()
 }
 
@@ -691,7 +614,7 @@ fn wald_rows(
             rvr[a * m + b] = sum;
         }
     }
-    let Some(lower) = cholesky(&rvr, m) else {
+    let Some(lower) = antecedent_stats::cholesky_spd(&rvr, m) else {
         return Err(degenerate("the restriction covariance is singular or not positive definite"));
     };
     let statistic = quadratic_form(&lower, m, &rb);
@@ -1044,7 +967,7 @@ pub fn full_coefficient_posterior_mean(
     for column in 1..p {
         gram[column * p + column] += penalty;
     }
-    let Some(ginv) = invert(&gram, p) else {
+    let Some(ginv) = antecedent_stats::invert_square(&gram, p) else {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
             "vector_treatment.rank_deficient_adjustment",
@@ -1140,7 +1063,7 @@ pub(crate) fn fit_joint_from_summary(
             "the summary must be finite with a non-negative residual sum of squares",
         ));
     }
-    let Some(ginv) = invert(&summary.gram, p) else {
+    let Some(ginv) = antecedent_stats::invert_square(&summary.gram, p) else {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
             "vector_treatment.rank_deficient_adjustment",
@@ -1167,4 +1090,20 @@ pub(crate) fn fit_joint_from_summary(
         residual_variance: sigma2,
     };
     assemble(solved, options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wald_rows;
+
+    #[test]
+    fn a_restriction_covariance_that_cancels_to_rounding_noise_is_refused() {
+        // [[1, 1], [1, 1 + 1e-15]] has a positive but cancelled second pivot: the former
+        // `sum <= 0` Cholesky accepted it, the kernel pivot floor refuses it.
+        let rows = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
+        let beta = [1.0, 1.0];
+        assert!(wald_rows(&rows, &beta, &[1.0, 1.0, 1.0, 1.0 + 1e-15]).is_err());
+        let joint = wald_rows(&rows, &beta, &[2.0, 1.0, 1.0, 2.0]).unwrap();
+        assert!((joint.statistic - 2.0 / 3.0).abs() < 1e-12, "{}", joint.statistic);
+    }
 }

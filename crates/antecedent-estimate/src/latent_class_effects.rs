@@ -530,45 +530,6 @@ fn validate_data(
     Ok((problem, limits))
 }
 
-/// Solve `A x = b` for a symmetric positive-definite `A` (lower triangle read) by Cholesky;
-/// `None` when a pivot is not safely positive.
-fn solve_spd(matrix: &[f64], rhs: &[f64], dim: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; dim * dim];
-    for i in 0..dim {
-        for j in 0..=i {
-            let mut acc = matrix[i * dim + j];
-            for k in 0..j {
-                acc -= lower[i * dim + k] * lower[j * dim + k];
-            }
-            if i == j {
-                if acc.is_nan() || acc <= 1e-12 * matrix[i * dim + i] || !acc.is_finite() {
-                    return None;
-                }
-                lower[i * dim + i] = acc.sqrt();
-            } else {
-                lower[i * dim + j] = acc / lower[j * dim + j];
-            }
-        }
-    }
-    let mut forward = vec![0.0; dim];
-    for i in 0..dim {
-        let mut acc = rhs[i];
-        for k in 0..i {
-            acc -= lower[i * dim + k] * forward[k];
-        }
-        forward[i] = acc / lower[i * dim + i];
-    }
-    let mut solution = vec![0.0; dim];
-    for i in (0..dim).rev() {
-        let mut acc = forward[i];
-        for k in (i + 1)..dim {
-            acc -= lower[k * dim + i] * solution[k];
-        }
-        solution[i] = acc / lower[i * dim + i];
-    }
-    Some(solution)
-}
-
 /// Weighted least squares of `y` on the problem's design.
 fn wls(problem: &Problem, weights: &[f64]) -> Option<Vec<f64>> {
     let dim = problem.d;
@@ -587,7 +548,7 @@ fn wls(problem: &Problem, weights: &[f64]) -> Option<Vec<f64>> {
             }
         }
     }
-    solve_spd(&gram, &rhs, dim)
+    crate::util::solve_spd(&gram, &rhs, dim)
 }
 
 /// Weighted normal equations of one class: `X'WX`, `X'Wy` and the weighted residual sum of squares.

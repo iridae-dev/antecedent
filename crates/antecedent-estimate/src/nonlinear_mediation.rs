@@ -438,18 +438,20 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
         }
         scales.push(s);
     }
-    let mut aug = vec![0.0; p * (p + 1)];
+    // Jacobi-scaled normal equations (unit-RMS columns): symmetric positive definite.
+    let mut gram = vec![0.0; p * p];
+    let mut rhs = vec![0.0; p];
     for j in 0..p {
         for k in j..p {
             let dot: f64 = cols[j].iter().zip(&cols[k]).map(|(u, v)| u * v).sum();
             let v = dot / (scales[j] * scales[k]);
-            aug[j * (p + 1) + k] = v;
-            aug[k * (p + 1) + j] = v;
+            gram[j * p + k] = v;
+            gram[k * p + j] = v;
         }
         let r: f64 = cols[j].iter().zip(y).map(|(u, v)| u * v).sum();
-        aug[j * (p + 1) + p] = r / scales[j];
+        rhs[j] = r / scales[j];
     }
-    let sol = solve(&mut aug, p, nf).ok_or_else(|| {
+    let sol = crate::util::solve_spd(&gram, &rhs, p).ok_or_else(|| {
         refuse(
             rank_code,
             "nonlinear_mediation.rank_deficient",
@@ -466,45 +468,6 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
         residuals.push(r);
     }
     Ok(Ols { beta, residuals, rss })
-}
-
-/// Gauss-Jordan on an augmented `p x (p + 1)` row-major system. `None` when a pivot falls
-/// below `1e-10 * diag_scale` (the Jacobi-scaled Gram diagonal equals the row count).
-fn solve(aug: &mut [f64], p: usize, diag_scale: f64) -> Option<Vec<f64>> {
-    let w = p + 1;
-    for col in 0..p {
-        let mut best = col;
-        for r in col + 1..p {
-            if aug[r * w + col].abs() > aug[best * w + col].abs() {
-                best = r;
-            }
-        }
-        if aug[best * w + col].abs().partial_cmp(&(1e-10 * diag_scale))
-            != Some(std::cmp::Ordering::Greater)
-        {
-            return None;
-        }
-        if best != col {
-            for k in 0..w {
-                aug.swap(col * w + k, best * w + k);
-            }
-        }
-        let pivot = aug[col * w + col];
-        for r in 0..p {
-            if r == col {
-                continue;
-            }
-            let factor = aug[r * w + col] / pivot;
-            if factor.abs() > 0.0 {
-                for k in col..w {
-                    let sub = factor * aug[col * w + k];
-                    aug[r * w + k] -= sub;
-                }
-            }
-        }
-    }
-    let sol: Vec<f64> = (0..p).map(|j| aug[j * w + p] / aug[j * w + j]).collect();
-    sol.iter().all(|v| v.is_finite()).then_some(sol)
 }
 
 /// Fitted mediator and outcome models.
@@ -951,4 +914,23 @@ pub fn estimate_nonlinear_mediation(
         mediator_design: fit.mediator_design,
         outcome_design: fit.outcome_design,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ols;
+
+    #[test]
+    fn rank_is_judged_by_the_kernel_pivot_floor() {
+        let n = 80;
+        let x1: Vec<f64> = (0..n).map(|i| (0.3 * i as f64).sin()).collect();
+        let noise: Vec<f64> = (0..n).map(|i| (1.7 * i as f64 + 0.4).cos()).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + x1[i] + 0.1 * noise[i]).collect();
+        // Correlation 1 - 1e-12 after normalisation: the former relative 1e-10 pivot cutoff
+        // refused this design; its conditioning is 1e12, well inside the kernel floor.
+        let near: Vec<f64> = (0..n).map(|i| x1[i] + 1e-6 * noise[i]).collect();
+        assert!(ols(&[x1.clone(), near], &y).is_ok());
+        // An exact duplicate is rank deficient under either rule.
+        assert!(ols(&[x1.clone(), x1], &y).is_err());
+    }
 }
