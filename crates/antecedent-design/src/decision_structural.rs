@@ -21,7 +21,7 @@ use antecedent_io::distribution_artifact::DistributionArtifact;
 use crate::decision_contract::{
     DecisionContract, DecisionContractError, DecisionCriterion, StructuralPolicy,
 };
-use crate::decision_eval::{DecisionEvalError, DecisionResult, Verdict, evaluate_contract};
+use crate::decision_eval::{evaluate_contract, DecisionEvalError, DecisionResult, Verdict};
 
 /// What is known about one structure.
 #[derive(Clone, Debug)]
@@ -96,6 +96,9 @@ pub enum StructuralVerdict {
     NoInvariantBest(Vec<(String, Vec<String>)>),
     /// Best worst case over structures.
     WorstCaseChoice(String),
+    /// Several actions share the best worst-case or Bayes score. Declaration order
+    /// is not a choice.
+    Tied(Vec<String>),
     /// Best probability-weighted value over the evaluated mass.
     BayesChoice {
         /// Chosen action.
@@ -390,12 +393,12 @@ pub fn evaluate_structural(
                             .map(|v| sign * v)
                             .fold(f64::INFINITY, f64::min)
                     };
-                    let best = candidates
-                        .iter()
-                        .copied()
-                        .max_by(|a, b| worst(*a).total_cmp(&worst(*b)).then(b.cmp(a)))
-                        .expect("candidates are nonempty");
-                    StructuralVerdict::WorstCaseChoice(actions[best].id.clone())
+                    match unique_best(&candidates, worst) {
+                        Ok(best) => StructuralVerdict::WorstCaseChoice(actions[best].id.clone()),
+                        Err(tied) => StructuralVerdict::Tied(
+                            tied.into_iter().map(|i| actions[i].id.clone()).collect(),
+                        ),
+                    }
                 } else {
                     StructuralVerdict::InsufficientScience(
                         "a worst case over structures needs every structure evaluated".into(),
@@ -415,14 +418,14 @@ pub fn evaluate_structural(
                 } else {
                     let score =
                         |i: usize| sign * actions[i].weighted_value.unwrap_or(f64::NEG_INFINITY);
-                    let best = candidates
-                        .iter()
-                        .copied()
-                        .max_by(|a, b| score(*a).total_cmp(&score(*b)).then(b.cmp(a)))
-                        .expect("candidates are nonempty");
-                    StructuralVerdict::BayesChoice {
-                        action: actions[best].id.clone(),
-                        evaluated_mass: evaluated,
+                    match unique_best(&candidates, score) {
+                        Ok(best) => StructuralVerdict::BayesChoice {
+                            action: actions[best].id.clone(),
+                            evaluated_mass: evaluated,
+                        },
+                        Err(tied) => StructuralVerdict::Tied(
+                            tied.into_iter().map(|i| actions[i].id.clone()).collect(),
+                        ),
                     }
                 }
             }
@@ -439,4 +442,25 @@ pub fn evaluate_structural(
         evaluated_mass,
         verdict,
     })
+}
+
+/// The unique maximizer, or every index that shares the best score.
+fn unique_best(candidates: &[usize], score: impl Fn(usize) -> f64) -> Result<usize, Vec<usize>> {
+    let mut best = f64::NEG_INFINITY;
+    let mut tied = Vec::new();
+    for &i in candidates {
+        match score(i).total_cmp(&best) {
+            std::cmp::Ordering::Greater => {
+                best = score(i);
+                tied.clear();
+                tied.push(i);
+            }
+            std::cmp::Ordering::Equal => tied.push(i),
+            std::cmp::Ordering::Less => {}
+        }
+    }
+    match tied.as_slice() {
+        [only] => Ok(*only),
+        _ => Err(tied),
+    }
 }

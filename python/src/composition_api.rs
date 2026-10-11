@@ -17,24 +17,24 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use antecedent::analysis::decision_claims::{
-    ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
+    atom_leaders, cpdag_claims, scenario_claims, ClaimError, OutcomeBinding, ScenarioClaimBinding,
 };
 use antecedent_core::{
     DistributionAvailability, EvidenceKind, EvidenceRegime, ExternalCapability, ExternalRefusal,
     ExternalTrustState, RegimeId, RegimeKind, ScientificQuantity, SupportStatus, VariableId,
 };
 use antecedent_design::composition_boundary::{
-    ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
-    CompositionOperation, CoordinateIssue, DecisionInput, DependenceRoute, EvidenceRelation,
-    InputProvenance, InputSource, NativeExecutionRecord, PairRelation, ProviderKind, ReceiptRef,
-    RouteKind, ScalarClaim, SupportPolicy, SupportedDecision, SupportedVerdict,
-    TrustEvidence as DesignTrust, TrustRequirement, UnsupportedActionPolicy,
     check_atom_combination, check_composition, check_paired_draws, evaluate_functional_on_input,
-    evaluate_with_support,
+    evaluate_with_support, ActionDisposition, ActionStatus, AtomCombination, AtomPlan,
+    BoundaryError, CalibrationStatus, CompositionOperation, CoordinateIssue, DecisionInput,
+    DependenceRoute, EvidenceRelation, InputProvenance, InputSource, NativeExecutionRecord,
+    PairRelation, ProviderKind, ReceiptRef, RouteKind, ScalarClaim, SupportPolicy,
+    SupportedDecision, SupportedVerdict, TrustEvidence as DesignTrust, TrustRequirement,
+    UnsupportedActionPolicy,
 };
 use antecedent_design::decision_adapters::evaluate_adapted;
 use antecedent_design::decision_artifact::{
-    MAX_DECISION_ARTIFACT_BYTES, contract_from_json_refusal,
+    contract_from_json_refusal, MAX_DECISION_ARTIFACT_BYTES,
 };
 use antecedent_design::decision_contract::{DecisionFunctional, StructuralPolicy, Tail};
 use antecedent_design::decision_eval::{ActionOutcome, MeanSource, Verdict};
@@ -45,9 +45,10 @@ use antecedent_design::decision_structural::{
 };
 use antecedent_design::design_ranking_artifact::DesignRankingArtifactWire;
 use antecedent_design::proposal_receipt::{
-    Arrival, ArrivalVerdict, ArrivedEvidence, BaseFailureBinding, ChangedPremise, CostBinding,
-    DecisionReceipt, HypotheticalBinding, LineageBinding, ObservedLaw, ProposalBundle,
-    ProposalReceipt, ProposalReceiptError, ValuationBinding, on_arrival, verify as verify_bundle,
+    on_arrival, verify as verify_bundle, Arrival, ArrivalVerdict, ArrivedEvidence,
+    BaseFailureBinding, ChangedPremise, CostBinding, DecisionReceipt, HypotheticalBinding,
+    LineageBinding, ObservedLaw, ProposalBundle, ProposalReceipt, ProposalReceiptError,
+    ValuationBinding,
 };
 use antecedent_design::repair_artifact::RepairReportArtifact;
 use antecedent_io::distribution_artifact::{DistributionCalibration, DistributionTrust};
@@ -55,15 +56,15 @@ use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::cpdag_scenario_api::CpdagScenarioRun;
 use crate::distribution_api::PyJointDistributionArtifact;
-use crate::repair_api::{REPAIR_PREFIX, RepairContractStage, parse_candidates};
+use crate::repair_api::{parse_candidates, RepairContractStage, REPAIR_PREFIX};
 use crate::transport_common::{execution_context, resolve, unframe_named_artifact};
 use crate::transport_scenario_api::PreparedTransportScenariosStage;
 use crate::transport_z_api::intervention_assignments;
-use crate::{CausalSerializationError, value_err};
+use crate::{value_err, CausalSerializationError};
 
 /// A result JSON paired with a refusal JSON; exactly one is present.
 type Pair = (Option<String>, Option<String>);
@@ -1124,6 +1125,7 @@ fn structural_verdict_json(verdict: &StructuralVerdict) -> Value {
         StructuralVerdict::WorstCaseChoice(id) => {
             json!({"kind": "worst_case_choice", "action": id})
         }
+        StructuralVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }
@@ -1212,6 +1214,7 @@ fn robust_verdict_json(verdict: &RobustVerdict) -> Value {
         }
         RobustVerdict::NoAdmissibleAction => json!({"kind": "no_admissible_action"}),
         RobustVerdict::WorstCaseChoice(id) => json!({"kind": "worst_case_choice", "action": id}),
+        RobustVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         RobustVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }

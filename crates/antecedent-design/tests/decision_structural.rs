@@ -6,8 +6,8 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_structural::{
-    AtomEvidence, AtomStatus, StructuralAtom, StructuralError, StructuralVerdict,
-    evaluate_structural,
+    evaluate_structural, AtomEvidence, AtomStatus, StructuralAtom, StructuralError,
+    StructuralVerdict,
 };
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -153,6 +153,11 @@ fn maximin_ranks_by_the_worst_structure() {
     let utility_choice = evaluate_structural(&criterion, &skew).unwrap().verdict;
     assert_eq!(loss_choice, StructuralVerdict::WorstCaseChoice("B".into()));
     assert_eq!(utility_choice, StructuralVerdict::WorstCaseChoice("A".into()));
+
+    // Equal worst cases are a tie. Declaration order must not invent a winner.
+    let tied = [evaluated("s1", None, 4.0, 4.0), evaluated("s2", None, 2.0, 2.0)];
+    let result = evaluate_structural(&c, &tied).unwrap();
+    assert_eq!(result.verdict, StructuralVerdict::Tied(vec!["A".into(), "B".into()]));
 }
 
 #[test]

@@ -11,7 +11,7 @@
 //! and must reproduce the stored wire exactly.
 
 use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
+    section_descriptor, ArtifactManifest, EncodedArtifact, SectionBytes,
 };
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::error::IoError;
@@ -19,14 +19,14 @@ use antecedent_io::reader::ArtifactReader;
 use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 use serde::{Deserialize, Serialize};
 
-use crate::decision_artifact::{MAX_DECISION_ARTIFACT_BYTES, source_digest};
+use crate::decision_artifact::{source_digest, MAX_DECISION_ARTIFACT_BYTES};
 use crate::decision_contract::{DecisionContract, DecisionCriterion, StructuralPolicy};
 use crate::decision_eval::{
     ActionOutcome, ConstraintExclusion, DecisionResult, SourceReceipt, Verdict,
 };
 use crate::decision_structural::{
-    ActionStructure, AtomEvidence, AtomStatus, AtomSummary, StructuralAtom,
-    StructuralDecisionResult, StructuralVerdict, evaluate_structural,
+    evaluate_structural, ActionStructure, AtomEvidence, AtomStatus, AtomSummary, StructuralAtom,
+    StructuralDecisionResult, StructuralVerdict,
 };
 
 const RESULT_KIND: &str = "decision_structural_result_v1";
@@ -182,6 +182,7 @@ enum VerdictWire {
     InvariantBest(String),
     NoInvariantBest(Vec<(String, Vec<String>)>),
     WorstCaseChoice(String),
+    Tied(Vec<String>),
     BayesChoice { action: String, evaluated_mass: f64 },
     ReportOnly,
     InsufficientScience(String),
@@ -308,6 +309,7 @@ fn verdict_to_wire(verdict: &StructuralVerdict) -> VerdictWire {
             VerdictWire::NoInvariantBest(leaders.clone())
         }
         StructuralVerdict::WorstCaseChoice(id) => VerdictWire::WorstCaseChoice(id.clone()),
+        StructuralVerdict::Tied(ids) => VerdictWire::Tied(ids.clone()),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             VerdictWire::BayesChoice { action: action.clone(), evaluated_mass: *evaluated_mass }
         }
@@ -324,6 +326,7 @@ fn verdict_from_wire(verdict: VerdictWire) -> StructuralVerdict {
         VerdictWire::InvariantBest(id) => StructuralVerdict::InvariantBest(id),
         VerdictWire::NoInvariantBest(leaders) => StructuralVerdict::NoInvariantBest(leaders),
         VerdictWire::WorstCaseChoice(id) => StructuralVerdict::WorstCaseChoice(id),
+        VerdictWire::Tied(ids) => StructuralVerdict::Tied(ids),
         VerdictWire::BayesChoice { action, evaluated_mass } => {
             StructuralVerdict::BayesChoice { action, evaluated_mass }
         }

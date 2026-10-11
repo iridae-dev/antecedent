@@ -29,20 +29,20 @@ use antecedent_core::{
 };
 use antecedent_io::convert::to_cbor;
 use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{LineageLinkWire, wire_from_chain};
+use antecedent_io::external_claim_artifact::{wire_from_chain, LineageLinkWire};
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::{
-    ContractBody, MAX_DECISION_ARTIFACT_BYTES, body_from_contract, contract_from_body, decode,
-    encode, refused, source_digest,
+    body_from_contract, contract_from_body, decode, encode, refused, source_digest, ContractBody,
+    MAX_DECISION_ARTIFACT_BYTES,
 };
 use crate::decision_contract::{
     AdmissibilityRules, AdmissibleDecisionContract, DeclaredExclusion, SupportRule,
     UncertaintyKind, UncertaintyRequirement,
 };
 use crate::decision_robustness::{
-    ActionRobustness, AtomSupport, ClaimProfile, InputSupport, RobustDecisionResult, RobustVerdict,
-    SupportShortfall, evaluate_robust,
+    evaluate_robust, ActionRobustness, AtomSupport, ClaimProfile, InputSupport,
+    RobustDecisionResult, RobustVerdict, SupportShortfall,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 
@@ -662,6 +662,7 @@ enum VerdictWire {
     InsufficientClaims(String),
     NoAdmissibleAction,
     WorstCaseChoice(String),
+    Tied(Vec<String>),
     BayesChoice { action: String, evaluated_mass: f64 },
     ReportOnly,
 }
@@ -690,6 +691,7 @@ fn verdict_to_wire(verdict: &RobustVerdict) -> VerdictWire {
         RobustVerdict::InsufficientClaims(why) => VerdictWire::InsufficientClaims(why.clone()),
         RobustVerdict::NoAdmissibleAction => VerdictWire::NoAdmissibleAction,
         RobustVerdict::WorstCaseChoice(id) => VerdictWire::WorstCaseChoice(id.clone()),
+        RobustVerdict::Tied(ids) => VerdictWire::Tied(ids.clone()),
         RobustVerdict::BayesChoice { action, evaluated_mass } => {
             VerdictWire::BayesChoice { action: action.clone(), evaluated_mass: *evaluated_mass }
         }
@@ -709,6 +711,7 @@ fn verdict_from_wire(wire: VerdictWire) -> RobustVerdict {
         VerdictWire::InsufficientClaims(why) => RobustVerdict::InsufficientClaims(why),
         VerdictWire::NoAdmissibleAction => RobustVerdict::NoAdmissibleAction,
         VerdictWire::WorstCaseChoice(id) => RobustVerdict::WorstCaseChoice(id),
+        VerdictWire::Tied(ids) => RobustVerdict::Tied(ids),
         VerdictWire::BayesChoice { action, evaluated_mass } => {
             RobustVerdict::BayesChoice { action, evaluated_mass }
         }

@@ -5,24 +5,24 @@
 //! for the Python layer to raise as its own exception type.
 
 use antecedent_design::decision_adapters::{
+    adapt_finite_scenarios, adapt_graph_dependent_claims, adapt_point_claim,
+    adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets, utility_interval,
     AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
-    IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
-    adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
-    utility_interval,
+    IdentifiedVerdict, SuppliedClaim,
 };
 use antecedent_design::decision_artifact::{
-    DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
     contract_from_json, contract_from_json_refusal, contract_to_json, mean_result_to_json,
-    result_to_json, source_digest,
+    result_to_json, source_digest, DecisionContractArtifact, DecisionResultArtifact,
+    MAX_DECISION_ARTIFACT_BYTES,
 };
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, StructuralPolicy};
 use antecedent_design::decision_eval::{
-    DecisionEvalError, MeanSource, evaluate_contract, evaluate_contract_on_means,
+    evaluate_contract, evaluate_contract_on_means, DecisionEvalError, MeanSource,
 };
 use antecedent_design::decision_robust_artifact::{
-    AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
     admissible_contract_from_json, admissible_contract_from_json_refusal,
-    admissible_contract_to_json, atom_digests_of,
+    admissible_contract_to_json, atom_digests_of, AdmissibleContractArtifact,
+    ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
 };
 use antecedent_design::decision_robustness::{AtomSupport, InputSupport};
 use antecedent_design::decision_structural::{
@@ -36,8 +36,8 @@ use pyo3::types::PyBytes;
 
 use antecedent_core::{ExternalRefusal, ScientificQuantity};
 
-use crate::CausalSerializationError;
 use crate::distribution_api::PyJointDistributionArtifact;
+use crate::CausalSerializationError;
 
 fn serialization(error: impl std::fmt::Display) -> PyErr {
     CausalSerializationError::new_err(error.to_string())
@@ -520,6 +520,7 @@ fn structural_verdict_json(verdict: &StructuralVerdict) -> serde_json::Value {
         StructuralVerdict::WorstCaseChoice(id) => {
             json!({"kind": "worst_case_choice", "action": id})
         }
+        StructuralVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }

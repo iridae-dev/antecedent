@@ -8,20 +8,20 @@
 //! and never a sampling interval; composing the two is refused natively.
 
 use antecedent::analysis::sensitivity_decision::{
-    ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, IdentifiedBound,
-    MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SENSITIVITY_INFERENCE_CLAIM, SamplingInterval,
-    SamplingReport, SamplingStatus, ScenarioCoverage, SensitivityArtifact,
-    SensitivityDecisionError, SensitivityDecisionResult, SensitivityDecisionSpec,
-    SensitivityIdentity, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
-    UncertaintyRelationship, contract_from_artifact, decide,
+    contract_from_artifact, decide, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
+    IdentifiedBound, PointSupport, SamplingInterval, SamplingReport, SamplingStatus,
+    ScenarioCoverage, SensitivityArtifact, SensitivityDecisionError, SensitivityDecisionResult,
+    SensitivityDecisionSpec, SensitivityIdentity, SensitivityParts, SensitivityProvenance,
+    SurfaceQuantity, UncertaintyRelationship, MAX_SENSITIVITY_ARTIFACT_BYTES,
+    SENSITIVITY_INFERENCE_CLAIM,
 };
-use antecedent_core::{ScientificQuantity, reason_code};
+use antecedent_core::{reason_code, ScientificQuantity};
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_eval::Verdict;
 use antecedent_design::decision_structural::{AtomStatus, StructuralVerdict};
-use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent_io::IoError;
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointSensitivityLimits,
 };
@@ -29,10 +29,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use crate::CausalSerializationError;
 use crate::transport_z_api::PreparedZTransportStage;
+use crate::CausalSerializationError;
 
 const STAGE: &str = "sensitivity_decision";
 
@@ -272,6 +272,7 @@ fn verdict_json(verdict: &StructuralVerdict) -> Value {
         StructuralVerdict::WorstCaseChoice(action) => {
             json!({"kind": "worst_case_choice", "action": action})
         }
+        StructuralVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }

@@ -27,7 +27,7 @@ use crate::decision_contract::{
     UncertaintyKind, UncertaintyRequirement,
 };
 use crate::decision_structural::{
-    AtomStatus, StructuralAtom, StructuralDecisionResult, StructuralError, evaluate_structural,
+    evaluate_structural, AtomStatus, StructuralAtom, StructuralDecisionResult, StructuralError,
 };
 
 /// Support status of one input of one action under one structure.
@@ -139,6 +139,8 @@ pub enum RobustVerdict {
     NoAdmissibleAction,
     /// Best worst case over structures.
     WorstCaseChoice(String),
+    /// Several actions share the best worst-case or Bayes score.
+    Tied(Vec<String>),
     /// Best probability-weighted value; the unresolved mass is reported on the
     /// result, not assumed.
     BayesChoice {
@@ -281,12 +283,14 @@ enum Choice {
     Invariant(String),
     WorstCase(String),
     Bayes(String, f64),
+    Tied(Vec<String>),
 }
 
 impl Choice {
-    fn action(&self) -> &str {
+    fn action(&self) -> Option<&str> {
         match self {
-            Self::Invariant(id) | Self::WorstCase(id) | Self::Bayes(id, _) => id,
+            Self::Invariant(id) | Self::WorstCase(id) | Self::Bayes(id, _) => Some(id),
+            Self::Tied(_) => None,
         }
     }
 }
@@ -463,13 +467,13 @@ impl Ctx<'_> {
                 .map(|view| self.sign * view.value[i])
                 .fold(f64::INFINITY, f64::min)
         };
-        let best = candidates
-            .iter()
-            .copied()
-            .max_by(|a, b| worst(*a).total_cmp(&worst(*b)).then(b.cmp(a)));
-        best.map_or(Outcome::NoCandidate, |i| {
-            Outcome::Choice(Choice::WorstCase(self.action_ids[i].to_owned()))
-        })
+        match unique_best(candidates, worst) {
+            Ok(i) => Outcome::Choice(Choice::WorstCase(self.action_ids[i].to_owned())),
+            Err(tied) if tied.is_empty() => Outcome::NoCandidate,
+            Err(tied) => Outcome::Choice(Choice::Tied(
+                tied.into_iter().map(|i| self.action_ids[i].to_owned()).collect(),
+            )),
+        }
     }
 
     fn bayes(
@@ -507,13 +511,33 @@ impl Ctx<'_> {
                 .sum();
             self.sign * weighted
         };
-        let best = candidates
-            .iter()
-            .copied()
-            .max_by(|a, b| score(*a).total_cmp(&score(*b)).then(b.cmp(a)));
-        best.map_or(Outcome::NoCandidate, |i| {
-            Outcome::Choice(Choice::Bayes(self.action_ids[i].to_owned(), evaluated))
-        })
+        match unique_best(candidates, score) {
+            Ok(i) => Outcome::Choice(Choice::Bayes(self.action_ids[i].to_owned(), evaluated)),
+            Err(tied) if tied.is_empty() => Outcome::NoCandidate,
+            Err(tied) => Outcome::Choice(Choice::Tied(
+                tied.into_iter().map(|i| self.action_ids[i].to_owned()).collect(),
+            )),
+        }
+    }
+}
+
+fn unique_best(candidates: &[usize], score: impl Fn(usize) -> f64) -> Result<usize, Vec<usize>> {
+    let mut best = f64::NEG_INFINITY;
+    let mut tied = Vec::new();
+    for &i in candidates {
+        match score(i).total_cmp(&best) {
+            std::cmp::Ordering::Greater => {
+                best = score(i);
+                tied.clear();
+                tied.push(i);
+            }
+            std::cmp::Ordering::Equal => tied.push(i),
+            std::cmp::Ordering::Less => {}
+        }
+    }
+    match tied.as_slice() {
+        [only] => Ok(*only),
+        _ => Err(tied),
     }
 }
 
@@ -613,14 +637,18 @@ fn assemble(all: &Outcome, supported: Outcome, shortfall: bool) -> RobustVerdict
         Outcome::NoCandidate => RobustVerdict::NoAdmissibleAction,
         Outcome::Unsupported => RobustVerdict::UnsupportedExtrapolation,
         Outcome::Disagree(leaders) => RobustVerdict::GraphDependentChoice(leaders),
+        Outcome::Choice(Choice::Tied(ids)) => RobustVerdict::Tied(ids),
         Outcome::Choice(choice) => {
+            let Some(supported_action) = choice.action() else {
+                return RobustVerdict::NoAdmissibleAction;
+            };
             let unrestricted = match all {
-                Outcome::Choice(other) => Some(other.action()),
+                Outcome::Choice(other) => other.action(),
                 _ => None,
             };
-            if unrestricted != Some(choice.action()) {
+            if unrestricted != Some(supported_action) {
                 return RobustVerdict::SupportDependent {
-                    supported_choice: choice.action().to_owned(),
+                    supported_choice: supported_action.to_owned(),
                     unrestricted_choice: unrestricted.map(str::to_owned),
                 };
             }
@@ -631,6 +659,7 @@ fn assemble(all: &Outcome, supported: Outcome, shortfall: bool) -> RobustVerdict
                 Choice::Bayes(action, evaluated_mass) => {
                     RobustVerdict::BayesChoice { action, evaluated_mass }
                 }
+                Choice::Tied(ids) => RobustVerdict::Tied(ids),
             }
         }
     }
