@@ -47,7 +47,7 @@ use antecedent_expr::{
     CausalExprArena, ContrastOp, DerivationMeta, DomainRef, EstimandMethod, ExprId, ExprNode,
     IdentifiedEstimand, InterventionAssignment, OutcomeExprId,
 };
-use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId};
 
 use crate::error::IdentificationError;
 use crate::id::IdIdentifier;
@@ -379,17 +379,19 @@ fn edge_g_formula(
 ) -> Result<(CausalExprArena, ExprId), IdentificationError> {
     let admg = prepared.admg();
     // Ancestors of Y (Y included) reached without passing through T.
-    let mut v_star: HashSet<DenseNodeId> = HashSet::new();
-    let mut stack = vec![y];
-    while let Some(node) = stack.pop() {
-        if node == t || !v_star.insert(node) {
-            continue;
-        }
-        stack.extend(admg.parents(node).iter().copied());
-    }
+    let n = admg.node_count();
+    let (mut seeds, mut active) = (BitSet::with_len(n), BitSet::full(n));
+    seeds.insert(y);
+    active.remove(t);
+    let v_star = admg.ancestors_within(
+        &seeds,
+        &active,
+        None,
+        &mut antecedent_graph::GraphWorkspace::default(),
+    );
     // `P(v | pa(v))` is the district factor only when `v` is a singleton
     // district; latent confounding would need Shpitser's district formula.
-    if v_star.iter().any(|&v| !admg.bidirected_neighbors(v).is_empty()) {
+    if v_star.to_dense_ids().into_iter().any(|v| !admg.bidirected_neighbors(v).is_empty()) {
         return Err(IdentificationError::unsupported(
             "path-specific edge g-formula requires no bidirected edge on an ancestor of the \
              outcome other than the treatment (the district-level formula for latent confounding \
@@ -404,7 +406,7 @@ fn edge_g_formula(
     let mut arena = CausalExprArena::new();
     let empty_i = arena.empty_intervention_set();
     let order: Vec<DenseNodeId> =
-        prepared.topo().iter().copied().filter(|v| v_star.contains(v)).collect();
+        prepared.topo().iter().copied().filter(|&v| v_star.contains(v)).collect();
     let side = |edge_level: &dyn Fn(DenseNodeId) -> Value,
                 arena: &mut CausalExprArena|
      -> Result<ExprId, IdentificationError> {
