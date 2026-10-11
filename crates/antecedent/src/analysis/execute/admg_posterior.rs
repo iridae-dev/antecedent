@@ -5,11 +5,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::atom_mix::{
+    drive_posterior_refuters, mix_atom_evals, AtomBoundRule, AtomEvalView, AtomMixInput,
+    AtomRefuterBatch, ScalarRefuterMix,
+};
 use super::*;
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
-use crate::result::{
-    StructuralAggregationPolicy, StructuralResponseAtom, StructuralResponseMixture,
-};
+use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
 
 struct AdmgAtomEval {
     key: u64,
@@ -223,145 +225,79 @@ struct MixedAdmgPosterior {
     mixture: StructuralResponseMixture,
 }
 
+impl AtomEvalView for AdmgAtomEval {
+    fn key(&self) -> u64 {
+        self.key
+    }
+
+    fn status(&self) -> IdentificationStatus {
+        self.status
+    }
+
+    fn estimand(&self) -> Option<&IdentifiedEstimand> {
+        Some(&self.estimand)
+    }
+
+    fn scalar(&self) -> Option<f64> {
+        self.estimate.ate.is_finite().then_some(self.estimate.ate)
+    }
+
+    fn posterior(&self) -> Option<&CausalPosterior> {
+        self.posterior.as_ref()
+    }
+
+    fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
+        Some(&self.estimate.assumptions)
+    }
+
+    fn identified_bounds(&self) -> Option<(f64, f64)> {
+        None
+    }
+
+    fn partial(&self) -> bool {
+        matches!(self.status, IdentificationStatus::PartiallyIdentified)
+    }
+
+    fn analytic_se(&self) -> Option<f64> {
+        None
+    }
+
+    fn influence(&self) -> Option<&[f64]> {
+        None
+    }
+}
+
 fn mix_admg_posterior_evals(
     identified: &CachedGraphPosteriorIdentification,
     evals: &[AdmgAtomEval],
     unidentified_mass: f64,
 ) -> Result<MixedAdmgPosterior, CausalError> {
-    let mut atoms = Vec::new();
-    let mut identified_weight = 0.0;
-    let mut unevaluable_weight = 0.0;
-    let mut mixable = 0.0;
-    let mut weighted = 0.0;
-    let mut lo = f64::INFINITY;
-    let mut hi = f64::NEG_INFINITY;
-    let mut contributing = Vec::new();
-    let mut any_partial = false;
-    let mut primary_identification = None;
-    let mut primary_estimand = None;
-    let mut assumptions = antecedent_core::AssumptionSet::default();
-    let mut atom_posteriors = Vec::new();
-
-    for eval in evals {
-        let w = identified_weight_for_key(&identified.graphs, eval.key);
-        let value = eval.estimate.ate.is_finite().then_some(eval.estimate.ate);
-        if let Some(v) = value {
-            identified_weight += w;
-            lo = lo.min(v);
-            hi = hi.max(v);
-            contributing.push(eval.estimand.clone());
-            if primary_estimand.is_none() {
-                primary_estimand = Some(eval.estimand.clone());
-                primary_identification = Some(eval_identification(eval, identified));
-                assumptions = eval.estimate.assumptions.clone();
-            }
-            any_partial |= matches!(eval.status, IdentificationStatus::PartiallyIdentified);
-            if let Some(p) = eval.posterior.clone() {
-                atom_posteriors.push((w, p));
-            }
-            mixable += w;
-            weighted += w * v;
-        } else if w > 0.0 {
-            unevaluable_weight += w;
-        }
-        atoms.push(StructuralResponseAtom {
-            graph_key: eval.key,
-            weight: w,
-            status: eval.status,
-            value: value.map(antecedent_core::ResponseValue::Scalar),
-            posterior: eval.posterior.clone(),
-            response: None,
-        });
-    }
-
-    for (key, weight, flag) in identified
-        .graphs
-        .graph_keys
-        .iter()
-        .zip(identified.graphs.weights.iter())
-        .zip(identified.graphs.identified.iter())
-        .map(|((k, w), f)| (*k, *w, *f))
-    {
-        if flag != GraphIdentFlag::Unidentified {
-            continue;
-        }
-        if atoms.iter().any(|atom| atom.graph_key == key) {
-            continue;
-        }
-        atoms.push(StructuralResponseAtom {
-            graph_key: key,
-            weight,
-            status: IdentificationStatus::NotIdentified,
-            value: None,
-            posterior: None,
-            response: None,
-        });
-    }
-
-    let total = identified.graphs.total_weight();
-    let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
-    let unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
-    let refs: Vec<&IdentifiedEstimand> = contributing.iter().collect();
-    let policy = if refs.is_empty() && any_partial {
-        StructuralAggregationPolicy::IdentifiedSetEnvelope
-    } else {
-        resolve_structural_aggregation(&refs, any_partial)
-    };
-    let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
-    let mixable_scalar =
-        matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
-    let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
-    let conditional_on_identified =
-        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
-    let mixture = StructuralResponseMixture {
-        weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
-        atoms,
-        identified_mass,
-        unidentified_mass,
-        unevaluable_mass,
-        subsampled_out_mass: 0.0,
-        identified_set,
-        identified_set_interval: None,
-        conditional_on_identified,
-        full_mass_scope: true,
-        truncated_atoms: 0,
-    };
-    let identification = primary_identification.ok_or_else(|| CausalError::Compile {
-        message: format!(
-            "ADMG graph-posterior mix: no evaluable atom values (evals={}, mixable={mixable})",
-            evals.len()
-        ),
-    })?;
-    let estimand = primary_estimand
-        .or_else(|| identification.estimands.first().cloned())
-        .ok_or_else(|| CausalError::Compile {
-            message: "ADMG graph-posterior envelope: missing estimand".into(),
-        })?;
-    let estimate = EffectEstimate::new(ate, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride);
-    // A component posterior is not the posterior of a weighted aggregate.
-    // Retain it at the top level only when it covers the entire target.
-    let posterior = if mixable_scalar
-        && contributing.len() == 1
-        && atom_posteriors.len() == 1
-        && unidentified_mass == 0.0
-        && unevaluable_mass == 0.0
-        && mixture.full_mass_scope
-    {
-        atom_posteriors.into_iter().next().map(|(_, p)| p)
-    } else {
-        None
-    };
-    Ok(MixedAdmgPosterior { policy, identification, estimand, estimate, posterior, mixture })
-}
-
-fn eval_identification(
-    eval: &AdmgAtomEval,
-    identified: &CachedGraphPosteriorIdentification,
-) -> IdentificationResult {
-    identified.atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
-        || identified.atoms[0].identification.clone(),
-        |atom| atom.identification.clone(),
-    )
+    let mixed = mix_atom_evals(
+        evals,
+        AtomMixInput {
+            graphs: &identified.graphs,
+            proofs: &identified.atoms,
+            unidentified_mass,
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            bounds: AtomBoundRule::Point,
+            estimand_fallback: true,
+        },
+        |n, mixable| {
+            format!(
+                "ADMG graph-posterior mix: no evaluable atom values (evals={n}, mixable={mixable})"
+            )
+        },
+        || "ADMG graph-posterior envelope: missing estimand".to_string(),
+    )?;
+    Ok(MixedAdmgPosterior {
+        policy: mixed.policy,
+        identification: mixed.identification,
+        estimand: mixed.estimand,
+        estimate: mixed.estimate,
+        posterior: mixed.posterior,
+        mixture: mixed.mixture,
+    })
 }
 
 /// Per-atom functional.effect refuters; outer mix by frozen posterior weight when
@@ -380,68 +316,67 @@ fn refute_admg_graph_posterior(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let mut refute_ws = EstimationWorkspace::default();
-    let mut per_atom = Vec::new();
-    let mut diagnostics = Vec::new();
-    for eval in evals {
-        if eval.refute_atoms.is_empty() {
-            continue;
-        }
-        let weight = identified_weight_for_key(&identified.graphs, eval.key);
-        if weight <= 0.0 {
-            continue;
-        }
-        let (reports, notes) = run_envelope_effect_refuters(
-            data,
-            query,
-            &eval.refute_atoms,
-            &mut refute_ws,
-            ctx,
-            study.refute,
-            EstimatorId::FunctionalEffect.as_str(),
-            &study.custom_validators,
-            None,
-            study.split.as_ref(),
-            None,
-        )?;
-        diagnostics.extend(
-            notes.into_iter().filter(|d| d.code.as_ref() != "refute.envelope.effect_mixture"),
-        );
-        per_atom.push((weight, reports));
-    }
-    let inner_keys: String = evals
-        .iter()
-        .filter(|eval| !eval.refute_atoms.is_empty())
-        .map(|eval| format!("{:x}", eval.key))
-        .collect::<Vec<_>>()
-        .join(",");
-    diagnostics.push(Diagnostic::new(
-        "refute.envelope.admg_posterior",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        if mix_scalar {
-            format!(
-                "inner: effect refuters evaluated each ADMG posterior atom [{inner_keys}] against \
-                 that atom's own functional.effect estimate; ADMG atoms are single graphs, not \
-                 MEC completions; outer: those atom reports mix by frozen posterior graph weight \
-                 and pass only if every contributing atom passes"
-            )
-        } else {
-            format!(
-                "inner: effect refuters evaluated each ADMG posterior atom [{inner_keys}] against \
-                 that atom's own functional.effect estimate; ADMG atoms are single graphs, not \
-                 MEC completions; outer scalar mix skipped because StructuralAggregationPolicy is \
-                 {} — per-atom reports are retained and are not compared against a pooled \
-                 mixture ATE",
-                policy.as_str()
+    drive_posterior_refuters(
+        evals,
+        mix_scalar,
+        ScalarRefuterMix::Effect,
+        |eval| !eval.refute_atoms.is_empty(),
+        |eval| eval.key,
+        |eval| {
+            if eval.refute_atoms.is_empty() {
+                return Ok(Vec::new());
+            }
+            let weight = identified_weight_for_key(&identified.graphs, eval.key);
+            if weight <= 0.0 {
+                return Ok(Vec::new());
+            }
+            let (reports, notes) = run_envelope_effect_refuters(
+                data,
+                query,
+                &eval.refute_atoms,
+                &mut refute_ws,
+                ctx,
+                study.refute,
+                EstimatorId::FunctionalEffect.as_str(),
+                &study.custom_validators,
+                None,
+                study.split.as_ref(),
+                None,
+            )?;
+            Ok(vec![AtomRefuterBatch {
+                weight,
+                reports,
+                notes: notes
+                    .into_iter()
+                    .filter(|diagnostic| {
+                        diagnostic.code.as_ref() != "refute.envelope.effect_mixture"
+                    })
+                    .collect(),
+            }])
+        },
+        |inner_keys, mix_scalar| {
+            Diagnostic::new(
+                "refute.envelope.admg_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                if mix_scalar {
+                    format!(
+                        "inner: effect refuters evaluated each ADMG posterior atom [{inner_keys}] against \
+                         that atom's own functional.effect estimate; ADMG atoms are single graphs, not \
+                         MEC completions; outer: those atom reports mix by frozen posterior graph weight \
+                         and pass only if every contributing atom passes"
+                    )
+                } else {
+                    format!(
+                        "inner: effect refuters evaluated each ADMG posterior atom [{inner_keys}] against \
+                         that atom's own functional.effect estimate; ADMG atoms are single graphs, not \
+                         MEC completions; outer scalar mix skipped because StructuralAggregationPolicy is \
+                         {} — per-atom reports are retained and are not compared against a pooled \
+                         mixture ATE",
+                        policy.as_str()
+                    )
+                },
             )
         },
-    ));
-    let reports = if mix_scalar {
-        let (mixed, coverage) = mix_atom_refutation_reports(&per_atom);
-        diagnostics.extend(coverage);
-        mixed
-    } else {
-        per_atom.into_iter().flat_map(|(_, reports)| reports).collect()
-    };
-    Ok((reports, diagnostics))
+    )
 }

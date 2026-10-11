@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::atom_mix::{append_unidentified_atoms, finish_atom_refutations, ScalarRefuterMix};
 use super::response_path::{
     graph_posterior_response_supported, mix_response_values, mix_support_reports,
     response_envelope_from_weighted, response_identified_value, response_primary_pair,
@@ -444,6 +445,7 @@ fn mix_class_posterior_responses(
     let mut primary_identification = None;
     let mut primary_estimand = None;
     let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
+    let proofs = super::atom_mix::AtomProofIndex::build(&identified.class_atoms);
 
     for eval in evals {
         let w = identified_weight_for_key(&identified.graphs, eval.key);
@@ -458,8 +460,7 @@ fn mix_class_posterior_responses(
                     contributing.push(estimand.clone());
                     if primary_estimand.is_none() {
                         primary_estimand = Some(estimand.clone());
-                        primary_identification =
-                            Some(eval_identification_response(eval, identified));
+                        primary_identification = Some(proofs.identification_for(eval.key));
                     }
                 }
                 any_partial |= eval.partial;
@@ -481,29 +482,7 @@ fn mix_class_posterior_responses(
         });
     }
 
-    for (key, weight, flag) in identified
-        .graphs
-        .graph_keys
-        .iter()
-        .zip(identified.graphs.weights.iter())
-        .zip(identified.graphs.identified.iter())
-        .map(|((k, w), f)| (*k, *w, *f))
-    {
-        if flag != GraphIdentFlag::Unidentified {
-            continue;
-        }
-        if atoms.iter().any(|atom| atom.graph_key == key) {
-            continue;
-        }
-        atoms.push(StructuralResponseAtom {
-            graph_key: key,
-            weight,
-            status: IdentificationStatus::NotIdentified,
-            value: None,
-            posterior: None,
-            response: None,
-        });
-    }
+    append_unidentified_atoms(&mut atoms, &identified.graphs);
 
     let total = identified.graphs.total_weight();
     let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
@@ -644,16 +623,6 @@ fn mix_class_posterior_responses(
     })
 }
 
-fn eval_identification_response(
-    eval: &ClassAtomResponseEval,
-    identified: &CachedGraphPosteriorIdentification,
-) -> IdentificationResult {
-    identified.class_atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
-        || identified.class_atoms[0].identification.clone(),
-        |atom| atom.identification.clone(),
-    )
-}
-
 fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {
     match response_identified_value(response)? {
         ResponseValue::Scalar(value) if value.is_finite() => Some(value),
@@ -712,12 +681,12 @@ fn plugin_level_on_class_response_atoms(
         }
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
-    let reports = if mix_scalar {
-        let (mixed, coverage) = mix_atom_refutation_reports(&per_atom);
-        diagnostics.extend(coverage);
-        mixed
-    } else {
-        per_atom.into_iter().flat_map(|(_, reports)| reports).collect()
-    };
-    Ok((reports, diagnostics))
+    Ok(finish_atom_refutations(
+        per_atom,
+        diagnostics,
+        mix_scalar,
+        ScalarRefuterMix::Effect,
+        None,
+        false,
+    ))
 }

@@ -2,13 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::atom_mix::{
+    drive_posterior_refuters, mix_atom_evals, AtomBoundRule, AtomEvalView, AtomMixInput,
+    AtomRefuterBatch, ScalarRefuterMix,
+};
 use super::*;
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
 };
-use crate::result::{
-    StructuralAggregationPolicy, StructuralResponseAtom, StructuralResponseMixture,
-};
+use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
 
 const TEMPORAL_CLASS_MEDIATION_BLOCK_STREAM: u64 = 0x7C60_0001_0000;
 
@@ -635,6 +637,50 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
     })
 }
 
+impl AtomEvalView for TemporalClassMediationAtomEval {
+    fn key(&self) -> u64 {
+        self.key
+    }
+
+    fn status(&self) -> IdentificationStatus {
+        self.status
+    }
+
+    fn estimand(&self) -> Option<&IdentifiedEstimand> {
+        self.estimand.as_ref()
+    }
+
+    fn scalar(&self) -> Option<f64> {
+        self.mediation
+            .as_ref()
+            .and_then(|mediation| mediation.effect.ate.is_finite().then_some(mediation.effect.ate))
+    }
+
+    fn posterior(&self) -> Option<&CausalPosterior> {
+        self.posterior.as_ref()
+    }
+
+    fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
+        self.mediation.as_ref().map(|mediation| &mediation.effect.assumptions)
+    }
+
+    fn identified_bounds(&self) -> Option<(f64, f64)> {
+        self.identified_set
+    }
+
+    fn partial(&self) -> bool {
+        self.partial
+    }
+
+    fn analytic_se(&self) -> Option<f64> {
+        None
+    }
+
+    fn influence(&self) -> Option<&[f64]> {
+        None
+    }
+}
+
 fn mix_temporal_class_mediation_posterior(
     identified: &CachedTemporalClassPosteriorIdentification,
     evals: &[TemporalClassMediationAtomEval],
@@ -642,181 +688,63 @@ fn mix_temporal_class_mediation_posterior(
     _query: &antecedent_core::MediationQuery,
     _horizon: u32,
 ) -> Result<MixedTemporalClassMediationPosterior, CausalError> {
-    let mut atoms = Vec::new();
-    let mut identified_weight = 0.0;
-    let mut unevaluable_weight = 0.0;
-    let mut mixable = 0.0;
-    let mut weighted = 0.0;
-    let mut lo = f64::INFINITY;
-    let mut hi = f64::NEG_INFINITY;
-    let mut contributing = Vec::new();
-    let mut any_partial = false;
-    let mut primary_identification = None;
-    let mut primary_estimand = None;
-    let mut assumptions = antecedent_core::AssumptionSet::default();
-    let mut atom_posteriors: Vec<(f64, CausalPosterior)> = Vec::new();
-    let primary_adjustment: Arc<[antecedent_core::TemporalNodeKey]> = Arc::from([]);
-
-    for eval in evals {
-        let w = identified_weight_for_key(&identified.graphs, eval.key);
-        let value =
-            eval.mediation.as_ref().and_then(|m| m.effect.ate.is_finite().then_some(m.effect.ate));
-        if let Some((a, b)) = eval.identified_set {
-            lo = lo.min(a);
-            hi = hi.max(b);
-        }
-        if value.is_some() {
-            identified_weight += w;
-            if let Some(estimand) = eval.estimand.as_ref() {
-                contributing.push(estimand.clone());
-                if primary_estimand.is_none() {
-                    primary_estimand = Some(estimand.clone());
-                    primary_identification = Some(eval_identification_mediation(eval, identified));
-                    if let Some(m) = eval.mediation.as_ref() {
-                        assumptions = m.effect.assumptions.clone();
-                    }
-                }
-            }
-            any_partial |= eval.partial;
-            if let Some(p) = eval.posterior.clone() {
-                atom_posteriors.push((w, p));
-            }
-            if let Some(v) = value {
-                mixable += w;
-                weighted += w * v;
-            }
-        } else if w > 0.0 {
-            unevaluable_weight += w;
-        }
-        atoms.push(StructuralResponseAtom {
-            graph_key: eval.key,
-            weight: w,
-            status: eval.status,
-            value: value.map(antecedent_core::ResponseValue::Scalar),
-            posterior: eval.posterior.clone(),
-            response: None,
-        });
-    }
-
-    for (key, weight, flag) in identified
-        .graphs
-        .graph_keys
-        .iter()
-        .zip(identified.graphs.weights.iter())
-        .zip(identified.graphs.identified.iter())
-        .map(|((k, w), f)| (*k, *w, *f))
-    {
-        if flag != GraphIdentFlag::Unidentified {
-            continue;
-        }
-        if atoms.iter().any(|atom| atom.graph_key == key) {
-            continue;
-        }
-        atoms.push(StructuralResponseAtom {
-            graph_key: key,
-            weight,
-            status: IdentificationStatus::NotIdentified,
-            value: None,
-            posterior: None,
-            response: None,
-        });
-    }
-
-    let total = identified.graphs.total_weight();
-    let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
-    let unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
-    let refs: Vec<&IdentifiedEstimand> = contributing.iter().collect();
-    let policy = if refs.is_empty() && any_partial {
-        StructuralAggregationPolicy::IdentifiedSetEnvelope
-    } else {
-        resolve_structural_aggregation(&refs, any_partial)
-    };
-    let mixable_scalar =
-        matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
-    let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
-    let conditional_on_identified =
-        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
-    let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
-    let mixture = StructuralResponseMixture {
-        weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
-        atoms,
-        identified_mass,
-        unidentified_mass,
-        unevaluable_mass,
-        subsampled_out_mass: 0.0,
-        identified_set,
-        identified_set_interval: None,
-        conditional_on_identified,
-        full_mass_scope: identified.class_atoms.iter().all(|a| a.truncated_completions == 0),
-        truncated_atoms: identified
-            .class_atoms
-            .iter()
-            .map(|a| a.truncated_completions)
-            .sum::<usize>(),
-    };
-    let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
-        message: "temporal class graph-posterior mediation: no evaluable atom values".into(),
-    })?;
-    let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-        message: "temporal class graph-posterior mediation: missing estimand".into(),
-    })?;
-    let estimate = EffectEstimate::new(ate, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride);
+    let mixed = mix_atom_evals(
+        evals,
+        AtomMixInput {
+            graphs: &identified.graphs,
+            proofs: &identified.class_atoms,
+            unidentified_mass,
+            full_mass_scope: identified
+                .class_atoms
+                .iter()
+                .all(|atom| atom.truncated_completions == 0),
+            truncated_atoms: identified
+                .class_atoms
+                .iter()
+                .map(|atom| atom.truncated_completions)
+                .sum::<usize>(),
+            bounds: AtomBoundRule::SetAlways,
+            estimand_fallback: false,
+        },
+        |_n, _mixable| {
+            "temporal class graph-posterior mediation: no evaluable atom values".to_string()
+        },
+        || "temporal class graph-posterior mediation: missing estimand".to_string(),
+    )?;
+    let mut identification = mixed.identification;
     identification.status = resolve_posterior_status(
         identification.status,
-        policy,
+        mixed.policy,
         PosteriorMassSummary {
             unidentified: unidentified_mass,
-            unevaluable: unevaluable_mass,
-            full_scope: mixture.full_mass_scope,
+            unevaluable: mixed.mixture.unevaluable_mass,
+            full_scope: mixed.mixture.full_mass_scope,
             ..PosteriorMassSummary::default()
         },
     );
-    let slice_identified_set = if lo.is_finite() && hi.is_finite() {
-        Some(antecedent_estimate::TemporalMediationIdentifiedSet { lower: lo, upper: hi })
-    } else {
-        None
-    };
-    // A component posterior is not the posterior of a weighted aggregate.
-    // Retain it at the top level only when it covers the entire target.
-    let posterior = if mixable_scalar
-        && contributing.len() == 1
-        && atom_posteriors.len() == 1
-        && unidentified_mass == 0.0
-        && unevaluable_mass == 0.0
-        && mixture.full_mass_scope
-    {
-        atom_posteriors.into_iter().next().map(|(_, p)| p)
-    } else {
-        None
-    };
-    let mediation = mixable_scalar.then(|| TemporalMediationEstimate {
-        effect: estimate.clone(),
+    let slice_identified_set = (mixed.bound_lo.is_finite() && mixed.bound_hi.is_finite())
+        .then_some(antecedent_estimate::TemporalMediationIdentifiedSet {
+            lower: mixed.bound_lo,
+            upper: mixed.bound_hi,
+        });
+    let mediation = mixed.mixable_scalar.then(|| TemporalMediationEstimate {
+        effect: mixed.estimate.clone(),
         total: None,
         direct: None,
         mediated: None,
     });
     Ok(MixedTemporalClassMediationPosterior {
-        policy,
+        policy: mixed.policy,
         identification,
-        estimand,
-        estimate,
+        estimand: mixed.estimand,
+        estimate: mixed.estimate,
         mediation,
-        posterior,
-        mixture,
-        adjustment: primary_adjustment,
+        posterior: mixed.posterior,
+        mixture: mixed.mixture,
+        adjustment: Arc::<[antecedent_core::TemporalNodeKey]>::from([]),
         slice_identified_set,
         mediation_grid: None,
     })
-}
-
-fn eval_identification_mediation(
-    eval: &TemporalClassMediationAtomEval,
-    identified: &CachedTemporalClassPosteriorIdentification,
-) -> IdentificationResult {
-    identified.class_atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
-        || identified.class_atoms[0].identification.clone(),
-        |atom| atom.identification.clone(),
-    )
 }
 
 fn refute_temporal_class_mediation_posterior(
@@ -833,51 +761,46 @@ fn refute_temporal_class_mediation_posterior(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let plan = QueryRefutationPlan::temporal_mediation(study.refute == RefuteSuite::Full);
-    let mut per_atom = Vec::new();
-    let mut diagnostics = Vec::new();
-    for eval in evals {
-        let weight = identified_weight_for_key(&identified.graphs, eval.key);
-        if weight <= 0.0 {
-            continue;
-        }
-        let Some((estimand, adjustment, estimate)) = eval.refute_atom.as_ref() else {
-            continue;
-        };
-        let mut horizon_query = query.clone();
-        horizon_query.horizons = Arc::from([query.horizons[0]]);
-        let reports = plan
-            .refute_temporal_atom(data, estimand, &horizon_query, estimate, adjustment, ctx)
-            .map_err(CausalError::from)?;
-        per_atom.push((weight, reports));
-    }
-    let inner_keys: String = evals
-        .iter()
-        .filter(|eval| eval.refute_atom.is_some())
-        .map(|eval| format!("{:x}", eval.key))
-        .collect::<Vec<_>>()
-        .join(",");
-    diagnostics.push(Diagnostic::new(
-        "refute.envelope.temporal_class_mediation_posterior",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        if mix_scalar {
-            format!(
-                "mediation refuters evaluated each posterior atom [{inner_keys}] against that \
-                 atom's own contrast; outer reports mix by frozen posterior graph weight"
-            )
-        } else {
-            format!(
-                "mediation refuters evaluated each posterior atom [{inner_keys}] against that \
-                 atom's own contrast; outer scalar mix skipped because StructuralAggregationPolicy \
-                 is {} — per-atom reports are retained",
-                policy.as_str()
+    drive_posterior_refuters(
+        evals,
+        mix_scalar,
+        ScalarRefuterMix::Mediation,
+        |eval| eval.refute_atom.is_some(),
+        |eval| eval.key,
+        |eval| {
+            let weight = identified_weight_for_key(&identified.graphs, eval.key);
+            if weight <= 0.0 {
+                return Ok(Vec::new());
+            }
+            let Some((estimand, adjustment, estimate)) = eval.refute_atom.as_ref() else {
+                return Ok(Vec::new());
+            };
+            let mut horizon_query = query.clone();
+            horizon_query.horizons = Arc::from([query.horizons[0]]);
+            let reports = plan
+                .refute_temporal_atom(data, estimand, &horizon_query, estimate, adjustment, ctx)
+                .map_err(CausalError::from)?;
+            Ok(vec![AtomRefuterBatch { weight, reports, notes: Vec::new() }])
+        },
+        |inner_keys, mix_scalar| {
+            Diagnostic::new(
+                "refute.envelope.temporal_class_mediation_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                if mix_scalar {
+                    format!(
+                        "mediation refuters evaluated each posterior atom [{inner_keys}] against that \
+                         atom's own contrast; outer reports mix by frozen posterior graph weight"
+                    )
+                } else {
+                    format!(
+                        "mediation refuters evaluated each posterior atom [{inner_keys}] against that \
+                         atom's own contrast; outer scalar mix skipped because StructuralAggregationPolicy \
+                         is {} — per-atom reports are retained",
+                        policy.as_str()
+                    )
+                },
             )
         },
-    ));
-    let reports = if mix_scalar {
-        QueryRefutationPlan::mix_weighted(per_atom)
-    } else {
-        per_atom.into_iter().flat_map(|(_, reports)| reports).collect()
-    };
-    Ok((reports, diagnostics))
+    )
 }
