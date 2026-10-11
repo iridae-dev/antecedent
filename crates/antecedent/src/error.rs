@@ -122,10 +122,10 @@ pub enum CausalError {
     Discovery(DiscoveryError),
     /// Structural / probabilistic model failure.
     #[error(transparent)]
-    Model(#[from] ModelError),
+    Model(ModelError),
     /// Counterfactual evaluation failed.
     #[error(transparent)]
-    Counterfactual(#[from] CounterfactualError),
+    Counterfactual(CounterfactualError),
     /// Attribution failed.
     #[error(transparent)]
     Attribution(AttributionError),
@@ -273,6 +273,10 @@ const STAGE_DISCOVER: &str = "discover";
 const STAGE_ATTRIBUTE: &str = "attribute";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by identification.
 const STAGE_IDENTIFY: &str = "identify";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by a model fit.
+const STAGE_MODEL: &str = "model";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by counterfactual evaluation.
+const STAGE_COUNTERFACTUAL: &str = "counterfactual";
 
 /// Cooperative cancellation and resource refusals are non-scientific facade
 /// outcomes, not refutation/discovery/attribution findings, so they are
@@ -312,6 +316,24 @@ impl From<DiscoveryError> for CausalError {
             DiscoveryError::Cancelled => Self::Cancelled { stage: STAGE_DISCOVER },
             DiscoveryError::Resource(message) => Self::Resource { message },
             other => Self::Discovery(other),
+        }
+    }
+}
+
+impl From<ModelError> for CausalError {
+    fn from(error: ModelError) -> Self {
+        match error {
+            ModelError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            other => Self::Model(other),
+        }
+    }
+}
+
+impl From<CounterfactualError> for CausalError {
+    fn from(error: CounterfactualError) -> Self {
+        match error {
+            CounterfactualError::Cancelled => Self::Cancelled { stage: STAGE_COUNTERFACTUAL },
+            other => Self::Counterfactual(other),
         }
     }
 }
@@ -630,6 +652,17 @@ mod tests {
     }
 
     #[test]
+    fn model_and_counterfactual_cancellation_are_top_level() {
+        use antecedent_counterfactual::CounterfactualError;
+        use antecedent_model::ModelError;
+        let model = CausalError::from(ModelError::Cancelled);
+        assert!(matches!(model, CausalError::Cancelled { stage: "model" }), "{model:?}");
+        assert!(model.blocker_id().is_some_and(|b| !b.scientific));
+        let cf = CausalError::from(CounterfactualError::Cancelled);
+        assert!(matches!(cf, CausalError::Cancelled { stage: "counterfactual" }), "{cf:?}");
+        assert!(cf.blocker_id().is_some_and(|b| !b.scientific));
+    }
+
     fn validate_cancelled_is_top_level_cancelled_not_validate() {
         let error = CausalError::from(ValidationError::Cancelled);
         assert!(
