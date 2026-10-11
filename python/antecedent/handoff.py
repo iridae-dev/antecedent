@@ -2,8 +2,9 @@
 
 Antecedent identifies. The adapter emits the set and status for estimands that
 actually are adjustment estimands. ``attach`` records a caller-fitted payload
-as attested, not re-verifiable, evidence. It does not wrap EconML learners or
-absorb ML CATE.
+as attested, not re-verifiable, evidence. It does not wrap a learner or absorb
+ML CATE. EconML is one consumer of ``columns(layout="econml")``; the EconML
+names on this module are aliases of the adjustment handoff.
 """
 
 from __future__ import annotations
@@ -33,13 +34,30 @@ _ADJUSTMENT_IDENTIFIERS = frozenset(
 
 _GRAPH_POSTERIOR_MARKERS = ("posterior", "mcmc")
 
+# Historical provenance identity. Omitting ``tool`` keeps this string so
+# ``CausalProviderSpec`` digests match the EconML-named handoff.
+_DEFAULT_TOOL = "antecedent.handoff.EconMLSpec"
+_DEFAULT_ADAPTER_ID = "antecedent.handoff.EconMLProviderAdapter"
+
+_NAMED_COLUMNS = {
+    "Y": "outcome",
+    "T": "treatment",
+    "W": "confounders",
+    "X": "modifiers",
+    "sample_weight": "weights",
+    "origins": "origins",
+}
+
 
 @dataclass(frozen=True, slots=True)
-class EconMLSpec:
-    """Adjustment-set handoff for an EconML-style CATE estimator.
+class AdjustmentHandoff:
+    """Adjustment-set handoff for a caller-owned CATE estimator.
 
-    ``confounders`` is ``W`` in EconML's ``fit(Y, T, X=X, W=W)``. Heterogeneity
-    features ``X`` are the caller's: identification does not name them.
+    ``confounders`` is ``W`` when ``columns(layout="econml")``. Heterogeneity
+    features are the caller's: identification does not name them.
+
+    ``tool`` is the provenance adapter identity. It defaults to the historical
+    EconML spec string so an omitted tool leaves the spec digest unchanged.
     """
 
     treatment: str | tuple[str, ...]
@@ -54,6 +72,7 @@ class EconMLSpec:
     temporal: bool = False
     target_weights: Any | None = None
     outcome_functional: Any | None = None
+    tool: str = _DEFAULT_TOOL
     _parent: Any | None = field(default=None, repr=False, compare=False)
 
     @property
@@ -66,6 +85,8 @@ class EconMLSpec:
         """Reusable declaration of this handoff's boundaries, not a learner runner."""
         from .extensibility import CausalProviderSpec
 
+        if not isinstance(self.tool, str) or not self.tool.strip():
+            raise CausalValueError("adjustment handoff tool must be a non-empty string")
         return CausalProviderSpec(
             query_family="point_identified_adjustment_estimand",
             identification_requirements=(self.identifier, "point_identified"),
@@ -87,45 +108,60 @@ class EconMLSpec:
             uncertainty_semantics="externally_attested_not_reverifiable",
             artifact_codec="antecedent_external_estimate_artifact",
             deterministic=False,
-            provenance={"adapter": "antecedent.handoff.EconMLSpec"},
+            provenance={"adapter": self.tool},
         )
 
-    def as_provider(self, executor: Any) -> EconMLProviderAdapter:
-        """Wrap a caller-owned EconML fit callback in the Python provider runtime.
+    def as_provider(self, executor: Any) -> AdjustmentProviderAdapter:
+        """Wrap a caller-owned fit callback in the Python provider runtime.
 
         ``executor(columns, request)`` must return ``learner`` and ``effect``;
         optional keys are ``learner_config``, ``interval``, ``label``,
         ``value_types``, and ``contrast``. Data extraction, identity binding,
-        and artifact encoding remain owned by this handoff.
+        and artifact encoding remain owned by this handoff. The provenance
+        adapter id is this handoff's ``tool``; the historical adapter id is
+        kept when ``tool`` is omitted.
         """
         if not callable(executor):
-            raise TypeError("EconML provider executor must be callable")
-        return EconMLProviderAdapter(self, executor)
+            raise TypeError("adjustment provider executor must be callable")
+        return AdjustmentProviderAdapter(self, executor)
 
-    def columns(self, data: Mapping[str, Any]) -> dict[str, Any]:
-        """Return aligned Y, T, W and certified conditioning features X.
+    def columns(
+        self,
+        data: Mapping[str, Any],
+        *,
+        layout: Literal["econml", "named"] = "econml",
+    ) -> dict[str, Any]:
+        """Return aligned outcome, treatment, confounders, and modifiers.
+
+        ``layout="econml"`` (the default) uses EconML's ``fit(Y, T, X, W)``
+        names: ``Y``, ``T``, ``W``, optional ``X``, optional ``sample_weight``,
+        and ``origins`` on a temporal spec. ``layout="named"`` uses
+        ``outcome``, ``treatment``, ``confounders``, ``modifiers``, ``weights``,
+        and ``origins`` (missing optional arrays are ``None``).
 
         For temporal specs the input is one regularly sampled series in row order.
         Offset k selects row origin+k. Boundary rows are trimmed, never wrapped.
         ``origins`` identifies retained rows relative to the input series; separate
         subjects must be aligned separately to avoid crossing panel boundaries.
         """
+        if layout not in ("econml", "named"):
+            raise CausalValueError("adjustment handoff layout must be 'econml' or 'named'")
         names = (self.outcome, *self.treatments, *self.confounders, *self.modifiers)
         missing = [name for name in names if name not in data]
         if missing:
-            raise CausalValueError(f"EconML handoff missing columns: {missing}")
+            raise CausalValueError(f"adjustment handoff missing columns: {missing}")
         arrays = {name: np.asarray(data[name]) for name in names}
         if any(col.ndim != 1 for col in arrays.values()):
-            raise CausalValueError("EconML handoff requires one-dimensional columns")
+            raise CausalValueError("adjustment handoff requires one-dimensional columns")
         if len({len(col) for col in arrays.values()}) != 1:
-            raise CausalValueError("EconML handoff columns must have the same number of rows")
+            raise CausalValueError("adjustment handoff columns must have the same number of rows")
         t_offsets = self.treatment_offsets or (0,) * len(self.treatments)
         w_offsets = self.confounder_offsets or (0,) * len(self.confounders)
         offsets = (0, self.outcome_offset, *t_offsets, *w_offsets)
         n = len(arrays[self.outcome])
         origins = np.arange(max(0, -min(offsets)), min(n, n - max(offsets)))
         if self.temporal and not len(origins):
-            raise CausalValueError("EconML handoff has no rows after temporal alignment")
+            raise CausalValueError("adjustment handoff has no rows after temporal alignment")
         targets = [
             arrays[name][origins + offset]
             for name, offset in zip(self.treatments, t_offsets, strict=True)
@@ -173,7 +209,9 @@ class EconMLSpec:
             cols["sample_weight"] = aligned
         if self.temporal:
             cols["origins"] = origins
-        return cols
+        if layout == "econml":
+            return cols
+        return {renamed: cols.get(key) for key, renamed in _NAMED_COLUMNS.items()}
 
     def attach(
         self,
@@ -248,10 +286,10 @@ class EconMLSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class EconMLProviderAdapter:
-    """Runtime bridge retaining the existing EconML receipt and trust boundary."""
+class AdjustmentProviderAdapter:
+    """Runtime bridge retaining the adjustment receipt and trust boundary."""
 
-    handoff: EconMLSpec
+    handoff: AdjustmentHandoff
     executor: Any = field(repr=False, compare=False)
 
     @property
@@ -262,11 +300,11 @@ class EconMLProviderAdapter:
         from .extensibility import ProviderExecution
 
         if "data" not in request:
-            raise CausalValueError("EconML provider request requires caller data")
+            raise CausalValueError("adjustment provider request requires caller data")
         columns = self.handoff.columns(request["data"])
         result = self.executor(columns, request)
         if not isinstance(result, Mapping) or "effect" not in result or "learner" not in result:
-            raise CausalValueError("EconML executor must return learner and effect")
+            raise CausalValueError("adjustment executor must return learner and effect")
         allowed = {
             "learner",
             "learner_config",
@@ -279,7 +317,7 @@ class EconMLProviderAdapter:
         unknown = set(result) - allowed
         if unknown:
             raise CausalValueError(
-                f"EconML executor returned unsupported fields: {sorted(unknown)}"
+                f"adjustment executor returned unsupported fields: {sorted(unknown)}"
             )
         receipt = self.handoff.attach(
             learner=result["learner"],
@@ -291,13 +329,16 @@ class EconMLProviderAdapter:
             value_types=result.get("value_types"),
             contrast=result.get("contrast"),
         )
+        tool = self.handoff.tool
+        adapter_id = _DEFAULT_ADAPTER_ID if tool == _DEFAULT_TOOL else tool
         return ProviderExecution(
             estimate=result["effect"],
             uncertainty=None,
             assumptions=self.spec.identification_requirements,
             support_status=self.handoff.status,
             provenance={
-                "adapter": "antecedent.handoff.EconMLProviderAdapter",
+                "adapter": adapter_id,
+                "tool": tool,
                 "claim_id": receipt.claim_id,
             },
             artifact=receipt.export(),
@@ -344,7 +385,7 @@ class ExternalEstimate:
         return f"<ExternalEstimate claim_id={self.claim_id[:12]} calibration={self.calibration.status}>"
 
 
-def econml(
+def adjustment(
     result: AnalysisResult | CausalResponseView | Identification | IdentifyResult,
     *,
     treatment: str | tuple[str, ...] | None = None,
@@ -354,16 +395,20 @@ def econml(
     target_weights: Any | None = None,
     target_depends_on: Sequence[str] = (),
     outcome_functional: Any | None = None,
-) -> EconMLSpec:
-    """Emit an EconML adjustment-set spec, or refuse.
+    tool: str = _DEFAULT_TOOL,
+) -> AdjustmentHandoff:
+    """Emit an adjustment-set handoff, or refuse.
 
     Licensed only for point-identified backdoor / generalized-adjustment
     estimands on an explicit or accepted graph. Front-door, IV, general ID,
     general temporal ID functionals,
     partial identification, and graph-posterior mixtures refuse rather than
     pretending they are a single adjustment set.
+
+    ``tool`` is recorded as the provider spec's adapter identity. The default
+    is the historical EconML spec string.
     """
-    status, method, adjustment, identifier, treatment, outcome = _require_adjustment_parent(
+    status, method, adjustment_set, identifier, treatment, outcome = _require_adjustment_parent(
         result, treatment=treatment, outcome=outcome, structure_source=structure_source
     )
     resolved = identifier or method
@@ -381,28 +426,31 @@ def econml(
         ]
         if not sets or not all(item == sets[0] for item in sets):
             raise CausalUnsupportedError(
-                "EconML handoff requires a common certified adjustment set"
+                "adjustment handoff requires a common certified adjustment set"
             )
-        adjustment = [item["name"] for item in sets[0]]
+        adjustment_set = [item["name"] for item in sets[0]]
         kwargs["confounder_offsets"] = tuple(item["offset"] for item in sets[0])
         kwargs["treatment_offsets"] = tuple(item["offset"] for item in certificate["treatments"])
         kwargs["outcome_offset"] = certificate["outcome"]["offset"]
     elif temporal:
         raise CausalUnsupportedError(
-            "EconML handoff needs an identification certificate preserving temporal offsets; "
+            "adjustment handoff needs an identification certificate preserving temporal offsets; "
             "use identify(graph=..., query=...)"
         )
     declared = _modifier_set(query, modifiers)
     forbidden = {treatment} if isinstance(treatment, str) else set(treatment)
     forbidden.add(outcome)
     if any(name in forbidden for name in declared):
-        raise CausalValueError("EconML modifiers must be pre-treatment and not the outcome")
-    certified_modifiers = set(adjustment) | set(_modifier_set(query, None))
+        raise CausalValueError(
+            "adjustment handoff modifiers must be pre-treatment and not the outcome"
+        )
+    certified_modifiers = set(adjustment_set) | set(_modifier_set(query, None))
     if any(name not in certified_modifiers for name in declared):
         raise CausalUnsupportedError(
-            "EconML modifiers need a pre-treatment certificate: identify the modifier context first or use certified adjustment variables"
+            "adjustment handoff modifiers need a pre-treatment certificate: "
+            "identify the modifier context first or use certified adjustment variables"
         )
-    if any(name not in set(adjustment) or name in forbidden for name in target_depends_on):
+    if any(name not in set(adjustment_set) or name in forbidden for name in target_depends_on):
         raise CausalValueError("target weights must depend only on certified adjustment variables")
     if target_weights is not None:
         weights = np.asarray(target_weights, dtype=float)
@@ -420,16 +468,17 @@ def econml(
             raise CausalValueError("nonconstant target weights require declared target_depends_on")
     if outcome_functional is None:
         outcome_functional = getattr(query, "outcome_functional", None)
-    return EconMLSpec(
+    return AdjustmentHandoff(
         treatment=treatment,
         outcome=outcome,
-        confounders=tuple(adjustment),
+        confounders=tuple(adjustment_set),
         identifier=resolved,
         status=status,
         modifiers=declared,
         temporal=temporal,
         target_weights=None if target_weights is None else np.asarray(target_weights),
         outcome_functional=outcome_functional,
+        tool=tool,
         _parent=result,
         **kwargs,
     )
@@ -451,13 +500,13 @@ def _modifier_set(
     return tuple(str(name) for name in modifiers)
 
 
-def _require_attachable(spec: EconMLSpec) -> None:
+def _require_attachable(spec: AdjustmentHandoff) -> None:
     if spec._parent is not None:
         _require_adjustment_parent(spec._parent)
         return
     if spec.identifier not in _ADJUSTMENT_IDENTIFIERS:
         raise CausalUnsupportedError(
-            f"EconML handoff requires a backdoor or generalized-adjustment "
+            "adjustment handoff requires a backdoor or generalized-adjustment "
             f"identifier; got {spec.identifier!r}"
         )
     view = IdentificationView(
@@ -469,7 +518,7 @@ def _require_attachable(spec: EconMLSpec) -> None:
     )
     if not view:
         raise CausalUnsupportedError(
-            f"EconML handoff requires point identification; got status {spec.status!r}"
+            f"adjustment handoff requires point identification; got status {spec.status!r}"
         )
 
 
@@ -482,33 +531,33 @@ def _require_adjustment_parent(
 ) -> tuple[str, str, list[str], str | None, str | tuple[str, ...], str]:
     if structure_source == "graph_posterior" or _graph_posterior_result(result):
         raise CausalUnsupportedError(
-            "EconML handoff refuses graph-posterior mixtures; there is no single "
+            "adjustment handoff refuses graph-posterior mixtures; there is no single "
             "adjustment set to pass to another estimator"
         )
-    status, method, adjustment, identifier, treatment, outcome = _unpack(
+    status, method, adjustment_set, identifier, treatment, outcome = _unpack(
         result, treatment=treatment, outcome=outcome
     )
     resolved = identifier or method
     if resolved not in _ADJUSTMENT_IDENTIFIERS:
         raise CausalUnsupportedError(
-            f"EconML handoff requires a backdoor or generalized-adjustment "
+            "adjustment handoff requires a backdoor or generalized-adjustment "
             f"identifier; got {resolved!r}"
         )
     view = IdentificationView(
         status=status,
         method=method,
-        adjustment_set=list(adjustment),
+        adjustment_set=list(adjustment_set),
         assumption_count=0,
         derivation_step_count=0,
     )
     if not view:
         raise CausalUnsupportedError(
-            f"EconML handoff requires point identification; got status {status!r}"
+            f"adjustment handoff requires point identification; got status {status!r}"
         )
-    return status, method, adjustment, identifier, treatment, outcome
+    return status, method, adjustment_set, identifier, treatment, outcome
 
 
-def _receipt_names(spec: EconMLSpec) -> list[str]:
+def _receipt_names(spec: AdjustmentHandoff) -> list[str]:
     names: list[str] = []
     for name in (spec.outcome, *spec.treatments, *spec.confounders, *spec.modifiers):
         if name not in names:
@@ -542,7 +591,7 @@ def _payload_bytes(effect: np.ndarray, interval: Any | None) -> bytes:
     return b"".join(parts)
 
 
-def _snapshot_payload(spec: EconMLSpec, data: Mapping[str, Any]) -> bytes:
+def _snapshot_payload(spec: AdjustmentHandoff, data: Mapping[str, Any]) -> bytes:
     cols = spec.columns(data)
     chunks: list[bytes] = []
     for key in ("Y", "T", "W", "X", "sample_weight"):
@@ -559,7 +608,7 @@ def _snapshot_payload(spec: EconMLSpec, data: Mapping[str, Any]) -> bytes:
 
 
 def _bind_parent_identities(
-    spec: EconMLSpec, parent: object, data: Mapping[str, Any] | None
+    spec: AdjustmentHandoff, parent: object, data: Mapping[str, Any] | None
 ) -> tuple[str | None, str | None, bytes | None]:
     from . import artifacts
     from .results._slots import _identity_hex
@@ -595,7 +644,7 @@ def _unpack(
 ) -> tuple[str, str, list[str], str | None, str | tuple[str, ...], str]:
     if not isinstance(result, (AnalysisResult, CausalResponseView, Identification, IdentifyResult)):
         raise CausalValueError(
-            f"EconML handoff expects an identification or analysis result; got {type(result)!r}"
+            f"adjustment handoff expects an identification or analysis result; got {type(result)!r}"
         )
     query = getattr(result, "query", getattr(result, "estimand", None))
     certificate = getattr(result, "certificate", None)
@@ -610,7 +659,7 @@ def _unpack(
         certified_t = names[0] if len(names) == 1 else names
     if not certified_t or not certified_y:
         raise CausalValueError(
-            "EconML handoff needs a result carrying its certified treatment and outcome; "
+            "adjustment handoff needs a result carrying its certified treatment and outcome; "
             "caller-supplied names cannot establish query identity"
         )
     requested = (treatment,) if isinstance(treatment, str) else treatment
@@ -619,7 +668,8 @@ def _unpack(
         outcome is not None and outcome != certified_y
     ):
         raise CausalValueError(
-            "EconML handoff treatment/outcome must match the certified query, including every joint treatment"
+            "adjustment handoff treatment/outcome must match the certified query, "
+            "including every joint treatment"
         )
     if isinstance(result, (AnalysisResult, CausalResponseView)):
         ident = result.identification
@@ -656,4 +706,17 @@ def _graph_posterior_result(result: object) -> bool:
     )
 
 
-__all__ = ["EconMLProviderAdapter", "EconMLSpec", "ExternalEstimate", "econml"]
+# EconML names remain callable aliases. They are the same objects.
+EconMLSpec = AdjustmentHandoff
+EconMLProviderAdapter = AdjustmentProviderAdapter
+econml = adjustment
+
+__all__ = [
+    "AdjustmentHandoff",
+    "AdjustmentProviderAdapter",
+    "EconMLProviderAdapter",
+    "EconMLSpec",
+    "ExternalEstimate",
+    "adjustment",
+    "econml",
+]

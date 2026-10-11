@@ -427,8 +427,21 @@ evidence_kind = "implementation_exists"
 owner = "release"
 notes = "pinned baseline secondary package is not mirrored; equivalent surfaces live as dedicated inventory IDs (discovery, transforms, effects, facade). Downgraded: no single executing test evidences this aggregate row; the equivalent surfaces are evidenced by their dedicated inventory rows."
 
+[[capabilities]]
+id = "estimate.handoff.adjustment"
+group = "external_handoff"
+description = "Certified adjustment-set handoff for a caller-owned learner"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "estimate"
+evidence_test = "python/tests/test_econml_handoff.py"
+evidence_assertion = "test_backdoor_ate_emits_adjustment_set"
+python_facade = "full"
+notes = "Antecedent emits the certified adjustment set and records a caller-fitted payload as attested. It does not wrap a learner. handoff.adjustment, AdjustmentHandoff, and AdjustmentProviderAdapter are the API; handoff.econml, EconMLSpec, and EconMLProviderAdapter are aliases. econml_model_composition stays excluded because there is no learner wrapper."
+
 [excluded]
-econml_adapter = true
+# The adjustment handoff ships (estimate.handoff.adjustment). What stays out is
+# an in-process learner wrapper or model composition, not the handoff itself.
 econml_model_composition = true
 
 [optional_adapters]

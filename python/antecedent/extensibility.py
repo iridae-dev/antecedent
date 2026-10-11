@@ -216,7 +216,8 @@ class CausalProviderSpec:
 class CausalProvider(Protocol):
     """Declarative provider contract, optionally executable by the registry.
 
-    The EconML handoff implements this declaration without owning a learner.
+    The adjustment handoff implements this declaration without owning a learner.
+    ``handoff.econml`` / ``EconMLSpec`` are aliases of that handoff.
     Executable providers additionally implement ``execute(request)`` and can
     be registered explicitly. Python plugins need no Rust rebuild, and
     importing a package never executes plugin discovery.

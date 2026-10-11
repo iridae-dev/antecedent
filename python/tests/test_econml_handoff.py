@@ -22,6 +22,43 @@ def _backdoor_graph() -> antecedent.Dag:
     return antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
 
 
+def test_adjustment_api_keeps_econml_aliases_layout_and_tool() -> None:
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect(treatment="t", outcome="y")
+    )
+    spec = antecedent.handoff.adjustment(identified)
+    assert type(spec) is antecedent.handoff.AdjustmentHandoff
+    assert antecedent.handoff.econml is antecedent.handoff.adjustment
+    assert antecedent.handoff.EconMLSpec is antecedent.handoff.AdjustmentHandoff
+    assert antecedent.handoff.EconMLProviderAdapter is antecedent.handoff.AdjustmentProviderAdapter
+    assert spec.tool == "antecedent.handoff.EconMLSpec"
+    assert dict(spec.spec.provenance) == {"adapter": "antecedent.handoff.EconMLSpec"}
+    data = _backdoor_data()
+    econml_cols = spec.columns(data)
+    assert set(econml_cols) == {"Y", "T", "W"}
+    named = spec.columns(data, layout="named")
+    assert set(named) == {"outcome", "treatment", "confounders", "modifiers", "weights", "origins"}
+    np.testing.assert_array_equal(named["outcome"], econml_cols["Y"])
+    np.testing.assert_array_equal(named["treatment"], econml_cols["T"])
+    np.testing.assert_array_equal(named["confounders"], econml_cols["W"])
+    assert named["modifiers"] is None and named["weights"] is None and named["origins"] is None
+    with pytest.raises(antecedent.errors.CausalValueError, match="layout"):
+        spec.columns(data, layout="sklearn")  # type: ignore[arg-type]
+
+    def fit(columns, request):
+        assert "Y" in columns and "outcome" not in columns
+        return {"learner": "caller.learner", "effect": 1.0, "label": "ate"}
+
+    default_run = spec.as_provider(fit).execute({"data": data})
+    assert default_run.provenance["adapter"] == "antecedent.handoff.EconMLProviderAdapter"
+    assert default_run.provenance["tool"] == "antecedent.handoff.EconMLSpec"
+    custom = antecedent.handoff.adjustment(identified, tool="caller.learner")
+    assert dict(custom.spec.provenance) == {"adapter": "caller.learner"}
+    custom_run = custom.as_provider(fit).execute({"data": data})
+    assert custom_run.provenance["adapter"] == "caller.learner"
+    assert custom_run.provenance["tool"] == "caller.learner"
+
+
 def test_backdoor_ate_emits_adjustment_set() -> None:
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identified = antecedent.identify(graph=_backdoor_graph(), query=query)

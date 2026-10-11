@@ -136,10 +136,13 @@ directly:
   with registered `reason_code`, `remedy`, `stage`, `offending`, `expected`,
   `supplied`). Trust uses the shared `ProviderTrust` vocabulary and never
   `native_licensed`; the claim is never native estimation.
-- ``antecedent.handoff`` — EconML adjustment-set export. Antecedent identifies;
+- ``antecedent.handoff`` — adjustment-set export for a caller-owned learner.
+  ``handoff.adjustment`` returns an ``AdjustmentHandoff``; ``handoff.econml``,
+  ``EconMLSpec``, and ``EconMLProviderAdapter`` are aliases. Antecedent identifies;
   the adapter refuses front-door, IV, general ID, partial ID, and
   graph-posterior results rather than inventing a set. Temporal results export
-  certified offsets and trim boundaries.
+  certified offsets and trim boundaries. ``columns(layout="named")`` uses
+  outcome / treatment / confounders / modifiers; the default layout is ``econml``.
 - ``antecedent.extensibility.ProviderQuery`` — execute a previously registered
   Python provider through ``analyze(data, query=ProviderQuery(...))``. Its
   family-shaped output remains externally attested and is not translated into
@@ -198,7 +201,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
 | Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
-| EconML handoff | — | `antecedent.handoff.econml(result, modifiers=…, target_weights=…, outcome_functional=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets. `spec.attach(learner=…, learner_config=…, effect=…)` returns an `ExternalEstimate` receipt (attested, not re-verifiable) |
+| Adjustment handoff | — | `antecedent.handoff.adjustment(result, modifiers=…, target_weights=…, outcome_functional=…, tool=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets. `columns(layout="econml"\|"named")` defaults to EconML `Y`/`T`/`W`/`X`. `spec.attach(learner=…, learner_config=…, effect=…)` returns an `ExternalEstimate` receipt (attested, not re-verifiable). `handoff.econml` is an alias |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
 | Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `PreparedAnalysis.reexecute_retarget(artifact)` — same, from the exported bytes |
 | Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |

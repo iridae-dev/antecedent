@@ -185,8 +185,9 @@ That is not a 12-estimator EconML clone:
 learners never choose the adjustment set, and the EconML handoff remains
 an identification-set export.
 
-`antecedent.handoff.econml(result)` emits the adjustment set and identification
-status for point-identified backdoor / generalized-adjustment estimands,
+`antecedent.handoff.adjustment(result)` emits the adjustment set and identification
+status for point-identified backdoor / generalized-adjustment estimands
+(`handoff.econml` is the same function),
 including lag-aligned temporal columns when the certificate carries offsets.
 `spec.attach(...)` records a caller-fitted estimate as attested, uncalibrated
 evidence; Antecedent does not wrap the learner or inherit native calibration.

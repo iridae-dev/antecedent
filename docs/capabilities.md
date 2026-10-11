@@ -1232,9 +1232,13 @@ group. The caller explicitly loads it with
 Antecedent never discovers or executes installed providers. Loaded providers
 use the same externally attested result validation as direct registration;
 entry-point provenance is retained in the result. No Antecedent or Rust rebuild
-is needed to install the external package. The EconML-compatible handoff is the implemented
-adapter: Antecedent emits certified `Y`, `T`, `W`, optional `X`, and aligned
-weights; for temporal estimands it trims boundaries and reports row origins.
+is needed to install the external package. The adjustment handoff is the implemented
+adapter (`handoff.adjustment` / `AdjustmentHandoff`; `handoff.econml` is an alias).
+Antecedent emits certified `Y`, `T`, `W`, optional `X`, and aligned
+weights under `columns(layout="econml")`, or the same arrays under
+`outcome` / `treatment` / `confounders` / `modifiers` when `layout="named"`;
+for temporal estimands it trims boundaries and reports row origins. `tool`
+names the provenance adapter and defaults to the historical EconML spec string.
 The handoff does not assign or verify cross-fitting folds—the external learner
 owns them, and this is recorded as unknown to the receipt.
 
@@ -1297,7 +1301,7 @@ report = providers.verify(
 )
 ```
 
-`EconMLSpec.attach` accepts a caller-fitted estimate and creates an artifact
+`AdjustmentHandoff.attach` (alias `EconMLSpec.attach`) accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
 identification and data-snapshot identities. It does not rerun the learner or
 verify its provenance, fold ownership, or uncertainty calibration. Loaded

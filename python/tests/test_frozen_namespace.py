@@ -62,6 +62,8 @@ _EXPECTED_ALL = {
     "ResponseJacobian",
     "SemiElasticity",
     "SustainedEffect",
+    "TemporalConditionalPulse",
+    "TemporalConditionalSustained",
     "TemporalMediationEffect",
     # Graphs (five graph classes)
     "Dag",
@@ -784,7 +786,7 @@ def test_stage_module_all_is_frozen(module_name):
     ("module_name", "name"),
     [
         ("interference", "InterferencePointwiseInterval"),
-        ("handoff", "EconMLProviderAdapter"),
+        ("handoff", "AdjustmentProviderAdapter"),
     ],
 )
 def test_public_result_types_are_listed_in_their_module_all(module_name, name):
@@ -792,6 +794,23 @@ def test_public_result_types_are_listed_in_their_module_all(module_name, name):
     module = importlib.import_module(f"antecedent.{module_name}")
     assert name in module.__all__
     assert getattr(module, name) is not None
+
+
+def test_handoff_econml_names_are_aliases():
+    """Neutral names are the API; EconML names remain the same objects."""
+    handoff = importlib.import_module("antecedent.handoff")
+    assert handoff.adjustment is handoff.econml
+    assert handoff.AdjustmentHandoff is handoff.EconMLSpec
+    assert handoff.AdjustmentProviderAdapter is handoff.EconMLProviderAdapter
+    for name in (
+        "AdjustmentHandoff",
+        "AdjustmentProviderAdapter",
+        "adjustment",
+        "EconMLSpec",
+        "EconMLProviderAdapter",
+        "econml",
+    ):
+        assert name in handoff.__all__
 
 
 def test_estimators_module_is_reachable_and_not_root_exported():
