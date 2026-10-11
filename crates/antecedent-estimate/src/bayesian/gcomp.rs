@@ -753,11 +753,14 @@ fn temper_likelihood(
 /// GLS whitening is a Gaussian residual transform; applying it to Poisson /
 /// binomial / other GLM outcomes silently corrupts the likelihood, so those
 /// are skipped with a note.
+/// Whitened `(design, outcome)` columns.
+type WhitenedDesign = (Vec<f64>, Vec<f64>);
+
 fn whiten_design(
     problem: &PreparedBayesianProblem,
     likelihood: BayesLikelihood,
     extra_notes: &mut Vec<Arc<str>>,
-) -> Result<Option<(Vec<f64>, Vec<f64>)>, EstimationError> {
+) -> Result<Option<WhitenedDesign>, EstimationError> {
     if let Some(ids) = problem.unit_ids.as_deref() {
         if ids.len() != problem.design.nrows {
             return Err(EstimationError::data_msg(

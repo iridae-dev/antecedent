@@ -25,7 +25,7 @@ use crate::util::range;
 
 fn sort_finite(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
-    sorted.sort_by(|a, b| a.total_cmp(b));
+    sorted.sort_by(f64::total_cmp);
     sorted
 }
 

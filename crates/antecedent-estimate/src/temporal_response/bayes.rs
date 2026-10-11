@@ -30,7 +30,11 @@ use super::{
 impl TemporalResponseEstimator {
     /// Bayesian Gaussian linear-additive response on the identified unfolded
     /// design at each horizon. Intervals are pointwise posterior quantiles.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "public estimator entry point; its parameter list is the published signature"
+    )]
     pub fn estimate_bayesian(
         &self,
         data: &TimeSeriesData,

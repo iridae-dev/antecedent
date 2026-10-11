@@ -527,6 +527,10 @@ impl Evaluation {
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits; chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
 )]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "public estimator entry point; its parameter list is the published signature"
+)]
 pub fn estimate_observed_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,
