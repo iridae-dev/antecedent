@@ -38,6 +38,7 @@ from typing import Any, Literal
 from .. import _native
 from .._native import consume_design_ranking as _consume_native
 from .._native import evaluate_design_ranking as _evaluate
+from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
 from ..external import LineageLink
 from ._declarations import (
@@ -54,7 +55,7 @@ from ._declarations import (
     _candidate_from_wire,
     _cost_map,
     _links,
-    _raise,
+    _refusal_type,
     _request_wire,
     _search,
     consume,
@@ -1056,13 +1057,13 @@ def _rank_value(
     except ValueError as error:
         raise CausalValueError("a declaration contains a non-finite number") from error
     body, artifact, refusal = _evaluate(text, artifact_id, decision.prior._checked)
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert body is not None and artifact is not None
     wire = json.loads(body)
     data = bytes(artifact)
     # The result is only returned after an independent reader recomputed it.
     consumed_text, consumed_refusal = _consume_native(data, None)
-    _raise(consumed_refusal)
+    raise_refusal(consumed_refusal, _refusal_type)
     assert consumed_text is not None
     replays = {e["semantic_id"]: e for e in json.loads(consumed_text)["entries"]}
     action_ids = tuple(wire["decision"]["action_ids"])

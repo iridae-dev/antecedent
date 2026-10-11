@@ -80,10 +80,6 @@ class ScenarioDecisionRefusal(DecisionRefusal):
     not declared, a source that changed, or a policy the contract does not declare."""
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, ScenarioDecisionRefusal)
-
-
 @dataclass(frozen=True, slots=True)
 class OutcomeBinding:
     """The scientific quantity an outcome of the scenario laws answers.
@@ -391,7 +387,7 @@ def _decision(
         None if weights is None else json.dumps({str(k): float(v) for k, v in weights.items()}),
         expected_causal,
     )
-    _raise(refusal)
+    raise_refusal(refusal, ScenarioDecisionRefusal)
     assert result is not None
     return _from_wire(json.loads(result))
 

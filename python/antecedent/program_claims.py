@@ -65,10 +65,6 @@ Calibration = Literal["unmeasured", "point_only"]
 SourceKind = Literal["mean", "joint_draws"]
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, ExternalRefusal)
-
-
 @dataclass(frozen=True, slots=True)
 class ProgramCheck:
     """A spec that passed every program check."""
@@ -131,7 +127,7 @@ class ProgramBinding:
     def identity(self) -> str:
         """Durable identity of the full program and request; refuses an invalid binding."""
         value, refusal = _program_binding_identity(json.dumps(self._wire()))
-        _raise(refusal)
+        raise_refusal(refusal, ExternalRefusal)
         assert value is not None
         return value
 
@@ -232,7 +228,7 @@ def check_external_program(spec: ExternalSpec, program: ProgramBinding) -> Progr
     value, refusal = _check_external_program(
         json.dumps(program._wire()), json.dumps(spec._program_claim())
     )
-    _raise(refusal)
+    raise_refusal(refusal, ExternalRefusal)
     assert value is not None
     body = json.loads(value)
     return ProgramCheck(identity=str(body["identity"]), coordinates=int(body["coordinates"]))
@@ -435,13 +431,13 @@ class NativeClaim:
         ``native_claims.no_supported_coordinate``.
         """
         body, refusal = self._native.decision_source(json.dumps(requirement._wire()))
-        _raise(refusal)
+        raise_refusal(refusal, ExternalRefusal)
         assert body is not None
         decoded = json.loads(body)
         joint = None
         if "joint_law" in decoded:
             artifact, refusal = self._native.joint_artifact(json.dumps(requirement._wire()))
-            _raise(refusal)
+            raise_refusal(refusal, ExternalRefusal)
             assert artifact is not None
             joint = JointDistributionArtifact._from_native(artifact)
         return NativeDecisionSource._from_wire(decoded, joint, self)
@@ -601,7 +597,7 @@ def native_claim(
         # Rust owns the full coordinate comparison and registered refusals.
         # A descriptor-bearing response cannot be relabelled by a new program.
         _, refusal = _check_external_program(binding_json, json.dumps(declared))
-        _raise(refusal)
+        raise_refusal(refusal, ExternalRefusal)
     claim, refusal = _native_response_claim(
         response._raw,
         json.dumps(projection),
@@ -611,7 +607,7 @@ def native_claim(
         calibration,
         program._contract_premises_json,
     )
-    _raise(refusal)
+    raise_refusal(refusal, ExternalRefusal)
     assert claim is not None
     return NativeClaim(claim)
 

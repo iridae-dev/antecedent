@@ -17,6 +17,7 @@ from numpy.typing import ArrayLike
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
 from .graph import Admg
 from .recalc import (
@@ -29,7 +30,7 @@ from .recalc import (
     Utility,
     _declared,
     _declared_json,
-    _raise,
+    _refusal_type,
     _seed,
 )
 from .transport._impl import EvidenceCatalog, ExactDiscreteLaw
@@ -152,7 +153,7 @@ def _transport_spec(request: MultiSourceRequest) -> str:
 
 def _result(payload: tuple[str | None, bytes | None, str | None]) -> StaticResult:
     result, artifact, error = payload
-    _raise(error)
+    raise_refusal(error, _refusal_type)
     if result is None or artifact is None:  # pragma: no cover - native invariant
         raise CausalSerializationError("static recalculation returned no result")
     wire = json.loads(result)
@@ -206,7 +207,7 @@ class _Session:
         calibrated interval license. The shared work receipt exports separately.
         """
         artifact, error = self._handle.export_result(seed=_seed(seed), threads=threads)
-        _raise(error)
+        raise_refusal(error, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("static recalculation exported no artifact")
         return bytes(artifact)

@@ -53,7 +53,7 @@ import numpy as np
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
 from ._refusal import raise_refusal
-from ._validate import count, real
+from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -87,10 +87,6 @@ class MediationRefusal(StructuredRefusal):
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         super().__init__(refusal)
-
-
-def _raise_refusal(payload: str | None) -> None:
-    raise_refusal(payload, MediationRefusal)
 
 
 class MediationEstimand(StrEnum):
@@ -407,19 +403,13 @@ def _covariate_columns(covariates: Any) -> tuple[list[str], list[np.ndarray]]:
 _count = partial(count, minimum=0, maximum=_MAX_COUNT, reason_code="invalid_argument")
 
 
-def _non_finite(what: str) -> MediationRefusal:
-    return MediationRefusal(
-        {
-            "code": "invalid_argument",
-            "stage": "estimate",
-            "detail": "nonlinear_mediation.non_finite_option",
-            "offending": what,
-            "message": f"{what} is not finite",
-        }
-    )
-
-
-_real = partial(real, finite=True, non_finite=_non_finite)
+_real = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        MediationRefusal, stage="estimate", detail="nonlinear_mediation.non_finite_option"
+    ),
+)
 
 
 def _seed(value: object) -> int:
@@ -510,7 +500,7 @@ def mediation_effects(
         json.dumps(config, allow_nan=False),
         "nonlinear_mediation",
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, MediationRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native mediation estimator returned neither a result nor a refusal"
@@ -545,7 +535,7 @@ def consume_mediation_artifact(
         raise CausalTypeError("expected_identity must be a MediationIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, MediationRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

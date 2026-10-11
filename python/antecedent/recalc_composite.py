@@ -68,10 +68,6 @@ def _payload(request: CompositeRequest) -> dict[str, object]:
     }
 
 
-def _raise(error: str | None) -> None:
-    raise_refusal(error, ExternalCallbackRefusal)
-
-
 class ConditionalStudyRankingRefusal(StructuredRefusal):
     """A bounded policy, actual-source or independent projection refusal."""
 
@@ -196,7 +192,7 @@ class CompositeSession:
 
     def plan(self, request: CompositeRequest) -> RecalcPlan:
         wire, error = self._handle.plan(_payload(request))
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None
         return RecalcPlan.from_wire(json.loads(wire))
 
@@ -220,7 +216,7 @@ class CompositeSession:
             threads=threads,
             cancel=cancel,
         )
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None and receipt is not None
         body = json.loads(wire)
         return CompositeResult(

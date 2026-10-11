@@ -121,10 +121,6 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[DesignRankingRefusal]:
     return DesignRankingRefusal
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, _refusal_type)
-
-
 def _floats(values: Sequence[float], what: str) -> list[float]:
     try:
         return [float(v) for v in values]
@@ -1060,7 +1056,7 @@ def consume(
     consumed, refusal = _consume(
         bytes(data), json.dumps(expectation, allow_nan=False) if expectation is not None else None
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert consumed is not None
     return _consumed_from_wire(json.loads(consumed))
 

@@ -232,10 +232,6 @@ def _refusal_of(code: str, detail: str, message: str) -> RecoveryChainRefusal:
     )
 
 
-def _raise_refusal(payload: str | None) -> None:
-    raise_refusal(payload, RecoveryChainRefusal)
-
-
 def _witness(report: Mapping[str, Any]) -> ChainWitness:
     witness = report["witness"]
     check = report["witness_check"]
@@ -399,7 +395,7 @@ def _call(
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, RecoveryChainRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native recovery returned neither a result nor a refusal")
     return json.loads(report), None if artifact is None else bytes(artifact)
@@ -501,7 +497,7 @@ def consume_recovery_chain_artifact(
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
     report, refusal = _consume(data, seed=seed, memory_bytes=memory_bytes, cancel=cancel)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, RecoveryChainRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     parsed = json.loads(report)

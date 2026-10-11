@@ -514,10 +514,6 @@ def _refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     return RecalcRefusal
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, _refusal_type)
-
-
 # -- receipt --------------------------------------------------------------------------------
 
 
@@ -686,7 +682,7 @@ class RecalcReceipt:
         receipt of another run is refused too. Corruption raises ``CausalSerializationError``.
         """
         report, refusal = _native.consume_recalc_receipt(bytes(data), expected_identity)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - the native call returns one or the other
             raise CausalSerializationError("recalc receipt artifact did not decode")
         wire = json.loads(report)
@@ -1009,7 +1005,7 @@ class RecalcSession:
             seed=_seed(seed),
             threads=threads,
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - one of the two is set
             raise CausalSerializationError("recalc execution returned no result")
         wire = json.loads(result)

@@ -21,6 +21,7 @@ from numpy.typing import ArrayLike
 
 from . import _native
 from ._recalc_bounds import MAX_COLUMNS, MAX_ROWS, MAX_VALUES, _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .recalc import (
     Capabilities,
@@ -36,7 +37,7 @@ from .recalc import (
     _column,
     _declared,
     _declared_json,
-    _raise,
+    _refusal_type,
     _seed,
 )
 
@@ -254,7 +255,7 @@ class AdjustedSession:
         except (TypeError, ValueError) as error:
             raise CausalValueError("prediction rows must contain numeric features") from error
         report, refusal = self._handle.predict(features, list(columns))
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("adjusted prediction returned no result")
         wire = json.loads(report)
@@ -286,7 +287,7 @@ class AdjustedSession:
             seed=_seed(seed),
             threads=threads,
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("adjusted recalculation returned no result")
         wire = json.loads(result)

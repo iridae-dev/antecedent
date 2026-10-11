@@ -45,6 +45,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -52,7 +53,7 @@ import numpy as np
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
-from ._validate import real
+from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -92,27 +93,6 @@ class TemporalRefusal(StructuredRefusal):
         self.missing_gates: tuple[str, ...] = tuple(refusal.get("missing_gates", ()))
         #: Regime factors (``source:<regime>`` / ``target:<regime>``) the evidence map lacks.
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
-
-
-def _raise_refusal(payload: str | None) -> None:
-    raise_refusal(payload, TemporalRefusal)
-
-
-def _finite(value: object, what: str, detail: str) -> float:
-    return real(
-        value,
-        what,
-        finite=True,
-        non_finite=lambda _: TemporalRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "test",
-                "detail": detail,
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        ),
-    )
 
 
 def _name(value: object, what: str) -> str:
@@ -183,11 +163,17 @@ class Partition:
             _name(self.coordinate, "coordinate")
         if self.estimand is not None and not isinstance(self.estimand, EffectEstimand):
             raise CausalTypeError("estimand must be an EffectEstimand")
-        object.__setattr__(self, "effect", _finite(self.effect, "effect", _NON_FINITE))
-        object.__setattr__(self, "se", _finite(self.se, "se", _NON_FINITE))
+        object.__setattr__(self, "effect", _finite_estimate(self.effect, "effect"))
+        object.__setattr__(self, "se", _finite_estimate(self.se, "se"))
 
 
-_NON_FINITE = "effect_constancy.non_finite_estimate"
+_finite_estimate = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        TemporalRefusal, stage="test", detail="effect_constancy.non_finite_estimate"
+    ),
+)
 
 
 def _partition(item: Partition | Mapping[str, Any] | Sequence[Any]) -> Partition:
@@ -481,10 +467,17 @@ def effect_constancy(
         "partitions": wire_partitions,
         "dependence": dependence,
         "family": family,
-        "alpha": _finite(alpha, "alpha", "effect_constancy.invalid_alpha"),
+        "alpha": real(
+            alpha,
+            "alpha",
+            finite=True,
+            non_finite=non_finite_refusal(
+                TemporalRefusal, stage="test", detail="effect_constancy.invalid_alpha"
+            ),
+        ),
     }
     report, artifact, refusal = _evaluate(json.dumps(request, allow_nan=False), "effect_constancy")
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native effect-constancy test returned neither a result nor a refusal"
@@ -520,7 +513,7 @@ def consume_effect_constancy_artifact(
         raise CausalTypeError("expected_identity must be an EffectConstancyIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

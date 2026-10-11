@@ -17,9 +17,9 @@ from typing import Any
 
 import numpy as np
 
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
-__all__ = ["choice", "count", "names", "real", "text"]
+__all__ = ["choice", "count", "names", "non_finite_refusal", "real", "text"]
 
 _REAL_TYPES: tuple[type, ...] = (int, float, np.floating, np.integer)
 _INT_TYPES: tuple[type, ...] = (int, np.integer)
@@ -72,6 +72,35 @@ def real(
     return number
 
 
+def non_finite_refusal(
+    refusal: type[StructuredRefusal],
+    *,
+    stage: str,
+    detail: str,
+    offending: str | None = None,
+) -> Callable[[str], StructuredRefusal]:
+    """The ``non_finite`` callback of :func:`real` for a module that refuses with ``refusal``.
+
+    The refusal it builds is the native ``invalid_argument`` shape, at ``stage`` with ``detail``,
+    naming ``offending`` (default: the checked argument) as the culprit. A module that refuses a
+    non-finite number the same way everywhere binds it once with
+    ``partial(real, finite=True, non_finite=non_finite_refusal(...))``.
+    """
+
+    def build(what: str) -> StructuredRefusal:
+        return refusal(
+            {
+                "code": "invalid_argument",
+                "stage": stage,
+                "detail": detail,
+                "offending": offending or what,
+                "message": f"{what} is not finite",
+            }
+        )
+
+    return build
+
+
 def count(
     value: object,
     what: str,
@@ -79,6 +108,7 @@ def count(
     minimum: int | None = None,
     maximum: int | None = None,
     types: tuple[type, ...] = _INT_TYPES,
+    type_error: type[CausalTypeError] | type[CausalValueError] = CausalTypeError,
     type_message: str = "{what} must be an integer",
     range_message: str | None = None,
     reason_code: str | None = None,
@@ -89,7 +119,7 @@ def count(
     ``maximum``; the default names whichever bounds are set.
     """
     if isinstance(value, bool | np.bool_) or not isinstance(value, types):
-        raise CausalTypeError(_message(type_message, what, value))
+        raise type_error(_message(type_message, what, value))
     number = int(value)  # type: ignore[call-overload]
     if (minimum is not None and number < minimum) or (maximum is not None and number > maximum):
         if range_message is None:

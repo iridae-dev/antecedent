@@ -79,10 +79,6 @@ class DecisionRefusal(StructuredRefusal):
         self.supplied: str | None = refusal.get("supplied")
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, DecisionRefusal)
-
-
 @dataclass(frozen=True, slots=True)
 class Expr:
     """A closed utility expression over an action's inputs; build it with operators."""
@@ -566,7 +562,7 @@ class Contract:
 
     def _normalized(self) -> dict[str, Any]:
         normalized, refusal = _normalize(json.dumps(self._wire()))
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert normalized is not None
         return dict(json.loads(normalized))
 
@@ -645,7 +641,7 @@ class Contract:
                 str(identity["snapshot_id"]),
                 str(identity["causal_contract_id"]),
             )
-            _raise(refusal)
+            raise_refusal(refusal, DecisionRefusal)
             assert result is not None
             return Decision(self, source, json.loads(result))
         if isinstance(source, MeanSource):
@@ -658,7 +654,7 @@ class Contract:
                 source.snapshot_id,
                 source.causal_contract_id,
             )
-            _raise(refusal)
+            raise_refusal(refusal, DecisionRefusal)
             assert result is not None
             return Decision(self, source, json.loads(result))
         if not isinstance(source, JointDistributionArtifact):
@@ -674,7 +670,7 @@ class Contract:
                 f"result (antecedent.analyze(...)), not {type(source).__name__}{hint}"
             )
         result, refusal = _evaluate(json.dumps(self._wire()), source._native)
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert result is not None
         return Decision(self, source, json.loads(result))
 
@@ -951,7 +947,7 @@ def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact
             f"from, not {type(source).__name__}; only a joint-draw decision replays"
         )
     result, refusal = _replay(data, json.dumps(contract._wire()), source._native)
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     return Decision(contract, source, json.loads(result))
 

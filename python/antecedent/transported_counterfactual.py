@@ -462,10 +462,6 @@ class TransportedCounterfactualRefusal(StructuredRefusal):
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
 
 
-def _raise_refusal(payload: str | None) -> None:
-    raise_refusal(payload, TransportedCounterfactualRefusal)
-
-
 @dataclass(frozen=True, slots=True)
 class TransportedPathSpecificEffect:
     """The transported path-specific mean contrast, its derivation and its artifact.
@@ -640,7 +636,7 @@ def transported_path_specific_effect(
         "evidence": _evidence(evidence),
     }
     report, artifact, refusal = _evaluate(json.dumps(request, allow_nan=False), artifact_id)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TransportedCounterfactualRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native transported counterfactual returned neither a result nor a refusal"
@@ -681,7 +677,7 @@ def consume_transported_counterfactual_artifact(
         )
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TransportedCounterfactualRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _effect(report, data)

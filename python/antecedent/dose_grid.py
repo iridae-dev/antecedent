@@ -40,6 +40,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Literal
 
 import numpy as np
@@ -85,10 +86,6 @@ class DoseGridRefusal(StructuredRefusal):
         detail = str(refusal["detail"])
         message = refusal.get("message")
         super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
-
-
-def _raise_refusal(payload: str | None) -> None:
-    raise_refusal(payload, DoseGridRefusal)
 
 
 def _invalid(message: str, offending: str | None = None) -> DoseGridRefusal:
@@ -295,10 +292,11 @@ def _column(values: object, what: str) -> list[float]:
     return [float(x) for x in array]
 
 
-def _number(value: object, what: str) -> float:
-    return real(
-        value, what, finite=True, non_finite=lambda _: _invalid(f"{what} is not finite", what)
-    )
+def _non_finite(what: str) -> DoseGridRefusal:
+    return _invalid(f"{what} is not finite", what)
+
+
+_number = partial(real, finite=True, non_finite=_non_finite)
 
 
 def _finite_list(values: list[float], what: str) -> list[float]:
@@ -452,7 +450,7 @@ def _dose_functional(
     report, artifact, refusal = _evaluate(
         json.dumps(request, allow_nan=False), _column(dose, "dose"), _column(outcome, "outcome")
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, DoseGridRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native dose-grid row returned neither a result nor a refusal")
     return _result(report, bytes(artifact))
@@ -548,7 +546,7 @@ def dose_support_table(
         _number(bandwidth, "bandwidth"),
         _number(minimum_local_ess, "minimum_local_ess"),
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, DoseGridRefusal)
     if labels is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native support labeller returned neither labels nor a refusal")
     return tuple(
@@ -579,7 +577,7 @@ def consume_dose_grid_artifact(
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
     report, refusal = _consume(data, max_rows=max_rows, max_grid=max_grid)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, DoseGridRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

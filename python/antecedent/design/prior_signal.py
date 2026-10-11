@@ -8,10 +8,11 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .. import _native
+from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
 from ..joint_distribution import ScientificQuantity
 from ..priors import PriorCatalog, _query_estimand
-from ._declarations import BinomialSignal, GaussianMeanSignal, StatePrior, _raise
+from ._declarations import BinomialSignal, GaussianMeanSignal, StatePrior, _refusal_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,7 +157,7 @@ def adapt_prior_to_signal(
     except (TypeError, ValueError) as error:
         raise CausalValueError("invalid prior signal declaration") from error
     native, refusal = _native.adapt_prior_signal(payload, text)
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert native is not None
     return CheckedPriorSignal._from_native(native, signal, prior_id)
 

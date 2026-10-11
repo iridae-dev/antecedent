@@ -96,10 +96,6 @@ class MechanismDiscrepancyRefusal(StructuredRefusal):
     """
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, MechanismDiscrepancyRefusal)
-
-
 _real = partial(real, type_message="{what} must be a number")
 
 
@@ -327,7 +323,7 @@ class Sample:
                 _floats("outcome", self.outcome),
                 [_floats(f"parent {name!r}", self.parents[name]) for name in names],
             )
-            _raise(refusal)
+            raise_refusal(refusal, MechanismDiscrepancyRefusal)
             if text is None:  # pragma: no cover - the native contract
                 raise CausalValueError("the native summary returned neither a result nor a refusal")
             summary = json.loads(text)
@@ -540,7 +536,7 @@ class MechanismDiscrepancyResult:
         text, refusal = _consume(
             data, None if expected_identity is None else json.dumps(dict(expected_identity))
         )
-        _raise(refusal)
+        raise_refusal(refusal, MechanismDiscrepancyRefusal)
         if text is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native consumer returned neither a result nor a refusal")
         return cls._from_report(json.loads(text), data)
@@ -627,7 +623,7 @@ def diagnose_mechanism_discrepancy(
         list(target.unit_ids or ()),
         _ARTIFACT_ID,
     )
-    _raise(refusal)
+    raise_refusal(refusal, MechanismDiscrepancyRefusal)
     if report is None or data is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native diagnostic returned neither a result nor a refusal")
     return MechanismDiscrepancyResult._from_report(json.loads(report), data)

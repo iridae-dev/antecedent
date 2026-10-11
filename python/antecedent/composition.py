@@ -144,10 +144,6 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[CompositionRefusal]:
     return CompositionRefusal
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, _refusal_type)
-
-
 _label = choice
 
 _text = partial(text, non_empty=True)
@@ -403,7 +399,7 @@ class DecisionInput:
 
     @classmethod
     def _built(cls, native: Any, refusal: str | None) -> DecisionInput:
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         assert native is not None
         return cls(native)
 
@@ -789,7 +785,7 @@ def evaluate_with_support(
         policy.unsupported,
         policy.weakest_support,
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert result is not None
     wire = json.loads(result)
     return _supported_from_wire(
@@ -913,7 +909,7 @@ def evaluate_functional(
         source._native_value,
         _label(weakest_support, "weakest_support", _SUPPORT_NAMES),
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert result is not None
     wire = json.loads(result)
     evidence = source.source_evidence
@@ -1109,7 +1105,7 @@ def check_composition(
     if operation is not None:
         _label(operation, "operation", OPERATIONS)
     result, refusal = _check(_natives(inputs), _relations_wire(relations), operation)
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     return _receipt(result)
 
 
@@ -1123,7 +1119,7 @@ def check_paired_draws(
     law. Inputs that share data refuse (``shared_evidence_not_independent``).
     """
     result, refusal = _check_paired(_natives(inputs), _relations_wire(relations))
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     return _receipt(result)
 
 
@@ -1172,7 +1168,7 @@ def check_atom_combination(
     result, refusal = _check_atoms(
         json.dumps([{"id": a.id, "probability": a.probability} for a in items]), combination
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert result is not None
     wire = json.loads(result)
     return AtomPlan(wire["kind"], tuple((str(i), float(p)) for i, p in wire.get("weights", ())))

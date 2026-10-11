@@ -49,7 +49,7 @@ from ._native import build_compact_export as _build
 from ._native import consume_compact_export as _consume
 from ._native import evaluate_compact_export as _evaluate
 from ._refusal import StructuredRefusal
-from ._validate import real
+from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -87,19 +87,13 @@ def _name(value: object, what: str) -> str:
     return value
 
 
-def _non_finite(what: str) -> CompactExportRefusal:
-    return CompactExportRefusal(
-        {
-            "code": "invalid_argument",
-            "stage": "build",
-            "detail": "compact_export.non_finite_value",
-            "offending": what,
-            "message": f"{what} is not finite",
-        }
-    )
-
-
-_real = partial(real, finite=True, non_finite=_non_finite)
+_real = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        CompactExportRefusal, stage="build", detail="compact_export.non_finite_value"
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)

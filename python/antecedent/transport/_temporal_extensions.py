@@ -77,13 +77,9 @@ class TemporalExtensionRefusal(StructuredRefusal):
         self.stage = str(refusal.get("stage", ""))
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, TemporalExtensionRefusal)
-
-
 def _consumed(payload: str | None, refusal: str | None) -> dict[str, Any]:
     """Decode a consumer's JSON payload, raising its typed refusal first."""
-    _raise(refusal)
+    raise_refusal(refusal, TemporalExtensionRefusal)
     if payload is None:
         raise CausalValueError(
             "the native consumer returned no payload", reason_code="invalid_argument"
@@ -402,7 +398,7 @@ class TemporalInitialStateResult:
     def export_refresh(self) -> bytes:
         """The artifact of the refresh that produced this result (framed bytes)."""
         data, refusal = self._native.export_refresh()
-        _raise(refusal)
+        raise_refusal(refusal, TemporalExtensionRefusal)
         return bytes(data)
 
 
@@ -441,7 +437,7 @@ def temporal_initial_state(
         premises._wire(),
         None if window is None else window._wire(),
     )
-    _raise(refusal)
+    raise_refusal(refusal, TemporalExtensionRefusal)
     return TemporalInitialStateResult._from(native)
 
 
@@ -508,7 +504,7 @@ def temporal_new_period_refresh(
     native, refusal = held._native.refresh(
         panel.snapshot_id, panel._wire(), window._wire(), bool(interval_existed)
     )
-    _raise(refusal)
+    raise_refusal(refusal, TemporalExtensionRefusal)
     refreshed = TemporalInitialStateResult._from(native)
     if refreshed.receipt is None or refreshed.previous_value is None:
         raise CausalValueError(

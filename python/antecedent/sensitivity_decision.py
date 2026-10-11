@@ -91,10 +91,6 @@ class SensitivityRefusal(StructuredRefusal):
         self.message = str(message)
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, SensitivityRefusal)
-
-
 # --------------------------------------------------------------------------- terms
 
 
@@ -535,7 +531,7 @@ class SensitivityArtifact:
             "provenance": provenance._wire(),
         }
         native, refusal = _from_surface(json.dumps(surface))
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert native is not None
         return cls(native)
 
@@ -582,7 +578,7 @@ class SensitivityArtifact:
             memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
             cancel=cancel,
         )
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert native is not None
         return cls(native)
 
@@ -602,7 +598,7 @@ class SensitivityArtifact:
         native, refusal = _NativeSensitivityArtifact.consume(
             data, None if expected_identity is None else json.dumps(dict(expected_identity))
         )
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert native is not None
         return cls(native)
 
@@ -746,14 +742,14 @@ class SensitivityArtifact:
         """Recompute the classification over an inclusive coordinate sub-range from the
         surface and the declared action utilities alone (no contract needed)."""
         text, refusal = self._native.outcome_json(None if range is None else _range(range))
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert text is not None
         return Outcome._from_wire(json.loads(text))
 
     def contract(self, policy: StructuralPolicy = "require_invariant_best_action") -> Contract:
         """The :class:`~antecedent.decision.Contract` the artifact's own declared actions define."""
         text, refusal = _contract(self._native, policy)
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert text is not None
         return Contract._from_wire(json.loads(text))
 
@@ -928,7 +924,7 @@ def decide(
         "sampling_composition": sampling_composition,
     }
     text, refusal = _decide(json.dumps(contract._wire()), artifact._native, json.dumps(spec))
-    _raise(refusal)
+    raise_refusal(refusal, SensitivityRefusal)
     assert text is not None
     return SensitivityDecision(contract, artifact, json.loads(text))
 

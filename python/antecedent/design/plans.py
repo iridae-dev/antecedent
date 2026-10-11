@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Literal
 
-from .._validate import count
+from .._validate import count, text
 from ..errors import CausalTypeError, CausalValueError
 
 PlanKind = Literal["measure", "intervene", "observe_environment", "increase_sampling_rate"]
@@ -51,9 +51,9 @@ def _cost(value: object) -> float:
 
 
 def _label(value: object) -> str | None:
-    if value is not None and not isinstance(value, str):
-        raise CausalTypeError("id must be a string or None")
-    return value
+    if value is None:
+        return None
+    return text(value, "id", type_message="id must be a string or None")
 
 
 def _common(plan: Any) -> None:

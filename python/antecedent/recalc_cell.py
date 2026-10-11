@@ -104,20 +104,21 @@ class ScoreResumeUnavailable(ScoreResumeRefusal, RecalcUnavailable):
     """
 
 
-def _cell_refusal_type(wire: Mapping[str, Any], *, resume: bool) -> type[RecalcRefusal]:
+def _resume_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
+    """The class of a refusal raised while resuming from a frozen score artifact."""
+    unavailable = str(wire["detail"]) in _UNAVAILABLE
+    return ScoreResumeUnavailable if unavailable else ScoreResumeRefusal
+
+
+def _cell_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     detail = str(wire["detail"])
-    unavailable = detail in _UNAVAILABLE
-    if resume or detail.partition(".")[0] == "frozen_scores":
-        return ScoreResumeUnavailable if unavailable else ScoreResumeRefusal
-    if unavailable:
+    if detail.partition(".")[0] == "frozen_scores":
+        return _resume_refusal_type(wire)
+    if detail in _UNAVAILABLE:
         return RecalcUnavailable
     if detail == "recalc.no_live_state":
         return RecalcNoLiveState
     return RecalcRefusal
-
-
-def _raise(refusal: str | None, *, resume: bool = False) -> None:
-    raise_refusal(refusal, lambda wire: _cell_refusal_type(wire, resume=resume))
 
 
 # -- requests -------------------------------------------------------------------------------
@@ -193,7 +194,7 @@ def _frame(data: Mapping[str, ArrayLike]) -> tuple[list[str], list[NDArray[np.fl
 
 
 def _result(result: str | None, artifact: bytes | None, refusal: str | None) -> RecalcResult:
-    _raise(refusal)
+    raise_refusal(refusal, _cell_refusal_type)
     if result is None or artifact is None:  # pragma: no cover - one of the two is set
         raise CausalSerializationError("recalc execution returned no result")
     wire = json.loads(result)
@@ -264,7 +265,7 @@ class FrozenScores:
 
 def _frozen(export: tuple[tuple[str, bytes] | None, str | None]) -> FrozenScores:
     value, refusal = export
-    _raise(refusal)
+    raise_refusal(refusal, _cell_refusal_type)
     if value is None:  # pragma: no cover - one of the two is set
         raise CausalSerializationError("frozen score export returned nothing")
     return FrozenScores(identity=value[0], _bytes=value[1])
@@ -426,7 +427,7 @@ class CrossfitSession:
 
 def _resume_handle(data: bytes, expected_identity: str | None) -> _native.ScoreResumeHandle:
     handle, refusal = _native.ScoreResumeHandle.from_bytes(bytes(data), expected_identity)
-    _raise(refusal, resume=True)
+    raise_refusal(refusal, _resume_refusal_type)
     if handle is None:  # pragma: no cover - one of the two is set
         raise CausalSerializationError("frozen scores artifact did not decode")
     return handle
@@ -559,7 +560,7 @@ class ScoreResumeSession:
             target_weights, utility, depends_on, row_ids, edges, declared_changes
         )
         plan, refusal = self._handle.plan(*positional, **keywords)
-        _raise(refusal, resume=True)
+        raise_refusal(refusal, _resume_refusal_type)
         if plan is None:  # pragma: no cover - one of the two is set
             raise CausalSerializationError("resume plan returned nothing")
         return RecalcPlan.from_wire(json.loads(plan))
@@ -594,7 +595,7 @@ class ScoreResumeSession:
             target_weights, utility, depends_on, row_ids, edges, declared_changes
         )
         result, refusal = self._handle.execute_retarget(*positional, **keywords)
-        _raise(refusal, resume=True)
+        raise_refusal(refusal, _resume_refusal_type)
         if result is None:  # pragma: no cover - one of the two is set
             raise CausalSerializationError("resume retarget returned no result")
         wire = json.loads(result)

@@ -107,10 +107,6 @@ class InverseQueryRefusal(StructuredRefusal):
         self.supplied: str | None = refusal.get("supplied")
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, InverseQueryRefusal)
-
-
 def _direction(value: str) -> Direction:
     if value not in ("at_least", "at_most"):
         raise CausalValueError("direction is 'at_least' or 'at_most'")
@@ -633,7 +629,7 @@ class InverseResult:
         native, refusal = _NativeInverseQueryArtifact.consume(
             data, None if expected_identity is None else json.dumps(dict(expected_identity))
         )
-        _raise(refusal)
+        raise_refusal(refusal, InverseQueryRefusal)
         assert native is not None
         contract = Contract._from_wire(json.loads(native.contract_json))
         return cls(InverseQuery._from_wire(contract, json.loads(native.query_json)), native)
@@ -744,7 +740,7 @@ class InverseQuery:
             members,
             None if scenarios is None else [s._tuple() for s in scenarios],
         )
-        _raise(refusal)
+        raise_refusal(refusal, InverseQueryRefusal)
         assert native is not None
         return InverseResult(self, native)
 
@@ -798,7 +794,7 @@ def finite_enumeration_baseline(
     text, refusal = _baseline(
         json.dumps(rows), _finite(target, "target"), _direction(direction), float(tolerance)
     )
-    _raise(refusal)
+    raise_refusal(refusal, InverseQueryRefusal)
     assert text is not None
     return {action: status for action, status in json.loads(text)}
 

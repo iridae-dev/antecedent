@@ -280,10 +280,6 @@ def _refusal(wire: Mapping[str, Any]) -> CompositionBundleRefusal:
     return _refusal_type(wire)(wire)
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, _refusal_type)
-
-
 # ------------------------------------------------------------------ declarations
 
 
@@ -454,7 +450,7 @@ class BundleBuilder:
         added, refusal = self._native.add_artifact(
             _kind(kind, allow_auto=True), _bytes(data), node_id
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if added is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
@@ -493,7 +489,7 @@ class BundleBuilder:
             if inspected
             else None,
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         self._ids.append(node_id)
         self._last = node_id
         return self
@@ -521,7 +517,7 @@ class BundleBuilder:
             EdgeDigestMismatchRefusal: the edge would make the graph malformed (a cycle).
         """
         self._require_nodes(upstream, dependent)
-        _raise(self._native.connect(upstream, dependent))
+        raise_refusal(self._native.connect(upstream, dependent), _refusal_type)
         return self
 
     def relate(self, left: str, right: str, relationship: Relationship) -> BundleBuilder:
@@ -540,7 +536,7 @@ class BundleBuilder:
             raise CausalValueError(f"`{relationship}` is not one of {RELATIONSHIPS}")
         self._require_nodes(left, right)
         added, refusal = self._native.relate(left, right, relationship)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if added is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
@@ -554,7 +550,7 @@ class BundleBuilder:
             CompositionBundleRefusal: the graph is malformed or exceeds a bound.
         """
         built, refusal = self._native.build()
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if built is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native builder returned neither a bundle nor a refusal")
         return Bundle(built)
@@ -619,7 +615,7 @@ class Bundle:
             CompositionBundleRefusal: the bundle exceeds a size or count bound.
         """
         data, refusal = self._native.export(artifact_id)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native export returned neither a result nor a refusal")
         return data
@@ -949,7 +945,7 @@ def consume_bundle(
         wire, refusal = _native.consume_source_projection_bundle(
             bytes(data), expected_identity, None if supplied is None else supplied._json(), handles
         )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     if wire is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return ConsumedBundle(json.loads(wire))
@@ -980,7 +976,7 @@ def describe_artifact(kind: NodeKind | Literal["auto"], data: object) -> Artifac
     wire, refusal = _native.composition_describe_artifact(
         _kind(kind, allow_auto=True), _bytes(data)
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     if wire is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native describe returned neither a result nor a refusal")
     body = json.loads(wire)
@@ -1011,7 +1007,7 @@ def mean_decision(
     data, refusal = _native.composition_mean_decision(
         json.dumps(contract._wire()), _bytes(claim), artifact_id
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     if data is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native decision returned neither a result nor a refusal")
     return data

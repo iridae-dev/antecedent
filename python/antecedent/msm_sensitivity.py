@@ -80,10 +80,6 @@ class MsmSensitivityRefusal(StructuredRefusal):
     """
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, MsmSensitivityRefusal)
-
-
 _real = partial(real, type_message="{what} must be a number")
 
 
@@ -456,7 +452,7 @@ class MsmResult:
             causal_contract_id,
             _ARTIFACT_ID,
         )
-        _raise(refusal)
+        raise_refusal(refusal, MsmSensitivityRefusal)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native artifact returned neither a result nor a refusal")
         return SensitivityArtifact.consume(data)
@@ -564,7 +560,7 @@ def msm_ate_sensitivity(
         tol,
         sampling_composition,
     )
-    _raise(refusal)
+    raise_refusal(refusal, MsmSensitivityRefusal)
     if text is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native MSM bounds returned neither a result nor a refusal")
     return _result(json.loads(text), request)

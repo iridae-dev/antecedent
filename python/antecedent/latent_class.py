@@ -52,7 +52,7 @@ import numpy as np
 from ._native import consume_latent_class_artifact as _consume
 from ._native import evaluate_latent_class_effects as _evaluate
 from ._refusal import raise_refusal
-from ._validate import count, real
+from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -84,10 +84,6 @@ class LatentClassRefusal(StructuredRefusal):
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         super().__init__(refusal)
-
-
-def _raise_refusal(payload: str | None) -> None:
-    raise_refusal(payload, LatentClassRefusal)
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,19 +366,13 @@ def _covariate_columns(covariates: Any) -> tuple[list[str], list[np.ndarray]]:
 _count = partial(count, minimum=0, maximum=_MAX_COUNT, reason_code="invalid_argument")
 
 
-def _non_finite(what: str) -> LatentClassRefusal:
-    return LatentClassRefusal(
-        {
-            "code": "invalid_argument",
-            "stage": "fit",
-            "detail": "latent_class.invalid_config",
-            "offending": what,
-            "message": f"{what} is not finite",
-        }
-    )
-
-
-_real = partial(real, finite=True, non_finite=_non_finite)
+_real = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        LatentClassRefusal, stage="fit", detail="latent_class.invalid_config"
+    ),
+)
 
 
 def _seed(value: object) -> int:
@@ -470,7 +460,7 @@ def latent_class_effects(
     report, artifact, refusal = _evaluate(
         y, a, columns, names, json.dumps(config, allow_nan=False), "latent_class_effects"
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, LatentClassRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native latent-class fit returned neither a result nor a refusal"
@@ -506,7 +496,7 @@ def consume_latent_class_artifact(
         raise CausalTypeError("expected_identity must be a LatentClassIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, LatentClassRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

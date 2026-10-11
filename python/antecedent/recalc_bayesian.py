@@ -15,9 +15,10 @@ from numpy.typing import ArrayLike
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError
 from .inference import Bayesian
-from .recalc import Decision, RecalcPlan, RecalcReceipt, Utility, _raise, _seed
+from .recalc import Decision, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
 from .recalc_static import _Session
 
 
@@ -82,7 +83,7 @@ def _spec(request: BayesianRequest) -> str:
 
 def _result(payload: tuple[str | None, bytes | None, str | None]) -> BayesianResult:
     result, artifact, error = payload
-    _raise(error)
+    raise_refusal(error, _refusal_type)
     if result is None or artifact is None:
         raise CausalSerializationError("Bayesian native execution returned no result")
     wire = json.loads(result)
@@ -116,7 +117,7 @@ class BayesianSession(_Session):
         caller posterior metadata and same-source likelihood reuse are refused.
         """
         artifact, error = self._handle.export_prior_source()
-        _raise(error)
+        raise_refusal(error, _refusal_type)
         if artifact is None:
             raise CausalSerializationError("native posterior source export unavailable")
         return bytes(artifact)

@@ -27,9 +27,10 @@ from ._native import (
 from ._native import (
     transported_path_specific_refusal as _transported_refusal,
 )
-from ._validate import real
+from ._refusal import raise_refusal
+from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
-from .temporal import TemporalRefusal, _raise_refusal
+from .temporal import TemporalRefusal
 
 __all__ = [
     "AbductionReceipt",
@@ -75,14 +76,8 @@ def _number(value: object, what: str, *, detail: str, offending: str | None = No
         value,
         what,
         finite=True,
-        non_finite=lambda _: TemporalRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "evaluate",
-                "detail": detail,
-                "offending": offending or what,
-                "message": f"{what} is not finite",
-            }
+        non_finite=non_finite_refusal(
+            TemporalRefusal, stage="evaluate", detail=detail, offending=offending
         ),
     )
 
@@ -442,7 +437,7 @@ def temporal_fixed_population(
     report, artifact, refusal = _evaluate_temporal(
         json.dumps(request, allow_nan=False), "temporal_counterfactual"
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native temporal counterfactual returned neither a result nor a refusal"
@@ -480,7 +475,7 @@ def consume_temporal_counterfactual_artifact(
         )
     data = bytes(artifact)
     report, refusal = _consume_temporal(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _temporal_effect(report, data)
@@ -542,14 +537,15 @@ def transported_path_specific(
         raise CausalTypeError("prerequisites must be a TransportedPrerequisites")
     required = [_factor(f) for f in required_factors]
     supplied = [(*_factor(k), str(v)) for k, v in (supplied_factors or {}).items()]
-    _raise_refusal(
+    raise_refusal(
         _transported_refusal(
             declared.transport_license,
             declared.fixed_population_license,
             declared.cross_population_assumptions,
             required,
             supplied,
-        )
+        ),
+        TemporalRefusal,
     )
     raise CausalUnsupportedError(  # pragma: no cover - the native route always refuses
         "transported_counterfactual.route_frozen: the transported route is closed",

@@ -92,10 +92,6 @@ RESULT_LINK_ID = "robust_decision"
 _CLAIM_KINDS = ("point", "graph_dependent", "weighted_graph_posterior", "finite_scenarios")
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, DecisionRefusal)
-
-
 _SUPPORT_LABELS = (
     "supported",
     "weak_overlap",
@@ -199,7 +195,7 @@ class AdmissibleContract:
 
     def _normalized(self) -> dict[str, Any]:
         normalized, refusal = _normalize(self._declaration())
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert normalized is not None
         return dict(json.loads(normalized))
 
@@ -700,7 +696,7 @@ class RobustDecision:
             json.dumps([r._wire() for r in self._receipts_in]),
             artifact_id,
         )
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert data is not None
         return bytes(data)
 
@@ -817,7 +813,7 @@ def robust(
         sources,
         json.dumps([r._wire() for r in receipts]),
     )
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     return RobustDecision(contract, claims, kind, json.loads(result), receipts=receipts)
 
@@ -866,7 +862,7 @@ def replay(
     """
     payload, sources = _claims_payload(claims, kind)
     result, refusal = _replay_robust(data, contract._declaration(), kind, payload, sources)
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     body = json.loads(result)
     # A replay re-derives the robustness result; per-structure answers and
@@ -926,7 +922,7 @@ class IdentifiedUtility:
         bounds, refusal = _interval(
             contract._declaration(), action_id, [(float(lo), float(hi)) for lo, hi in inputs]
         )
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert bounds is not None
         return cls(action_id, bounds[0], bounds[1], tuple(hard_exclusions), support)
 
@@ -1065,7 +1061,7 @@ def identified_sets(
     result, refusal = _evaluate_sets(
         contract._declaration(), json.dumps([u._wire() for u in utilities])
     )
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     wire = json.loads(result)
     verdict = wire["verdict"]

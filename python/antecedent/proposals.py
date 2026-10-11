@@ -74,10 +74,6 @@ class ProposalRefusal(StructuredRefusal):
         self.stage = str(refusal.get("stage", "proposal"))
 
 
-def _raise(refusal: str | None) -> None:
-    raise_refusal(refusal, ProposalRefusal)
-
-
 def _bits(value: int) -> float:
     return float(struct.unpack("<d", struct.pack("<Q", value))[0])
 
@@ -443,7 +439,7 @@ class ProposalBundle:
         if consume:
             _replay(repair_artifact, ranking_artifact)
         native, refusal = _build(repair_artifact, ranking_artifact)
-        _raise(refusal)
+        raise_refusal(refusal, ProposalRefusal)
         assert native is not None
         value = cls(native, contract)
         value._repair_artifact = repair_artifact
@@ -497,7 +493,7 @@ class ProposalBundle:
         ranking_artifact = _bytes("ranking_artifact", ranking_artifact)
         if consume:
             _replay(repair_artifact, ranking_artifact)
-        _raise(self._native_value.verify(repair_artifact, ranking_artifact))
+        raise_refusal(self._native_value.verify(repair_artifact, ranking_artifact), ProposalRefusal)
 
     def on_arrival(
         self,
@@ -536,7 +532,7 @@ class ProposalBundle:
             json.dumps([candidate._wire()]),
             json.dumps(arrived_evidence._wire()),
         )
-        _raise(refusal)
+        raise_refusal(refusal, ProposalRefusal)
         assert result is not None
         return _verdict(json.loads(result))
 
