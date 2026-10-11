@@ -2190,13 +2190,12 @@ fn pretreatment_candidates(
     state: &State,
     x_nodes: &[DenseNodeId],
 ) -> Vec<DenseNodeId> {
-    let mut reach = GraphWorkspace::default();
+    let mut downstream = BitSet::with_len(diagram.causal_graph().node_count());
+    diagram.causal_graph().descendants_of(x_nodes, &mut downstream, &mut GraphWorkspace::default());
     difference(&difference(&state.v, &state.x), &state.y)
         .to_dense_ids()
         .into_iter()
-        .filter(|z| {
-            !x_nodes.iter().any(|x| diagram.causal_graph().reaches_with(*x, *z, &mut reach))
-        })
+        .filter(|z| !downstream.contains(*z))
         .collect()
 }
 
