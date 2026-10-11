@@ -198,7 +198,7 @@ fn basis_wire(b: &CalibrationBasis) -> CalibrationBasisWire {
 pub fn report_seal(report: &MeasuredInferenceReport) -> Result<String, IoError> {
     let mut identity = report.identity.clone();
     identity.seal.clear();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::Claim,
         &(
             FEATURE,
@@ -209,8 +209,7 @@ pub fn report_seal(report: &MeasuredInferenceReport) -> Result<String, IoError> 
             &report.validated_scope,
             identity,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 /// Build readable record-bound metadata from supplied declarations. This is

@@ -314,12 +314,8 @@ impl ConsumeLimits {
             Some("operation limit")
         } else if depth_limit > self.depth {
             Some("depth limit")
-        } else if stored_support_rows > self.max_support_rows {
-            Some("support rows")
-        } else if law_count > self.max_laws {
-            Some("law count")
         } else {
-            None
+            stored_law_bounds(stored_support_rows, self.max_support_rows, law_count, self.max_laws)
         }
     }
 
@@ -340,6 +336,27 @@ impl ConsumeLimits {
                         .is_some_and(|counts| counts.len() > self.max_law_cells))
         });
         if over { Some("law cells") } else { None }
+    }
+}
+
+/// `support rows` or `law count` when a stored support size or law count
+/// exceeds the consumer's bound, support first.
+///
+/// For the replay checks whose evaluation labels differ from
+/// [`ConsumeLimits::budget`] and that carry no law-cell bound.
+#[must_use]
+pub const fn stored_law_bounds(
+    stored_support_rows: usize,
+    max_support_rows: usize,
+    law_count: usize,
+    max_laws: usize,
+) -> Option<&'static str> {
+    if stored_support_rows > max_support_rows {
+        Some("support rows")
+    } else if law_count > max_laws {
+        Some("law count")
+    } else {
+        None
     }
 }
 

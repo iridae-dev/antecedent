@@ -1029,7 +1029,7 @@ fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, ZTransportPlannin
     let canonical =
         catalog.canonicalized().map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?;
     let wire = antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&canonical);
-    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Identification, &wire)?.to_hex())
+    Ok(antecedent_io::digest_hex(IdentityDomain::Identification, &wire)?)
 }
 /// Digest of the graph with sorted edge lists and sorted selection targets, so
 /// an equal diagram built in another insertion order has the same identity.
@@ -1039,8 +1039,7 @@ fn graph_digest(diagram: &SelectionDiagram) -> Result<String, ZTransportPlanning
     wire.bidirected.sort_unstable();
     let mut selections = ids(diagram.selection_targets());
     selections.sort_unstable();
-    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Identification, &(wire, selections))?
-        .to_hex())
+    Ok(antecedent_io::digest_hex(IdentityDomain::Identification, &(wire, selections))?)
 }
 
 fn failure_snapshot_digest(
@@ -1051,7 +1050,7 @@ fn failure_snapshot_digest(
     graph.bidirected.sort_unstable();
     let mut selections = wire.selection_targets.clone();
     selections.sort_unstable();
-    Ok(antecedent_io::identity::digest_wire(
+    Ok(antecedent_io::digest_hex(
         IdentityDomain::Claim,
         &(
             wire.version,
@@ -1064,8 +1063,7 @@ fn failure_snapshot_digest(
             &wire.catalog_digest,
             &wire.graph_digest,
         ),
-    )?
-    .to_hex())
+    )?)
 }
 
 #[cfg(test)]

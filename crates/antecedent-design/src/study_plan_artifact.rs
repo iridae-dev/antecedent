@@ -550,8 +550,7 @@ fn outcome_wire(plan: &StudyPlan) -> StudyPlanOutcomeWire {
 }
 
 fn digest<T: Serialize>(domain: IdentityDomain, value: &T) -> Result<String, StudyPlanError> {
-    antecedent_io::identity::digest_wire(domain, value)
-        .map(|d| d.to_hex())
+    antecedent_io::digest_hex(domain, value)
         .map_err(|e| StudyPlanError::invalid_artifact(e.to_string()))
 }
 

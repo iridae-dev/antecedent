@@ -553,8 +553,7 @@ fn dense_static(nodes: &[NodeRef]) -> bool {
 }
 
 fn digest<T: Serialize>(domain: IdentityDomain, value: &T) -> Result<String, RepairArtifactError> {
-    antecedent_io::identity::digest_wire(domain, value)
-        .map(|d| d.to_hex())
+    antecedent_io::digest_hex(domain, value)
         .map_err(|e| RepairArtifactError::invalid(e.to_string()))
 }
 

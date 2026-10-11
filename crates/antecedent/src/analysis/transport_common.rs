@@ -48,7 +48,7 @@ pub(super) fn evaluate_plans<P, D>(
 
 /// Hex digest of a wire value under `domain`.
 pub(super) fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
-    Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())
+    antecedent_io::digest_hex(domain, value)
 }
 
 /// The graph fields every transport artifact carries.

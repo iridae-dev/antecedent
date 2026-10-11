@@ -101,8 +101,7 @@ impl LearnedTrialWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn identity(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(antecedent_core::IdentityDomain::LearnedTrial, self)?
-            .to_hex())
+        crate::digest_hex(antecedent_core::IdentityDomain::LearnedTrial, self)
     }
     /// Encode a validated claim in the common artifact container.
     /// # Errors

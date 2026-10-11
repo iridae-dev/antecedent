@@ -741,11 +741,13 @@ impl CpdagCompletionArtifactWire {
         {
             return Err(exceeded("evaluation limits"));
         }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        if let Some(what) = crate::stored_law_bounds(
+            self.max_support_rows,
+            limits.max_support_rows,
+            self.laws.len(),
+            limits.max_laws,
+        ) {
+            return Err(exceeded(what));
         }
         if self.cpdag.variables.len() > CPDAG_MAX_NODES {
             return Err(exceeded("cpdag node count"));

@@ -149,10 +149,8 @@ impl TemporalIntervalArtifactWire {
                 "only the 500-draw 95% studentized complete binary-history response with target law (0.3, 0.7) and sequence (0, 0) was measured",
             ));
         }
-        let premises =
-            crate::identity::digest_wire(IdentityDomain::Claim, &(&wire.estimator, &wire.config))?
-                .to_hex();
-        let data = crate::identity::digest_wire(IdentityDomain::Claim, &wire.panel)?.to_hex();
+        let premises = crate::digest_hex(IdentityDomain::Claim, &(&wire.estimator, &wire.config))?;
+        let data = crate::digest_hex(IdentityDomain::Claim, &wire.panel)?;
         let scope = serde_json::json!({
             "validation_design":"independent_units_shared_shock_fixed_target",
             "evidence_interpretation":"finite validation grid for complete balanced binary histories; arbitrary serial histories and callbacks are not licensed",

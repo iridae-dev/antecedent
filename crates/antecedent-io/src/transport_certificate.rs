@@ -265,7 +265,7 @@ impl StructuralTransportCertificateWire {
             crate::to_cbor(self)?,
             CompressPolicy::Never,
         );
-        let artifact=EncodedArtifact {manifest:ArtifactManifest{format_version:FormatVersion{major:1,minor:0},minimum_reader_version:FormatVersion{major:1,minor:0},artifact_kind:ArtifactKind::Other("transport_certificate".into()),library_version:SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION")).map_err(err)?,artifact_id:crate::identity::digest_wire(IdentityDomain::TransportCertificate,self)?.to_hex(),sections:vec![desc],provenance:ProvenanceWire{note:"checked structural transport claim; no empirical support or sampling coverage".into()}},sections:vec![section]};
+        let artifact=EncodedArtifact {manifest:ArtifactManifest{format_version:FormatVersion{major:1,minor:0},minimum_reader_version:FormatVersion{major:1,minor:0},artifact_kind:ArtifactKind::Other("transport_certificate".into()),library_version:SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION")).map_err(err)?,artifact_id:crate::digest_hex(IdentityDomain::TransportCertificate,self)?,sections:vec![desc],provenance:ProvenanceWire{note:"checked structural transport claim; no empirical support or sampling coverage".into()}},sections:vec![section]};
         let mut bytes = vec![];
         artifact.write_to(&mut bytes)?;
         Ok(bytes)
@@ -293,7 +293,7 @@ impl StructuralTransportCertificateWire {
         }
         let wire: Self = crate::from_cbor(&artifact.sections[0].data)?;
         if artifact.manifest.artifact_id
-            != crate::identity::digest_wire(IdentityDomain::TransportCertificate, &wire)?.to_hex()
+            != crate::digest_hex(IdentityDomain::TransportCertificate, &wire)?
         {
             return Err(err("certificate identity mismatch"));
         }

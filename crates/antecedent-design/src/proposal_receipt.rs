@@ -120,11 +120,9 @@ fn list_digest(label: &str, values: &[String]) -> String {
 }
 
 fn regimes_digest(regimes: &[EvidenceRegimeWire]) -> Result<String> {
-    antecedent_io::identity::digest_wire(IdentityDomain::Identification, &regimes.to_vec())
-        .map(|digest| digest.to_hex())
-        .map_err(|error| {
-            ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string())
-        })
+    antecedent_io::digest_hex(IdentityDomain::Identification, &regimes.to_vec()).map_err(|error| {
+        ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string())
+    })
 }
 
 // ---------------------------------------------------------------- receipts
