@@ -1161,7 +1161,10 @@ impl TemporalAdmg {
                 .ok_or_else(|| unknown_node(nm))
         };
         let mut graph = RustTemporalAdmg::empty();
-        let mut ensure = |name: &str, lag: u32| -> PyResult<DenseNodeId> {
+        let ensure = |graph: &mut RustTemporalAdmg,
+                      name: &str,
+                      lag: u32|
+         -> PyResult<DenseNodeId> {
             let variable = var_of(name)?;
             let lag = Lag::from_raw(lag);
             for (i, node) in graph.nodes().iter().enumerate() {
@@ -1174,13 +1177,13 @@ impl TemporalAdmg {
             graph.add_lagged(variable, lag).map_err(py_err)
         };
         for (src, src_lag, tgt, tgt_lag) in &directed {
-            let from = ensure(src, *src_lag)?;
-            let to = ensure(tgt, *tgt_lag)?;
+            let from = ensure(&mut graph, src, *src_lag)?;
+            let to = ensure(&mut graph, tgt, *tgt_lag)?;
             graph.insert_directed(from, to).map_err(py_err)?;
         }
         for (a, a_lag, b, b_lag) in bidirected.unwrap_or_default() {
-            let left = ensure(&a, a_lag)?;
-            let right = ensure(&b, b_lag)?;
+            let left = ensure(&mut graph, &a, a_lag)?;
+            let right = ensure(&mut graph, &b, b_lag)?;
             graph.insert_bidirected(left, right).map_err(py_err)?;
         }
         Ok(Self { graph, names })
