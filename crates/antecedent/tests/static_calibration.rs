@@ -684,13 +684,13 @@ fn class_response_cpdag_disagreeing_completions_publish_unbanded_identified_set(
             response.estimate
         );
         assert!(matches!(response.uncertainty, ResponseUncertainty::None));
-        assert!(!result.estimate.ate.is_finite());
+        assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
         assert!(
-            !result.estimate.se_analytic.is_finite(),
+            !result.estimate.as_effect().unwrap().se_analytic.is_finite(),
             "no SE may be attached to an unreported mixture: se={}",
-            result.estimate.se_analytic
+            result.estimate.as_effect().unwrap().se_analytic
         );
-        assert!(result.estimate.joint_covariance.is_none());
+        assert!(result.estimate.as_effect().unwrap().joint_covariance.is_none());
         assert!(
             result
                 .diagnostics
@@ -872,7 +872,11 @@ fn mediation_interval_at(result: &StudyResult, bayesian: bool, level: f64) -> Op
         posterior_interval_at(result, level)
     } else {
         let z = if (level - LEVEL).abs() < 1e-12 { Z90 } else { Z95 };
-        normal_interval(result.estimate.ate, result.estimate.se_bootstrap, z)
+        normal_interval(
+            result.estimate.as_effect().unwrap().ate,
+            result.estimate.as_effect().unwrap().se_bootstrap,
+            z,
+        )
     }
 }
 
@@ -904,10 +908,10 @@ fn mediation_coverage(
         let (study, result) = run_mediation_study(0.0, contrast, inference, seed + rep)?;
         if !bayesian && rep == 0 {
             assert_eq!(
-                result.estimate.bootstrap_replicates_ok,
+                result.estimate.as_effect().unwrap().bootstrap_replicates_ok,
                 Some(StudyBuilder::OMITTED_BOOTSTRAP)
             );
-            assert_eq!(result.estimate.bootstrap_replicates_failed, Some(0));
+            assert_eq!(result.estimate.as_effect().unwrap().bootstrap_replicates_failed, Some(0));
         }
         Some((study, result))
     });
@@ -918,7 +922,7 @@ fn mediation_coverage(
             continue;
         };
         bind_all(&mut [&mut tally, &mut reported], study, result);
-        points.push(result.estimate.ate);
+        points.push(result.estimate.as_effect().unwrap().ate);
         tally.record(mediation_interval(result, bayesian), truth);
         reported.record(mediation_interval_at(result, bayesian, REPORTED_LEVEL), truth);
     }
@@ -1004,7 +1008,7 @@ fn mediation_confounded_mediator_probe() {
                 run_mediation(0.7, contrast, inference, 31_000 + rep)
             });
             for result in runs.iter().flatten() {
-                points.push(result.estimate.ate);
+                points.push(result.estimate.as_effect().unwrap().ate);
                 scored += 1;
                 if let Some((lo, hi)) = mediation_interval(result, bayesian) {
                     covered += u32::from(lo <= truth && truth <= hi);
@@ -1084,8 +1088,16 @@ fn path_coverage(
             (posterior_interval(result), posterior_interval_at(result, REPORTED_LEVEL))
         } else {
             (
-                normal_interval(result.estimate.ate, result.estimate.se_bootstrap, Z90),
-                normal_interval(result.estimate.ate, result.estimate.se_bootstrap, Z95),
+                normal_interval(
+                    result.estimate.as_effect().unwrap().ate,
+                    result.estimate.as_effect().unwrap().se_bootstrap,
+                    Z90,
+                ),
+                normal_interval(
+                    result.estimate.as_effect().unwrap().ate,
+                    result.estimate.as_effect().unwrap().se_bootstrap,
+                    Z95,
+                ),
             )
         };
         bind_all(&mut [&mut tally, &mut reported], study, result);
@@ -1311,12 +1323,20 @@ fn distribution_frequentist(test: &'static str, base: f64, seed: u64) {
             .expect("Y = 1 atom");
         let atom_interval = dist.atom_uncertainty[one].interval;
         assert_eq!(dist.mean_interval, Some(atom_interval), "binary mean uses the Y = 1 atom");
-        if let (Some(atom_se), Some(mean_se)) =
-            (dist.atom_uncertainty[one].se_bootstrap, result.estimate.se_bootstrap)
-        {
+        if let (Some(atom_se), Some(mean_se)) = (
+            dist.atom_uncertainty[one].se_bootstrap,
+            result.estimate.as_effect().unwrap().se_bootstrap,
+        ) {
             assert!((atom_se - mean_se).abs() <= 1e-12 * mean_se.max(1.0), "same replicates");
         }
-        if result.estimate.se_bootstrap.filter(|s| s.is_finite() && *s > 0.0).is_none() {
+        if result
+            .estimate
+            .as_effect()
+            .unwrap()
+            .se_bootstrap
+            .filter(|s| s.is_finite() && *s > 0.0)
+            .is_none()
+        {
             tally.skip();
             continue;
         }
@@ -1470,11 +1490,13 @@ fn bayesian_gcomp_misspecification_probe() {
             let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
             if rep == 0 {
                 assert!(
-                    result.estimate.assumptions.entries.iter().any(|a| matches!(
-                        &a.assumption,
-                        antecedent_core::Assumption::ParametricRestriction(p)
-                            if p.id.as_ref() == "bayesian.gcomp.linear_gaussian_outcome"
-                    )),
+                    result.estimate.as_effect().unwrap().assumptions.entries.iter().any(
+                        |a| matches!(
+                            &a.assumption,
+                            antecedent_core::Assumption::ParametricRestriction(p)
+                                if p.id.as_ref() == "bayesian.gcomp.linear_gaussian_outcome"
+                        )
+                    ),
                     "bayesian.gcomp must declare its linear-Gaussian outcome model"
                 );
             }
@@ -1482,7 +1504,7 @@ fn bayesian_gcomp_misspecification_probe() {
         });
         for (study, result) in &runs {
             let interval = posterior_interval(result);
-            points.push(result.estimate.ate);
+            points.push(result.estimate.as_effect().unwrap().ate);
             scored += 1;
             if let Some((lo, hi)) = interval {
                 covered += u32::from(lo <= 2.0 && 2.0 <= hi);

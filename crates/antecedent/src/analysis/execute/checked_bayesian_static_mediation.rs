@@ -369,7 +369,7 @@ mod tests {
                     assert_eq!(operation.inspect().0, &query);
                     assert_eq!(operation.inspect().3, validation);
                     let result = operation.execute(&data, &ctx).unwrap();
-                    assert!((result.estimate.ate - truth).abs() < 0.18);
+                    assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < 0.18);
                     let posterior = result.posterior.as_ref().expect("posterior retained");
                     assert_eq!(posterior.draws.n_draws, 256);
                     let effect_col = posterior.effect_column().unwrap();

@@ -116,9 +116,9 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                 drop(study);
                 let result = prepared.estimate_retained(&ctx).unwrap();
                 assert!(
-                    (result.estimate.ate - truth).abs() < tolerance,
+                    (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
                     "{key} accepted={accepted} bayesian={bayesian} ate={}",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
                 assert!(
                     result
@@ -142,10 +142,7 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                     "nested" => {
                         assert_eq!(rule.as_deref(), Some("temporal.cross_world.direct_slope"));
                         assert_eq!(result.estimand.method.as_ref(), "temporal_mediation.direct");
-                        assert_eq!(
-                            result.estimand.mediators.as_ref(),
-                            &[VariableId::from_raw(1)]
-                        );
+                        assert_eq!(result.estimand.mediators.as_ref(), &[VariableId::from_raw(1)]);
                         assert!(matches!(
                             result.identification.arena.node(result.estimand.functional),
                             antecedent_expr::ExprNode::Contrast { .. }
@@ -157,10 +154,7 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                             Some("temporal.cross_world.mediator_edge_product")
                         );
                         assert_eq!(result.estimand.method.as_ref(), "path_specific.natural");
-                        assert_eq!(
-                            result.estimand.mediators.as_ref(),
-                            &[VariableId::from_raw(1)]
-                        );
+                        assert_eq!(result.estimand.mediators.as_ref(), &[VariableId::from_raw(1)]);
                         assert!(matches!(
                             result.identification.arena.node(result.estimand.functional),
                             antecedent_expr::ExprNode::Product(_)
@@ -219,7 +213,7 @@ fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
             .unwrap()
             .estimate_retained(&ctx)
             .unwrap();
-        assert!(result.estimate.ate.is_finite(), "{key}");
+        assert!(result.estimate.as_effect().unwrap().ate.is_finite(), "{key}");
         let rule = result
             .identification
             .arena

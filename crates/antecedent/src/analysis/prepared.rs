@@ -4654,11 +4654,9 @@ impl PreparedStudy {
         // shared finisher publishes for the same estimate.
         let mut seen: std::collections::HashSet<Arc<str>> =
             result.diagnostics.iter().map(|diagnostic| Arc::clone(&diagnostic.code)).collect();
-        super::execute::push_grid_scalar_cleared(
-            &mut result.diagnostics,
-            &mut seen,
-            &result.estimate,
-        );
+        if let Some(effect) = result.estimate.as_effect() {
+            super::execute::push_grid_scalar_cleared(&mut result.diagnostics, &mut seen, effect);
+        }
         Ok(result)
     }
 
@@ -5454,14 +5452,22 @@ impl PreparedStudy {
                 estimand: q.functional.clone(),
                 identification_status: cache.identification.status,
                 estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                    antecedent_core::ResponseValue::Scalar(result.estimate.ate),
+                    antecedent_core::ResponseValue::Scalar(
+                        result.estimate.as_effect().map(|effect| effect.ate).unwrap_or(f64::NAN),
+                    ),
                 ),
                 uncertainty: antecedent_core::ResponseUncertainty::Scalar {
-                    standard_error: result.estimate.se_analytic,
-                    lower: result.estimate.ate
-                        - crate::result::reported_se_interval_z() * result.estimate.se_analytic,
-                    upper: result.estimate.ate
-                        + crate::result::reported_se_interval_z() * result.estimate.se_analytic,
+                    standard_error: result
+                        .estimate
+                        .as_effect()
+                        .map(|effect| effect.se_analytic)
+                        .unwrap_or(f64::NAN),
+                    lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
+                        effect.ate - crate::result::reported_se_interval_z() * effect.se_analytic
+                    }),
+                    upper: result.estimate.as_effect().map_or(f64::NAN, |effect| {
+                        effect.ate + crate::result::reported_se_interval_z() * effect.se_analytic
+                    }),
                     level: 0.95,
                     interpretation: antecedent_core::IntervalInterpretation::Confidence,
                     draws: None,
@@ -6184,7 +6190,7 @@ impl PreparedStudy {
                 if matches!(
                     response.functional,
                     antecedent_core::ResponseFunctional::InterventionResponse { .. }
-                ) && prior.estimate.ate.is_finite() =>
+                ) && prior.estimate.as_effect().is_some_and(|effect| effect.ate.is_finite()) =>
             {
                 AverageEffectQuery::binary_ate(
                     prior.treatment.ok_or(CausalError::Unsupported {
@@ -6246,11 +6252,14 @@ impl PreparedStudy {
         }
         let mut workspace = EstimationWorkspace::default();
         let started = Instant::now();
+        let effect = prior.estimate.as_effect().ok_or_else(|| CausalError::Compile {
+            message: "second-click refuters require an effect estimate".into(),
+        })?;
         let (reports, na_diagnostics) = run_refuters(
             &data_est,
             &estimand_est,
             &query_est,
-            &prior.estimate,
+            effect,
             &mut workspace,
             None,
             ctx,
@@ -11566,7 +11575,7 @@ mod checked_static_operation_tests {
         prepared.analysis.estimator_spec = Some(EstimatorSpec::Aipw(Box::new(changed_fitter)));
         let second = prepared.estimate(&data, &context).unwrap();
         assert!((second.effect() - first.effect()).abs() < 1e-10);
-        assert!(second.estimate.se_bootstrap.is_none());
+        assert!(second.estimate.as_effect().unwrap().se_bootstrap.is_none());
 
         prepared.analysis.estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
             antecedent_estimate::LinearAdjustmentAte::new(),
@@ -11604,13 +11613,13 @@ mod checked_static_operation_tests {
         assert_eq!(operation.fitter.bootstrap_replicates, 0);
         let first = prepared.estimate(&data, &context).unwrap();
         assert!((first.effect() - 2.0).abs() < 0.2);
-        assert!(first.estimate.se_bootstrap.is_none());
+        assert!(first.estimate.as_effect().unwrap().se_bootstrap.is_none());
 
         prepared.analysis.bootstrap_replicates = 9;
         prepared.analysis.estimator_spec = Some(EstimatorSpec::Aipw(Box::new(AipwAte::new())));
         let second = prepared.estimate(&data, &context).unwrap();
         assert!((second.effect() - first.effect()).abs() < 1e-10);
-        assert!(second.estimate.se_bootstrap.is_none());
+        assert!(second.estimate.as_effect().unwrap().se_bootstrap.is_none());
 
         let graph =
             Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
@@ -11630,7 +11639,7 @@ mod checked_static_operation_tests {
             .prepare(&context)
             .unwrap();
         let with_bootstrap_result = with_bootstrap.estimate(&data, &context).unwrap();
-        assert!(with_bootstrap_result.estimate.se_bootstrap.is_some());
+        assert!(with_bootstrap_result.estimate.as_effect().unwrap().se_bootstrap.is_some());
     }
 
     #[test]
@@ -12012,18 +12021,22 @@ mod checked_iv_prepared_tests {
                 antecedent_estimate::LinearAdjustmentAte::new(),
             )));
             let result = prepared.estimate(&data(0.0), &context).unwrap();
-            assert!((result.estimate.ate - 2.0).abs() < 0.15, "estimate={}", result.estimate.ate);
-            assert_eq!(result.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+            assert!(
+                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.15,
+                "estimate={}",
+                result.estimate.as_effect().unwrap().ate
+            );
+            assert_eq!(result.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
             prepared.study_mut().estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(
                 Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
             ));
             let refreshed = prepared.refresh(data(0.4), &context).unwrap();
             assert!(
-                (refreshed.estimate.ate - 2.0).abs() < 0.15,
+                (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.15,
                 "estimate={}",
-                refreshed.estimate.ate
+                refreshed.estimate.as_effect().unwrap().ate
             );
-            assert_eq!(refreshed.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+            assert_eq!(refreshed.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
             assert!(matches!(prepared.execution, PreparedExecution::Iv(_)));
             prepared.study_mut().query =
                 crate::CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
@@ -12186,7 +12199,7 @@ mod checked_frontdoor_prepared_tests {
         assert!((estimate.effect() - 1.4).abs() < 0.1, "estimate={}", estimate.effect());
         let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
         assert!((refreshed.effect() - estimate.effect()).abs() < 0.05);
-        assert!(refreshed.estimate.assumptions.entries.iter().any(|entry| {
+        assert!(refreshed.estimate.as_effect().unwrap().assumptions.entries.iter().any(|entry| {
             matches!(&entry.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "frontdoor.linear_path_product")
         }));
     }
@@ -12414,8 +12427,12 @@ mod prepared_frontdoor_tests {
         );
 
         let first = prepared.estimate(&data(0.0), &context).unwrap();
-        assert!((first.estimate.ate - 1.6).abs() < 0.12, "estimate={}", first.estimate.ate);
-        assert_eq!(first.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+        assert!(
+            (first.estimate.as_effect().unwrap().ate - 1.6).abs() < 0.12,
+            "estimate={}",
+            first.estimate.as_effect().unwrap().ate
+        );
+        assert_eq!(first.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
         let first_bytes =
             prepared.encode_contracted_result(&first, "checked-frontdoor", &context).unwrap();
         let first_consumed = antecedent_io::consume_analysis_result(&first_bytes).unwrap();
@@ -12427,8 +12444,12 @@ mod prepared_frontdoor_tests {
         )));
 
         let refreshed = prepared.refresh(data(0.35), &context).unwrap();
-        assert!((refreshed.estimate.ate - 1.6).abs() < 0.12, "estimate={}", refreshed.estimate.ate);
-        assert_eq!(refreshed.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+        assert!(
+            (refreshed.estimate.as_effect().unwrap().ate - 1.6).abs() < 0.12,
+            "estimate={}",
+            refreshed.estimate.as_effect().unwrap().ate
+        );
+        assert_eq!(refreshed.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
         assert!(matches!(prepared.execution, PreparedExecution::FrontDoorLinear(_)));
         let refreshed_bytes = prepared
             .encode_contracted_result(&refreshed, "checked-frontdoor-refresh", &context)

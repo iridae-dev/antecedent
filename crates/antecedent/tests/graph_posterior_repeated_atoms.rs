@@ -152,7 +152,11 @@ fn envelope_masses(result: &StudyResult) -> (f64, f64) {
 fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     let data = binary_data(0x2A70);
     let only = |mask: u64| {
-        run(&data, posterior(&[mask], &[1.0]), ate_query(), InferenceMode::Frequentist).estimate.ate
+        run(&data, posterior(&[mask], &[1.0]), ate_query(), InferenceMode::Frequentist)
+            .estimate
+            .as_effect()
+            .unwrap()
+            .ate
     };
     let (ate_a, ate_b) = (only(direct()), only(adjusted()));
     assert!((ate_a - ate_b).abs() > 0.5, "atoms must identify different effects");
@@ -161,8 +165,11 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     // Direct and adjusted atoms disagree on estimand identity, so the scalar is
     // withheld under GraphDependentAtoms; coalescing repeated listings must not
     // change masses or the identified set.
-    assert!(result.estimate.ate.is_nan(), "scalar ate withheld under GraphDependentAtoms");
-    assert!(result.estimate.se_analytic.is_nan());
+    assert!(
+        result.estimate.as_effect().unwrap().ate.is_nan(),
+        "scalar ate withheld under GraphDependentAtoms"
+    );
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     let structural = result.structural_response.as_ref().unwrap();
     let set = structural.identified_set.as_ref().unwrap();
     assert_eq!(set.lower.len(), 1);
@@ -175,7 +182,7 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     assert!((identified + unidentified - 1.0).abs() < 1e-12);
 
     let reference = run(&data, coalesced(), ate_query(), InferenceMode::Frequentist);
-    assert!(reference.estimate.ate.is_nan());
+    assert!(reference.estimate.as_effect().unwrap().ate.is_nan());
     let ref_set = reference.structural_response.as_ref().unwrap().identified_set.as_ref().unwrap();
     assert!((set.lower[0] - ref_set.lower[0]).abs() < 1e-12);
     assert!((set.upper[0] - ref_set.upper[0]).abs() < 1e-12);

@@ -56,10 +56,20 @@ fn prepared_reestimate_matches_fresh_analyze() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.ate.is_finite());
-    assert!((first.estimate.ate - 2.0).abs() < 0.5, "ate={}", first.estimate.ate);
-    assert!((first.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((second.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(
+        (first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5,
+        "ate={}",
+        first.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (first.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (second.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
     assert_eq!(
         format!("{:?}", first.identification.status),
         format!("{:?}", fresh.identification.status)
@@ -92,7 +102,10 @@ fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
     let fresh = analysis.run(&ctx).unwrap();
     let prepared = analysis.prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Accepted);
@@ -160,7 +173,7 @@ fn prepared_refresh_rejects_schema_mismatch() {
     assert!(msg.contains("same schema"), "unexpected: {msg}");
     // Original data still works after failed refresh.
     let ok = prepared.estimate(&data, &ctx).unwrap();
-    assert!(ok.estimate.ate.is_finite());
+    assert!(ok.estimate.as_effect().unwrap().ate.is_finite());
     let _ = other;
 }
 
@@ -235,12 +248,19 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(checked.estimand().adjustment_set, first.estimand.adjustment_set);
 
-    assert!(first.estimate.ate.is_finite());
-    assert!((first.estimate.ate - 2.0).abs() < 0.5, "ate={}", first.estimate.ate);
+    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(
+        (first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5,
+        "ate={}",
+        first.estimate.as_effect().unwrap().ate
+    );
     // Bit-identical ATE and posterior summaries between the prepared click and
     // a fresh, un-prepared run: identification caching must not perturb the
     // downstream Bayesian fit (same prep, prior, draws, seed).
-    assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(
+        first.estimate.as_effect().unwrap().ate.to_bits(),
+        fresh.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
     assert_eq!(
         format!("{:?}", first.identification.status),
@@ -275,7 +295,10 @@ fn prepared_bayesian_two_clicks_agree_exactly() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert_eq!(first.estimate.ate.to_bits(), second.estimate.ate.to_bits());
+    assert_eq!(
+        first.estimate.as_effect().unwrap().ate.to_bits(),
+        second.estimate.as_effect().unwrap().ate.to_bits()
+    );
     let first_post = first.posterior.as_ref().expect("posterior");
     let second_post = second.posterior.as_ref().expect("posterior");
     let first_bits: Vec<u64> = first_post.summaries.mean.iter().map(|v| v.to_bits()).collect();
@@ -360,7 +383,7 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
         click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared TemporalEffect estimate_series must reuse identification"
     );
-    assert!(click.estimate.ate.is_finite());
+    assert!(click.estimate.as_effect().unwrap().ate.is_finite());
     assert!((click.effect() - 0.5).abs() < 0.15);
     let contract = prepared.contract().unwrap();
     assert!(contract.identities.identification_product.is_some());
@@ -386,8 +409,8 @@ fn refresh_updates_retained_data() {
     let ctx = ExecutionContext::for_tests(1);
     let mut prepared: PreparedStudy =
         build_analysis(data1.clone(), dag, query).prepare(&ctx).unwrap();
-    let a = prepared.refresh(data1, &ctx).unwrap().estimate.ate;
-    let b = prepared.refresh(data2, &ctx).unwrap().estimate.ate;
+    let a = prepared.refresh(data1, &ctx).unwrap().estimate.as_effect().unwrap().ate;
+    let b = prepared.refresh(data2, &ctx).unwrap().estimate.as_effect().unwrap().ate;
     // Different seeds → different finite ATEs (not identical bit-for-bit).
     assert!(a.is_finite() && b.is_finite());
     assert!((a - 2.0).abs() < 0.6);
@@ -670,9 +693,15 @@ fn prepared_conditional_effect_reestimate_matches_fresh() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.ate.is_finite());
-    assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
-    assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert_eq!(
+        first.estimate.as_effect().unwrap().ate.to_bits(),
+        fresh.estimate.as_effect().unwrap().ate.to_bits()
+    );
+    assert_eq!(
+        second.estimate.as_effect().unwrap().ate.to_bits(),
+        fresh.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
     for result in [&fresh, &first, &second] {
         assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
@@ -705,7 +734,10 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!(click.posterior.is_some());
     assert_eq!(click.logical_plan.estimator.as_deref(), Some("conditional.bayesian"));
-    assert_eq!(click.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(
+        click.estimate.as_effect().unwrap().ate.to_bits(),
+        fresh.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_cached_only_on_prepared(&fresh, &[&click]);
     assert!((click.effect() - 3.0).abs() < 0.15);
     assert_prepared_contract_consume(
@@ -737,9 +769,15 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.ate.is_finite());
-    assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
-    assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert_eq!(
+        first.estimate.as_effect().unwrap().ate.to_bits(),
+        fresh.estimate.as_effect().unwrap().ate.to_bits()
+    );
+    assert_eq!(
+        second.estimate.as_effect().unwrap().ate.to_bits(),
+        fresh.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
     assert_cached_on_one_shot_and_prepared(&fresh, &[&first, &second]);
@@ -802,7 +840,7 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.ate.is_finite());
+    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
     let first_dist = first.distribution.as_ref().expect("prepared distribution payload");
     let fresh_dist = fresh.distribution.as_ref().expect("fresh distribution payload");
     assert_eq!(first_dist.mean.to_bits(), fresh_dist.mean.to_bits());
@@ -1061,13 +1099,16 @@ fn prepared_temporal_mediation_reuses_identification() {
         "prepared temporal mediation missing exec.identify.cached"
     );
     assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
     // Known-truth check: contrast is Mediated, so `estimate.ate` is the
     // path-product a*b*delta the statsmodels oracle also reports.
     assert!(
-        (click.estimate.ate - expected_mediated).abs() < 1e-6,
+        (click.estimate.as_effect().unwrap().ate - expected_mediated).abs() < 1e-6,
         "mediated estimate {} vs statsmodels oracle {}",
-        click.estimate.ate,
+        click.estimate.as_effect().unwrap().ate,
         expected_mediated
     );
     for accepted in [false, true] {
@@ -1087,7 +1128,7 @@ fn prepared_temporal_mediation_reuses_identification() {
                 .unwrap()
                 .estimate_series(&data, &ctx)
                 .unwrap();
-            assert!((result.estimate.ate - expected_mediated).abs() < 1e-6);
+            assert!((result.estimate.as_effect().unwrap().ate - expected_mediated).abs() < 1e-6);
             let expected_reports = match suite {
                 RefuteSuite::Full => 3,
                 RefuteSuite::Cheap => 2,
@@ -1132,10 +1173,15 @@ fn prepared_temporal_mediation_reuses_identification() {
                 .unwrap();
             let post = result.posterior.as_ref().unwrap();
             assert!(
-                (result.estimate.ate - bayes_pin["mediated"].as_f64().unwrap()).abs()
+                (result.estimate.as_effect().unwrap().ate
+                    - bayes_pin["mediated"].as_f64().unwrap())
+                .abs()
                     < bayes_pin["tolerance"].as_f64().unwrap()
             );
-            assert_ne!(result.estimate.ate.to_bits(), click.estimate.ate.to_bits());
+            assert_ne!(
+                result.estimate.as_effect().unwrap().ate.to_bits(),
+                click.estimate.as_effect().unwrap().ate.to_bits()
+            );
             for ((total, direct), indirect) in post
                 .draws
                 .column(1)
@@ -1230,7 +1276,11 @@ fn prepared_pag_ate_reuses_identification_envelope() {
             1,
             "prepared PAG click must report its generalized-adjustment cache exactly once"
         );
-        assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+        assert!(
+            (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-12
+        );
         assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     }
 
@@ -1248,7 +1298,12 @@ fn prepared_pag_ate_reuses_identification_envelope() {
     let bayesian_prepared = bayesian.prepare(&ctx).unwrap();
     assert_eq!(bayesian_prepared.structure_source(), antecedent::StructureSource::Accepted);
     let bayesian_click = bayesian_prepared.estimate(&data, &ctx).unwrap();
-    assert!((bayesian_click.estimate.ate - bayesian_fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        (bayesian_click.estimate.as_effect().unwrap().ate
+            - bayesian_fresh.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     // A one-shot Bayesian class effect now prepares and executes its sealed
     // envelope, so the fresh result reports its identification as cached once.
     assert_eq!(
@@ -1376,8 +1431,12 @@ fn prepared_admg_ate_reuses_general_id_result() {
             1,
             "prepared bidirected ADMG click must report its general-ID cache exactly once"
         );
-        assert!(click.estimate.ate.is_finite());
-        assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+        assert!(click.estimate.as_effect().unwrap().ate.is_finite());
+        assert!(
+            (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-12
+        );
         assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     }
 
@@ -1391,7 +1450,12 @@ fn prepared_admg_ate_reuses_general_id_result() {
     let accepted_prepared = accepted.prepare(&ctx).unwrap();
     assert_eq!(accepted_prepared.structure_source(), antecedent::StructureSource::Accepted);
     let accepted_click = accepted_prepared.estimate(&data, &ctx).unwrap();
-    assert!((accepted_click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        (accepted_click.estimate.as_effect().unwrap().ate
+            - fresh.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     assert_eq!(
         accepted_click
             .diagnostics
@@ -1424,10 +1488,11 @@ fn functional_validation_staged_known_truth() {
                 .unwrap();
             let result = prepared.estimate(&data, &ctx).unwrap();
             assert!(
-                (result.estimate.ate - pin["path_effect"].as_f64().unwrap()).abs()
+                (result.estimate.as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
+                    .abs()
                     < pin["tolerance"].as_f64().unwrap(),
                 "path-specific ate={} expected={} suite={suite:?} accepted={accepted}",
-                result.estimate.ate,
+                result.estimate.as_effect().unwrap().ate,
                 pin["path_effect"].as_f64().unwrap()
             );
             let count = match suite {
@@ -1503,10 +1568,13 @@ fn bayesian_conditional_staged_known_truth() {
                 .estimate(&data, &ctx)
                 .unwrap();
             assert!(
-                (result.estimate.ate - pin["effect"].as_f64().unwrap()).abs()
+                (result.estimate.as_effect().unwrap().ate - pin["effect"].as_f64().unwrap()).abs()
                     < pin["tolerance"].as_f64().unwrap()
             );
-            assert_ne!(result.estimate.ate.to_bits(), frequentist.estimate.ate.to_bits());
+            assert_ne!(
+                result.estimate.as_effect().unwrap().ate.to_bits(),
+                frequentist.estimate.as_effect().unwrap().ate.to_bits()
+            );
             assert!(result.posterior.is_some());
             if suite == RefuteSuite::None {
                 assert!(result.refutations.is_empty());
@@ -1863,7 +1931,12 @@ fn admg_frontdoor_distribution_known_truth() {
                             "{label} {stage}: interval [{lower}, {upper}] around {}",
                             dist.mean
                         );
-                        let se = result.estimate.se_bootstrap.expect("bootstrap SE");
+                        let se = result
+                            .estimate
+                            .as_effect()
+                            .unwrap()
+                            .se_bootstrap
+                            .expect("bootstrap SE");
                         assert!(se.is_finite() && se > 0.0, "{label} {stage}: SE {se}");
                     }
                 }

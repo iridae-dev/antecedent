@@ -386,6 +386,8 @@ fn class_aware_curve_pins_against_ate_on_continuous_t() {
                     .run(&ExecutionContext::for_tests(1))
                     .unwrap()
                     .estimate
+                    .as_effect()
+                    .unwrap()
                     .ate
             };
             let study = build_response(&data, &graph, accepted, curve_query(&pin));

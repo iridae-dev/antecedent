@@ -367,10 +367,13 @@ mod tests {
         let result = execution.execute(&data, &ctx).unwrap();
 
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(result.estimate.ate.is_nan()); // curves have no scalar contrast
+        assert!(result.estimate.as_effect().unwrap().ate.is_nan()); // curves have no scalar contrast
         assert_eq!(result.logical_plan.plan_id.as_ref(), "temporal_response");
         assert_eq!(result.response.as_ref().unwrap().estimand, query.functional);
-        assert_eq!(result.estimate.n_obs, reference.estimate.n_obs);
+        assert_eq!(
+            result.estimate.as_effect().unwrap().n_obs,
+            reference.estimate.as_effect().unwrap().n_obs
+        );
         assert_eq!(result.provenance, reference.provenance);
         assert_eq!(
             result.identification.required_assumptions,

@@ -288,8 +288,15 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
     let (_, freq) =
         run(&data, ate_query(), InferenceMode::Frequentist, false, RefuteSuite::None, 3)
             .expect("the Frequentist coordinate runs");
-    assert!(freq.estimate.se_analytic.is_nan(), "functional.effect has no analytic SE");
-    assert_eq!(freq.estimate.bootstrap_replicates_ok, Some(199), "Study default bootstrap");
+    assert!(
+        freq.estimate.as_effect().unwrap().se_analytic.is_nan(),
+        "functional.effect has no analytic SE"
+    );
+    assert_eq!(
+        freq.estimate.as_effect().unwrap().bootstrap_replicates_ok,
+        Some(199),
+        "Study default bootstrap"
+    );
     assert!(scalar_normal_pair(&freq)[0].is_some());
     let (_, dist) = run(&data, distribution_query(), bayes(), false, RefuteSuite::None, 3)
         .expect("the Bayesian distribution coordinate runs");

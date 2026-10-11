@@ -929,7 +929,11 @@ fn law_stage(
     };
     let result = prepared.retarget(&weights, &depends_on, ctx)?;
     recorder.record(Counter::Reweight, 1);
-    Ok(LawValue { ate: result.estimate.ate, std_error: result.estimate.se_analytic })
+    let effect = result
+        .estimate
+        .as_effect()
+        .ok_or(RecalcRunError::Request("recalc.primary_result_is_not_an_effect"))?;
+    Ok(LawValue { ate: effect.ate, std_error: effect.se_analytic })
 }
 
 pub(crate) fn decide(

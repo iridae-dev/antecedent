@@ -203,6 +203,6 @@ fn propensity_weighting_accepts_two_valued_unit_interval() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
-    assert!(result.estimate.overlap_report.is_some());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().overlap_report.is_some());
 }

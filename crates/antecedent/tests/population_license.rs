@@ -141,6 +141,8 @@ fn average_effect_keeps_its_licensed_populations() {
             .run(&ctx)
             .unwrap()
             .estimate
+            .as_effect()
+            .unwrap()
             .ate
     };
     let (all, treated) = (run(TargetPopulation::AllObserved), run(TargetPopulation::Treated));

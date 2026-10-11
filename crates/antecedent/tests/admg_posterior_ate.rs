@@ -204,13 +204,13 @@ fn admg_posterior_average_effect_none_runs() {
         }));
         assert!(
             has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                || result.estimate.ate.is_finite(),
+                || result.estimate.as_effect().unwrap().ate.is_finite(),
             "one identified front-door atom should mix as a scalar"
         );
         assert!(
-            (result.estimate.ate - expected).abs() < tolerance.max(0.02),
+            (result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance.max(0.02),
             "identified-atom mixture should recover the front-door pin {expected}, got {}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         assert!(
             !result.diagnostics.iter().any(|d| {

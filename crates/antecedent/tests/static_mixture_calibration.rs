@@ -239,7 +239,7 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
         if r == 0 {
             assert_mixture_shape(&result);
             assert!(
-                result.estimate.ate.is_finite(),
+                result.estimate.as_effect().unwrap().ate.is_finite(),
                 "{name}: same-estimand fixture must publish a scalar ATE"
             );
             assert!(
@@ -253,15 +253,23 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
         (study, result)
     });
     for (study, result) in &runs {
-        points.push(result.estimate.ate);
-        se_sum += result.estimate.se_analytic;
+        points.push(result.estimate.as_effect().unwrap().ate);
+        se_sum += result.estimate.as_effect().unwrap().se_analytic;
         bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
-            normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90),
+            normal_interval(
+                result.estimate.as_effect().unwrap().ate,
+                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Z90,
+            ),
             TRUTH_SAME_ESTIMAND,
         );
         reported.record(
-            normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z95),
+            normal_interval(
+                result.estimate.as_effect().unwrap().ate,
+                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Z95,
+            ),
             TRUTH_SAME_ESTIMAND,
         );
     }

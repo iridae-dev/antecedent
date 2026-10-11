@@ -123,14 +123,14 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
         panic!("a CoDetermined study reports the closure design, got {:?}", diagnostics.design);
     };
     assert_eq!(adjustment, &[schema.id_of("z").unwrap(), schema.id_of("u").unwrap()]);
-    assert_eq!(*rows, result.estimate.n_obs);
+    assert_eq!(*rows, result.estimate.as_effect().unwrap().n_obs);
     assert!(*propensity_scored);
 
     // Overlap is the estimator's own report on that design, never a refit.
     let Availability::Available(report) = &diagnostics.overlap else {
         panic!("AIPW fits a propensity, so the overlap report is carried");
     };
-    assert_eq!(Some(report), result.estimate.overlap_report.as_ref());
+    assert_eq!(Some(report), result.estimate.as_effect().unwrap().overlap_report.as_ref());
     assert!(0.0 < report.propensity_min && report.propensity_min < report.propensity_max);
     assert!(report.propensity_max < 1.0);
     // The estimator reports effective sample size per clip threshold, not as one number.
@@ -141,7 +141,7 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
     let Availability::Available(point) = &diagnostics.evalue.point else {
         panic!("the tier cell attaches a point E-value");
     };
-    let expected = oracle_point_evalue(&data, result.estimate.ate);
+    let expected = oracle_point_evalue(&data, result.estimate.as_effect().unwrap().ate);
     assert!((point.value - expected).abs() <= 1e-9 * expected, "{} vs {expected}", point.value);
     assert!(point.value > 1.0);
     assert_eq!(point.method.as_ref(), "vanderweele_outcome_sd");
@@ -201,7 +201,7 @@ fn unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnosti
     assert_eq!(scenarios[0].adjustment, vec![era]);
     assert_eq!(scenarios[1].method.as_ref(), "tiered.unknown.closure");
     assert_eq!(scenarios[1].adjustment, vec![era, m]);
-    let effects = result.estimate.scenario_effects.as_ref().unwrap();
+    let effects = result.estimate.as_effect().unwrap().scenario_effects.as_ref().unwrap();
     assert_eq!(scenarios[0].effect, effects[0]);
     assert_eq!(scenarios[1].effect, effects[1]);
 

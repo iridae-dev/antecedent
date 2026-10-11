@@ -131,7 +131,10 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
                 .abs()
                     < bayesian_pin["variance_tolerance"].as_f64().unwrap()
             );
-            assert!((result.estimate.ate - posterior.summaries.mean[0]).abs() < 1e-12);
+            assert!(
+                (result.estimate.as_effect().unwrap().ate - posterior.summaries.mean[0]).abs()
+                    < 1e-12
+            );
             // The one-shot facade executes the same retained row-law bootstrap and seed.
             assert_eq!(
                 one_shot.posterior.as_ref().unwrap().draws.values.as_ref(),
@@ -139,9 +142,13 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             );
         } else {
             assert!((transported.ipw - ipw).abs() <= ipw_tolerance);
-            assert!((result.estimate.ate - ipw).abs() <= ipw_tolerance);
+            assert!((result.estimate.as_effect().unwrap().ate - ipw).abs() <= ipw_tolerance);
         }
-        assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
+        assert!(
+            (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-12
+        );
 
         let bytes =
             prepared.encode_contracted_result(&result, "checked-transport-trial", &ctx).unwrap();

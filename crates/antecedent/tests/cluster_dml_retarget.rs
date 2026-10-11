@@ -195,7 +195,7 @@ fn a_batch_family_reports_the_cluster_summed_joint_covariance() {
         .prepare(&[query()], &ctx)
         .unwrap();
     let (results, scores) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-    let table = results[0].estimate.score_table.as_ref().unwrap().clone();
+    let table = results[0].estimate.as_effect().unwrap().score_table.as_ref().unwrap().clone();
     assert_eq!(scores.table(0), Some(&table));
     let (plus, minus) = (tilt(&fx, 1.0), tilt(&fx, -1.0));
     let claim = |name: &str, weights: &[f64]| RetargetClaim {

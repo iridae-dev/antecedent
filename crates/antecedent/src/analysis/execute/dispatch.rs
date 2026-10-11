@@ -1002,14 +1002,16 @@ impl super::Study {
                         // Both inference modes publish the shared-exogenous natural
                         // direct effect. That plugin is the outcome-regression slope
                         // the contract replays; the mediation posterior mean is not.
-                        let effect = operation.execute(data, ctx)?;
+                        let effect_point = operation.execute(data, ctx)?;
                         result.posterior = None;
-                        result.estimate.ate = effect;
-                        result.estimate.se_analytic = f64::NAN;
-                        result.estimate.se_bootstrap = None;
+                        if let Some(estimate) = result.estimate.as_effect_mut() {
+                            estimate.ate = effect_point;
+                            estimate.se_analytic = f64::NAN;
+                            estimate.se_bootstrap = None;
+                        }
                         result.interval = None;
                         if let Some(components) = &mut result.mediation {
-                            components.direct = Some(effect);
+                            components.direct = Some(effect_point);
                             if let (Some(total), Some(direct)) =
                                 (components.total, components.direct)
                             {

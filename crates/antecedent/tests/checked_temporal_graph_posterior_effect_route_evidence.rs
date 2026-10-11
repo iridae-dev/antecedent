@@ -133,7 +133,7 @@ fn inference_label(inference: &InferenceMode) -> &'static str {
 
 fn point(result: &antecedent::StudyResult, inference: &InferenceMode) -> f64 {
     match inference {
-        InferenceMode::Frequentist => result.estimate.ate,
+        InferenceMode::Frequentist => result.estimate.as_effect().unwrap().ate,
         InferenceMode::Bayesian(_) => result
             .posterior
             .as_ref()
@@ -141,7 +141,7 @@ fn point(result: &antecedent::StudyResult, inference: &InferenceMode) -> f64 {
                 let column = posterior.effect_column()?;
                 posterior.summaries.mean.get(column).copied()
             })
-            .unwrap_or(result.estimate.ate),
+            .unwrap_or(result.estimate.as_effect().unwrap().ate),
     }
 }
 

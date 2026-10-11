@@ -1864,9 +1864,16 @@ fn analysis_result_from_run(
 
     Ok(AnalysisResult {
         certificate_json,
-        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
+        ate: result
+            .estimate
+            .as_effect()
+            .and_then(|effect| effect.ate.is_finite().then_some(effect.ate)),
+        se_analytic: result
+            .estimate
+            .as_effect()
+            .map(|effect| effect.se_analytic)
+            .unwrap_or(f64::NAN),
+        se_bootstrap: result.estimate.as_effect().and_then(|effect| effect.se_bootstrap),
         plan_id,
         modality,
         discovery_algorithm: result
@@ -1905,7 +1912,11 @@ fn analysis_result_from_run(
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
         adjustment_set,
-        assumption_count: result.estimate.assumptions.len(),
+        assumption_count: result
+            .estimate
+            .as_effect()
+            .map(|effect| effect.assumptions.len())
+            .unwrap_or(0),
         derivation_step_count: result.identification.derivation.steps.len(),
         estimator_id,
         posterior_effect_mean: posterior_section.effect_mean,

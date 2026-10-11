@@ -285,9 +285,9 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate.ate - truth).abs() < 0.05,
+                            (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
                             "sustained={sustained} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
-                            result.estimate.ate
+                            result.estimate.as_effect().unwrap().ate
                         );
                         assert!(result.diagnostics.iter().any(|d| {
                             d.code.as_ref() == "estimate.temporal.conditional_marginal"
@@ -572,9 +572,9 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate.ate - truth).abs() < tolerance,
+                            (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
                             "{key} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
-                            result.estimate.ate
+                            result.estimate.as_effect().unwrap().ate
                         );
                         assert!(
                             result

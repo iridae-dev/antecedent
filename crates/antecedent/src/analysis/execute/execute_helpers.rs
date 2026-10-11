@@ -2572,7 +2572,9 @@ fn finish_identified_execute_with_context(
         _ => false,
     };
     if is_quantile {
-        result.estimate.evalue = None;
+        if let Some(effect) = result.estimate.as_effect_mut() {
+            effect.evalue = None;
+        }
         result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
         if matches!(context.query, CausalQuery::ConditionalEffect(_)) {
             result.diagnostics.push(Diagnostic::new("estimate.functional.conditional_quantile",
@@ -2665,7 +2667,7 @@ pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
 
 #[cfg(test)]
 mod bootstrap_success_floor_tests {
-    use super::{bootstrap_has_enough_successes, PERCENTILE_95_BAND_MIN_SUCCESSES};
+    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
 
     #[test]
     fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {

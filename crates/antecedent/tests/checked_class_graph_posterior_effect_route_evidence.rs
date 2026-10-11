@@ -145,14 +145,17 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         assert_eq!(plan.bootstrap_replicates, 199);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
-        assert!(result.estimate.ate.is_nan(), "atom estimands disagree; scalar must be withheld");
+        assert!(
+            result.estimate.as_effect().unwrap().ate.is_nan(),
+            "atom estimands disagree; scalar must be withheld"
+        );
         let mixture = result.structural_response.as_ref().expect("structural graph mixture");
         let set = mixture.identified_set.as_ref().expect("identified set retained");
         assert!((set.lower[0] - 2.0).abs() < 0.06);
         assert!((set.upper[0] - 3.0).abs() < 0.06);
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!(one_shot.estimate.ate.is_nan());
+        assert!(one_shot.estimate.as_effect().unwrap().ate.is_nan());
         assert!(
             one_shot
                 .diagnostics
@@ -162,7 +165,7 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         );
 
         let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
-        assert!(shifted.estimate.ate.is_nan());
+        assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
         let refreshed_plan = prepared
             .checked_class_graph_posterior_effect_info()
             .expect("checked class graph-posterior plan remains after refresh");
@@ -232,14 +235,14 @@ fn frequentist_pag_graph_posterior_effect_body() {
         assert_eq!(plan.class_atom_count, 1);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
-        assert!((result.estimate.ate - 2.0).abs() < 0.06);
+        assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
         let mixture = result.structural_response.as_ref().unwrap();
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!((one_shot.estimate.ate - 2.0).abs() < 0.06);
+        assert!((one_shot.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
 
         let shifted = prepared.refresh(pag_data(4.0), &ctx).unwrap();
-        assert!((shifted.estimate.ate - 2.0).abs() < 0.06);
+        assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
         let refreshed = prepared.checked_class_graph_posterior_effect_info().unwrap();
         assert_eq!(refreshed.graph_keys, plan.graph_keys);
         assert_eq!(refreshed.weights, plan.weights);

@@ -145,9 +145,9 @@ fn check_frequentist(pin: &serde_json::Value) {
                 let label = format!("accepted={accepted} suite={suite:?} {path}");
                 assert_edge_g_formula_identification(result, &label);
                 assert!(
-                    (result.estimate.ate - truth).abs() < tol,
+                    (result.estimate.as_effect().unwrap().ate - truth).abs() < tol,
                     "{label}: effect {} vs edge g-formula {truth} (total effect {total})",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
                 match suite {
                     RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}"),
@@ -158,7 +158,10 @@ fn check_frequentist(pin: &serde_json::Value) {
                 click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
                 "prepared click must reuse identification"
             );
-            assert_eq!(fresh.estimate.ate.to_bits(), click.estimate.ate.to_bits());
+            assert_eq!(
+                fresh.estimate.as_effect().unwrap().ate.to_bits(),
+                click.estimate.as_effect().unwrap().ate.to_bits()
+            );
         }
     }
 }
@@ -185,9 +188,9 @@ fn check_bayesian(pin: &serde_json::Value) {
                 let posterior = result.posterior.as_ref().expect("functional posterior");
                 assert_eq!(posterior.diagnostics.backend_id.as_ref(), "functional.dirichlet");
                 assert!(
-                    (result.estimate.ate - truth).abs() < tol,
+                    (result.estimate.as_effect().unwrap().ate - truth).abs() < tol,
                     "{label}: posterior mean {} vs edge g-formula {truth} (total effect {total})",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
                 let col = posterior.effect_column().expect("effect draws");
                 let mut draws = posterior.draws.column(col).unwrap().to_vec();
@@ -199,7 +202,11 @@ fn check_bayesian(pin: &serde_json::Value) {
                     "{label}: interval must exclude the total effect"
                 );
             }
-            assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+            assert!(
+                (fresh.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+                    .abs()
+                    < 1e-12
+            );
         }
     }
 }

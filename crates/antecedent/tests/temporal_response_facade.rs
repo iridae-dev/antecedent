@@ -371,9 +371,9 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
         ("sustained prepared", &sustained_click),
     ] {
         assert!(
-            (result.estimate.ate - expected).abs() <= atol,
+            (result.estimate.as_effect().unwrap().ate - expected).abs() <= atol,
             "{label}: ate={}, expected={expected}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
     }
     assert!(
@@ -517,13 +517,22 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     //. With no replicates there is no calibrated SE, so none is published.
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
-    assert!(pulse_analytic.estimate.se_analytic.is_nan(), "iid OLS SE must not be published");
-    assert!(pulse_analytic.estimate.se_bootstrap.is_none());
-    let se_pulse_b = pulse_boot.estimate.se_bootstrap.expect("pulse bootstrap SE");
+    assert!(
+        pulse_analytic.estimate.as_effect().unwrap().se_analytic.is_nan(),
+        "iid OLS SE must not be published"
+    );
+    assert!(pulse_analytic.estimate.as_effect().unwrap().se_bootstrap.is_none());
+    let se_pulse_b =
+        pulse_boot.estimate.as_effect().unwrap().se_bootstrap.expect("pulse bootstrap SE");
     assert!(se_pulse_b.is_finite() && se_pulse_b > 0.0, "bootstrap pulse se={se_pulse_b}");
-    assert!(pulse_boot.estimate.se_analytic.is_nan());
+    assert!(pulse_boot.estimate.as_effect().unwrap().se_analytic.is_nan());
 
-    let se_sustained_b = run_sustained(40).estimate.se_bootstrap.expect("sustained bootstrap SE");
+    let se_sustained_b = run_sustained(40)
+        .estimate
+        .as_effect()
+        .unwrap()
+        .se_bootstrap
+        .expect("sustained bootstrap SE");
     assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
     let pulse_sustained_ratio = se_pulse_b / se_sustained_b;
     assert!(
@@ -1367,7 +1376,8 @@ fn bayesian_temporal_response_and_sustained_window_known_truth() {
                 .estimate_series(&series, &ctx)
                 .unwrap();
             assert!(
-                (result.estimate.ate - pin["window_effect"].as_f64().unwrap()).abs()
+                (result.estimate.as_effect().unwrap().ate - pin["window_effect"].as_f64().unwrap())
+                    .abs()
                     < pin["window_tolerance"].as_f64().unwrap()
             );
             assert_eq!(result.posterior.is_some(), bayesian);

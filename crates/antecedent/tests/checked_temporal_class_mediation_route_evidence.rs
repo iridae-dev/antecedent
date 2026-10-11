@@ -190,9 +190,9 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
 
                 let first = prepared.estimate_series(&initial, &context).unwrap();
                 assert!(
-                    (first.estimate.ate - MEDIATED_TRUTH).abs() < tolerance,
+                    (first.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < tolerance,
                     "{case}: mediated {} vs structural {MEDIATED_TRUTH}",
-                    first.estimate.ate
+                    first.estimate.as_effect().unwrap().ate
                 );
                 assert_eq!(
                     first.logical_plan.estimator.as_deref(),
@@ -216,14 +216,18 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                     "{case}: one-shot run must execute its retained prepared plan"
                 );
                 assert!(
-                    (one_shot.estimate.ate - first.estimate.ate).abs() < 1e-12,
+                    (one_shot.estimate.as_effect().unwrap().ate
+                        - first.estimate.as_effect().unwrap().ate)
+                        .abs()
+                        < 1e-12,
                     "{case}: one-shot and prepared execution share one program"
                 );
 
                 let refreshed =
                     prepared.refresh_series(confounded_series(0.4, false), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.ate - MEDIATED_TRUTH).abs() < tolerance,
+                    (refreshed.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs()
+                        < tolerance,
                     "{case}: intercept shift must not change the mediated contrast"
                 );
                 assert_eq!(
@@ -408,9 +412,9 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
 
                 let first = prepared.estimate_series(&initial, &context).unwrap();
                 assert!(
-                    (first.estimate.ate - pin.effect).abs() < pin.tolerance,
+                    (first.estimate.as_effect().unwrap().ate - pin.effect).abs() < pin.tolerance,
                     "{case}: mediated {} vs truth {}",
-                    first.estimate.ate,
+                    first.estimate.as_effect().unwrap().ate,
                     pin.effect
                 );
                 assert_eq!(
@@ -439,14 +443,18 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                     "{case}: one-shot run must execute its retained prepared plan"
                 );
                 assert!(
-                    (one_shot.estimate.ate - first.estimate.ate).abs() < 1e-12,
+                    (one_shot.estimate.as_effect().unwrap().ate
+                        - first.estimate.as_effect().unwrap().ate)
+                        .abs()
+                        < 1e-12,
                     "{case}: one-shot and prepared execution share one program"
                 );
 
                 let refreshed =
                     prepared.refresh_series(posterior_series(0.7, false), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.ate - pin.effect).abs() < pin.tolerance,
+                    (refreshed.estimate.as_effect().unwrap().ate - pin.effect).abs()
+                        < pin.tolerance,
                     "{case}: intercept shift must not change the mediated contrast"
                 );
                 assert_eq!(

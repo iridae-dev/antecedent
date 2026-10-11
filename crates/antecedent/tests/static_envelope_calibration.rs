@@ -68,7 +68,11 @@ fn uniform(seed: u64) -> impl FnMut() -> f64 {
 }
 
 fn frequentist_interval(result: &antecedent::StudyResult) -> Option<(f64, f64)> {
-    normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90)
+    normal_interval(
+        result.estimate.as_effect().unwrap().ate,
+        Some(result.estimate.as_effect().unwrap().se_analytic),
+        Z90,
+    )
 }
 
 fn bayes_interval(result: &antecedent::StudyResult) -> Option<(f64, f64)> {
@@ -92,7 +96,11 @@ fn intervals(
     } else {
         (
             frequentist_interval(result),
-            normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z95),
+            normal_interval(
+                result.estimate.as_effect().unwrap().ate,
+                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Z95,
+            ),
         )
     }
 }
@@ -744,7 +752,7 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
             tally.skip();
             continue;
         };
-        let Some(bands) = result.estimate.scenario_intervals.as_ref() else {
+        let Some(bands) = result.estimate.as_effect().unwrap().scenario_intervals.as_ref() else {
             tally.record(None, 0.5);
             continue;
         };

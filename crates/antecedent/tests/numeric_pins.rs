@@ -82,7 +82,12 @@ const PIN_ABS: f64 = 1e-12;
 /// SE-scaled tolerance is kept as a loose sanity bound rather than tightened to float noise,
 /// so a real future divergence still fails loudly without this pin being brittle.
 fn fold_split_tol(batch: &antecedent::StudyResult, solo: &antecedent::StudyResult) -> f64 {
-    let se = batch.estimate.se_analytic.max(solo.estimate.se_analytic);
+    let se = batch
+        .estimate
+        .as_effect()
+        .unwrap()
+        .se_analytic
+        .max(solo.estimate.as_effect().unwrap().se_analytic);
     if se.is_finite() && se > 0.0 {
         (0.25 * se).max(PIN_ABS)
     } else {
@@ -99,19 +104,24 @@ fn assert_estimates_pin_eq(
     solo: &antecedent::StudyResult,
     what: &str,
 ) {
-    let batch_nan = batch.estimate.ate.is_nan();
-    let solo_nan = solo.estimate.ate.is_nan();
+    let batch_nan = batch.estimate.as_effect().unwrap().ate.is_nan();
+    let solo_nan = solo.estimate.as_effect().unwrap().ate.is_nan();
     assert_eq!(batch_nan, solo_nan, "{what}: ate NaN mismatch");
     let tol = fold_split_tol(batch, solo);
     if !batch_nan {
         assert!(
-            (batch.estimate.ate - solo.estimate.ate).abs() < tol,
+            (batch.estimate.as_effect().unwrap().ate - solo.estimate.as_effect().unwrap().ate)
+                .abs()
+                < tol,
             "{what}: ate {} vs {} (tol {tol})",
-            batch.estimate.ate,
-            solo.estimate.ate
+            batch.estimate.as_effect().unwrap().ate,
+            solo.estimate.as_effect().unwrap().ate
         );
     }
-    match (&batch.estimate.exceedance_cdf, &solo.estimate.exceedance_cdf) {
+    match (
+        &batch.estimate.as_effect().unwrap().exceedance_cdf,
+        &solo.estimate.as_effect().unwrap().exceedance_cdf,
+    ) {
         (None, None) => {}
         (Some(a), Some(b)) => {
             assert_eq!(a.len(), b.len(), "{what}: cdf length");
@@ -277,10 +287,16 @@ fn retarget_grid_matches_standalone(
         );
     }
     let retargeted = prepared.retarget(weights, depends_on, ctx).unwrap();
-    let cdf = retargeted.estimate.exceedance_cdf.as_ref().expect("retargeted grid F_a(c)");
+    let cdf = retargeted
+        .estimate
+        .as_effect()
+        .unwrap()
+        .exceedance_cdf
+        .as_ref()
+        .expect("retargeted grid F_a(c)");
     assert_eq!(cdf.len(), thresholds.len() * 2);
     assert!(
-        retargeted.estimate.ate.is_nan(),
+        retargeted.estimate.as_effect().unwrap().ate.is_nan(),
         "grid retarget must not publish a first-threshold ATE"
     );
 
@@ -307,18 +323,21 @@ fn retarget_grid_matches_standalone(
         .run(ctx)
         .unwrap();
     assert!(
-        (exc_retarget.estimate.ate - standalone.estimate.ate).abs() < PIN_ABS,
+        (exc_retarget.estimate.as_effect().unwrap().ate
+            - standalone.estimate.as_effect().unwrap().ate)
+            .abs()
+            < PIN_ABS,
         "tiered exceedance retarget {} vs CustomDistribution {}",
-        exc_retarget.estimate.ate,
-        standalone.estimate.ate
+        exc_retarget.estimate.as_effect().unwrap().ate,
+        standalone.estimate.as_effect().unwrap().ate
     );
     // columns are (arm0,c), (arm1,c) per threshold; ATE = F_0(c) - F_1(c).
     let grid_contrast = cdf[2] - cdf[3];
     assert!(
-        (grid_contrast - exc_retarget.estimate.ate).abs() < PIN_ABS,
+        (grid_contrast - exc_retarget.estimate.as_effect().unwrap().ate).abs() < PIN_ABS,
         "grid contrast at {mid} {} vs exceedance {}",
         grid_contrast,
-        exc_retarget.estimate.ate
+        exc_retarget.estimate.as_effect().unwrap().ate
     );
     retargeted
 }
@@ -339,10 +358,11 @@ fn retarget_matches_refit_and_covers_kernel_target() {
         "retarget must reuse prepare-time identification"
     );
     assert!(
-        (retargeted.estimate.ate - truth).abs() < 1.96 * retargeted.estimate.se_analytic,
+        (retargeted.estimate.as_effect().unwrap().ate - truth).abs()
+            < 1.96 * retargeted.estimate.as_effect().unwrap().se_analytic,
         "retarget ate={} se={} truth={truth}",
-        retargeted.estimate.ate,
-        retargeted.estimate.se_analytic
+        retargeted.estimate.as_effect().unwrap().ate,
+        retargeted.estimate.as_effect().unwrap().se_analytic
     );
 
     let mut registry = PopulationRegistry::new();
@@ -360,10 +380,12 @@ fn retarget_matches_refit_and_covers_kernel_target() {
         .run(&ctx)
         .unwrap();
     assert!(
-        (fresh.estimate.ate - retargeted.estimate.ate).abs() < 1e-12,
+        (fresh.estimate.as_effect().unwrap().ate - retargeted.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12,
         "fresh={} retarget={}",
-        fresh.estimate.ate,
-        retargeted.estimate.ate
+        fresh.estimate.as_effect().unwrap().ate,
+        retargeted.estimate.as_effect().unwrap().ate
     );
 
     let mut refreshed = prepared;
@@ -435,17 +457,19 @@ fn variance_only_exceedance_covers_and_mean_misses() {
     let mean = ate_study(data.clone(), graph.clone(), mean_q, EstimatorId::Aipw).run(&ctx).unwrap();
     let exc = ate_study(data, graph, exc_q, EstimatorId::Aipw).run(&ctx).unwrap();
     assert!(
-        mean.estimate.ate.abs() < mean_tol,
+        mean.estimate.as_effect().unwrap().ate.abs() < mean_tol,
         "mean path must miss the tail shift, ate={}",
-        mean.estimate.ate
+        mean.estimate.as_effect().unwrap().ate
     );
-    let lo = exc.estimate.ate - 1.96 * exc.estimate.se_analytic;
-    let hi = exc.estimate.ate + 1.96 * exc.estimate.se_analytic;
+    let lo = exc.estimate.as_effect().unwrap().ate
+        - 1.96 * exc.estimate.as_effect().unwrap().se_analytic;
+    let hi = exc.estimate.as_effect().unwrap().ate
+        + 1.96 * exc.estimate.as_effect().unwrap().se_analytic;
     assert!(
         lo <= exceedance_delta && exceedance_delta <= hi,
         "exceedance must cover +{exceedance_delta}, ate={} se={}",
-        exc.estimate.ate,
-        exc.estimate.se_analytic
+        exc.estimate.as_effect().unwrap().ate,
+        exc.estimate.as_effect().unwrap().se_analytic
     );
 }
 
@@ -457,17 +481,23 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
     let ctx = ExecutionContext::for_tests(19);
     let study = ate_study(data.clone(), graph.clone(), grid_q.clone(), EstimatorId::Aipw);
     let fresh = study.run(&ctx).unwrap();
-    let cdf = fresh.estimate.exceedance_cdf.as_ref().expect("fresh estimate must publish F_a(c)");
+    let cdf = fresh
+        .estimate
+        .as_effect()
+        .unwrap()
+        .exceedance_cdf
+        .as_ref()
+        .expect("fresh estimate must publish F_a(c)");
     assert_eq!(cdf.len(), thresholds.len() * 2, "one F_a(c) per (arm, threshold)");
     assert!(cdf.iter().all(|v| v.is_finite() && *v >= 0.0 && *v <= 1.0));
-    assert!(fresh.estimate.score_table.is_some());
-    assert!(fresh.estimate.joint_covariance.is_some());
+    assert!(fresh.estimate.as_effect().unwrap().score_table.is_some());
+    assert!(fresh.estimate.as_effect().unwrap().joint_covariance.is_some());
     assert!(
-        fresh.estimate.ate.is_nan(),
+        fresh.estimate.as_effect().unwrap().ate.is_nan(),
         "multi-threshold grids must not publish a first-threshold scalar ATE"
     );
-    let _ = fresh.estimate.monotone_rearranged;
-    assert!(fresh.estimate.simultaneous_interval.is_none());
+    let _ = fresh.estimate.as_effect().unwrap().monotone_rearranged;
+    assert!(fresh.estimate.as_effect().unwrap().simultaneous_interval.is_none());
     assert!(
         fresh
             .diagnostics
@@ -477,12 +507,17 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
 
     let prepared = ate_study(data.clone(), graph, grid_q, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
-    let click_cdf =
-        click.estimate.exceedance_cdf.as_ref().expect("prepared estimate must publish F_a(c)");
+    let click_cdf = click
+        .estimate
+        .as_effect()
+        .unwrap()
+        .exceedance_cdf
+        .as_ref()
+        .expect("prepared estimate must publish F_a(c)");
     assert_eq!(click_cdf.len(), thresholds.len() * 2);
-    assert!(click.estimate.score_table.is_some());
-    assert!(click.estimate.joint_covariance.is_some());
-    assert!(click.estimate.ate.is_nan());
+    assert!(click.estimate.as_effect().unwrap().score_table.is_some());
+    assert!(click.estimate.as_effect().unwrap().joint_covariance.is_some());
+    assert!(click.estimate.as_effect().unwrap().ate.is_nan());
 }
 
 fn interaction_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
@@ -518,11 +553,13 @@ fn joint_query(a: f64, d: f64) -> ResponseQuery {
 }
 
 fn response_value(result: &antecedent::StudyResult) -> f64 {
-    result.response.as_ref().map_or(result.estimate.ate, |r| match &r.estimate {
-        antecedent_core::ResponseIdentification::PointIdentified(
-            antecedent_core::ResponseValue::Scalar(v),
-        ) => *v,
-        _ => result.estimate.ate,
+    result.response.as_ref().map_or(result.estimate.as_effect().unwrap().ate, |r| {
+        match &r.estimate {
+            antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Scalar(v),
+            ) => *v,
+            _ => result.estimate.as_effect().unwrap().ate,
+        }
     })
 }
 
@@ -570,13 +607,15 @@ fn additive_interaction_is_structurally_zero_cell_aipw_recovers() {
         .run(&ctx)
         .unwrap();
     assert!(cell.response.as_ref().is_some_and(|r| !r.interaction_structurally_zero));
-    let lo = cell.estimate.ate - 1.96 * cell.estimate.se_analytic;
-    let hi = cell.estimate.ate + 1.96 * cell.estimate.se_analytic;
+    let lo = cell.estimate.as_effect().unwrap().ate
+        - 1.96 * cell.estimate.as_effect().unwrap().se_analytic;
+    let hi = cell.estimate.as_effect().unwrap().ate
+        + 1.96 * cell.estimate.as_effect().unwrap().se_analytic;
     assert!(
         lo <= 1.5 && 1.5 <= hi,
         "cell AIPW interaction={} se={}",
-        cell.estimate.ate,
-        cell.estimate.se_analytic
+        cell.estimate.as_effect().unwrap().ate,
+        cell.estimate.as_effect().unwrap().se_analytic
     );
 }
 
@@ -624,7 +663,9 @@ fn cell_aipw_k3_and_empty_cell_refuse() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!(ok.estimate.score_table.as_ref().is_some_and(|t| t.n_columns() == 8));
+    assert!(
+        ok.estimate.as_effect().unwrap().score_table.as_ref().is_some_and(|t| t.n_columns() == 8)
+    );
 
     let mut rng = ExecutionContext::for_tests(21).rng.stream_for(StreamDomain::Test, 4);
     let n = 600usize;
@@ -693,10 +734,13 @@ fn unknown_tier_envelope_straddles_zero() {
         .run(&ExecutionContext::for_tests(22))
         .unwrap();
     assert_eq!(result.support_status.unwrap().as_str(), "licensed");
-    assert!(result.estimate.ate.is_nan(), "unknown scenarios must not become a single ATE");
-    let scenarios = result.estimate.scenario_effects.as_ref().unwrap();
+    assert!(
+        result.estimate.as_effect().unwrap().ate.is_nan(),
+        "unknown scenarios must not become a single ATE"
+    );
+    let scenarios = result.estimate.as_effect().unwrap().scenario_effects.as_ref().unwrap();
     assert!(scenarios.iter().any(|v| *v < 0.0) && scenarios.iter().any(|v| *v > 0.0));
-    assert_eq!(result.estimate.scenario_intervals.as_ref().unwrap().len(), 2);
+    assert_eq!(result.estimate.as_effect().unwrap().scenario_intervals.as_ref().unwrap().len(), 2);
     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
 }
 
@@ -764,9 +808,10 @@ fn static_cpdag_and_pag_envelope_se_is_finite() {
         .run(&ExecutionContext::for_tests(23))
         .unwrap();
     assert!(
-        cpdag_res.estimate.se_analytic.is_finite() && cpdag_res.estimate.se_analytic > 0.0,
+        cpdag_res.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && cpdag_res.estimate.as_effect().unwrap().se_analytic > 0.0,
         "CPDAG envelope SE must be finite, se={}",
-        cpdag_res.estimate.se_analytic
+        cpdag_res.estimate.as_effect().unwrap().se_analytic
     );
     assert!(
         cpdag_res
@@ -793,9 +838,10 @@ fn static_cpdag_and_pag_envelope_se_is_finite() {
         .run(&ExecutionContext::for_tests(24))
         .unwrap();
     assert!(
-        pag_res.estimate.se_analytic.is_finite() && pag_res.estimate.se_analytic > 0.0,
+        pag_res.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && pag_res.estimate.as_effect().unwrap().se_analytic > 0.0,
         "PAG envelope SE must be finite, se={}",
-        pag_res.estimate.se_analytic
+        pag_res.estimate.as_effect().unwrap().se_analytic
     );
     assert!(
         pag_res
@@ -841,7 +887,7 @@ fn retarget_distinct_lever_loop(n: usize, n_levers: u32, seed: u64, max_secs: f6
     let started = std::time::Instant::now();
     for weights in &levers {
         let out = prepared.retarget(weights, &[z], &ctx).unwrap();
-        assert!(out.estimate.ate.is_finite());
+        assert!(out.estimate.as_effect().unwrap().ate.is_finite());
     }
     let elapsed = started.elapsed();
     assert!(
@@ -907,12 +953,15 @@ fn prepared_grid_uses_new_data_and_joint_covariance_roundtrips() {
     let (new_data, _, _, _, _) = confounded_hetero(1300, 84);
     let click = prepared.estimate(&new_data, &ctx).unwrap();
     let fresh = ate_study(new_data, graph, q, EstimatorId::Aipw).run(&ctx).unwrap();
-    assert_eq!(click.estimate.score_table.as_ref().unwrap().n_rows, 1300);
-    assert_eq!(click.estimate.exceedance_cdf, fresh.estimate.exceedance_cdf);
-    let wire = antecedent_io::effect_estimate_to_wire(&click.estimate);
+    assert_eq!(click.estimate.as_effect().unwrap().score_table.as_ref().unwrap().n_rows, 1300);
+    assert_eq!(
+        click.estimate.as_effect().unwrap().exceedance_cdf,
+        fresh.estimate.as_effect().unwrap().exceedance_cdf
+    );
+    let wire = antecedent_io::effect_estimate_to_wire(click.estimate.as_effect().unwrap());
     let restored = antecedent_io::effect_estimate_from_wire(&wire).unwrap();
-    assert_eq!(restored.joint_covariance, click.estimate.joint_covariance);
-    let inference = click.estimate.score_inference.as_ref().unwrap();
+    assert_eq!(restored.joint_covariance, click.estimate.as_effect().unwrap().joint_covariance);
+    let inference = click.estimate.as_effect().unwrap().score_inference.as_ref().unwrap();
     let restored_inf = restored.score_inference.as_ref().unwrap();
     assert_eq!(restored_inf.threshold_supported, inference.threshold_supported);
     assert_eq!(restored_inf.raw_means, inference.raw_means);
@@ -943,8 +992,10 @@ fn kernel_target_population_coverage_over_seed_grid() {
         let ctx = ExecutionContext::for_tests(seed);
         let plan = ate_study(data, graph, q, EstimatorId::Aipw).prepare(&ctx).unwrap();
         let result = plan.retarget(&weights, &[VariableId::from_raw(2)], &ctx).unwrap();
-        covered +=
-            usize::from((result.estimate.ate - truth).abs() <= 1.96 * result.estimate.se_analytic);
+        covered += usize::from(
+            (result.estimate.as_effect().unwrap().ate - truth).abs()
+                <= 1.96 * result.estimate.as_effect().unwrap().se_analytic,
+        );
     }
     // For 80 repetitions, 68 is a conservative Monte Carlo lower guard for nominal 95% coverage.
     assert!(covered >= 68, "kernel-target coverage {covered}/80");
@@ -983,8 +1034,10 @@ fn cpdag_shared_row_aggregate_coverage_over_seed_grid() {
             .unwrap();
         // Two equally weighted observational functionals: adjusted beta_T=2,
         // unadjusted beta_T=2+Cov(T,Z)/Var(T)=2.5. Not a posterior over causal truths.
-        covered +=
-            usize::from((result.estimate.ate - 2.25).abs() <= 1.96 * result.estimate.se_analytic);
+        covered += usize::from(
+            (result.estimate.as_effect().unwrap().ate - 2.25).abs()
+                <= 1.96 * result.estimate.as_effect().unwrap().se_analytic,
+        );
     }
     assert!(covered >= 68, "CPDAG frozen-functional coverage {covered}/80");
 }
@@ -1048,9 +1101,12 @@ fn intervention_response_attaches_plugin_if_covariance() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
-    assert!(result.estimate.joint_covariance.is_some());
-    assert!(result.estimate.influence.is_some());
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && result.estimate.as_effect().unwrap().se_analytic > 0.0
+    );
+    assert!(result.estimate.as_effect().unwrap().joint_covariance.is_some());
+    assert!(result.estimate.as_effect().unwrap().influence.is_some());
 }
 
 #[test]
@@ -1070,12 +1126,30 @@ fn conditional_exceedance_grid_publishes_per_arm_cdf() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let cdf = result.estimate.exceedance_cdf.as_ref().expect("conditional grid F_a(c)");
+    let cdf = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .exceedance_cdf
+        .as_ref()
+        .expect("conditional grid F_a(c)");
     assert_eq!(cdf.len(), 6);
     assert!(cdf.iter().all(|v| v.is_finite()));
-    let cov = result.estimate.joint_covariance.as_ref().expect("per-arm CDF covariance");
+    let cov = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .joint_covariance
+        .as_ref()
+        .expect("per-arm CDF covariance");
     assert_eq!(cov.dim, 6, "joint covariance must be 2K per-arm coordinates, not K contrasts");
-    let inf = result.estimate.score_inference.as_ref().expect("per-arm simultaneous bands");
+    let inf = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .score_inference
+        .as_ref()
+        .expect("per-arm simultaneous bands");
     assert_eq!(inf.raw_means.len(), 6);
     assert_eq!(inf.lower.len(), 6);
     assert_eq!(inf.upper.len(), 6);
@@ -1089,10 +1163,10 @@ fn conditional_exceedance_grid_publishes_per_arm_cdf() {
         "supported arms must publish a finite raw-score band"
     );
     assert!(
-        result.estimate.ate.is_nan(),
+        result.estimate.as_effect().unwrap().ate.is_nan(),
         "ConditionalEffect grid must not publish a first-threshold scalar"
     );
-    assert!(result.estimate.influence.is_none());
+    assert!(result.estimate.as_effect().unwrap().influence.is_none());
     assert!(
         result
             .diagnostics
@@ -1131,12 +1205,18 @@ fn prepared_batch_reuses_plans_and_records_screen() {
     assert_eq!(sel.screen_id.as_ref(), "known_truth.screen");
     assert_eq!(sel.procedure, CandidateProcedure::BenjaminiHochberg);
     assert!(sel.disjoint);
-    let recorded = results[0].estimate.candidate_selection.as_ref().expect("estimate artifact");
+    let recorded = results[0]
+        .estimate
+        .as_effect()
+        .unwrap()
+        .candidate_selection
+        .as_ref()
+        .expect("estimate artifact");
     assert_eq!(recorded.screen_id.as_ref(), "known_truth.screen");
     assert_eq!(recorded.procedure.as_ref(), "bh");
     assert!(!recorded.screen_rows.is_empty());
     assert!(!recorded.estimate_rows.is_empty());
-    let wire = antecedent_io::effect_estimate_to_wire(&results[0].estimate);
+    let wire = antecedent_io::effect_estimate_to_wire(results[0].estimate.as_effect().unwrap());
     let restored = antecedent_io::effect_estimate_from_wire(&wire).unwrap();
     assert_eq!(
         restored.candidate_selection.as_ref().map(|s| s.screen_rows.len()),
@@ -1155,7 +1235,8 @@ fn prepared_batch_reuses_plans_and_records_screen() {
             .iter()
             .any(|d| d.code.as_ref() == "batch.candidate_selection.ranked_on_reported_family")
     }));
-    let inf = results[0].estimate.influence.as_ref().expect("estimate-sample IF");
+    let inf =
+        results[0].estimate.as_effect().unwrap().influence.as_ref().expect("estimate-sample IF");
     assert_eq!(
         inf.len(),
         n_estimate,
@@ -1259,8 +1340,11 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
         .unwrap()
         .run(&ExecutionContext::for_tests(200))
         .unwrap();
-    assert!((result.estimate.ate - 1.8).abs() < 1.96 * result.estimate.se_analytic);
-    assert!(result.estimate.evalue.is_some_and(|e| e.is_finite() && e >= 1.0));
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 1.8).abs()
+            < 1.96 * result.estimate.as_effect().unwrap().se_analytic
+    );
+    assert!(result.estimate.as_effect().unwrap().evalue.is_some_and(|e| e.is_finite() && e >= 1.0));
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "tiered.evalue.vanderweele_approx")
     );
@@ -1301,8 +1385,11 @@ fn pag_intervention_response_attaches_shared_row_if() {
         .unwrap()
         .run(&ExecutionContext::for_tests(201))
         .unwrap();
-    assert!(result.estimate.se_analytic.is_finite());
-    assert!(result.estimate.joint_covariance.is_some() || result.estimate.influence.is_some());
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_finite());
+    assert!(
+        result.estimate.as_effect().unwrap().joint_covariance.is_some()
+            || result.estimate.as_effect().unwrap().influence.is_some()
+    );
 }
 
 #[test]
@@ -1318,7 +1405,7 @@ fn cell_aipw_cheap_runs_overlap_and_evalue() {
         .unwrap()
         .run(&ExecutionContext::for_tests(202))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(
         result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue")
             || result.diagnostics.iter().any(|d| d.code.as_ref().contains("evalue"))
@@ -1369,7 +1456,7 @@ fn prepared_batch_cells_reuse_joint_plans() {
     assert_eq!(prepared.plans().len(), 2);
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 2);
-    assert!(results.iter().all(|r| r.estimate.ate.is_finite()));
+    assert!(results.iter().all(|r| r.estimate.as_effect().unwrap().ate.is_finite()));
     let shared = prepared.shared_design().expect("prepare_cells must freeze SharedBatchDesign");
     assert_eq!(shared.n_folds, 5);
     let a = prepared.plans()[0].shared_design().expect("plan 0 shared design");
@@ -1379,10 +1466,16 @@ fn prepared_batch_cells_reuse_joint_plans() {
         "cell pair family must hold one SharedBatchDesign, not isolated plans"
     );
     assert!(
-        results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 2)),
+        results.iter().all(|r| r
+            .estimate
+            .as_effect()
+            .unwrap()
+            .joint_covariance
+            .as_ref()
+            .is_some_and(|c| c.dim == 2)),
         "pair-family joint IF must be 2×2, not per-pair arm covariance"
     );
-    assert!(results.iter().all(|r| r.estimate.adjusted_p_values.is_some()));
+    assert!(results.iter().all(|r| r.estimate.as_effect().unwrap().adjusted_p_values.is_some()));
     assert!(
         results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
     );
@@ -1414,27 +1507,35 @@ fn zero_effect_pair_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
 
 fn assert_level_would_look_significant(result: &antecedent::StudyResult) {
     assert!(
-        result.estimate.ate.abs() > 1.0,
+        result.estimate.as_effect().unwrap().ate.abs() > 1.0,
         "cell level must sit away from 0 so testing ate as a contrast would fire: ate={}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
     assert!(
-        result.estimate.ate.abs() / result.estimate.se_analytic.max(1e-12) > 8.0,
+        result.estimate.as_effect().unwrap().ate.abs()
+            / result.estimate.as_effect().unwrap().se_analytic.max(1e-12)
+            > 8.0,
         "naive |level|/SE must be large: ate={} se={}",
-        result.estimate.ate,
-        result.estimate.se_analytic
+        result.estimate.as_effect().unwrap().ate,
+        result.estimate.as_effect().unwrap().se_analytic
     );
 }
 
 fn assert_family_p_non_significant(result: &antecedent::StudyResult) {
-    let (bh, by) = result.estimate.adjusted_p_values.expect("family p-values must exist");
+    let (bh, by) =
+        result.estimate.as_effect().unwrap().adjusted_p_values.expect("family p-values must exist");
     assert!(
         bh > 0.05 && by > 0.05,
         "zero-effect family must not be BH/BY-significant on the cell level: BH={bh} BY={by} ate={} contrast={:?}",
-        result.estimate.ate,
-        result.estimate.family_contrast
+        result.estimate.as_effect().unwrap().ate,
+        result.estimate.as_effect().unwrap().family_contrast
     );
-    let (value, _) = result.estimate.family_contrast.expect("family contrast must be published");
+    let (value, _) = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .family_contrast
+        .expect("family contrast must be published");
     assert!(
         value.abs() < 0.25,
         "declared contrast must be near zero under no treatment effect: {value}"
@@ -1443,13 +1544,25 @@ fn assert_family_p_non_significant(result: &antecedent::StudyResult) {
 
 fn assert_contrast_max_t_not_from_level_family(results: &[antecedent::StudyResult]) {
     for (i, result) in results.iter().enumerate() {
-        let level_cov = result.estimate.joint_covariance.as_ref().expect("level covariance");
-        let (_, lhi, _) = result.estimate.simultaneous_interval.expect("level interval");
+        let level_cov = result
+            .estimate
+            .as_effect()
+            .unwrap()
+            .joint_covariance
+            .as_ref()
+            .expect("level covariance");
+        let (_, lhi, _) =
+            result.estimate.as_effect().unwrap().simultaneous_interval.expect("level interval");
         let level_se = level_cov.se(i);
-        let level_crit = (lhi - result.estimate.ate) / level_se;
-        let (value, se) = result.estimate.family_contrast.expect("family contrast");
-        let (clo, chi, level) =
-            result.estimate.family_contrast_interval.expect("contrast simultaneous interval");
+        let level_crit = (lhi - result.estimate.as_effect().unwrap().ate) / level_se;
+        let (value, se) =
+            result.estimate.as_effect().unwrap().family_contrast.expect("family contrast");
+        let (clo, chi, level) = result
+            .estimate
+            .as_effect()
+            .unwrap()
+            .family_contrast_interval
+            .expect("contrast simultaneous interval");
         assert!((level - 0.95).abs() < 1e-12);
         let contrast_crit = (chi - value) / se;
         assert!(
@@ -1512,12 +1625,14 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
     // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
     // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
     assert!(
-        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+        (results[0].estimate.as_effect().unwrap().ate - solo.estimate.as_effect().unwrap().ate)
+            .abs()
+            < fold_split_tol(&results[0], &solo)
     );
     for result in &results {
         assert_level_would_look_significant(result);
         assert_family_p_non_significant(result);
-        assert!(result.estimate.simultaneous_interval.is_some());
+        assert!(result.estimate.as_effect().unwrap().simultaneous_interval.is_some());
     }
     assert_contrast_max_t_not_from_level_family(&results);
 
@@ -1529,11 +1644,13 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    assert!(none.iter().all(|r| r.estimate.adjusted_p_values.is_none()));
-    assert!(none.iter().all(|r| r.estimate.family_contrast.is_none()));
-    assert!(none.iter().all(|r| r.estimate.family_contrast_interval.is_none()));
-    assert!(none.iter().all(|r| r.estimate.simultaneous_interval.is_some()));
-    assert!(none.iter().all(|r| r.estimate.ate.abs() > 1.0));
+    assert!(none.iter().all(|r| r.estimate.as_effect().unwrap().adjusted_p_values.is_none()));
+    assert!(none.iter().all(|r| r.estimate.as_effect().unwrap().family_contrast.is_none()));
+    assert!(
+        none.iter().all(|r| r.estimate.as_effect().unwrap().family_contrast_interval.is_none())
+    );
+    assert!(none.iter().all(|r| r.estimate.as_effect().unwrap().simultaneous_interval.is_some()));
+    assert!(none.iter().all(|r| r.estimate.as_effect().unwrap().ate.abs() > 1.0));
 
     let interaction = BatchStudy::new(data.clone(), graph)
         .refute(RefuteSuite::None)
@@ -1559,7 +1676,7 @@ fn linear_plan_has_no_score_table_and_refuses_retarget() {
             .run(&ctx)
             .unwrap();
     assert!(
-        first.estimate.score_table.is_none(),
+        first.estimate.as_effect().unwrap().score_table.is_none(),
         "first-click linear analyze/run must not invent a score table"
     );
     assert!(!first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
@@ -1624,21 +1741,33 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let mixed_cdf = mixed.estimate.exceedance_cdf.as_ref().expect("class-aware grid F_a(c)");
-    let primary_cdf = primary.estimate.exceedance_cdf.as_ref().expect("primary-atom grid F_a(c)");
+    let mixed_cdf = mixed
+        .estimate
+        .as_effect()
+        .unwrap()
+        .exceedance_cdf
+        .as_ref()
+        .expect("class-aware grid F_a(c)");
+    let primary_cdf = primary
+        .estimate
+        .as_effect()
+        .unwrap()
+        .exceedance_cdf
+        .as_ref()
+        .expect("primary-atom grid F_a(c)");
     assert_eq!(mixed_cdf.len(), 6);
     assert!(mixed_cdf.iter().all(|v| v.is_finite()));
-    assert!(mixed.estimate.joint_covariance.is_some());
+    assert!(mixed.estimate.as_effect().unwrap().joint_covariance.is_some());
     assert!(
         mixed_cdf.iter().zip(primary_cdf.iter()).any(|(a, b)| (a - b).abs() > 1e-4),
         "class-aware grid must mix envelope atoms, not copy the primary estimand"
     );
     assert!(
-        mixed.estimate.influence.is_none(),
+        mixed.estimate.as_effect().unwrap().influence.is_none(),
         "class-aware grids must not keep a mean-CATE or first-threshold IF as the scalar influence"
     );
     assert!(
-        mixed.estimate.ate.is_nan(),
+        mixed.estimate.as_effect().unwrap().ate.is_nan(),
         "class-aware grid must not publish a mean-CATE scalar as the grid"
     );
     assert!(
@@ -1702,7 +1831,7 @@ fn dag_intervention_response_cheap_runs_overlap_and_evalue() {
             .unwrap()
             .run(&ctx)
             .unwrap();
-        assert!(plugin.estimate.ate.is_finite(), "{case}");
+        assert!(plugin.estimate.as_effect().unwrap().ate.is_finite(), "{case}");
         assert!(
             plugin.refutations.iter().any(|r| r.refuter.as_ref().contains("overlap")),
             "{case}: plugin cheap must still run overlap"
@@ -1762,7 +1891,7 @@ fn plugin_full_omits_contrast_shaped_refuters() {
         .unwrap()
         .run(&ExecutionContext::for_tests(212))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
         "plugin full must disclose that contrast-shaped refuters are not licensed"
@@ -1807,10 +1936,11 @@ fn cell_aipw_refuses_named_interaction_on_exceedance_grid() {
         .run(&ExecutionContext::for_tests(208))
         .unwrap();
     assert!(
-        result.estimate.ate.is_nan(),
+        result.estimate.as_effect().unwrap().ate.is_nan(),
         "cell.aipw grids must not publish a first-threshold scalar"
     );
-    let table = result.estimate.score_table.as_ref().expect("cell grid scores");
+    let table =
+        result.estimate.as_effect().unwrap().score_table.as_ref().expect("cell grid scores");
     let err = antecedent_estimate::cell_aipw::contrast_named(table, "interaction").unwrap_err();
     assert!(
         err.to_string().contains("not licensed"),
@@ -1839,7 +1969,7 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
     assert_eq!(results.len(), 2);
     assert_eq!(results[0].candidate_selection.as_ref().unwrap().winner_index, None);
     assert!(results[0].candidate_selection.is_some());
-    assert!(results[0].estimate.candidate_selection.is_some());
+    assert!(results[0].estimate.as_effect().unwrap().candidate_selection.is_some());
     assert!(results.iter().any(|r| {
         r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if.unavailable")
     }));
@@ -1849,7 +1979,7 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
             .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection"))
     );
     assert!(
-        results.iter().all(|r| r.estimate.simultaneous_interval.is_none()),
+        results.iter().all(|r| r.estimate.as_effect().unwrap().simultaneous_interval.is_none()),
         "batch family max-t must not be invented when joint IF cannot form"
     );
     assert!(
@@ -1864,7 +1994,13 @@ fn allobserved_first_click_matches_retarget_ones() {
     let ctx = ExecutionContext::for_tests(210);
     let first =
         ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw).run(&ctx).unwrap();
-    let table = first.estimate.score_table.as_ref().expect("AllObserved iid AIPW must export φ");
+    let table = first
+        .estimate
+        .as_effect()
+        .unwrap()
+        .score_table
+        .as_ref()
+        .expect("AllObserved iid AIPW must export φ");
     assert!(first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
     assert!(
         !first
@@ -1879,10 +2015,12 @@ fn allobserved_first_click_matches_retarget_ones() {
         .retarget(&ones, &[], &ctx)
         .unwrap();
     assert!(
-        (first.estimate.ate - retargeted.estimate.ate).abs() < 1e-12,
+        (first.estimate.as_effect().unwrap().ate - retargeted.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12,
         "first-click={} retarget(ones)={}; AllObserved iid φ must be the same object",
-        first.estimate.ate,
-        retargeted.estimate.ate
+        first.estimate.as_effect().unwrap().ate,
+        retargeted.estimate.as_effect().unwrap().ate
     );
 }
 
@@ -1893,7 +2031,7 @@ fn att_residualized_has_no_scores_and_refuses_retarget() {
     let ctx = ExecutionContext::for_tests(211);
     let first =
         ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw).run(&ctx).unwrap();
-    assert!(first.estimate.score_table.is_none());
+    assert!(first.estimate.as_effect().unwrap().score_table.is_none());
     assert!(
         first
             .diagnostics
@@ -1944,7 +2082,7 @@ fn retarget_succeeds_on_codetermined_tiered_admg() {
     let ctx = ExecutionContext::for_tests(214);
     let out = retarget_grid_matches_standalone(&data, background, query, &weights, &[z], &ctx);
     assert_eq!(out.support_status.unwrap().as_str(), "licensed");
-    assert!(out.estimate.exceedance_cdf.is_some());
+    assert!(out.estimate.as_effect().unwrap().exceedance_cdf.is_some());
 
     // {z} | {t, u} | {y}: t↔u. Walking ↔ as descendants from t would mark u
     // and refuse depends_on=[u]. Directed-only closure must keep this legal.
@@ -1961,7 +2099,7 @@ fn retarget_succeeds_on_codetermined_tiered_admg() {
         "treatment-tier peer must be t↔u"
     );
     let out = retarget_grid_matches_standalone(&data, background, query, &weights, &[u], &ctx);
-    assert!(out.estimate.exceedance_cdf.is_some());
+    assert!(out.estimate.as_effect().unwrap().exceedance_cdf.is_some());
 }
 
 #[test]
@@ -1990,9 +2128,15 @@ fn batch_prepare_keeps_exceedance_functional() {
         .estimate(&data, &ctx)
         .unwrap();
     assert_eq!(results.len(), 2);
-    assert!(results[0].estimate.exceedance_cdf.is_none(), "mean sibling must stay a mean");
     assert!(
-        (results[1].estimate.ate - results[0].estimate.ate).abs() > 1e-6,
+        results[0].estimate.as_effect().unwrap().exceedance_cdf.is_none(),
+        "mean sibling must stay a mean"
+    );
+    assert!(
+        (results[1].estimate.as_effect().unwrap().ate
+            - results[0].estimate.as_effect().unwrap().ate)
+            .abs()
+            > 1e-6,
         "exceedance batch member must not silently become the mean sibling"
     );
     for (q, row) in queries.iter().zip(&results) {
@@ -2017,9 +2161,15 @@ fn batch_estimate_many_keeps_exceedance_functional() {
         .estimate_many(&queries, &ctx)
         .unwrap();
     assert_eq!(results.len(), 2);
-    assert!(results[0].estimate.exceedance_cdf.is_none(), "mean sibling must stay a mean");
     assert!(
-        (results[1].estimate.ate - results[0].estimate.ate).abs() > 1e-6,
+        results[0].estimate.as_effect().unwrap().exceedance_cdf.is_none(),
+        "mean sibling must stay a mean"
+    );
+    assert!(
+        (results[1].estimate.as_effect().unwrap().ate
+            - results[0].estimate.as_effect().unwrap().ate)
+            .abs()
+            > 1e-6,
         "analyze_many / estimate_many must not silently become the mean sibling"
     );
     for (q, row) in queries.iter().zip(&results) {
@@ -2052,13 +2202,24 @@ fn batch_tiered_codetermined_prepare_and_estimate() {
         .estimate(&data, &ctx)
         .unwrap();
     assert_eq!(results.len(), 2);
-    assert!(results[0].estimate.ate.is_finite());
-    assert!(results[0].estimate.exceedance_cdf.is_none(), "mean sibling must stay a mean");
+    assert!(results[0].estimate.as_effect().unwrap().ate.is_finite());
     assert!(
-        results[1].estimate.ate.is_nan(),
+        results[0].estimate.as_effect().unwrap().exceedance_cdf.is_none(),
+        "mean sibling must stay a mean"
+    );
+    assert!(
+        results[1].estimate.as_effect().unwrap().ate.is_nan(),
         "grid batch member must not publish a first-threshold ATE"
     );
-    assert!(results[1].estimate.exceedance_cdf.as_ref().is_some_and(|c| c.len() == 4));
+    assert!(
+        results[1]
+            .estimate
+            .as_effect()
+            .unwrap()
+            .exceedance_cdf
+            .as_ref()
+            .is_some_and(|c| c.len() == 4)
+    );
     for (q, row) in queries.iter().zip(&results) {
         let solo = tiered_aipw(data.clone(), background.clone(), q.clone())
             .prepare(&ctx)
@@ -2095,7 +2256,7 @@ fn plugin_zero_shift_influence_equals_sample_mean_influence() {
         .run(&ExecutionContext::for_tests(301))
         .unwrap();
     assert!((response_value(&result) - mean).abs() < 1e-8);
-    assert!((result.estimate.se_analytic - expected_se).abs() < 1e-7);
+    assert!((result.estimate.as_effect().unwrap().se_analytic - expected_se).abs() < 1e-7);
 }
 
 #[test]
@@ -2150,12 +2311,19 @@ fn conditional_extreme_threshold_refuses_empty_tail_band() {
         .unwrap()
         .run(&ExecutionContext::for_tests(210))
         .unwrap();
-    let wire = antecedent_io::analysis_wire::effect_estimate_to_wire(&result.estimate);
+    let wire =
+        antecedent_io::analysis_wire::effect_estimate_to_wire(result.estimate.as_effect().unwrap());
     let bytes = antecedent_io::convert::to_cbor(&wire).unwrap();
     let decoded = antecedent_io::convert::from_cbor(&bytes).unwrap();
     let restored = antecedent_io::analysis_wire::effect_estimate_from_wire(&decoded).unwrap();
     assert!(restored.score_inference.as_ref().unwrap().lower[2].is_nan());
-    let inf = result.estimate.score_inference.as_ref().expect("tail support on the object");
+    let inf = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .score_inference
+        .as_ref()
+        .expect("tail support on the object");
     assert_eq!(inf.threshold_supported.len(), 4);
     assert!(!inf.threshold_supported[2] && !inf.threshold_supported[3]);
     assert!(inf.lower[2].is_nan() && inf.upper[2].is_nan());
@@ -2310,14 +2478,16 @@ fn pag_multi_atom_response_mixes_aligned_ifs() {
         .unwrap()
         .run(&ExecutionContext::for_tests(212))
         .unwrap();
-    assert!(mixed.estimate.ate.is_finite());
+    assert!(mixed.estimate.as_effect().unwrap().ate.is_finite());
     assert!(
-        mixed.estimate.se_analytic.is_finite() && mixed.estimate.se_analytic > 0.0,
+        mixed.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && mixed.estimate.as_effect().unwrap().se_analytic > 0.0,
         "all-identified multi-atom mix must publish mixed IF uncertainty, se={}",
-        mixed.estimate.se_analytic
+        mixed.estimate.as_effect().unwrap().se_analytic
     );
     assert!(
-        mixed.estimate.joint_covariance.is_some() || mixed.estimate.influence.is_some(),
+        mixed.estimate.as_effect().unwrap().joint_covariance.is_some()
+            || mixed.estimate.as_effect().unwrap().influence.is_some(),
         "mixed IF / covariance must be attached"
     );
     assert!(
@@ -2391,7 +2561,10 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
     // invisible there and the response is refused exactly where the ATE is. The
     // class answer is graph-dependent: one level per identified completion, no
     // scalar, and the identified atom's SE is never republished for the class.
-    assert!(!mixed.estimate.ate.is_finite(), "a graph-dependent answer publishes no scalar level");
+    assert!(
+        !mixed.estimate.as_effect().unwrap().ate.is_finite(),
+        "a graph-dependent answer publishes no scalar level"
+    );
     let response = mixed.response.as_ref().expect("class response payload");
     let atoms = match &response.estimate {
         ResponseIdentification::GraphDependent(atoms) => atoms.clone(),
@@ -2415,13 +2588,13 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         "the completion that could not be identified must keep its own mass"
     );
     assert!(
-        !mixed.estimate.se_analytic.is_finite(),
+        !mixed.estimate.as_effect().unwrap().se_analytic.is_finite(),
         "unidentified completions must not publish an identified-atom SE as the envelope; mixed se={} primary se={}",
-        mixed.estimate.se_analytic,
-        primary.estimate.se_analytic
+        mixed.estimate.as_effect().unwrap().se_analytic,
+        primary.estimate.as_effect().unwrap().se_analytic
     );
     assert!(
-        primary.estimate.se_analytic.is_finite(),
+        primary.estimate.as_effect().unwrap().se_analytic.is_finite(),
         "the identified MAG still has its own SE; the envelope must not reuse it"
     );
     for code in
@@ -2512,8 +2685,16 @@ fn quantile_treatment_effect_inverts_aipw_cdf() {
     let result = study.run(&ctx).unwrap();
     let plan = study.prepare(&ctx).unwrap();
     let click = plan.retarget(&vec![1.0; plan.score_table().unwrap().n_rows], &[], &ctx).unwrap();
-    assert!((result.estimate.ate - click.estimate.ate).abs() < 1e-12);
-    assert!((result.estimate.se_analytic - click.estimate.se_analytic).abs() < 1e-12);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (result.estimate.as_effect().unwrap().se_analytic
+            - click.estimate.as_effect().unwrap().se_analytic)
+            .abs()
+            < 1e-12
+    );
     let weights: Vec<_> = data
         .float64_values(VariableId::from_raw(2))
         .unwrap()
@@ -2528,18 +2709,34 @@ fn quantile_treatment_effect_inverts_aipw_cdf() {
             &ctx,
         )
         .unwrap();
-    assert!((weighted.estimate.ate - 2.0).abs() < 0.25);
-    assert!((weighted.estimate.ate - doubled.estimate.ate).abs() < 1e-12);
-    assert!((weighted.estimate.se_analytic - doubled.estimate.se_analytic).abs() < 1e-12);
+    assert!((weighted.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.25);
+    assert!(
+        (weighted.estimate.as_effect().unwrap().ate - doubled.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
+    assert!(
+        (weighted.estimate.as_effect().unwrap().se_analytic
+            - doubled.estimate.as_effect().unwrap().se_analytic)
+            .abs()
+            < 1e-12
+    );
     let fresh_click = plan.estimate(&data, &ctx).unwrap();
-    assert!((fresh_click.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    assert!(
+        (fresh_click.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
 
     assert!(
-        (result.estimate.ate - 2.0).abs() < 0.25,
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.25,
         "median QTE should recover the location shift, ate={}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
-    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && result.estimate.as_effect().unwrap().se_analytic > 0.0
+    );
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.quantile"),
         "quantile inversion must be disclosed on the result"
@@ -2677,9 +2874,9 @@ fn pag_response_beyond_adjustment_uses_visibility_aware_general_id() {
             .run(&ExecutionContext::for_tests(216))
             .unwrap();
         assert!(
-            (result.estimate.ate - expected).abs() < 1e-9,
+            (result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-9,
             "general ID on the MAG must recover the intervention mean, ate={} expected={expected}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         assert!(
             result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
@@ -2725,9 +2922,9 @@ fn pag_general_id_response_empty_required_cell_is_not_supported() {
                 "empty required cell must not publish a point"
             );
             assert!(
-                !click.estimate.ate.is_finite(),
+                !click.estimate.as_effect().unwrap().ate.is_finite(),
                 "empty required cell must not return a plausible number, ate={}",
-                click.estimate.ate
+                click.estimate.as_effect().unwrap().ate
             );
         }
         Err(err) => {
@@ -2801,14 +2998,14 @@ fn pag_adjustment_response_is_single_arm_mean() {
             .run(&ExecutionContext::for_tests(41))
             .unwrap();
         assert!(
-            (result.estimate.ate - expected).abs() < 0.08,
+            (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.08,
             "Set({level}) must recover the intervention mean, ate={} expected={expected}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         assert!(
-            (result.estimate.ate - 0.6).abs() > 0.15,
+            (result.estimate.as_effect().unwrap().ate - 0.6).abs() > 0.15,
             "Set({level}) must not be the ATE contrast, ate={}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
     }
 }
@@ -2902,9 +3099,18 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         .run(&ctx)
         .unwrap();
     assert_eq!(result.support_status.unwrap().as_str(), "licensed");
-    assert!(result.estimate.ate.is_finite(), "licensed cell must be finite");
-    assert!(result.estimate.se_analytic.is_finite(), "cell-AIPW SE requires IFs");
-    let table = result.estimate.score_table.as_ref().expect("cell.aipw must freeze scores");
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite(), "licensed cell must be finite");
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic.is_finite(),
+        "cell-AIPW SE requires IFs"
+    );
+    let table = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .score_table
+        .as_ref()
+        .expect("cell.aipw must freeze scores");
     let ix = antecedent_estimate::interaction_contrast(table).unwrap();
     assert!(ix.value.is_finite() && ix.se.is_finite(), "interaction={} se={}", ix.value, ix.se);
 
@@ -2922,9 +3128,9 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     let summary = direct.summarize(None).unwrap();
     let arm11 = direct.columns.iter().position(|c| c.arm == 3).expect("cell 11");
     assert!(
-        (result.estimate.ate - summary.means[arm11]).abs() < PIN_ABS,
+        (result.estimate.as_effect().unwrap().ate - summary.means[arm11]).abs() < PIN_ABS,
         "tiered cell.aipw {} must match closure-ADMG cell-AIPW {}",
-        result.estimate.ate,
+        result.estimate.as_effect().unwrap().ate,
         summary.means[arm11]
     );
     let empty = antecedent_estimate::CellSaturatedAipw::new()
@@ -2951,8 +3157,12 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         "prepare_cells must keep ResponseQuery, not a fake ATE"
     );
     let batch = &prepared.estimate(&data, &ctx).unwrap()[0];
-    assert!(batch.estimate.ate.is_finite(), "prepare_cells estimate must be a real cell");
-    let batch_table = batch.estimate.score_table.as_ref().expect("batch cell.aipw scores");
+    assert!(
+        batch.estimate.as_effect().unwrap().ate.is_finite(),
+        "prepare_cells estimate must be a real cell"
+    );
+    let batch_table =
+        batch.estimate.as_effect().unwrap().score_table.as_ref().expect("batch cell.aipw scores");
     let batch_ix = antecedent_estimate::interaction_contrast(batch_table).unwrap();
     assert!(batch_ix.value.is_finite());
 }
@@ -2997,13 +3207,21 @@ fn codetermined_prepare_cells_pair_family_shares_joint_if() {
     // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
     // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
     assert!(
-        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+        (results[0].estimate.as_effect().unwrap().ate - solo.estimate.as_effect().unwrap().ate)
+            .abs()
+            < fold_split_tol(&results[0], &solo)
     );
     assert!(
-        results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 2)),
+        results.iter().all(|r| r
+            .estimate
+            .as_effect()
+            .unwrap()
+            .joint_covariance
+            .as_ref()
+            .is_some_and(|c| c.dim == 2)),
         "CoDetermined pair family must publish family joint IF, not isolated per-pair plans"
     );
-    assert!(results.iter().all(|r| r.estimate.adjusted_p_values.is_some()));
+    assert!(results.iter().all(|r| r.estimate.as_effect().unwrap().adjusted_p_values.is_some()));
     assert!(
         results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
     );
@@ -3082,7 +3300,13 @@ fn codetermined_distinct_pairs_share_folds_not_covariates() {
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 3);
     assert!(
-        results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 3)),
+        results.iter().all(|r| r
+            .estimate
+            .as_effect()
+            .unwrap()
+            .joint_covariance
+            .as_ref()
+            .is_some_and(|c| c.dim == 3)),
         "three-pair family joint IF must be 3×3"
     );
     let solo = Study::tabular(data)
@@ -3099,7 +3323,9 @@ fn codetermined_distinct_pairs_share_folds_not_covariates() {
     // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
     // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
     assert!(
-        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+        (results[0].estimate.as_effect().unwrap().ate - solo.estimate.as_effect().unwrap().ate)
+            .abs()
+            < fold_split_tol(&results[0], &solo)
     );
     for result in &results {
         assert_level_would_look_significant(result);
@@ -3226,7 +3452,10 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
         .unwrap()
         .run(&ExecutionContext::for_tests(20))
         .unwrap();
-    assert!(click.estimate.ate.is_finite(), "20-cofacet cell.aipw must be finite");
+    assert!(
+        click.estimate.as_effect().unwrap().ate.is_finite(),
+        "20-cofacet cell.aipw must be finite"
+    );
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
 }
 
@@ -3386,7 +3615,17 @@ fn conditional_cdf_is_invariant_to_outcome_translation() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(319))
                 .unwrap();
-            values.push(result.estimate.score_inference.as_ref().unwrap().raw_means.clone());
+            values.push(
+                result
+                    .estimate
+                    .as_effect()
+                    .unwrap()
+                    .score_inference
+                    .as_ref()
+                    .unwrap()
+                    .raw_means
+                    .clone(),
+            );
         }
         assert!(values[0].iter().zip(&values[1]).all(|(a, b)| (a - b).abs() < 1e-12));
         assert!(values[0].iter().any(|v| *v > 0.1 && *v < 0.9));
@@ -3407,14 +3646,25 @@ fn prepared_batch_rebinds_covariates_on_new_data() {
     let fresh = ate_study(new_data.clone(), dag, query, EstimatorId::Aipw).run(&ctx).unwrap();
     let results = batch.estimate(&new_data, &ctx).unwrap();
     for result in results {
-        assert!((result.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-        assert_eq!(result.estimate.score_table.as_ref().unwrap().n_rows, 750);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-12
+        );
+        assert_eq!(result.estimate.as_effect().unwrap().score_table.as_ref().unwrap().n_rows, 750);
     }
     let mut plan = batch.plans()[0].clone();
     let click = plan.estimate(&new_data, &ctx).unwrap();
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
     let refreshed = plan.refresh(new_data, &ctx).unwrap();
-    assert!((refreshed.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
 }
 
 #[test]
@@ -3490,9 +3740,16 @@ fn pag_two_atom_response_coverage_preserves_shared_row_dependence() {
         );
         // Both completions identify the same observational functional using Z.
         // Their perfectly correlated scores must not be combined as independent.
-        assert!((mixed.estimate.se_analytic - single.estimate.se_analytic).abs() < 1e-10);
-        covered +=
-            usize::from((mixed.estimate.ate - 1.6).abs() <= 1.96 * mixed.estimate.se_analytic);
+        assert!(
+            (mixed.estimate.as_effect().unwrap().se_analytic
+                - single.estimate.as_effect().unwrap().se_analytic)
+                .abs()
+                < 1e-10
+        );
+        covered += usize::from(
+            (mixed.estimate.as_effect().unwrap().ate - 1.6).abs()
+                <= 1.96 * mixed.estimate.as_effect().unwrap().se_analytic,
+        );
     }
     assert!(covered >= 33, "two-atom response coverage {covered}/40");
 }
@@ -3515,8 +3772,8 @@ fn scalar_conditional_empty_tail_has_no_zero_width_inference() {
         .unwrap()
         .run(&ExecutionContext::for_tests(332))
         .unwrap();
-    assert!(result.estimate.se_analytic.is_nan());
-    assert!(result.estimate.influence.is_none());
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().influence.is_none());
 }
 
 #[test]
@@ -3555,8 +3812,8 @@ fn conditional_quantile_matches_cdf_and_prepared_paths() {
         .build()
         .unwrap();
     let expected = study.run(&ctx).unwrap();
-    assert!((expected.estimate.ate - 2.0).abs() < 0.2);
-    assert!(expected.estimate.se_analytic > 0.0);
+    assert!((expected.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
+    assert!(expected.estimate.as_effect().unwrap().se_analytic > 0.0);
     let mut prepared = study.prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
@@ -3570,8 +3827,17 @@ fn conditional_quantile_matches_cdf_and_prepared_paths() {
         .run(&ctx)
         .unwrap();
     for result in [&click, &refreshed, &class] {
-        assert!((result.estimate.ate - expected.estimate.ate).abs() < 1e-10);
-        assert!((result.estimate.se_analytic - expected.estimate.se_analytic).abs() < 1e-10);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - expected.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-10
+        );
+        assert!(
+            (result.estimate.as_effect().unwrap().se_analytic
+                - expected.estimate.as_effect().unwrap().se_analytic)
+                .abs()
+                < 1e-10
+        );
     }
 }
 
@@ -3617,18 +3883,28 @@ fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
             .unwrap();
         let expected = study.run(&ctx).unwrap();
         assert!(
-            (expected.estimate.ate - truth).abs() < 0.25,
+            (expected.estimate.as_effect().unwrap().ate - truth).abs() < 0.25,
             "{} vs {truth}",
-            expected.estimate.ate
+            expected.estimate.as_effect().unwrap().ate
         );
-        assert!(expected.estimate.se_analytic > 0.0);
+        assert!(expected.estimate.as_effect().unwrap().se_analytic > 0.0);
         let mut plan = study.prepare(&ctx).unwrap();
         let click = plan.estimate(&data, &ctx).unwrap();
         let weighted = plan.retarget(&vec![1.0; n], &[], &ctx).unwrap();
         let refresh = plan.refresh(data.clone(), &ctx).unwrap();
         for result in [&click, &weighted, &refresh] {
-            assert!((result.estimate.ate - expected.estimate.ate).abs() < 1e-10);
-            assert!((result.estimate.se_analytic - expected.estimate.se_analytic).abs() < 1e-10);
+            assert!(
+                (result.estimate.as_effect().unwrap().ate
+                    - expected.estimate.as_effect().unwrap().ate)
+                    .abs()
+                    < 1e-10
+            );
+            assert!(
+                (result.estimate.as_effect().unwrap().se_analytic
+                    - expected.estimate.as_effect().unwrap().se_analytic)
+                    .abs()
+                    < 1e-10
+            );
             let response = result.response.as_ref().unwrap();
             let antecedent_core::ResponseIdentification::PointIdentified(
                 antecedent_core::ResponseValue::Scalar(value),
@@ -3636,7 +3912,7 @@ fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
             else {
                 panic!("expected scalar quantile response")
             };
-            assert!((value - expected.estimate.ate).abs() < 1e-10);
+            assert!((value - expected.estimate.as_effect().unwrap().ate).abs() < 1e-10);
         }
     }
 }
@@ -3676,9 +3952,9 @@ fn conditional_quantile_is_not_a_mean_effect() {
         .run(&ExecutionContext::for_tests(619))
         .unwrap();
     assert!(
-        result.estimate.ate.abs() < 0.15,
+        result.estimate.as_effect().unwrap().ate.abs() < 0.15,
         "median effect {} must not be the mean effect",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 }
 
@@ -3720,11 +3996,17 @@ fn pag_two_atom_conditional_quantile_retains_joint_influence() {
         .build()
         .unwrap();
     let result = study.run(&ctx).unwrap();
-    assert!((result.estimate.ate - 1.6).abs() < 0.2);
-    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
+    assert!((result.estimate.as_effect().unwrap().ate - 1.6).abs() < 0.2);
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && result.estimate.as_effect().unwrap().se_analytic > 0.0
+    );
     assert!(result.diagnostics.iter().any(|d| d.message.contains("cases=2")));
     let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
-    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-10);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate).abs()
+            < 1e-10
+    );
 }
 
 #[test]

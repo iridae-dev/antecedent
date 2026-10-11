@@ -139,8 +139,14 @@ pub fn run() -> Result<(), CausalError> {
     // Prepared / graph= paths never re-enter discovery.
     assert_eq!(discovery_calls, 1);
 
-    assert!(first.estimate.ate.is_finite() && (first.estimate.ate - 2.0).abs() < 0.75);
-    assert!(second.estimate.ate.is_finite() && third.estimate.ate.is_finite());
+    assert!(
+        first.estimate.as_effect().unwrap().ate.is_finite()
+            && (first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.75
+    );
+    assert!(
+        second.estimate.as_effect().unwrap().ate.is_finite()
+            && third.estimate.as_effect().unwrap().ate.is_finite()
+    );
 
     // Durable hold for the next session.
     let names = ["t".to_string(), "y".to_string(), "z".to_string()];
@@ -150,7 +156,7 @@ pub fn run() -> Result<(), CausalError> {
 
     println!(
         "ATE={:.4} discovery_calls={discovery_calls} latency={:?}",
-        first.estimate.ate,
+        first.estimate.as_effect().unwrap().ate,
         first.performance.latency_mode.as_deref(),
     );
     Ok(())

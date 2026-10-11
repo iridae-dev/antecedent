@@ -981,13 +981,13 @@ mod checked_interference_tests {
             InferenceMode::Frequentist,
         );
         let result = operation.execute(&data, &context()).unwrap();
-        assert!((result.estimate.ate - 3.0).abs() < 1e-12);
-        assert!((result.estimate.se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
+        assert!((result.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
+        assert!((result.estimate.as_effect().unwrap().se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
         let interference = result.interference.as_ref().unwrap();
         assert_eq!(interference.minimum_exposure_probability, 0.5);
         let wire = antecedent_io::interference_estimate_to_wire(interference);
         assert_eq!(antecedent_io::interference_estimate_from_wire(&wire), *interference);
-        assert!(result.estimate.assumptions.entries.iter().any(|entry| matches!(
+        assert!(result.estimate.as_effect().unwrap().assumptions.entries.iter().any(|entry| matches!(
             &entry.assumption,
             antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.partial_interference"
         )));
@@ -1048,8 +1048,8 @@ mod checked_interference_tests {
         let result = operation.execute(&data, &context()).expect("sealed execution");
         let expected = truth["expected"]["horvitz_thompson_contrast"].as_f64().unwrap();
         let se = truth["expected"]["conservative_variance"].as_f64().unwrap().sqrt();
-        assert!((result.estimate.ate - expected).abs() < 1e-12);
-        assert!((result.estimate.se_analytic - se).abs() < 1e-12);
+        assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-12);
+        assert!((result.estimate.as_effect().unwrap().se_analytic - se).abs() < 1e-12);
         assert!(result.interference.is_some());
         assert!(result.posterior.is_none());
     }

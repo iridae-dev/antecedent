@@ -30,7 +30,7 @@ fn execute_static_refute_reuses_estimate_workspace() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(!result.refutations.is_empty());
     // Placebo and RCC are OLS-powerless sampling-stability diagnostics, not
     // claim falsifiers, and report informative: false under linear adjustment
@@ -58,7 +58,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
         &data,
         &estimand,
         &query,
-        &estimate,
+        estimate.as_effect().unwrap(),
         Some("linear.adjustment"),
         None,
     );
@@ -69,7 +69,12 @@ fn shared_workspace_placebo_parity_and_capacity() {
     est.overlap = OverlapPolicy::ExplicitOverride;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let _ = est
-        .fit(&prep, &mut warmed, &ExecutionContext::for_tests(2), estimate.assumptions.clone())
+        .fit(
+            &prep,
+            &mut warmed,
+            &ExecutionContext::for_tests(2),
+            estimate.as_effect().unwrap().assumptions.clone(),
+        )
         .unwrap();
     let warmed_cap = warmed.ols.scratch.capacity() + warmed.ols.rhs.capacity();
     let warmed_grows = warmed.ols.grow_count;
@@ -119,7 +124,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &data,
         &estimand,
         &query,
-        estimate.assumptions.clone(),
+        estimate.as_effect().unwrap().assumptions.clone(),
         10,
         Some(OverlapPolicy::require_diagnostics()),
         None,
@@ -131,13 +136,13 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let score_cap = ws.propensity.propensity.scores.capacity();
     let ols_grows = ws.propensity.propensity.ols.grow_count;
     assert!(score_grows >= 1 && score_cap > 0, "point propensity fit must warm buffers");
-    assert!(estimate.ate.is_finite());
+    assert!(estimate.as_effect().unwrap().ate.is_finite());
 
     let problem = RefutationProblem::new(
         &data,
         &estimand,
         &query,
-        &estimate,
+        estimate.as_effect().unwrap(),
         Some("propensity.weighting"),
         None,
     );
@@ -157,7 +162,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &data,
         &estimand,
         &query,
-        estimate.assumptions.clone(),
+        estimate.as_effect().unwrap().assumptions.clone(),
         0,
         None,
         None,

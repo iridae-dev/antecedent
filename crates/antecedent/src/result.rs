@@ -53,25 +53,6 @@ impl PrimaryEstimate {
     }
 }
 
-impl std::ops::Deref for PrimaryEstimate {
-    type Target = EffectEstimate;
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Effect(effect) => effect,
-            Self::NotAnEffect => panic!("primary result is not an effect estimate"),
-        }
-    }
-}
-
-impl std::ops::DerefMut for PrimaryEstimate {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            Self::Effect(effect) => effect,
-            Self::NotAnEffect => panic!("primary result is not an effect estimate"),
-        }
-    }
-}
-
 /// Design metadata retained with a randomized ITT estimate.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RandomizedEffectEstimate {
@@ -1287,8 +1268,10 @@ impl StudyResult {
             Method::ImbensManskiSharedBlock => {
                 binding.dependence =
                     circular_block_dependence(antecedent_estimate::CircularBlockFamily::Mixture);
-                binding.replicates_ok = self.estimate.bootstrap_replicates_ok;
-                binding.replicates_failed = self.estimate.bootstrap_replicates_failed;
+                binding.replicates_ok =
+                    self.estimate.as_effect().and_then(|effect| effect.bootstrap_replicates_ok);
+                binding.replicates_failed =
+                    self.estimate.as_effect().and_then(|effect| effect.bootstrap_replicates_failed);
             }
             Method::ProductPosteriorEnvelopeQuantile => {
                 binding.posterior_draws = structural
@@ -1525,5 +1508,12 @@ mod published_scalar_uncertainty_tests {
         assert_eq!(published.standard_error, Some(0.2));
         assert_eq!(published.method, IntervalMethod::BootstrapSe);
         assert!(published.withheld_reason.is_none());
+    }
+
+    #[test]
+    fn not_an_effect_exposes_no_effect_payload() {
+        let mut estimate = super::PrimaryEstimate::NotAnEffect;
+        assert!(estimate.as_effect().is_none());
+        assert!(estimate.as_effect_mut().is_none());
     }
 }

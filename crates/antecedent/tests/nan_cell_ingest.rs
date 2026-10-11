@@ -103,6 +103,8 @@ fn ate(data: TabularData) -> f64 {
         .run(&ExecutionContext::for_tests(50))
         .unwrap()
         .estimate
+        .as_effect()
+        .unwrap()
         .ate
 }
 
@@ -132,7 +134,7 @@ fn pulse(series: TimeSeriesData) -> Result<f64, String> {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
-        .map(|result| result.estimate.ate)
+        .map(|result| result.estimate.as_effect().unwrap().ate)
         .map_err(|e| format!("{e:?}"))
 }
 

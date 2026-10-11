@@ -50,8 +50,15 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     // Known SCM truth: Y(x,m)=1.7x+4m+epsilon, so the natural direct
     // effect is 1.7*(2-(-1))=5.1 with the mediator frozen at M(-1).
-    assert!((first.estimate.ate - 5.1).abs() < 0.001, "{}", first.estimate.ate);
-    assert_eq!(one_shot.estimate.ate.to_bits(), first.estimate.ate.to_bits());
+    assert!(
+        (first.estimate.as_effect().unwrap().ate - 5.1).abs() < 0.001,
+        "{}",
+        first.estimate.as_effect().unwrap().ate
+    );
+    assert_eq!(
+        one_shot.estimate.as_effect().unwrap().ate.to_bits(),
+        first.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(
         one_shot.executed_contract.as_ref().unwrap().identities.program,
         prepared.contract().unwrap().identities.program
@@ -65,7 +72,11 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     ])
     .unwrap();
     let refreshed = prepared.refresh(shifted, &ctx).unwrap();
-    assert!((refreshed.estimate.ate - first.estimate.ate).abs() < 1e-8);
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - first.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-8
+    );
     let artifact = prepared.encode_contracted_result(&refreshed, "nested-checked", &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     assert!(
@@ -84,7 +95,7 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     assert!(contract.data_snapshot.as_ref().unwrap().nested_counterfactual_fit.is_some());
 
     let mut changed_body = consumed.body.clone();
-    changed_body.estimate = Some(refreshed.estimate.ate + 1.0);
+    changed_body.estimate = Some(refreshed.estimate.as_effect().unwrap().ate + 1.0);
     let unresolved = verify_contract_against_body(&consumed.header, &changed_body, contract);
     assert!(
         unresolved.iter().any(|reason| reason.as_ref() == "body.nested_counterfactual_estimate"),
@@ -212,13 +223,13 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     );
     let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
     assert!(
-        (result.estimate.ate - expected).abs() < 0.05,
+        (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.05,
         "posterior mean {} vs linear-Gaussian pin {expected}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
     assert!(result.interval.is_none());
     assert!(result.posterior.is_none());
-    assert!(result.estimate.se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     assert!(
         result
             .diagnostics

@@ -817,9 +817,9 @@ mod tests {
                     assert_eq!(horizons, vec![1]);
                     let result = operation.execute(&data, &ctx).unwrap();
                     assert!(
-                        (result.estimate.ate - MEDIATED_TRUTH).abs() < 0.12,
+                        (result.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < 0.12,
                         "accepted={accepted} bayesian={bayesian} validation={validation:?}: {}",
-                        result.estimate.ate
+                        result.estimate.as_effect().unwrap().ate
                     );
                     let grid = result
                         .mediation_grid
@@ -915,7 +915,7 @@ mod tests {
             64,
         );
         assert_eq!(
-            result.estimate.block_family,
+            result.estimate.as_effect().unwrap().block_family,
             Some(antecedent_estimate::CircularBlockFamily::Mediation)
         );
         let interval = result.primary_interval_binding(false);

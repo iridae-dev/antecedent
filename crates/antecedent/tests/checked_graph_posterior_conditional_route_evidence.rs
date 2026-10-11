@@ -335,13 +335,13 @@ fn graph_posterior_conditional_effect_body() {
                 }
                 if fixture.scalar_mixable {
                     assert!(
-                        (result.estimate.ate - 2.0).abs() < tolerance,
+                        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < tolerance,
                         "{coordinate}: {}",
-                        result.estimate.ate
+                        result.estimate.as_effect().unwrap().ate
                     );
                 } else {
                     assert!(
-                        result.estimate.ate.is_nan(),
+                        result.estimate.as_effect().unwrap().ate.is_nan(),
                         "{coordinate}: distinct adjustment certificates withhold the scalar"
                     );
                 }
@@ -353,9 +353,17 @@ fn graph_posterior_conditional_effect_body() {
 
                 // The one-shot facade executes the same retained operation.
                 assert_eq!(one_shot.logical_plan.estimator.as_deref(), Some(estimator));
-                assert_eq!(one_shot.estimate.ate.is_nan(), result.estimate.ate.is_nan());
-                if !one_shot.estimate.ate.is_nan() {
-                    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < tolerance);
+                assert_eq!(
+                    one_shot.estimate.as_effect().unwrap().ate.is_nan(),
+                    result.estimate.as_effect().unwrap().ate.is_nan()
+                );
+                if !one_shot.estimate.as_effect().unwrap().ate.is_nan() {
+                    assert!(
+                        (one_shot.estimate.as_effect().unwrap().ate
+                            - result.estimate.as_effect().unwrap().ate)
+                            .abs()
+                            < tolerance
+                    );
                 }
                 assert_eq!(atom_values(&one_shot).len(), values.len(), "{coordinate}");
                 assert!(
@@ -375,7 +383,10 @@ fn graph_posterior_conditional_effect_body() {
                 for value in &refreshed_values {
                     assert!((value - 2.0).abs() < tolerance, "{coordinate}: refreshed {value}");
                 }
-                assert_eq!(refreshed.estimate.ate.is_nan(), result.estimate.ate.is_nan());
+                assert_eq!(
+                    refreshed.estimate.as_effect().unwrap().ate.is_nan(),
+                    result.estimate.as_effect().unwrap().ate.is_nan()
+                );
 
                 // A different semantic schema is refused by refresh.
                 assert!(

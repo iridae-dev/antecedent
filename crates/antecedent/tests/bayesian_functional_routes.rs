@@ -126,9 +126,11 @@ fn functional_bayesian_path_distribution_and_admg() {
                 "functional.dirichlet"
             );
             assert!(
-                (result.estimate.ate - pin["path_effect"].as_f64().unwrap()).abs() < 0.08,
+                (result.estimate.as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
+                    .abs()
+                    < 0.08,
                 "path suite={suite:?} ate={}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
             let reports = match suite {
@@ -190,7 +192,10 @@ fn functional_bayesian_path_distribution_and_admg() {
     assert_eq!(rider.logical_plan.estimator.as_deref(), Some("functional.effect"));
     assert_ne!(rider.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
     assert!(rider.posterior.is_some());
-    assert!((rider.estimate.ate - freq.estimate.ate).abs() < 0.08);
+    assert!(
+        (rider.estimate.as_effect().unwrap().ate - freq.estimate.as_effect().unwrap().ate).abs()
+            < 0.08
+    );
 }
 
 /// Bayesian front-door ADMG ATE on every licensed coordinate: explicit and
@@ -240,9 +245,9 @@ fn admg_frontdoor_bayesian_all_structures_and_validation() {
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
                 let posterior = result.posterior.as_ref().expect("Bayesian ADMG posterior");
                 assert!(
-                    (result.estimate.ate - truth).abs() < 0.02,
+                    (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.02,
                     "{label}: posterior mean {} vs front-door truth {truth}",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
                 let col = posterior.effect_column().expect("effect draws");
                 let mut draws = posterior.draws.column(col).unwrap().to_vec();
@@ -256,7 +261,11 @@ fn admg_frontdoor_bayesian_all_structures_and_validation() {
                     _ => assert!(!result.refutations.is_empty(), "{label}: refuters must run"),
                 }
             }
-            assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+            assert!(
+                (fresh.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+                    .abs()
+                    < 1e-12
+            );
         }
     }
 }
@@ -425,9 +434,9 @@ fn mediation_and_counterfactual_bayesian_pins() {
             .unwrap();
         assert!(result.posterior.is_some());
         assert!(
-            (result.estimate.ate - pin[key].as_f64().unwrap()).abs() < 0.15,
+            (result.estimate.as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < 0.15,
             "{key} {}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     }
@@ -783,9 +792,9 @@ fn conditional_graph_posterior_retains_unidentified_mass() {
     // keep unidentified mass, publish the identified set. Both identified CATE
     // atoms recover the structural slope 2 on Y = 2T + 2Z.
     assert!(
-        bayes.estimate.ate.is_nan(),
+        bayes.estimate.as_effect().unwrap().ate.is_nan(),
         "disagreeing CATE atoms must withhold estimate.ate, got {}",
-        bayes.estimate.ate
+        bayes.estimate.as_effect().unwrap().ate
     );
     assert!(
         bayes.diagnostics.iter().any(|d| {
@@ -927,7 +936,7 @@ fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
         !assumptions.contains("[y, m]") && !assumptions.contains("[m, y]"),
         "mediator mechanism must keep isotropic prior_scale: {assumptions}"
     );
-    let source_ate = source.estimate.ate;
+    let source_ate = source.estimate.as_effect().unwrap().ate;
     assert!(
         assumptions.contains("implied NDE/ATE mean"),
         "Δ-scaled slope prior must record implied NDE = source ATE ({source_ate}); assumptions={assumptions}"
@@ -1100,7 +1109,7 @@ fn static_effect_and_response_prior_transfer() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((joint.estimate.ate - 3.0).abs() < 0.1);
+    assert!((joint.estimate.as_effect().unwrap().ate - 3.0).abs() < 0.1);
     let catalog =
         antecedent_io::PriorCatalog::from_sources(vec![antecedent_io::PriorSourceRef::with_bytes(
             antecedent_io::PriorSourceMeta::new(
@@ -1151,7 +1160,7 @@ fn static_effect_and_response_prior_transfer() {
         .unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (click.estimate.ate - pin["true_effect"].as_f64().unwrap()).abs()
+        (click.estimate.as_effect().unwrap().ate - pin["true_effect"].as_f64().unwrap()).abs()
             < pin["atol"].as_f64().unwrap()
     );
 
@@ -1204,7 +1213,8 @@ fn static_effect_and_response_prior_transfer() {
         .unwrap();
     assert!(cate_result.posterior.is_some());
     assert!(
-        (cate_result.estimate.ate - pin["true_effect"].as_f64().unwrap()).abs()
+        (cate_result.estimate.as_effect().unwrap().ate - pin["true_effect"].as_f64().unwrap())
+            .abs()
             < pin["atol"].as_f64().unwrap()
     );
 

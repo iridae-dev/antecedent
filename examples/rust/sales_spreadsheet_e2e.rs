@@ -176,9 +176,13 @@ pub fn run() -> Result<(), CausalError> {
         .bootstrap_replicates(0)
         .build()?
         .run(&ExecutionContext::for_tests(3))?;
-    assert!(bayes.estimate.ate.is_finite(), "ate={}", bayes.estimate.ate);
+    assert!(
+        bayes.estimate.as_effect().unwrap().ate.is_finite(),
+        "ate={}",
+        bayes.estimate.as_effect().unwrap().ate
+    );
     assert!(bayes.posterior.is_some());
-    println!("Bayesian ATE={:.4} (campaign → revenue)", bayes.estimate.ate);
+    println!("Bayesian ATE={:.4} (campaign → revenue)", bayes.estimate.as_effect().unwrap().ate);
 
     let fitted = fit_gcm(dag.clone(), &data)?;
     let path_q = PathSpecificEffectQuery::binary(VariableId::from_raw(1), VariableId::from_raw(3))
@@ -223,9 +227,20 @@ pub fn run() -> Result<(), CausalError> {
         .bootstrap_replicates(0)
         .build()?
         .run(&ExecutionContext::for_tests(13))?;
-    assert!(pulse.estimate.ate.is_finite(), "pulse={}", pulse.estimate.ate);
-    println!("Temporal pulse Bayesian ATE={:.4} (promo → returns)", pulse.estimate.ate);
-    assert!((pulse.estimate.ate - 0.85).abs() < 0.25, "pulse={}", pulse.estimate.ate);
+    assert!(
+        pulse.estimate.as_effect().unwrap().ate.is_finite(),
+        "pulse={}",
+        pulse.estimate.as_effect().unwrap().ate
+    );
+    println!(
+        "Temporal pulse Bayesian ATE={:.4} (promo → returns)",
+        pulse.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (pulse.estimate.as_effect().unwrap().ate - 0.85).abs() < 0.25,
+        "pulse={}",
+        pulse.estimate.as_effect().unwrap().ate
+    );
 
     println!("sales_spreadsheet_e2e: ok");
     Ok(())

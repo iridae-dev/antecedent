@@ -309,7 +309,7 @@ mod tests {
             .unwrap();
         let ctx = ExecutionContext::for_tests(3);
         let result = analysis.run(&ctx).unwrap();
-        assert!((result.estimate.ate - 2.0).abs() < 1e-6);
+        assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-6);
         assert!(result.distribution.is_none());
         assert_eq!(result.refutations.len(), 2);
         assert!(!result.provenance.is_empty());
@@ -565,7 +565,7 @@ mod tests {
         let (mean, tol) = (fx["mean"].as_f64().unwrap(), fx["tolerance"].as_f64().unwrap());
         let dist = result.distribution.as_ref().expect("distribution payload");
         assert!((dist.mean - mean).abs() < tol, "mean={}", dist.mean);
-        assert!(result.estimate.ate.is_finite());
+        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
         // Every atom probability carries a bounded interval inside [0, 1], and
         // the binary mean's interval is the `Y = 1` atom's.
         assert_eq!(dist.atom_uncertainty.len(), dist.atoms.len());
@@ -708,7 +708,11 @@ mod tests {
         ))
         .unwrap();
         let (ate, tol) = (ctxfx["ate"].as_f64().unwrap(), ctxfx["tolerance"].as_f64().unwrap());
-        assert!((result.estimate.ate - ate).abs() < tol, "ate={}", result.estimate.ate);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - ate).abs() < tol,
+            "ate={}",
+            result.estimate.as_effect().unwrap().ate
+        );
         assert_eq!(result.estimand.method.as_ref(), ctxfx["method"].as_str().unwrap());
         let idfx: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/identify/path_specific_natural/expected.json"
@@ -832,7 +836,11 @@ mod tests {
             .unwrap();
         let ctx = ExecutionContext::for_tests(11);
         let result = analysis.run(&ctx).unwrap();
-        assert!((result.estimate.ate - 2.0).abs() < 0.3, "ate={}", result.estimate.ate);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.3,
+            "ate={}",
+            result.estimate.as_effect().unwrap().ate
+        );
         // Placebo/RCC refuters are hardwired to LinearAdjustmentAte and are skipped for
         // every non-default estimator (see `Study::execute_static`).
         assert!(result.refutations.is_empty());
@@ -940,7 +948,11 @@ mod tests {
             .unwrap();
         let ctx = ExecutionContext::for_tests(21);
         let result = analysis.run(&ctx).unwrap();
-        assert!((result.estimate.ate - 2.0).abs() < 0.6, "ate={}", result.estimate.ate);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.6,
+            "ate={}",
+            result.estimate.as_effect().unwrap().ate
+        );
         assert!(result.refutations.is_empty());
     }
 
@@ -1016,7 +1028,11 @@ mod tests {
             .unwrap();
         let ctx = ExecutionContext::for_tests(7);
         let result = analysis.run(&ctx).unwrap();
-        assert!((result.estimate.ate - 0.75).abs() < 0.08, "ate={}", result.estimate.ate);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - 0.75).abs() < 0.08,
+            "ate={}",
+            result.estimate.as_effect().unwrap().ate
+        );
         assert_eq!(&*result.logical_plan.plan_id, "temporal_effect");
         assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
         assert!(result.physical_plan.estimated_copy_bytes.is_some());

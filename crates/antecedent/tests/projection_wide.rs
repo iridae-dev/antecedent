@@ -104,7 +104,11 @@ fn wide_table_projection_matches_full_column_ate() {
         .run(&ctx)
         .unwrap();
 
-    assert!((result.estimate.ate - 2.0).abs() < 0.35, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.35,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"),
         "expected projection diagnostic on wide table"

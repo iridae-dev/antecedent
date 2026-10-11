@@ -245,7 +245,10 @@ fn class_aware_conditional_pins_z_conditional_effect() {
                 );
                 for result in [&fresh, &click] {
                     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
-                    assert!((result.estimate.ate - freq_ate).abs() < freq_tol, "{class_name} freq");
+                    assert!(
+                        (result.estimate.as_effect().unwrap().ate - freq_ate).abs() < freq_tol,
+                        "{class_name} freq"
+                    );
                     assert_validation_presence(result, suite, false);
                 }
 
@@ -271,7 +274,7 @@ fn class_aware_conditional_pins_z_conditional_effect() {
                 );
                 for result in [&fresh, &click] {
                     assert!(
-                        (result.estimate.ate - bayes_ate).abs() < bayes_tol,
+                        (result.estimate.as_effect().unwrap().ate - bayes_ate).abs() < bayes_tol,
                         "{class_name} bayes"
                     );
                     assert_validation_presence(result, suite, true);

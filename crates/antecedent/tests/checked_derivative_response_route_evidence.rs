@@ -178,7 +178,11 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                     },
                 ) => {
                     assert!(standard_error.is_finite() && *standard_error >= 0.0, "{case}");
-                    assert_eq!(result.estimate.se_analytic, *standard_error, "{case}");
+                    assert_eq!(
+                        result.estimate.as_effect().unwrap().se_analytic,
+                        *standard_error,
+                        "{case}"
+                    );
                     // The elasticity and outcome-scale semi-elasticity now publish
                     // a delta-method interval on the joint local-coordinate
                     // covariance (previously withheld); the identity / treatment
@@ -208,7 +212,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                 // withholds the Frequentist interval; it needs a coefficient
                 // covariance the additive-GAM plug-in does not yet expose.
                 (count, ResponseUncertainty::None) if count > 1 => {
-                    assert!(result.estimate.se_analytic.is_nan(), "{case}");
+                    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan(), "{case}");
                 }
                 (count, other) => panic!(
                     "{case}: expected a confidence scalar or pointwise band for {count} coordinates, got {other:?}"

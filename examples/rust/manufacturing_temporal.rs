@@ -106,12 +106,16 @@ pub fn run() -> Result<(), CausalError> {
 
     println!(
         "ATE={:.4} plan={} peak_mem={:?} method={}",
-        result.estimate.ate,
+        result.estimate.as_effect().unwrap().ate,
         result.logical_plan.plan_id,
         result.physical_plan.estimated_peak_memory_bytes,
         result.estimand.method,
     );
-    assert!((result.estimate.ate - 0.9).abs() < 0.05, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 0.9).abs() < 0.05,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     Ok(())
 }
 

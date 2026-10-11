@@ -93,17 +93,17 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                 let result = prepared.estimate_series(&data, &ctx).unwrap();
                 let expected = if multi_step { 5.0 } else { 2.0 };
                 assert!(
-                    (result.estimate.ate - expected).abs() < 0.08,
+                    (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.08,
                     "multi_step={multi_step}, accepted={accepted}, suite={suite:?}: {}",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
-                assert!((one_shot.estimate.ate - expected).abs() < 0.08);
+                assert!((one_shot.estimate.as_effect().unwrap().ate - expected).abs() < 0.08);
                 assert!(
                     one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
                 );
 
                 let scaled = prepared.refresh_series(series(1.2), &ctx).unwrap();
-                assert!((scaled.estimate.ate - 1.2 * expected).abs() < 0.1);
+                assert!((scaled.estimate.as_effect().unwrap().ate - 1.2 * expected).abs() < 0.1);
                 assert_eq!(prepared.checked_temporal_dag_effect_info().unwrap().query, plan.query);
 
                 let artifact = prepared

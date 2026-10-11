@@ -15,8 +15,8 @@ use antecedent::{
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
-    InterventionalDistributionQuery, Lag, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseValue, Value, VariableId,
+    InterventionalDistributionQuery, Lag, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
@@ -149,12 +149,8 @@ fn frontdoor() -> (TabularData, Admg, f64) {
 fn temporal_admg_average_effect_explicit_and_accepted() {
     let (data, graph, expected) = frontdoor();
     let temporal = lift(&graph);
-    let query = AverageEffectQuery::with_levels(
-        VariableId::from_raw(0),
-        VariableId::from_raw(2),
-        0.0,
-        1.0,
-    );
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
     for accepted in [false, true] {
         for bayesian in [false, true] {
             for validation in ["none", "cheap", "full"] {
@@ -176,7 +172,8 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                     base.graph(temporal.clone())
                 };
                 let ctx = ExecutionContext::for_tests(11_011);
-                let study = builder.clone().build().unwrap_or_else(|error| panic!("{coordinate}: {error}"));
+                let study =
+                    builder.clone().build().unwrap_or_else(|error| panic!("{coordinate}: {error}"));
                 let mut prepared =
                     study.prepare(&ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
                 drop(builder);
@@ -186,7 +183,10 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                     .checked_functional_effect_program()
                     .unwrap_or_else(|| panic!("{coordinate} omitted the functional program"));
                 assert_eq!(program.mapping().source, program.mapping().executable);
-                assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("general.id"));
+                assert_eq!(
+                    prepared.plan().logical.record.identifier.as_deref(),
+                    Some("general.id")
+                );
                 let result = prepared
                     .estimate(&data, &ctx)
                     .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
@@ -201,9 +201,8 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                 }
                 let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
                 assert!((refreshed.effect() - result.effect()).abs() < 1e-9, "{coordinate}");
-                let artifact = prepared
-                    .encode_contracted_result(&refreshed, &coordinate, &ctx)
-                    .unwrap();
+                let artifact =
+                    prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
                 let consumed = consume_analysis_result(&artifact).unwrap();
                 assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate}");
             }
@@ -214,12 +213,8 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
 #[test]
 fn temporal_admg_average_effect_graph_posterior() {
     let (data, graph, expected) = frontdoor();
-    let query = AverageEffectQuery::with_levels(
-        VariableId::from_raw(0),
-        VariableId::from_raw(2),
-        0.0,
-        1.0,
-    );
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
     let graphs = posterior(&graph, true);
     for bayesian in [false, true] {
         for validation in ["none", "cheap", "full"] {
@@ -249,9 +244,9 @@ fn temporal_admg_average_effect_graph_posterior() {
                 .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
             let tolerance = if bayesian { 0.05 } else { 1e-9 };
             assert!(
-                (result.estimate.ate - expected).abs() < tolerance,
+                (result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance,
                 "{coordinate}: {} vs {expected}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             let mixture = result.structural_response.as_ref().expect("mixture");
             assert!((mixture.identified_mass - 0.8).abs() < 1e-12, "{coordinate}");
@@ -262,7 +257,12 @@ fn temporal_admg_average_effect_graph_posterior() {
                 assert!(!result.refutations.is_empty(), "{coordinate}");
             }
             let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-            assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 1e-9);
+            assert!(
+                (refreshed.estimate.as_effect().unwrap().ate
+                    - result.estimate.as_effect().unwrap().ate)
+                    .abs()
+                    < 1e-9
+            );
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
             let consumed = consume_analysis_result(&artifact).unwrap();
@@ -313,16 +313,27 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                         base.graph(temporal.clone())
                     };
                     let ctx = ExecutionContext::for_tests(11_013);
-                    let study = builder.clone().build().unwrap_or_else(|e| panic!("{coordinate}: {e}"));
-                    let mut prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+                    let study =
+                        builder.clone().build().unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+                    let mut prepared =
+                        study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                     drop(builder);
                     drop(study);
-                    assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                    assert_eq!(
+                        prepared.support_status(),
+                        Some(CellStatus::Licensed),
+                        "{coordinate}"
+                    );
                     let members = prepared
                         .checked_functional_effect_response_members()
                         .unwrap_or_else(|| panic!("{coordinate} omitted response members"));
-                    assert_eq!(members[0].program().mapping().source, members[0].program().mapping().executable);
-                    let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+                    assert_eq!(
+                        members[0].program().mapping().source,
+                        members[0].program().mapping().executable
+                    );
+                    let result = prepared
+                        .estimate(&data, &ctx)
+                        .unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                     let tolerance = if bayesian { 0.08 } else { 1e-9 };
                     assert!(
                         (response_value(&result) - truth).abs() < tolerance,
@@ -331,9 +342,10 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                     );
                     if validation != "none" {
                         assert!(
-                            result.refutations.iter().any(|report| {
-                                report.refuter.as_ref() == "overlap.assessment"
-                            }),
+                            result
+                                .refutations
+                                .iter()
+                                .any(|report| { report.refuter.as_ref() == "overlap.assessment" }),
                             "{coordinate}: {:?}",
                             result.refutations
                         );
@@ -374,12 +386,14 @@ fn temporal_admg_intervention_response_graph_posterior() {
                 .build()
                 .unwrap_or_else(|e| panic!("{coordinate}: {e}"));
             let ctx = ExecutionContext::for_tests(11_014);
-            let mut prepared = builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+            let mut prepared =
+                builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
             drop(builder);
             assert!(prepared.has_checked_admg_graph_posterior_response_operation());
             let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
             assert_eq!(plan.validation, suite_of(validation));
-            let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+            let result =
+                prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
             let mixture = result.structural_response.as_ref().expect("mixture");
             let unidentified = if validation == "none" { 0.2 } else { 0.0 };
             assert!((mixture.unidentified_mass - unidentified).abs() < 1e-12, "{coordinate}");
@@ -392,7 +406,8 @@ fn temporal_admg_intervention_response_graph_posterior() {
                 assert!(!result.refutations.is_empty(), "{coordinate}");
             }
             let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-            let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
+            let artifact =
+                prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
             let consumed = consume_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_admg_graph_posterior_response_operation"
@@ -444,14 +459,19 @@ fn temporal_admg_response_curve_explicit_and_accepted() {
             drop(study);
             assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
             assert!(prepared.checked_functional_effect_response_members().is_some());
-            assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("functional.effect"));
-            let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+            assert_eq!(
+                prepared.plan().logical.record.estimator.as_deref(),
+                Some("functional.effect")
+            );
+            let result =
+                prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
             let tolerance = if bayesian { 0.08 } else { 1e-9 };
             for (actual, truth) in curve_means(&result).iter().zip(expected) {
                 assert!((actual - truth).abs() < tolerance, "{coordinate}: {actual} vs {truth}");
             }
             let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-            let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
+            let artifact =
+                prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
             let consumed = consume_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.accepts_as_verified_program()
@@ -486,10 +506,7 @@ fn temporal_admg_response_curve_graph_posterior() {
         assert_eq!(plan.validation, RefuteSuite::None);
         let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         for (actual, truth) in curve_means(&result).iter().zip([0.314, 0.596]) {
-            assert!(
-                (actual - truth).abs() < if bayesian { 0.08 } else { 1e-9 },
-                "{coordinate}"
-            );
+            assert!((actual - truth).abs() < if bayesian { 0.08 } else { 1e-9 }, "{coordinate}");
         }
         let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
@@ -537,13 +554,16 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                 };
                 let ctx = ExecutionContext::for_tests(11_017);
                 let study = builder.clone().build().unwrap_or_else(|e| panic!("{coordinate}: {e}"));
-                let mut prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+                let mut prepared =
+                    study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                 drop(builder);
                 drop(study);
                 assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
-                let program = prepared.checked_distribution_program().expect("distribution program");
+                let program =
+                    prepared.checked_distribution_program().expect("distribution program");
                 assert_eq!(program.mapping().source, program.mapping().executable);
-                let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+                let result =
+                    prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                 let mean = result.distribution.as_ref().expect("distribution").mean;
                 assert!(
                     (mean - p_truth).abs() < if bayesian { 0.08 } else { 1e-9 },
@@ -587,7 +607,12 @@ fn temporal_admg_transport_explicit() {
             GridSpec::Values(Arc::from([0.0, 1.0])),
         ),
     });
-    let query = antecedent_core::TransportQuery::new(response, "trial", "target", [VariableId::from_raw(0)]);
+    let query = antecedent_core::TransportQuery::new(
+        response,
+        "trial",
+        "target",
+        [VariableId::from_raw(0)],
+    );
     for bayesian in [false, true] {
         let coordinate = format!(
             "TransportQuery:TemporalAdmg:explicit:{}:none",
@@ -618,19 +643,26 @@ fn temporal_admg_transport_explicit() {
         if bayesian {
             let posterior = result.posterior.as_ref().expect("transport posterior");
             assert!(
-                (posterior.summaries.mean[0] - bayesian_pin["expected_mean"].as_f64().unwrap()).abs()
+                (posterior.summaries.mean[0] - bayesian_pin["expected_mean"].as_f64().unwrap())
+                    .abs()
                     < bayesian_pin["mean_tolerance"].as_f64().unwrap(),
                 "{coordinate}"
             );
         } else {
             let transported = result.transport.as_ref().expect("transport");
-            assert!((transported.ipw - ipw).abs() <= ipw_tolerance, "{coordinate}: {}", transported.ipw);
+            assert!(
+                (transported.ipw - ipw).abs() <= ipw_tolerance,
+                "{coordinate}: {}",
+                transported.ipw
+            );
         }
         let artifact = prepared.encode_contracted_result(&result, &coordinate, &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
-        assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-            reason.as_ref() == "dependencies.checked_transport_trial_operation"
-        }));
+        assert!(
+            consumed.acceptance.unresolved.iter().any(|reason| {
+                reason.as_ref() == "dependencies.checked_transport_trial_operation"
+            })
+        );
     }
 }
 
@@ -641,10 +673,13 @@ fn repeated_variable_temporal_admg_is_refused() {
     let now = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
     graph.insert_directed(past, now).unwrap();
     assert!(graph.project_preserving_functional().is_err());
-    let data = TabularData::from_f64_columns([("t", &[0.0, 1.0][..]), ("y", &[0.0, 1.0][..])]).unwrap();
-    let query = AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let data =
+        TabularData::from_f64_columns([("t", &[0.0, 1.0][..]), ("y", &[0.0, 1.0][..])]).unwrap();
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let built = Study::tabular(data).graph(graph).query(query).build();
-    let Err(error) = built.and_then(|study| study.prepare(&ExecutionContext::for_tests(11_019))) else {
+    let Err(error) = built.and_then(|study| study.prepare(&ExecutionContext::for_tests(11_019)))
+    else {
         panic!("a repeated variable must not identify as a different estimand");
     };
     let text = error.to_string();

@@ -749,7 +749,10 @@ impl PreparedStudy {
             // The cross-fitted procedure publishes its complete-case rows on the
             // score table; the trimmed common-support procedure has no table and
             // binds the rows its preparation retained.
-            let rows = match (&result.estimate.score_table, checked.lowering().procedure) {
+            let rows = match (
+                result.estimate.as_effect().and_then(|effect| effect.score_table.as_ref()),
+                checked.lowering().procedure,
+            ) {
                 (Some(table), _) => table.row_index.to_vec(),
                 (None, antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls) => {
                     checked.lowering().rows.to_vec()
@@ -1272,7 +1275,10 @@ impl StudyResult {
         wire.unit_effects =
             self.counterfactual.as_ref().map(|ite| antecedent_io::UnitEffectsWire {
                 effects: ite.unit_effects.to_vec(),
-                homogeneous: self.estimate.unit_effects_homogeneous,
+                homogeneous: self
+                    .estimate
+                    .as_effect()
+                    .is_some_and(|effect| effect.unit_effects_homogeneous),
                 intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
                     antecedent_io::UnitEffectIntervalsWire {
                         lower: intervals.lower.to_vec(),
@@ -1355,17 +1361,21 @@ impl StudyResult {
         if self.mediation.is_none() && self.counterfactual.is_none() {
             return Err(compile("static result requires a mediation or counterfactual payload"));
         }
-        let published = crate::PublishedScalarUncertainty::select(&self.estimate);
+        let effect = self
+            .estimate
+            .as_effect()
+            .ok_or_else(|| compile("static result requires an effect estimate"))?;
+        let published = crate::PublishedScalarUncertainty::select(effect);
         Ok(antecedent_io::StaticResultWire {
             identification: antecedent_io::identification_to_wire_with_registry(
                 &self.identification,
                 registry,
             )?,
-            estimate: self.estimate.ate,
+            estimate: effect.ate,
             standard_error: published.standard_error,
             interval_lower: published.lower,
             interval_upper: published.upper,
-            assumptions: antecedent_io::assumptions_to_wire(&self.estimate.assumptions),
+            assumptions: antecedent_io::assumptions_to_wire(&effect.assumptions),
             support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
             diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
             refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
@@ -2480,10 +2490,10 @@ fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, C
         GraphClass::TemporalPag => {
             Ok(temporal_pag_identity(graph.as_temporal_pag().expect("TemporalPag class")))
         }
-        GraphClass::TemporalAdmg => temporal_admg_identity(
-            graph.as_temporal_admg().expect("TemporalAdmg class"),
-        )
-        .map_err(|err| io_err(&err)),
+        GraphClass::TemporalAdmg => {
+            temporal_admg_identity(graph.as_temporal_admg().expect("TemporalAdmg class"))
+                .map_err(|err| io_err(&err))
+        }
         GraphClass::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
     }
 }

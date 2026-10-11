@@ -705,7 +705,7 @@ fn temporal_sustained_multi_step_keeps_earlier_causal_time() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(42)).unwrap();
-    assert!((result.estimate.ate - 0.7).abs() < 0.1);
+    assert!((result.estimate.as_effect().unwrap().ate - 0.7).abs() < 0.1);
     assert_eq!(result.logical_plan.estimator.as_deref().unwrap(), "temporal.sequential.gcomp");
 }
 

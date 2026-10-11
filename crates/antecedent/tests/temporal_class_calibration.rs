@@ -155,16 +155,27 @@ impl FreqTally {
 
     fn record(&mut self, study: &Study, result: &StudyResult) {
         let est = &result.estimate;
-        let interval = normal_interval(est.ate, est.se_bootstrap, Z90);
+        let interval = normal_interval(
+            est.as_effect().unwrap().ate,
+            est.as_effect().unwrap().se_bootstrap,
+            Z90,
+        );
         if interval.is_some() {
             bind_all(&mut [&mut self.tally, &mut self.reported], study, result);
         }
         self.tally.record(interval, self.truth);
-        self.reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), self.truth);
-        if est.ate.is_finite() {
-            self.estimates.push(est.ate);
+        self.reported.record(
+            normal_interval(
+                est.as_effect().unwrap().ate,
+                est.as_effect().unwrap().se_bootstrap,
+                Z95,
+            ),
+            self.truth,
+        );
+        if est.as_effect().unwrap().ate.is_finite() {
+            self.estimates.push(est.as_effect().unwrap().ate);
         }
-        if let Some(se) = est.se_bootstrap.filter(|se| se.is_finite()) {
+        if let Some(se) = est.as_effect().unwrap().se_bootstrap.filter(|se| se.is_finite()) {
             self.ses.push(se);
         }
         let fired = has_diagnostic(result, SHORT_SERIES);
@@ -956,7 +967,10 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
                 0,
                 u64::from(s),
             );
-            assert!(result.estimate.ate.is_nan(), "no blended posterior without a class prior");
+            assert!(
+                result.estimate.as_effect().unwrap().ate.is_nan(),
+                "no blended posterior without a class prior"
+            );
             (study, result)
         },
     );
@@ -1142,7 +1156,12 @@ fn chain_pag_fixture_identifies_six_completions_at_two_effects() {
                     None => assert!(value.is_none(), "completion must carry no value"),
                 }
             }
-            close("chain mixture", result.estimate.ate, chain_mixture_truth(&query), 0.03);
+            close(
+                "chain mixture",
+                result.estimate.as_effect().unwrap().ate,
+                chain_mixture_truth(&query),
+                0.03,
+            );
         }
     }
 }

@@ -403,14 +403,22 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
             .unwrap()
             .estimate
     };
-    let only_unadjusted = frequentist(dbn_posterior(&[unadjusted], &[1.0])).ate;
-    let only_adjusted = frequentist(dbn_posterior(&[adjusted], &[1.0])).ate;
+    let only_unadjusted =
+        frequentist(dbn_posterior(&[unadjusted], &[1.0])).as_effect().unwrap().ate;
+    let only_adjusted = frequentist(dbn_posterior(&[adjusted], &[1.0])).as_effect().unwrap().ate;
     let expected = (2.0 * only_unadjusted + only_adjusted) / 3.0;
     let mixed = frequentist(repeated());
-    assert!((mixed.ate - expected).abs() < 1e-10, "mixture={} expected={expected}", mixed.ate);
+    assert!(
+        (mixed.as_effect().unwrap().ate - expected).abs() < 1e-10,
+        "mixture={} expected={expected}",
+        mixed.as_effect().unwrap().ate
+    );
     let reference = frequentist(coalesced());
-    assert!((mixed.ate - reference.ate).abs() < 1e-10);
-    let (se, reference_se) = (mixed.se_bootstrap.unwrap(), reference.se_bootstrap.unwrap());
+    assert!((mixed.as_effect().unwrap().ate - reference.as_effect().unwrap().ate).abs() < 1e-10);
+    let (se, reference_se) = (
+        mixed.as_effect().unwrap().se_bootstrap.unwrap(),
+        reference.as_effect().unwrap().se_bootstrap.unwrap(),
+    );
     assert!(
         se.is_finite() && (se - reference_se).abs() < 1e-10,
         "se={se} reference={reference_se}"

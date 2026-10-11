@@ -177,13 +177,13 @@ fn a_configured_batch_matches_the_single_query_call_bit_for_bit() {
                 [("estimate_many", &estimated[i]), ("prepared", &refreshed[i])]
             {
                 assert_eq!(
-                    batch_result.estimate.ate.to_bits(),
-                    alone.estimate.ate.to_bits(),
+                    batch_result.estimate.as_effect().unwrap().ate.to_bits(),
+                    alone.estimate.as_effect().unwrap().ate.to_bits(),
                     "{what} query {i}: ate"
                 );
                 assert_eq!(
-                    batch_result.estimate.se_analytic.to_bits(),
-                    alone.estimate.se_analytic.to_bits(),
+                    batch_result.estimate.as_effect().unwrap().se_analytic.to_bits(),
+                    alone.estimate.as_effect().unwrap().se_analytic.to_bits(),
                     "{what} query {i}: se"
                 );
             }
@@ -310,8 +310,12 @@ fn the_joint_score_covariance_matches_an_independent_calculation() {
     let single = prepared.plans()[0].retarget(&plus, &[z_id()], &ExecutionContext::for_tests(63));
     let single = single.unwrap();
     let first = report.claims[0].outcome.as_ref().unwrap();
-    close(single.estimate.ate, first.value, "single-query point");
-    close(single.estimate.se_analytic, first.std_error.unwrap(), "single-query se");
+    close(single.estimate.as_effect().unwrap().ate, first.value, "single-query point");
+    close(
+        single.estimate.as_effect().unwrap().se_analytic,
+        first.std_error.unwrap(),
+        "single-query se",
+    );
 
     // Contrast algebra against the influence values: value c'θ, variance Σ_r (Σ_k c_k ξ_kr)².
     let route = report.contrasts[0].outcome.as_ref().unwrap();
@@ -523,7 +527,7 @@ fn retarget_after_estimate_reweights_that_estimates_rows() {
     let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
     assert_eq!(estimated.source(), ScoreSource::Estimated);
     for (i, result) in results.iter().enumerate() {
-        assert_eq!(estimated.table(i), result.estimate.score_table.as_ref());
+        assert_eq!(estimated.table(i), result.estimate.as_effect().unwrap().score_table.as_ref());
     }
     let rows = estimated.common_rows().unwrap().unwrap();
     let w = exp_weights(&fx, &rows, 1.0);

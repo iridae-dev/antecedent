@@ -373,8 +373,11 @@ fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: 
         }),
         "missing actual scientific owner {owner}: {reported:?}"
     );
-    assert!(result.estimate.ate.is_finite());
-    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic.is_finite()
+            && result.estimate.as_effect().unwrap().se_analytic > 0.0
+    );
 }
 
 #[test]
@@ -409,10 +412,13 @@ fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
                 assert_owned_static_construction(&study, &result, owner);
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
-                assert_eq!(replay.estimate.ate.to_bits(), result.estimate.ate.to_bits());
                 assert_eq!(
-                    replay.estimate.se_analytic.to_bits(),
-                    result.estimate.se_analytic.to_bits()
+                    replay.estimate.as_effect().unwrap().ate.to_bits(),
+                    result.estimate.as_effect().unwrap().ate.to_bits()
+                );
+                assert_eq!(
+                    replay.estimate.as_effect().unwrap().se_analytic.to_bits(),
+                    result.estimate.as_effect().unwrap().se_analytic.to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
@@ -447,10 +453,13 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                 assert_owned_static_construction(&study, &result, "frontdoor.functional");
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
-                assert_eq!(replay.estimate.ate.to_bits(), result.estimate.ate.to_bits());
                 assert_eq!(
-                    replay.estimate.se_analytic.to_bits(),
-                    result.estimate.se_analytic.to_bits()
+                    replay.estimate.as_effect().unwrap().ate.to_bits(),
+                    result.estimate.as_effect().unwrap().ate.to_bits()
+                );
+                assert_eq!(
+                    replay.estimate.as_effect().unwrap().se_analytic.to_bits(),
+                    result.estimate.as_effect().unwrap().se_analytic.to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());

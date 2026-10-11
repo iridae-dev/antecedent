@@ -62,7 +62,7 @@ fn bayesian_trial_transport_matches_two_source_row_dirichlet_moments() {
         (posterior.summaries.sd[0].powi(2) - fixture["expected_variance"].as_f64().unwrap()).abs()
             < fixture["variance_tolerance"].as_f64().unwrap()
     );
-    assert!((result.estimate.ate - posterior.summaries.mean[0]).abs() < 1e-12);
+    assert!((result.estimate.as_effect().unwrap().ate - posterior.summaries.mean[0]).abs() < 1e-12);
     assert_eq!(
         result.logical_plan.estimator.as_deref(),
         Some("transport.trial_bayesian_bootstrap")

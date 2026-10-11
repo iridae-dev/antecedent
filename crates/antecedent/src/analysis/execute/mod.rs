@@ -362,9 +362,9 @@ mod checked_transport_trial;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
+mod temporal_class_point;
 mod temporal_class_posterior;
 mod temporal_class_posterior_response;
-mod temporal_class_point;
 mod temporal_path;
 mod temporal_posterior_response;
 mod transport_interference_path;
@@ -706,7 +706,7 @@ mod envelope_refuter_target_tests {
             .unwrap()
             .run(&ExecutionContext::for_tests(2))
             .unwrap();
-        assert!(result.estimate.se_analytic.is_finite());
+        assert!(result.estimate.as_effect().unwrap().se_analytic.is_finite());
         assert!(result.diagnostics.iter().all(|d| {
             d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
                 && d.code.as_ref() != "estimate.graph_posterior.joint_if_se"
@@ -1056,11 +1056,11 @@ mod identify_only_tests {
                 "prepared estimate and refresh clicks must not re-identify"
             );
             assert!(
-                !click.estimate.ate.is_finite(),
+                !click.estimate.as_effect().unwrap().ate.is_finite(),
                 "{suite:?} scalar ate must be withheld when estimands disagree"
             );
-            assert!(!fresh.estimate.ate.is_finite());
-            assert!(!refreshed.estimate.ate.is_finite());
+            assert!(!fresh.estimate.as_effect().unwrap().ate.is_finite());
+            assert!(!refreshed.estimate.as_effect().unwrap().ate.is_finite());
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
             let click_post = click.posterior.as_ref().expect("prepared graph mixture posterior");
             let eq = click_post.effect_column().expect("posterior effect column");
@@ -1229,12 +1229,12 @@ mod identify_only_tests {
                 "prepared estimate and refresh clicks must not re-identify"
             );
             assert!(
-                !click.estimate.ate.is_finite(),
+                !click.estimate.as_effect().unwrap().ate.is_finite(),
                 "{suite:?} scalar ate must be withheld when estimands disagree"
             );
-            assert!(!click.estimate.se_analytic.is_finite());
-            assert!(!fresh.estimate.ate.is_finite());
-            assert!(!refreshed.estimate.ate.is_finite());
+            assert!(!click.estimate.as_effect().unwrap().se_analytic.is_finite());
+            assert!(!fresh.estimate.as_effect().unwrap().ate.is_finite());
+            assert!(!refreshed.estimate.as_effect().unwrap().ate.is_finite());
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
             assert!(click.posterior.is_none(), "Frequentist mixture must not attach a posterior");
             assert_eq!(click.identification.status, IdentificationStatus::GraphDependent);

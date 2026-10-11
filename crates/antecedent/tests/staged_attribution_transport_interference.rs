@@ -338,7 +338,7 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
     // to-minus-from contrast is beta-gamma=-1.
     let expected = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
-    assert!((result.estimate.ate - expected).abs() < tolerance);
+    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "interference.fixed_network_gaussian_potential_outcomes")));
 }
 

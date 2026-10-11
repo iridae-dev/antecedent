@@ -722,9 +722,12 @@ pub(crate) fn quantile_scope_diagnostic() -> Diagnostic {
 /// When the refuter did not run, a value this function previously mirrored is cleared
 /// (a threshold-less E-value from another premise is left alone).
 pub(crate) fn mirror_refuted_evalue(
-    estimate: &mut EffectEstimate,
+    estimate: &mut crate::PrimaryEstimate,
     refutations: &[RefutationReport],
 ) {
+    let Some(estimate) = estimate.as_effect_mut() else {
+        return;
+    };
     match refutations.iter().find(|r| r.refuter.as_ref() == EVALUE_REFUTER) {
         Some(report) => {
             estimate.evalue = Some(report.comparison);
@@ -747,13 +750,16 @@ pub(crate) const EVALUE_REFUTER: &str = "sensitivity.evalue";
 /// The single predicate shared by the fresh-run finalizer and the prepared lifecycle, so a
 /// result carries the same point E-value however it was produced.
 pub(crate) fn attach_tiered_evalue_for_cell(
-    estimate: &mut EffectEstimate,
+    estimate: &mut crate::PrimaryEstimate,
     data: &TabularData,
     outcome: VariableId,
     is_quantile: bool,
     tiered: Option<&antecedent_graph::TieredBackground>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(estimate) = estimate.as_effect_mut() else {
+        return;
+    };
     if !is_quantile
         && tiered.is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
     {

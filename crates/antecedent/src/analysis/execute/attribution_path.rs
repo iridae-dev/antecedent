@@ -664,8 +664,10 @@ impl super::Study {
                 true,
             )?;
             if let Some(index) = posterior.effect_column() {
-                result.estimate.ate = posterior.summaries.mean[index];
-                result.estimate.se_analytic = posterior.summaries.sd[index];
+                if let Some(estimate) = result.estimate.as_effect_mut() {
+                    estimate.ate = posterior.summaries.mean[index];
+                    estimate.se_analytic = posterior.summaries.sd[index];
+                }
             }
             result.posterior = Some(posterior);
             result.diagnostics.push(Diagnostic::new(

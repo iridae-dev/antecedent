@@ -286,9 +286,9 @@ fn prepare_then_estimate(
 
 fn assert_ate(result: &antecedent::result::StudyResult, expected: f64, atol: f64, label: &str) {
     assert!(
-        (result.estimate.ate - expected).abs() <= atol,
+        (result.estimate.as_effect().unwrap().ate - expected).abs() <= atol,
         "{label}: ate={} expected={expected}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 }
 

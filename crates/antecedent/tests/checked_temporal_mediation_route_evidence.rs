@@ -164,9 +164,9 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
                 let tolerance =
                     if expected_estimator == EstimatorId::TemporalMediation { 1e-6 } else { 0.08 };
                 assert!(
-                    (first.estimate.ate - MEDIATED_TRUTH).abs() < tolerance,
+                    (first.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < tolerance,
                     "accepted={accepted} estimator={expected_estimator} suite={suite:?}: {}",
-                    first.estimate.ate
+                    first.estimate.as_effect().unwrap().ate
                 );
                 assert_eq!(
                     first.posterior.is_some(),
@@ -177,7 +177,8 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
 
                 let refreshed = prepared.refresh_series(series(0.4, false), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.ate - MEDIATED_TRUTH).abs() < tolerance,
+                    (refreshed.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs()
+                        < tolerance,
                     "intercept shift must not change the mediated contrast"
                 );
                 assert_eq!(
@@ -286,5 +287,8 @@ fn checked_temporal_mediation_refuses_schema_changes_and_makes_no_joint_horizon_
         result.posterior.is_none(),
         "a pointwise horizon posterior must not be presented as joint"
     );
-    assert!(result.estimate.ate.is_nan(), "no single horizon is promoted to the scalar result");
+    assert!(
+        result.estimate.as_effect().unwrap().ate.is_nan(),
+        "no single horizon is promoted to the scalar result"
+    );
 }
