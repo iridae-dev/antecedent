@@ -393,7 +393,7 @@ pub fn aggregate_mixture_functional_envelope(
 }
 
 /// Slack for rounding when checking that a coupling matrix is a correlation.
-const PSD_TOLERANCE: f64 = 1e-9;
+const PSD_TOLERANCE: f64 = crate::util::CORRELATION_PSD_TOLERANCE;
 
 /// Rank-coupled mixture draws `Σ_g w_g τ_g^(d)` (weights already normalized).
 ///
@@ -427,36 +427,16 @@ pub fn couple_mixture_functional_draws(
             }
         }
     }
-    // Positive-semidefinite Cholesky. A zero pivot marks an atom that is a linear
-    // function of earlier ones (e.g. an identical estimand) and is fine, but only if
-    // everything below it is consistent with that; a clearly negative Schur
-    // complement means the matrix is not a correlation, and truncating it would
-    // couple the atoms under a dependence other than the one supplied.
-    let not_psd =
-        || EstimationError::stats_msg("coupling correlation is not positive semidefinite");
+    // Positive-semidefinite Cholesky (the kernel's PSD variant). A zero pivot marks an atom
+    // that is a linear function of earlier ones (e.g. an identical estimand) and is fine,
+    // but only if everything below it is consistent with that; a clearly negative Schur
+    // complement means the matrix is not a correlation, and truncating it would couple the
+    // atoms under a dependence other than the one supplied.
     let mut l = vec![0.0; k * k];
-    for j in 0..k {
-        let mut s = correlation[j * k + j];
-        for p in 0..j {
-            s -= l[j * k + p] * l[j * k + p];
-        }
-        if s < -PSD_TOLERANCE {
-            return Err(not_psd());
-        }
-        let pivot = if s > 1e-12 { s.sqrt() } else { 0.0 };
-        l[j * k + j] = pivot;
-        for i in (j + 1)..k {
-            let mut v = correlation[i * k + j];
-            for p in 0..j {
-                v -= l[i * k + p] * l[j * k + p];
-            }
-            if pivot > 0.0 {
-                l[i * k + j] = v / pivot;
-            } else if v.abs() > PSD_TOLERANCE {
-                return Err(not_psd());
-            }
-        }
-    }
+    antecedent_kernels::cholesky::cholesky_psd_into(correlation, k, PSD_TOLERANCE, &mut l)
+        .map_err(|_| {
+            EstimationError::stats_msg("coupling correlation is not positive semidefinite")
+        })?;
     let mut rng = CausalRng::from_seed(seed);
     let mut normal = move || antecedent_kernels::standard_normal(&mut rng);
     let mut latent = vec![0.0; n * k];

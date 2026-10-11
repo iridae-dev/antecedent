@@ -465,16 +465,11 @@ fn pava_increasing(y: &mut [f64]) {
     }
 }
 
-/// Slack of the correlation factorization relative to its unit diagonal: a pivot within it
-/// of zero is a rank-deficient direction (perfectly collinear scores), one below it is an
-/// indefinite matrix.
-const CORRELATION_PSD_TOLERANCE: f64 = 1e-10;
-
 /// Lower factor of the (possibly rank-deficient) correlation matrix of the joint scores, by
 /// the kernel's PSD-tolerant Cholesky.
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
     let mut l = vec![0.0; k * k];
-    antecedent_kernels::cholesky::cholesky_psd_into(corr, k, CORRELATION_PSD_TOLERANCE, &mut l)
+    antecedent_kernels::cholesky::cholesky_psd_into(corr, k, crate::util::CORRELATION_PSD_TOLERANCE, &mut l)
         .map_err(|_| EstimationError::data_msg("covariance must be positive semidefinite"))?;
     Ok(l)
 }

@@ -99,6 +99,12 @@ pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> Estimat
     EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
+/// Slack of every correlation-matrix factorization, relative to its unit diagonal: a pivot
+/// within it of zero is a rank-deficient direction (perfectly collinear scores, an identical
+/// estimand), one below it is an indefinite matrix. Also the tolerance of the unit-diagonal
+/// and symmetry checks that precede the factorization.
+pub(crate) const CORRELATION_PSD_TOLERANCE: f64 = 1e-9;
+
 /// Two-sided normal p-value `2·(1 − Φ(|z|))` of a standardized statistic; `NaN` propagates.
 pub(crate) fn normal_two_sided_p(z: f64) -> f64 {
     2.0 * antecedent_kernels::norm_sf(z.abs())
