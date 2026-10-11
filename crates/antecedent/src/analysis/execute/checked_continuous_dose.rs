@@ -6,24 +6,13 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
-#[derive(Clone)]
-pub(crate) struct CheckedContinuousDoseOperation {
-    query: antecedent_core::ContinuousDoseResponseQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedContinuousDoseOperation =
+    RandomizedTrialOperation<antecedent_core::ContinuousDoseResponseQuery, ()>;
 
-impl std::fmt::Debug for CheckedContinuousDoseOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedContinuousDoseOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::ContinuousDoseResponseQuery {
+    const OPERATION: &'static str = "CheckedContinuousDoseOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "continuous-dose refresh requires prepared schema and row order";
 }
 
 impl CheckedContinuousDoseOperation {
@@ -68,15 +57,7 @@ impl CheckedContinuousDoseOperation {
             });
         }
         let (identification, estimand) = continuous_dose_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -84,16 +65,7 @@ impl CheckedContinuousDoseOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "continuous-dose refresh requires prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let numeric = |id| match data.column(id).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
             _ => Err(CausalError::Unsupported {

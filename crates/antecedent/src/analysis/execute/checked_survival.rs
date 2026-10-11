@@ -12,25 +12,13 @@ use antecedent_estimate::survival::{
     randomized_survival_summary,
 };
 
-#[derive(Clone)]
-pub(crate) struct CheckedSurvivalOperation {
-    query: antecedent_core::SurvivalQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-    bootstrap_replicates: u32,
-}
+pub(crate) type CheckedSurvivalOperation =
+    RandomizedTrialOperation<antecedent_core::SurvivalQuery, u32>;
 
-impl std::fmt::Debug for CheckedSurvivalOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedSurvivalOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::SurvivalQuery {
+    const OPERATION: &'static str = "CheckedSurvivalOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "survival refresh requires the prepared schema and row order";
 }
 
 impl CheckedSurvivalOperation {
@@ -82,16 +70,15 @@ impl CheckedSurvivalOperation {
             });
         }
         let (identification, estimand) = survival_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
+        Ok(Self::freeze(
+            study,
+            query,
+            data,
+            physical,
             identification,
             estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-            bootstrap_replicates: study.bootstrap_replicates,
-        })
+            study.bootstrap_replicates,
+        ))
     }
 
     pub(crate) fn execute(
@@ -99,16 +86,8 @@ impl CheckedSurvivalOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "survival refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
+        let bootstrap_replicates = self.extra;
         let duration = numeric_column(data, self.query.duration)?;
         let event_raw = numeric_column(data, self.query.event)?;
         let treatment_raw = numeric_column(data, self.query.treatment)?;
@@ -188,7 +167,7 @@ impl CheckedSurvivalOperation {
                 None,
             )
         };
-        let intervals = if self.bootstrap_replicates > 0 {
+        let intervals = if bootstrap_replicates > 0 {
             Some(
                 randomized_survival_bootstrap_intervals(
                     &duration,
@@ -200,7 +179,7 @@ impl CheckedSurvivalOperation {
                     }),
                     self.query.tau,
                     endpoint,
-                    self.bootstrap_replicates,
+                    bootstrap_replicates,
                     ctx.rng.master_seed(),
                 )
                 .map_err(|message| CausalError::Unsupported { message })?,
@@ -208,7 +187,7 @@ impl CheckedSurvivalOperation {
         } else {
             None
         };
-        let (difference_band, band_unavailable_reason) = if self.bootstrap_replicates == 0 {
+        let (difference_band, band_unavailable_reason) = if bootstrap_replicates == 0 {
             (None, None)
         } else if entry.is_some() {
             (None, Some(Arc::from("simultaneous survival band does not cover delayed entry")))
@@ -226,7 +205,7 @@ impl CheckedSurvivalOperation {
                 &treated,
                 self.query.tau,
                 endpoint,
-                self.bootstrap_replicates,
+                bootstrap_replicates,
                 ctx.rng.master_seed() ^ 0x5A7A_BA4D,
             ) {
                 Ok(band) => {

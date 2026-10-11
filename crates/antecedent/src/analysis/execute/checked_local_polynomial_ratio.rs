@@ -4,24 +4,13 @@
 use super::*;
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
-#[derive(Clone)]
-pub(crate) struct CheckedLocalPolynomialRatioOperation {
-    query: antecedent_core::LocalPolynomialRatioQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedLocalPolynomialRatioOperation =
+    RandomizedTrialOperation<antecedent_core::LocalPolynomialRatioQuery, ()>;
 
-impl std::fmt::Debug for CheckedLocalPolynomialRatioOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedLocalPolynomialRatioOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::LocalPolynomialRatioQuery {
+    const OPERATION: &'static str = "CheckedLocalPolynomialRatioOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "local ratio refresh requires the prepared schema and row count";
 }
 
 /// Plan id, identifier and estimator a compiled local-ratio plan records.
@@ -83,15 +72,7 @@ impl CheckedLocalPolynomialRatioOperation {
             });
         }
         let (identification, estimand) = local_polynomial_ratio_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -99,16 +80,7 @@ impl CheckedLocalPolynomialRatioOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "local ratio refresh requires the prepared schema and row count",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let column = |id| -> Result<&[f64], CausalError> {
             match data.column(id).map_err(CausalError::from)? {
                 antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice()),

@@ -1,30 +1,22 @@
 //! Prepared native execution for randomized two-arm ITT.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::randomized_fit::{
+    RandomizedMethod, assignment_probability_floor, exact_randomization_test, fit_randomized,
+};
 use super::*;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
 /// Frozen randomized-design analysis. Assignment metadata is part of query identity.
-#[derive(Clone)]
-pub(crate) struct CheckedRandomizedOperation {
-    query: antecedent_core::RandomizedEffectQuery,
-    source_schema: antecedent_core::CausalSchema,
-    source_rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedRandomizedOperation =
+    RandomizedTrialOperation<antecedent_core::RandomizedEffectQuery>;
 
-impl std::fmt::Debug for CheckedRandomizedOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedRandomizedOperation")
-            .field("query", &self.query)
-            .field("source_rows", &self.source_rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::RandomizedEffectQuery {
+    const OPERATION: &'static str = "CheckedRandomizedOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "randomized ITT refresh requires the prepared schema and row order";
 }
 
 impl CheckedRandomizedOperation {
@@ -74,22 +66,14 @@ impl CheckedRandomizedOperation {
             || physical.logical.record.identifier.as_deref()
                 != Some(IdentifierId::RandomizedDesign.as_str())
             || physical.logical.record.estimator.as_deref()
-                != Some(randomized_estimator_id(query).as_str())
+                != Some(RandomizedMethod::of(query).estimator_id().as_str())
         {
             return Err(CausalError::Compile {
                 message: "randomized target or design differs from its compiled plan".into(),
             });
         }
         let (identification, estimand) = randomized_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            source_schema: data.schema().clone(),
-            source_rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -97,16 +81,7 @@ impl CheckedRandomizedOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.source_schema || data.row_count() != self.source_rows {
-            return Err(CausalError::Unsupported {
-                message: "randomized ITT refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         self.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let outcomes = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
@@ -146,568 +121,27 @@ impl CheckedRandomizedOperation {
         } else {
             outcomes
         };
-        let mut complier_components = None;
-        let mut factorial_contrasts = None;
-        #[allow(
-            clippy::type_complexity,
-            reason = "labeled multi-arm value tuple mirrors the public result field type"
-        )]
-        let mut multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]> = Arc::from([]);
-        let mut interval_95 = None;
-        let mut second_factor_interval_95 = None;
-        let mut factorial_interaction_interval_95 = None;
-        let mut multi_arm_intervals_95: Arc<[Option<[f64; 2]>]> = Arc::from([]);
-        let mut interval_standard_error = None;
-        let (
-            effect,
-            variance,
-            control_units,
-            treatment_units,
-            blocks,
-            periods,
-            assignment_design,
-            uncertainty,
-            diagnostic,
-        ) = if !self.query.ancova_covariates.is_empty() {
-            let covariates = self
-                .query
-                .ancova_covariates
-                .iter()
-                .map(|&id| match data.column(id).map_err(CausalError::from)? {
-                    antecedent_data::ColumnView::Float64(column) => {
-                        Ok(column.values.as_slice().to_vec())
-                    }
-                    _ => Err(CausalError::Unsupported {
-                        message: "ANCOVA pre-assignment covariates must be continuous",
-                    }),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let refs = covariates.iter().map(Vec::as_slice).collect::<Vec<_>>();
-            let fit = antecedent_estimate::ancova::fit_ancova(
-                outcomes,
-                &self.query.realized_assignment,
-                &refs,
-            )
-            .map_err(|message| CausalError::Unsupported { message })?;
-            interval_95 = antecedent_estimate::ancova::calibrated_bernoulli_interval_95(
-                &fit,
-                self.query.assignment_probabilities[0],
-            );
-            if interval_95.is_some() {
-                interval_standard_error = Some(fit.hc0_variance.sqrt());
-            }
-            (
-                fit.effect,
-                fit.hc0_variance,
-                fit.control,
-                fit.treated,
-                Arc::from([]),
-                Arc::from([]),
-                Arc::<str>::from("bernoulli"),
-                Arc::<str>::from("bernoulli_ancova_hc0_variance_no_interval"),
-                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no calibrated confidence interval",
-            )
-        } else if let Some(received) = &self.query.received_treatment {
-            let fit = antecedent_estimate::randomized_scores::complier_wald_effect(
-                outcomes, &self.query.realized_assignment, received, &self.query.assignment_probabilities,
-            ).ok_or(CausalError::Unsupported {
-                message: "receipt-adjusted randomized effects require a finite positive receipt first stage",
-            })?;
-            let controls =
-                self.query.realized_assignment.iter().filter(|assigned| !**assigned).count();
-            let treated = n - controls;
-            complier_components = Some((fit.intention_to_treat_effect, fit.first_stage));
-            interval_95 = fit.interval_95;
-            if interval_95.is_some() {
-                interval_standard_error = Some(fit.variance.sqrt());
-            }
-            let one_sided =
-                self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated;
-            (
-                fit.effect,
-                fit.variance,
-                controls,
-                treated,
-                Arc::from([]),
-                Arc::from([]),
-                Arc::<str>::from("bernoulli"),
-                Arc::<str>::from(if one_sided {
-                    "bernoulli_one_sided_tot_influence_variance_no_interval"
-                } else {
-                    "bernoulli_wald_cace_influence_variance_no_interval"
-                }),
-                if one_sided {
-                    "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
-                } else {
-                    "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval"
-                },
-            )
-        } else {
-            match &self.query.design {
-                antecedent_core::RandomizationDesign::MultiArm {
-                    assignment,
-                    probabilities,
-                    arms,
-                } => {
-                    let fit = antecedent_estimate::multi_arm::estimate_multi_arm(
-                        outcomes,
-                        assignment,
-                        probabilities,
-                    )
-                    .map_err(|message| CausalError::Unsupported { message })?;
-                    let primary = fit[1].value - fit[0].value;
-                    let primary_variance = 2.0 * (fit[1].variance_bound + fit[0].variance_bound);
-                    multi_arm_values = arms
-                        .iter()
-                        .zip(fit.iter())
-                        .map(|(label, arm)| {
-                            (Arc::clone(label), arm.value, arm.variance_bound, arm.observed_support)
-                        })
-                        .collect::<Vec<_>>()
-                        .into();
-                    let mut intervals = (0..arms.len())
-                        .map(|arm| {
-                            if arm == 0 {
-                                return None;
-                            }
-                            antecedent_estimate::randomized_scores::independent_action_contrast(
-                                outcomes,
-                                assignment,
-                                probabilities,
-                                0,
-                                arm,
-                            )
-                            .and_then(|contrast| {
-                                if arm == 1 && contrast.interval_95.is_some() {
-                                    interval_standard_error =
-                                        Some(contrast.variance_upper_bound.sqrt());
-                                }
-                                contrast.interval_95
-                            })
-                        })
-                        .collect::<Vec<_>>();
-                    if intervals.iter().skip(1).any(Option::is_none) {
-                        intervals.fill(None);
-                        interval_standard_error = None;
-                    }
-                    interval_95 = intervals[1];
-                    multi_arm_intervals_95 = intervals.into();
-                    (
-                        primary,
-                        primary_variance,
-                        fit[0].observed_support,
-                        fit[1].observed_support,
-                        Arc::from([]),
-                        Arc::from([]),
-                        Arc::<str>::from("multi_arm"),
-                        Arc::<str>::from("multi_arm_covariance_free_variance_bound_no_interval"),
-                        "Independent multi-arm assignment with known action probabilities; all contrasts versus reference retain covariance-free variance bounds, no calibrated interval",
-                    )
-                }
-                antecedent_core::RandomizationDesign::Bernoulli => {
-                    let mut effect_sum = 0.0;
-                    let mut variance_sum = 0.0;
-                    let mut control_units = 0;
-                    let mut treatment_units = 0;
-                    // With a fixed pre-assignment adjustment, E[observed y² / assignment²]
-                    // equals Y(1)²/p + Y(0)²/(1-p). This exceeds the Bernoulli
-                    // variance by (Y(1)-Y(0))² for each unit. No interval follows
-                    // from the random bound estimate without calibration.
-                    for ((&y, &treated), &p) in outcomes
-                        .iter()
-                        .zip(self.query.realized_assignment.iter())
-                        .zip(self.query.assignment_probabilities.iter())
-                    {
-                        if treated {
-                            treatment_units += 1;
-                            effect_sum += y / p;
-                            variance_sum += if self.query.fixed_cuped.is_some() {
-                                y * y / (p * p)
-                            } else {
-                                y * y * (1.0 - p) / (p * p)
-                            };
-                        } else {
-                            control_units += 1;
-                            effect_sum -= y / (1.0 - p);
-                            variance_sum += if self.query.fixed_cuped.is_some() {
-                                y * y / ((1.0 - p) * (1.0 - p))
-                            } else {
-                                y * y * p / ((1.0 - p) * (1.0 - p))
-                            };
-                        }
-                    }
-                    let assignments = self
-                        .query
-                        .realized_assignment
-                        .iter()
-                        .map(|assigned| usize::from(*assigned))
-                        .collect::<Vec<_>>();
-                    let probabilities = self
-                        .query
-                        .assignment_probabilities
-                        .iter()
-                        .map(|p| vec![1.0 - p, *p])
-                        .collect::<Vec<_>>();
-                    if let Some(contrast) =
-                        antecedent_estimate::randomized_scores::independent_action_contrast(
-                            outcomes,
-                            &assignments,
-                            &probabilities,
-                            0,
-                            1,
-                        )
-                    {
-                        interval_95 = contrast.interval_95;
-                        if interval_95.is_some() {
-                            interval_standard_error = Some(contrast.variance_upper_bound.sqrt());
-                        }
-                    }
-                    (
-                        effect_sum / n as f64,
-                        variance_sum / (n * n) as f64,
-                        control_units,
-                        treatment_units,
-                        Arc::from([]),
-                        Arc::from([]),
-                        Arc::<str>::from("bernoulli"),
-                        Arc::<str>::from(if self.query.fixed_cuped.is_some() {
-                            "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
-                        } else {
-                            "bernoulli_ht_design_variance_no_interval"
-                        }),
-                        if self.query.fixed_cuped.is_some() {
-                            "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation, no interval"
-                        } else {
-                            "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval is reported"
-                        },
-                    )
-                }
-                antecedent_core::RandomizationDesign::Complete { treated_units } => {
-                    let treated: Vec<f64> = outcomes
-                        .iter()
-                        .zip(self.query.realized_assignment.iter())
-                        .filter_map(|(&y, &z)| z.then_some(y))
-                        .collect();
-                    let control: Vec<f64> = outcomes
-                        .iter()
-                        .zip(self.query.realized_assignment.iter())
-                        .filter_map(|(&y, &z)| (!z).then_some(y))
-                        .collect();
-                    let fit = antecedent_estimate::randomized_neyman::complete_unit_itt(
-                    &treated, &control,
-                ).ok_or(CausalError::Unsupported {
-                    message: "complete-randomized ITT requires finite outcomes and estimable variance",
-                })?;
-                    interval_95 = fit.interval_95;
-                    if interval_95.is_some() {
-                        interval_standard_error = Some(fit.variance_upper_bound.sqrt());
-                    }
-                    (
-                        fit.effect,
-                        fit.variance_upper_bound,
-                        n - treated_units,
-                        *treated_units,
-                        Arc::from([]),
-                        Arc::from([]),
-                        Arc::<str>::from("complete"),
-                        Arc::<str>::from("complete_neyman_variance_upper_bound_no_interval"),
-                        "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval is reported",
-                    )
-                }
-                antecedent_core::RandomizationDesign::Cluster { treated_clusters } => {
-                    let mut cluster_totals: std::collections::BTreeMap<&str, (bool, f64)> =
-                        std::collections::BTreeMap::new();
-                    for (i, outcome) in outcomes.iter().enumerate() {
-                        let entry = cluster_totals
-                            .entry(self.query.assignment_units[i].as_ref())
-                            .or_insert((self.query.realized_assignment[i], 0.0));
-                        entry.1 += outcome;
-                    }
-                    let treated: Vec<f64> = cluster_totals
-                        .values()
-                        .filter_map(|(assigned, total)| assigned.then_some(*total))
-                        .collect();
-                    let control: Vec<f64> = cluster_totals
-                        .values()
-                        .filter_map(|(assigned, total)| (!assigned).then_some(*total))
-                        .collect();
-                    let clusters = cluster_totals.len();
-                    let fit = antecedent_estimate::randomized_neyman::complete_cluster_itt(
-                    &treated, &control, n,
-                ).ok_or(CausalError::Unsupported {
-                    message: "cluster-randomized ITT requires finite cluster totals and estimable variance",
-                })?;
-                    interval_95 = fit.interval_95;
-                    if interval_95.is_some() {
-                        interval_standard_error = Some(fit.variance_upper_bound.sqrt());
-                    }
-                    (
-                        fit.effect,
-                        fit.variance_upper_bound,
-                        clusters - treated_clusters,
-                        *treated_clusters,
-                        Arc::from([]),
-                        Arc::from([]),
-                        Arc::<str>::from("cluster"),
-                        Arc::<str>::from("cluster_neyman_variance_upper_bound_no_interval"),
-                        "Complete cluster-randomization HT ITT over cluster outcome totals, with Neyman conservative variance; no confidence interval is reported",
-                    )
-                }
-                antecedent_core::RandomizationDesign::Stratified { blocks, treated_per_row } => {
-                    let mut grouped: std::collections::BTreeMap<&str, (Vec<f64>, Vec<f64>, usize)> =
-                        std::collections::BTreeMap::new();
-                    for i in 0..n {
-                        let group = grouped
-                            .entry(&blocks[i])
-                            .or_insert_with(|| (Vec::new(), Vec::new(), treated_per_row[i]));
-                        if self.query.realized_assignment[i] {
-                            group.0.push(outcomes[i]);
-                        } else {
-                            group.1.push(outcomes[i]);
-                        }
-                    }
-                    let cells = grouped
-                        .values()
-                        .map(|(treated, control, _)| (treated.as_slice(), control.as_slice()))
-                        .collect::<Vec<_>>();
-                    let fit = antecedent_estimate::randomized_neyman::blocked_unit_itt(&cells)
-                    .ok_or(CausalError::Unsupported {
-                        message: "blocked-randomized ITT requires finite outcomes and estimable within-block variances",
-                    })?;
-                    interval_95 = fit.interval_95;
-                    if interval_95.is_some() {
-                        interval_standard_error = Some(fit.variance_upper_bound.sqrt());
-                    }
-                    let treatment_units = cells.iter().map(|(treated, _)| treated.len()).sum();
-                    let control_units = cells.iter().map(|(_, control)| control.len()).sum();
-                    (
-                        fit.effect,
-                        fit.variance_upper_bound,
-                        control_units,
-                        treatment_units,
-                        Arc::clone(blocks),
-                        Arc::from([]),
-                        Arc::<str>::from("stratified"),
-                        Arc::<str>::from("stratified_neyman_variance_upper_bound_no_interval"),
-                        "Stratified difference in means weighted by block size, with blockwise Neyman conservative variance estimate; no confidence interval is reported",
-                    )
-                }
-                antecedent_core::RandomizationDesign::Factorial2x2 {
-                    second_factor_assignment,
-                    ..
-                } => {
-                    let mut cells: [Vec<f64>; 4] = std::array::from_fn(|_| Vec::new());
-                    for i in 0..n {
-                        let cell = usize::from(self.query.realized_assignment[i])
-                            + 2 * usize::from(second_factor_assignment[i]);
-                        cells[cell].push(outcomes[i]);
-                    }
-                    let fit = antecedent_estimate::randomized_neyman::factorial_2x2(
-                    cells.each_ref().map(Vec::as_slice),
-                ).ok_or(CausalError::Unsupported {
-                    message: "factorial ITT requires finite outcomes and estimable cell variances",
-                })?;
-                    interval_95 = fit.primary_interval_95;
-                    second_factor_interval_95 = fit.secondary_interval_95;
-                    factorial_interaction_interval_95 = fit.interaction_interval_95;
-                    if interval_95.is_some() {
-                        interval_standard_error = Some(fit.main_effect_variance_upper_bound.sqrt());
-                    }
-                    factorial_contrasts = Some((
-                        fit.secondary,
-                        fit.interaction,
-                        fit.main_effect_variance_upper_bound,
-                        fit.interaction_variance_upper_bound,
-                    ));
-                    (
-                        fit.primary,
-                        fit.main_effect_variance_upper_bound,
-                        cells[0].len() + cells[2].len(),
-                        cells[1].len() + cells[3].len(),
-                        Arc::from([]),
-                        Arc::from([]),
-                        Arc::<str>::from("factorial_2x2"),
-                        Arc::<str>::from("factorial_cell_neyman_variance_upper_bound_no_interval"),
-                        "Fixed-cell 2×2 factorial main effects and interaction from four cell means, with cellwise Neyman conservative variance estimates; no confidence interval is reported",
-                    )
-                }
-                antecedent_core::RandomizationDesign::Switchback { periods } => {
-                    let sequence_ids = self
-                        .query
-                        .assignment_units
-                        .iter()
-                        .map(AsRef::as_ref)
-                        .collect::<Vec<&str>>();
-                    let fit = antecedent_estimate::switchback::switchback_itt(
-                    outcomes, &self.query.realized_assignment,
-                    &self.query.assignment_probabilities, &sequence_ids,
-                ).ok_or(CausalError::Unsupported {
-                    message: "switchback ITT requires valid outcomes, probabilities, and independent sequences with global arm support",
-                })?;
-                    interval_95 = fit.interval_95;
-                    if interval_95.is_some() {
-                        interval_standard_error = Some(fit.variance.sqrt());
-                    }
-                    (
-                        fit.effect,
-                        fit.variance,
-                        self.query.realized_assignment.iter().filter(|&&a| !a).count(),
-                        self.query.realized_assignment.iter().filter(|&&a| a).count(),
-                        Arc::from([]),
-                        Arc::clone(periods),
-                        Arc::<str>::from("switchback"),
-                        Arc::<str>::from(
-                            "switchback_independent_sequence_sandwich_variance_no_interval",
-                        ),
-                        "Unit-period HT ITT with independent-sequence score sandwich variance; arbitrary within-sequence dependence, no interval",
-                    )
-                }
-            }
-        };
-        if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
+        let method = RandomizedMethod::of(&self.query);
+        let mut fit = fit_randomized(&self.query, data, outcomes)?;
+        if !fit.effect.is_finite() || !fit.variance.is_finite() || fit.variance < 0.0 {
             return Err(CausalError::Unsupported {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
             });
         }
-        let uncertainty = if interval_95.is_some() {
-            Arc::<str>::from(match self.query.design {
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if self.query.fixed_cuped.is_some() =>
-                {
-                    "bernoulli_fixed_cuped_ht_score_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if !self.query.ancova_covariates.is_empty() =>
-                {
-                    "bernoulli_ancova_hc0_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if self.query.estimand
-                        == antecedent_core::RandomizedEstimand::TreatmentOnTreated =>
-                {
-                    "bernoulli_one_sided_tot_influence_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if self.query.received_treatment.is_some() =>
-                {
-                    "bernoulli_wald_cace_influence_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli => {
-                    "bernoulli_ht_score_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Complete { .. } => {
-                    "complete_neyman_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Cluster { .. } => {
-                    "cluster_neyman_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Stratified { .. } => {
-                    "stratified_neyman_normal_interval"
-                }
-                antecedent_core::RandomizationDesign::Factorial2x2 { .. } => {
-                    "factorial_cell_neyman_pointwise_normal_intervals"
-                }
-                antecedent_core::RandomizationDesign::MultiArm { .. } => {
-                    "multi_arm_ht_score_pointwise_normal_intervals"
-                }
-                antecedent_core::RandomizationDesign::Switchback { .. } => {
-                    "switchback_independent_sequence_student_interval"
-                }
-            })
-        } else {
-            uncertainty
-        };
-        let diagnostic = if interval_95.is_some() {
-            match self.query.design {
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if self.query.fixed_cuped.is_some() =>
-                {
-                    "Bernoulli ITT with an externally fixed pre-assignment CUPED coefficient and independent-unit score-sandwich pointwise 95% interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if !self.query.ancova_covariates.is_empty() =>
-                {
-                    "Bernoulli ANCOVA with pre-assignment covariates and independent-unit HC0 pointwise 95% interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if self.query.estimand
-                        == antecedent_core::RandomizedEstimand::TreatmentOnTreated =>
-                {
-                    "Treatment-on-treated among recipients under one-sided noncompliance and exclusion; Wald ratio with an independent-unit influence-function pointwise 95% interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli
-                    if self.query.received_treatment.is_some() =>
-                {
-                    "Wald CACE/LATE from randomized encouragement and observed receipt under exclusion and monotonicity, with an independent-unit influence-function pointwise 95% interval"
-                }
-                antecedent_core::RandomizationDesign::Bernoulli => {
-                    "Bernoulli Horvitz-Thompson ITT with known probabilities and an independent-unit score-sandwich pointwise 95% interval"
-                }
-                antecedent_core::RandomizationDesign::Complete { .. } => {
-                    "Complete-randomization difference in means with a conservative Neyman variance and pointwise 95% normal interval"
-                }
-                antecedent_core::RandomizationDesign::Cluster { .. } => {
-                    "Cluster-randomized ITT over cluster outcome totals with a conservative cluster-level Neyman variance and pointwise 95% normal interval"
-                }
-                antecedent_core::RandomizationDesign::Stratified { .. } => {
-                    "Blocked difference in means with blockwise conservative Neyman variance and pointwise 95% normal interval"
-                }
-                antecedent_core::RandomizationDesign::Factorial2x2 { .. } => {
-                    "Fixed-cell factorial main effects and interaction with separate conservative cellwise variances and pointwise 95% normal intervals; simultaneous coverage is not claimed"
-                }
-                antecedent_core::RandomizationDesign::MultiArm { .. } => {
-                    "Independent multi-arm HT effects with known probabilities; the retained variance is a covariance-free bound, while separate score-sandwich pointwise 95% intervals cover each action versus reference; simultaneous coverage is not claimed"
-                }
-                antecedent_core::RandomizationDesign::Switchback { .. } => {
-                    "Unit-period HT ITT with independent-sequence sandwich variance and a pointwise 95% Student interval; no carryover and no between-sequence interference are declared assumptions"
-                }
-            }
-        } else {
-            diagnostic
-        };
-        let exact_test = if self.query.exact_randomization_test {
-            let antecedent_core::RandomizationDesign::Complete { treated_units } =
-                &self.query.design
-            else {
-                unreachable!("validated exact test requires complete randomization")
-            };
-            let observed = effect.abs();
-            let mut extreme = 0_u64;
-            let mut allocations = 0_u64;
-            let total = outcomes.iter().sum::<f64>();
-            for mask in 0..(1_u64 << n) {
-                if mask.count_ones() as usize != *treated_units {
-                    continue;
-                }
-                let treated_sum = outcomes
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, value)| ((mask >> i) & 1 == 1).then_some(*value))
-                    .sum::<f64>();
-                let contrast = treated_sum / *treated_units as f64
-                    - (total - treated_sum) / (n - *treated_units) as f64;
-                allocations += 1;
-                if contrast.abs() + 1e-12 >= observed {
-                    extreme += 1;
-                }
-            }
-            Some((extreme as f64 / allocations as f64, allocations))
-        } else {
-            None
-        };
+        let interval_published = fit.interval_95.is_some();
+        let uncertainty = Arc::<str>::from(method.uncertainty(interval_published));
+        let diagnostic = method.diagnostic(interval_published);
+        let exact_test = self
+            .query
+            .exact_randomization_test
+            .then(|| exact_randomization_test(&self.query, outcomes, fit.effect));
         let mut estimate = EffectEstimate::new(
-            effect,
-            interval_standard_error.unwrap_or(f64::NAN),
+            fit.effect,
+            fit.interval_standard_error.unwrap_or(f64::NAN),
             self.identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        if interval_95.is_some()
-            && matches!(
-                self.query.design,
-                antecedent_core::RandomizationDesign::Cluster { .. }
-                    | antecedent_core::RandomizationDesign::Switchback { .. }
-            )
-        {
+        if interval_published && method.clustered_standard_error() {
             estimate = estimate.with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
         }
         let started = Instant::now();
@@ -720,38 +154,12 @@ impl CheckedRandomizedOperation {
                 estimand: self.estimand.clone(),
                 estimate,
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: randomized_estimator_id(&self.query),
+                estimator_id: method.estimator_id(),
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
-                    match self.query.design {
-                        antecedent_core::RandomizationDesign::Bernoulli
-                            if self.query.received_treatment.is_some() =>
-                        {
-                            "estimate.randomized.wald_cace_late"
-                        }
-                        antecedent_core::RandomizationDesign::Bernoulli
-                            if self.query.fixed_cuped.is_some() =>
-                        {
-                            "estimate.randomized.fixed_cuped_ht_itt"
-                        }
-                        antecedent_core::RandomizationDesign::Bernoulli
-                            if !self.query.ancova_covariates.is_empty() =>
-                        {
-                            "estimate.randomized.ancova_itt"
-                        }
-                        antecedent_core::RandomizationDesign::Bernoulli => {
-                            "estimate.randomized.ht_itt"
-                        }
-                        antecedent_core::RandomizationDesign::Switchback { .. } => {
-                            "estimate.randomized.switchback_ht_itt"
-                        }
-                        antecedent_core::RandomizationDesign::MultiArm { .. } => {
-                            "estimate.randomized.multi_arm_ht_itt"
-                        }
-                        _ => "estimate.randomized.neyman_itt",
-                    },
+                    method.diagnostic_id(),
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     diagnostic,
@@ -766,65 +174,36 @@ impl CheckedRandomizedOperation {
                 extras: IdentifiedExecuteExtras::default(),
             },
         );
+        let (control_units, treatment_units) = (fit.control_units, fit.treatment_units);
         result.randomized_effect = Some(crate::RandomizedEffectEstimate {
-            effect,
-            estimand: Arc::from(
-                if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
-                    "treatment_on_treated"
-                } else if complier_components.is_some() {
-                    "cace_late"
-                } else if factorial_contrasts.is_some() {
-                    "factorial_primary_main_effect"
-                } else if !multi_arm_values.is_empty() {
-                    "multi_arm_itt"
-                } else {
-                    "itt"
-                },
-            ),
-            intention_to_treat_effect: complier_components.map(|(itt, _)| itt),
-            first_stage_effect: complier_components.map(|(_, stage)| stage),
+            effect: fit.effect,
+            estimand: Arc::from(method.estimand_label()),
+            intention_to_treat_effect: fit.complier_components.map(|(itt, _)| itt),
+            first_stage_effect: fit.complier_components.map(|(_, stage)| stage),
             received_treatment: self.query.received_treatment.clone(),
             randomization_p_value: exact_test.map(|(p, _)| p),
             randomization_allocations: exact_test.map(|(_, count)| count),
-            second_factor_effect: factorial_contrasts.map(|(effect, _, _, _)| effect),
-            factorial_interaction: factorial_contrasts.map(|(_, effect, _, _)| effect),
-            second_factor_variance: factorial_contrasts.map(|(_, _, variance, _)| variance),
-            factorial_interaction_variance: factorial_contrasts.map(|(_, _, _, variance)| variance),
-            multi_arm_values,
-            variance_upper_bound: variance,
-            standard_error: interval_standard_error,
-            interval_95,
-            second_factor_interval_95,
-            factorial_interaction_interval_95,
-            multi_arm_intervals_95,
-            minimum_assignment_probability:
-                if let antecedent_core::RandomizationDesign::MultiArm { probabilities, .. } =
-                    &self.query.design
-                {
-                    probabilities
-                        .iter()
-                        .flat_map(|row| row.iter().copied())
-                        .fold(f64::INFINITY, f64::min)
-                } else {
-                    self.query
-                        .assignment_probabilities
-                        .iter()
-                        .copied()
-                        .map(|p| {
-                            if matches!(
-                                self.query.design,
-                                antecedent_core::RandomizationDesign::Switchback { .. }
-                            ) {
-                                p.min(1.0 - p)
-                            } else {
-                                p
-                            }
-                        })
-                        .fold(f64::INFINITY, f64::min)
-                },
-            assignment_design,
-            blocks,
-            periods,
+            second_factor_effect: fit.factorial.map(|f| f.second_factor_effect),
+            factorial_interaction: fit.factorial.map(|f| f.interaction),
+            second_factor_variance: fit.factorial.map(|f| f.second_factor_variance),
+            factorial_interaction_variance: fit.factorial.map(|f| f.interaction_variance),
+            multi_arm_values: std::mem::replace(&mut fit.multi_arm_values, Arc::from([])),
+            variance_upper_bound: fit.variance,
+            standard_error: fit.interval_standard_error,
+            interval_95: fit.interval_95,
+            second_factor_interval_95: fit.second_factor_interval_95,
+            factorial_interaction_interval_95: fit.factorial_interaction_interval_95,
+            multi_arm_intervals_95: std::mem::replace(
+                &mut fit.multi_arm_intervals_95,
+                Arc::from([]),
+            ),
+            minimum_assignment_probability: assignment_probability_floor(
+                &self.query,
+                matches!(method, RandomizedMethod::Switchback),
+            ),
+            assignment_design: Arc::from(method.design_tag()),
+            blocks: fit.blocks,
+            periods: fit.periods,
             control_units,
             treatment_units,
             uncertainty,
@@ -832,10 +211,24 @@ impl CheckedRandomizedOperation {
             outcome_units: Arc::clone(&self.query.outcome_units),
             treatment_arms: self.query.treatment_arms.clone(),
         });
-        // Graphless licenses are exact design/method/inference claims. A
-        // published interval alone is insufficient: sparse or other designs
-        // must not inherit a geometric matrix coordinate by analogy.
-        let (family, design, method, assignment_unit, claim) =
+        if self.graphless_license(&result, method).is_some() {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
+        result.rebind_interval(false);
+        result.treatment = None;
+        Ok(result)
+    }
+
+    /// Graphless licenses are exact design/method/inference claims. A
+    /// published interval alone is insufficient: sparse or other designs
+    /// must not inherit a geometric matrix coordinate by analogy.
+    fn graphless_license(
+        &self,
+        result: &StudyResult,
+        method: RandomizedMethod,
+    ) -> Option<crate::support::CellStatus> {
+        let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
+        let (family, design, method_id, assignment_unit, claim) =
             antecedent_core::randomized_graphless_coordinate(
                 &self.query.design,
                 self.query.estimand,
@@ -843,15 +236,9 @@ impl CheckedRandomizedOperation {
                 self.query.fixed_cuped.is_some(),
                 !self.query.ancova_covariates.is_empty(),
             );
-        let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
+        let switchback = method == RandomizedMethod::Switchback;
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
-        let support_blocks =
-            if matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. })
-            {
-                &self.query.assignment_units
-            } else {
-                &fit.blocks
-            };
+        let support_blocks = if switchback { &self.query.assignment_units } else { &fit.blocks };
         for (block, assigned) in support_blocks.iter().zip(self.query.realized_assignment.iter()) {
             let counts = block_counts.entry(block).or_default();
             if *assigned {
@@ -865,12 +252,11 @@ impl CheckedRandomizedOperation {
             .flat_map(|(control, treated)| [*control, *treated])
             .min()
             .unwrap_or(0);
-        let balanced_sequences =
-            matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. })
-                && block_counts.values().next().is_some_and(|first| {
-                    let size = first.0 + first.1;
-                    size > 0 && block_counts.values().all(|counts| counts.0 + counts.1 == size)
-                });
+        let balanced_sequences = switchback
+            && block_counts.values().next().is_some_and(|first| {
+                let size = first.0 + first.1;
+                size > 0 && block_counts.values().all(|counts| counts.0 + counts.1 == size)
+            });
         let min_factorial_cell = if let antecedent_core::RandomizationDesign::Factorial2x2 {
             second_factor_assignment,
             ..
@@ -886,54 +272,45 @@ impl CheckedRandomizedOperation {
         } else {
             0
         };
-        let reported_intervals = if design == "multi_arm" {
+        let multi_arm = method == RandomizedMethod::MultiArm;
+        let factorial = method == RandomizedMethod::Factorial2x2;
+        let reported_intervals = if multi_arm {
             fit.multi_arm_intervals_95.iter().filter(|interval| interval.is_some()).count()
         } else {
             usize::from(fit.interval_95.is_some())
                 + usize::from(fit.second_factor_interval_95.is_some())
                 + usize::from(fit.factorial_interaction_interval_95.is_some())
         };
-        let all_reported_intervals = match design {
-            "factorial_2x2" => reported_intervals == 3,
-            "multi_arm" => {
-                fit.multi_arm_intervals_95.len() == fit.multi_arm_values.len()
-                    && reported_intervals + 1 == fit.multi_arm_values.len()
-            }
-            _ => fit.interval_95.is_some(),
+        let all_reported_intervals = if factorial {
+            reported_intervals == 3
+        } else if multi_arm {
+            fit.multi_arm_intervals_95.len() == fit.multi_arm_values.len()
+                && reported_intervals + 1 == fit.multi_arm_values.len()
+        } else {
+            fit.interval_95.is_some()
         };
-        let min_probability =
-            if let antecedent_core::RandomizationDesign::MultiArm { probabilities, .. } =
-                &self.query.design
-            {
-                probabilities
-                    .iter()
-                    .flat_map(|row| row.iter().copied())
-                    .fold(f64::INFINITY, f64::min)
-            } else {
-                self.query
-                    .assignment_probabilities
-                    .iter()
-                    .copied()
-                    .map(|p| p.min(1.0 - p))
-                    .fold(f64::INFINITY, f64::min)
-            };
-        if crate::support::license_if_graphless(
-            crate::support::GraphlessSupportKey { family, design, method, inference_claim: claim },
+        crate::support::license_if_graphless(
+            crate::support::GraphlessSupportKey {
+                family,
+                design,
+                method: method_id,
+                inference_claim: claim,
+            },
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit,
-                treated: treatment_units,
-                control: control_units,
-                interval_95_published: interval_95.is_some(),
-                rows: n,
+                treated: fit.treatment_units,
+                control: fit.control_units,
+                interval_95_published: fit.interval_95.is_some(),
+                rows: self.rows,
                 blocks: block_counts.len(),
                 min_block_arm,
                 min_factorial_cell,
                 min_action_rows: if fit.multi_arm_values.is_empty() {
-                    control_units.min(treatment_units)
+                    fit.control_units.min(fit.treatment_units)
                 } else {
                     fit.multi_arm_values.iter().map(|(_, _, _, count)| *count).min().unwrap_or(0)
                 },
-                min_probability,
+                min_probability: assignment_probability_floor(&self.query, true),
                 reported_intervals,
                 all_reported_intervals,
                 covariates: self.query.ancova_covariates.len(),
@@ -941,13 +318,6 @@ impl CheckedRandomizedOperation {
                 ..Default::default()
             },
         )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
-        }
-        result.rebind_interval(false);
-        result.treatment = None;
-        Ok(result)
     }
 }
 
@@ -973,24 +343,13 @@ impl Study {
 
 /// Frozen, held-out policy scoring operation. Prediction vectors and ownership
 /// declarations are part of the retained query identity.
-#[derive(Clone)]
-pub(crate) struct CheckedPolicyValueOperation {
-    query: antecedent_core::PolicyValueQuery,
-    source_schema: antecedent_core::CausalSchema,
-    source_rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedPolicyValueOperation =
+    RandomizedTrialOperation<antecedent_core::PolicyValueQuery>;
 
-impl std::fmt::Debug for CheckedPolicyValueOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedPolicyValueOperation")
-            .field("query", &self.query)
-            .field("source_rows", &self.source_rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::PolicyValueQuery {
+    const OPERATION: &'static str = "CheckedPolicyValueOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "policy value refresh requires the prepared schema and row order";
 }
 
 impl CheckedPolicyValueOperation {
@@ -1095,15 +454,7 @@ impl CheckedPolicyValueOperation {
                 });
             }
         }
-        Ok(Self {
-            query: query.clone(),
-            source_schema: data.schema().clone(),
-            source_rows: n,
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -1111,16 +462,7 @@ impl CheckedPolicyValueOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.source_schema || data.row_count() != self.source_rows {
-            return Err(CausalError::Unsupported {
-                message: "policy value refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let y = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(values) => values.values.as_slice(),
             _ => {
@@ -1651,28 +993,4 @@ pub(crate) fn randomized_identification(
         IdentificationPerformanceRecord::default(),
     );
     (result, estimand)
-}
-
-fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> EstimatorId {
-    match &query.design {
-        antecedent_core::RandomizationDesign::Bernoulli => {
-            if query.received_treatment.is_some() {
-                EstimatorId::RandomizedWaldCace
-            } else if query.fixed_cuped.is_some() {
-                EstimatorId::RandomizedFixedCupedHt
-            } else if !query.ancova_covariates.is_empty() {
-                EstimatorId::RandomizedAncova
-            } else {
-                EstimatorId::RandomizedHt
-            }
-        }
-        antecedent_core::RandomizationDesign::Complete { .. }
-        | antecedent_core::RandomizationDesign::Stratified { .. }
-        | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
-        | antecedent_core::RandomizationDesign::Cluster { .. } => EstimatorId::RandomizedNeyman,
-        antecedent_core::RandomizationDesign::Switchback { .. } => {
-            EstimatorId::RandomizedSwitchbackHt
-        }
-        antecedent_core::RandomizationDesign::MultiArm { .. } => EstimatorId::RandomizedHt,
-    }
 }

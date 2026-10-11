@@ -4,24 +4,13 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Clone)]
-pub(crate) struct CheckedPanelDidOperation {
-    query: antecedent_core::PanelDidQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedPanelDidOperation =
+    RandomizedTrialOperation<antecedent_core::PanelDidQuery, ()>;
 
-impl std::fmt::Debug for CheckedPanelDidOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedPanelDidOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::PanelDidQuery {
+    const OPERATION: &'static str = "CheckedPanelDidOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "panel DiD refresh requires the prepared schema and row order";
 }
 
 impl CheckedPanelDidOperation {
@@ -73,15 +62,7 @@ impl CheckedPanelDidOperation {
             });
         }
         let (identification, estimand) = panel_did_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -89,16 +70,7 @@ impl CheckedPanelDidOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "panel DiD refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let y = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
             _ => {

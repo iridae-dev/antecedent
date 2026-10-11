@@ -13,23 +13,17 @@ use antecedent_estimate::longitudinal_regime::{
 };
 use antecedent_estimate::marginal_structural_model::{MsmSummary, fit_binary_msm};
 
-#[derive(Clone)]
-pub(crate) struct CheckedLongitudinalRegimeOperation {
-    query: antecedent_core::LongitudinalRegimeQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedLongitudinalRegimeOperation =
+    RandomizedTrialOperation<antecedent_core::LongitudinalRegimeQuery, ()>;
 
-impl std::fmt::Debug for CheckedLongitudinalRegimeOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedLongitudinalRegimeOperation")
-            .field("subjects", &self.rows)
-            .field("periods", &self.query.periods)
-            .finish_non_exhaustive()
+impl RandomizedTrialQuery for antecedent_core::LongitudinalRegimeQuery {
+    const OPERATION: &'static str = "CheckedLongitudinalRegimeOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "longitudinal refresh requires prepared schema and subject row order";
+
+    fn describe(&self, rows: usize, debug: &mut std::fmt::DebugStruct<'_, '_>) {
+        debug.field("subjects", &rows);
+        debug.field("periods", &self.periods);
     }
 }
 
@@ -83,15 +77,7 @@ impl CheckedLongitudinalRegimeOperation {
             });
         }
         let (identification, estimand) = longitudinal_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -99,16 +85,7 @@ impl CheckedLongitudinalRegimeOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "longitudinal refresh requires prepared schema and subject row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let outcome = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(col) if col.validity.is_all_valid() => {
                 col.values.as_slice()
