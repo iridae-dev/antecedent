@@ -175,7 +175,7 @@ pub(crate) fn identify_interventional_metered(
     let mut derivation = DerivationTrace::default();
     let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
     let mut perf = IdentificationPerformanceRecord::default();
-    let active = full_nodes(working.admg().node_count());
+    let active = BitSet::full(working.admg().node_count());
     let mut meter = IdMeter { charge: Some(charge), depth: 0 };
     match id_recurse(
         &mut working,
@@ -464,7 +464,7 @@ impl IdIdentifier {
                 let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
                 let mut perf = IdentificationPerformanceRecord::default();
 
-                let active = full_nodes(prepared.admg().node_count());
+                let active = BitSet::full(prepared.admg().node_count());
                 let active_level = intervention_value(&query.active)?;
                 let control_level = intervention_value(&query.control)?;
 
@@ -572,7 +572,7 @@ impl IdIdentifier {
         derivation.push("general.id", "Shpitser–Pearl ID for schedule contrast");
         let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
         let mut perf = IdentificationPerformanceRecord::default();
-        let active_set = full_nodes(prepared.admg().node_count());
+        let active_set = BitSet::full(prepared.admg().node_count());
 
         let mut x_set = BitSet::with_len(prepared.admg().node_count());
         let mut schedule_dense = Vec::with_capacity(schedule.len());
@@ -688,7 +688,7 @@ impl IdIdentifier {
                 derivation.push("general.id", "Shpitser–Pearl ID");
                 let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
                 let mut perf = IdentificationPerformanceRecord::default();
-                let active = full_nodes(prepared.admg().node_count());
+                let active = BitSet::full(prepared.admg().node_count());
                 match id_recurse(
                     &mut prepared,
                     y,
@@ -798,14 +798,6 @@ fn expectation_contrast(
         op: ContrastOp::Difference,
     });
     arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))
-}
-
-fn full_nodes(n: usize) -> BitSet {
-    let mut b = BitSet::with_len(n);
-    for i in 0..n {
-        b.insert(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
-    }
-    b
 }
 
 fn intervention_value(intervention: &Intervention) -> Result<Value, IdentificationError> {
@@ -1659,7 +1651,7 @@ mod tests {
         let law = Law { sumset: BitSet::with_len(nodes), factors: Vec::new() };
         let mut s = BitSet::with_len(nodes);
         s.insert(DenseNodeId::from_raw(2));
-        let err = law.conditionals(&prep, &s, &full_nodes(nodes)).unwrap_err();
+        let err = law.conditionals(&prep, &s, &BitSet::full(nodes)).unwrap_err();
         assert!(matches!(err, IdentificationError::InvariantViolated { .. }), "{err:?}");
     }
 
