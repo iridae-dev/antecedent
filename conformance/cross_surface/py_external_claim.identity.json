@@ -14,17 +14,17 @@
   "identification": "nonparametrically_identified",
   "lineage": [
     {
-      "digest": "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf",
+      "digest": "01b07be4c974331f1d1e148230fbc0f457e6538ae3b7fb10c98cb277298cf526",
       "id": "contract:checked-contract",
       "parent_digests": [],
       "parents": [],
       "stage": "causal_contract"
     },
     {
-      "digest": "fefe49837d0cd34618e84e8837070ba73610e6ade7b075606c84ba5f0fb64601",
+      "digest": "37deb9da394ff5f90c101775af3ddca60a5e8cf9bcef9f3d0134ea60793501e7",
       "id": "evidence:factor:z",
       "parent_digests": [
-        "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf"
+        "01b07be4c974331f1d1e148230fbc0f457e6538ae3b7fb10c98cb277298cf526"
       ],
       "parents": [
         "contract:checked-contract"
@@ -32,10 +32,10 @@
       "stage": "evidence"
     },
     {
-      "digest": "01e0bacd3a25263c2f5bd056924f89399dbad9ebb4e9189cdf9d77a32044c707",
+      "digest": "e29211e064d9d40a4d36785dead486ae553f67b4d35b39325ee99ecef4bf51d6",
       "id": "provider:external:lab/curve@v3#snap-9",
       "parent_digests": [
-        "fefe49837d0cd34618e84e8837070ba73610e6ade7b075606c84ba5f0fb64601"
+        "37deb9da394ff5f90c101775af3ddca60a5e8cf9bcef9f3d0134ea60793501e7"
       ],
       "parents": [
         "evidence:factor:z"
@@ -43,11 +43,11 @@
       "stage": "external_provider"
     },
     {
-      "digest": "bd4fc5f11a1b6d55fcd8876f5e591cc1abbfd6e83cf6c354d0e24caae74ac940",
+      "digest": "d0ab6f5822aebd63ad1deea5f6d0213650ca267a259bc8d7dfd931ec3d3edd39",
       "id": "claim",
       "parent_digests": [
-        "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf",
-        "01e0bacd3a25263c2f5bd056924f89399dbad9ebb4e9189cdf9d77a32044c707"
+        "01b07be4c974331f1d1e148230fbc0f457e6538ae3b7fb10c98cb277298cf526",
+        "e29211e064d9d40a4d36785dead486ae553f67b4d35b39325ee99ecef4bf51d6"
       ],
       "parents": [
         "contract:checked-contract",
@@ -62,7 +62,7 @@
     "supported",
     "outside_empirical_support"
   ],
-  "provider_fingerprint": "06e689c45fc51c9df811df837eb7a1d53fb6ab05564f0644584708f6716a63c7",
+  "provider_fingerprint": "1c769e45c6b0535cf837138465b8c63200c5742b8100f67f8e299cb6d4eccc86",
   "provider_id": "lab",
   "provider_meaning": "interventional_predictive",
   "quantities": [
@@ -110,7 +110,7 @@
   "snapshot_id": "snap-9",
   "trust": "externally_attested",
   "uncertainty_method": null,
-  "values_blake3": "5b26e0565116882002ee53127e087383701350735d04b09a0ffe7972476feaac",
+  "values_blake3": "5a5b2d3da74190bfa7021bfacee3af25fb75545206d68837d8c77befdefbab7e",
   "verification": null,
   "version_id": "v3"
 }
