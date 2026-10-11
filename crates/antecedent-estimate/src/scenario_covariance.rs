@@ -33,7 +33,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use crate::error::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64, GOLDEN_GAMMA};
@@ -302,34 +302,14 @@ fn widen(i: usize) -> u64 {
     u64::try_from(i).unwrap_or(u64::MAX)
 }
 
-/// Two-lane chained digest over 64-bit words (stable, not cryptographic).
-struct Digest {
-    a: u64,
-    b: u64,
-}
+/// Domain tag of the ordered unit-id digest.
+const ROW_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.rows";
+/// Domain tag of the replicate digest (family identity, method, seed and every replicate).
+const REPLICATE_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.replicates";
 
-impl Digest {
-    const fn new() -> Self {
-        Self { a: 0xcbf2_9ce4_8422_2325, b: 0x9E37_79B9_7F4A_7C15 }
-    }
-
-    fn word(&mut self, w: u64) {
-        self.a = mix64(self.a ^ w).wrapping_add(GOLDEN_GAMMA);
-        self.b = mix64(self.b.rotate_left(17) ^ w ^ GOLDEN_GAMMA);
-    }
-
-    fn text(&mut self, s: &str) {
-        self.word(widen(s.len()));
-        for chunk in s.as_bytes().chunks(8) {
-            let mut buf = [0_u8; 8];
-            buf[..chunk.len()].copy_from_slice(chunk);
-            self.word(u64::from_le_bytes(buf));
-        }
-    }
-
-    fn hex(&self) -> String {
-        format!("{:016x}{:016x}", self.a, self.b)
-    }
+/// Lowercase hex of a finished canonical digest.
+fn hex_digest(digest: &CanonicalWriter) -> String {
+    antecedent_core::to_hex(&digest.finish())
 }
 
 struct FamilyIdentity {
@@ -391,7 +371,7 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
         }
     }
     let mut units = HashSet::new();
-    let mut row_digest = Digest::new();
+    let mut row_digest = CanonicalWriter::new(ROW_DIGEST_TAG);
     for u in &first.unit_ids {
         if !units.insert(u) {
             return Err(unknown_dependence(&format!(
@@ -407,7 +387,7 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
             &format!("{n} rows; at least {MIN_ROWS} are needed to resample"),
         ));
     }
-    Ok(FamilyIdentity { n, row_digest: row_digest.hex(), snapshot: first.snapshot_digest.clone() })
+    Ok(FamilyIdentity { n, row_digest: hex_digest(&row_digest), snapshot: first.snapshot_digest.clone() })
 }
 
 /// Deterministic replicate id of replicate `r` under `seed`.
@@ -418,7 +398,7 @@ pub fn replicate_id(seed: u64, r: u64) -> u64 {
 
 /// Draw `n` row indices with replacement from a replicate id, filling multiplicities
 /// and folding the index list into the digest.
-fn draw_counts(id: u64, counts: &mut [u32], digest: &mut Digest) {
+fn draw_counts(id: u64, counts: &mut [u32], digest: &mut CanonicalWriter) {
     counts.fill(0);
     let n = widen(counts.len());
     let mut state = id;
@@ -586,7 +566,7 @@ fn finish(
     identity: &FamilyIdentity,
     tally: &Tally,
     method: CovarianceMethod,
-    digest: &Digest,
+    digest: &CanonicalWriter,
 ) -> Result<ScenarioCovariance, EstimationError> {
     let k = scenarios.len();
     let kept_mass: f64 = tally.weights.iter().sum();
@@ -622,7 +602,7 @@ fn finish(
         covariance,
         replicate_ids: Vec::new(),
         failed_replicate_ids: Vec::new(),
-        replicate_digest: digest.hex(),
+        replicate_digest: hex_digest(digest),
         row_identity_digest: identity.row_digest.clone(),
         snapshot_digest: identity.snapshot.clone(),
         method,
@@ -637,8 +617,12 @@ fn finish(
     })
 }
 
-fn seed_digest(scenarios: &[ScenarioRowEstimator], identity: &FamilyIdentity, tag: &str) -> Digest {
-    let mut digest = Digest::new();
+fn seed_digest(
+    scenarios: &[ScenarioRowEstimator],
+    identity: &FamilyIdentity,
+    tag: &str,
+) -> CanonicalWriter {
+    let mut digest = CanonicalWriter::new(REPLICATE_DIGEST_TAG);
     digest.text(tag);
     digest.text(&identity.snapshot);
     digest.text(&identity.row_digest);
@@ -751,7 +735,7 @@ struct Enumerator<'a> {
     fact: Vec<u128>,
     denominator: f64,
     tally: Tally,
-    digest: Digest,
+    digest: CanonicalWriter,
 }
 
 impl Enumerator<'_> {

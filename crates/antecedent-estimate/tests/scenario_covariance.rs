@@ -520,6 +520,35 @@ fn covariance_permutation_reorders_rows_and_columns_identically() {
 // ---- replay ----------------------------------------------------------------------------
 
 #[test]
+fn row_identity_digest_is_the_canonical_stream_of_the_ordered_unit_ids() {
+    // Golden vector: the digest is BLAKE3 of the documented canonical framing (a length-
+    // prefixed domain tag, then each unit id as length-prefixed text), so it is rebuilt here
+    // from the framing alone and pinned.
+    let cov =
+        shared_row_bootstrap_covariance(&family_in_order(&["a", "b"]), &boot_options(42), &ctx())
+            .unwrap();
+    let mut writer =
+        antecedent_core::CanonicalWriter::new("antecedent.estimate.scenario_covariance.rows");
+    for id in units("u") {
+        writer.text(&id);
+    }
+    assert_eq!(cov.row_identity_digest, antecedent_core::to_hex(&writer.finish()));
+    assert_eq!(
+        cov.row_identity_digest,
+        "07a1c08b91f9778a2a42e520e0097ebb20e9e438bd7da562f1e21c41d74f7b7a"
+    );
+    // The exact-enumeration replicate digest folds the family identity, then each of the 462
+    // count vectors of six units with its success flag; derived independently in Python.
+    let exact =
+        exact_enumeration_covariance(&family_in_order(&["a", "b"]), &exact_options(), &ctx())
+            .unwrap();
+    assert_eq!(
+        exact.replicate_digest,
+        "4e4aac34418b577a7fa50cd77a12aa99343d426a34a93e4b28a8ed741bd99d47"
+    );
+}
+
+#[test]
 fn covariance_replay_is_bit_identical_and_identity_sensitive() {
     let make = || family_in_order(&["a", "b"]);
     let first = shared_row_bootstrap_covariance(&make(), &boot_options(42), &ctx()).unwrap();
@@ -528,7 +557,8 @@ fn covariance_replay_is_bit_identical_and_identity_sensitive() {
     assert_eq!(first.covariance, second.covariance);
     assert_eq!(first.replicate_ids, second.replicate_ids);
     assert_eq!(first.replicate_digest, second.replicate_digest);
-    assert_eq!(first.replicate_digest.len(), 32);
+    // A BLAKE3 digest in hex: 32 bytes, 64 characters.
+    assert_eq!(first.replicate_digest.len(), 64);
 
     let exact_1 = exact_enumeration_covariance(&make(), &exact_options(), &ctx()).unwrap();
     let exact_2 = exact_enumeration_covariance(&make(), &exact_options(), &ctx()).unwrap();

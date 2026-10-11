@@ -726,18 +726,19 @@ fn distinct_count(ids: &[u32]) -> usize {
     ids.iter().collect::<BTreeSet<_>>().len()
 }
 
-/// FNV-1a over the sorted distinct labels: a fingerprint, not a cryptographic digest (the
-/// estimator identity digests the full label vector).
+/// Domain tag of the distinct-unit-label digest.
+const UNIT_DIGEST_TAG: &str = "antecedent.estimate.cluster_dml_aipw.units";
+
+/// BLAKE3 of the sorted distinct labels (hex). Names the set of clusters a receipt covers;
+/// the estimator identity digests the full label vector.
 fn unit_digest(ids: &[u32]) -> String {
     let distinct: BTreeSet<u32> = ids.iter().copied().collect();
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut writer = antecedent_core::CanonicalWriter::new(UNIT_DIGEST_TAG);
+    writer.word(distinct.len() as u64);
     for id in distinct {
-        for byte in id.to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
+        writer.word(u64::from(id));
     }
-    format!("{hash:016x}")
+    antecedent_core::to_hex(&writer.finish())
 }
 
 fn require_whole_clusters_per_fold(
@@ -755,4 +756,23 @@ fn require_whole_clusters_per_fold(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::unit_digest;
+
+    #[test]
+    fn unit_digest_is_the_canonical_stream_of_the_sorted_distinct_labels() {
+        // Golden vector: BLAKE3 over a length-prefixed domain tag, the distinct count, then
+        // each sorted label as a little-endian word; repeats and row order do not matter.
+        let mut writer =
+            antecedent_core::CanonicalWriter::new("antecedent.estimate.cluster_dml_aipw.units");
+        writer.word(3).word(1).word(2).word(3);
+        let expected = antecedent_core::to_hex(&writer.finish());
+        assert_eq!(unit_digest(&[3, 1, 3, 2, 1]), expected);
+        assert_eq!(unit_digest(&[2, 3, 1]), expected);
+        assert_ne!(unit_digest(&[1, 2, 4]), expected);
+        assert_eq!(expected, "4f02b3c17b6ea0c01be8ccf7ee9bc04ad8b4ddbf245e1da7926766487b8e1f9f");
+    }
 }

@@ -381,7 +381,8 @@ fn the_cluster_sandwich_equals_hand_computed_cluster_sums() {
     assert_eq!(receipt.independence_unit, IndependenceUnit::Cluster);
     assert_eq!((receipt.n_clusters, receipt.n_rows, receipt.folds), (60, 1_200, FOLDS));
     assert_eq!(receipt.min_clusters, 20);
-    assert_eq!(receipt.unit_digest.len(), 16);
+    // A BLAKE3 digest in hex: 32 bytes, 64 characters.
+    assert_eq!(receipt.unit_digest.len(), 64);
     // The digest is a function of the label set, not of row order.
     let reversed: Vec<u32> = raw.cluster.iter().rev().copied().collect();
     let flipped = ScoreTable {

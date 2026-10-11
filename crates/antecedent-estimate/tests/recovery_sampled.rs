@@ -173,7 +173,17 @@ fn sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps_cov
     let digests: BTreeSet<&str> =
         first.receipt.replicates.iter().map(|r| r.selection_digest.as_str()).collect();
     assert_eq!(digests.len(), 2000, "every replicate draws different rows");
-    assert!(first.receipt.replicates.iter().all(|r| r.selection_digest.len() == 32));
+    assert!(first.receipt.replicates.iter().all(|r| r.selection_digest.len() == 64));
+    // Golden vectors, derived independently in Python (SplitMix64 unit draws over the 4000
+    // row ids 0..4000, the canonical framing and a from-scratch BLAKE3).
+    assert_eq!(
+        first.receipt.replicates[0].selection_digest,
+        "01389b91d69c25baf31553e2e82a92c1ed535ef1911a966701693a19388adedd"
+    );
+    assert_eq!(
+        first.receipt.replicates[1999].selection_digest,
+        "58453e2da4390ad27502dd354d3052ecbc58d48073a9dc77911b0a80e556e5de"
+    );
     // The point is near the truth and the interval center near the point.
     assert!((first.effect - TRUE_EFFECT).abs() < 0.15, "{}", first.effect);
     let center = 0.5 * (first.interval.lower + first.interval.upper);

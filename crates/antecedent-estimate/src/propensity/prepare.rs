@@ -218,7 +218,7 @@ impl PropensityEstimationWorkspace {
     ) -> Result<(), EstimationError> {
         let n_donors = donor_features.len() / dim.max(1);
         let key =
-            MatchingIndexKey { dim, n_donors, distance, features_hash: fnv1a64(donor_features) };
+            MatchingIndexKey { dim, n_donors, distance, features_hash: feature_key(donor_features) };
         let needs_rebuild = self.matching_index.is_none() || self.matching_index_key != key;
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
@@ -248,17 +248,14 @@ impl PropensityEstimationWorkspace {
     }
 }
 
-pub(crate) fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0100_0000_01b3;
-    let mut hash = OFFSET;
-    for &v in bytes_as_f64 {
-        for b in v.to_bits().to_le_bytes() {
-            hash ^= u64::from(b);
-            hash = hash.wrapping_mul(PRIME);
-        }
+/// In-memory cache key of a feature buffer: FNV-1a over the little-endian bytes of each
+/// value's bit pattern. Not a persisted identity; a hit is confirmed by the geometry key.
+pub(crate) fn feature_key(values: &[f64]) -> u64 {
+    let mut hash = antecedent_core::Fnv1a64::new();
+    for &v in values {
+        hash.word(v.to_bits());
     }
-    hash
+    hash.finish()
 }
 
 /// Default overlap policy for all propensity estimators: diagnostics mandatory,
@@ -577,6 +574,15 @@ pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn feature_key_is_fnv1a_over_the_little_endian_value_bits() {
+        // Independent reference: FNV-1a 64 over the sixteen bytes of 1.0 and -2.5 (Python
+        // struct.pack('<dd', 1.0, -2.5)), and the published vector FNV-1a("a").
+        assert_eq!(feature_key(&[1.0, -2.5]), 0x2f20_b4ea_1c69_d79c);
+        assert_eq!(feature_key(&[]), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(antecedent_core::fnv1a_u64(b"a"), 0xaf63_dc4c_8601_ec8c);
+    }
+
     use super::*;
 
     #[test]

@@ -13,13 +13,15 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::reason_code;
+use antecedent_core::{reason_code, CanonicalWriter};
 
 use crate::error::EstimationError;
 use crate::temporal_dependent_interval::{
-    fold, fold_text, ResponseGap, SequenceTallies, TemporalEstimator, TemporalUnitPanel,
-    UnitHistories,
+    ResponseGap, SequenceTallies, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
+
+/// Domain tag of the initial-state law identity.
+const LAW_DIGEST_TAG: &str = "antecedent.estimate.temporal_initial_state.law";
 
 /// Most support points of an initial-state law.
 pub const INITIAL_STATE_MAX_STATES: usize = 64;
@@ -126,12 +128,13 @@ impl InitialStateLaw {
                  summing to one",
             ));
         }
-        let mut digest = fold_text(0x1417, &snapshot_id);
-        digest = fold(digest, u64::from(population == InitialStatePopulation::Target));
+        let mut digest = CanonicalWriter::new(LAW_DIGEST_TAG);
+        digest.text(&snapshot_id);
+        digest.word(u64::from(population == InitialStatePopulation::Target));
         for (level, mass) in &states {
-            digest = fold(fold(digest, u64::from(*level)), mass.to_bits());
+            digest.word(u64::from(*level)).real(*mass);
         }
-        Ok(Self { population, snapshot_id, states, digest })
+        Ok(Self { population, snapshot_id, states, digest: crate::util::canonical_word(&digest) })
     }
 
     /// Whose law this is.
@@ -344,5 +347,30 @@ impl TemporalEstimator for MarginalizedQuery {
 
     fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
         Ok(self.contributions(units)?.iter().map(|c| c.mass * c.response).sum())
+    }
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+
+    #[test]
+    fn law_digest_matches_the_independent_derivation() {
+        // Derived in Python from the documented framing and a from-scratch BLAKE3: tag,
+        // snapshot text, the target flag, then each (level, mass bits).
+        let law = InitialStateLaw::new(
+            InitialStatePopulation::Target,
+            "target-state",
+            vec![(0, 0.3), (1, 0.7)],
+        )
+        .unwrap();
+        assert_eq!(law.digest(), 284_173_709_406_389_569);
+        let source = InitialStateLaw::new(
+            InitialStatePopulation::Source,
+            "target-state",
+            vec![(0, 0.3), (1, 0.7)],
+        )
+        .unwrap();
+        assert_ne!(source.digest(), law.digest(), "the population is part of the identity");
     }
 }

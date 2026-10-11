@@ -33,6 +33,17 @@ pub(crate) fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
     chol_solve(&chol, p, b)
 }
 
+/// The 64-bit identity word of a finished canonical stream: the first eight bytes of its
+/// BLAKE3 digest, little-endian. For identities that are carried as a `u64` field; anything
+/// stored as a whole digest uses [`CanonicalWriter::finish`] directly.
+#[must_use]
+pub(crate) fn canonical_word(writer: &antecedent_core::CanonicalWriter) -> u64 {
+    let digest = writer.finish();
+    u64::from_le_bytes([
+        digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+    ])
+}
+
 /// `n` draws from `N(mean, variance)` on the seeded direct-draw stream of the shared
 /// multivariate sampler; `None` when `variance` is not positive and finite (the sampler's
 /// Cholesky refuses it) or the draw fails.

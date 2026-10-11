@@ -677,11 +677,13 @@ struct CachedFit {
 
 static FIT_CACHE: std::sync::Mutex<Vec<CachedFit>> = std::sync::Mutex::new(Vec::new());
 
-/// Content fingerprint of the fitted rows (verified by full comparison on a hit).
+/// In-memory content key of the fitted rows (verified by full comparison on a hit).
 fn design_hash(x: &[f64], y: &[f64]) -> u64 {
-    x.iter()
-        .chain(y)
-        .fold(0xcbf2_9ce4_8422_2325_u64, |h, v| (h ^ v.to_bits()).wrapping_mul(0x0100_0000_01b3))
+    let mut hash = antecedent_core::Fnv1a64::new();
+    for v in x.iter().chain(y) {
+        hash.fold(v.to_bits());
+    }
+    hash.finish()
 }
 
 /// The design-level fit of `design`, from the cache when the same rows were fitted
@@ -1457,6 +1459,14 @@ fn long_run_variance_ratio(s: &[f64], bandwidth: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn design_hash_is_the_word_at_a_time_fnv_over_the_row_bits() {
+        // Independent reference: h = (h ^ bits) * 0x100000001b3 from the FNV offset basis over
+        // the bit patterns of 1.0, 2.0 and -0.5 (Python).
+        assert_eq!(design_hash(&[1.0, 2.0], &[-0.5]), 0x2d1d_1218_6c0f_2fb7);
+        assert_eq!(design_hash(&[], &[]), 0xcbf2_9ce4_8422_2325);
+    }
+
     use super::*;
     use antecedent_core::{CausalRng, VariableId};
     use antecedent_kernels::standard_normal;

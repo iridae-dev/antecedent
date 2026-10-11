@@ -386,10 +386,17 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
 fn logistic(x: f64) -> f64 {
     1.0 / (1.0 + (-x.clamp(-30.0, 30.0)).exp())
 }
+/// Domain tag of the draw-specific weight fingerprint.
+const WEIGHT_FINGERPRINT_TAG: &str = "antecedent.estimate.bayesian_robust_ate.weights";
+
+/// Fingerprint of one draw's row-weight vector, recorded on each refit of the draw.
 fn fingerprint(values: &[f64]) -> u64 {
-    values
-        .iter()
-        .fold(0xcbf2_9ce4_8422_2325_u64, |h, x| (h ^ x.to_bits()).wrapping_mul(0x100_0000_01b3))
+    let mut writer = antecedent_core::CanonicalWriter::new(WEIGHT_FINGERPRINT_TAG);
+    writer.word(values.len() as u64);
+    for &v in values {
+        writer.real(v);
+    }
+    crate::util::canonical_word(&writer)
 }
 fn interval(draws: &[f64], coverage: f64) -> (f64, f64) {
     let mut sorted = draws.to_vec();
@@ -510,5 +517,22 @@ mod tests {
         let mut collinear = vec![1.0, 2.0, 2.0, 4.0];
         let e = solve_penalized(&mut collinear, &[1.0, 2.0], 0.0).unwrap_err();
         assert!(e.to_string().contains("singular weighted nuisance system"), "{e}");
+    }
+
+    #[test]
+    fn weight_fingerprint_is_the_canonical_stream_of_the_weight_bits() {
+        let weights = [0.5_f64, 1.0, 1.5];
+        let mut writer = antecedent_core::CanonicalWriter::new(
+            "antecedent.estimate.bayesian_robust_ate.weights",
+        );
+        writer.word(3);
+        for w in weights {
+            writer.word(w.to_bits());
+        }
+        let digest = writer.finish();
+        let expected = u64::from_le_bytes(digest[..8].try_into().unwrap());
+        assert_eq!(fingerprint(&weights), expected);
+        assert_ne!(fingerprint(&[0.5, 1.0, 1.5000000000000002]), expected);
+        assert_eq!(expected, 18_274_849_298_044_415_906_u64);
     }
 }

@@ -28,10 +28,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{reason_code, ExecutionContext};
+use antecedent_core::{reason_code, CanonicalWriter, ExecutionContext};
 
 use crate::error::EstimationError;
-use crate::splitmix::{mix64, seed_mix, splitmix64, GOLDEN_GAMMA};
+use crate::splitmix::{seed_mix, splitmix64};
 
 /// Most replicates one interval may use.
 pub const INTERVAL_MAX_REPLICATES: usize = 2000;
@@ -112,16 +112,14 @@ pub struct UnitHistories {
     pub histories: Vec<SequenceHistory>,
 }
 
-pub(crate) fn fold(state: u64, word: u64) -> u64 {
-    mix64(state ^ word).wrapping_add(GOLDEN_GAMMA)
-}
-
-pub(crate) fn fold_text(mut state: u64, text: &str) -> u64 {
-    for byte in text.bytes() {
-        state = fold(state, u64::from(byte));
-    }
-    fold(state, text.len() as u64)
-}
+/// Domain tag of the panel identity.
+const PANEL_DIGEST_TAG: &str = "antecedent.estimate.temporal_dependent_interval.panel";
+/// Domain tag of the replicate id (the stream key of one resample).
+const REPLICATE_ID_TAG: &str = "antecedent.estimate.temporal_dependent_interval.replicate_id";
+/// Domain tag of the digest of one replicate's drawn units.
+const SELECTION_DIGEST_TAG: &str = "antecedent.estimate.temporal_dependent_interval.selection";
+/// Domain tag of the digest over every replicate of an interval.
+const REPLICATE_SET_TAG: &str = "antecedent.estimate.temporal_dependent_interval.replicate_set";
 
 /// A snapshot of repeated units with their complete histories.
 #[derive(Clone, Debug)]
@@ -163,7 +161,8 @@ impl TemporalUnitPanel {
             ));
         }
         let mut seen = BTreeSet::new();
-        let mut digest = fold_text(GOLDEN_GAMMA, &snapshot_id);
+        let mut digest = CanonicalWriter::new(PANEL_DIGEST_TAG);
+        digest.text(&snapshot_id);
         for unit in &units {
             if !seen.insert(unit.unit_id) {
                 return Err(unknown_units(format!("unit id {} appears twice", unit.unit_id)));
@@ -174,7 +173,7 @@ impl TemporalUnitPanel {
                     unit.unit_id
                 )));
             }
-            digest = fold(digest, unit.unit_id);
+            digest.word(unit.unit_id);
             let mut previous: Option<u64> = None;
             for history in &unit.histories {
                 if previous.is_some_and(|p| history.time_id <= p) {
@@ -198,11 +197,11 @@ impl TemporalUnitPanel {
                     u64::from(history.a2),
                     history.y.to_bits(),
                 ] {
-                    digest = fold(digest, word);
+                    digest.word(word);
                 }
             }
         }
-        Ok(Self { snapshot_id, units, digest })
+        Ok(Self { snapshot_id, units, digest: crate::util::canonical_word(&digest) })
     }
 
     /// Snapshot id.
@@ -627,15 +626,19 @@ impl DependentInterval {
     /// Digest over every replicate id, selection digest and point.
     #[must_use]
     pub fn replicate_digest(&self) -> u64 {
-        let mut state = fold(GOLDEN_GAMMA, self.seed);
-        state = fold(state, self.panel_digest);
-        for record in &self.replicates {
-            state = fold(state, record.replicate_id);
-            state = fold(state, record.selection_digest);
-            state = fold(state, record.point.map_or(u64::MAX, f64::to_bits));
-        }
-        state
+        replicate_set_digest(self.seed, self.panel_digest, &self.replicates)
     }
+}
+
+/// The identity word over a seed, a panel identity and every replicate record.
+fn replicate_set_digest(seed: u64, panel_digest: u64, replicates: &[ReplicateRecord]) -> u64 {
+    let mut digest = CanonicalWriter::new(REPLICATE_SET_TAG);
+    digest.word(seed).word(panel_digest);
+    for record in replicates {
+        digest.word(record.replicate_id).word(record.selection_digest);
+        digest.word(record.point.map_or(u64::MAX, f64::to_bits));
+    }
+    crate::util::canonical_word(&digest)
 }
 
 fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationError> {
@@ -685,14 +688,15 @@ fn draw_units(panel: &TemporalUnitPanel, replicate_id: u64) -> (Vec<&UnitHistori
     let wide = u128::try_from(n).unwrap_or(1);
     let mut state = seed_mix(replicate_id);
     let mut selected = Vec::with_capacity(n);
-    let mut digest = fold(GOLDEN_GAMMA, replicate_id);
+    let mut digest = CanonicalWriter::new(SELECTION_DIGEST_TAG);
+    digest.word(replicate_id);
     for _ in 0..n {
         let draw = u128::from(splitmix64(&mut state));
         let index = usize::try_from((draw * wide) >> 64).unwrap_or(0).min(n - 1);
-        digest = fold(digest, panel.units[index].unit_id);
+        digest.word(panel.units[index].unit_id);
         selected.push(&panel.units[index]);
     }
-    (selected, digest)
+    (selected, crate::util::canonical_word(&digest))
 }
 
 fn run_replicates<E: TemporalEstimator + ?Sized>(
@@ -701,11 +705,14 @@ fn run_replicates<E: TemporalEstimator + ?Sized>(
     config: &DependentIntervalConfig,
     ctx: &ExecutionContext,
 ) -> Result<Vec<ReplicateRecord>, EstimationError> {
-    let base = fold(fold(GOLDEN_GAMMA, config.seed), panel.digest);
+    let mut base = CanonicalWriter::new(REPLICATE_ID_TAG);
+    base.word(config.seed).word(panel.digest);
     let mut records = Vec::with_capacity(config.replicates);
     for index in 0..config.replicates {
         crate::transport::refuse_cancelled(ctx, "temporal dependent interval replicate")?;
-        let replicate_id = fold(base, index as u64);
+        let mut keyed = base.clone();
+        keyed.word(index as u64);
+        let replicate_id = crate::util::canonical_word(&keyed);
         let (selected, selection_digest) = draw_units(panel, replicate_id);
         let point = estimator.estimate(&selected).ok().filter(|p| p.is_finite());
         records.push(ReplicateRecord { index, replicate_id, selection_digest, point });
@@ -940,4 +947,70 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
         claim: INTERVAL_CLAIM,
         calibration: INTERVAL_CALIBRATION_STATUS,
     })
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+
+    /// The mean outcome of the drawn units' histories, in draw order.
+    struct MeanOutcome;
+
+    impl TemporalEstimator for MeanOutcome {
+        fn label(&self) -> &'static str {
+            "mean_outcome"
+        }
+
+        fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
+            let ys: Vec<f64> =
+                units.iter().flat_map(|u| u.histories.iter().map(|h| h.y)).collect();
+            Ok(ys.iter().sum::<f64>() / ys.len() as f64)
+        }
+    }
+
+    fn history(time_id: u64, s0: u32, a1: u32, l2: u32, a2: u32, y: f64) -> SequenceHistory {
+        SequenceHistory { time_id, s0, a1, l2, a2, y }
+    }
+
+    fn panel() -> TemporalUnitPanel {
+        let units = vec![
+            UnitHistories {
+                unit_id: 5,
+                histories: vec![history(0, 0, 1, 0, 1, 0.5), history(1, 1, 0, 1, 0, 1.0)],
+            },
+            UnitHistories { unit_id: 9, histories: vec![history(0, 0, 0, 0, 0, 2.0)] },
+            UnitHistories { unit_id: 12, histories: vec![history(3, 1, 1, 1, 1, -1.5)] },
+        ];
+        TemporalUnitPanel::new("snap", Some(units)).unwrap()
+    }
+
+    /// Golden vectors: every value below was derived independently in Python from the
+    /// documented framing (a length-prefixed tag, little-endian words, real bit patterns),
+    /// a from-scratch BLAKE3, and the `SplitMix64` unit draws.
+    #[test]
+    fn panel_replicate_and_set_digests_match_the_independent_derivation() {
+        let panel = panel();
+        assert_eq!(panel.digest, 18_395_352_411_797_752_298);
+        let config = DependentIntervalConfig { seed: 7, ..DependentIntervalConfig::default() };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut config = config;
+        config.replicates = 3;
+        let records = run_replicates(&panel, &MeanOutcome, &config, &ctx).unwrap();
+        let expected = [
+            (13_596_569_364_991_760_287_u64, 9_528_841_699_978_479_609_u64, -1.0 / 3.0),
+            (8_518_135_389_417_753_826, 18_080_053_928_592_104_426, -1.0 / 3.0),
+            (1_008_529_447_291_554_322, 11_298_647_489_980_813_686, 2.0),
+        ];
+        assert_eq!(records.len(), 3);
+        for (record, (id, selection, point)) in records.iter().zip(expected) {
+            assert_eq!(record.replicate_id, id);
+            assert_eq!(record.selection_digest, selection);
+            assert!((record.point.unwrap() - point).abs() < 1e-15);
+        }
+        assert_eq!(replicate_set_digest(7, panel.digest, &records), 12_687_347_855_711_543_481);
+        // A different seed or panel changes every replicate id.
+        let other = DependentIntervalConfig { seed: 8, replicates: 3, ..config };
+        let moved = run_replicates(&panel, &MeanOutcome, &other, &ctx).unwrap();
+        assert!(moved.iter().zip(&records).all(|(a, b)| a.replicate_id != b.replicate_id));
+    }
 }

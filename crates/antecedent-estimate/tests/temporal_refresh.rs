@@ -378,3 +378,29 @@ fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window() {
     receipt.digest = receipt.compute_digest();
     assert!(accept_refresh(&held, &receipt, fresh).is_err());
 }
+
+#[test]
+fn window_identity_and_receipt_digests_match_the_independent_derivation() {
+    // Golden vectors derived in Python from the documented canonical framing (a length-prefixed
+    // domain tag, length-prefixed text, little-endian counts) and a from-scratch BLAKE3.
+    assert_eq!(
+        identity().digest(),
+        "5848783d939097dfce9769d79f53987ea23f64bf4927168b2da904551be4ece0"
+    );
+    let receipt = antecedent_estimate::temporal_refresh::RefreshReceipt {
+        old_identity_digest: "aaaaaaaa".into(),
+        new_identity_digest: "bbbbbbbb".into(),
+        old_period: ObservationPeriod { start: 0, end: 10 },
+        new_period: ObservationPeriod { start: 10, end: 20 },
+        old_snapshot_id: "snap_old".into(),
+        new_snapshot_id: "snap_new".into(),
+        proof_id: "proof_1".into(),
+        interval_invalidated: true,
+        inference_claim: "point_only",
+        digest: String::new(),
+    };
+    assert_eq!(
+        receipt.compute_digest(),
+        "59b0a1813b03550346c33dbe5b232b1e3a3fe5e8c2aa137fba92c12bce299bde"
+    );
+}
