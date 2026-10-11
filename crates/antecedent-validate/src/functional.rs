@@ -16,7 +16,10 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 
 use crate::ValidationError;
-use crate::common::{RefutationReport, replicate_p_value, with_row_subset};
+use crate::common::{
+    RefutationReport, STABILITY_ALPHA, STABILITY_REPLICATES, finish_p_report, run_replicates,
+    with_row_subset,
+};
 
 /// Refit the identified path functional on independent 80% row subsets.
 /// Full validation also probes 50% subsets. The path assignment and natural
@@ -42,11 +45,8 @@ pub fn refute_path(
     .iter()
     .enumerate()
     {
-        let mut values = Vec::new();
-        for replicate in 0..20_u64 {
-            if ctx.cancellation.is_cancelled() {
-                return Err(ValidationError::Cancelled);
-            }
+        let values = run_replicates(ctx, STABILITY_REPLICATES, |replicate| {
+            let replicate = u64::from(replicate);
             let subset =
                 with_row_subset(data, fraction, ctx, subset_stream(0xF012_0000, slot, replicate))?;
             let prepared = estimator.prepare(
@@ -56,26 +56,16 @@ pub fn refute_path(
                 identification.required_assumptions.clone(),
                 &extra,
             )?;
-            values.push(
-                estimator
-                    .estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?
-                    .ate,
-            );
-        }
-        let p = replicate_p_value(&values, original)?;
+            Ok(estimator
+                .estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?
+                .ate)
+        })?;
         // Subsample refits are centred on the full-sample estimate by construction and
         // `original` is judged against single-replicate spread, so this cannot fail for a
         // wrong estimate: a pipeline stability check, not evidence for the effect.
-        reports.push(RefutationReport::new(
-            id,
-            original,
-            values.iter().sum::<f64>() / values.len() as f64,
-            p,
-            false,
-            p >= 0.05,
-            (p < 0.05).then(|| Arc::from("subsampled natural path contrast is unstable")),
-            20,
-        ));
+        reports.push(finish_p_report(id, original, &values, original, STABILITY_ALPHA, |_, _| {
+            "subsampled natural path contrast is unstable".to_owned()
+        })?);
     }
     Ok(reports)
 }
@@ -125,11 +115,8 @@ pub fn refute_distribution(
     .iter()
     .enumerate()
     {
-        let mut distances = Vec::new();
-        for replicate in 0..20_u64 {
-            if ctx.cancellation.is_cancelled() {
-                return Err(ValidationError::Cancelled);
-            }
+        let distances = run_replicates(ctx, STABILITY_REPLICATES, |replicate| {
+            let replicate = u64::from(replicate);
             let subset =
                 with_row_subset(data, fraction, ctx, subset_stream(0xF013_0000, slot, replicate))?;
             let prepared = estimator.prepare(
@@ -145,9 +132,8 @@ pub fn refute_distribution(
                 &mut FunctionalDistributionWorkspace::default(),
                 ctx,
             )?;
-            let distance = max_conditional_tv(&original.atoms, &estimate.atoms);
-            distances.push(distance);
-        }
+            Ok(max_conditional_tv(&original.atoms, &estimate.atoms))
+        })?;
         // Descriptive robustness threshold, not a calibrated hypothesis test.
         let mean = distances.iter().sum::<f64>() / distances.len() as f64;
         let passed = mean.is_finite() && mean <= 0.1;
@@ -159,7 +145,7 @@ pub fn refute_distribution(
             true,
             passed,
             (!passed).then(|| Arc::from("mean maximum conditional total variation exceeds 0.1")),
-            20,
+            STABILITY_REPLICATES,
         ));
     }
     Ok(reports)

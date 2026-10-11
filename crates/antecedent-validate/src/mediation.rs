@@ -14,8 +14,8 @@ use antecedent_expr::IdentifiedEstimand;
 
 use crate::ValidationError;
 use crate::common::{
-    RefutationReport, fill_gaussian, replicate_mean, replicate_p_value, with_contiguous_row_window,
-    with_extra_float, with_replaced_float,
+    RefutationReport, STABILITY_ALPHA, STABILITY_REPLICATES, fill_gaussian, finish_p_report,
+    run_replicates, with_contiguous_row_window, with_extra_float, with_replaced_float,
 };
 
 /// Query-native cheap/full dispatch. Temporal mediation uses the mediation
@@ -117,23 +117,20 @@ pub fn refute_temporal_mediation_adjusted(
     let mut placebo_query = query.clone();
     placebo_query.contrast = MediationContrast::Mediated;
     let mut noise = vec![0.0; tabular.row_count()];
-    let mut placebo = Vec::new();
     let mut rcc = Vec::new();
     let mut subset = Vec::new();
-    for replicate in 0..MEDIATION_REPLICATES {
-        if ctx.cancellation.is_cancelled() {
-            return Err(ValidationError::Cancelled);
-        }
+    // The three refuters share one noise vector per replicate, so one pass drives all of them;
+    // the placebo estimate is the driver's output and RCC / subset are pushed on the side.
+    let placebo = run_replicates(ctx, STABILITY_REPLICATES, |replicate| {
+        let replicate = u64::from(replicate);
         fill_gaussian(&mut noise, ctx, 0xF014_0000 + replicate);
         let replaced = with_replaced_float(&tabular, mediator, Arc::from(noise.clone()))?;
         let series =
             TimeSeriesData::try_new(replaced.storage().clone(), data.time_index().clone())?;
-        placebo.push(
-            estimator
-                .estimate_with_adjustment(&series, estimand, &placebo_query, adjustment, &[], ctx)?
-                .effect
-                .ate,
-        );
+        let placebo_ate = estimator
+            .estimate_with_adjustment(&series, estimand, &placebo_query, adjustment, &[], ctx)?
+            .effect
+            .ate;
         let (augmented, id) =
             with_extra_float(&tabular, "__mediation_rcc", Arc::from(noise.clone()))?;
         let series =
@@ -158,7 +155,8 @@ pub fn refute_temporal_mediation_adjusted(
                     .ate,
             );
         }
-    }
+        Ok(placebo_ate)
+    })?;
     let mut reports = vec![
         report("mediation.placebo_mediator", 0.0, &placebo)?,
         report("mediation.random_common_cause", original.effect.ate, &rcc)?,
@@ -215,23 +213,12 @@ pub fn refute_temporal_mediation_adjusted(
     Ok(reports)
 }
 
-/// Replicates per mediation refuter (placebo, random common cause, window / subset).
-const MEDIATION_REPLICATES: u64 = 20;
-
 fn report(id: &str, target: f64, values: &[f64]) -> Result<RefutationReport, ValidationError> {
-    let p = replicate_p_value(values, target)?;
     // Linear mediation placebo/RCC/subset use the same OLS-orthogonal constructions
     // as the ATE refuters: they cannot falsify the claim, so they are not informative.
-    Ok(RefutationReport::new(
-        id,
-        target,
-        replicate_mean(values),
-        p,
-        false,
-        p >= 0.05,
-        (p < 0.05).then(|| Arc::from("mediation contrast is inconsistent with the refuter target")),
-        u32::try_from(values.len()).unwrap_or(u32::MAX),
-    ))
+    finish_p_report(id, target, values, target, STABILITY_ALPHA, |_, _| {
+        "mediation contrast is inconsistent with the refuter target".to_owned()
+    })
 }
 
 /// Static mediation-native suite. Cheap tests a placebo mediator, an exogenous
@@ -252,13 +239,10 @@ pub fn refute_static_mediation(
     use antecedent_estimate::estimate_static_mediation;
     let mut placebo_query = query.clone();
     placebo_query.contrast = MediationContrast::NaturalIndirect;
-    let mut placebo = Vec::new();
     let mut rcc = Vec::new();
     let mut subset = Vec::new();
-    for rep in 0..MEDIATION_REPLICATES {
-        if ctx.cancellation.is_cancelled() {
-            return Err(ValidationError::Cancelled);
-        }
+    let placebo = run_replicates(ctx, STABILITY_REPLICATES, |rep| {
+        let rep = u64::from(rep);
         let mut replaced = data.clone();
         let mut noise = vec![0.0; data.row_count()];
         for (j, &mediator) in query.mediators.iter().enumerate() {
@@ -276,7 +260,7 @@ pub fn refute_static_mediation(
                 ctx,
             )
         };
-        placebo.push(fit(&replaced, &placebo_query, &[])?.effect.ate);
+        let placebo_ate = fit(&replaced, &placebo_query, &[])?.effect.ate;
         fill_gaussian(&mut noise, ctx, 0x1300_4000 + rep);
         let (augmented, id) = with_extra_float(data, "__mediation_rcc", Arc::from(noise))?;
         rcc.push(fit(&augmented, query, &[id])?.effect.ate);
@@ -284,7 +268,8 @@ pub fn refute_static_mediation(
             let sub = crate::common::with_row_subset(data, 0.8, ctx, 0x1300_5000 + rep)?;
             subset.push(fit(&sub, query, &[])?.effect.ate);
         }
-    }
+        Ok(placebo_ate)
+    })?;
     let mut reports = vec![
         report("mediation.static.placebo_mediator", 0.0, &placebo)?,
         report("mediation.static.random_common_cause", original.effect.ate, &rcc)?,
