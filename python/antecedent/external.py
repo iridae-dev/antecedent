@@ -26,7 +26,7 @@ import json
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from numbers import Complex, Real
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -35,6 +35,7 @@ from numpy.typing import NDArray
 from ._native import ExternalClaimArtifact as _NativeClaim
 from ._native import bind_external_response as _bind_external_response
 from ._native import bind_external_to_program as _bind_external_to_program
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .extensibility import ProviderTrust
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
@@ -76,17 +77,12 @@ def _strings(what: str, values: object) -> tuple[str, ...]:
     return items
 
 
-def _real(what: str, value: object) -> float:
-    if isinstance(value, (bool, np.bool_)) or (
-        isinstance(value, Complex) and not isinstance(value, Real)
-    ):
-        raise CausalTypeError(f"{what} must be a real number, got {value!r}")
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except OverflowError as error:
-        raise CausalValueError(f"{what} is too large for a real-valued response") from error
-    except (TypeError, ValueError) as error:
-        raise CausalTypeError(f"{what} must be a real number, got {value!r}") from error
+_real = partial(
+    real,
+    types=(object,),
+    type_message="{what} must be a real number, got {value!r}",
+    overflow_message="{what} is too large for a real-valued response",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +141,7 @@ class VerificationProbe:
         if not isinstance(self.kind, str):
             raise CausalTypeError("VerificationProbe.kind must be a string")
         for name in ("observed", "expected", "tolerance"):
-            object.__setattr__(self, name, _real(f"VerificationProbe.{name}", getattr(self, name)))
+            object.__setattr__(self, name, _real(getattr(self, name), f"VerificationProbe.{name}"))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -187,7 +183,7 @@ class Response:
             entries = iter(self.values)
         except TypeError as error:
             raise CausalTypeError("Response.values must be an iterable of numbers") from error
-        values = tuple(_real("Response.values entry", v) for v in entries)
+        values = tuple(_real(v, "Response.values entry") for v in entries)
         object.__setattr__(self, "values", values)
         object.__setattr__(self, "evidence", _strings("Response.evidence", self.evidence))
         object.__setattr__(self, "assumptions", _strings("Response.assumptions", self.assumptions))

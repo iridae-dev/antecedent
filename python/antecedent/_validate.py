@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
+from numbers import Complex, Real
 
 import numpy as np
 
@@ -41,12 +42,18 @@ def real(
 ) -> float:
     """``value`` as a float, refusing a bool, a string or any other non-real.
 
+    ``types=(object,)`` accepts anything ``float()`` converts except a bool, a string or a complex
+    number.
     ``type_message`` and ``overflow_message`` are ``str.format`` templates over ``what``, ``got``
     (the type name) and ``value``. With ``finite`` a NaN or infinity raises the exception built by
     ``non_finite(what)`` (default: :class:`CausalValueError` ``"<what> must be a finite number"``).
     ``reason_code`` is attached to the default type, overflow and finiteness errors.
     """
-    if isinstance(value, bool | np.bool_) or not isinstance(value, types):
+    if (
+        isinstance(value, bool | np.bool_ | str | bytes)
+        or (isinstance(value, Complex) and not isinstance(value, Real))
+        or not isinstance(value, types)
+    ):
         raise type_error(_message(type_message, what, value), reason_code=reason_code)
     try:
         number = float(value)  # type: ignore[arg-type]
@@ -54,6 +61,9 @@ def real(
         raise CausalValueError(
             _message(overflow_message, what, value), reason_code=reason_code
         ) from error
+    except (TypeError, ValueError) as error:
+        # Only reachable with a permissive ``types`` (for example ``(object,)``).
+        raise type_error(_message(type_message, what, value), reason_code=reason_code) from error
     if finite and not math.isfinite(number):
         if non_finite is not None:
             raise non_finite(what)
