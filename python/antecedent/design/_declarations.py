@@ -50,6 +50,7 @@ import numpy as np
 
 from .._native import composition_lineage as _composition_lineage
 from .._native import consume_design_ranking as _consume
+from .._refusal import raise_refusal
 from ..decision import Contract
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 from ..external import LineageLink
@@ -121,9 +122,7 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[DesignRankingRefusal]:
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        wire = json.loads(refusal)
-        raise _refusal_type(wire)(wire)
+    raise_refusal(refusal, _refusal_type)
 
 
 def _floats(values: Sequence[float], what: str) -> list[float]:

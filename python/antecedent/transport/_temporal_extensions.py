@@ -47,6 +47,7 @@ from .._native import (
 from .._native import (
     temporal_initial_state_prepare as _initial_state_prepare,
 )
+from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 MARGINALIZED_LABEL = "marginalized_initial_state"
@@ -78,8 +79,7 @@ class TemporalExtensionRefusal(CausalUnsupportedError):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise TemporalExtensionRefusal(json.loads(refusal))
+    raise_refusal(refusal, TemporalExtensionRefusal)
 
 
 def _consumed(payload: str | None, refusal: str | None) -> dict[str, Any]:
@@ -610,8 +610,7 @@ class TemporalIntervalCandidate:
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
             raise CausalTypeError("artifact must be bytes and expected_identity must be str")
         native, refusal = consumer(artifact, expected_identity)
-        if refusal is not None:
-            raise TemporalExtensionRefusal(json.loads(refusal))
+        raise_refusal(refusal, TemporalExtensionRefusal)
         return cls._from_native(native)
 
 
@@ -721,8 +720,7 @@ def _temporal_interval_entry(
             *arguments,
             **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
         )
-        if refusal is not None:
-            raise TemporalExtensionRefusal(json.loads(refusal))
+        raise_refusal(refusal, TemporalExtensionRefusal)
         return (
             MeasuredInference._from_native(native)
             if measured

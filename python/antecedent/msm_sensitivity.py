@@ -42,6 +42,7 @@ from typing import Any
 
 from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
 from .sensitivity_decision import SensitivityAction, SensitivityArtifact
@@ -78,8 +79,7 @@ class MsmSensitivityRefusal(StructuredRefusal):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise MsmSensitivityRefusal(json.loads(refusal))
+    raise_refusal(refusal, MsmSensitivityRefusal)
 
 
 def _number(name: str, value: object) -> float:

@@ -50,6 +50,7 @@ from ._native import sensitivity_artifact_from_surface as _from_surface
 from ._native import sensitivity_artifact_from_z_joint as _from_z_joint
 from ._native import sensitivity_contract as _contract
 from ._native import sensitivity_decide as _decide
+from ._refusal import raise_refusal
 from .decision import Contract, StructuralPolicy, _leaf_kinds
 from .decision import Expr as _Expr
 from .decision import const as _const
@@ -91,8 +92,7 @@ class SensitivityRefusal(StructuredRefusal):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise SensitivityRefusal(json.loads(refusal))
+    raise_refusal(refusal, SensitivityRefusal)
 
 
 # --------------------------------------------------------------------------- terms

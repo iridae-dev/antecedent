@@ -47,6 +47,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
+from ._refusal import raise_refusal
 from .errors import (
     CausalSerializationError,
     CausalTypeError,
@@ -103,19 +104,20 @@ class ScoreResumeUnavailable(ScoreResumeRefusal, RecalcUnavailable):
     """
 
 
-def _raise(refusal: str | None, *, resume: bool = False) -> None:
-    if refusal is None:
-        return
-    wire = json.loads(refusal)
+def _cell_refusal_type(wire: Mapping[str, Any], *, resume: bool) -> type[RecalcRefusal]:
     detail = str(wire["detail"])
     unavailable = detail in _UNAVAILABLE
     if resume or detail.partition(".")[0] == "frozen_scores":
-        raise (ScoreResumeUnavailable if unavailable else ScoreResumeRefusal)(wire)
+        return ScoreResumeUnavailable if unavailable else ScoreResumeRefusal
     if unavailable:
-        raise RecalcUnavailable(wire)
+        return RecalcUnavailable
     if detail == "recalc.no_live_state":
-        raise RecalcNoLiveState(wire)
-    raise RecalcRefusal(wire)
+        return RecalcNoLiveState
+    return RecalcRefusal
+
+
+def _raise(refusal: str | None, *, resume: bool = False) -> None:
+    raise_refusal(refusal, lambda wire: _cell_refusal_type(wire, resume=resume))
 
 
 # -- requests -------------------------------------------------------------------------------

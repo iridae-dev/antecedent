@@ -50,6 +50,7 @@ from ._native import export_robust_decision as _export_robust
 from ._native import identified_utility_interval as _interval
 from ._native import load_admissible_contract as _load_contract
 from ._native import replay_robust_decision as _replay_robust
+from ._refusal import raise_refusal
 from .decision import Contract, DecisionRefusal
 from .errors import CausalValueError
 from .external import BoundExternalClaim, LineageLink
@@ -91,8 +92,7 @@ _CLAIM_KINDS = ("point", "graph_dependent", "weighted_graph_posterior", "finite_
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise DecisionRefusal(json.loads(refusal))
+    raise_refusal(refusal, DecisionRefusal)
 
 
 def _check_label(value: str, allowed: Sequence[str], what: str) -> None:

@@ -61,6 +61,7 @@ from inspect import signature as _signature
 from typing import Any, Literal, TypeAlias
 
 from . import _native
+from ._refusal import raise_refusal
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -270,14 +271,17 @@ _STAGE_TYPES: dict[str, type[CompositionBundleRefusal]] = {
 }
 
 
-def _refusal(wire: Mapping[str, Any]) -> CompositionBundleRefusal:
+def _refusal_type(wire: Mapping[str, Any]) -> type[CompositionBundleRefusal]:
     stage = str(wire["detail"]).rpartition(".")[2]
-    return _STAGE_TYPES.get(stage, CompositionBundleRefusal)(wire)
+    return _STAGE_TYPES.get(stage, CompositionBundleRefusal)
+
+
+def _refusal(wire: Mapping[str, Any]) -> CompositionBundleRefusal:
+    return _refusal_type(wire)(wire)
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise _refusal(json.loads(refusal))
+    raise_refusal(refusal, _refusal_type)
 
 
 # ------------------------------------------------------------------ declarations

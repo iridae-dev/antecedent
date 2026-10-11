@@ -52,6 +52,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
+from ._refusal import raise_refusal
 from .decision import Contract
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .external import BoundExternalClaim
@@ -109,8 +110,7 @@ class InverseQueryRefusal(CausalUnsupportedError):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise InverseQueryRefusal(json.loads(refusal))
+    raise_refusal(refusal, InverseQueryRefusal)
 
 
 def _direction(value: str) -> Direction:

@@ -54,7 +54,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
-from ._refusal import StructuredRefusal
+from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalSerializationError, CausalValueError
 
 ARTIFACT_KIND = "recalc_receipt_v1"
@@ -499,22 +499,23 @@ class RecalcReceiptRefusal(RecalcRefusal):
     """A receipt artifact whose table, counts or identity do not recompute."""
 
 
-def _raise(refusal: str | None) -> None:
-    if refusal is None:
-        return
-    wire = json.loads(refusal)
+def _refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     detail = str(wire["detail"])
     if detail in {
         "recalc.unavailable_fit",
         "recalc.unavailable_data",
         "recalc.unavailable_provider",
     }:
-        raise RecalcUnavailable(wire)
+        return RecalcUnavailable
     if detail == "recalc.no_live_state":
-        raise RecalcNoLiveState(wire)
+        return RecalcNoLiveState
     if detail.partition(".")[0] == "recalc_receipt":
-        raise RecalcReceiptRefusal(wire)
-    raise RecalcRefusal(wire)
+        return RecalcReceiptRefusal
+    return RecalcRefusal
+
+
+def _raise(refusal: str | None) -> None:
+    raise_refusal(refusal, _refusal_type)
 
 
 # -- receipt --------------------------------------------------------------------------------

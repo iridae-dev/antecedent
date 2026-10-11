@@ -42,6 +42,7 @@ from ._native import NativeResponseClaim as _NativeResponseClaim
 from ._native import check_external_program as _check_external_program
 from ._native import native_response_claim as _native_response_claim
 from ._native import program_binding_identity as _program_binding_identity
+from ._refusal import raise_refusal
 from .decision import Contract, MeanSource
 from .errors import CausalUnsupportedError, CausalValueError
 from .extensibility import ProviderTrust
@@ -65,8 +66,7 @@ SourceKind = Literal["mean", "joint_draws"]
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise ExternalRefusal(json.loads(refusal))
+    raise_refusal(refusal, ExternalRefusal)
 
 
 @dataclass(frozen=True, slots=True)

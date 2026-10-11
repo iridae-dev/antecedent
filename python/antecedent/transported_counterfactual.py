@@ -54,6 +54,7 @@ from ._native import (
 from ._native import (
     evaluate_transported_counterfactual as _evaluate,
 )
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -467,8 +468,7 @@ class TransportedCounterfactualRefusal(StructuredRefusal):
 
 
 def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise TransportedCounterfactualRefusal(json.loads(payload))
+    raise_refusal(payload, TransportedCounterfactualRefusal)
 
 
 @dataclass(frozen=True, slots=True)

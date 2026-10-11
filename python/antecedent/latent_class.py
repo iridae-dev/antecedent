@@ -51,6 +51,7 @@ import numpy as np
 
 from ._native import consume_latent_class_artifact as _consume
 from ._native import evaluate_latent_class_effects as _evaluate
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 __all__ = [
@@ -96,8 +97,7 @@ class LatentClassRefusal(CausalUnsupportedError):
 
 
 def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise LatentClassRefusal(json.loads(payload))
+    raise_refusal(payload, LatentClassRefusal)
 
 
 @dataclass(frozen=True, slots=True)

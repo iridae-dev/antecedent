@@ -50,6 +50,7 @@ from typing import Any, Protocol
 from ._native import mechanism_discrepancy_consume as _consume
 from ._native import mechanism_discrepancy_run as _run
 from ._native import mechanism_discrepancy_summarize as _summarize
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -94,8 +95,7 @@ class MechanismDiscrepancyRefusal(StructuredRefusal):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise MechanismDiscrepancyRefusal(json.loads(refusal))
+    raise_refusal(refusal, MechanismDiscrepancyRefusal)
 
 
 def _number(name: str, value: object) -> float:

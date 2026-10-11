@@ -42,6 +42,7 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
@@ -77,8 +78,7 @@ class DecisionRefusal(StructuredRefusal):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise DecisionRefusal(json.loads(refusal))
+    raise_refusal(refusal, DecisionRefusal)
 
 
 @dataclass(frozen=True, slots=True)

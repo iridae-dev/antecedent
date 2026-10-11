@@ -52,6 +52,7 @@ import numpy as np
 
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 __all__ = [
@@ -107,9 +108,7 @@ class TemporalRefusal(CausalUnsupportedError):
 
 
 def _raise_refusal(payload: str | None) -> None:
-    """Raise the structured refusal in ``payload`` (a JSON string), if there is one."""
-    if payload is not None:
-        raise TemporalRefusal(json.loads(payload))
+    raise_refusal(payload, TemporalRefusal)
 
 
 def _finite(value: object, what: str, detail: str) -> float:

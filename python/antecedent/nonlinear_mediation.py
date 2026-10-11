@@ -52,6 +52,7 @@ import numpy as np
 
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 __all__ = [
@@ -99,8 +100,7 @@ class MediationRefusal(CausalUnsupportedError):
 
 
 def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise MediationRefusal(json.loads(payload))
+    raise_refusal(payload, MediationRefusal)
 
 
 class MediationEstimand(StrEnum):

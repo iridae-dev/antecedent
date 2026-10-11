@@ -54,6 +54,7 @@ from ._native import composition_functional as _functional
 from ._native import composition_input_from_distribution as _from_distribution
 from ._native import composition_input_from_means as _from_means
 from ._native import composition_input_from_scalar as _from_scalar
+from ._refusal import raise_refusal
 from .decision import ActionOutcome, ConstraintExclusion, Contract, DecisionRefusal
 from .decision_robust import SupportLabel
 from .errors import CausalTypeError, CausalValueError
@@ -142,9 +143,7 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[CompositionRefusal]:
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        wire = json.loads(refusal)
-        raise _refusal_type(wire)(wire)
+    raise_refusal(refusal, _refusal_type)
 
 
 def _label(name: str, value: str, allowed: Sequence[str]) -> str:

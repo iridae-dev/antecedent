@@ -52,6 +52,7 @@ from typing import Any, Literal
 from . import _native, design, repair
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
@@ -76,8 +77,7 @@ class ProposalRefusal(CausalUnsupportedError):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise ProposalRefusal(json.loads(refusal))
+    raise_refusal(refusal, ProposalRefusal)
 
 
 def _bits(value: int) -> float:

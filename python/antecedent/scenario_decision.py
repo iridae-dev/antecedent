@@ -48,6 +48,7 @@ from typing import Any, Literal
 from ._native import CpdagScenarioRun as _NativeCpdagRun
 from ._native import PreparedTransportScenariosStage as _NativeScenarioStage
 from ._native import decide_scenario_claims as _decide
+from ._refusal import raise_refusal
 from .decision import Contract, DecisionRefusal, StructuralPolicy
 from .decision_robust import (
     AdmissibleContract,
@@ -80,8 +81,7 @@ class ScenarioDecisionRefusal(DecisionRefusal):
 
 
 def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise ScenarioDecisionRefusal(json.loads(refusal))
+    raise_refusal(refusal, ScenarioDecisionRefusal)
 
 
 @dataclass(frozen=True, slots=True)

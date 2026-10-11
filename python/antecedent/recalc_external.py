@@ -17,6 +17,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .external import BoundExternalClaim, ExternalSpec, ProviderObject, Response
 from .program_claims import ProgramBinding
@@ -163,8 +164,7 @@ class ExternalCallbackRefusal(RecalcRefusal):
 
 
 def _raise(error: str | None) -> None:
-    if error is not None:
-        raise ExternalCallbackRefusal(json.loads(error))
+    raise_refusal(error, ExternalCallbackRefusal)
 
 
 @dataclass(frozen=True, slots=True)

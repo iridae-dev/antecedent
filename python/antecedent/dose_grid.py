@@ -47,6 +47,7 @@ import numpy as np
 from ._native import consume_dose_grid_artifact as _consume
 from ._native import dose_support_labels as _support_labels
 from ._native import evaluate_dose_grid_functional as _evaluate
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 __all__ = [
@@ -93,8 +94,7 @@ class DoseGridRefusal(CausalUnsupportedError):
 
 
 def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise DoseGridRefusal(json.loads(payload))
+    raise_refusal(payload, DoseGridRefusal)
 
 
 def _invalid(message: str, offending: str | None = None) -> DoseGridRefusal:

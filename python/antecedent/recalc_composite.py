@@ -9,6 +9,7 @@ from typing import Literal
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
 from .design import StructuralCandidate, StructuralEntry
@@ -68,8 +69,7 @@ def _payload(request: CompositeRequest) -> dict[str, object]:
 
 
 def _raise(error: str | None) -> None:
-    if error is not None:
-        raise ExternalCallbackRefusal(json.loads(error))
+    raise_refusal(error, ExternalCallbackRefusal)
 
 
 class ConditionalStudyRankingRefusal(CausalUnsupportedError):
@@ -159,8 +159,7 @@ class ConditionalStudyRanking:
 
 def _conditional_result(result):
     report, data, error = result
-    if error is not None:
-        raise ConditionalStudyRankingRefusal(json.loads(error))
+    raise_refusal(error, ConditionalStudyRankingRefusal)
     assert report is not None and data is not None
     wire = json.loads(report)
     return ConditionalStudyRanking(

@@ -44,6 +44,7 @@ from numpy.typing import NDArray
 
 from ._native import consume_recovery_chain_artifact as _consume
 from ._native import recover_recovery_chain as _recover
+from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .graph import Admg
 
@@ -239,8 +240,7 @@ def _refusal_of(code: str, detail: str, message: str) -> RecoveryChainRefusal:
 
 
 def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise RecoveryChainRefusal(json.loads(payload))
+    raise_refusal(payload, RecoveryChainRefusal)
 
 
 def _witness(report: Mapping[str, Any]) -> ChainWitness:
