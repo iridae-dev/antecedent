@@ -70,13 +70,13 @@ def _times(value: object, what: str) -> tuple[int, int]:
 
 
 def _number(value: object, what: str, *, detail: str, offending: str | None = None) -> float:
+    # `bool` is an `int` subclass, and `float` accepts numeric strings. Neither is a real.
     if isinstance(value, bool) or not isinstance(value, int | float):
-        try:
-            number = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError(f"{what} must be a real number") from error
-    else:
+        raise CausalTypeError(f"{what} must be a real number")
+    try:
         number = float(value)
+    except OverflowError as error:
+        raise CausalValueError(f"{what} is too large for a real number") from error
     if not math.isfinite(number):
         # JSON cannot carry a non-finite number: report it with the Rust refusal's code/detail.
         raise TemporalRefusal(

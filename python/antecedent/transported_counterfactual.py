@@ -82,13 +82,13 @@ def _name(value: object, what: str) -> str:
 
 
 def _real(value: object, what: str) -> float:
+    # `bool` is an `int` subclass, and `float` accepts numeric strings. Neither is a real.
     if isinstance(value, bool) or not isinstance(value, int | float):
-        try:
-            number = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError(f"{what} must be a real number") from error
-    else:
+        raise CausalTypeError(f"{what} must be a real number")
+    try:
         number = float(value)
+    except OverflowError as error:
+        raise CausalValueError(f"{what} is too large for a real number") from error
     if not math.isfinite(number):
         raise CausalValueError(
             f"transported_counterfactual.invalid_model: {what} is not finite",

@@ -251,6 +251,12 @@ def test_non_finite_inputs_refuse_and_bad_types_raise() -> None:
         )
     with pytest.raises(CausalValueError):
         UnitHistory("u", 0.0, 0.0, 0.0, 0.0, 0.0, times=(-1, 0))
+    with pytest.raises(CausalTypeError):
+        UnitHistory("u", True, 0.0, 0.0, 0.0, 0.0)  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError):
+        UnitHistory("u", "1.5", 0.0, 0.0, 0.0, 0.0)  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError):
+        UnitHistory("u", 10**400, 0.0, 0.0, 0.0, 0.0)
 
 
 def test_artifact_round_trip_replays_both_worlds() -> None:

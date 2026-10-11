@@ -234,6 +234,12 @@ def test_x8t_malformed_inputs_are_refused_or_rejected():
     with pytest.raises(CausalValueError):
         Affine(float("nan"))
     with pytest.raises(CausalTypeError):
+        Affine(True)  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError):
+        Affine("1.5")  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError):
+        Affine(10**400)
+    with pytest.raises(CausalTypeError):
         effect(premises=True)
 
 
