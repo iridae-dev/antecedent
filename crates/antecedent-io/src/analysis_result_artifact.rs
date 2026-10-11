@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::graphless_support as graphless_data;
+use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, graphless_admits};
 
 use crate::{
     ArtifactKind, ArtifactManifest, AssumptionRecordWire, CausalQueryWire, CausalResponseWire,
@@ -1574,27 +1574,26 @@ fn validate_randomized_graphless(
     };
     let graphless_licensed =
         graphless_method.is_some_and(|(family, design_key, method, assignment_unit, claim)| {
-            graphless_data::LICENSES.iter().any(|row| {
-                row.family == family
-                    && row.design == design_key
-                    && row.method == method
-                    && row.inference_claim == claim
-                    && row.assignment_unit == assignment_unit
-                    && control >= row.min_assignment_units_per_arm
-                    && treated >= row.min_assignment_units_per_arm
-                    && query.realized_assignment.len() >= row.min_rows
-                    && block_counts.len() >= row.min_blocks
-                    && min_block_arm >= row.min_block_arm
-                    && min_factorial_cell >= row.min_factorial_cell
-                    && min_action_rows >= row.min_action_rows
-                    && min_probability + 1e-12 >= row.min_probability
-                    && reported_intervals >= row.min_reported_intervals
-                    && (!row.requires_balanced_sequences || balanced_sequences)
-                    && (row.max_covariates == 0
-                        || query.ancova_covariates.len() <= row.max_covariates)
-                    && (!row.all_reported_intervals || all_reported_intervals)
-                    && has_interval
-            })
+            graphless_admits(
+                GraphlessSupportKey { family, design: design_key, method, inference_claim: claim },
+                GraphlessAssignmentSupport {
+                    assignment_unit,
+                    treated,
+                    control,
+                    interval_95_published: has_interval,
+                    rows: query.realized_assignment.len(),
+                    blocks: block_counts.len(),
+                    min_block_arm,
+                    min_factorial_cell,
+                    min_action_rows,
+                    min_probability,
+                    reported_intervals,
+                    covariates: query.ancova_covariates.len(),
+                    all_reported_intervals,
+                    balanced_sequences,
+                    ..GraphlessAssignmentSupport::default()
+                },
+            )
         });
     let expected_uncertainty = if has_interval {
         interval_uncertainty.unwrap_or(point_uncertainty)
@@ -1810,17 +1809,22 @@ fn validate_ratio_graphless(result: &AnalysisResultWire) -> Result<(), IoError> 
     } else {
         "local_quadratic_cubic_rbc_hc0_delta"
     };
-    let ratio_licensed = interval_available
-        && graphless_data::LICENSES.iter().any(|row| {
-            row.family == "local_polynomial_ratio"
-                && row.design == ratio_design
-                && row.method == ratio_method
-                && row.inference_claim == "pointwise_95_normal_interval"
-                && row.assignment_unit == "unit"
-                && fit.n_right >= row.min_assignment_units_per_arm
-                && fit.n_left >= row.min_assignment_units_per_arm
-                && 1 >= row.min_reported_intervals
-        });
+    let ratio_licensed = graphless_admits(
+        GraphlessSupportKey {
+            family: "local_polynomial_ratio",
+            design: ratio_design,
+            method: ratio_method,
+            inference_claim: "pointwise_95_normal_interval",
+        },
+        GraphlessAssignmentSupport {
+            assignment_unit: "unit",
+            treated: fit.n_right,
+            control: fit.n_left,
+            interval_95_published: interval_available,
+            reported_intervals: 1,
+            ..GraphlessAssignmentSupport::default()
+        },
+    );
     #[allow(
         clippy::float_cmp,
         reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch"
@@ -2035,14 +2039,30 @@ fn validate_longitudinal_graphless(
                         && (bounds[1] - (center + span)).abs() <= tolerance
                 })
     };
-    let has_license = |design: &str, method: &str, claim: &str| {
-        graphless_data::LICENSES.iter().any(|row| {
-            row.family == "longitudinal_regime"
-                && row.design == design
-                && row.method == method
-                && row.inference_claim == claim
-        })
+    // Support evidence is read from the same wire fields the executor used to
+    // populate `GraphlessAssignmentSupport`, so every row threshold applies.
+    let regime_support = GraphlessAssignmentSupport {
+        assignment_unit: "unit",
+        rows: n,
+        interval_95_published: regime.value_interval_95.is_some(),
+        reported_intervals: 1,
+        min_probability: regime.minimum_action_probability,
+        disjoint_nuisance_training: query.excluded_fold_predictions
+            && query.prediction_fold_ids == query.fold_ids,
+        ..GraphlessAssignmentSupport::default()
     };
+    let has_license =
+        |design: &str, method: &str, claim: &str, support: GraphlessAssignmentSupport| {
+            graphless_admits(
+                GraphlessSupportKey {
+                    family: "longitudinal_regime",
+                    design,
+                    method,
+                    inference_claim: claim,
+                },
+                support,
+            )
+        };
     let graphless_dr_licensed = query.method == "sequential_dr"
         && matches!(query.periods, 2 | 3)
         && eligible_dr
@@ -2055,6 +2075,7 @@ fn validate_longitudinal_graphless(
             },
             "subject_excluded_q_sequential_dr_scores",
             "conditional_q_pointwise_95_normal_interval",
+            regime_support,
         );
     // Two-period fixed-known-Q g-formula: io recomputes the calibrated
     // interval in `g_formula_expected`, so the license requires that exact
@@ -2067,6 +2088,7 @@ fn validate_longitudinal_graphless(
             "known_sequential_randomized_two_period",
             "fixed_known_q_g_formula_scores",
             "conditional_q_pointwise_95_normal_interval",
+            regime_support,
         );
     // Additive MSM: io establishes support through `eligible_msm` and the
     // published intercept and per-period coefficient intervals, matched to
@@ -2079,6 +2101,12 @@ fn validate_longitudinal_graphless(
             "known_sequential_randomized_additive_msm",
             "stabilized_ipw_cr1_scores",
             "intercept_and_period_effects_pointwise_95_normal_intervals",
+            GraphlessAssignmentSupport {
+                reported_intervals: regime.period_intervals_95.len() + 1,
+                all_reported_intervals: regime.period_intervals_95.len() == query.periods,
+                min_effective_sample_size: regime.effective_sample_size,
+                ..regime_support
+            },
         );
     let graphless_licensed =
         graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
@@ -2253,25 +2281,32 @@ fn validate_continuous_dose_graphless(
         let variances =
             [value.policy_variance, value.reference_variance, value.incremental_variance];
         let centers = [value.policy_value, value.reference_value, value.incremental_value];
-        let supported = graphless_data::LICENSES.iter().any(|row| {
-            row.family == "continuous_dose_policy"
-                && row.design == "fixed_group_kernel"
-                && row.method == "inverse_density_kernel_paired_scores"
-                && row.inference_claim
-                    == "policy_reference_incremental_pointwise_95_normal_intervals"
-                && row.assignment_unit == "unit"
-                && query.baseline_groups.len() >= row.min_rows
-                && minimum_group_rows >= row.min_group_rows
-                && value.minimum_local_rows >= row.min_local_rows
-                && value.minimum_effective_sample_size + 1e-12 >= row.min_effective_sample_size
-                && (row.max_normalized_weight == 0.0
-                    || value.maximum_normalized_weight <= row.max_normalized_weight + 1e-12)
-                && value.minimum_dose_density + 1e-12 >= row.min_dose_density
-                && (!row.requires_known_density || query.density_provenance == "known")
-                && row.min_reported_intervals == 3
-                && row.all_reported_intervals
-                && variances.iter().all(|variance| *variance > 0.0)
-        });
+        // Publication is judged separately by `policy_interval != supported`
+        // below, so the evidence here is the support itself: three intervals
+        // are claimed and verified against the recomputed variances.
+        let supported = variances.iter().all(|variance| *variance > 0.0)
+            && graphless_admits(
+                GraphlessSupportKey {
+                    family: "continuous_dose_policy",
+                    design: "fixed_group_kernel",
+                    method: "inverse_density_kernel_paired_scores",
+                    inference_claim: "policy_reference_incremental_pointwise_95_normal_intervals",
+                },
+                GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    interval_95_published: true,
+                    rows: query.baseline_groups.len(),
+                    min_group_rows: minimum_group_rows,
+                    min_local_rows: value.minimum_local_rows,
+                    min_effective_sample_size: value.minimum_effective_sample_size,
+                    max_normalized_weight: value.maximum_normalized_weight,
+                    min_dose_density: value.minimum_dose_density,
+                    known_density: query.density_provenance == "known",
+                    reported_intervals: 3,
+                    all_reported_intervals: true,
+                    ..GraphlessAssignmentSupport::default()
+                },
+            );
         if value.policy_doses != expected_policy
             || value.reference_doses != expected_reference
             || !centers.iter().chain(&variances).all(|number| number.is_finite())
@@ -2694,35 +2729,35 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
         .flat_map(|point| [point.observed_action_rows, point.observed_control_rows])
         .min()
         .unwrap_or(0);
-    let licensed = graphless_data::LICENSES.iter().any(|row| {
-        row.family == "policy_value"
-            && row.design == design
-            && row.method == method
-            && row.inference_claim == claim
-            && row.assignment_unit == "unit"
-            && query.evaluation_subject_ids.len() >= row.min_rows
-            && treated >= row.min_assignment_units_per_arm
-            && control >= row.min_assignment_units_per_arm
-            && min_action_rows >= row.min_action_rows
-            && min_probability + 1e-12 >= row.min_probability
-            && policy_matches >= row.min_policy_matches
-            && reference_matches >= row.min_reference_matches
-            && min_bin_rows >= row.min_bin_rows
-            && min_bin_arm_rows >= row.min_bin_arm_rows
-            && min_group_rows >= row.min_group_rows
-            && min_group_arm_rows >= row.min_group_arm_rows
-            && reported_intervals >= row.min_reported_intervals
-            && (!row.all_reported_intervals || all_reported_intervals)
-            && (!row.requires_uncoupled_constraints || uncoupled)
-            && (!row.requires_disjoint_nuisance_training || query.disjoint_training_subjects)
-            && (!row.requires_rank_ownership
-                || (!query.uplift_training_subject_ids.is_empty()
-                    && query
-                        .uplift_training_subject_ids
-                        .iter()
-                        .all(|id| !query.evaluation_subject_ids.contains(id))))
-            && scalar_intervals == 2
-    });
+    let rank_ownership = !query.uplift_training_subject_ids.is_empty()
+        && query
+            .uplift_training_subject_ids
+            .iter()
+            .all(|id| !query.evaluation_subject_ids.contains(id));
+    let licensed = graphless_admits(
+        GraphlessSupportKey { family: "policy_value", design, method, inference_claim: claim },
+        GraphlessAssignmentSupport {
+            assignment_unit: "unit",
+            treated,
+            control,
+            interval_95_published: scalar_intervals == 2,
+            rows: query.evaluation_subject_ids.len(),
+            min_action_rows,
+            min_probability,
+            reported_intervals,
+            all_reported_intervals,
+            policy_matches,
+            reference_matches,
+            min_bin_rows,
+            min_bin_arm_rows,
+            min_group_rows,
+            min_group_arm_rows,
+            uncoupled_constraints: uncoupled,
+            disjoint_nuisance_training: query.disjoint_training_subjects,
+            rank_ownership,
+            ..GraphlessAssignmentSupport::default()
+        },
+    );
     if !graphless_status_ok(policy.graphless_support_status.as_deref(), licensed, true) {
         return Err(IoError::Convert(
             "policy graphless support status does not match exact design and interval evidence"
@@ -3013,37 +3048,47 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
         interval_valid
             && event_intervals_valid
             && did.interval_95.is_some()
-            && graphless_data::LICENSES.iter().any(|row| {
-                row.family == "difference_in_differences"
-                    && row.design == "staggered_event_study"
-                    && row.method == "never_treated_event_study_cluster_cr1"
-                    && row.inference_claim
-                        == "post_adoption_event_time_pointwise_95_normal_intervals"
-                    && row.assignment_unit == "cluster"
-                    && representative_treated >= row.min_assignment_units_per_arm
-                    && controls >= row.min_assignment_units_per_arm
-                    && published_intervals >= row.min_reported_intervals
-            })
+            && graphless_admits(
+                GraphlessSupportKey {
+                    family: "difference_in_differences",
+                    design: "staggered_event_study",
+                    method: "never_treated_event_study_cluster_cr1",
+                    inference_claim: "post_adoption_event_time_pointwise_95_normal_intervals",
+                },
+                GraphlessAssignmentSupport {
+                    assignment_unit: "cluster",
+                    treated: representative_treated,
+                    control: controls,
+                    interval_95_published: true,
+                    reported_intervals: published_intervals,
+                    ..GraphlessAssignmentSupport::default()
+                },
+            )
     } else {
         query.augmented.is_none()
             && query.staggered_target.is_none()
             && !query.staggered_event_study
             && interval_valid
             && did.interval_95.is_some()
-            && graphless_data::LICENSES.iter().any(|row| {
-                row.family == "difference_in_differences"
-                    && row.design == did_design
-                    && row.method == did_method
-                    && row.inference_claim == "pointwise_95_normal_interval"
-                    && row.assignment_unit == "cluster"
-                    && group_clusters[0].len() >= row.min_assignment_units_per_arm
-                    && group_clusters[1].len() >= row.min_assignment_units_per_arm
-                    && (!query.repeated_cross_section
-                        || (!duplicate_subject
-                            && 4 >= row.min_blocks
-                            && min_cell_clusters >= row.min_block_arm))
-                    && 1 >= row.min_reported_intervals
-            })
+            && !(query.repeated_cross_section && duplicate_subject)
+            && graphless_admits(
+                GraphlessSupportKey {
+                    family: "difference_in_differences",
+                    design: did_design,
+                    method: did_method,
+                    inference_claim: "pointwise_95_normal_interval",
+                },
+                GraphlessAssignmentSupport {
+                    assignment_unit: "cluster",
+                    treated: group_clusters[0].len(),
+                    control: group_clusters[1].len(),
+                    interval_95_published: true,
+                    blocks: if query.repeated_cross_section { 4 } else { 0 },
+                    min_block_arm: if query.repeated_cross_section { min_cell_clusters } else { 0 },
+                    reported_intervals: 1,
+                    ..GraphlessAssignmentSupport::default()
+                },
+            )
     };
     if result.estimate != Some(did.effect)
         || !interval_valid
@@ -3167,19 +3212,25 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
         && pointwise_bootstrap
         && curve.bootstrap_replicates_ok.is_some_and(|ok| ok >= 299)
         && curve.assignment_counts.is_some_and(|[control, treated]| {
-            graphless_data::LICENSES.iter().any(|row| {
-                row.family == "survival"
-                    && row.design == scalar_design
-                    && row.method == scalar_method
-                    && row.inference_claim
-                        == "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
-                    && row.assignment_unit == "unit"
-                    && control >= row.min_assignment_units_per_arm
-                    && treated >= row.min_assignment_units_per_arm
-                    && control.saturating_add(treated) >= row.min_rows
-                    && row.min_reported_intervals <= 2
-                    && (!row.requires_known_density || !query.censoring_columns.is_empty())
-            })
+            graphless_admits(
+                GraphlessSupportKey {
+                    family: "survival",
+                    design: scalar_design,
+                    method: scalar_method,
+                    inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+                },
+                GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated,
+                    control,
+                    interval_95_published: true,
+                    rows: control.saturating_add(treated),
+                    reported_intervals: 2,
+                    all_reported_intervals: true,
+                    known_density: !query.censoring_columns.is_empty(),
+                    ..GraphlessAssignmentSupport::default()
+                },
+            )
         });
     // The simultaneous band is its own licensed claim, carried on the band's
     // own `graphless_support_status`. It publishes only for the unweighted,
@@ -3193,17 +3244,24 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
                 } else {
                     "simultaneous_95_survival_difference_band"
                 };
-                graphless_data::LICENSES.iter().any(|row| {
-                    row.family == "survival"
-                        && row.design == "two_arm_individual_randomized"
-                        && row.method == "arm_stratified_subject_bootstrap_supremum_band"
-                        && row.inference_claim == claim
-                        && row.assignment_unit == "unit"
-                        && control >= row.min_assignment_units_per_arm
-                        && treated >= row.min_assignment_units_per_arm
-                        && control.saturating_add(treated) >= row.min_rows
-                        && row.min_reported_intervals <= 1
-                })
+                graphless_admits(
+                    GraphlessSupportKey {
+                        family: "survival",
+                        design: "two_arm_individual_randomized",
+                        method: "arm_stratified_subject_bootstrap_supremum_band",
+                        inference_claim: claim,
+                    },
+                    GraphlessAssignmentSupport {
+                        assignment_unit: "unit",
+                        treated,
+                        control,
+                        interval_95_published: true,
+                        rows: control.saturating_add(treated),
+                        reported_intervals: 1,
+                        all_reported_intervals: true,
+                        ..GraphlessAssignmentSupport::default()
+                    },
+                )
             })
     });
     #[allow(

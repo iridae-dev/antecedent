@@ -38,6 +38,24 @@ fn query() -> LongitudinalRegimeQuery {
     }
 }
 
+/// The graphless row floors the per-period action probability. A forged
+/// `minimum_action_probability` below the licensed row's floor, still above the
+/// query's own declared floor, must void a verified license.
+fn assert_low_action_probability_refuses(
+    body: &antecedent_io::AnalysisResultWire,
+    variable_names: &[String],
+    forged_minimum: f64,
+    name: &str,
+) {
+    let mut forged = body.clone();
+    forged.longitudinal_regime.as_mut().unwrap().minimum_action_probability = forged_minimum;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(&forged, variable_names.to_vec(), name)
+            .is_err(),
+        "{name}: license survived a minimum action probability below its row floor"
+    );
+}
+
 #[test]
 fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_identity() {
     let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
@@ -562,6 +580,7 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
         Some("licensed")
     );
+    assert_low_action_probability_refuses(&body, &header.variable_names, 0.3, "low-prob-two-dr");
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
     assert!(
         antecedent_io::encode_analysis_result_artifact(
@@ -629,6 +648,7 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
         )
         .is_err()
     );
+    assert_low_action_probability_refuses(&body, &header.variable_names, 0.1, "low-prob-g-formula");
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
     assert!(
         antecedent_io::encode_analysis_result_artifact(
@@ -700,6 +720,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         )
         .is_err()
     );
+    assert_low_action_probability_refuses(&body, &header.variable_names, 0.3, "low-prob-msm");
     body.longitudinal_regime.as_mut().unwrap().period_intervals_95[0] = [0.0, 0.0];
     assert!(
         antecedent_io::encode_analysis_result_artifact(

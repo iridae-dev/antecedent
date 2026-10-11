@@ -12,7 +12,7 @@
 mod data;
 
 use data::GraphlessLicenseRow;
-pub(crate) use data::LICENSES;
+use data::LICENSES;
 
 /// Exact graphless design, method, and inference claim to classify.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
