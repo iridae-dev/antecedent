@@ -11,7 +11,7 @@ use antecedent_stats::{
     fit_gam_weighted_design,
 };
 
-use super::CompleteSample;
+use super::sample::CompleteSample;
 use crate::EstimationError;
 
 pub(super) fn fit_additive(
@@ -54,7 +54,7 @@ pub(super) const WEIGHTED_GAM_NUISANCE_NOT_CONVERGED: &str =
 /// What a caller can change when an additive-GAM backfit does not settle within
 /// its budget. Every option named here is a `ContinuousResponseOptions` field
 /// (and a `response_options` key in Python).
-pub(super) const GAM_NOT_CONVERGED_REMEDY: &str = "standardize the treatment and adjustment \
+const GAM_NOT_CONVERGED_REMEDY: &str = "standardize the treatment and adjustment \
      columns, drop or coarsen near-collinear or near-constant adjustment covariates, or make \
      the additive fit smoother: raise nuisance_lambda or lower nuisance_basis in the response \
      options";

@@ -9,7 +9,7 @@
 use antecedent_core::{Intervention, StochasticPolicy, VariableId};
 use antecedent_stats::gauss_hermite_standard_normal;
 
-use super::{CompleteSample, MAX_EXACT_MIXTURE_COMBINATIONS, predict_one};
+use super::{MAX_EXACT_MIXTURE_COMBINATIONS, plugin::predict_one, sample::CompleteSample};
 use crate::EstimationError;
 
 /// Nodes of the Gauss–Hermite rule applied to a Gaussian intervention policy. The
@@ -129,7 +129,7 @@ pub(super) fn exact_discrete_intervention_rows(
     Ok(out)
 }
 
-pub(super) fn discrete_intervention_support(
+fn discrete_intervention_support(
     intervention: &Intervention,
 ) -> Result<Vec<DiscreteAtom>, EstimationError> {
     let numeric = |value: &antecedent_core::Value| {
