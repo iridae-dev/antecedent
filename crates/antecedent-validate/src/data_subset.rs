@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
