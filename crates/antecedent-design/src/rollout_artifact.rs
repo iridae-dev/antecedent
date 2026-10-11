@@ -13,9 +13,6 @@ use crate::design_ranking_artifact::{
     ConsumeExpectation, DecisionWire, DesignRankingArtifactWire, PriorWire,
     consume_wire as consume_ranking,
 };
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionTrust,
@@ -23,8 +20,6 @@ use antecedent_io::distribution_artifact::{
 };
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 use serde::{Deserialize, Serialize};
 
 /// Container kind for a finite rollout/study-update binding.
@@ -333,8 +328,7 @@ impl RolloutArtifact {
         let causal = format!("causal_contract:{}", self.binding.source.identity.causal_contract_id);
         let data = format!("snapshot:{}", self.binding.source.identity.snapshot_id);
         let law = format!("distribution:{}", self.binding.source_digest);
-        let state =
-            format!("state_projection:{}", blake3_hex(&to_cbor(&self.binding.state)?));
+        let state = format!("state_projection:{}", blake3_hex(&to_cbor(&self.binding.state)?));
         let link = |id, stage, parents| CompositionLink {
             id,
             stage,
@@ -368,47 +362,41 @@ impl RolloutArtifact {
             return Err(refused("rollout.artifact_id_missing"));
         }
         let body = to_cbor(self)?;
-        let artifact = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(ROLLOUT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![section_descriptor(SECTION, "application/cbor", &body)],
-                provenance: ProvenanceWire {
-                    note: "finite source-state terminal decision binding".into(),
-                },
+        antecedent_io::encode_container(
+            &antecedent_io::ArtifactContainer {
+                kind: ROLLOUT_KIND,
+                note: "finite source-state terminal decision binding",
+                max_bytes: MAX_ROLLOUT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![SectionBytes::new(SECTION, body)],
-        };
-        let mut bytes = Vec::new();
-        artifact.write_to(&mut bytes)?;
-        if bytes.len() > MAX_ROLLOUT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        Ok(bytes)
+            &[antecedent_io::OutSection {
+                id: SECTION,
+                content_type: antecedent_io::CONTENT_CBOR,
+                bytes: &body,
+            }],
+        )
+        .map_err(|error| match error {
+            antecedent_io::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            antecedent_io::CodecError::MissingArtifactId => refused("rollout.artifact_id_missing"),
+            other => other.into_io("rollout artifact"),
+        })
     }
 
     /// Decode a bounded container; scientific verification remains explicit.
     /// # Errors
     /// Corruption, wrong kind/version or byte limits refuse before replay.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        if bytes.len() > MAX_ROLLOUT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-        if reader.manifest().artifact_kind != ArtifactKind::Other(ROLLOUT_KIND.into())
-            || reader.manifest().sections.len() != 1
-            || reader.manifest().sections[0].id != SECTION
-        {
+        let parts =
+            antecedent_io::decode_container(ROLLOUT_KIND, MAX_ROLLOUT_BYTES, &[SECTION], bytes)
+                .map_err(|error| match error {
+                    antecedent_io::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+                    other => other.into_io("rollout artifact"),
+                })?;
+        let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(refused("rollout.artifact_kind_mismatch"));
-        }
-        if reader.manifest().sections[0].uncompressed_size > MAX_ROLLOUT_BYTES as u64 {
-            return Err(IoError::TooLarge);
-        }
-        let body = reader.load_section(SECTION)?;
-        let artifact: Self = from_cbor(body.as_bytes())?;
+        };
+        let artifact: Self = from_cbor(&body)?;
         artifact.check_bounds()?;
         Ok(artifact)
     }

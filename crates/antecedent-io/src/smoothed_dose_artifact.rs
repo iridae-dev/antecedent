@@ -323,11 +323,6 @@ struct EvidenceView<'a> {
     result: &'a SmoothedDoseEstimate,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// A verified replay: the wire plus the independently rebuilt identification.
 pub struct ConsumedSmoothedDose {
     /// The decoded, verified artifact.
@@ -485,11 +480,13 @@ impl SmoothedDoseArtifactWire {
     /// [`IoError::UnsupportedVersion`], or a decoding failure (an artifact carrying an
     /// interval field fails here).
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != SMOOTHED_DOSE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        crate::from_cbor(bytes)
+        crate::decode_with_version(bytes, |version| {
+            if version == SMOOTHED_DOSE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })
     }
 
     /// Decode and independently verify without fitting or resampling, under the caller's

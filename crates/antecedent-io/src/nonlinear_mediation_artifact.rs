@@ -27,8 +27,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
 use antecedent_core::CanonicalWriter;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nonlinear_mediation::{
@@ -38,10 +36,7 @@ use antecedent_estimate::nonlinear_mediation::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16 = 1;
@@ -407,11 +402,6 @@ pub struct NonlinearMediationMeta {
     pub caveats: Vec<String>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 fn count_u32(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
 }
@@ -740,38 +730,29 @@ pub fn encode_parts(
     data: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
-    let encode = |e: crate::IoError| NonlinearMediationArtifactError::Encode(e.to_string());
     if artifact_id.trim().is_empty() {
         return Err(NonlinearMediationArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(DATA_SECTION, "application/octet-stream", data),
-            ],
-            provenance: ProvenanceWire {
-                note: "nonlinear_mediation_point_with_diagnostics_unmeasured".into(),
-            },
+    let meta_bytes = to_cbor(meta)
+        .map_err(|error| NonlinearMediationArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "nonlinear_mediation_point_with_diagnostics_unmeasured",
+            max_bytes: MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(DATA_SECTION, data.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -785,35 +766,26 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(NonlinearMediationMeta, Vec<u8>), NonlinearMediationArtifactError> {
-    if bytes.len() > MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != DATA_SECTION
-    {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
+        &[META_SECTION, DATA_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(NonlinearMediationArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > count_u64(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES)) {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != NONLINEAR_MEDIATION_ARTIFACT_VERSION {
-        return Err(NonlinearMediationArtifactError::UnsupportedVersion { version: peek.version });
-    }
-    let meta: NonlinearMediationMeta = from_cbor(meta_section.as_bytes())?;
-    let data = reader.load_section(DATA_SECTION)?;
-    Ok((meta, data.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == NONLINEAR_MEDIATION_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(NonlinearMediationArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 /// A produced or consumed mediation artifact: the declared request, the recomputed estimate and

@@ -9,16 +9,13 @@
 use antecedent_core::ScientificQuantity;
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
+use crate::container::{EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::posterior::{
     CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, validate_posterior_meta,
 };
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
-
 /// Maximum artifact bytes accepted before any decode allocation.
 pub const MAX_DISTRIBUTION_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Maximum number of draws.
@@ -397,30 +394,28 @@ impl DistributionArtifact {
         for value in &self.draws {
             draw_bytes.extend_from_slice(&value.to_le_bytes());
         }
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: crate::migrate::STABLE_FORMAT,
-                minimum_reader_version: crate::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![
-                    section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                    section_descriptor(DRAW_SECTION, "application/octet-stream", &draw_bytes),
-                ],
-                provenance: ProvenanceWire { note: "aligned_joint_distribution".into() },
+        crate::encode_container(
+            &crate::ArtifactContainer {
+                kind: ARTIFACT_KIND,
+                note: "aligned_joint_distribution",
+                max_bytes: MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![
-                SectionBytes::new(META_SECTION, meta_bytes),
-                SectionBytes::new(DRAW_SECTION, draw_bytes),
+            &[
+                crate::OutSection {
+                    id: META_SECTION,
+                    content_type: crate::CONTENT_CBOR,
+                    bytes: &meta_bytes,
+                },
+                crate::OutSection {
+                    id: DRAW_SECTION,
+                    content_type: crate::CONTENT_BYTES,
+                    bytes: &draw_bytes,
+                },
             ],
-        };
-        let mut bytes = Vec::new();
-        encoded.write_to(&mut bytes)?;
-        if bytes.len() > MAX_DISTRIBUTION_ARTIFACT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        Ok(bytes)
+        )
+        .map_err(|error| error.into_io("unsupported distribution artifact layout"))
     }
 
     /// Load and check against an independently retained scientific identity.
@@ -437,23 +432,17 @@ impl DistributionArtifact {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-        let manifest = reader.manifest();
-        if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-            || manifest.sections.len() != 2
-            || manifest.sections[0].id != META_SECTION
-            || manifest.sections[1].id != DRAW_SECTION
-        {
+        let parts = crate::decode_container(
+            ARTIFACT_KIND,
+            MAX_DISTRIBUTION_ARTIFACT_BYTES,
+            &[META_SECTION, DRAW_SECTION],
+            bytes,
+        )
+        .map_err(|error| error.into_io("unsupported distribution artifact layout"))?;
+        let Ok([meta_bytes, draw_bytes]) = <[Vec<u8>; 2]>::try_from(parts) else {
             return Err(IoError::Convert("unsupported distribution artifact layout".into()));
-        }
-        let declared = manifest.sections.iter().try_fold(0u64, |total, section| {
-            total.checked_add(section.uncompressed_size).ok_or(IoError::TooLarge)
-        })?;
-        if declared > MAX_DISTRIBUTION_ARTIFACT_BYTES as u64 {
-            return Err(IoError::TooLarge);
-        }
-        let meta = reader.load_section(META_SECTION)?;
-        let metadata: DistributionMetadata = from_cbor(meta.as_bytes())?;
+        };
+        let metadata: DistributionMetadata = from_cbor(&meta_bytes)?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
@@ -461,12 +450,10 @@ impl DistributionArtifact {
             });
         }
         validate_metadata(&metadata)?;
-        let draw = reader.load_section(DRAW_SECTION)?;
-        if draw.as_bytes().len() != metadata.shape[0] * metadata.shape[1] * 8 {
+        if draw_bytes.len() != metadata.shape[0] * metadata.shape[1] * 8 {
             return Err(IoError::Convert("distribution draw payload length mismatch".into()));
         }
-        let draws = draw
-            .as_bytes()
+        let draws = draw_bytes
             .chunks_exact(8)
             .map(|chunk| f64::from_le_bytes(chunk.try_into().expect("eight-byte chunk")))
             .collect();

@@ -47,14 +47,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use antecedent_core::{
     CanonicalWriter, ExternalRefusal, ProviderObjectIdentity, ScientificQuantity, is_blank,
 };
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 use serde::{Deserialize, Serialize};
 
 use crate::decision::{DecisionProblem, DecisionTable};
@@ -1102,24 +1097,21 @@ impl DesignRankingArtifactWire {
             .candidates
             .sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
         let body = to_cbor(&ordered)?;
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(DESIGN_RANKING_ARTIFACT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![section_descriptor(BODY_SECTION, "application/cbor", &body)],
-                provenance: ProvenanceWire { note: "design_ranking".into() },
+        antecedent_io::encode_container(
+            &antecedent_io::ArtifactContainer {
+                kind: DESIGN_RANKING_ARTIFACT_KIND,
+                note: "design_ranking",
+                max_bytes: MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![SectionBytes::new(BODY_SECTION, body)],
-        };
-        let mut bytes = Vec::new();
-        encoded.write_to(&mut bytes)?;
-        if bytes.len() > MAX_DESIGN_RANKING_ARTIFACT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        Ok(bytes)
+            &[antecedent_io::OutSection {
+                id: BODY_SECTION,
+                content_type: antecedent_io::CONTENT_CBOR,
+                bytes: &body,
+            }],
+        )
+        .map_err(|error| error.into_io("unsupported design ranking artifact layout"))
     }
 
     /// Decode the container and body, refusing oversize input before any allocation.
@@ -1128,24 +1120,19 @@ impl DesignRankingArtifactWire {
     ///
     /// Corruption, truncation, oversize, an unknown layout, or an unknown major version.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() > MAX_DESIGN_RANKING_ARTIFACT_BYTES {
-            return Err(IoError::TooLarge.into());
-        }
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-        let manifest = reader.manifest();
-        if manifest.artifact_kind != ArtifactKind::Other(DESIGN_RANKING_ARTIFACT_KIND.into())
-            || manifest.sections.len() != 1
-            || manifest.sections[0].id != BODY_SECTION
-        {
+        let parts = antecedent_io::decode_container(
+            DESIGN_RANKING_ARTIFACT_KIND,
+            MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+            &[BODY_SECTION],
+            bytes,
+        )
+        .map_err(|error| error.into_io("unsupported design ranking artifact layout"))?;
+        let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(
                 IoError::Convert("unsupported design ranking artifact layout".into()).into()
             );
-        }
-        if manifest.sections[0].uncompressed_size > MAX_DESIGN_RANKING_ARTIFACT_BYTES as u64 {
-            return Err(IoError::TooLarge.into());
-        }
-        let section = reader.load_section(BODY_SECTION)?;
-        let wire: Self = from_cbor(section.as_bytes())?;
+        };
+        let wire: Self = from_cbor(&body)?;
         if wire.version != DESIGN_RANKING_ARTIFACT_VERSION {
             return Err(DesignRankingArtifactError::UnsupportedVersion(wire.version));
         }

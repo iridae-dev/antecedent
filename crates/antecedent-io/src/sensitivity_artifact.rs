@@ -38,7 +38,6 @@
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::io::Cursor;
 
 use antecedent_core::{ScientificQuantity, is_blank};
 // Re-exported so a design-level consumer can adapt a joint mechanism sensitivity result without depending on
@@ -50,12 +49,9 @@ pub use antecedent_validate::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
+use crate::convert::to_cbor;
 use crate::error::IoError;
 use crate::quantity_wire::ScientificQuantityWire;
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// The artifact major version this reader writes and accepts.
 pub const SENSITIVITY_ARTIFACT_VERSION: u16 = 1;
@@ -1074,10 +1070,11 @@ fn identity_of(parts: &SensitivityParts) -> Result<SensitivityIdentity, IoError>
     })?;
     let premises_digest = tagged_digest("antecedent.sensitivity_decision.premises.v1", &premises);
     let data_digest = tagged_digest("antecedent.sensitivity_decision.data.v1", &numbers_of(parts));
-    let whole = antecedent_core::CanonicalWriter::new("antecedent.sensitivity_decision.identity.v1")
-        .text(&premises_digest)
-        .text(&data_digest)
-        .finish();
+    let whole =
+        antecedent_core::CanonicalWriter::new("antecedent.sensitivity_decision.identity.v1")
+            .text(&premises_digest)
+            .text(&data_digest)
+            .finish();
     Ok(SensitivityIdentity {
         premises_digest,
         data_digest,
@@ -1098,39 +1095,32 @@ pub fn encode_parts(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    if is_blank(artifact_id) {
+    if artifact_id.trim().is_empty() {
         return Err(IoError::Convert("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(NUMBERS_SECTION, "application/octet-stream", numbers),
-            ],
-            provenance: ProvenanceWire { note: "sensitivity_decision_assumption_range".into() },
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "sensitivity_decision_assumption_range",
+            max_bytes: MAX_SENSITIVITY_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(NUMBERS_SECTION, numbers.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection {
+                id: NUMBERS_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: numbers,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes)?;
-    if bytes.len() > MAX_SENSITIVITY_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    Ok(bytes)
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
+    )
+    .map_err(|error| error.into_io("unsupported sensitivity artifact layout"))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata
@@ -1142,33 +1132,24 @@ struct VersionPeek {
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
-    if bytes.len() > MAX_SENSITIVITY_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != NUMBERS_SECTION
-    {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_SENSITIVITY_ARTIFACT_BYTES,
+        &[META_SECTION, NUMBERS_SECTION],
+        bytes,
+    )
+    .map_err(|error| error.into_io("unsupported sensitivity artifact layout"))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported sensitivity artifact layout".into()));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > MAX_SENSITIVITY_ARTIFACT_BYTES as u64) {
-        return Err(IoError::TooLarge);
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != SENSITIVITY_ARTIFACT_VERSION {
-        return Err(IoError::UnsupportedVersion { version: u32::from(peek.version) });
-    }
-    let meta: SensitivityMeta = from_cbor(meta_section.as_bytes())?;
-    let numbers = reader.load_section(NUMBERS_SECTION)?;
-    Ok((meta, numbers.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version: u16| {
+        if version == SENSITIVITY_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(IoError::UnsupportedVersion { version: u32::from(version) })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 fn parts_from(meta: &SensitivityMeta, numbers: &[u8]) -> Result<SensitivityParts, IoError> {

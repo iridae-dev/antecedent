@@ -11,15 +11,10 @@ use antecedent_core::{
     CanonicalWriter, CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError,
     ScientificQuantity,
 };
-use antecedent_io::container::{
-    section_descriptor, ArtifactManifest, EncodedArtifact, SectionBytes,
-};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 use serde::{Deserialize, Serialize};
 
 use crate::decision_contract::{
@@ -27,8 +22,8 @@ use crate::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use crate::decision_eval::{
-    evaluate_contract, ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource,
-    SourceReceipt, Verdict,
+    ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource, SourceReceipt, Verdict,
+    evaluate_contract,
 };
 
 /// Maximum artifact bytes accepted before any decode allocation.
@@ -288,49 +283,52 @@ pub(crate) fn encode(
     note: &str,
     body: &[u8],
 ) -> Result<Vec<u8>, IoError> {
-    if artifact_id.trim().is_empty() {
-        return Err(IoError::Convert("missing artifact id".into()));
-    }
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: antecedent_io::migrate::STABLE_FORMAT,
-            minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(kind.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-            artifact_id: artifact_id.into(),
-            sections: vec![section_descriptor(BODY_SECTION, "application/cbor", body)],
-            provenance: ProvenanceWire { note: note.into() },
+    encode_section(kind, BODY_SECTION, artifact_id, note, body)
+}
+
+pub(crate) fn encode_section(
+    kind: &str,
+    section: &str,
+    artifact_id: &str,
+    note: &str,
+    body: &[u8],
+) -> Result<Vec<u8>, IoError> {
+    antecedent_io::encode_container(
+        &antecedent_io::ArtifactContainer {
+            kind,
+            note,
+            max_bytes: MAX_DECISION_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![SectionBytes::new(BODY_SECTION, body.to_vec())],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes)?;
-    if bytes.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    Ok(bytes)
+        &[antecedent_io::OutSection {
+            id: section,
+            content_type: antecedent_io::CONTENT_CBOR,
+            bytes: body,
+        }],
+    )
+    .map_err(|error| error.into_io("unsupported decision artifact layout"))
 }
 
 pub(crate) fn decode<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     kind: &str,
 ) -> Result<T, IoError> {
-    if bytes.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(kind.into())
-        || manifest.sections.len() != 1
-        || manifest.sections[0].id != BODY_SECTION
-    {
+    decode_section(bytes, kind, BODY_SECTION)
+}
+
+pub(crate) fn decode_section<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    kind: &str,
+    section: &str,
+) -> Result<T, IoError> {
+    let parts =
+        antecedent_io::decode_container(kind, MAX_DECISION_ARTIFACT_BYTES, &[section], bytes)
+            .map_err(|error| error.into_io("unsupported decision artifact layout"))?;
+    let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported decision artifact layout".into()));
-    }
-    if manifest.sections[0].uncompressed_size > MAX_DECISION_ARTIFACT_BYTES as u64 {
-        return Err(IoError::TooLarge);
-    }
-    let section = reader.load_section(BODY_SECTION)?;
-    from_cbor(section.as_bytes())
+    };
+    from_cbor(&body)
 }
 
 pub(crate) fn refused(slot: &str, message: &str) -> IoError {

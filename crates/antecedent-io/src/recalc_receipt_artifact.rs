@@ -26,7 +26,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
-use std::io::Cursor;
 use std::sync::{Mutex, PoisonError};
 
 use antecedent_core::recalc::{
@@ -35,10 +34,7 @@ use antecedent_core::recalc::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const RECALC_RECEIPT_ARTIFACT_VERSION: u16 = 1;
@@ -825,11 +821,6 @@ fn check(
 
 // -- container ----------------------------------------------------------------------------
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 /// Encode a metadata section as a checksummed container.
 ///
 /// Hidden: the producer path is [`RecalcReceiptArtifact::to_bytes`]; tests use this to build
@@ -842,30 +833,26 @@ pub fn encode_parts(
     meta: &RecalcReceiptMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-    let encode = |e: crate::IoError| RecalcReceiptArtifactError::Encode(e.to_string());
     if artifact_id.trim().is_empty() {
         return Err(RecalcReceiptArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![section_descriptor(META_SECTION, "application/cbor", &meta_bytes)],
-            provenance: ProvenanceWire { note: "recalc_receipt".into() },
+    let meta_bytes =
+        to_cbor(meta).map_err(|error| RecalcReceiptArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "recalc_receipt",
+            max_bytes: MAX_RECALC_RECEIPT_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![SectionBytes::new(META_SECTION, meta_bytes)],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_RECALC_RECEIPT_ARTIFACT_BYTES {
-        return Err(RecalcReceiptArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+        &[crate::OutSection {
+            id: META_SECTION,
+            content_type: crate::CONTENT_CBOR,
+            bytes: &meta_bytes,
+        }],
+    )
+    .map_err(|error| crate::map_artifact_check!(error, RecalcReceiptArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -877,26 +864,23 @@ pub fn encode_parts(
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
-    if bytes.len() > MAX_RECALC_RECEIPT_ARTIFACT_BYTES {
-        return Err(RecalcReceiptArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 1
-        || manifest.sections[0].id != META_SECTION
-    {
-        return Err(malformed("unsupported container layout"));
-    }
-    if manifest.sections[0].uncompressed_size > MAX_RECALC_RECEIPT_ARTIFACT_BYTES as u64 {
-        return Err(RecalcReceiptArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(section.as_bytes())?;
-    if peek.version != RECALC_RECEIPT_ARTIFACT_VERSION {
-        return Err(RecalcReceiptArtifactError::UnsupportedVersion { version: peek.version });
-    }
-    Ok(from_cbor(section.as_bytes())?)
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_RECALC_RECEIPT_ARTIFACT_BYTES,
+        &[META_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, RecalcReceiptArtifactError))?;
+    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
+        return Err(RecalcReceiptArtifactError::Malformed("unsupported container layout".into()));
+    };
+    crate::decode_with_version(&meta_bytes, |version| {
+        if version == RECALC_RECEIPT_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(RecalcReceiptArtifactError::UnsupportedVersion { version })
+        }
+    })
 }
 
 /// A produced or consumed selective-recalculation receipt: the stored table and the plan

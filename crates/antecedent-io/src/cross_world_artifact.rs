@@ -236,11 +236,6 @@ pub struct CrossWorldArtifactWire {
     pub premises_digest: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// Identity of the factual table: the variable names and every value's bits.
 ///
 /// # Errors
@@ -333,11 +328,13 @@ impl CrossWorldArtifactWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, CrossWorldArtifactError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != CROSS_WORLD_ARTIFACT_VERSION {
-            return Err(CrossWorldArtifactError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == CROSS_WORLD_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(CrossWorldArtifactError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [CROSS_WORLD_ARTIFACT_FEATURE] {
             return Err(CrossWorldArtifactError::UnsupportedSemantics("required features"));
         }

@@ -12,12 +12,9 @@ use antecedent_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// Maximum artifact bytes accepted before decode allocation.
 pub const MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES: usize = 4 * 1024 * 1024;
@@ -522,30 +519,28 @@ impl ExternalClaimArtifact {
         for value in &self.values {
             value_bytes.extend_from_slice(&value.to_le_bytes());
         }
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: crate::migrate::STABLE_FORMAT,
-                minimum_reader_version: crate::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![
-                    section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                    section_descriptor(VALUES_SECTION, "application/octet-stream", &value_bytes),
-                ],
-                provenance: ProvenanceWire { note: "external_response_claim".into() },
+        crate::encode_container(
+            &crate::ArtifactContainer {
+                kind: ARTIFACT_KIND,
+                note: "external_response_claim",
+                max_bytes: MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![
-                SectionBytes::new(META_SECTION, meta_bytes),
-                SectionBytes::new(VALUES_SECTION, value_bytes),
+            &[
+                crate::OutSection {
+                    id: META_SECTION,
+                    content_type: crate::CONTENT_CBOR,
+                    bytes: &meta_bytes,
+                },
+                crate::OutSection {
+                    id: VALUES_SECTION,
+                    content_type: crate::CONTENT_BYTES,
+                    bytes: &value_bytes,
+                },
             ],
-        };
-        let mut bytes = Vec::new();
-        encoded.write_to(&mut bytes)?;
-        if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        Ok(bytes)
+        )
+        .map_err(|error| error.into_io("unsupported external claim layout"))
     }
 
     /// Load and check against an independently retained identity.
@@ -558,35 +553,27 @@ impl ExternalClaimArtifact {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-        let manifest = reader.manifest();
-        if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-            || manifest.sections.len() != 2
-            || manifest.sections[0].id != META_SECTION
-            || manifest.sections[1].id != VALUES_SECTION
-        {
+        let parts = crate::decode_container(
+            ARTIFACT_KIND,
+            MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
+            &[META_SECTION, VALUES_SECTION],
+            bytes,
+        )
+        .map_err(|error| error.into_io("unsupported external claim layout"))?;
+        let Ok([meta_bytes, raw]) = <[Vec<u8>; 2]>::try_from(parts) else {
             return Err(IoError::Convert("unsupported external claim layout".into()));
-        }
-        let declared = manifest.sections.iter().try_fold(0u64, |total, section| {
-            total.checked_add(section.uncompressed_size).ok_or(IoError::TooLarge)
-        })?;
-        if declared > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES as u64 {
-            return Err(IoError::TooLarge);
-        }
-        let meta = reader.load_section(META_SECTION)?;
-        let metadata: ExternalClaimMetadata = from_cbor(meta.as_bytes())?;
+        };
+        let metadata: ExternalClaimMetadata = from_cbor(&meta_bytes)?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("external_binding_mismatch"),
                 message: "external_claim.identity_expected: claim identity differs from the consumer's checked contract".into(),
             });
         }
-        let raw = reader.load_section(VALUES_SECTION)?;
-        if raw.as_bytes().len() != metadata.identity.quantities.len() * 8 {
+        if raw.len() != metadata.identity.quantities.len() * 8 {
             return Err(IoError::Convert("external claim value payload length mismatch".into()));
         }
         let values = raw
-            .as_bytes()
             .chunks_exact(8)
             .map(|chunk| f64::from_le_bytes(chunk.try_into().expect("eight-byte chunk")))
             .collect();

@@ -263,11 +263,6 @@ struct EvidenceView<'a> {
     result: &'a LearnedContinuousEstimate,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// A verified replay: the wire plus the independently rebuilt identification.
 pub struct ConsumedLearnedContinuous {
     /// The decoded, verified artifact.
@@ -439,13 +434,15 @@ impl LearnedContinuousArtifactWire {
     /// [`IoError::UnsupportedVersion`], or a decoding failure (an artifact carrying an
     /// interval field fails here).
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != LEARNED_CONTINUOUS_ARTIFACT_VERSION
-            && peek.version != LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
-        {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        crate::from_cbor(bytes)
+        crate::decode_with_version(bytes, |version| {
+            if version == LEARNED_CONTINUOUS_ARTIFACT_VERSION
+                || version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
+            {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })
     }
 
     /// Decode and independently verify without fitting or resampling.

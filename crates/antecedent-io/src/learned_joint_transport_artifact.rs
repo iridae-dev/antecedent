@@ -521,11 +521,6 @@ struct DataView<'a> {
     target: &'a JointTargetWire,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl LearnedJointArtifactWire {
     /// Fit the model through the Rust core and build the artifact from its inputs and
     /// result, with the fit returned alongside. Nothing is exported that a default
@@ -614,11 +609,13 @@ impl LearnedJointArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure or a foreign feature or claim.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != LEARNED_JOINT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == LEARNED_JOINT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         let unsupported = LearnedJointArtifactError::UnsupportedSemantics;
         if wire.required_features != [LEARNED_JOINT_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());

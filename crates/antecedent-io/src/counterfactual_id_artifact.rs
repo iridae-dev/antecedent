@@ -315,11 +315,6 @@ pub struct CounterfactualIdArtifactWire {
     pub premises_digest: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// Identity of the joint law: axes, probability bits, counts, origin,
 /// population and snapshot identity.
 ///
@@ -419,13 +414,13 @@ impl CounterfactualIdArtifactWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, CounterfactualIdArtifactError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != COUNTERFACTUAL_ID_ARTIFACT_VERSION {
-            return Err(CounterfactualIdArtifactError::UnsupportedVersion {
-                version: peek.version,
-            });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == COUNTERFACTUAL_ID_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(CounterfactualIdArtifactError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [COUNTERFACTUAL_ID_ARTIFACT_FEATURE] {
             return Err(CounterfactualIdArtifactError::UnsupportedSemantics("required features"));
         }

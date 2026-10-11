@@ -349,11 +349,6 @@ struct DataView {
     outcome: Vec<u64>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
 }
@@ -711,11 +706,13 @@ impl DoseGridArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != DOSE_GRID_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == DOSE_GRID_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }

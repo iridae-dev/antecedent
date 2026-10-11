@@ -370,11 +370,6 @@ fn request_of(wire: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(wire.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// The checked premises and results an artifact is built from.
 pub struct MixedSourceArtifactInput<'a> {
     /// Shared causal graph the functional was decided on.
@@ -507,11 +502,13 @@ impl MixedSourceArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != MIXED_SOURCE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == MIXED_SOURCE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }

@@ -34,16 +34,13 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use antecedent_core::{
-    blake3_hex, CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
-    ProvenanceChainError,
+    CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
+    ProvenanceChainError, blake3_hex,
 };
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
+use antecedent_io::convert::to_cbor;
 use antecedent_io::error::IoError;
 use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use antecedent_io::wire::ArtifactKind;
 use serde::{Deserialize, Serialize};
 
 /// Artifact kind label of a composition bundle.
@@ -911,33 +908,45 @@ impl CompositionBundle {
             return Err(IoError::Convert("missing artifact id".into()).into());
         }
         let body = to_cbor(&self.body())?;
-        let mut descriptors = vec![section_descriptor(BODY_SECTION, "application/cbor", &body)];
-        let mut sections = vec![SectionBytes::new(BODY_SECTION, body)];
-        for node in &self.nodes {
-            if let NodeSource::Embedded { bytes } = &node.source {
-                let id = embedded_section(&node.id);
-                descriptors.push(section_descriptor(id.clone(), "application/octet-stream", bytes));
-                sections.push(SectionBytes::new(id, bytes.clone()));
-            }
+        let embedded: Vec<(String, &[u8])> = self
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.source {
+                NodeSource::Embedded { bytes } => {
+                    Some((embedded_section(&node.id), bytes.as_slice()))
+                }
+                NodeSource::Reference { .. } => None,
+            })
+            .collect();
+        let mut sections = Vec::with_capacity(1 + embedded.len());
+        sections.push(antecedent_io::OutSection {
+            id: BODY_SECTION,
+            content_type: antecedent_io::CONTENT_CBOR,
+            bytes: &body,
+        });
+        for (id, bytes) in &embedded {
+            sections.push(antecedent_io::OutSection {
+                id,
+                content_type: antecedent_io::CONTENT_BYTES,
+                bytes,
+            });
         }
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(BUNDLE_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: descriptors,
-                provenance: ProvenanceWire { note: "composition_bundle".into() },
+        antecedent_io::encode_container(
+            &antecedent_io::ArtifactContainer {
+                kind: BUNDLE_KIND,
+                note: "composition_bundle",
+                max_bytes: limits.max_bundle_bytes,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections,
-        };
-        let mut out = Vec::new();
-        encoded.write_to(&mut out)?;
-        if out.len() > limits.max_bundle_bytes {
-            return Err(refused(BundleStage::Oversized, "the bundle exceeds its bound", None));
-        }
-        Ok(out)
+            &sections,
+        )
+        .map_err(|error| match error {
+            antecedent_io::CodecError::FileTooLarge => {
+                refused(BundleStage::Oversized, "the bundle exceeds its bound", None)
+            }
+            other => other.into_io("not a composition bundle").into(),
+        })
     }
 }
 
@@ -975,11 +984,6 @@ struct BodyWire {
     nodes: Vec<NodeWire>,
     edges: Vec<EdgeWire>,
     identity: String,
-}
-
-#[derive(Deserialize)]
-struct VersionProbe {
-    version: u16,
 }
 
 fn node_to_wire(node: &BundleNode) -> NodeWire {
@@ -1074,15 +1078,17 @@ fn decode(bytes: &[u8], limits: &BundleLimits) -> Result<Decoded, BundleError> {
         return Err(refused(BundleStage::Oversized, "the bundle body exceeds its bound", None));
     }
     let body_bytes = reader.load_section(BODY_SECTION)?.as_bytes().to_vec();
-    let probe: VersionProbe = from_cbor(&body_bytes)?;
-    if probe.version != BUNDLE_VERSION {
-        return Err(refused(
-            BundleStage::IncompatibleVersion,
-            "the bundle body version is not supported",
-            None,
-        ));
-    }
-    let body: BodyWire = from_cbor(&body_bytes)?;
+    let body: BodyWire = antecedent_io::decode_with_version(&body_bytes, |version: u16| {
+        if version == BUNDLE_VERSION {
+            Ok(())
+        } else {
+            Err(refused(
+                BundleStage::IncompatibleVersion,
+                "the bundle body version is not supported",
+                None,
+            ))
+        }
+    })?;
     if body.nodes.len() > limits.max_nodes || body.edges.len() > limits.max_edges {
         return Err(refused(BundleStage::Oversized, "too many nodes or edges", None));
     }

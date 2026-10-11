@@ -426,11 +426,6 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 fn slots_wire(slots: &TemporalSlots) -> TemporalSlotsWire {
     let raw = |ids: &[VariableId]| ids.iter().map(|v| v.raw()).collect::<Vec<_>>();
     TemporalSlotsWire {
@@ -520,11 +515,13 @@ impl TemporalSequenceArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_TRANSPORT_ARTIFACT_FEATURE] {
             return Err(
                 TemporalTransportArtifactError::UnsupportedSemantics("required features").into()

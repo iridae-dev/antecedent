@@ -453,11 +453,6 @@ pub struct TemporalInitialStateArtifactWire {
     pub seal: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl TemporalInitialStateArtifactWire {
     /// Build an artifact from the queries and the panel, and replay it once so a
     /// producer never writes an artifact its own consumer would refuse.
@@ -533,11 +528,13 @@ impl TemporalInitialStateArtifactWire {
     /// # Errors
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE]
             || wire.kind != TEMPORAL_INITIAL_STATE_ARTIFACT_KIND
         {

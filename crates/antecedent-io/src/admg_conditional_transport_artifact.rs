@@ -406,18 +406,11 @@ fn request_of(wire: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(wire.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
-/// Refuse any format version but `expected` before the payload is interpreted.
-fn peek_version(bytes: &[u8], expected: u32) -> Result<(), IoError> {
-    let peek: VersionPeek = crate::from_cbor(bytes)?;
-    if peek.version == expected {
+fn refuse_other_version(version: u32, expected: u32) -> Result<(), IoError> {
+    if version == expected {
         Ok(())
     } else {
-        Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into())
+        Err(AdmgConditionalArtifactError::UnsupportedVersion { version }.into())
     }
 }
 
@@ -597,8 +590,9 @@ impl AdmgConditionalArtifactWire {
     /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        peek_version(bytes, ADMG_CONDITIONAL_ARTIFACT_VERSION)?;
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            refuse_other_version(version, ADMG_CONDITIONAL_ARTIFACT_VERSION)
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -923,8 +917,9 @@ impl AdmgConditionalObstructionWire {
     /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        peek_version(bytes, ADMG_CONDITIONAL_OBSTRUCTION_VERSION)?;
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            refuse_other_version(version, ADMG_CONDITIONAL_OBSTRUCTION_VERSION)
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }

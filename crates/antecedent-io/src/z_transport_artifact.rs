@@ -319,11 +319,6 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl ZTransportArtifactWire {
     /// Validate and construct an artifact from checked premises and a point result.
     ///
@@ -402,11 +397,13 @@ impl ZTransportArtifactWire {
     /// [`IoError::UnsupportedVersion`] for another format version; a decoding
     /// failure otherwise.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != Z_TRANSPORT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == Z_TRANSPORT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }

@@ -482,11 +482,6 @@ struct DataView {
     cells: Vec<Vec<u64>>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl NestedMarkovArtifactWire {
     /// Run the pilot through the engine and build the artifact from its inputs and
     /// receipt, with the report returned alongside.
@@ -579,11 +574,13 @@ impl NestedMarkovArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure or a foreign feature or claim.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != NESTED_MARKOV_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == NESTED_MARKOV_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         let unsupported = NestedMarkovArtifactError::UnsupportedSemantics;
         if wire.required_features != [NESTED_MARKOV_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());

@@ -415,11 +415,6 @@ pub struct TemporalIntervalArtifactWire {
     pub seal: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl TemporalIntervalArtifactWire {
     /// Build the artifact of an interval computed on `panel`, and replay it once.
     ///
@@ -484,11 +479,13 @@ impl TemporalIntervalArtifactWire {
     /// # Errors
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_INTERVAL_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_INTERVAL_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_INTERVAL_ARTIFACT_FEATURE]
             || wire.kind != TEMPORAL_INTERVAL_ARTIFACT_KIND
         {

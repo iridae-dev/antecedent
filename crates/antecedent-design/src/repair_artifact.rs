@@ -43,15 +43,11 @@ use antecedent_core::{
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{ClassicalTransportQuery, SidLimits};
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::error::IoError;
 use antecedent_io::query_wire::ValueWire;
-use antecedent_io::reader::ArtifactReader;
 use antecedent_io::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
-use antecedent_io::wire::{AdmgWire, ArtifactKind, DagWire, ProvenanceWire, SemanticVersion};
+use antecedent_io::wire::{AdmgWire, DagWire};
 use serde::{Deserialize, Serialize};
 
 use crate::repair::{
@@ -1124,25 +1120,29 @@ impl RepairReportArtifact {
             return Err(RepairArtifactError::invalid("missing artifact id"));
         }
         let body = to_cbor(self).map_err(|e| RepairArtifactError::from_io(&e))?;
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(REPAIR_ARTIFACT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                    .map_err(|e| RepairArtifactError::from_io(&e))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![section_descriptor(BODY_SECTION, "application/cbor", &body)],
-                provenance: ProvenanceWire { note: "repair_search_receipt".into() },
+        antecedent_io::encode_container(
+            &antecedent_io::ArtifactContainer {
+                kind: REPAIR_ARTIFACT_KIND,
+                note: "repair_search_receipt",
+                max_bytes: MAX_REPAIR_ARTIFACT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![SectionBytes::new(BODY_SECTION, body)],
-        };
-        let mut bytes = Vec::new();
-        encoded.write_to(&mut bytes).map_err(|e| RepairArtifactError::from_io(&e))?;
-        if bytes.len() > MAX_REPAIR_ARTIFACT_BYTES {
-            return Err(RepairArtifactError::bounds("the repair artifact is too large"));
-        }
-        Ok(bytes)
+            &[antecedent_io::OutSection {
+                id: BODY_SECTION,
+                content_type: antecedent_io::CONTENT_CBOR,
+                bytes: &body,
+            }],
+        )
+        .map_err(|error| match error {
+            antecedent_io::CodecError::FileTooLarge => {
+                RepairArtifactError::bounds("the repair artifact is too large")
+            }
+            antecedent_io::CodecError::MissingArtifactId => {
+                RepairArtifactError::invalid("missing artifact id")
+            }
+            other => RepairArtifactError::from_io(&other.into_io("repair artifact")),
+        })
     }
 
     /// Decode a container under the bounded reader. The decoded artifact is not
@@ -1154,27 +1154,30 @@ impl RepairReportArtifact {
     /// `repair_artifact.invalid_artifact` for a corrupt container, another
     /// layout or a report beyond the declared collection bounds.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, RepairArtifactError> {
-        if bytes.len() > MAX_REPAIR_ARTIFACT_BYTES {
-            return Err(RepairArtifactError::bounds("the repair artifact is too large"));
-        }
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))
-            .map_err(|e| RepairArtifactError::from_io(&e))?;
-        let manifest = reader.manifest();
-        if manifest.artifact_kind != ArtifactKind::Other(REPAIR_ARTIFACT_KIND.into())
-            || manifest.sections.len() != 1
-            || manifest.sections[0].id != BODY_SECTION
-        {
+        let parts = antecedent_io::decode_container(
+            REPAIR_ARTIFACT_KIND,
+            MAX_REPAIR_ARTIFACT_BYTES,
+            &[BODY_SECTION],
+            bytes,
+        )
+        .map_err(|error| match error {
+            antecedent_io::CodecError::FileTooLarge => {
+                RepairArtifactError::bounds("the repair artifact is too large")
+            }
+            antecedent_io::CodecError::SectionsTooLarge => {
+                RepairArtifactError::bounds("the repair body section is too large")
+            }
+            antecedent_io::CodecError::Layout => RepairArtifactError::unsupported_version(
+                "unsupported repair artifact kind or layout",
+            ),
+            other => RepairArtifactError::from_io(&other.into_io("repair artifact")),
+        })?;
+        let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(RepairArtifactError::unsupported_version(
                 "unsupported repair artifact kind or layout",
             ));
-        }
-        if manifest.sections[0].uncompressed_size > MAX_REPAIR_ARTIFACT_BYTES as u64 {
-            return Err(RepairArtifactError::bounds("the repair body section is too large"));
-        }
-        let section =
-            reader.load_section(BODY_SECTION).map_err(|e| RepairArtifactError::from_io(&e))?;
-        let artifact: Self =
-            from_cbor(section.as_bytes()).map_err(|e| RepairArtifactError::from_io(&e))?;
+        };
+        let artifact: Self = from_cbor(&body).map_err(|e| RepairArtifactError::from_io(&e))?;
         artifact.check_shape()?;
         Ok(artifact)
     }

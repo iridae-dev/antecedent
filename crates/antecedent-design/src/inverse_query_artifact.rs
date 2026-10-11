@@ -37,18 +37,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
 use antecedent_core::{CanonicalWriter, ScientificQuantity};
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
+use antecedent_io::convert::to_cbor;
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionMetadata};
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::DecisionContractArtifact;
@@ -1081,37 +1074,33 @@ pub fn encode_parts(
         return Err(IoError::Convert("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: antecedent_io::migrate::STABLE_FORMAT,
-            minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(CONTRACT_SECTION, "application/octet-stream", contract),
-                section_descriptor(DATA_SECTION, "application/octet-stream", data),
-            ],
-            provenance: ProvenanceWire { note: "inverse_functional_query_point_only".into() },
+    antecedent_io::encode_container(
+        &antecedent_io::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "inverse_functional_query_point_only",
+            max_bytes: MAX_INVERSE_QUERY_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(CONTRACT_SECTION, contract.to_vec()),
-            SectionBytes::new(DATA_SECTION, data.to_vec()),
+        &[
+            antecedent_io::OutSection {
+                id: META_SECTION,
+                content_type: antecedent_io::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            antecedent_io::OutSection {
+                id: CONTRACT_SECTION,
+                content_type: antecedent_io::CONTENT_BYTES,
+                bytes: contract,
+            },
+            antecedent_io::OutSection {
+                id: DATA_SECTION,
+                content_type: antecedent_io::CONTENT_BYTES,
+                bytes: data,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes)?;
-    if bytes.len() > MAX_INVERSE_QUERY_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    Ok(bytes)
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
+    )
+    .map_err(|error| error.into_io("unsupported inverse query artifact layout"))
 }
 
 /// Decode the three sections of a container, refusing another version before the
@@ -1123,34 +1112,23 @@ struct VersionPeek {
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>), IoError> {
-    if bytes.len() > MAX_INVERSE_QUERY_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 3
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != CONTRACT_SECTION
-        || manifest.sections[2].id != DATA_SECTION
-    {
+    let parts = antecedent_io::decode_container(
+        ARTIFACT_KIND,
+        MAX_INVERSE_QUERY_ARTIFACT_BYTES,
+        &[META_SECTION, CONTRACT_SECTION, DATA_SECTION],
+        bytes,
+    )
+    .map_err(|error| error.into_io("unsupported inverse query artifact layout"))?;
+    let Ok([meta_bytes, contract, data]) = <[Vec<u8>; 3]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported inverse query artifact layout".into()));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > wide(MAX_INVERSE_QUERY_ARTIFACT_BYTES)) {
-        return Err(IoError::TooLarge);
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != INVERSE_QUERY_ARTIFACT_VERSION {
-        return Err(IoError::UnsupportedVersion { version: u32::from(peek.version) });
-    }
-    let meta: InverseQueryMeta = from_cbor(meta_section.as_bytes())?;
-    let contract = reader.load_section(CONTRACT_SECTION)?.as_bytes().to_vec();
-    let data = reader.load_section(DATA_SECTION)?.as_bytes().to_vec();
+    };
+    let meta = antecedent_io::decode_with_version(&meta_bytes, |version: u16| {
+        if version == INVERSE_QUERY_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(IoError::UnsupportedVersion { version: u32::from(version) })
+        }
+    })?;
     Ok((meta, contract, data))
 }
 

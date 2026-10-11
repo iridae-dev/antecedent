@@ -621,11 +621,6 @@ fn same_bits<T: Serialize>(a: &T, b: &T) -> bool {
     matches!((crate::to_cbor(a), crate::to_cbor(b)), (Ok(a), Ok(b)) if a == b)
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// The checked premises and results an artifact is built from.
 pub struct MzTransportArtifactInput<'a> {
     /// Shared causal graph the functional was decided on.
@@ -802,11 +797,13 @@ impl MzTransportArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != MZ_TRANSPORT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == MZ_TRANSPORT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }

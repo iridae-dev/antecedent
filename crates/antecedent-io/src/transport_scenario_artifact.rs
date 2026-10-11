@@ -651,11 +651,6 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl TransportScenarioArtifactWire {
     /// Build an artifact from a prepared set and the report it produced. The
     /// limits recorded are the ones the decision ran under.
@@ -769,13 +764,15 @@ impl TransportScenarioArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        let conditional = match peek.version {
-            TRANSPORT_SCENARIO_ARTIFACT_VERSION => false,
-            TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION => true,
-            version => return Err(IoError::UnsupportedVersion { version }),
-        };
-        let wire: Self = crate::from_cbor(bytes)?;
+        let mut conditional = false;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            conditional = match version {
+                TRANSPORT_SCENARIO_ARTIFACT_VERSION => false,
+                TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION => true,
+                version => return Err(IoError::UnsupportedVersion { version }),
+            };
+            Ok(())
+        })?;
         let unsupported =
             |what| Err(TransportScenarioArtifactError::UnsupportedSemantics(what).into());
         let features: &[&str] = if conditional {

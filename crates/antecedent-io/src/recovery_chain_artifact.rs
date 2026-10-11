@@ -33,8 +33,7 @@ use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryError,
     ChainRecoveryPlan, ChainRecoveryQuery, ChainRecoveryWitness, ChainWitnessCheck,
-    ChainWitnessMechanism, decide_chain_recovery,
-    verify_chain_witness,
+    ChainWitnessMechanism, decide_chain_recovery, verify_chain_witness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -455,11 +454,6 @@ struct DataView {
     recovered: Option<Vec<u64>>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// Everything a replay reconstructed and recomputed.
 #[derive(Clone, Debug)]
 pub struct ConsumedRecoveryChain {
@@ -635,11 +629,13 @@ impl RecoveryChainArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != RECOVERY_CHAIN_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == RECOVERY_CHAIN_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }

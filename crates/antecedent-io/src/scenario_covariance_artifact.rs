@@ -621,11 +621,6 @@ pub struct ScenarioCovarianceArtifactWire {
     pub data_digest: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 fn premises_identity(wire: &ScenarioCovarianceArtifactWire) -> Result<String, IoError> {
     Ok(crate::identity::digest_wire(
         IdentityDomain::TransportCertificate,
@@ -706,11 +701,13 @@ impl ScenarioCovarianceArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != SCENARIO_COVARIANCE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == SCENARIO_COVARIANCE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [SCENARIO_COVARIANCE_ARTIFACT_FEATURE] {
             return Err(
                 ScenarioCovarianceArtifactError::UnsupportedSemantics("required features").into()
