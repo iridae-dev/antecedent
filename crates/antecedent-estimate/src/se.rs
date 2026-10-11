@@ -363,11 +363,7 @@ pub(crate) fn add_nuisance_correction(
             }
         }
     }
-    let Some(alpha) = crate::propensity::weighting::solve_symmetric_posdef(
-        &mut information,
-        &mut derivative,
-        ncols,
-    ) else {
+    let Some(alpha) = crate::util::solve_spd(&information, &derivative, ncols) else {
         return Err(EstimationError::stats_msg(singular));
     };
     for i in 0..n {

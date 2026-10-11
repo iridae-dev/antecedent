@@ -717,7 +717,7 @@ fn fit_linear_mean(features: &[f64], y: &[f64], dim: usize) -> Option<Vec<f64>> 
             }
         }
     }
-    solve_linear_system(&mut xtx, &mut xty, p)
+    crate::util::solve_spd(&xtx, &xty, p)
 }
 
 fn predict_linear(beta: &[f64], features: &[f64], dim: usize, row: usize) -> f64 {
@@ -729,60 +729,6 @@ fn predict_linear(beta: &[f64], features: &[f64], dim: usize, row: usize) -> f64
         y += beta[d + 1] * features[row * dim + d];
     }
     y
-}
-
-/// Gaussian elimination with partial pivoting; returns solution in `b`, or `None` if singular.
-///
-/// The pivot floor is relative to the largest absolute entry, the same rule as
-/// `weighting::solve_symmetric_posdef`. An absolute `1e-14` rejects a well-scaled
-/// design whose columns are in units of `1e-8` and accepts a collinear pair in
-/// units of `1e8`.
-fn solve_linear_system(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
-    let mut scale = 0.0_f64;
-    for v in a.iter().take(p * p) {
-        scale = scale.max(v.abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
-        return None;
-    }
-    let tol = 1e-12 * scale;
-    for col in 0..p {
-        let mut pivot = col;
-        let mut best = a[col * p + col].abs();
-        for r in (col + 1)..p {
-            let v = a[r * p + col].abs();
-            if v > best {
-                best = v;
-                pivot = r;
-            }
-        }
-        if best <= tol {
-            return None;
-        }
-        if pivot != col {
-            for c in 0..p {
-                a.swap(col * p + c, pivot * p + c);
-            }
-            b.swap(col, pivot);
-        }
-        let diag = a[col * p + col];
-        for r in (col + 1)..p {
-            let f = a[r * p + col] / diag;
-            for c in col..p {
-                a[r * p + c] -= f * a[col * p + c];
-            }
-            b[r] -= f * b[col];
-        }
-    }
-    let mut x = vec![0.0; p];
-    for i in (0..p).rev() {
-        let mut s = b[i];
-        for j in (i + 1)..p {
-            s -= a[i * p + j] * x[j];
-        }
-        x[i] = s / a[i * p + i];
-    }
-    Some(x)
 }
 
 #[cfg(test)]
@@ -806,15 +752,15 @@ mod tests {
     #[test]
     fn pivot_floor_follows_the_matrix_scale() {
         // A design in units of 1e-8 is a scaled identity, not a singular system.
-        let mut tiny = [1e-16, 0.0, 0.0, 1e-16];
-        let mut tiny_b = [1e-16, 2e-16];
-        let x = solve_linear_system(&mut tiny, &mut tiny_b, 2).expect("tiny identity");
+        let tiny = [1e-16, 0.0, 0.0, 1e-16];
+        let tiny_b = [1e-16, 2e-16];
+        let x = crate::util::solve_spd(&tiny, &tiny_b, 2).expect("tiny identity");
         assert!((x[0] - 1.0).abs() < 1e-6 && (x[1] - 2.0).abs() < 1e-6);
         // A pair collinear to 1 part in 1e16 of a 1e16 Gram must be refused.
         // An absolute 1e-14 floor accepts the residual pivot of 1.
-        let mut huge = [1e16, 1e16, 1e16, 1e16 + 1.0];
-        let mut huge_b = [1.0, 1.0];
-        assert!(solve_linear_system(&mut huge, &mut huge_b, 2).is_none());
+        let huge = [1e16, 1e16, 1e16, 1e16 + 1.0];
+        let huge_b = [1.0, 1.0];
+        assert!(crate::util::solve_spd(&huge, &huge_b, 2).is_none());
     }
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {

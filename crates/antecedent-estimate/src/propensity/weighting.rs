@@ -444,64 +444,9 @@ pub(crate) fn hajek_influence_se(
     Ok((var / nf * (nf / df)).max(0.0).sqrt())
 }
 
-/// Gaussian elimination for a small dense system (propensity score projection).
-///
-/// Singularity is judged relative to the input matrix's largest absolute diagonal entry
-/// (matching `antecedent_stats::gram::invert_square`) so the verdict does not depend on the
-/// data's units — an absolute threshold would quietly accept a direction that is singular
-/// relative to the Gram matrix's own scale and hand back a garbage adjustment.
-pub(crate) fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
-    let mut scale = 0.0_f64;
-    for i in 0..p {
-        scale = scale.max(a[i * p + i].abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
-        return None;
-    }
-    let tol = 1e-12 * scale;
-
-    for col in 0..p {
-        let mut pivot = col;
-        let mut best = a[col * p + col].abs();
-        for r in (col + 1)..p {
-            let v = a[r * p + col].abs();
-            if v > best {
-                best = v;
-                pivot = r;
-            }
-        }
-        if best < tol {
-            return None;
-        }
-        if pivot != col {
-            for c in 0..p {
-                a.swap(col * p + c, pivot * p + c);
-            }
-            b.swap(col, pivot);
-        }
-        let diag = a[col * p + col];
-        for r in (col + 1)..p {
-            let f = a[r * p + col] / diag;
-            for c in col..p {
-                a[r * p + c] -= f * a[col * p + c];
-            }
-            b[r] -= f * b[col];
-        }
-    }
-    let mut x = vec![0.0; p];
-    for i in (0..p).rev() {
-        let mut s = b[i];
-        for j in (i + 1)..p {
-            s -= a[i * p + j] * x[j];
-        }
-        x[i] = s / a[i * p + i];
-    }
-    Some(x)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::solve_symmetric_posdef;
+    use crate::util::solve_spd;
 
     // Independent case-weight perturbation oracle: refit the logistic MLE and
     // weighted means after infinitesimally changing each observation's mass.
@@ -615,38 +560,50 @@ mod tests {
     }
 
     #[test]
-    fn solve_symmetric_posdef_rejects_badly_scaled_near_singular_matrix() {
+    fn spd_solve_rejects_badly_scaled_near_singular_matrix() {
         // Rows are nearly parallel at large magnitude — the shape an unnormalized
         // G = S'S / n takes when two propensity-score residual columns are collinear.
         // After one elimination step the remaining pivot is ~1e-6 in absolute terms:
         // comfortably above a fixed 1e-14 absolute threshold (which would wrongly accept
         // this and hand back a garbage adjustment), but far below 1e-12 * scale (~1e-2)
-        // once the tolerance is scaled to the matrix's own magnitude (~1e10).
-        let mut a = [1e10, 1e10, 1e10, 1e10 + 1e-6];
-        let mut b = [1.0, 1.0];
-        assert!(solve_symmetric_posdef(&mut a, &mut b, 2).is_none());
+        // once the tolerance is scaled to the matrix's own magnitude (~1e10); the kernel
+        // Cholesky refuses it because the second pivot cancels below 64 eps of its diagonal.
+        let a = [1e10, 1e10, 1e10, 1e10 + 1e-6];
+        let b = [1.0, 1.0];
+        assert!(solve_spd(&a, &b, 2).is_none());
     }
 
     #[test]
-    fn solve_symmetric_posdef_still_solves_well_scaled_system() {
+    fn spd_solve_still_solves_well_scaled_system() {
         // Sanity check that the relative tolerance doesn't reject ordinary,
         // well-conditioned systems: [4,1;1,3] x = [5,4] ⇒ x = [1,1].
-        let mut a = [4.0, 1.0, 1.0, 3.0];
-        let mut b = [5.0, 4.0];
-        let x = solve_symmetric_posdef(&mut a, &mut b, 2).expect("well-conditioned");
+        let a = [4.0, 1.0, 1.0, 3.0];
+        let b = [5.0, 4.0];
+        let x = solve_spd(&a, &b, 2).expect("well-conditioned");
         assert!((x[0] - 1.0).abs() < 1e-12, "x0={}", x[0]);
         assert!((x[1] - 1.0).abs() < 1e-12, "x1={}", x[1]);
     }
 
     #[test]
-    fn solve_symmetric_posdef_rejects_degenerate_scale() {
+    fn spd_solve_rejects_degenerate_scale() {
         // All-zero diagonal (and a non-finite one) leave no usable scale reference.
-        let mut a = [0.0, 0.0, 0.0, 0.0];
-        let mut b = [1.0, 1.0];
-        assert!(solve_symmetric_posdef(&mut a, &mut b, 2).is_none());
+        let a = [0.0, 0.0, 0.0, 0.0];
+        let b = [1.0, 1.0];
+        assert!(solve_spd(&a, &b, 2).is_none());
 
-        let mut a = [f64::INFINITY, 0.0, 0.0, 1.0];
-        let mut b = [1.0, 1.0];
-        assert!(solve_symmetric_posdef(&mut a, &mut b, 2).is_none());
+        let a = [f64::INFINITY, 0.0, 0.0, 1.0];
+        let b = [1.0, 1.0];
+        assert!(solve_spd(&a, &b, 2).is_none());
+    }
+
+    #[test]
+    fn spd_solve_boundary_is_the_kernel_pivot_floor() {
+        // The kernel refuses a pivot that cancels below 64 eps (~1.4e-14) of its diagonal. The
+        // former LU used 1e-12 of the largest diagonal, so the band between the two is the
+        // only place the verdict moved: a relative pivot of 1e-13 was refused, now accepted.
+        let above = [1.0, 1.0, 1.0, 1.0 + 1e-13];
+        assert!(solve_spd(&above, &[1.0, 1.0], 2).is_some());
+        let below = [1.0, 1.0, 1.0, 1.0 + 1e-15];
+        assert!(solve_spd(&below, &[1.0, 1.0], 2).is_none());
     }
 }
