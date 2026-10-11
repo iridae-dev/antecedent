@@ -476,19 +476,38 @@ impl RngFactory {
     /// for low-level ids that are already domain-unique.
     #[must_use]
     pub fn stream(&self, stream_id: u64) -> CausalRng {
-        CausalRng::from_seed(mix_seed(self.master_seed, stream_id))
+        CausalRng::from_seed(derive_stream(self.master_seed, stream_id))
     }
 
     /// Derive a stream for `(domain, index)`.
     ///
     /// Domain and index are packed without an additive family offset, then passed
-    /// through the single `mix_seed` mixer with the master seed.
+    /// through the single [`derive_stream`] mixer with the master seed.
     #[must_use]
     pub fn stream_for(&self, domain: StreamDomain, index: u64) -> CausalRng {
         // Odd multiplier so domain tags stay distinct under xor with index.
         let stream_id = (domain as u64).wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
         self.stream(stream_id)
     }
+}
+
+/// The `SplitMix64` increment (the golden-ratio gamma).
+pub const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// The `SplitMix64` output finalizer: a bijective avalanche mix of one word.
+#[must_use]
+pub const fn mix64(mut z: u64) -> u64 {
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Advance a `SplitMix64` state by [`GOLDEN_GAMMA`] and return its next output.
+///
+/// [`CausalRng::next_u64`] is exactly this step on its own state.
+pub fn splitmix64(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(GOLDEN_GAMMA);
+    mix64(*state)
 }
 
 /// Deterministic SplitMix64-based RNG for library algorithms.
@@ -502,7 +521,7 @@ impl CausalRng {
     #[must_use]
     pub const fn from_seed(seed: u64) -> Self {
         // Avoid the all-zero fixed point of SplitMix by mixing once.
-        Self { state: seed ^ 0x9E37_79B9_7F4A_7C15 }
+        Self { state: seed ^ GOLDEN_GAMMA }
     }
 
     /// Restore from a previously exported [`Self::state`].
@@ -520,11 +539,7 @@ impl CausalRng {
     /// Next `u64` from the stream.
     #[must_use]
     pub fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
+        splitmix64(&mut self.state)
     }
 
     /// Next `f64` in `[0, 1)`.
@@ -544,7 +559,12 @@ impl CausalRng {
 /// The previous `master.wrapping_add(stream_id)` form made
 /// `(master=s, stream=k)` identical to `(s−δ, k+δ)`, so adjacent user seeds
 /// shared almost every bootstrap replicate stream.
-fn mix_seed(master: u64, stream_id: u64) -> u64 {
+///
+/// This is the seed [`RngFactory::stream`] hands to [`CausalRng::from_seed`]; it
+/// is a different mixer from the [`mix64`] finalizer (it keys two words), so the
+/// two are not interchangeable.
+#[must_use]
+pub const fn derive_stream(master: u64, stream_id: u64) -> u64 {
     let mut z = master.wrapping_mul(0xD6E8_FEB8_6659_FD93);
     z ^= stream_id.wrapping_mul(0xC2B2_AE3D_27D4_EB4F);
     z = (z ^ (z >> 32)).wrapping_mul(0x1656_67B1_9E37_79F9);
@@ -856,7 +876,7 @@ mod tests {
     }
 
     #[test]
-    fn mix_seed_rejects_additive_master_stream_alias() {
+    fn derive_stream_rejects_additive_master_stream_alias() {
         // (s, k) must not equal (s − 1, k + 1).
         for s in [1u64, 42, 1000, u64::MAX / 2, u64::MAX] {
             for k in [0u64, 1, 999, 0xA7E0_0001_1000] {

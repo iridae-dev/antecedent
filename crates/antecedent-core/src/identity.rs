@@ -9,6 +9,72 @@
 use core::fmt;
 use std::sync::Arc;
 
+/// Lowercase hex encoding of `bytes` (two characters per byte).
+#[must_use]
+pub fn to_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(HEX[usize::from(b >> 4)] as char);
+        out.push(HEX[usize::from(b & 0x0f)] as char);
+    }
+    out
+}
+
+/// Streaming length-prefixed canonical writer hashed with BLAKE3.
+///
+/// Framing: every field is either a little-endian `u64` word or a `u64`
+/// little-endian length followed by raw bytes. [`Self::new`] writes the tag as
+/// [`Self::text`], so distinct tags separate distinct encodings. Reals enter as
+/// their IEEE-754 bit pattern, so `-0.0` and `0.0` differ and `NaN` payloads are
+/// preserved.
+///
+/// The byte stream is identical to the buffered `Canon` builders previously
+/// private to `antecedent-io`, so a digest computed by either agrees.
+#[derive(Clone, Debug)]
+pub struct CanonicalWriter {
+    hasher: blake3::Hasher,
+}
+
+impl CanonicalWriter {
+    /// Start a stream with a domain `tag` (written as length-prefixed text).
+    #[must_use]
+    pub fn new(tag: &str) -> Self {
+        let mut writer = Self { hasher: blake3::Hasher::new() };
+        writer.text(tag);
+        writer
+    }
+
+    /// One `u64` word, little-endian.
+    pub fn word(&mut self, word: u64) -> &mut Self {
+        self.hasher.update(&word.to_le_bytes());
+        self
+    }
+
+    /// Length-prefixed UTF-8 text.
+    pub fn text(&mut self, text: &str) -> &mut Self {
+        self.bytes(text.as_bytes())
+    }
+
+    /// A real as its `to_bits` word.
+    pub fn real(&mut self, value: f64) -> &mut Self {
+        self.word(value.to_bits())
+    }
+
+    /// Length-prefixed raw bytes.
+    pub fn bytes(&mut self, bytes: &[u8]) -> &mut Self {
+        self.word(bytes.len() as u64);
+        self.hasher.update(bytes);
+        self
+    }
+
+    /// The 32-byte BLAKE3 digest of everything written so far (non-consuming).
+    #[must_use]
+    pub fn finish(&self) -> [u8; 32] {
+        *self.hasher.finalize().as_bytes()
+    }
+}
+
 /// Identity encoding format. Bump only when the canonical payload changes.
 ///
 /// Version 2 canonicalizes graph edge order, replaces debug-rendered estimator
@@ -152,13 +218,7 @@ impl SemanticDigest {
     /// Lowercase hex encoding (64 characters).
     #[must_use]
     pub fn to_hex(&self) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut out = String::with_capacity(64);
-        for b in self.bytes {
-            out.push(HEX[(b >> 4) as usize] as char);
-            out.push(HEX[(b & 0x0f) as usize] as char);
-        }
-        out
+        to_hex(&self.bytes)
     }
 }
 
@@ -282,5 +342,41 @@ mod tests {
         assert!(hex.starts_with("ab"));
         assert!(hex.ends_with("cd"));
         assert!(hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
+    }
+
+    /// The old `antecedent-io` `Canon` buffered every field and hashed once; the
+    /// streaming writer must produce the same digest.
+    #[test]
+    fn canonical_writer_matches_buffered_canon_framing() {
+        fn word(buf: &mut Vec<u8>, w: u64) {
+            buf.extend_from_slice(&w.to_le_bytes());
+        }
+        fn text(buf: &mut Vec<u8>, t: &str) {
+            word(buf, t.len() as u64);
+            buf.extend_from_slice(t.as_bytes());
+        }
+        let mut old = Vec::new();
+        text(&mut old, "antecedent.test.canon");
+        word(&mut old, 42);
+        text(&mut old, "label");
+        word(&mut old, (-0.5_f64).to_bits());
+        text(&mut old, "");
+        let expected = blake3::hash(&old);
+
+        let mut writer = CanonicalWriter::new("antecedent.test.canon");
+        writer.word(42).text("label").real(-0.5).text("");
+        assert_eq!(writer.finish(), *expected.as_bytes());
+        assert_eq!(to_hex(&writer.finish()), expected.to_hex().to_string());
+        assert_eq!(
+            to_hex(&writer.finish()),
+            "77a467e6a59c1f6dca516663cb868433147eb4c625ddbdbe07207fdf3e6a11f5"
+        );
+
+        // `bytes` is the same framing as `text` over the same octets.
+        let mut a = CanonicalWriter::new("t");
+        a.text("xy");
+        let mut b = CanonicalWriter::new("t");
+        b.bytes(b"xy");
+        assert_eq!(a.finish(), b.finish());
     }
 }
