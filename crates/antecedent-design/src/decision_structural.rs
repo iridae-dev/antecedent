@@ -22,6 +22,9 @@ use crate::decision_contract::{
     DecisionContract, DecisionContractError, DecisionCriterion, StructuralPolicy,
 };
 use crate::decision_eval::{evaluate_contract, DecisionEvalError, DecisionResult, Verdict};
+use crate::structure_aggregator::{
+    AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
+};
 
 /// What is known about one structure.
 #[derive(Clone, Debug)]
@@ -162,46 +165,24 @@ impl StructuralError {
     }
 }
 
-/// How atoms are aggregated, after the criterion override.
-#[derive(Clone, Copy, PartialEq)]
-enum Aggregate {
-    Invariant,
-    WorstCase,
-    Bayes,
-    Report,
-}
-
-/// `+1` when a larger criterion value is better, `-1` when smaller is.
-fn orientation(criterion: DecisionCriterion) -> f64 {
-    match criterion {
-        DecisionCriterion::PosteriorExpectedLoss
-        | DecisionCriterion::ExpectedRegret
-        | DecisionCriterion::Regret
-        | DecisionCriterion::MinimaxOverIdentifiedSet => -1.0,
-        _ => 1.0,
-    }
-}
-
-fn per_atom_contract(contract: &DecisionContract) -> (DecisionContract, Aggregate) {
+/// The contract each atom is scored with.
+///
+/// `MaximinOverStructures` scores each atom by expected utility and
+/// `MinimaxOverIdentifiedSet` by expected loss. The structural policy that
+/// combines those scores is [`StructureAggregator`].
+fn per_atom_contract(contract: &DecisionContract) -> DecisionContract {
     let mut inner = contract.clone();
-    let aggregate = match contract.criterion {
+    match contract.criterion {
         DecisionCriterion::MaximinOverStructures => {
             inner.criterion = DecisionCriterion::PosteriorExpectedUtility;
-            Aggregate::WorstCase
         }
         DecisionCriterion::MinimaxOverIdentifiedSet => {
             // Utilities are read as losses; each member is scored by expected loss.
             inner.criterion = DecisionCriterion::PosteriorExpectedLoss;
-            Aggregate::WorstCase
         }
-        _ => match contract.structural_policy {
-            StructuralPolicy::RequireInvariantBestAction => Aggregate::Invariant,
-            StructuralPolicy::Maximin => Aggregate::WorstCase,
-            StructuralPolicy::BayesOverStructures => Aggregate::Bayes,
-            StructuralPolicy::ReportOnly => Aggregate::Report,
-        },
-    };
-    (inner, aggregate)
+        _ => {}
+    }
+    inner
 }
 
 fn validate_atoms(atoms: &[StructuralAtom]) -> Result<bool, StructuralError> {
@@ -240,11 +221,12 @@ pub fn evaluate_structural(
 ) -> Result<StructuralDecisionResult, StructuralError> {
     let identity = contract.identity().map_err(StructuralError::Contract)?;
     let has_probabilities = validate_atoms(atoms)?;
-    let (inner, aggregate) = per_atom_contract(contract);
-    if aggregate == Aggregate::Bayes && !has_probabilities {
+    let aggregator = StructureAggregator::new(contract.criterion, contract.structural_policy);
+    let inner = per_atom_contract(contract);
+    if aggregator.kind() == AggregateKind::Bayes && !has_probabilities {
         return Err(StructuralError::ProbabilitiesRequired);
     }
-    if aggregate == Aggregate::Bayes
+    if aggregator.kind() == AggregateKind::Bayes
         && matches!(inner.criterion, DecisionCriterion::Quantile { .. } | DecisionCriterion::Regret)
     {
         // Quantiles and suprema of a mixture are not weighted averages of the
@@ -253,7 +235,7 @@ pub fn evaluate_structural(
             "structural_criterion",
         )));
     }
-    let sign = orientation(inner.criterion);
+    let sign = aggregator.sign();
 
     let mut summaries = Vec::with_capacity(atoms.len());
     for atom in atoms {
@@ -302,7 +284,6 @@ pub fn evaluate_structural(
         })
         .collect();
     let mut leaders: Vec<(String, Vec<String>)> = Vec::new();
-    let mut every_atom_unique = true;
     for (k, summary) in summaries.iter().enumerate() {
         let AtomStatus::Evaluated(result) = &summary.status else {
             continue;
@@ -310,7 +291,8 @@ pub fn evaluate_structural(
         for (i, outcome) in result.actions.iter().enumerate() {
             if outcome.admissible {
                 actions[i].per_atom[k] = Some(outcome.value);
-            } else if aggregate != Aggregate::Bayes || summary.probability.is_some_and(|p| p > 0.0)
+            } else if aggregator.kind() != AggregateKind::Bayes
+                || summary.probability.is_some_and(|p| p > 0.0)
             {
                 actions[i].excluded_in.push(summary.id.clone());
             }
@@ -329,11 +311,9 @@ pub fn evaluate_structural(
                 }
             }
             Verdict::Indistinguishable(ids) => {
-                every_atom_unique = false;
                 leaders.push((summary.id.clone(), ids.clone()));
             }
             Verdict::NoAdmissibleAction => {
-                every_atom_unique = false;
                 leaders.push((summary.id.clone(), Vec::new()));
             }
         }
@@ -360,78 +340,26 @@ pub fn evaluate_structural(
     // An action is a candidate only if no structure excludes it.
     let candidates: Vec<usize> =
         (0..n_actions).filter(|i| actions[*i].excluded_in.is_empty()).collect();
-    let verdict = if aggregate == Aggregate::Report {
-        StructuralVerdict::ReportOnly
-    } else if !any_evaluated {
-        StructuralVerdict::InsufficientScience("no structure was evaluated".into())
-    } else if candidates.is_empty() {
-        StructuralVerdict::NoAdmissibleAction
-    } else {
-        match aggregate {
-            Aggregate::Invariant => {
-                if !all_evaluated {
-                    StructuralVerdict::InsufficientScience(
-                        "an unidentified or unevaluated structure leaves invariance unchecked"
-                            .into(),
-                    )
-                } else if every_atom_unique
-                    && leaders.windows(2).all(|pair| pair[0].1 == pair[1].1)
-                    && candidates.iter().any(|i| actions[*i].id == leaders[0].1[0])
-                {
-                    StructuralVerdict::InvariantBest(leaders[0].1[0].clone())
-                } else {
-                    StructuralVerdict::NoInvariantBest(leaders)
-                }
-            }
-            Aggregate::WorstCase => {
-                if all_evaluated {
-                    let worst = |i: usize| -> f64 {
-                        actions[i]
-                            .per_atom
-                            .iter()
-                            .flatten()
-                            .map(|v| sign * v)
-                            .fold(f64::INFINITY, f64::min)
-                    };
-                    match unique_best(&candidates, worst) {
-                        Ok(best) => StructuralVerdict::WorstCaseChoice(actions[best].id.clone()),
-                        Err(tied) => StructuralVerdict::Tied(
-                            tied.into_iter().map(|i| actions[i].id.clone()).collect(),
-                        ),
-                    }
-                } else {
-                    StructuralVerdict::InsufficientScience(
-                        "a worst case over structures needs every structure evaluated".into(),
-                    )
-                }
-            }
-            Aggregate::Bayes => {
-                let evaluated = evaluated_mass.unwrap_or(0.0);
-                if unidentified_mass.unwrap_or(0.0) > 0.0 || unevaluated_mass.unwrap_or(0.0) > 0.0 {
-                    StructuralVerdict::InsufficientScience(
-                        "positive unresolved probability mass can change the Bayes action".into(),
-                    )
-                } else if evaluated <= 0.0 {
-                    StructuralVerdict::InsufficientScience(
-                        "no evaluated structure has positive probability".into(),
-                    )
-                } else {
-                    let score =
-                        |i: usize| sign * actions[i].weighted_value.unwrap_or(f64::NEG_INFINITY);
-                    match unique_best(&candidates, score) {
-                        Ok(best) => StructuralVerdict::BayesChoice {
-                            action: actions[best].id.clone(),
-                            evaluated_mass: evaluated,
-                        },
-                        Err(tied) => StructuralVerdict::Tied(
-                            tied.into_iter().map(|i| actions[i].id.clone()).collect(),
-                        ),
-                    }
-                }
-            }
-            Aggregate::Report => StructuralVerdict::ReportOnly,
-        }
+    let action_ids: Vec<&str> = actions.iter().map(|action| action.id.as_str()).collect();
+    let worst_score = |i: usize| -> f64 {
+        actions[i].per_atom.iter().flatten().map(|v| sign * v).fold(f64::INFINITY, f64::min)
     };
+    let bayes_score = |i: usize| sign * actions[i].weighted_value.unwrap_or(f64::NEG_INFINITY);
+    let verdict = structural_verdict(aggregator.decide(
+        &AggregateFacts {
+            any_evaluated,
+            all_resolved: all_evaluated,
+            candidates: &candidates,
+            action_ids: &action_ids,
+            leaders: &leaders,
+            unidentified_mass: unidentified_mass.unwrap_or(0.0),
+            unevaluated_mass: unevaluated_mass.unwrap_or(0.0),
+            evaluated_mass: evaluated_mass.unwrap_or(0.0),
+            dropped_mass: 0.0,
+        },
+        worst_score,
+        bayes_score,
+    ));
     Ok(StructuralDecisionResult {
         contract_identity: identity,
         policy: contract.structural_policy,
@@ -444,23 +372,24 @@ pub fn evaluate_structural(
     })
 }
 
-/// The unique maximizer, or every index that shares the best score.
-fn unique_best(candidates: &[usize], score: impl Fn(usize) -> f64) -> Result<usize, Vec<usize>> {
-    let mut best = f64::NEG_INFINITY;
-    let mut tied = Vec::new();
-    for &i in candidates {
-        match score(i).total_cmp(&best) {
-            std::cmp::Ordering::Greater => {
-                best = score(i);
-                tied.clear();
-                tied.push(i);
-            }
-            std::cmp::Ordering::Equal => tied.push(i),
-            std::cmp::Ordering::Less => {}
+fn structural_verdict(decision: AggregateDecision) -> StructuralVerdict {
+    match decision {
+        AggregateDecision::Report => StructuralVerdict::ReportOnly,
+        AggregateDecision::Insufficient(why) => StructuralVerdict::InsufficientScience(why.into()),
+        // Support is not a structural filter; dropped mass is zero on this path.
+        AggregateDecision::NoCandidate | AggregateDecision::SupportWithheld => {
+            StructuralVerdict::NoAdmissibleAction
         }
-    }
-    match tied.as_slice() {
-        [only] => Ok(*only),
-        _ => Err(tied),
+        AggregateDecision::Disagree(leaders) => StructuralVerdict::NoInvariantBest(leaders),
+        AggregateDecision::Choice(AggregateChoice::Invariant(id)) => {
+            StructuralVerdict::InvariantBest(id)
+        }
+        AggregateDecision::Choice(AggregateChoice::WorstCase(id)) => {
+            StructuralVerdict::WorstCaseChoice(id)
+        }
+        AggregateDecision::Choice(AggregateChoice::Bayes { action, evaluated_mass }) => {
+            StructuralVerdict::BayesChoice { action, evaluated_mass }
+        }
+        AggregateDecision::Choice(AggregateChoice::Tied(ids)) => StructuralVerdict::Tied(ids),
     }
 }

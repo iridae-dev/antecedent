@@ -23,11 +23,14 @@
 use antecedent_core::{ExternalRefusal, SupportStatus};
 
 use crate::decision_contract::{
-    AdmissibilityError, AdmissibleDecisionContract, DecisionCriterion, StructuralPolicy,
-    UncertaintyKind, UncertaintyRequirement,
+    AdmissibilityError, AdmissibleDecisionContract, UncertaintyKind, UncertaintyRequirement,
 };
 use crate::decision_structural::{
     evaluate_structural, AtomStatus, StructuralAtom, StructuralDecisionResult, StructuralError,
+};
+use crate::structure_aggregator::{
+    AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
+    NO_STRUCTURE_EVALUATED,
 };
 
 /// Support status of one input of one action under one structure.
@@ -269,15 +272,6 @@ impl RobustnessError {
     }
 }
 
-/// How structures are aggregated, after the criterion override.
-#[derive(Clone, Copy, PartialEq)]
-enum Agg {
-    Invariant,
-    WorstCase,
-    Bayes,
-    Report,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 enum Choice {
     Invariant(String),
@@ -321,8 +315,7 @@ struct Ctx<'a> {
     action_ids: Vec<&'a str>,
     declared: Vec<bool>,
     atoms: Vec<AtomRow>,
-    agg: Agg,
-    sign: f64,
+    aggregator: StructureAggregator,
     all_resolved: bool,
     unidentified_mass: Option<f64>,
     unevaluated_mass: Option<f64>,
@@ -354,7 +347,8 @@ impl Ctx<'_> {
     }
 
     fn counts(&self, atom: usize) -> bool {
-        self.agg != Agg::Bayes || self.atoms[atom].probability.is_some_and(|p| p > 0.0)
+        self.aggregator.kind() != AggregateKind::Bayes
+            || self.atoms[atom].probability.is_some_and(|p| p > 0.0)
     }
 
     /// Actions eligible in every retained structure that counts.
@@ -377,7 +371,7 @@ impl Ctx<'_> {
     fn leaders(&self, view: &AtomView, supported: bool) -> Vec<usize> {
         let eligible: Vec<usize> =
             (0..self.n()).filter(|i| self.eligible(view, *i, supported)).collect();
-        let score = |i: usize| self.sign * view.value[i];
+        let score = |i: usize| self.aggregator.sign() * view.value[i];
         let Some(best) =
             eligible.iter().copied().max_by(|a, b| score(*a).total_cmp(&score(*b)).then(b.cmp(a)))
         else {
@@ -387,12 +381,12 @@ impl Ctx<'_> {
     }
 
     fn resolve(&self, supported: bool) -> Outcome {
-        if self.agg == Agg::Report {
+        if self.aggregator.kind() == AggregateKind::Report {
             return Outcome::Report;
         }
         let unrestricted = self.retained(false);
         if unrestricted.is_empty() {
-            return Outcome::Insufficient("no structure was evaluated".into());
+            return Outcome::Insufficient(NO_STRUCTURE_EVALUATED.to_owned());
         }
         let retained = self.retained(supported);
         if retained.is_empty() {
@@ -416,92 +410,41 @@ impl Ctx<'_> {
                 Outcome::NoCandidate
             };
         }
-        match self.agg {
-            Agg::Invariant => self.invariant(supported, &retained, &candidates),
-            Agg::WorstCase => self.worst_case(&retained, &candidates),
-            Agg::Bayes => self.bayes(supported, &retained, &unrestricted, &candidates),
-            Agg::Report => Outcome::Report,
-        }
-    }
-
-    fn invariant(&self, supported: bool, retained: &[usize], candidates: &[usize]) -> Outcome {
-        if !self.all_resolved {
-            return Outcome::Insufficient(
-                "an unidentified or unevaluated structure leaves invariance unchecked".into(),
-            );
-        }
-        let leaders: Vec<(String, Vec<String>)> = retained
-            .iter()
-            .filter_map(|k| {
-                let row = &self.atoms[*k];
-                let view = row.view.as_ref()?;
-                let ids = self
-                    .leaders(view, supported)
-                    .into_iter()
-                    .map(|i| self.action_ids[i].to_owned())
-                    .collect();
-                Some((row.id.clone(), ids))
-            })
-            .collect();
-        let winner = leaders.first().map(|entry| entry.1.clone()).filter(|first| {
-            first.len() == 1
-                && leaders.iter().all(|entry| &entry.1 == first)
-                && candidates.iter().any(|i| self.action_ids[*i] == first[0])
-        });
-        match winner {
-            Some(first) => Outcome::Choice(Choice::Invariant(first[0].clone())),
-            None => Outcome::Disagree(leaders),
-        }
-    }
-
-    fn worst_case(&self, retained: &[usize], candidates: &[usize]) -> Outcome {
-        if !self.all_resolved {
-            return Outcome::Insufficient(
-                "a worst case over structures needs every structure evaluated".into(),
-            );
-        }
-        let worst = |i: usize| -> f64 {
+        let leaders = if self.aggregator.kind() == AggregateKind::Invariant {
+            retained
+                .iter()
+                .filter_map(|k| {
+                    let row = &self.atoms[*k];
+                    let view = row.view.as_ref()?;
+                    let ids = self
+                        .leaders(view, supported)
+                        .into_iter()
+                        .map(|i| self.action_ids[i].to_owned())
+                        .collect();
+                    Some((row.id.clone(), ids))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let dropped_mass = if self.aggregator.kind() == AggregateKind::Bayes {
+            unrestricted
+                .iter()
+                .filter(|k| supported && !retained.contains(k))
+                .filter_map(|k| self.atoms[*k].probability)
+                .sum()
+        } else {
+            0.0
+        };
+        let sign = self.aggregator.sign();
+        let worst_score = |i: usize| -> f64 {
             retained
                 .iter()
                 .filter_map(|k| self.atoms[*k].view.as_ref())
-                .map(|view| self.sign * view.value[i])
+                .map(|view| sign * view.value[i])
                 .fold(f64::INFINITY, f64::min)
         };
-        match unique_best(candidates, worst) {
-            Ok(i) => Outcome::Choice(Choice::WorstCase(self.action_ids[i].to_owned())),
-            Err(tied) if tied.is_empty() => Outcome::NoCandidate,
-            Err(tied) => Outcome::Choice(Choice::Tied(
-                tied.into_iter().map(|i| self.action_ids[i].to_owned()).collect(),
-            )),
-        }
-    }
-
-    fn bayes(
-        &self,
-        supported: bool,
-        retained: &[usize],
-        unrestricted: &[usize],
-        candidates: &[usize],
-    ) -> Outcome {
-        if self.unidentified_mass.unwrap_or(0.0) > 0.0 || self.unevaluated_mass.unwrap_or(0.0) > 0.0
-        {
-            return Outcome::Insufficient(
-                "positive unresolved probability mass can change the Bayes action".into(),
-            );
-        }
-        let evaluated = self.evaluated_mass.unwrap_or(0.0);
-        if evaluated <= 0.0 {
-            return Outcome::Insufficient("no evaluated structure has positive probability".into());
-        }
-        let dropped: f64 = unrestricted
-            .iter()
-            .filter(|k| supported && !retained.contains(k))
-            .filter_map(|k| self.atoms[*k].probability)
-            .sum();
-        if dropped > 0.0 {
-            return Outcome::Unsupported;
-        }
-        let score = |i: usize| -> f64 {
+        let bayes_score = |i: usize| -> f64 {
             let weighted: f64 = retained
                 .iter()
                 .filter_map(|k| {
@@ -509,58 +452,45 @@ impl Ctx<'_> {
                     Some(row.probability? * row.view.as_ref()?.value[i])
                 })
                 .sum();
-            self.sign * weighted
+            sign * weighted
         };
-        match unique_best(candidates, score) {
-            Ok(i) => Outcome::Choice(Choice::Bayes(self.action_ids[i].to_owned(), evaluated)),
-            Err(tied) if tied.is_empty() => Outcome::NoCandidate,
-            Err(tied) => Outcome::Choice(Choice::Tied(
-                tied.into_iter().map(|i| self.action_ids[i].to_owned()).collect(),
-            )),
-        }
+        let aggregator = self.aggregator;
+        outcome_of(aggregator.decide(
+            &AggregateFacts {
+                any_evaluated: true,
+                all_resolved: self.all_resolved,
+                candidates: &candidates,
+                action_ids: &self.action_ids,
+                leaders: &leaders,
+                unidentified_mass: self.unidentified_mass.unwrap_or(0.0),
+                unevaluated_mass: self.unevaluated_mass.unwrap_or(0.0),
+                evaluated_mass: self.evaluated_mass.unwrap_or(0.0),
+                dropped_mass,
+            },
+            worst_score,
+            bayes_score,
+        ))
     }
 }
 
-fn unique_best(candidates: &[usize], score: impl Fn(usize) -> f64) -> Result<usize, Vec<usize>> {
-    let mut best = f64::NEG_INFINITY;
-    let mut tied = Vec::new();
-    for &i in candidates {
-        match score(i).total_cmp(&best) {
-            std::cmp::Ordering::Greater => {
-                best = score(i);
-                tied.clear();
-                tied.push(i);
-            }
-            std::cmp::Ordering::Equal => tied.push(i),
-            std::cmp::Ordering::Less => {}
+fn outcome_of(decision: AggregateDecision) -> Outcome {
+    match decision {
+        AggregateDecision::Report => Outcome::Report,
+        AggregateDecision::Insufficient(why) => Outcome::Insufficient(why.to_owned()),
+        AggregateDecision::NoCandidate => Outcome::NoCandidate,
+        AggregateDecision::SupportWithheld => Outcome::Unsupported,
+        AggregateDecision::Disagree(leaders) => Outcome::Disagree(leaders),
+        AggregateDecision::Choice(AggregateChoice::Invariant(id)) => {
+            Outcome::Choice(Choice::Invariant(id))
         }
-    }
-    match tied.as_slice() {
-        [only] => Ok(*only),
-        _ => Err(tied),
-    }
-}
-
-fn aggregation(criterion: DecisionCriterion, policy: StructuralPolicy) -> (Agg, f64) {
-    let sign = match criterion {
-        DecisionCriterion::PosteriorExpectedLoss
-        | DecisionCriterion::ExpectedRegret
-        | DecisionCriterion::Regret
-        | DecisionCriterion::MinimaxOverIdentifiedSet => -1.0,
-        _ => 1.0,
-    };
-    let agg = match criterion {
-        DecisionCriterion::MaximinOverStructures | DecisionCriterion::MinimaxOverIdentifiedSet => {
-            Agg::WorstCase
+        AggregateDecision::Choice(AggregateChoice::WorstCase(id)) => {
+            Outcome::Choice(Choice::WorstCase(id))
         }
-        _ => match policy {
-            StructuralPolicy::RequireInvariantBestAction => Agg::Invariant,
-            StructuralPolicy::Maximin => Agg::WorstCase,
-            StructuralPolicy::BayesOverStructures => Agg::Bayes,
-            StructuralPolicy::ReportOnly => Agg::Report,
-        },
-    };
-    (agg, sign)
+        AggregateDecision::Choice(AggregateChoice::Bayes { action, evaluated_mass }) => {
+            Outcome::Choice(Choice::Bayes(action, evaluated_mass))
+        }
+        AggregateDecision::Choice(AggregateChoice::Tied(ids)) => Outcome::Choice(Choice::Tied(ids)),
+    }
 }
 
 fn check_profile(
@@ -616,12 +546,12 @@ fn build_ctx<'a>(
         };
         atoms.push(AtomRow { id: summary.id.clone(), probability: summary.probability, view });
     }
-    let (agg, sign) = aggregation(contract.contract.criterion, contract.contract.structural_policy);
+    let aggregator =
+        StructureAggregator::new(contract.contract.criterion, contract.contract.structural_policy);
     Ok(Ctx {
         action_ids,
         declared,
-        agg,
-        sign,
+        aggregator,
         all_resolved: atoms.iter().all(|row| row.view.is_some()),
         atoms,
         unidentified_mass: structural.unidentified_mass,

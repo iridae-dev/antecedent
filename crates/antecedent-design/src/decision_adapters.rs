@@ -25,9 +25,10 @@ use crate::decision_contract::{
     DecisionCriterion, StructuralPolicy, UncertaintyKind, UtilityExpr,
 };
 use crate::decision_robustness::{
-    AtomSupport, ClaimProfile, RobustDecisionResult, RobustnessError, evaluate_robust,
+    evaluate_robust, AtomSupport, ClaimProfile, RobustDecisionResult, RobustnessError,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom, StructuralDecisionResult};
+use crate::structure_aggregator::{AggregateKind, StructureAggregator};
 
 /// What a claim says about its own probability.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -621,8 +622,7 @@ fn pick(
 
 /// The verdict over a nonempty eligible set.
 fn verdict_over(
-    base: &DecisionContract,
-    worst_case_criterion: bool,
+    aggregator: StructureAggregator,
     eligible: &[usize],
     oriented: &[(f64, f64)],
     analysis: &[Analysis],
@@ -630,11 +630,16 @@ fn verdict_over(
 ) -> IdentifiedVerdict {
     let worst_case =
         || pick(unique_best(eligible, |i| oriented[i].0), ids, IdentifiedVerdict::WorstCaseChoice);
-    if worst_case_criterion {
-        return worst_case();
+    if aggregator.scores_minimax_regret() {
+        return pick(
+            unique_best(eligible, |i| -analysis[i].max_regret.unwrap_or(f64::INFINITY)),
+            ids,
+            IdentifiedVerdict::MinimaxRegretChoice,
+        );
     }
-    match base.structural_policy {
-        StructuralPolicy::RequireInvariantBestAction => {
+    match aggregator.kind() {
+        AggregateKind::WorstCase => worst_case(),
+        AggregateKind::Invariant => {
             match eligible.iter().copied().find(|i| analysis[*i].necessarily) {
                 Some(i) => IdentifiedVerdict::NecessarilyBest(ids[i].to_owned()),
                 None => IdentifiedVerdict::NoNecessarilyBest {
@@ -646,15 +651,7 @@ fn verdict_over(
                 },
             }
         }
-        StructuralPolicy::Maximin if base.criterion == DecisionCriterion::Regret => pick(
-            unique_best(eligible, |i| -analysis[i].max_regret.unwrap_or(f64::INFINITY)),
-            ids,
-            IdentifiedVerdict::MinimaxRegretChoice,
-        ),
-        StructuralPolicy::Maximin => worst_case(),
-        StructuralPolicy::ReportOnly | StructuralPolicy::BayesOverStructures => {
-            IdentifiedVerdict::ReportOnly
-        }
+        AggregateKind::Report | AggregateKind::Bayes => IdentifiedVerdict::ReportOnly,
     }
 }
 
@@ -689,24 +686,14 @@ pub fn evaluate_identified_sets(
     ) {
         return Err(AdapterError::CriterionNotLicensedForSet);
     }
-    let worst_case_criterion = matches!(
-        base.criterion,
-        DecisionCriterion::MaximinOverStructures | DecisionCriterion::MinimaxOverIdentifiedSet
-    );
-    if base.structural_policy == StructuralPolicy::BayesOverStructures && !worst_case_criterion {
+    let aggregator = StructureAggregator::new(base.criterion, base.structural_policy);
+    if aggregator.kind() == AggregateKind::Bayes {
         return Err(AdapterError::BayesOverIdentifiedSet);
     }
     let supplied = check_coverage(&base.actions, utilities)?;
-    let loss = matches!(
-        base.criterion,
-        DecisionCriterion::PosteriorExpectedLoss | DecisionCriterion::MinimaxOverIdentifiedSet
-    );
     let oriented: Vec<(f64, f64)> = supplied
         .iter()
-        .map(|u| {
-            let set = &u.utility;
-            if loss { (-set.upper, -set.lower) } else { (set.lower, set.upper) }
-        })
+        .map(|u| aggregator.orient_interval(u.utility.lower, u.utility.upper))
         .collect();
     let gates: Vec<Gate> = base
         .actions
@@ -748,7 +735,7 @@ pub fn evaluate_identified_sets(
             IdentifiedVerdict::NoAdmissibleAction
         }
     } else {
-        verdict_over(base, worst_case_criterion, &eligible, &oriented, &analysis, &ids)
+        verdict_over(aggregator, &eligible, &oriented, &analysis, &ids)
     };
 
     let actions = base

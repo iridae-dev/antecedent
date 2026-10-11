@@ -54,6 +54,7 @@ pub mod result;
 pub mod rollout_artifact;
 pub mod sensitivity_decision;
 pub mod signal;
+pub(crate) mod structure_aggregator;
 pub mod study_candidate;
 pub mod study_plan_artifact;
 pub mod study_planner;
@@ -71,8 +72,8 @@ pub use candidate::{
     CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
 };
 pub use decision::{
-    AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem, DecisionProblemId,
-    Utility, evaluate_decision,
+    evaluate_decision, AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem,
+    DecisionProblemId, Utility,
 };
 pub use decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
@@ -91,13 +92,13 @@ pub use ranker::{
     ModelLoglikDraws,
 };
 pub use repair::{
-    BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
+    repair, BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
     RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
-    TransportRepairFamily, repair,
+    TransportRepairFamily,
 };
 pub use repair_artifact::{
-    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION, RepairArtifactError, RepairConsumeLimits,
-    RepairFamilyRef, RepairReportArtifact,
+    RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReportArtifact,
+    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION,
 };
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
 pub use study_candidate::{
@@ -105,26 +106,26 @@ pub use study_candidate::{
     UnitRules,
 };
 pub use study_plan_artifact::{
-    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
-    StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
-    StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire, StudyPlanPremisesWire,
-    StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
+    StudyBaseFailureWire, StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire,
+    StudyPlanConsumeLimits, StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire,
+    StudyPlanPremisesWire, StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
+    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION,
 };
 pub use study_planner::{
-    StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
-    StudyPlanProposal, StudyPlanResult, plan_studies,
+    plan_studies, StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
+    StudyPlanProposal, StudyPlanResult,
 };
 pub use transport_planner::{
-    TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
-    TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,
-    plan_transport_evidence,
+    plan_transport_evidence, TransportCandidateAssessment, TransportCandidateOutcome,
+    TransportEvidenceCandidate, TransportPlanResult, TransportPlanSpec, TransportPlanningError,
+    TransportProposal,
 };
 pub use z_transport_planner::{
-    ZTransportArrival, ZTransportCandidateAssessment, ZTransportCandidateOutcome,
-    ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportFailureStatus,
-    ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal,
-    ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
-    propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
+    plan_z_transport_evidence, propose_z_transport_evidence, snapshot_z_transport_failure,
+    validate_z_transport_candidate, ZTransportArrival, ZTransportCandidateAssessment,
+    ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
+    ZTransportFailureStatus, ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError,
+    ZTransportProposal, ZTransportProposalWire, ZTransportQueryWire,
 };
 
 /// Independently consumed original source diagnostics and semantic mappings.
