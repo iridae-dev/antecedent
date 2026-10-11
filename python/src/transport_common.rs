@@ -20,7 +20,7 @@ pub(crate) fn error<E: TransportPyErr>(e: E) -> PyErr {
 
 /// A failure that can only mean the bytes do not describe what they claim.
 pub(crate) fn serialization_error(e: impl std::fmt::Display) -> PyErr {
-    crate::CausalSerializationError::new_err(e.to_string())
+    crate::bridge::serialization(e)
 }
 
 /// One native transport failure kind, mapped to its `Causal*` class.

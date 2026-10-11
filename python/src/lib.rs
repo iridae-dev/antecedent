@@ -30,6 +30,7 @@ mod attribution_api;
 mod batch_retarget_api;
 pub(crate) mod bayesian;
 mod bounds_api;
+mod bridge;
 mod callbacks;
 mod candidate_screen_api;
 mod categorical_treatment_api;

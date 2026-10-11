@@ -4,25 +4,26 @@
 //! artifacts and refusals are Rust's. A refusal comes back as structured JSON
 //! for the Python layer to raise as its own exception type.
 
+use crate::bridge::{check_declared_size, serialization};
 use antecedent_design::decision_adapters::{
-    adapt_finite_scenarios, adapt_graph_dependent_claims, adapt_point_claim,
-    adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets, utility_interval,
     AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
-    IdentifiedVerdict, SuppliedClaim,
+    IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
+    adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
+    utility_interval,
 };
 use antecedent_design::decision_artifact::{
+    DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
     contract_from_json, contract_from_json_refusal, contract_to_json, mean_result_to_json,
-    result_to_json, source_digest, DecisionContractArtifact, DecisionResultArtifact,
-    MAX_DECISION_ARTIFACT_BYTES,
+    result_to_json, source_digest,
 };
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, StructuralPolicy};
 use antecedent_design::decision_eval::{
-    evaluate_contract, evaluate_contract_on_means, DecisionEvalError, MeanSource,
+    DecisionEvalError, MeanSource, evaluate_contract, evaluate_contract_on_means,
 };
 use antecedent_design::decision_robust_artifact::{
+    AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
     admissible_contract_from_json, admissible_contract_from_json_refusal,
-    admissible_contract_to_json, atom_digests_of, AdmissibleContractArtifact,
-    ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
+    admissible_contract_to_json, atom_digests_of,
 };
 use antecedent_design::decision_robustness::{AtomSupport, InputSupport};
 use antecedent_design::decision_structural::{
@@ -37,11 +38,6 @@ use pyo3::types::PyBytes;
 use antecedent_core::{ExternalRefusal, ScientificQuantity};
 
 use crate::distribution_api::PyJointDistributionArtifact;
-use crate::CausalSerializationError;
-
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
 
 fn refusal_json(value: &ExternalRefusal) -> String {
     serde_json::json!({
@@ -57,10 +53,7 @@ fn refusal_json(value: &ExternalRefusal) -> String {
 }
 
 fn check_size(json: &str) -> PyResult<()> {
-    if json.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("decision declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(json, MAX_DECISION_ARTIFACT_BYTES, "decision")
 }
 
 fn io_refusal(error: &IoError, stage: &'static str) -> String {

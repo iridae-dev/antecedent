@@ -11,16 +11,16 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::{check_declared_size, serialization};
 use antecedent::analysis::design_ranking::{
     ConsumeExpectation, CostMapDeclWire, DesignRankingError, DesignRankingRequestWire,
     StructuralCandidateDeclWire, consume, evaluate, rank_structural,
 };
 use antecedent_core::ExternalRefusal;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, with_reason_code};
 
 /// Largest declaration or expectation JSON accepted.
 const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
@@ -83,15 +83,8 @@ fn refusal_json(value: &ExternalRefusal) -> String {
     .to_string()
 }
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
-
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("design ranking declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "design ranking")
 }
 
 fn invalid_declaration(error: &serde_json::Error) -> PyErr {

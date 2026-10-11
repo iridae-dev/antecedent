@@ -6,12 +6,12 @@
 //! A refusal comes back as structured JSON for the Python layer to raise as its own exception
 //! type; corruption and unknown versions raise `CausalSerializationError`.
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::nonlinear_mediation::{
     MediationConfigWire, MediationDataWire, MediationPremisesWire, NonlinearMediation,
     NonlinearMediationArtifactError, NonlinearMediationIdentity, NonlinearMediationRequestWire,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
@@ -55,10 +55,7 @@ fn failure(error: &NonlinearMediationArtifactError) -> PyErr {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("nonlinear mediation declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "nonlinear mediation")
 }
 
 fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {

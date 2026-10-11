@@ -7,11 +7,11 @@
 //! witness, are Rust's. A refusal comes back as structured JSON, retaining the witness and the
 //! missing regime factors, for the Python layer to raise as its own exception type.
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::transported_counterfactual::{
     TransportedCounterfactual, TransportedCounterfactualArtifactError,
     TransportedCounterfactualIdentity, TransportedCounterfactualRequestWire,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
@@ -52,10 +52,7 @@ fn failure(error: &TransportedCounterfactualArtifactError) -> PyErr {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("transported counterfactual declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "transported counterfactual")
 }
 
 /// Evaluate the transported contrast and seal it:

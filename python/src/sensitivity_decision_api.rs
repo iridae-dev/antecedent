@@ -7,21 +7,22 @@
 //! to raise as its own exception type. An assumption range is never a probability
 //! and never a sampling interval; composing the two is refused natively.
 
+use crate::bridge::{check_declared_size, serialization};
 use antecedent::analysis::sensitivity_decision::{
-    contract_from_artifact, decide, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
-    IdentifiedBound, PointSupport, SamplingInterval, SamplingReport, SamplingStatus,
-    ScenarioCoverage, SensitivityArtifact, SensitivityDecisionError, SensitivityDecisionResult,
-    SensitivityDecisionSpec, SensitivityIdentity, SensitivityParts, SensitivityProvenance,
-    SurfaceQuantity, UncertaintyRelationship, MAX_SENSITIVITY_ARTIFACT_BYTES,
-    SENSITIVITY_INFERENCE_CLAIM,
+    ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, IdentifiedBound,
+    MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SENSITIVITY_INFERENCE_CLAIM, SamplingInterval,
+    SamplingReport, SamplingStatus, ScenarioCoverage, SensitivityArtifact,
+    SensitivityDecisionError, SensitivityDecisionResult, SensitivityDecisionSpec,
+    SensitivityIdentity, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
+    UncertaintyRelationship, contract_from_artifact, decide,
 };
-use antecedent_core::{reason_code, ScientificQuantity};
+use antecedent_core::{ScientificQuantity, reason_code};
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_eval::Verdict;
 use antecedent_design::decision_structural::{AtomStatus, StructuralVerdict};
-use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::IoError;
+use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointSensitivityLimits,
 };
@@ -29,22 +30,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::transport_z_api::PreparedZTransportStage;
-use crate::CausalSerializationError;
 
 const STAGE: &str = "sensitivity_decision";
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
-
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_SENSITIVITY_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("sensitivity declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_SENSITIVITY_ARTIFACT_BYTES, "sensitivity")
 }
 
 fn refusal_json(code: &str, detail: &str, message: &str) -> String {

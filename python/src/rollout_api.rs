@@ -2,7 +2,8 @@
 //! Historical numerical replay preserves source standing and issues no native authority.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::bridge::serialization;
+use crate::{detach_catch, value_err, with_reason_code};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -13,9 +14,6 @@ fn invalid_rollout_request(error: serde_json::Error) -> PyErr {
     )
 }
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
 fn check_binding_size(json: &str) -> PyResult<()> {
     if json.len() > 16 * 1024 * 1024 {
         return Err(PyValueError::new_err("rollout binding exceeds its JSON byte bound"));

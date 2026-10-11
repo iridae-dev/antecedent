@@ -8,12 +8,12 @@
 //! Python layer to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::categorical_treatment::{
     CategoricalSpecWire, CategoricalTreatment, CategoricalTreatmentArtifactError,
     CategoricalTreatmentIdentity, CategoricalTreatmentRequest,
 };
 use antecedent::analysis::vector_treatment::AdjustmentColumnRequest;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
@@ -65,10 +65,7 @@ fn failure(error: &CategoricalTreatmentArtifactError) -> PyErr {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("categorical treatment declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "categorical treatment")
 }
 
 /// Fit the categorical regime: `(report json, artifact bytes, refusal json)`.

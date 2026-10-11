@@ -7,11 +7,11 @@
 //! as structured JSON for the Python layer to raise as its own exception type; corruption and
 //! unknown versions raise `CausalSerializationError`.
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::vector_treatment::{
     AdjustmentColumnRequest, ContrastWire, TreatmentRequest, VectorTreatment,
     VectorTreatmentArtifactError, VectorTreatmentIdentity, VectorTreatmentRequest,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
@@ -73,10 +73,7 @@ fn failure(error: &VectorTreatmentArtifactError) -> PyErr {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("vector treatment declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "vector treatment")
 }
 
 /// Fit the treatments jointly: `(report json, artifact bytes, refusal json)`.

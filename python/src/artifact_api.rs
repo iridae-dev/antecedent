@@ -1,5 +1,6 @@
 //! Python bridge for standalone format-0.5 causal wire artifacts.
 
+use crate::bridge::serialization as serialization_error;
 use antecedent_io::executed_functional_labels;
 use antecedent_io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, ExternalEstimateAttach,
@@ -33,10 +34,6 @@ struct DecodedCausalArtifact {
     payload_json: String,
     #[pyo3(get)]
     contract_json: Option<String>,
-}
-
-fn serialization_error(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
 }
 
 fn parse<T: DeserializeOwned>(json: &str) -> PyResult<T> {

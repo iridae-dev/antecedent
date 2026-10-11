@@ -8,6 +8,7 @@
 //! to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.
 
+use crate::bridge::serialization;
 use antecedent::analysis::dose_grid_functional::{
     DoseGridArtifactError, DoseGridConsumeLimits, DoseGridFunctional, DoseGridRequestWire,
     dose_support_table,
@@ -45,10 +46,6 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
         })
         .to_string(),
     )
-}
-
-fn serialization(error: &DoseGridArtifactError) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
 }
 
 /// The report: the premises with the table elided (its length is `result.n_rows`), the

@@ -7,6 +7,7 @@
 //! `decision_evaluation.joint_law_required` or
 //! `decision_evaluation.mean_source_insufficient`).
 
+use crate::bridge::{check_declared_size, serialization};
 use antecedent::analysis::inverse_query::{
     AtomEvidence, Comparison, EnumeratedForwardValue, ForwardClaim, ForwardEvidence, IdentifiedSet,
     IntervalRegion, InverseQueryArtifact, InverseQueryError, InverseQueryIdentity,
@@ -23,18 +24,10 @@ use pyo3::types::PyBytes;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::CausalSerializationError;
 use crate::distribution_api::PyJointDistributionArtifact;
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
-
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_INVERSE_QUERY_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("inverse query declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_INVERSE_QUERY_ARTIFACT_BYTES, "inverse query")
 }
 
 fn refusal_json(value: &ExternalRefusal) -> String {

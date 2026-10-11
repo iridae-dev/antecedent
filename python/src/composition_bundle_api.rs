@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::composition::{
     BundleBuilder, BundleError, BundleStage, ClaimLabel, CompositionBundle, ConsumedBundle,
     ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus, ProviderOrData,
@@ -78,10 +79,7 @@ fn kind_refusal(name: &str) -> String {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_DECLARATION_BYTES {
-        return Err(PyValueError::new_err("composition declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_DECLARATION_BYTES, "composition")
 }
 
 fn requires_json(requires: &ProviderOrData) -> Value {

@@ -1,15 +1,13 @@
 //! Explicit original joint-sensitivity source materialization and complete replay.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::bridge::serialization;
 use crate::sensitivity_decision_api::PySensitivityArtifact;
 use antecedent_core::reason_code;
 use antecedent_io::IoError;
 use antecedent_validate::JointDeviationSpec;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    crate::CausalSerializationError::new_err(error.to_string())
-}
 #[derive(Clone)]
 pub(crate) struct SourceRecipe {
     pub(crate) prepared: antecedent::PreparedZTransport,

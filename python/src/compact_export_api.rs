@@ -12,12 +12,12 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::compact_export::{
     CompactExport, ExportInput, ExportLimits, ExportQuery, ExportRefusal, ExportSpec, MaskRegion,
     PointWithSe, QueryValue, TermSpec,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{detach_catch, value_err, with_reason_code};
@@ -80,10 +80,7 @@ fn point_value(point: &PointWithSe) -> serde_json::Value {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("compact export declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "compact export")
 }
 
 fn body_json(export: &CompactExport) -> PyResult<String> {

@@ -8,12 +8,12 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::temporal_counterfactual::{
     PopulationRole, RegimeFactorKey, TemporalCounterfactual, TemporalCounterfactualArtifactError,
     TemporalCounterfactualIdentity, TemporalCounterfactualRequestWire,
     TransportedCounterfactualPrerequisites, transported_path_specific,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{
@@ -59,10 +59,7 @@ fn failure(error: &TemporalCounterfactualArtifactError) -> PyErr {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("temporal counterfactual declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "temporal counterfactual")
 }
 
 /// Evaluate both action histories against one abduced history per unit:

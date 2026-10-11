@@ -10,6 +10,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, TargetWeights, UtilitySpec,
     execute_with_receipt,
@@ -26,7 +27,6 @@ use antecedent_io::recalc_receipt_artifact::{
     plan_from_wire, plan_to_wire,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalSerializationError, detach_catch, py_err, py_msg, value_err, with_reason_code};
@@ -48,9 +48,7 @@ pub(crate) fn artifact_invalid(error: &RecalcReceiptArtifactError) -> PyErr {
 }
 
 pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err(format!("recalc {what} declaration is too large")));
-    }
+    check_declared_size(text, MAX_JSON_BYTES, &format!("recalc {what}"))?;
     serde_json::from_str(text)
         .map_err(|e| invalid("recalc.invalid_declaration", format!("{what}: {e}")))
 }

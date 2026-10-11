@@ -6,12 +6,12 @@
 //! back as structured JSON for the Python layer to raise as its own exception type; corruption
 //! and unknown versions raise `CausalSerializationError`.
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::latent_class_effects::{
     LatentClassArtifactError, LatentClassConfigWire, LatentClassDataWire, LatentClassEffects,
     LatentClassIdentity, LatentClassRequestWire,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
@@ -55,9 +55,7 @@ fn failure(error: &LatentClassArtifactError) -> PyErr {
 }
 
 fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("latent class declaration is too large"));
-    }
+    check_declared_size(text, MAX_JSON_BYTES, "latent class")?;
     serde_json::from_str(text).map_err(|e| {
         with_reason_code(
             value_err(format!("latent_class.invalid_request: {what}: {e}")),
