@@ -211,44 +211,38 @@ impl CheckedTemporalResponseExecution {
         diagnostics.extend(response.support.warnings.iter().cloned());
         let (identifier_id, estimator_id, _, _) = self.operation.procedure();
         let response_provenance = Arc::clone(&response.provenance_id);
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
+            self.identification.clone(),
+            self.estimand.clone(),
             estimate,
             identifier_id,
             estimator_id,
             treatment,
             outcome,
-            // The immutable horizon proofs are captured at prepare time and used
-            // as-is by every execution/refresh of this sealed route.
-            identify_cached: true,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids(
-                    "identify.temporal_backdoor",
-                    "identify.temporal.backdoor.unfolded",
-                )),
-                estimate_provenance: Some(provenance_ids(
-                    Arc::clone(&response_provenance),
-                    Arc::clone(&response_provenance),
-                )),
-                diagnostics: Some(diagnostics),
-                response: Some(response),
-                // Scalar bootstrap metadata is not emitted for response-family
-                // intervals; the response carries the actual block procedure,
-                // survivor count, and interval interpretation.
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            },
-        };
+        )
+        // The immutable horizon proofs are captured at prepare time and used
+        // as-is by every execution/refresh of this sealed route.
+        .identify_cached(true)
+        .wall_time_ns(elapsed_ns(started))
+        .cancelled(ctx.cancellation.is_cancelled())
+        .extras(IdentifiedExecuteExtras {
+            identify_provenance: Some(provenance_ids(
+                "identify.temporal_backdoor",
+                "identify.temporal.backdoor.unfolded",
+            )),
+            estimate_provenance: Some(provenance_ids(
+                Arc::clone(&response_provenance),
+                Arc::clone(&response_provenance),
+            )),
+            diagnostics: Some(diagnostics),
+            response: Some(response),
+            // Scalar bootstrap metadata is not emitted for response-family
+            // intervals; the response carries the actual block procedure,
+            // survivor count, and interval interpretation.
+            bootstrap_replicates_requested: Some(None),
+            ..Default::default()
+        });
         Ok(super::super::finish_identified_execute_with_context(&self.result_context, None, args))
     }
 }

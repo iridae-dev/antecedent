@@ -94,8 +94,9 @@ impl super::Study {
         )?;
         let mut designs = Vec::new();
         let mut weights = Vec::new();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
         for eval in &evals {
-            let graph_w = identified_weight_for_key(&identified.graphs, eval.key);
+            let graph_w = key_weights.get(eval.key);
             if graph_w <= 0.0 {
                 continue;
             }
@@ -229,25 +230,24 @@ impl super::Study {
         };
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: mixed.identification,
-            estimand: mixed.estimand,
-            estimate,
-            identifier_id: IdentifierId::Frontdoor,
-            estimator_id: EstimatorId::TemporalMediation,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: replicates_requested.then_some(replicates_ok),
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                mixed.identification,
+                mixed.estimand,
+                estimate,
+                IdentifierId::Frontdoor,
+                EstimatorId::TemporalMediation,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .mediation(mediation)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(replicates_requested.then_some(replicates_ok))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.temporal_class_graph_posterior_mediation",
@@ -257,8 +257,8 @@ impl super::Study {
                 mediation_grid: Some(mediation_grid),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     fn execute_temporal_class_graph_posterior_mediation_bayesian(
@@ -355,25 +355,23 @@ impl super::Study {
         diagnostics.extend(refute_diagnostics);
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: mixed.identification,
-            estimand: mixed.estimand,
-            estimate: mixed.estimate,
-            identifier_id: IdentifierId::Frontdoor,
-            estimator_id: EstimatorId::BayesianTemporalMediation,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: mixed.mediation,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                mixed.identification,
+                mixed.estimand,
+                mixed.estimate,
+                IdentifierId::Frontdoor,
+                EstimatorId::BayesianTemporalMediation,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .mediation(mixed.mediation)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.temporal_class_graph_posterior_mediation",
@@ -384,8 +382,8 @@ impl super::Study {
                 mediation_grid: mixed.mediation_grid,
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -567,7 +565,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
             .enumerate()
             .map(|(index, prep)| {
                 let mut mechanism = bayes.clone();
-                mechanism.seed = mechanism.seed.wrapping_add(if index == 0 { 0 } else { 0xBA71 });
+                mechanism.seed = mediation_mechanism_seed(mechanism.seed, index);
                 mechanism
                     .fit(prep, case.result.status, &mut BayesianGCompWorkspace::default(), ctx)
                     .map_err(CausalError::from)
@@ -761,6 +759,7 @@ fn refute_temporal_class_mediation_posterior(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let plan = QueryRefutationPlan::temporal_mediation(study.refute == RefuteSuite::Full);
+    let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     drive_posterior_refuters(
         evals,
         mix_scalar,
@@ -768,7 +767,7 @@ fn refute_temporal_class_mediation_posterior(
         |eval| eval.refute_atom.is_some(),
         |eval| eval.key,
         |eval| {
-            let weight = identified_weight_for_key(&identified.graphs, eval.key);
+            let weight = key_weights.get(eval.key);
             if weight <= 0.0 {
                 return Ok(Vec::new());
             }

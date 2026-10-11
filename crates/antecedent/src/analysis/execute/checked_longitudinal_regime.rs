@@ -390,36 +390,28 @@ impl CheckedLongitudinalRegimeOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate: EffectEstimate::new(
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.identification.clone(),
+                self.estimand.clone(),
+                EffectEstimate::new(
                     0.0,
                     f64::NAN,
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
                 ),
-                identifier_id: IdentifierId::RandomizedDesign,
+                IdentifierId::RandomizedDesign,
                 estimator_id,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
-                    diagnostic,
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    description,
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                self.query.outcome,
+                self.query.outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(vec![Diagnostic::new(
+                diagnostic,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                description,
+            )]),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;

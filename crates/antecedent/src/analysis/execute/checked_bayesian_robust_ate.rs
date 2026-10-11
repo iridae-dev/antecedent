@@ -247,34 +247,29 @@ impl CheckedBayesianRobustAteExecution {
                 kernel.interval_interpretation
             ),
         );
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
+            self.identification.clone(),
+            self.estimand.clone(),
             estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: EstimatorId::BayesianRobustAte,
-            treatment: self.query.treatment,
-            outcome: self.query.outcome,
-            identify_cached: true,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                posterior: Some(posterior),
-                n_draws: Some(u32::try_from(kernel.draws.len()).unwrap_or(u32::MAX)),
-                estimate_provenance: Some((
-                    Arc::from("estimate.bayesian_robust_ate"),
-                    Arc::from("estimate.bayesian_robust_ate"),
-                )),
-                ..Default::default()
-            },
-        };
+            IdentifierId::BackdoorAdjustment,
+            EstimatorId::BayesianRobustAte,
+            self.query.treatment,
+            self.query.outcome,
+        )
+        .identify_cached(true)
+        .extra_diagnostics(vec![diagnostic])
+        .wall_time_ns(elapsed_ns(started))
+        .cancelled(ctx.cancellation.is_cancelled())
+        .extras(IdentifiedExecuteExtras {
+            posterior: Some(posterior),
+            n_draws: Some(u32::try_from(kernel.draws.len()).unwrap_or(u32::MAX)),
+            estimate_provenance: Some((
+                Arc::from("estimate.bayesian_robust_ate"),
+                Arc::from("estimate.bayesian_robust_ate"),
+            )),
+            ..Default::default()
+        });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
     }
 }

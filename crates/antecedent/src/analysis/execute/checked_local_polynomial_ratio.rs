@@ -108,17 +108,7 @@ impl CheckedLocalPolynomialRatioOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.treatment,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.treatment, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.local_ratio.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -135,16 +125,7 @@ impl CheckedLocalPolynomialRatioOperation {
                             "; no positive finite SE, interval withheld"
                         }
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
         result.local_polynomial_ratio = Some(crate::LocalPolynomialRatioEstimate {
             effect: fit.estimate,

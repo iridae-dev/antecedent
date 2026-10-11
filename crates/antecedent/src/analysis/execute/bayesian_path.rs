@@ -192,25 +192,24 @@ impl super::Study {
 
         let n_draws = u32::try_from(posterior.draws.n_draws).ok();
         let early_stopped = posterior.early_stopped;
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: clock.wall_time_ns(),
-            bootstrap_replicates_ok: None,
-            cancelled: clock.cancelled(),
-            early_stopped,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(clock.wall_time_ns())
+            .cancelled(clock.cancelled())
+            .early_stopped(early_stopped)
+            .extras(IdentifiedExecuteExtras {
                 stage_timings_ns: clock.timings(),
                 posterior: Some(posterior),
                 n_draws,
@@ -218,8 +217,8 @@ impl super::Study {
                 // Posterior draws carry the uncertainty; no replicate budget ran.
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_pag_bayesian<G>(
@@ -345,6 +344,7 @@ impl super::Study {
         })?;
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
+        let key_weights = IdentifiedKeyWeights::new(&graphs);
         for (key, estimand, status, outcome_slot, posterior, prior) in fits {
             let Some(prep) = prepared.remove(&key) else {
                 continue;
@@ -352,7 +352,7 @@ impl super::Study {
             outcomes[outcome_slot] =
                 ClassAtomOutcome::Evaluated(effect_from_posterior(&posterior)?.ate);
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
-            let weight = identified_weight_for_key(&graphs, key);
+            let weight = key_weights.get(key);
             atoms.push(EnvelopeAtomFit {
                 key,
                 prep,
@@ -473,25 +473,21 @@ impl super::Study {
             ));
         }
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::GeneralizedAdjustment,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(
                     "estimate.bayesian_gcomp",
                     "estimate.aggregate_effect_envelope",
@@ -501,8 +497,8 @@ impl super::Study {
                 predictive_checks,
                 structural_response,
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Compile path for a supplied graph posterior ([`crate::StudyBuilder::graph_posterior`]).
@@ -948,6 +944,7 @@ impl super::Study {
             prior: envelope_prior.clone(),
             conflict: envelope_conflict.clone(),
         };
+        let key_weights = IdentifiedKeyWeights::new(&graphs);
         let inputs = kept
             .iter()
             .map(|(key, estimand, identification)| {
@@ -956,7 +953,7 @@ impl super::Study {
                 })?;
                 Ok(super::BayesianGraphPosteriorAtomInput {
                     key: *key,
-                    weight: identified_weight_for_key(&graphs, *key),
+                    weight: key_weights.get(*key),
                     status: identification.status,
                     estimand: estimand.clone(),
                     prepared: prep,
@@ -1157,29 +1154,25 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: if conditional {
-                EstimatorId::BayesianConditional
-            } else {
-                EstimatorId::BayesianGcomp
-            },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::BackdoorAdjustment,
+                if conditional {
+                    EstimatorId::BayesianConditional
+                } else {
+                    EstimatorId::BayesianGcomp
+                },
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.aggregate_effect_envelope",
@@ -1190,8 +1183,8 @@ impl super::Study {
                 predictive_checks,
                 structural_response: Some(mixed.mixture),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Execute a supplied static graph posterior into a Frequentist effect mixture.
@@ -1328,8 +1321,9 @@ impl super::Study {
             }?;
             Ok::<_, CausalError>((atom, estimate))
         })?;
+        let key_weights = IdentifiedKeyWeights::new(&graphs);
         for (atom, estimate) in estimates {
-            let w = identified_weight_for_key(&graphs, atom.key);
+            let w = key_weights.get(atom.key);
             se_items.push((w, estimate.se_analytic));
             // Every atom is fit on the same rows; embed its IF in the original
             // row universe so the mixture SE carries cross-atom covariance.
@@ -1538,25 +1532,21 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::BackdoorAdjustment,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.linear_adjustment",
@@ -1565,8 +1555,8 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 structural_response: Some(mixed.mixture),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Execute a supplied DBN posterior with fixed graph weights and a shared
@@ -1603,8 +1593,9 @@ impl super::Study {
         let mut point_sum = 0.0;
         let mut point_mass = 0.0;
         let mut primary = None;
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
         for atom in identified.atoms.iter() {
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             if weight <= 0.0 {
                 continue;
             }
@@ -1772,29 +1763,27 @@ impl super::Study {
             &atom_estimates,
             point,
         );
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if is_multi_step_sustained(query) {
-                EstimatorId::TemporalSequentialGcomp
-            } else {
-                EstimatorId::TemporalLinearAdjustment
-            },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::TemporalBackdoorUnfolded,
+                if is_multi_step_sustained(query) {
+                    EstimatorId::TemporalSequentialGcomp
+                } else {
+                    EstimatorId::TemporalLinearAdjustment
+                },
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok((self.bootstrap_replicates > 0).then_some(block.completed))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "discover.dbn_posterior",
                     "dbn_posterior",
@@ -1806,8 +1795,8 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 structural_response: Some(structural_response),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Execute a supplied DBN (temporal) graph posterior into a Bayesian effect envelope.
@@ -1870,6 +1859,8 @@ impl super::Study {
                 )
             };
         let keys = identified.graphs.graph_keys.to_vec();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let key_index = first_key_positions(&keys);
         let mut flags = identified.graphs.identified.to_vec();
         let fit_atoms: Vec<_> = identified
             .atoms
@@ -1906,10 +1897,10 @@ impl super::Study {
                 let Ok(graph) =
                     crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, key, &vars)
                 else {
-                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    if let Some(idx) = key_index.get(&key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                    unevaluable_weight += key_weights.get(key);
                     prepare_demoted += 1;
                     continue;
                 };
@@ -1931,17 +1922,17 @@ impl super::Study {
                         Some(&mut mechanisms),
                     )
                 else {
-                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    if let Some(idx) = key_index.get(&key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                    unevaluable_weight += key_weights.get(key);
                     fit_demoted += 1;
                     continue;
                 };
                 if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
                     sequential_keys.push(key);
                     sequential_atoms.push(SequentialValidationAtom {
-                        weight: identified_weight_for_key(&identified.graphs, key),
+                        weight: key_weights.get(key),
                         graph,
                         indexer: indexer.clone(),
                         estimand: estimand.clone(),
@@ -1957,10 +1948,10 @@ impl super::Study {
                     ));
                     per_graph.push(draws);
                 } else {
-                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    if let Some(idx) = key_index.get(&key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                    unevaluable_weight += key_weights.get(key);
                     draws_demoted += 1;
                 }
                 continue;
@@ -1975,20 +1966,20 @@ impl super::Study {
                 self.split.as_ref(),
                 &ctx.kernel_policy,
             ) else {
-                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                if let Some(idx) = key_index.get(&key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
-                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                unevaluable_weight += key_weights.get(key);
                 prepare_demoted += 1;
                 continue;
             };
             let Ok(names) =
                 antecedent_estimate::temporal_coefficient_names(data, &estimand, query, &indexer)
             else {
-                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                if let Some(idx) = key_index.get(&key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
-                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                unevaluable_weight += key_weights.get(key);
                 prepare_demoted += 1;
                 continue;
             };
@@ -2001,10 +1992,10 @@ impl super::Study {
             }
             bayes.inner.prior.clone_from(&envelope_prior);
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
-                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                if let Some(idx) = key_index.get(&key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
-                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                unevaluable_weight += key_weights.get(key);
                 fit_demoted += 1;
                 continue;
             };
@@ -2021,16 +2012,16 @@ impl super::Study {
                     prep: bprep,
                     posterior,
                     status: identification.status,
-                    weight: identified_weight_for_key(&identified.graphs, key),
+                    weight: key_weights.get(key),
                     estimand,
                     indexer: Some(indexer),
                     prior: envelope_prior.clone(),
                 });
             } else {
-                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                if let Some(idx) = key_index.get(&key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
-                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
+                unevaluable_weight += key_weights.get(key);
                 draws_demoted += 1;
             }
         }
@@ -2057,8 +2048,9 @@ impl super::Study {
             .ok_or_else(|| CausalError::Compile {
                 message: "DBN posterior envelope has no contributing context".into(),
             })?;
+        let graph_key_weights = IdentifiedKeyWeights::new(&graphs);
         for atom in &mut atoms {
-            atom.weight = identified_weight_for_key(&graphs, atom.key);
+            atom.weight = graph_key_weights.get(atom.key);
         }
         // Validation refits only the atoms the mixture kept, at their kept weights.
         let sequential_atoms: Vec<SequentialValidationAtom> = sequential_atoms
@@ -2066,7 +2058,7 @@ impl super::Study {
             .zip(sequential_keys)
             .filter(|(_, key)| keep.contains(key))
             .map(|(mut atom, key)| {
-                atom.weight = identified_weight_for_key(&graphs, key);
+                atom.weight = graph_key_weights.get(key);
                 atom
             })
             .collect();
@@ -2178,29 +2170,25 @@ impl super::Study {
             )?
         };
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if multi_step {
-                EstimatorId::TemporalSequentialGcomp
-            } else {
-                EstimatorId::BayesianTemporalGcomp
-            },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::TemporalBackdoorUnfolded,
+                if multi_step {
+                    EstimatorId::TemporalSequentialGcomp
+                } else {
+                    EstimatorId::BayesianTemporalGcomp
+                },
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "discover.dbn_posterior",
                     "dbn_posterior",
@@ -2217,8 +2205,8 @@ impl super::Study {
                 predictive_checks,
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Mix a DBN posterior into a Bayesian temporal-mediation envelope.
@@ -2350,25 +2338,21 @@ impl super::Study {
                 "parent identification.status is the most conservative requested-horizon \
                  status; mediation_grid is authoritative per horizon",
             ));
-            return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-                physical,
-                identification,
-                estimand,
-                estimate: nan_effect(),
-                identifier_id: IdentifierId::Frontdoor,
-                estimator_id: EstimatorId::BayesianTemporalMediation,
-                treatment: query.treatment,
-                outcome: query.outcome,
-                identify_cached: self.dbn_posterior_identification_cache.is_some(),
-                extra_diagnostics: Vec::new(),
-                refutations,
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras {
+            return Ok(self.finish_identified_execute(
+                IdentifiedExecuteFinish::new(
+                    physical,
+                    identification,
+                    estimand,
+                    nan_effect(),
+                    IdentifierId::Frontdoor,
+                    EstimatorId::BayesianTemporalMediation,
+                    query.treatment,
+                    query.outcome,
+                )
+                .identify_cached(self.dbn_posterior_identification_cache.is_some())
+                .refutations(refutations)
+                .wall_time_ns(elapsed_ns(started))
+                .extras(IdentifiedExecuteExtras {
                     mediation_grid: Some(antecedent_estimate::TemporalMediationGrid {
                         slices: Arc::from(slices),
                         joint_posterior: false,
@@ -2376,8 +2360,8 @@ impl super::Study {
                     predictive_checks,
                     diagnostics: Some(diagnostics),
                     ..Default::default()
-                },
-            }));
+                }),
+            ));
         }
         if matches!(self.inference, InferenceMode::Frequentist) {
             return self
@@ -2413,6 +2397,8 @@ impl super::Study {
         })?;
         let identified = identified.mediation_horizon(horizon)?;
         let keys = identified.graphs.graph_keys.to_vec();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let key_index = first_key_positions(&keys);
         let mut flags = identified.graphs.identified.to_vec();
 
         let mut atom_contexts = Vec::new();
@@ -2435,7 +2421,7 @@ impl super::Study {
 
         for atom in identified.atoms.iter() {
             let Some(horizons) = atom.horizons.as_ref() else {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                if let Some(idx) = key_index.get(&atom.key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
                 prepare_demoted += 1;
@@ -2454,14 +2440,14 @@ impl super::Study {
                         })
                 })
             else {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                if let Some(idx) = key_index.get(&atom.key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
                 prepare_demoted += 1;
                 continue;
             };
             if clicks.is_empty() {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                if let Some(idx) = key_index.get(&atom.key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
                 prepare_demoted += 1;
@@ -2499,11 +2485,11 @@ impl super::Study {
                 }
             }
             if !click_ok {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                if let Some(idx) = key_index.get(&atom.key).copied() {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
                 if estimation_failed {
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    unevaluable_weight += key_weights.get(atom.key);
                 }
                 prepare_demoted += 1;
                 continue;
@@ -2521,7 +2507,7 @@ impl super::Study {
                     .map(|(i, prep)| {
                         let mut est = estimator.clone();
                         est.prior_scale = scale;
-                        est.seed = est.seed.wrapping_add(if i == 0 { 0 } else { 0xBA71_u64 });
+                        est.seed = mediation_mechanism_seed(est.seed, i);
                         est.fit(
                             prep,
                             click.identification.status,
@@ -2535,10 +2521,10 @@ impl super::Study {
             let mechanisms = match fit(cfg.prior_scale) {
                 Ok(mechanisms) => mechanisms,
                 Err(error) => {
-                    if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    if let Some(idx) = key_index.get(&atom.key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    unevaluable_weight += key_weights.get(atom.key);
                     first_estimation_error.get_or_insert_with(|| error.to_string());
                     fit_demoted += 1;
                     continue;
@@ -2552,10 +2538,10 @@ impl super::Study {
             ) {
                 Ok(composed) => composed,
                 Err(error) => {
-                    if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    if let Some(idx) = key_index.get(&atom.key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    unevaluable_weight += key_weights.get(atom.key);
                     first_estimation_error.get_or_insert_with(|| error.to_string());
                     fit_demoted += 1;
                     continue;
@@ -2570,7 +2556,7 @@ impl super::Study {
                         click.indexer.clone(),
                     ));
                     per_graph.push(draws);
-                    let weight = identified_weight_for_key(&identified.graphs, atom.key);
+                    let weight = key_weights.get(atom.key);
                     refute_atoms.push(DbnMediationAtom {
                         key: atom.key,
                         weight,
@@ -2583,10 +2569,10 @@ impl super::Study {
                     });
                 }
                 Err(error) => {
-                    if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    if let Some(idx) = key_index.get(&atom.key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
-                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    unevaluable_weight += key_weights.get(atom.key);
                     first_estimation_error.get_or_insert_with(|| error.to_string());
                     draws_demoted += 1;
                 }
@@ -2615,8 +2601,9 @@ impl super::Study {
             .ok_or_else(|| CausalError::Compile {
                 message: "DBN posterior envelope has no contributing context".into(),
             })?;
+        let graph_key_weights = IdentifiedKeyWeights::new(&graphs);
         for atom in &mut refute_atoms {
-            atom.weight = identified_weight_for_key(&graphs, atom.key);
+            atom.weight = graph_key_weights.get(atom.key);
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
@@ -2779,25 +2766,22 @@ impl super::Study {
             }]),
             joint_posterior: false,
         };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::Frontdoor,
-            estimator_id: EstimatorId::BayesianTemporalMediation,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: Some(mediation),
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand,
+                estimate,
+                IdentifierId::Frontdoor,
+                EstimatorId::BayesianTemporalMediation,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .mediation(Some(mediation))
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "discover.dbn_posterior",
                     "dbn_posterior",
@@ -2817,8 +2801,8 @@ impl super::Study {
                     structure_version: self.graph.version(),
                 }),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -3014,7 +2998,7 @@ fn run_dbn_mediation_bayesian_validation(
                     .map(|(i, prep)| {
                         let mut est = estimator.clone();
                         est.prior_scale = scale;
-                        est.seed = est.seed.wrapping_add(if i == 0 { 0 } else { 0xBA71_u64 });
+                        est.seed = mediation_mechanism_seed(est.seed, i);
                         est.fit(
                             prep,
                             atom.composed.identification,

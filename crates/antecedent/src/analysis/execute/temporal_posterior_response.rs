@@ -158,11 +158,9 @@ impl super::Study {
         let mut primary = None;
         let mut failed_mass = 0.0;
         let mut conflict_summary = None;
-        let work: Vec<_> = identified
-            .atoms
-            .iter()
-            .filter(|atom| identified_weight_for_key(&identified.graphs, atom.key) > 0.0)
-            .collect();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let work: Vec<_> =
+            identified.atoms.iter().filter(|atom| key_weights.get(atom.key) > 0.0).collect();
         let fitted = ctx.map_indexed(work.len(), |i, inner| {
             let atom = work[i];
             let horizons = atom.horizons.as_ref().ok_or_else(|| CausalError::Compile {
@@ -224,7 +222,7 @@ impl super::Study {
             if conflict_summary.is_none() {
                 conflict_summary = conflict;
             }
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             let Ok(response) = response else {
                 failed_mass += weight;
                 for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
@@ -465,25 +463,22 @@ impl super::Study {
             diagnostics.push(warning.clone());
         }
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::TemporalBackdoorUnfolded,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "discover.dbn_posterior",
                     "dbn_posterior",
@@ -510,8 +505,8 @@ impl super::Study {
                 predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     fn refute_dbn_posterior_intervention(

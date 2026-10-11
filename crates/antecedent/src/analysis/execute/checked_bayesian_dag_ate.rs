@@ -314,33 +314,30 @@ impl CheckedBayesianDagAteExecution {
         );
         let draws = u32::try_from(posterior.draws.n_draws).ok();
         let early_stopped = posterior.early_stopped;
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
             identification,
             estimand,
             estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: EstimatorId::BayesianGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached: true,
-            extra_diagnostics: diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: clock.wall_time_ns(),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped,
-            extras: IdentifiedExecuteExtras {
-                stage_timings_ns: clock.timings(),
-                posterior: Some(posterior),
-                n_draws: draws,
-                predictive_checks,
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            },
-        };
+            IdentifierId::BackdoorAdjustment,
+            EstimatorId::BayesianGcomp,
+            query.treatment,
+            query.outcome,
+        )
+        .identify_cached(true)
+        .extra_diagnostics(diagnostics)
+        .refutations(refutations)
+        .wall_time_ns(clock.wall_time_ns())
+        .cancelled(ctx.cancellation.is_cancelled())
+        .early_stopped(early_stopped)
+        .extras(IdentifiedExecuteExtras {
+            stage_timings_ns: clock.timings(),
+            posterior: Some(posterior),
+            n_draws: draws,
+            predictive_checks,
+            bootstrap_replicates_requested: Some(None),
+            ..Default::default()
+        });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
     }
 }

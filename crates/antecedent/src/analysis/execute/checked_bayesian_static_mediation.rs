@@ -241,30 +241,27 @@ impl CheckedBayesianStaticMediationOperation {
         Ok(finish_identified_execute_with_context(
             &bound.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &bound.physical,
-                identification: bound.identification.clone(),
-                estimand: bound.estimand.clone(),
-                bootstrap_replicates_ok: None,
-                cancelled: ctx.cancellation.is_cancelled(),
-                early_stopped: posterior.early_stopped,
+            IdentifiedExecuteFinish::new(
+                &bound.physical,
+                bound.identification.clone(),
+                bound.estimand.clone(),
                 estimate,
-                identifier_id: IdentifierId::PathSpecificNatural,
-                estimator_id: EstimatorId::StaticMediationLinear,
-                treatment: bound.query.treatment,
-                outcome: bound.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: Vec::new(),
-                refutations,
-                distribution: None,
-                mediation: Some(mediation),
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                extras: IdentifiedExecuteExtras {
-                    posterior: Some(posterior),
-                    n_draws: draws,
-                    ..Default::default()
-                },
-            },
+                IdentifierId::PathSpecificNatural,
+                EstimatorId::StaticMediationLinear,
+                bound.query.treatment,
+                bound.query.outcome,
+            )
+            .identify_cached(true)
+            .refutations(refutations)
+            .mediation(Some(mediation))
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .early_stopped(posterior.early_stopped)
+            .extras(IdentifiedExecuteExtras {
+                posterior: Some(posterior),
+                n_draws: draws,
+                ..Default::default()
+            }),
         ))
     }
 }

@@ -342,42 +342,31 @@ fn execute_checked_counterfactual_plan(
     Ok(finish_identified_execute_with_context(
         &plan.result_context,
         Some(data),
-        IdentifiedExecuteFinish {
-            physical: &plan.physical,
-            identification: identification.clone(),
+        IdentifiedExecuteFinish::new(
+            &plan.physical,
+            identification.clone(),
             estimand,
             estimate,
-            identifier_id: IdentifierId::GcmParametric,
-            estimator_id: EstimatorId::GcmFit,
+            IdentifierId::GcmParametric,
+            EstimatorId::GcmFit,
             treatment,
             outcome,
-            identify_cached,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                gcm: Some(GcmSlot::Counterfactual(ite)),
-                bootstrap_replicates_requested: Some(None),
-                identify_provenance: Some(provenance_ids(
-                    "identify.gcm_parametric",
-                    "identify.gcm_parametric",
-                )),
-                estimate_provenance: Some(provenance_ids(
-                    "counterfactual.aap",
-                    "counterfactual.aap",
-                )),
-                n_draws: posterior
-                    .as_ref()
-                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
-                posterior,
-                ..Default::default()
-            },
-        },
+        )
+        .identify_cached(identify_cached)
+        .extra_diagnostics(diagnostics)
+        .wall_time_ns(elapsed_ns(started))
+        .extras(IdentifiedExecuteExtras {
+            gcm: Some(GcmSlot::Counterfactual(ite)),
+            bootstrap_replicates_requested: Some(None),
+            identify_provenance: Some(provenance_ids(
+                "identify.gcm_parametric",
+                "identify.gcm_parametric",
+            )),
+            estimate_provenance: Some(provenance_ids("counterfactual.aap", "counterfactual.aap")),
+            n_draws: posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+            posterior,
+            ..Default::default()
+        }),
     ))
 }
 
@@ -755,31 +744,26 @@ impl super::Study {
             _ => EstimatorId::GcmFit,
         };
         let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
-        self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::GcmParametric,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::GcmParametric,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 diagnostics: Some(diagnostics),
                 gcm: Some(slot),
                 empty_provenance: true,
                 ..Default::default()
-            },
-        })
+            }),
+        )
     }
 }
 

@@ -178,17 +178,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -204,16 +194,7 @@ impl CheckedSyntheticControlOperation {
                         randomization.as_ref().map(|test| test.p_value),
                         self.query.sharp_null_effect.unwrap_or(0.0)
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
         result.synthetic_control = Some(crate::SyntheticControlEstimate {
             effect,
@@ -311,17 +292,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -334,16 +305,7 @@ impl CheckedSyntheticControlOperation {
                         randomization.as_ref().map(|test| test.p_value),
                         self.query.sharp_null_effect.unwrap_or(0.0)
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
         result.synthetic_did = Some(crate::SyntheticDidEstimate {
             effect: fit.effect,

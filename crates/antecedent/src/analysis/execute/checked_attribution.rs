@@ -242,42 +242,35 @@ impl CheckedAttributionOperation {
                 Ok(finish_identified_execute_with_context(
                     &self.result_context,
                     Some(data),
-                    IdentifiedExecuteFinish {
-                        physical: &self.physical,
-                        identification: self.identification.clone(),
-                        estimand: self.estimand.clone(),
+                    IdentifiedExecuteFinish::new(
+                        &self.physical,
+                        self.identification.clone(),
+                        self.estimand.clone(),
                         estimate,
-                        identifier_id: IdentifierId::GcmParametric,
-                        estimator_id: self.estimator,
-                        treatment: outcome,
+                        IdentifierId::GcmParametric,
+                        self.estimator,
                         outcome,
-                        identify_cached: true,
-                        extra_diagnostics,
-                        refutations: Vec::new(),
-                        distribution: None,
-                        mediation: None,
-                        wall_time_ns: u64::try_from(started.elapsed().as_nanos())
-                            .unwrap_or(u64::MAX),
-                        bootstrap_replicates_ok: None,
-                        cancelled: false,
-                        early_stopped: false,
-                        extras: IdentifiedExecuteExtras {
-                            posterior,
-                            n_draws: if self.lag_aligned.is_some() {
-                                None
-                            } else {
-                                match self.procedure {
-                                    AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                                        Some(u32::try_from(draws).unwrap_or(u32::MAX))
-                                    }
-                                    AttributionProcedure::Point => None,
+                        outcome,
+                    )
+                    .identify_cached(true)
+                    .extra_diagnostics(extra_diagnostics)
+                    .wall_time_ns(elapsed_ns(started))
+                    .extras(IdentifiedExecuteExtras {
+                        posterior,
+                        n_draws: if self.lag_aligned.is_some() {
+                            None
+                        } else {
+                            match self.procedure {
+                                AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
                                 }
-                            },
-                            gcm: Some(GcmSlot::Anomaly(scores)),
-                            empty_provenance: true,
-                            ..Default::default()
+                                AttributionProcedure::Point => None,
+                            }
                         },
-                    },
+                        gcm: Some(GcmSlot::Anomaly(scores)),
+                        empty_provenance: true,
+                        ..Default::default()
+                    }),
                 ))
             }
             AttributionTarget::Change(query) => {
@@ -313,42 +306,35 @@ impl CheckedAttributionOperation {
                 Ok(finish_identified_execute_with_context(
                     &self.result_context,
                     Some(data),
-                    IdentifiedExecuteFinish {
-                        physical: &self.physical,
-                        identification: self.identification.clone(),
-                        estimand: self.estimand.clone(),
+                    IdentifiedExecuteFinish::new(
+                        &self.physical,
+                        self.identification.clone(),
+                        self.estimand.clone(),
                         estimate,
-                        identifier_id: IdentifierId::GcmParametric,
-                        estimator_id: self.estimator,
-                        treatment: query.outcome,
-                        outcome: query.outcome,
-                        identify_cached: true,
-                        extra_diagnostics,
-                        refutations: Vec::new(),
-                        distribution: None,
-                        mediation: None,
-                        wall_time_ns: u64::try_from(started.elapsed().as_nanos())
-                            .unwrap_or(u64::MAX),
-                        bootstrap_replicates_ok: None,
-                        cancelled: false,
-                        early_stopped: false,
-                        extras: IdentifiedExecuteExtras {
-                            posterior,
-                            n_draws: if self.lag_aligned.is_some() {
-                                None
-                            } else {
-                                match self.procedure {
-                                    AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                                        Some(u32::try_from(draws).unwrap_or(u32::MAX))
-                                    }
-                                    AttributionProcedure::Point => None,
+                        IdentifierId::GcmParametric,
+                        self.estimator,
+                        query.outcome,
+                        query.outcome,
+                    )
+                    .identify_cached(true)
+                    .extra_diagnostics(extra_diagnostics)
+                    .wall_time_ns(elapsed_ns(started))
+                    .extras(IdentifiedExecuteExtras {
+                        posterior,
+                        n_draws: if self.lag_aligned.is_some() {
+                            None
+                        } else {
+                            match self.procedure {
+                                AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
                                 }
-                            },
-                            gcm: Some(GcmSlot::Change(change)),
-                            empty_provenance: true,
-                            ..Default::default()
+                                AttributionProcedure::Point => None,
+                            }
                         },
-                    },
+                        gcm: Some(GcmSlot::Change(change)),
+                        empty_provenance: true,
+                        ..Default::default()
+                    }),
                 ))
             }
         }

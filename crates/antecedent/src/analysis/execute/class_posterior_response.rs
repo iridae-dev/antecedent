@@ -246,25 +246,21 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand: mixed.estimand,
-            estimate,
-            identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                mixed.estimand,
+                estimate,
+                IdentifierId::GeneralizedAdjustment,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.class_graph_posterior_response",
@@ -274,8 +270,8 @@ impl super::Study {
                 structural_response: Some(mixed.mixture),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -447,8 +443,9 @@ fn mix_class_posterior_responses(
     let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
     let proofs = super::atom_mix::AtomProofIndex::build(&identified.class_atoms);
 
+    let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     for eval in evals {
-        let w = identified_weight_for_key(&identified.graphs, eval.key);
+        let w = key_weights.get(eval.key);
         for (score_w, scores) in &eval.atom_scores {
             atom_scores.push((w * score_w, scores.clone()));
         }
@@ -649,8 +646,9 @@ fn plugin_level_on_class_response_atoms(
     let mut refute_ws = EstimationWorkspace::default();
     let mut per_atom = Vec::new();
     let mut diagnostics = Vec::new();
+    let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     for eval in evals {
-        let atom_weight = identified_weight_for_key(&identified.graphs, eval.key);
+        let atom_weight = key_weights.get(eval.key);
         if atom_weight <= 0.0 {
             continue;
         }

@@ -550,48 +550,46 @@ impl CheckedTemporalMediationOperation {
         Ok(finish_identified_execute_with_context(
             &bound.result_context,
             None,
-            IdentifiedExecuteFinish {
-                physical: &bound.physical,
+            IdentifiedExecuteFinish::new(
+                &bound.physical,
                 identification,
-                estimand: bound.horizons[0].estimand.clone(),
+                bound.horizons[0].estimand.clone(),
                 estimate,
-                identifier_id: IdentifierId::Frontdoor,
+                IdentifierId::Frontdoor,
                 estimator_id,
-                treatment: bound.query.treatment,
-                outcome: bound.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: diagnostics,
-                refutations,
-                distribution: None,
-                mediation,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: match &bound.inference {
-                    CheckedMediationInference::Frequentist { bootstrap_replicates }
-                        if *bootstrap_replicates > 0 =>
-                    {
-                        bootstrap_ok
-                    }
-                    _ => None,
-                },
-                cancelled,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras {
-                    certificate,
-                    mediation_grid: Some(grid),
-                    posterior: if single { first_posterior } else { None },
-                    predictive_checks,
-                    n_draws: if single {
-                        if let CheckedMediationInference::Bayesian(config) = &bound.inference {
-                            u32::try_from(config.n_draws).ok()
-                        } else {
-                            None
-                        }
+                bound.query.treatment,
+                bound.query.outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(diagnostics)
+            .refutations(refutations)
+            .mediation(mediation)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(match &bound.inference {
+                CheckedMediationInference::Frequentist { bootstrap_replicates }
+                    if *bootstrap_replicates > 0 =>
+                {
+                    bootstrap_ok
+                }
+                _ => None,
+            })
+            .cancelled(cancelled)
+            .extras(IdentifiedExecuteExtras {
+                certificate,
+                mediation_grid: Some(grid),
+                posterior: if single { first_posterior } else { None },
+                predictive_checks,
+                n_draws: if single {
+                    if let CheckedMediationInference::Bayesian(config) = &bound.inference {
+                        u32::try_from(config.n_draws).ok()
                     } else {
                         None
-                    },
-                    ..Default::default()
+                    }
+                } else {
+                    None
                 },
-            },
+                ..Default::default()
+            }),
         ))
     }
 }
@@ -644,7 +642,7 @@ fn config_seed(
         .master_seed()
         .wrapping_add(config.n_draws as u64)
         .wrapping_add(u64::from(horizon).wrapping_mul(0x10001))
-        .wrapping_add((mechanism as u64).wrapping_mul(0xBA71))
+        .wrapping_add((mechanism as u64).wrapping_mul(MEDIATION_MECHANISM_SEED_OFFSET))
 }
 
 #[cfg(test)]

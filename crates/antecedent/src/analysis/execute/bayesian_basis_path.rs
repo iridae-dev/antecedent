@@ -197,25 +197,21 @@ impl Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand: estimand_est,
-            estimate,
-            identifier_id: identifier,
-            estimator_id: EstimatorId::BayesianBasisGcomp,
-            treatment: query_est.treatment,
-            outcome: query_est.outcome,
-            identify_cached,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand_est,
+                estimate,
+                identifier,
+                EstimatorId::BayesianBasisGcomp,
+                query_est.treatment,
+                query_est.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 posterior: Some(posterior),
                 n_draws: Some(u32::try_from(n_draws).unwrap_or(u32::MAX)),
                 bootstrap_replicates_requested: Some(None),
@@ -224,8 +220,8 @@ impl Study {
                     Arc::from(model.estimator_id()),
                 )),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 

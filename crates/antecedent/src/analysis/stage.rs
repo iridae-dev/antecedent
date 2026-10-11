@@ -112,7 +112,7 @@ impl StageClock {
 
     /// Finish the current stage and record its wall time.
     pub(crate) fn finish(&mut self, stage: &'static str) {
-        let ns = u64::try_from(self.stage_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        let ns = elapsed_ns(self.stage_started);
         self.timings.push((Arc::from(stage), ns));
     }
 
@@ -133,8 +133,14 @@ impl StageClock {
 
     #[must_use]
     pub(crate) fn wall_time_ns(&self) -> u64 {
-        u64::try_from(self.started.elapsed().as_nanos()).unwrap_or(u64::MAX)
+        elapsed_ns(self.started)
     }
+}
+
+/// Nanoseconds since `since`, saturating at `u64::MAX`.
+#[must_use]
+pub(crate) fn elapsed_ns(since: Instant) -> u64 {
+    u64::try_from(since.elapsed().as_nanos()).unwrap_or(u64::MAX)
 }
 
 /// Emit a stage event when a sink is configured.

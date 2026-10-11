@@ -154,26 +154,22 @@ impl super::Study {
                 kernel.interval_interpretation
             ),
         );
-        let result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand: estimand_est,
-            estimate,
-            identifier_id: identifier,
-            estimator_id: estimator,
-            treatment: query_est.treatment,
-            outcome: query_est.outcome,
-            identify_cached,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        });
+        let result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand_est,
+                estimate,
+                identifier,
+                estimator,
+                query_est.treatment,
+                query_est.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(vec![diagnostic])
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled()),
+        );
         let mut result = result;
         result.posterior = Some(posterior);
         Ok(result)

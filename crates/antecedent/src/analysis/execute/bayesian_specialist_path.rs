@@ -144,30 +144,26 @@ impl Study {
             DiagnosticSeverity::Info,
             "joint linear Gaussian structural model; fixed unit disturbance loading and declared stage variances of 1.0; one instrument; no adjustment covariates",
         )];
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::Iv,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                IdentifierId::Iv,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 posterior: Some(posterior),
                 n_draws: Some(u32::try_from(config.n_draws).unwrap_or(u32::MAX)),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_bayesian_rd(
@@ -265,30 +261,26 @@ impl Study {
                 rd.cutoff, rd.bandwidth
             ),
         )];
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::RdSharp,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                IdentifierId::RdSharp,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 posterior: Some(posterior),
                 n_draws: Some(u32::try_from(config.n_draws).unwrap_or(u32::MAX)),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 

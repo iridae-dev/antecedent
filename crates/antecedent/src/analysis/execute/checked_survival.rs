@@ -255,22 +255,12 @@ impl CheckedSurvivalOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate: EffectEstimate::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), EffectEstimate::new(
                     0.0,
                     f64::NAN,
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
-                ),
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedSurvivalProductLimit,
-                treatment: self.query.treatment,
-                outcome: self.query.duration,
-                identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
+                ), IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit, self.query.treatment, self.query.duration).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
                     if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -288,16 +278,7 @@ impl CheckedSurvivalOperation {
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     format!("minimum supplied censoring survival: {minimum:.6}"),
-                ))).collect(),
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                ))).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.survival = Some(crate::SurvivalEstimate {

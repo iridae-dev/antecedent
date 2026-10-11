@@ -184,29 +184,31 @@ impl CheckedStaticMediationOperation {
                 ctx,
             )?
         };
+        let (replicates_ok, cancelled, early_stopped) = (
+            estimate.bootstrap_replicates_ok,
+            estimate.bootstrap_cancelled,
+            estimate.bootstrap_early_stopped,
+        );
         Ok(finish_identified_execute_with_context(
             &bound.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &bound.physical,
-                identification: bound.identification.clone(),
-                estimand: bound.estimand.clone(),
-                bootstrap_replicates_ok: estimate.bootstrap_replicates_ok,
-                cancelled: estimate.bootstrap_cancelled,
-                early_stopped: estimate.bootstrap_early_stopped,
+            IdentifiedExecuteFinish::new(
+                &bound.physical,
+                bound.identification.clone(),
+                bound.estimand.clone(),
                 estimate,
-                identifier_id: IdentifierId::PathSpecificNatural,
-                estimator_id: EstimatorId::StaticMediationLinear,
-                treatment: bound.query.treatment,
-                outcome: bound.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: Vec::new(),
-                refutations,
-                distribution: None,
-                mediation: Some(mediation),
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                IdentifierId::PathSpecificNatural,
+                EstimatorId::StaticMediationLinear,
+                bound.query.treatment,
+                bound.query.outcome,
+            )
+            .identify_cached(true)
+            .refutations(refutations)
+            .mediation(Some(mediation))
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(replicates_ok)
+            .cancelled(cancelled)
+            .early_stopped(early_stopped),
         ))
     }
 }

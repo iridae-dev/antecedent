@@ -208,8 +208,9 @@ where
     let mut outer_atom_ifs: Vec<Vec<f64>> = Vec::new();
     let mut outer_atom_weights = Vec::new();
 
+    let key_weights = IdentifiedKeyWeights::new(&input.graphs);
     for eval in evals {
-        let w = identified_weight_for_key(input.graphs, eval.key());
+        let w = key_weights.get(eval.key());
         if input.bounds == AtomBoundRule::SetAlways {
             if let Some((lower, upper)) = eval.identified_bounds() {
                 lo = lo.min(lower);

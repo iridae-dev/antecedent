@@ -207,51 +207,47 @@ impl CheckedTemporalEffectExecution {
 
         diagnostics.push(identify_cached_diagnostic());
         let cancelled = estimate.bootstrap_cancelled;
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
-            identification: identification.clone(),
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
+            identification.clone(),
             estimand,
             estimate,
             identifier_id,
             estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached: true,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::Point {
-                    result: identification,
-                    temporal_indexer: Some(indexer.clone()),
-                    strategy: identifier_id,
-                    structure_version: self.result_context.graph_version,
-                }),
-                identify_provenance: Some(provenance_ids(
-                    "identify.temporal_backdoor",
-                    "identify.temporal.backdoor.unfolded",
-                )),
-                estimate_provenance: Some(provenance_ids(
-                    if query.is_multi_step_sustained() {
-                        "estimate.temporal_sequential_gcomp"
-                    } else {
-                        "estimate.temporal_linear_adjustment"
-                    },
-                    if query.is_multi_step_sustained() {
-                        "estimate.temporal.sequential.gcomp"
-                    } else {
-                        "estimate.temporal.linear.adjustment"
-                    },
-                )),
-                diagnostics: Some(diagnostics),
-                ..Default::default()
-            },
-        };
+            query.treatment,
+            query.outcome,
+        )
+        .identify_cached(true)
+        .refutations(refutations)
+        .wall_time_ns(elapsed_ns(started))
+        .bootstrap_replicates_ok(bootstrap_replicates_ok)
+        .cancelled(cancelled)
+        .extras(IdentifiedExecuteExtras {
+            certificate: Some(crate::Identification::Point {
+                result: identification,
+                temporal_indexer: Some(indexer.clone()),
+                strategy: identifier_id,
+                structure_version: self.result_context.graph_version,
+            }),
+            identify_provenance: Some(provenance_ids(
+                "identify.temporal_backdoor",
+                "identify.temporal.backdoor.unfolded",
+            )),
+            estimate_provenance: Some(provenance_ids(
+                if query.is_multi_step_sustained() {
+                    "estimate.temporal_sequential_gcomp"
+                } else {
+                    "estimate.temporal_linear_adjustment"
+                },
+                if query.is_multi_step_sustained() {
+                    "estimate.temporal.sequential.gcomp"
+                } else {
+                    "estimate.temporal.linear.adjustment"
+                },
+            )),
+            diagnostics: Some(diagnostics),
+            ..Default::default()
+        });
         Ok(super::finish_identified_execute_with_context(&self.result_context, None, args))
     }
 }

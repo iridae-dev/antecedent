@@ -591,29 +591,29 @@ impl super::Study {
         )?;
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: clock.wall_time_ns(),
-            bootstrap_replicates_ok: bootstrap_ok,
-            cancelled: clock.cancelled(),
-            early_stopped,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(clock.wall_time_ns())
+            .bootstrap_replicates_ok(bootstrap_ok)
+            .cancelled(clock.cancelled())
+            .early_stopped(early_stopped)
+            .extras(IdentifiedExecuteExtras {
                 stage_timings_ns: clock.timings(),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Identify + plug-in estimate for an interventional distribution on a
@@ -761,32 +761,33 @@ impl super::Study {
             .map_err(CausalError::from)?
         };
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: distribution_interval_diagnostics(&dist),
-            refutations,
-            distribution: Some(dist),
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: bootstrap_ok,
-            cancelled,
-            early_stopped,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(distribution_interval_diagnostics(&dist))
+            .refutations(refutations)
+            .distribution(Some(dist))
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_ok)
+            .cancelled(cancelled)
+            .early_stopped(early_stopped)
+            .extras(IdentifiedExecuteExtras {
                 n_draws: posterior
                     .as_ref()
                     .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
                 posterior,
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Identify + plug-in estimate for a path-specific natural effect.
@@ -844,32 +845,28 @@ impl super::Study {
             .map_err(CausalError::from)?
         };
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 n_draws: posterior
                     .as_ref()
                     .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
                 posterior,
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_functional_ate(
@@ -926,32 +923,29 @@ impl super::Study {
             &self.custom_validators,
             None,
         )?;
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 n_draws: posterior
                     .as_ref()
                     .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
                 posterior,
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Bayesian g-computation execute path.
@@ -1018,26 +1012,21 @@ impl super::Study {
             None,
         )?;
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::RdSharp,
-            estimator_id: EstimatorId::RdSharp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached: false,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        }))
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::RdSharp,
+                EstimatorId::RdSharp,
+                query.treatment,
+                query.outcome,
+            )
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started)),
+        ))
     }
 
     pub(super) fn execute_conditional(
@@ -1109,26 +1098,22 @@ impl super::Study {
         }
         extra_diagnostics
             .extend(super::super::helpers::conditional_score_estimator_diagnostic(query));
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.inner.treatment,
-            outcome: query.inner.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        }))
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.inner.treatment,
+                query.inner.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started)),
+        ))
     }
 
     /// Cpdag/Pag ConditionalEffect via the same generalized-adjustment envelope as ATE.
@@ -1422,30 +1407,26 @@ impl super::Study {
                 mixture, class_tag,
             ));
         }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.inner.treatment,
-            outcome: query.inner.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.inner.treatment,
+                query.inner.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 diagnostics: Some(diagnostics),
                 structural_response,
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_static_mediation_total(
@@ -1530,32 +1511,32 @@ impl super::Study {
                 ctx,
             )?
         };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::PathSpecificNatural,
-            estimator_id: EstimatorId::StaticMediationLinear,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: Some(mediation),
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: bootstrap_ok,
-            cancelled,
-            early_stopped,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::PathSpecificNatural,
+                EstimatorId::StaticMediationLinear,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .mediation(Some(mediation))
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_ok)
+            .cancelled(cancelled)
+            .early_stopped(early_stopped)
+            .extras(IdentifiedExecuteExtras {
                 n_draws: posterior
                     .as_ref()
                     .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
                 posterior,
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1640,26 +1621,22 @@ impl super::Study {
             None,
         )?;
         extra_diagnostics.extend(na_diagnostics);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        }))
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started)),
+        ))
     }
 
     /// Execute the prepared two-scenario Unknown-tier product without looking
@@ -1812,26 +1789,22 @@ impl super::Study {
             ));
         }
         estimate.scenario_effects = Some(values.into());
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras { structural_response, ..Default::default() },
-        }))
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras { structural_response, ..Default::default() }),
+        ))
     }
 }
 

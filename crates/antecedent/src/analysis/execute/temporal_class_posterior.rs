@@ -97,6 +97,7 @@ impl super::Study {
         let mut estimate = mixed.estimate;
         let mut shared_block = None;
         let mut shared_block_designs = 0usize;
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
         if matches!(self.inference, InferenceMode::Frequentist)
             && matches!(mixed.policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
             && self.bootstrap_replicates > 0
@@ -105,7 +106,7 @@ impl super::Study {
             let mut weights = Vec::new();
             let mut indexers = Vec::new();
             for eval in &evals {
-                let graph_w = identified_weight_for_key(&identified.graphs, eval.key);
+                let graph_w = key_weights.get(eval.key);
                 if graph_w <= 0.0 {
                     continue;
                 }
@@ -274,25 +275,23 @@ impl super::Study {
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand: mixed.estimand,
-            estimate,
-            identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                mixed.estimand,
+                estimate,
+                IdentifierId::GeneralizedAdjustment,
+                estimator_id,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_replicates_ok)
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.temporal_class_graph_posterior",
@@ -302,8 +301,8 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 structural_response: Some(mixed.mixture),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -735,6 +734,7 @@ fn refute_temporal_class_graph_posterior(
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let tabular = TabularData::new(data.storage().clone());
     let ate_q = temporal_refuter_average(query);
+    let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     drive_posterior_refuters(
         evals,
         mix_scalar,
@@ -742,7 +742,7 @@ fn refute_temporal_class_graph_posterior(
         |eval| !eval.refute_atoms.is_empty() || !eval.sequential_atoms.is_empty(),
         |eval| eval.key,
         |eval| {
-            let weight = identified_weight_for_key(&identified.graphs, eval.key);
+            let weight = key_weights.get(eval.key);
             if weight <= 0.0 {
                 return Ok(Vec::new());
             }

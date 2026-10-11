@@ -248,25 +248,20 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         identification.status = bundle.envelope.status;
-        let result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalLinearAdjustment,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        let result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                EstimatorId::TemporalLinearAdjustment,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: bundle,
                     strategy: identifier_id,
@@ -275,8 +270,8 @@ impl super::Study {
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        });
+            }),
+        );
         Ok(clear_interval(result))
     }
 
@@ -417,25 +412,20 @@ impl super::Study {
             &values,
         );
         response.identification_status = identification.status;
-        let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: bundle,
                     strategy: identifier_id,
@@ -445,8 +435,8 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 response: Some(response),
                 ..Default::default()
-            },
-        });
+            }),
+        );
         result = clear_interval(result);
         Ok(result)
     }
@@ -554,25 +544,20 @@ impl super::Study {
             None,
             &fitted.values,
         );
-        let result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalLinearAdjustment,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        let result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                EstimatorId::TemporalLinearAdjustment,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: bundle,
                     strategy: identifier_id,
@@ -581,8 +566,8 @@ impl super::Study {
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        });
+            }),
+        );
         Ok(clear_interval(result))
     }
 
@@ -620,8 +605,9 @@ impl super::Study {
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, query, ctx)?;
         let mut pairs = Vec::new();
         let mut chosen = None;
+        let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
-            let weight = identified_weight_for_key(&cache.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             if weight <= 0.0 {
                 continue;
             }
@@ -701,8 +687,9 @@ impl super::Study {
         let mut pairs = Vec::new();
         let mut responses = Vec::new();
         let mut chosen = None;
+        let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
-            let weight = identified_weight_for_key(&cache.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             if weight <= 0.0 {
                 continue;
             }
@@ -782,8 +769,9 @@ impl super::Study {
         let outcome_offset = probe.outcome_offset();
         let mut pairs = Vec::new();
         let mut chosen = None;
+        let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
-            let weight = identified_weight_for_key(&cache.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             if weight <= 0.0 {
                 continue;
             }
@@ -923,30 +911,25 @@ impl super::Study {
             .as_deref()
             .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
-        let result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate: point_only_estimate(point, assumptions),
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        let result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                point_only_estimate(point, assumptions),
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        });
+            }),
+        );
         Ok(clear_interval(result))
     }
 }

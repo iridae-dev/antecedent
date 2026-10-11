@@ -313,33 +313,30 @@ impl CheckedBayesianConditionalOperation {
         Ok(finish_identified_execute_with_context(
             &self.context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
+            IdentifiedExecuteFinish::new(
+                &self.physical,
                 identification,
                 estimand,
                 estimate,
-                identifier_id: IdentifierId::BackdoorAdjustment,
-                estimator_id: EstimatorId::BayesianConditional,
-                treatment: self.query.inner.treatment,
-                outcome: self.query.inner.outcome,
-                identify_cached: true,
-                extra_diagnostics: diagnostics,
-                refutations,
-                distribution: None,
-                mediation: None,
-                wall_time_ns: clock.wall_time_ns(),
-                bootstrap_replicates_ok: None,
-                cancelled: ctx.cancellation.is_cancelled(),
-                early_stopped: posterior.early_stopped,
-                extras: IdentifiedExecuteExtras {
-                    stage_timings_ns: clock.timings(),
-                    posterior: Some(posterior),
-                    n_draws: draws,
-                    predictive_checks,
-                    bootstrap_replicates_requested: Some(None),
-                    ..Default::default()
-                },
-            },
+                IdentifierId::BackdoorAdjustment,
+                EstimatorId::BayesianConditional,
+                self.query.inner.treatment,
+                self.query.inner.outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(clock.wall_time_ns())
+            .cancelled(ctx.cancellation.is_cancelled())
+            .early_stopped(posterior.early_stopped)
+            .extras(IdentifiedExecuteExtras {
+                stage_timings_ns: clock.timings(),
+                posterior: Some(posterior),
+                n_draws: draws,
+                predictive_checks,
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
         ))
     }
 }

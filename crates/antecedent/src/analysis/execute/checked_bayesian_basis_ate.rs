@@ -332,35 +332,30 @@ impl CheckedBayesianBasisAteExecution {
                 fit.predictions.provenance.prior_id,
             ),
         )];
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
             identification,
-            estimand: estimand_est,
+            estimand_est,
             estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: EstimatorId::BayesianBasisGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached: true,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                posterior: Some(posterior),
-                n_draws: Some(u32::try_from(n_draws).unwrap_or(u32::MAX)),
-                bootstrap_replicates_requested: Some(None),
-                estimate_provenance: Some((
-                    Arc::from("estimate.bayesian_basis_gcomp"),
-                    Arc::from(model.estimator_id()),
-                )),
-                ..Default::default()
-            },
-        };
+            IdentifierId::BackdoorAdjustment,
+            EstimatorId::BayesianBasisGcomp,
+            query.treatment,
+            query.outcome,
+        )
+        .identify_cached(true)
+        .extra_diagnostics(diagnostics)
+        .wall_time_ns(elapsed_ns(started))
+        .cancelled(ctx.cancellation.is_cancelled())
+        .extras(IdentifiedExecuteExtras {
+            posterior: Some(posterior),
+            n_draws: Some(u32::try_from(n_draws).unwrap_or(u32::MAX)),
+            bootstrap_replicates_requested: Some(None),
+            estimate_provenance: Some((
+                Arc::from("estimate.bayesian_basis_gcomp"),
+                Arc::from(model.estimator_id()),
+            )),
+            ..Default::default()
+        });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
     }
 }

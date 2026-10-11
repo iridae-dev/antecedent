@@ -465,35 +465,30 @@ impl CheckedTemporalClassEffectExecution {
         let mut identification = self.operation.identification().clone();
         let envelope = &self.operation.bundle().envelope.envelope;
         identification.status = envelope.status;
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
             identification,
             estimand,
             estimate,
             identifier_id,
             estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached: true,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate,
-                structural_response: structural,
-                diagnostics: Some(diagnostics),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal_class.envelope",
-                    estimator_id.as_str(),
-                )),
-                ..Default::default()
-            },
-        };
+            query.treatment,
+            query.outcome,
+        )
+        .identify_cached(true)
+        .refutations(refutations)
+        .wall_time_ns(elapsed_ns(started))
+        .bootstrap_replicates_ok(bootstrap_replicates_ok)
+        .extras(IdentifiedExecuteExtras {
+            certificate,
+            structural_response: structural,
+            diagnostics: Some(diagnostics),
+            estimate_provenance: Some(provenance_ids(
+                "estimate.temporal_class.envelope",
+                estimator_id.as_str(),
+            )),
+            ..Default::default()
+        });
         super::finish_identified_execute_with_context(&self.result_context, None, args)
     }
 }

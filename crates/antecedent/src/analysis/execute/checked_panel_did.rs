@@ -195,17 +195,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification,
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.panel_did.cluster_se",
                         DiagnosticKind::Scientific,
@@ -218,16 +208,7 @@ impl CheckedPanelDidOperation {
                         DiagnosticSeverity::Info,
                         "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
                     ),
-                ],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                ]).wall_time_ns(elapsed_ns(started)),
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect,
@@ -301,31 +282,12 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.augmented_panel_did.supplied_nuisance",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval",
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect: fit.effect,
@@ -458,17 +420,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         if any_interval {
                             "estimate.quasi.staggered_event_study.pointwise_95"
@@ -480,16 +432,7 @@ impl CheckedPanelDidOperation {
                         "cohort-specific event times include descriptive preperiod contrasts without intervals; -1 is omitted; supported post-adoption contrasts have separate pointwise 95% cluster intervals, never simultaneous bands; parallel trends are assumed rather than tested",
                     ),
                     pretrend_diagnostic,
-                ],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                ]),
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect: representative.effect,
@@ -599,33 +542,14 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.staggered_group_time.cluster_se",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     format!(
                         "cohort {cohort}, period {period}, baseline {baseline}; never-treated controls; cluster score sandwich SE; no interval or parallel-trends test"
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect,
@@ -720,17 +644,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification,
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.repeated_cross_section_did.cluster_se",
                         DiagnosticKind::Scientific,
@@ -743,16 +657,7 @@ impl CheckedPanelDidOperation {
                         DiagnosticSeverity::Info,
                         "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
                     ),
-                ],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                ]).wall_time_ns(elapsed_ns(started)),
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect,

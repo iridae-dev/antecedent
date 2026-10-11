@@ -96,6 +96,7 @@ impl super::Study {
             });
         }
 
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
         let evals = ctx.map_indexed(identified.atoms.len(), |i, inner| {
             let atom = &identified.atoms[i];
             let (estimate, posterior) = self.estimate_functional_effect(
@@ -105,7 +106,7 @@ impl super::Study {
                 &[query.treatment, query.outcome],
                 inner,
             )?;
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             let refute_atoms = if estimate.ate.is_finite() {
                 vec![EnvelopeRefuteAtom {
                     key: atom.key,
@@ -183,25 +184,21 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand: mixed.estimand,
-            estimate: mixed.estimate,
-            identifier_id: IdentifierId::GeneralId,
-            estimator_id: EstimatorId::FunctionalEffect,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                mixed.estimand,
+                mixed.estimate,
+                IdentifierId::GeneralId,
+                EstimatorId::FunctionalEffect,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.admg_graph_posterior",
@@ -211,8 +208,8 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 structural_response: Some(mixed.mixture),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -316,6 +313,7 @@ fn refute_admg_graph_posterior(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let mut refute_ws = EstimationWorkspace::default();
+    let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     drive_posterior_refuters(
         evals,
         mix_scalar,
@@ -326,7 +324,7 @@ fn refute_admg_graph_posterior(
             if eval.refute_atoms.is_empty() {
                 return Ok(Vec::new());
             }
-            let weight = identified_weight_for_key(&identified.graphs, eval.key);
+            let weight = key_weights.get(eval.key);
             if weight <= 0.0 {
                 return Ok(Vec::new());
             }

@@ -106,11 +106,9 @@ impl super::Study {
         let mut evals = Vec::new();
         let mut primary = None;
         let mut failed_mass = 0.0;
-        let work: Vec<_> = identified
-            .atoms
-            .iter()
-            .filter(|atom| identified_weight_for_key(&identified.graphs, atom.key) > 0.0)
-            .collect();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let work: Vec<_> =
+            identified.atoms.iter().filter(|atom| key_weights.get(atom.key) > 0.0).collect();
         let fitted = ctx.map_indexed(work.len(), |i, inner| {
             let atom = work[i];
             let mask = mask_for_atom_key(gp, atom.key)?;
@@ -127,7 +125,7 @@ impl super::Study {
             Ok::<_, CausalError>((atom, response))
         })?;
         for (atom, response) in fitted {
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             let Ok(response) = response else {
                 failed_mass += weight;
                 for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
@@ -346,25 +344,21 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::GeneralId,
-            estimator_id: EstimatorId::FunctionalEffect,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::GeneralId,
+                EstimatorId::FunctionalEffect,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.response.admg_graph_posterior",
@@ -387,8 +381,8 @@ impl super::Study {
                 }),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 

@@ -217,6 +217,101 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
     pub extras: IdentifiedExecuteExtras,
 }
 
+impl<'a> IdentifiedExecuteFinish<'a> {
+    /// A finish for a freshly computed, unrefuted point result; the setters
+    /// below override the slots a route fills.
+    pub(super) fn new(
+        physical: &'a PhysicalExecutionPlan,
+        identification: IdentificationResult,
+        estimand: IdentifiedEstimand,
+        estimate: EffectEstimate,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+        treatment: VariableId,
+        outcome: VariableId,
+    ) -> Self {
+        Self {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            estimator_id,
+            treatment,
+            outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: 0,
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
+        }
+    }
+
+    pub(super) fn identify_cached(mut self, cached: bool) -> Self {
+        self.identify_cached = cached;
+        self
+    }
+
+    pub(super) fn extra_diagnostics(mut self, diagnostics: Vec<Diagnostic>) -> Self {
+        self.extra_diagnostics = diagnostics;
+        self
+    }
+
+    pub(super) fn refutations(
+        mut self,
+        refutations: Vec<antecedent_validate::RefutationReport>,
+    ) -> Self {
+        self.refutations = refutations;
+        self
+    }
+
+    pub(super) fn distribution(
+        mut self,
+        distribution: Option<antecedent_estimate::InterventionalDistributionEstimate>,
+    ) -> Self {
+        self.distribution = distribution;
+        self
+    }
+
+    pub(super) fn mediation(
+        mut self,
+        mediation: Option<antecedent_estimate::TemporalMediationEstimate>,
+    ) -> Self {
+        self.mediation = mediation;
+        self
+    }
+
+    pub(super) fn wall_time_ns(mut self, wall_time_ns: u64) -> Self {
+        self.wall_time_ns = wall_time_ns;
+        self
+    }
+
+    pub(super) fn bootstrap_replicates_ok(mut self, replicates_ok: Option<u32>) -> Self {
+        self.bootstrap_replicates_ok = replicates_ok;
+        self
+    }
+
+    pub(super) fn cancelled(mut self, cancelled: bool) -> Self {
+        self.cancelled = cancelled;
+        self
+    }
+
+    pub(super) fn early_stopped(mut self, early_stopped: bool) -> Self {
+        self.early_stopped = early_stopped;
+        self
+    }
+
+    pub(super) fn extras(mut self, extras: IdentifiedExecuteExtras) -> Self {
+        self.extras = extras;
+        self
+    }
+}
+
 /// Frozen result metadata required to assemble an identified execution without
 /// retaining or consulting its mutable `Study` builder.
 #[derive(Clone)]
@@ -827,6 +922,15 @@ pub(super) fn temporal_class_block_span<'a>(
         .max()
         .unwrap_or(1)
         .max(1)
+}
+
+/// Seed distance between the two mechanism fits (mediator, then outcome) of a
+/// Bayesian temporal mediation.
+const MEDIATION_MECHANISM_SEED_OFFSET: u64 = 0xBA71;
+
+/// The fit seed of mediation mechanism `mechanism`: the first keeps `seed`.
+fn mediation_mechanism_seed(seed: u64, mechanism: usize) -> u64 {
+    seed.wrapping_add(if mechanism == 0 { 0 } else { MEDIATION_MECHANISM_SEED_OFFSET })
 }
 
 /// The declared linear-SEM restriction every sequential g-computation fit
@@ -1558,15 +1662,37 @@ pub(super) const UNFOLDED_LINEAR_SEM: &str =
 
 pub(super) const DBN_LINEAR_SEM: &str = "linear additive mechanisms on each identified DBN atom; fixed posterior graph weights; uncertainty uses shared outer circular-block replicates";
 
-pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64) -> f64 {
-    graphs
-        .graph_keys
-        .iter()
-        .zip(graphs.weights.iter())
-        .zip(graphs.identified.iter())
-        .filter(|((k, _), flag)| **k == key && **flag == GraphIdentFlag::Identified)
-        .map(|((_, w), _)| *w)
-        .sum()
+/// Identified mass of each graph key of a frozen posterior, summed over every
+/// sample that carries the key.
+pub(super) struct IdentifiedKeyWeights(std::collections::HashMap<u64, f64>);
+
+impl IdentifiedKeyWeights {
+    pub(super) fn new(graphs: &WeightedGraphSamples) -> Self {
+        let empty: f64 = std::iter::empty::<f64>().sum();
+        let mut weights = std::collections::HashMap::new();
+        for ((key, weight), flag) in
+            graphs.graph_keys.iter().zip(graphs.weights.iter()).zip(graphs.identified.iter())
+        {
+            if *flag == GraphIdentFlag::Identified {
+                *weights.entry(*key).or_insert(empty) += *weight;
+            }
+        }
+        Self(weights)
+    }
+
+    /// Zero (the empty sum) for a key with no identified sample.
+    pub(super) fn get(&self, key: u64) -> f64 {
+        self.0.get(&key).copied().unwrap_or_else(|| std::iter::empty::<f64>().sum())
+    }
+}
+
+/// Index of the first occurrence of each key.
+pub(super) fn first_key_positions(keys: &[u64]) -> std::collections::HashMap<u64, usize> {
+    let mut positions = std::collections::HashMap::with_capacity(keys.len());
+    for (index, key) in keys.iter().enumerate() {
+        positions.entry(*key).or_insert(index);
+    }
+    positions
 }
 
 pub(super) fn mix_prior_sensitivity_summaries(

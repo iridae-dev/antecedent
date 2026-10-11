@@ -87,9 +87,10 @@ impl super::Study {
         let mut failed_mass = 0.0;
         let mut primary: Option<PrimaryAtom> = None;
         let mut distinct_sets = false;
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
         let mapped = ctx.map_indexed(identified.atoms.len(), |i, inner| {
             let atom = &identified.atoms[i];
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             if weight <= 0.0 {
                 return Ok(None);
             }
@@ -397,25 +398,24 @@ impl super::Study {
             joint_posterior: false,
         };
         let bootstrap_ok = replicates_requested.then_some(replicates_ok);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::Frontdoor,
-            estimator_id: EstimatorId::TemporalMediation,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: Some(mediation),
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: bootstrap_ok,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand,
+                estimate,
+                IdentifierId::Frontdoor,
+                EstimatorId::TemporalMediation,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .mediation(Some(mediation))
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_ok)
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "discover.dbn_posterior",
                     "dbn_posterior",
@@ -434,7 +434,7 @@ impl super::Study {
                     structure_version: self.graph.version(),
                 }),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }

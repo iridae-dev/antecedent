@@ -598,26 +598,19 @@ impl CheckedInterferenceOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.identification.clone(),
+                self.estimand.clone(),
                 estimate,
-                identifier_id: IdentifierId::InterferenceDesign,
-                estimator_id: self.estimator,
-                treatment: outcome,
+                IdentifierId::InterferenceDesign,
+                self.estimator,
                 outcome,
-                identify_cached: true,
-                extra_diagnostics: vec![diagnostic],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(vec![diagnostic])
+            .wall_time_ns(elapsed_ns(started)),
         );
         result.interference = estimated;
         result.interference_inference = interference_inference;

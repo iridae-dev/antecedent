@@ -520,25 +520,21 @@ impl super::Study {
             ));
         }
         diagnostics.extend(response.support.warnings.iter().cloned());
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached: true,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(true)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(
                     Arc::clone(&response.provenance_id),
                     Arc::clone(&response.provenance_id),
@@ -547,8 +543,8 @@ impl super::Study {
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Execute a retained static DAG mean curve or intervention g-computation
@@ -626,25 +622,22 @@ impl super::Study {
             (Vec::new(), Vec::new())
         };
         diagnostics.extend(refute_diagnostics);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached: true,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(true)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(
                     Arc::clone(&response.provenance_id),
                     Arc::clone(&response.provenance_id),
@@ -653,8 +646,8 @@ impl super::Study {
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(crate) fn execute_checked_cell_aipw_response(
@@ -919,11 +912,9 @@ impl super::Study {
         // are aligned on the shared data rows before mixing.
         let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
         let options = self.response_options.clone().unwrap_or_default();
-        let work: Vec<_> = identified
-            .atoms
-            .iter()
-            .filter(|atom| identified_weight_for_key(&graphs, atom.key) > 0.0)
-            .collect();
+        let key_weights = IdentifiedKeyWeights::new(&graphs);
+        let work: Vec<_> =
+            identified.atoms.iter().filter(|atom| key_weights.get(atom.key) > 0.0).collect();
         let fitted = ctx.map_indexed(work.len(), |i, inner| {
             let atom = work[i];
             let mut estimator =
@@ -953,7 +944,7 @@ impl super::Study {
             Ok::<_, CausalError>((atom, scored))
         })?;
         for (atom, response) in fitted {
-            let weight = identified_weight_for_key(&graphs, atom.key);
+            let weight = key_weights.get(atom.key);
             let response = match response {
                 Err(err @ antecedent_estimate::EstimationError::Refused { .. }) => {
                     return Err(err.into());
@@ -1188,25 +1179,21 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::BackdoorAdjustment,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 response: Some(response),
                 structural_response: Some(crate::result::StructuralResponseMixture {
                     weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
@@ -1224,8 +1211,8 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Identify and estimate a continuous response, including licensed observation correction.
@@ -1314,25 +1301,19 @@ impl super::Study {
             for warning in &response.support.warnings {
                 diagnostics.push(warning.clone());
             }
-            return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-                physical,
-                identification,
-                estimand,
-                estimate,
-                identifier_id,
-                estimator_id,
-                treatment,
-                outcome,
-                identify_cached: false,
-                extra_diagnostics: Vec::new(),
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras {
+            return Ok(self.finish_identified_execute(
+                IdentifiedExecuteFinish::new(
+                    physical,
+                    identification,
+                    estimand,
+                    estimate,
+                    identifier_id,
+                    estimator_id,
+                    treatment,
+                    outcome,
+                )
+                .wall_time_ns(elapsed_ns(started))
+                .extras(IdentifiedExecuteExtras {
                     estimate_provenance: Some(provenance_ids(
                         "estimate.response.general_id",
                         "estimate.response.general_id",
@@ -1341,8 +1322,8 @@ impl super::Study {
                     response: Some(response),
                     bootstrap_replicates_requested: Some(None),
                     ..Default::default()
-                },
-            }));
+                }),
+            ));
         }
 
         if cell_aipw {
@@ -1502,32 +1483,27 @@ impl super::Study {
                 "estimate.response.observation_adjusted",
             )
         };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(estimate_provenance),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_codetermined_joint_response(
@@ -1821,31 +1797,27 @@ impl super::Study {
             None,
         )?;
         diagnostics.extend(refute_diags);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 diagnostics: Some(diagnostics),
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -2438,25 +2410,19 @@ impl super::Study {
             diagnostics.push(warning.clone());
         }
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(
                     Arc::clone(&mixed.provenance_id),
                     Arc::clone(&mixed.provenance_id),
@@ -2466,8 +2432,8 @@ impl super::Study {
                 structural_response: Some(structural_response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 

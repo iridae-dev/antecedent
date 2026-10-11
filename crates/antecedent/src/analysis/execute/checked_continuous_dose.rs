@@ -160,22 +160,12 @@ impl CheckedContinuousDoseOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate: EffectEstimate::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), EffectEstimate::new(
                     0.0,
                     f64::NAN,
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
-                ),
-                identifier_id: IdentifierId::ContinuousDoseExchangeability,
-                estimator_id: EstimatorId::ContinuousDoseKernel,
-                treatment: self.query.dose,
-                outcome: self.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
+                ), IdentifierId::ContinuousDoseExchangeability, EstimatorId::ContinuousDoseKernel, self.query.dose, self.query.outcome).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.policy.continuous_dose_support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -184,16 +174,7 @@ impl CheckedContinuousDoseOperation {
                     } else {
                         "all baseline-group target cells met local support; density provenance is caller-declared; local SD is descriptive; no interval or continuous-dose policy value"
                     },
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.continuous_dose_response = Some(crate::ContinuousDoseResponseEstimate {

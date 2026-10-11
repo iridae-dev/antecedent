@@ -13,6 +13,7 @@ pub(super) use std::sync::Arc;
 pub(super) use std::time::Instant;
 
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
+pub(super) use super::stage::elapsed_ns;
 pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
@@ -580,6 +581,7 @@ mod envelope_refuter_target_tests {
         let identified =
             crate::analysis::prepared::build_graph_posterior_identification_cache(&gp, &query, ctx)
                 .unwrap();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
         identified
             .atoms
             .iter()
@@ -601,7 +603,7 @@ mod envelope_refuter_target_tests {
                 .unwrap();
                 EnvelopeRefuteAtom {
                     key: atom.key,
-                    weight: identified_weight_for_key(&identified.graphs, atom.key),
+                    weight: key_weights.get(atom.key),
                     estimand: atom.estimand.clone(),
                     indexer: None,
                     original,

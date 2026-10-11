@@ -196,29 +196,27 @@ impl super::Study {
 
         let (bootstrap_replicates_ok, cancelled) =
             (estimate.bootstrap_replicates_ok, estimate.bootstrap_cancelled);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if posterior.is_some() {
-                EstimatorId::BayesianTemporalGcomp
-            } else {
-                EstimatorId::TemporalLinearAdjustment
-            },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::TemporalBackdoorUnfolded,
+                if posterior.is_some() {
+                    EstimatorId::BayesianTemporalGcomp
+                } else {
+                    EstimatorId::TemporalLinearAdjustment
+                },
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_replicates_ok)
+            .cancelled(cancelled)
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -227,8 +225,8 @@ impl super::Study {
                 posterior,
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Identify the class once for a panel class effect (or read the prepared
@@ -406,25 +404,23 @@ impl super::Study {
             None,
             &atom_values,
         );
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalLinearAdjustment,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: bootstrap_ok,
-            cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                EstimatorId::TemporalLinearAdjustment,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_ok)
+            .cancelled(cancelled)
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: bundle.envelope.clone(),
                     strategy: identifier_id,
@@ -435,8 +431,8 @@ impl super::Study {
                 bootstrap_replicates_requested: (self.bootstrap_replicates > 0)
                     .then_some(Some(self.bootstrap_replicates)),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Bayesian panel class Pulse / single-step Sustained under the series class-prior
@@ -637,25 +633,22 @@ impl super::Study {
             envelope,
             CausalQuery::TemporalEffect(query.clone()),
         );
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::BayesianTemporalGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                EstimatorId::BayesianTemporalGcomp,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: bundle.envelope.clone(),
                     strategy: identifier_id,
@@ -670,8 +663,8 @@ impl super::Study {
                 )),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// The panel Pulse refuters of every fitted completion, as the DAG panel route
@@ -866,29 +859,25 @@ impl super::Study {
         ));
         diagnostics.extend(response.support.warnings.iter().cloned());
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::TemporalBackdoorUnfolded,
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    EstimatorId::TemporalResponseBayesian
+                } else {
+                    EstimatorId::TemporalResponseGcomp
+                },
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -901,8 +890,8 @@ impl super::Study {
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_panel_class_response(
@@ -1132,29 +1121,25 @@ impl super::Study {
             full_mass_scope: assembly.full_mass_scope,
             truncated_atoms: assembly.truncated_atoms,
         };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    EstimatorId::TemporalResponseBayesian
+                } else {
+                    EstimatorId::TemporalResponseGcomp
+                },
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 certificate: primary_envelope.map(|envelope| {
                     crate::Identification::TemporalEnvelope {
                         envelope,
@@ -1167,8 +1152,8 @@ impl super::Study {
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Panel class multi-step Sustained: every directed completion's sequential
@@ -1389,25 +1374,22 @@ impl super::Study {
             structural.unidentified_mass =
                 (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
         }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalSequentialGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                EstimatorId::TemporalSequentialGcomp,
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: bundle.envelope.clone(),
                     strategy: identifier_id,
@@ -1423,8 +1405,8 @@ impl super::Study {
                 )),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Sequential validation of every completion on every unit's own series (the

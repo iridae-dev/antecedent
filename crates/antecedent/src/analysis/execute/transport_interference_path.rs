@@ -238,26 +238,22 @@ impl super::Study {
                 )
             }
         };
-        let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::TransportSid,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        });
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                IdentifierId::TransportSid,
+                estimator_id,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(vec![diagnostic])
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled()),
+        );
         result.transport = Some(transported);
         result.posterior = posterior;
         Ok(result)
@@ -381,26 +377,21 @@ impl super::Study {
                 )
             }
         };
-        let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::InterferenceDesign,
-            estimator_id,
-            treatment: outcome,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        });
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                IdentifierId::InterferenceDesign,
+                estimator_id,
+                outcome,
+                outcome,
+            )
+            .extra_diagnostics(vec![diagnostic])
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled()),
+        );
         result.interference = estimated;
         result.posterior = posterior;
         Ok(result)

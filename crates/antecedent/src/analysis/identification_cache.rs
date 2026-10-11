@@ -77,7 +77,7 @@ pub(crate) struct CachedGraphPosteriorIdentification {
     pub graphs: WeightedGraphSamples,
     /// Identified DAG atoms, one per distinct graph key, in order of first
     /// appearance. Weight an atom by the combined identified mass of its key in
-    /// [`Self::graphs`] (`identified_weight_for_key`), which keeps one entry per
+    /// [`Self::graphs`] (`IdentifiedKeyWeights`), which keeps one entry per
     /// posterior sample. Unidentified atoms remain in [`Self::graphs`] with
     /// [`GraphIdentFlag::Unidentified`].
     pub atoms: Arc<[CachedGraphPosteriorAtomIdentification]>,
