@@ -48,7 +48,10 @@ antecedent-discovery = { workspace = true }
 # `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
 antecedent-estimate = { workspace = true }
 antecedent-learn = { workspace = true }
-pyo3 = { workspace = true, features = ["multiple-pymethods"] }
+# `extension-module` is also set on the workspace pyo3 dependency: this cdylib
+# must not link libpython. `build.rs` links libpython only into the test harness.
+# `multiple-pymethods` is the second impl on Dag, Cpdag, Pag, and Admg.
+pyo3 = { workspace = true, features = ["extension-module", "multiple-pymethods"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 numpy = { workspace = true }
