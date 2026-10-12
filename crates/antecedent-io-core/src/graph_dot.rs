@@ -11,18 +11,19 @@ use antecedent_graph::Dag;
 
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
+use crate::graph_json::without_names;
 use crate::wire::DagWire;
 
-/// Parse a DOT digraph into a [`Dag`].
-///
-/// Node labels become dense indices in first-seen order. Numeric labels that
-/// form a contiguous `0..n` set keep those indices when every node is numeric.
-///
-/// # Errors
-///
-/// Malformed DOT, undirected edges, cycles, or empty graphs.
-pub fn dag_from_dot(dot: &str) -> Result<Dag, IoError> {
-    dag_with_names_from_dot(dot).map(|(dag, _names)| dag)
+without_names! {
+    /// Parse a DOT digraph into a [`Dag`].
+    ///
+    /// Node labels become dense indices in first-seen order. Numeric labels that
+    /// form a contiguous `0..n` set keep those indices when every node is numeric.
+    ///
+    /// # Errors
+    ///
+    /// Malformed DOT, undirected edges, cycles, or empty graphs.
+    pub fn dag_from_dot(dot: &str) -> Dag = dag_with_names_from_dot
 }
 
 /// Parse a DOT digraph into a [`Dag`] plus its node labels.

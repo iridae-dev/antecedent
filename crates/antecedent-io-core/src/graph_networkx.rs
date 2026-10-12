@@ -11,6 +11,7 @@ use serde_json::Value as JsonValue;
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
 use crate::graph_dot;
+use crate::graph_json::without_names;
 use crate::wire::DagWire;
 
 /// `NetworkX` `node_link_data` subset.
@@ -74,13 +75,13 @@ pub struct NetworkXAdjNeighbor {
     pub id: JsonValue,
 }
 
-/// Parse `NetworkX` node-link JSON into a [`Dag`].
-///
-/// # Errors
-///
-/// Undirected / malformed JSON / cycles.
-pub fn dag_from_networkx_node_link(json: &str) -> Result<Dag, IoError> {
-    dag_with_names_from_networkx_node_link(json).map(|(dag, _names)| dag)
+without_names! {
+    /// Parse `NetworkX` node-link JSON into a [`Dag`].
+    ///
+    /// # Errors
+    ///
+    /// Undirected / malformed JSON / cycles.
+    pub fn dag_from_networkx_node_link(json: &str) -> Dag = dag_with_names_from_networkx_node_link
 }
 
 /// Parse `NetworkX` node-link JSON into a [`Dag`] plus its node names.
@@ -217,13 +218,13 @@ pub fn networkx_node_link_from_wire(wire: &DagWire, names: Option<&[String]>) ->
     }
 }
 
-/// Parse `NetworkX` adjacency JSON into a [`Dag`].
-///
-/// # Errors
-///
-/// Undirected / malformed / cycles.
-pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
-    dag_with_names_from_networkx_adjacency(json).map(|(dag, _names)| dag)
+without_names! {
+    /// Parse `NetworkX` adjacency JSON into a [`Dag`].
+    ///
+    /// # Errors
+    ///
+    /// Undirected / malformed / cycles.
+    pub fn dag_from_networkx_adjacency(json: &str) -> Dag = dag_with_names_from_networkx_adjacency
 }
 
 /// Parse `NetworkX` adjacency JSON into a [`Dag`] plus its node names.

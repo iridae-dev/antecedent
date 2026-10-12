@@ -12,15 +12,16 @@ use antecedent_graph::Dag;
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
 use crate::graph_dot;
+use crate::graph_json::without_names;
 use crate::wire::DagWire;
 
-/// Parse a GML digraph into a [`Dag`].
-///
-/// # Errors
-///
-/// Malformed GML, undirected graphs, cycles.
-pub fn dag_from_gml(gml: &str) -> Result<Dag, IoError> {
-    dag_with_names_from_gml(gml).map(|(dag, _names)| dag)
+without_names! {
+    /// Parse a GML digraph into a [`Dag`].
+    ///
+    /// # Errors
+    ///
+    /// Malformed GML, undirected graphs, cycles.
+    pub fn dag_from_gml(gml: &str) -> Dag = dag_with_names_from_gml
 }
 
 /// Parse a GML digraph into a [`Dag`] plus its node labels.

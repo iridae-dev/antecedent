@@ -14,7 +14,7 @@ use crate::convert::{
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_gml;
-use crate::graph_json::{check_optional_names, json_from_str, json_to_pretty};
+use crate::graph_json::{check_optional_names, json_from_str, json_to_pretty, without_names};
 use crate::graph_networkx::NetworkXNode;
 use crate::wire::{AdmgWire, EndpointWire, GraphCpdagWire, MarkedEdgeWire, PagWire};
 
@@ -103,13 +103,13 @@ macro_rules! graph_to_json {
     };
 }
 
-/// Parse JSON into a [`Pag`].
-///
-/// # Errors
-///
-/// JSON / structure errors.
-pub fn pag_from_json(json: &str) -> Result<Pag, IoError> {
-    pag_with_names_from_json(json).map(|(g, _names)| g)
+without_names! {
+    /// Parse JSON into a [`Pag`].
+    ///
+    /// # Errors
+    ///
+    /// JSON / structure errors.
+    pub fn pag_from_json(json: &str) -> Pag = pag_with_names_from_json
 }
 
 /// Parse JSON into a [`Pag`] plus its node names.
@@ -129,13 +129,13 @@ pub fn pag_with_names_from_json(json: &str) -> Result<(Pag, Vec<String>), IoErro
 
 graph_to_json!(pag_to_json, Pag, pag_to_wire, PagJson, pag_kind(), { edges });
 
-/// Parse JSON into a [`Cpdag`].
-///
-/// # Errors
-///
-/// JSON / structure errors.
-pub fn cpdag_from_json(json: &str) -> Result<Cpdag, IoError> {
-    cpdag_with_names_from_json(json).map(|(g, _names)| g)
+without_names! {
+    /// Parse JSON into a [`Cpdag`].
+    ///
+    /// # Errors
+    ///
+    /// JSON / structure errors.
+    pub fn cpdag_from_json(json: &str) -> Cpdag = cpdag_with_names_from_json
 }
 
 /// Parse JSON into a [`Cpdag`] plus its node names.
@@ -166,13 +166,13 @@ graph_to_json!(
     { directed, undirected }
 );
 
-/// Parse JSON into an [`Admg`].
-///
-/// # Errors
-///
-/// JSON / structure errors.
-pub fn admg_from_json(json: &str) -> Result<Admg, IoError> {
-    admg_with_names_from_json(json).map(|(g, _names)| g)
+without_names! {
+    /// Parse JSON into an [`Admg`].
+    ///
+    /// # Errors
+    ///
+    /// JSON / structure errors.
+    pub fn admg_from_json(json: &str) -> Admg = admg_with_names_from_json
 }
 
 /// Parse JSON into an [`Admg`] plus its node names.
@@ -212,13 +212,13 @@ fn names_or_default(names: Option<&[String]>, node_count: u32) -> Result<Vec<Str
 
 // ── DOT ─────────────────────────────────────────────────────────────────────
 
-/// Parse DOT into a [`Cpdag`] (`->` directed, `--` undirected).
-///
-/// # Errors
-///
-/// Malformed DOT or illegal CPDAG marks.
-pub fn cpdag_from_dot(dot: &str) -> Result<Cpdag, IoError> {
-    cpdag_with_names_from_dot(dot).map(|(g, _names)| g)
+without_names! {
+    /// Parse DOT into a [`Cpdag`] (`->` directed, `--` undirected).
+    ///
+    /// # Errors
+    ///
+    /// Malformed DOT or illegal CPDAG marks.
+    pub fn cpdag_from_dot(dot: &str) -> Cpdag = cpdag_with_names_from_dot
 }
 
 /// Parse DOT into a [`Cpdag`] (`->` directed, `--` undirected) plus its node
@@ -265,6 +265,7 @@ pub fn cpdag_to_dot(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, I
     Ok(out)
 }
 
+without_names! {
 /// Parse DOT into a [`Pag`].
 ///
 /// Plain `->` is tail→arrow; `--` is undirected; `dir=both` is bidirected;
@@ -274,8 +275,7 @@ pub fn cpdag_to_dot(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, I
 /// # Errors
 ///
 /// Malformed DOT or illegal PAG marks.
-pub fn pag_from_dot(dot: &str) -> Result<Pag, IoError> {
-    pag_with_names_from_dot(dot).map(|(g, _names)| g)
+    pub fn pag_from_dot(dot: &str) -> Pag = pag_with_names_from_dot
 }
 
 /// Parse DOT into a [`Pag`] plus its node labels, in dense-id order.
@@ -372,13 +372,13 @@ pub fn pag_to_dot(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
     Ok(out)
 }
 
+without_names! {
 /// Parse DOT into an [`Admg`] (`->` directed; `dir=both` bidirected).
 ///
 /// # Errors
 ///
 /// Malformed DOT or illegal ADMG structure.
-pub fn admg_from_dot(dot: &str) -> Result<Admg, IoError> {
-    admg_with_names_from_dot(dot).map(|(g, _names)| g)
+    pub fn admg_from_dot(dot: &str) -> Admg = admg_with_names_from_dot
 }
 
 /// Parse DOT into an [`Admg`] (`->` directed; `dir=both` bidirected) plus
@@ -566,13 +566,13 @@ fn dot_drawn_marks(
 
 // ── GML ─────────────────────────────────────────────────────────────────────
 
+without_names! {
 /// Parse GML into a [`Cpdag`] (edge attr `undirected 1`).
 ///
 /// # Errors
 ///
 /// Malformed GML.
-pub fn cpdag_from_gml(gml: &str) -> Result<Cpdag, IoError> {
-    cpdag_with_names_from_gml(gml).map(|(g, _names)| g)
+    pub fn cpdag_from_gml(gml: &str) -> Cpdag = cpdag_with_names_from_gml
 }
 
 /// Parse GML into a [`Cpdag`] (edge attr `undirected 1`) plus its node
@@ -606,13 +606,13 @@ pub fn cpdag_to_gml(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, I
     ))
 }
 
+without_names! {
 /// Parse GML into a [`Pag`] (edge attrs `mark_a` / `mark_b`).
 ///
 /// # Errors
 ///
 /// Malformed GML.
-pub fn pag_from_gml(gml: &str) -> Result<Pag, IoError> {
-    pag_with_names_from_gml(gml).map(|(g, _names)| g)
+    pub fn pag_from_gml(gml: &str) -> Pag = pag_with_names_from_gml
 }
 
 /// Parse GML into a [`Pag`] (edge attrs `mark_a` / `mark_b`) plus its node
@@ -652,13 +652,13 @@ pub fn pag_to_gml(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
     ))
 }
 
+without_names! {
 /// Parse GML into an [`Admg`] (edge attr `bidirected 1`).
 ///
 /// # Errors
 ///
 /// Malformed GML.
-pub fn admg_from_gml(gml: &str) -> Result<Admg, IoError> {
-    admg_with_names_from_gml(gml).map(|(g, _names)| g)
+    pub fn admg_from_gml(gml: &str) -> Admg = admg_with_names_from_gml
 }
 
 /// Parse GML into an [`Admg`] (edge attr `bidirected 1`) plus its node
@@ -794,13 +794,13 @@ fn emit_gml(
 
 // ── NetworkX node-link ──────────────────────────────────────────────────────
 
+without_names! {
 /// Parse `NetworkX` node-link JSON into a [`Cpdag`].
 ///
 /// # Errors
 ///
 /// Malformed JSON.
-pub fn cpdag_from_networkx_node_link(json: &str) -> Result<Cpdag, IoError> {
-    cpdag_with_names_from_networkx_node_link(json).map(|(g, _names)| g)
+    pub fn cpdag_from_networkx_node_link(json: &str) -> Cpdag = cpdag_with_names_from_networkx_node_link
 }
 
 /// Parse `NetworkX` node-link JSON into a [`Cpdag`] plus its node names
@@ -847,13 +847,13 @@ pub fn cpdag_to_networkx_node_link(
     emit_nx(wire.node_count, names, links)
 }
 
+without_names! {
 /// Parse `NetworkX` node-link JSON into a [`Pag`].
 ///
 /// # Errors
 ///
 /// Malformed JSON.
-pub fn pag_from_networkx_node_link(json: &str) -> Result<Pag, IoError> {
-    pag_with_names_from_networkx_node_link(json).map(|(g, _names)| g)
+    pub fn pag_from_networkx_node_link(json: &str) -> Pag = pag_with_names_from_networkx_node_link
 }
 
 /// Parse `NetworkX` node-link JSON into a [`Pag`] plus its node names (the
@@ -914,13 +914,13 @@ pub fn pag_to_networkx_node_link(pag: &Pag, names: Option<&[String]>) -> Result<
     emit_nx(wire.node_count, names, links)
 }
 
+without_names! {
 /// Parse `NetworkX` node-link JSON into an [`Admg`].
 ///
 /// # Errors
 ///
 /// Malformed JSON.
-pub fn admg_from_networkx_node_link(json: &str) -> Result<Admg, IoError> {
-    admg_with_names_from_networkx_node_link(json).map(|(g, _names)| g)
+    pub fn admg_from_networkx_node_link(json: &str) -> Admg = admg_with_names_from_networkx_node_link
 }
 
 /// Parse `NetworkX` node-link JSON into an [`Admg`] plus its node names

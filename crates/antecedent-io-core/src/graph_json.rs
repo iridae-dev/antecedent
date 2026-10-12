@@ -50,6 +50,20 @@ pub(crate) fn check_optional_names(
     Ok(())
 }
 
+/// Public parse entry point that keeps its name and drops node labels.
+macro_rules! without_names {
+    (
+        $(#[$meta:meta])*
+        pub fn $name:ident($input:ident: &str) -> $Graph:ty = $with_names:path
+    ) => {
+        $(#[$meta])*
+        pub fn $name($input: &str) -> Result<$Graph, IoError> {
+            $with_names($input).map(|(graph, _names)| graph)
+        }
+    };
+}
+pub(crate) use without_names;
+
 impl DagJson {
     /// Attach schema names; errors if length mismatches `node_count`.
     ///
@@ -76,13 +90,13 @@ impl DagJson {
     }
 }
 
-/// Parse a JSON DAG document into a [`Dag`].
-///
-/// # Errors
-///
-/// JSON parse errors or invalid DAG structure.
-pub fn dag_from_json(json: &str) -> Result<Dag, IoError> {
-    dag_with_names_from_json(json).map(|(dag, _names)| dag)
+without_names! {
+    /// Parse a JSON DAG document into a [`Dag`].
+    ///
+    /// # Errors
+    ///
+    /// JSON parse errors or invalid DAG structure.
+    pub fn dag_from_json(json: &str) -> Dag = dag_with_names_from_json
 }
 
 /// Parse a JSON DAG document into a [`Dag`] plus its node names.
