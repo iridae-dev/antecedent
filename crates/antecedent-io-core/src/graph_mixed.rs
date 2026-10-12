@@ -14,6 +14,7 @@ use crate::convert::{
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_gml;
+use crate::graph_json::{check_optional_names, json_from_str, json_to_pretty};
 use crate::graph_networkx::NetworkXNode;
 use crate::wire::{AdmgWire, EndpointWire, GraphCpdagWire, MarkedEdgeWire, PagWire};
 
@@ -78,14 +79,6 @@ pub struct AdmgJson {
 
 fn admg_kind() -> String {
     "admg".into()
-}
-
-fn json_from_str<T: for<'de> Deserialize<'de>>(json: &str) -> Result<T, IoError> {
-    serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))
-}
-
-fn json_to_pretty<T: Serialize>(doc: &T) -> Result<String, IoError> {
-    serde_json::to_string_pretty(doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }
 
 /// Emit JSON for a graph after wire conversion (shared pag/cpdag/admg path).
@@ -209,18 +202,6 @@ graph_to_json!(
     admg_kind(),
     { directed, bidirected }
 );
-
-fn check_optional_names(names: Option<&[String]>, node_count: u32) -> Result<(), IoError> {
-    if let Some(n) = names {
-        if n.len() != node_count as usize {
-            return Err(IoError::Convert(format!(
-                "variable_names length {} must equal node_count {node_count}",
-                n.len()
-            )));
-        }
-    }
-    Ok(())
-}
 
 /// Validated names, or dense-index strings when the document carries none.
 fn names_or_default(names: Option<&[String]>, node_count: u32) -> Result<Vec<String>, IoError> {
@@ -1237,7 +1218,12 @@ mod tests {
             middle: MiddleMark::Empty,
         })
         .unwrap();
-        let back = pag_from_json(&pag_to_json(&g, None).unwrap()).unwrap();
+        let json = pag_to_json(&g, None).unwrap();
+        assert_eq!(
+            json,
+            "{\n  \"kind\": \"pag\",\n  \"node_count\": 2,\n  \"edges\": [\n    {\n      \"a\": 0,\n      \"b\": 1,\n      \"at_a\": \"circle\",\n      \"at_b\": \"arrow\"\n    }\n  ]\n}"
+        );
+        let back = pag_from_json(&json).unwrap();
         assert!(back.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         let e = pag_from_dot(&pag_to_dot(&g, None).unwrap())
             .unwrap()

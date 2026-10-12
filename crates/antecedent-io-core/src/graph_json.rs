@@ -27,6 +27,29 @@ impl From<&DagWire> for DagJson {
     }
 }
 
+pub(crate) fn json_from_str<T: for<'de> Deserialize<'de>>(json: &str) -> Result<T, IoError> {
+    serde_json::from_str(json).map_err(|error| IoError::Convert(format!("json: {error}")))
+}
+
+pub(crate) fn json_to_pretty<T: Serialize>(doc: &T) -> Result<String, IoError> {
+    serde_json::to_string_pretty(doc).map_err(|error| IoError::Convert(format!("json: {error}")))
+}
+
+pub(crate) fn check_optional_names(
+    names: Option<&[String]>,
+    node_count: u32,
+) -> Result<(), IoError> {
+    if let Some(names) = names {
+        if names.len() != node_count as usize {
+            return Err(IoError::Convert(format!(
+                "variable_names length {} must equal node_count {node_count}",
+                names.len()
+            )));
+        }
+    }
+    Ok(())
+}
+
 impl DagJson {
     /// Attach schema names; errors if length mismatches `node_count`.
     ///
@@ -73,8 +96,7 @@ pub fn dag_from_json(json: &str) -> Result<Dag, IoError> {
 /// JSON parse errors, invalid DAG structure, or a `variable_names` length
 /// mismatch.
 pub fn dag_with_names_from_json(json: &str) -> Result<(Dag, Vec<String>), IoError> {
-    let doc: DagJson =
-        serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
+    let doc: DagJson = json_from_str(json)?;
     check_graph_budget(doc.node_count, doc.edges.len())?;
     let names = match &doc.variable_names {
         Some(names) => {
@@ -96,18 +118,10 @@ pub fn dag_with_names_from_json(json: &str) -> Result<(Dag, Vec<String>), IoErro
 /// Wire conversion or JSON encode failures.
 pub fn dag_to_json(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
     let wire = dag_to_wire(dag)?;
+    check_optional_names(names, wire.node_count)?;
     let mut doc = DagJson::from(&wire);
-    if let Some(n) = names {
-        if n.len() != wire.node_count as usize {
-            return Err(IoError::Convert(format!(
-                "variable_names length {} must equal node_count {}",
-                n.len(),
-                wire.node_count
-            )));
-        }
-        doc.variable_names = Some(n.to_vec());
-    }
-    serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
+    doc.variable_names = names.map(<[String]>::to_vec);
+    json_to_pretty(&doc)
 }
 
 /// Parse JSON into [`DagJson`] without building a [`Dag`].
@@ -116,7 +130,7 @@ pub fn dag_to_json(dag: &Dag, names: Option<&[String]>) -> Result<String, IoErro
 ///
 /// JSON parse errors.
 pub fn dag_json_from_str(json: &str) -> Result<DagJson, IoError> {
-    serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))
+    json_from_str(json)
 }
 
 #[cfg(test)]
@@ -136,6 +150,11 @@ mod tests {
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         let doc = dag_json_from_str(&s).unwrap();
         assert_eq!(doc.variable_names.as_deref(), Some(names.as_slice()));
+        assert_eq!(
+            s,
+            "{\n  \"node_count\": 2,\n  \"edges\": [\n    [\n      0,\n      1\n    ]\n  ],\n  \"variable_names\": [\n    \"x\",\n    \"y\"\n  ]\n}"
+        );
+        assert!(!s.contains("\"kind\""));
     }
 
     #[test]
