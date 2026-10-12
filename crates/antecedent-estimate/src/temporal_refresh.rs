@@ -31,11 +31,9 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{CanonicalWriter, ExecutionContext, reason_code};
-use antecedent_expr::ExactTransportData;
+use antecedent_core::{CanonicalWriter, reason_code};
 
 use crate::error::EstimationError;
-use crate::temporal_transport::PreparedTemporalSequence;
 use crate::util::refuse;
 
 /// Inference claim of the route.
@@ -422,35 +420,4 @@ pub fn accept_refresh<T>(
         ));
     }
     Ok(refreshed)
-}
-
-/// Refresh a [`PreparedTemporalSequence`] onto new exact laws of a new period.
-///
-/// `old` must describe the held prepared result (its horizon and intervention history length
-/// are checked against the frozen decision); the identity decision runs before the prepared
-/// result's own same-window refresh re-evaluates against `data`.
-///
-/// # Errors
-/// As [`refresh_held`], `temporal_refresh.premises_changed` when `old` does not describe
-/// `prepared`, and the refusals of [`PreparedTemporalSequence::refresh`].
-pub fn refresh_prepared_sequence(
-    prepared: &PreparedTemporalSequence,
-    old: &TemporalWindowIdentity,
-    new: &TemporalWindowIdentity,
-    data: ExactTransportData,
-    interval_existed: bool,
-    ctx: &ExecutionContext,
-) -> Result<(PreparedTemporalSequence, RefreshReceipt), EstimationError> {
-    let decision = prepared.decision();
-    if old.horizon != decision.spec.horizon()
-        || old.intervention_history.len() != decision.sequence.len()
-    {
-        return Err(RefreshInvalidation::PremisesChanged.into_error());
-    }
-    new.validate()?;
-    if let RefreshDecision::Invalidated(reason) = decide_refresh(old, new) {
-        return Err(reason.into_error());
-    }
-    let refreshed = prepared.refresh(data, ctx)?;
-    Ok((refreshed, RefreshReceipt::bind(old, new, interval_existed)))
 }

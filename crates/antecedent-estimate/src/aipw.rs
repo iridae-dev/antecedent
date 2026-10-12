@@ -861,26 +861,16 @@ impl AipwAte {
         )?;
         predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
         predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-        let psi_target =
-            if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
-                TargetPopulation::AllObserved
-            } else {
-                problem.target_population.clone()
-            };
         aipw_psi(
             &t_used,
             &y_used,
             &e_used,
             &workspace.mu0,
             &workspace.mu1,
-            &psi_target,
+            &problem.target_population,
             &mut workspace.psi,
         )?;
-        let ate = if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
-            crate::joint_if::weighted_mean(&workspace.psi, problem.target_weights.as_deref())?
-        } else {
-            workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64
-        };
+        let ate = workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64;
         if matches!(
             problem.target_population,
             TargetPopulation::Treated | TargetPopulation::Untreated

@@ -340,8 +340,6 @@ impl ConditionalLinearAdjustment {
             })
             .collect();
 
-        let _ = Arc::clone(&estimand.method);
-
         let mut mu0 = 0.0;
         let mut mu1 = 0.0;
         let zterms = linear_predictors(&design[4 * n..], n, n_z, &coef[4..]);
