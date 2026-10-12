@@ -19,11 +19,11 @@ use super::{
     TemporalLinearAdjustment, TemporalRefutation, TimeSeriesData, UNFOLDED_LINEAR_SEM,
     bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
     elapsed_ns, envelope_se_omission_diagnostic, envelope_se_omits_between_atom_variance,
-    identification_status_ok_for_case, identify_cached_diagnostic, is_multi_step_sustained,
-    mass_fields, mix_weighted_analytic_se, overlap_diagnostic, provenance_ids,
-    resolve_posterior_status, select_estimand, sequential_linear_sem_assumption,
-    shared_block_mixture_message, shared_circular_block_mixture_se, short_series_warning,
-    temporal_class_block_span, temporal_refuter_average,
+    identification_status_ok_for_case, identify_cached_diagnostic, mass_fields,
+    mix_weighted_analytic_se, overlap_diagnostic, provenance_ids, resolve_posterior_status,
+    select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
+    shared_circular_block_mixture_se, short_series_warning, temporal_class_block_span,
+    temporal_refuter_average,
 };
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
@@ -67,7 +67,7 @@ impl super::Study {
         let mut shared_block = None;
         let mut shared_block_designs = 0usize;
         let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-        if matches!(self.inference, InferenceMode::Frequentist)
+        if self.inference.is_frequentist()
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
             && self.bootstrap_replicates > 0
         {
@@ -142,7 +142,7 @@ impl super::Study {
             &[TemporalClassAtomEval],
         ),
     ) -> Vec<Diagnostic> {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && posterior_withheld {
+        if self.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
                 DiagnosticKind::Scientific,
@@ -197,7 +197,7 @@ impl super::Study {
             ));
         } else if shared_block_designs > 1
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.bootstrap_replicates > 0
         {
             diagnostics.push(envelope_se_omits_between_atom_variance());
@@ -298,7 +298,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if is_multi_step_sustained(query) && self.split.is_some() {
+        if query.is_multi_step_sustained() && self.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "class-aware multi-step sustained requires no discovery-estimation split",
             });
@@ -335,7 +335,7 @@ impl super::Study {
             (mixed.policy, &mixed.mixture, mixed.posterior.is_none()),
             (&estimate, shared_block.as_ref(), shared_block_designs, &evals),
         );
-        let estimator_id = match (&self.inference, is_multi_step_sustained(query)) {
+        let estimator_id = match (&self.inference, query.is_multi_step_sustained()) {
             (InferenceMode::Frequentist, false) => EstimatorId::TemporalLinearAdjustment,
             (InferenceMode::Frequentist | InferenceMode::Bayesian(_), true) => {
                 EstimatorId::TemporalSequentialGcomp
@@ -432,7 +432,7 @@ fn fit_temporal_class_case(
     ),
     ctx: &ExecutionContext,
 ) -> Result<Option<FittedClassCase>, CausalError> {
-    if is_multi_step_sustained(query) {
+    if query.is_multi_step_sustained() {
         let Some(dag) = case.graph.sequential_dag() else {
             return Ok(None);
         };
@@ -568,7 +568,7 @@ fn evaluate_temporal_class_atom_bayesian(
             });
         }
     };
-    if is_multi_step_sustained(query) {
+    if query.is_multi_step_sustained() {
         return evaluate_temporal_class_atom_sequential_bayesian(study, data, query, atom, ctx);
     }
     let envelope = &atom.envelope.envelope;
@@ -862,7 +862,7 @@ fn refute_temporal_class_graph_posterior(
             if weight <= 0.0 {
                 return Ok(Vec::new());
             }
-            let (reports, notes) = if is_multi_step_sustained(query) {
+            let (reports, notes) = if query.is_multi_step_sustained() {
                 if eval.sequential_atoms.is_empty() {
                     return Ok(Vec::new());
                 }

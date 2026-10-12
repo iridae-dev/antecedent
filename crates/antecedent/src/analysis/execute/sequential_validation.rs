@@ -1,4 +1,7 @@
 //! Validation of composed temporal effects using the same sequential mechanisms.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
 use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, DenseNodeId, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimationWorkspace, ExecutionContext,
@@ -42,36 +45,35 @@ impl EffectRefit for SequentialRefitter<'_> {
         time.length = data.row_count();
         let series = TimeSeriesData::try_new(data.storage().clone(), time)?;
         let mut graph = self.atom.graph.clone();
-        let indexer =
-            if extras.is_empty() {
-                self.atom.indexer.clone()
-            } else {
-                // Independent nuisance variables become parents of each contemporaneous
-                // mechanism. Refit the whole factorization, including all mediator paths.
-                let children: Vec<_> = graph.nodes().iter().enumerate().filter_map(|(i, node)| {
-                matches!(node, antecedent_core::NodeRef::Lagged { lag, .. } if lag.raw() == 0)
-                    .then_some(DenseNodeId::from_raw(u32::try_from(i).expect("dense node")))
+        let indexer = if extras.is_empty() {
+            self.atom.indexer.clone()
+        } else {
+            // Independent nuisance variables become parents of each contemporaneous
+            // mechanism. Refit the whole factorization, including all mediator paths.
+            let children: Vec<_> = graph.nodes().iter().enumerate().filter_map(|(i, node)| {
+                let contemporaneous =
+                    matches!(node, antecedent_core::NodeRef::Lagged { lag, .. } if lag.raw() == 0);
+                u32::try_from(i).ok().filter(|_| contemporaneous).map(DenseNodeId::from_raw)
             }).collect();
-                for &extra in extras {
-                    let parent =
-                        graph.add_lagged(extra, antecedent_core::Lag::CONTEMPORANEOUS).map_err(
-                            |e| antecedent_validate::ValidationError::data_msg(e.to_string()),
-                        )?;
-                    for &child in &children {
-                        graph.insert_directed(parent, child).map_err(|e| {
-                            antecedent_validate::ValidationError::data_msg(e.to_string())
-                        })?;
-                    }
+            for &extra in extras {
+                let parent = graph
+                    .add_lagged(extra, antecedent_core::Lag::CONTEMPORANEOUS)
+                    .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?;
+                for &child in &children {
+                    graph.insert_directed(parent, child).map_err(|e| {
+                        antecedent_validate::ValidationError::data_msg(e.to_string())
+                    })?;
                 }
-                antecedent_core::TemporalIndexer::new(
-                    u32::try_from(data.schema().variables().len()).map_err(|_| {
-                        antecedent_validate::ValidationError::data_msg("too many variables")
-                    })?,
-                    self.atom.indexer.history(),
-                    self.atom.indexer.horizon(),
-                )
-                .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?
-            };
+            }
+            antecedent_core::TemporalIndexer::new(
+                u32::try_from(data.schema().variables().len()).map_err(|_| {
+                    antecedent_validate::ValidationError::data_msg("too many variables")
+                })?,
+                self.atom.indexer.history(),
+                self.atom.indexer.horizon(),
+            )
+            .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?
+        };
         Ok(estimate_sustained_window(
             &antecedent_estimate::SequentialProblem {
                 data: &series,
@@ -442,13 +444,14 @@ fn mix_sequential_results(
                     .iter()
                     .map(|(weight, check)| (*weight, check.to_refutation_report(original, 0.05)))
                     .collect();
-                let mut report = antecedent_validate::RefutationReport::mixture_weighted(
+                let Some(mut report) = antecedent_validate::RefutationReport::mixture_weighted(
                     &atom_reports
                         .iter()
                         .map(|(weight, check)| (*weight, check))
                         .collect::<Vec<_>>(),
-                )
-                .expect("positive mechanism weight");
+                ) else {
+                    continue;
+                };
                 report.refuter =
                     Arc::from(format!("{}.mechanism.{}", report.refuter, variable.raw()));
                 mixed_reports.push(report);

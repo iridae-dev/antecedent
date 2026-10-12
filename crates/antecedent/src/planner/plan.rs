@@ -38,6 +38,16 @@ pub struct LogicalAnalysisPlan {
 }
 
 impl LogicalAnalysisPlan {
+    /// A plan over the whole data window (no discovery/estimation split).
+    #[must_use]
+    pub(crate) fn unsplit(
+        record: LogicalAnalysisPlanRecord,
+        query: CausalQuery,
+        row_count_hint: u64,
+    ) -> Self {
+        Self { record, query, split: None, row_count_hint }
+    }
+
     /// Validate logical semantics (modality × algorithm).
     ///
     /// # Errors

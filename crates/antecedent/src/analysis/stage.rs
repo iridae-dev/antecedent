@@ -155,3 +155,10 @@ pub(crate) fn emit_stage(sink: Option<&Arc<dyn StageResultSink>>, event: &StageE
         s.on_stage(event);
     }
 }
+
+/// Emit the uncertainty stage of `estimate`, cloning it only when a sink is configured.
+pub(crate) fn emit_uncertainty(sink: Option<&Arc<dyn StageResultSink>>, estimate: &EffectEstimate) {
+    if let Some(s) = sink {
+        s.on_stage(&StageEvent::Uncertainty { estimate: estimate.clone() });
+    }
+}

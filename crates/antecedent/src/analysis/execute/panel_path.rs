@@ -9,9 +9,9 @@ use super::{
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag,
     IdentificationBasis, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
-    Intervention, ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan,
-    PredictiveCheckReport, PriorSet, RefutationRun, RefuteSuite, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
+    ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan, PredictiveCheckReport,
+    PriorSet, RefutationRun, RefuteSuite, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
     TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
     TemporalLinearAdjustment, TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
     apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
@@ -379,7 +379,7 @@ impl super::Study {
         if query.is_multi_step_sustained() {
             return self.execute_panel_class_sequential(panel, query, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return self.execute_panel_class_bayesian(panel, query, physical, ctx);
         }
         let started = Instant::now();
@@ -740,15 +740,6 @@ impl super::Study {
         Ok((reports, diagnostics))
     }
 
-    /// Estimator a panel response records: Bayesian or frequentist temporal g-computation.
-    fn panel_response_estimator_id(&self) -> EstimatorId {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            EstimatorId::TemporalResponseBayesian
-        } else {
-            EstimatorId::TemporalResponseGcomp
-        }
-    }
-
     /// Refuses panel response queries outside the licensed slice and returns their temporal spec.
     fn panel_response_temporal_spec(
         query: &ResponseQuery,
@@ -833,7 +824,7 @@ impl super::Study {
         ));
         diagnostics.push(panel_between_unit_band_diagnostic(units));
         diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal_response.panel.bayesian_cluster_band",
                 DiagnosticKind::Scientific,
@@ -900,10 +891,8 @@ impl super::Study {
             ctx,
             &mut diagnostics,
         )?;
-        let mut response = average_unit_panel_responses(
-            &unit_responses,
-            matches!(self.inference, InferenceMode::Bayesian(_)),
-        )?;
+        let mut response =
+            average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
         if let Some(per_horizon) = response.horizon_identification.as_mut() {
             for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
                 record.status = entry.identification.status;
@@ -933,7 +922,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    self.panel_response_estimator_id(),
+                    EstimatorId::temporal_response_for(&self.inference),
                 ),
                 treatment,
                 outcome,
@@ -1037,34 +1026,22 @@ impl super::Study {
             temporal.horizons.len(),
             [identified_mass, unidentified_mass, unevaluable_mass],
         );
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(identifier_id, self.panel_response_estimator_id()),
-                treatment,
-                outcome,
-            )
-            .identify_cached(identify_cached)
-            .wall_time_ns(elapsed_ns(started))
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope: Arc::unwrap_or_clone(envelope),
-                        strategy: identifier_id,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                response: Some(response),
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            }),
-        ))
+        Ok(self.finish_class_response_tail(super::temporal_path::ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response,
+            structural,
+            diagnostics,
+            identify_cached,
+            bootstrap_replicates: None,
+            started,
+            ctx,
+        }))
     }
 
     /// Whether the prepared class cache covers every requested horizon of the panel response.
@@ -1096,17 +1073,12 @@ impl super::Study {
         ),
         CausalError,
     > {
-        let horizon_query = TemporalEffectQuery {
-            treatment: run.treatment,
-            outcome: run.outcome,
-            policy: run.temporal.policy.clone(),
-            control: Intervention::set(run.treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(run.treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: horizon,
-            max_history_lag: run.temporal.max_history_lag,
-            target_population: run.query.target_population.clone(),
-            effect_modifiers: std::sync::Arc::from([]),
-        };
+        let horizon_query = super::temporal_path::unit_contrast_query(
+            run.temporal,
+            (run.treatment, run.outcome),
+            horizon,
+            run.query.target_population.clone(),
+        );
         if !run.identify_cached {
             report_identify_compute(run.ctx);
         }
@@ -1197,10 +1169,8 @@ impl super::Study {
                 unit_fits.insert(fit_key, fitted.clone());
                 fitted
             };
-            let response = average_unit_panel_responses(
-                &unit_responses,
-                matches!(self.inference, InferenceMode::Bayesian(_)),
-            )?;
+            let response =
+                average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
             let atom_assumptions = response.assumptions.clone();
             state.assembly.push_atom(
                 horizon_index,
@@ -1242,7 +1212,7 @@ impl super::Study {
             ),
         ));
         diagnostics.extend(super::temporal_path::class_response_identified_set_diagnostics(
-            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.inference.is_bayesian(),
             self.class_prior.is_some(),
         ));
         diagnostics.push(Diagnostic::new(
@@ -1407,9 +1377,7 @@ impl super::Study {
                 fits.per_graph
                     .push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
             }
-            if fits.primary_estimand.is_none() {
-                fits.primary_estimand = Some(estimand);
-            }
+            fits.primary_estimand.get_or_insert(estimand);
             fits.atoms.push((weight, key, atom));
         }
         Ok(fits)
@@ -1557,10 +1525,7 @@ impl super::Study {
             self.panel_sequential_validation(panel, query, &atoms, bayes.as_ref(), ctx)?;
         diagnostics.extend(validation_diagnostics);
         if self.bootstrap_replicates > 0 {
-            diagnostics.push(
-                panel_unit_average_bootstrap_note(self.bootstrap_replicates)
-                    .expect("a positive replicate request always yields the note"),
-            );
+            diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
         }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -2482,9 +2447,7 @@ impl PanelClassPosteriors<'_> {
         {
             self.per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: draws });
         }
-        if self.primary_estimand.is_none() {
-            self.primary_estimand = Some(estimand);
-        }
+        self.primary_estimand.get_or_insert(estimand);
         self.fits.push((key, bprep, resolved, seed, result.status));
         self.posteriors.push((key, posterior));
 

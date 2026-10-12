@@ -352,7 +352,7 @@ pub(super) fn fit_class_sequential(
     let class_masses =
         inputs.class_prior.map(|prior| prior.masses_for_envelope(&bundle.envelope)).transpose()?;
     let bayes = if let InferenceMode::Bayesian(cfg) = inputs.inference {
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
                 message: "multi-step Sequence transfer stays refused on incomplete classes",
             });

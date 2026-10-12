@@ -21,6 +21,12 @@ use super::{
 use crate::estimator_spec::EstimatorSpec;
 use crate::planner::RouteDefaults;
 
+/// The estimator's refusal for an instrument outside the checked binary Wald slice. The
+/// facade falls back to the generic 2SLS preparation on exactly this refusal; the estimate
+/// crate exposes it only as a static message, so the pattern keeps one copy here.
+const CHECKED_IV_NON_BINARY_INSTRUMENT: &str =
+    "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional";
+
 /// Borrowed inputs of one static ATE execution, shared by every phase.
 #[derive(Clone, Copy)]
 struct StaticRun<'a> {
@@ -306,8 +312,7 @@ impl<'a> StaticAteExecution<'a> {
         match fitter.prepare_checked(data, identification, 0) {
             Ok(checked) => Ok(Some((fitter, checked))),
             Err(antecedent_estimate::EstimationError::Unsupported {
-                message:
-                    "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                message: CHECKED_IV_NON_BINARY_INSTRUMENT,
             }) => Ok(None),
             Err(error) => Err(error.into()),
         }
@@ -508,14 +513,14 @@ impl<'a> StaticAteExecution<'a> {
         let estimator_id = self.estimator_id;
         if self.skips_bootstrap_refill() {
             self.keep_point_as_uncertainty(point)
-        } else if matches!(estimator_id, EstimatorId::FrontDoorTwoStage)
-            && checked.frontdoor_linear.is_some()
+        } else if let (EstimatorId::FrontDoorTwoStage, Some((_, receipt))) =
+            (estimator_id, &checked.frontdoor_linear)
         {
-            self.attach_frontdoor_linear_bootstrap(checked, ws, point)
-        } else if matches!(estimator_id, EstimatorId::FrontDoorFunctional)
-            && checked.frontdoor_functional.is_some()
+            self.attach_frontdoor_linear_bootstrap(receipt, ws, point)
+        } else if let (EstimatorId::FrontDoorFunctional, Some((_, receipt))) =
+            (estimator_id, &checked.frontdoor_functional)
         {
-            self.attach_frontdoor_functional_bootstrap(checked, point)
+            self.attach_frontdoor_functional_bootstrap(receipt, point)
         } else if matches!(estimator_id, EstimatorId::LinearAdjustmentAte) {
             self.attach_linear_bootstrap(checked, ws, point)
         } else {
@@ -569,54 +574,43 @@ impl<'a> StaticAteExecution<'a> {
         }
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-        super::super::stage::emit_stage(
-            self.study.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: point.clone() },
-        );
+        super::super::stage::emit_uncertainty(self.study.stage_sink.as_ref(), &point);
         Ok(point)
     }
 
     /// Bootstraps through the checked front-door two-stage receipt.
     fn attach_frontdoor_linear_bootstrap(
         &mut self,
-        checked: &StaticCheckedFits,
+        receipt: &antecedent_estimate::CheckedFrontDoorPreparation,
         ws: &mut StaticWorkspaces,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, CausalError> {
         let ctx = self.run.ctx;
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-        let (_, receipt) = checked.frontdoor_linear.as_ref().expect("checked above");
         let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
         fitter.bootstrap_replicates = self.study.bootstrap_replicates;
         let filled = fitter
             .attach_bootstrap(receipt.problem(), &mut ws.frontdoor, ctx, point)
             .map_err(CausalError::from)?;
         self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-        super::super::stage::emit_stage(
-            self.study.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-        );
+        super::super::stage::emit_uncertainty(self.study.stage_sink.as_ref(), &filled);
         Ok(filled)
     }
 
     /// Bootstraps through the checked functional front-door receipt.
     fn attach_frontdoor_functional_bootstrap(
         &mut self,
-        checked: &StaticCheckedFits,
+        receipt: &antecedent_estimate::CheckedFrontDoorPreparation,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, CausalError> {
         let ctx = self.run.ctx;
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-        let (_, receipt) = checked.frontdoor_functional.as_ref().expect("checked above");
         let fitter = antecedent_estimate::FrontDoorFunctional::new()
             .with_bootstrap_replicates(self.study.bootstrap_replicates);
         let filled =
             fitter.attach_bootstrap(receipt.problem(), ctx, point).map_err(CausalError::from)?;
         self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-        super::super::stage::emit_stage(
-            self.study.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-        );
+        super::super::stage::emit_uncertainty(self.study.stage_sink.as_ref(), &filled);
         Ok(filled)
     }
 
@@ -707,10 +701,7 @@ impl<'a> StaticAteExecution<'a> {
         } else {
             self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
         }
-        super::super::stage::emit_stage(
-            self.study.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-        );
+        super::super::stage::emit_uncertainty(self.study.stage_sink.as_ref(), &filled);
     }
 
     /// Validation stage: runs the refutation suite unless the estimate was cancelled.
@@ -1054,8 +1045,7 @@ impl super::Study {
         CausalError,
     > {
         if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "functional Bayesian prior transfer requires a declared \
                               functional mapping; a backdoor coefficient artifact cannot \
@@ -1303,12 +1293,11 @@ impl super::Study {
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp) {
             return self.execute_bayesian_basis(data, graph, &query.inner, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return self.execute_bayesian(data, graph, &query.inner, physical, None, ctx);
         }
         let started = Instant::now();
-        let (identifier, _) = self.resolve_conditional_pair();
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let (identifier_id, _) = self.resolve_conditional_ids();
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query.inner), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
@@ -1385,9 +1374,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identifier, estimator) = self.resolve_class_conditional_pair();
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = self.resolve_class_conditional_ids();
         match self.graph.class() {
             GraphClass::Pag => {
                 let pag = physical.static_pag().ok_or_else(|| CausalError::Compile {
@@ -1415,7 +1402,7 @@ impl super::Study {
                     },
                     identification,
                     Strategy::new(identifier_id, estimator_id),
-                    "pag",
+                    super::pag_path::ClassTag::Pag,
                 )
                 .map(|result| {
                     self.attach_certificate(
@@ -1454,7 +1441,7 @@ impl super::Study {
                     },
                     identification,
                     Strategy::new(identifier_id, estimator_id),
-                    "cpdag",
+                    super::pag_path::ClassTag::Cpdag,
                 )
                 .map(|result| {
                     self.attach_certificate(
@@ -1480,7 +1467,7 @@ impl super::Study {
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
         strategy: Strategy,
-        class_tag: &str,
+        class_tag: super::pag_path::ClassTag,
     ) -> Result<StudyResult, CausalError> {
         let estimator_id = strategy.estimator;
         let envelope = run.envelope;
@@ -1495,14 +1482,14 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if matches!(self.inference, InferenceMode::Bayesian(_))
+            if self.inference.is_bayesian()
                 || matches!(estimator_id, EstimatorId::BayesianConditional)
             {
                 return self.execute_pag_nonidentified_prior(
                     &query.inner,
                     run,
                     identification,
-                    class_tag,
+                    class_tag.as_str(),
                 );
             }
             return Err(CausalError::not_identified(
@@ -1513,8 +1500,7 @@ impl super::Study {
                 ),
             ));
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_))
-            || matches!(estimator_id, EstimatorId::BayesianConditional)
+        if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianConditional)
         {
             return self.execute_pag_bayesian(data, &query.inner, run, identification, class_tag);
         }
@@ -1536,7 +1522,7 @@ impl super::Study {
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
         strategy: Strategy,
-        class_tag: &str,
+        class_tag: super::pag_path::ClassTag,
     ) -> Result<StudyResult, CausalError> {
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let ClassEnvelopeRun {
@@ -1552,7 +1538,7 @@ impl super::Study {
         let mut diagnostics = vec![envelope_diag];
         let atoms =
             evaluate_conditional_atoms(data, &data_est, query, envelope, estimator_id, ctx)?;
-        let (mut estimate, estimand, n_contributing) = atoms.pooled_estimate(class_tag)?;
+        let (mut estimate, estimand, n_contributing) = atoms.pooled_estimate(class_tag.as_str())?;
         let ConditionalAtoms { refute_atoms, grid_atoms, outcomes, .. } = atoms;
         if query.inner.outcome_functional.thresholds().is_some()
             || query.inner.outcome_functional.quantile_level().is_some()
@@ -1592,7 +1578,8 @@ impl super::Study {
             super::pag_path::static_class_structural_mixture(envelope, &outcomes);
         if let Some(mixture) = structural_response.as_ref() {
             diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
-                mixture, class_tag,
+                mixture,
+                class_tag.as_str(),
             ));
         }
         Ok(self.finish_identified_execute(

@@ -94,7 +94,7 @@ impl super::Study {
             mixed.response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        let estimator_id = if self.inference.is_bayesian() {
             EstimatorId::ResponseBayesian
         } else {
             EstimatorId::default_for_response(&query.functional)
@@ -240,7 +240,7 @@ impl super::Study {
                 "estimate.response.graph_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                if self.inference.is_bayesian() {
                     "multi-atom Bayesian class-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and a frozen-weight aggregate \
                      are different objects"

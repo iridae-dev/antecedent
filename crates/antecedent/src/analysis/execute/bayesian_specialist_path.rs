@@ -26,9 +26,7 @@ pub(super) fn check_bayesian_iv_scope(
         return Err(CausalError::Compile{message:"iv.bayesian_joint_linear currently supports exactly one instrument and no exogenous adjustment covariates".into()});
     }
     if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-        || config.prior.is_some()
-        || config.prior_artifact.is_some()
-        || config.external_compose.is_some()
+        || config.has_transfer()
     {
         return Err(CausalError::Compile{message:"iv.bayesian_joint_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
     }
@@ -46,9 +44,7 @@ pub(super) fn check_bayesian_rd_scope(
         });
     }
     if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-        || config.prior.is_some()
-        || config.prior_artifact.is_some()
-        || config.external_compose.is_some()
+        || config.has_transfer()
     {
         return Err(CausalError::Compile{message:"rd.bayesian_local_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
     }

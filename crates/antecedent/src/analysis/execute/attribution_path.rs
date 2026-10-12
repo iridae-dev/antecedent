@@ -25,10 +25,7 @@ impl CounterfactualProcedure {
         match inference {
             InferenceMode::Frequentist => Ok(Self::HeterogeneityBestScorePoint),
             InferenceMode::Bayesian(config) => {
-                if config.prior_artifact.is_some()
-                    || config.external_compose.is_some()
-                    || config.prior.is_some()
-                {
+                if config.has_transfer() {
                     return Err(CausalError::Unsupported {
                         message: "Bayesian counterfactuals require a declared mechanism mapping; a coefficient artifact cannot be applied as an isotropic GCM prior or hydrated onto fitted GCM mechanisms",
                     });
@@ -522,7 +519,7 @@ impl super::Study {
                 identify_cached,
             },
         );
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             let n_draws = bayesian_draw_count(&self.inference)?;
             let mut columns: Vec<(String, Vec<f64>)> = scores
                 .iter()
@@ -643,7 +640,7 @@ impl super::Study {
                 identify_cached,
             },
         );
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             let posterior = self.change_attribution_posterior(data, query, &fitted, ctx)?;
             if let Some(index) = posterior.effect_column() {
                 if let Some(estimate) = result.estimate.as_effect_mut() {

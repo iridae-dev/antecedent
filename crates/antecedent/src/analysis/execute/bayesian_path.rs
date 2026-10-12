@@ -9,29 +9,24 @@ use super::{
     BayesianGraphPosteriorPriorAnchor, BayesianSuiteContext, BayesianTemporalGcomp,
     BayesianValidation, BootstrapAccounting, CausalError, CausalPosterior, CausalQuery,
     ClassAtomOutcome, ClassEnvelopeRun, ConditionalLinearAdjustment, DBN_LINEAR_SEM, Dag,
-    DataClassification, DataInput, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace,
-    EstimatorId, ExecuteRun, ExecutionContext, GraphClass, GraphEffectDraws, GraphIdentFlag,
-    GraphPosterior, GraphPosteriorAtomValue, IdentificationEnvelope, IdentificationResult,
-    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedKeyWeights, IdentifierId, InferenceDiagnostics, InferenceMode, Instant,
-    InteractiveSubsampleDrop, LogicalAnalysisPlan, OverlapPolicy, Pag, PhysicalExecutionPlan,
-    PosteriorMassSummary, PosteriorPredictiveCheck, PredictiveCheckReport, PreparedBayesianProblem,
-    PriorPredictiveCheck, PriorSet, RefutationRun, RefuteSuite, ResponseValue,
-    SUSTAINED_LINEAR_SEM, StaticAteCompileInput, StaticCpdagResponseCompileInput,
-    StaticEstimateInput, StaticEstimateWorkspaces, StaticPagResponseCompileInput,
-    StaticResponseCompileInput, Strategy, StructuralAggregationPolicy, StudyResult, TableView,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeAtomFit,
+    EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
+    ExecuteRun, ExecutionContext, GraphEffectDraws, GraphIdentFlag, GraphPosterior,
+    GraphPosteriorAtomValue, IdentificationEnvelope, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, InteractiveSubsampleDrop,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, PosteriorPredictiveCheck,
+    PredictiveCheckReport, PreparedBayesianProblem, PriorPredictiveCheck, PriorSet, RefutationRun,
+    RefuteSuite, ResponseValue, SUSTAINED_LINEAR_SEM, StaticEstimateInput,
+    StaticEstimateWorkspaces, Strategy, StructuralAggregationPolicy, StudyResult, TableView,
     TabularData, TemporalAtomDesign, TemporalDag, TemporalEffectQuery, TemporalIndexer,
     TemporalLinearAdjustment, TemporalMediationEstimate, TemporalRefutation, TimeSeriesData,
     ValidationSink, ValidationSuite, ValidatorId, VariableId, WeightedGraphSamples,
-    aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp, compile_logical_static_ate,
-    compile_logical_static_cpdag_response, compile_logical_static_pag_response,
-    compile_logical_static_response, compile_logical_temporal_effect_classified,
-    compile_logical_temporal_response, effect_from_posterior, elapsed_ns, envelope_mass_diagnostic,
-    envelope_refute_atoms, envelope_se_omission_diagnostic, estimate_static_effect,
-    evaluate_bayesian_prior_sensitivity, first_key_positions, identification_from_cache_or,
-    identification_status_ok_for_case, identified_envelope_keys, identify_static,
-    interactive_subsample_graphs_accounted, is_multi_step_sustained, mass_fields,
+    aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp, effect_from_posterior,
+    elapsed_ns, envelope_mass_diagnostic, envelope_refute_atoms, envelope_se_omission_diagnostic,
+    estimate_static_effect, evaluate_bayesian_prior_sensitivity, first_key_positions,
+    identification_from_cache_or, identification_status_ok_for_case, identified_envelope_keys,
+    identify_static, interactive_subsample_graphs_accounted, mass_fields,
     maybe_interactive_envelope_subsample, mediation_mechanism_seed, merge_posterior_notes,
     mix_graph_posterior_identified_atoms, mix_prior_sensitivity_summaries, mix_static_envelope_se,
     mix_weighted_analytic_se, mixed_static_influence, most_conservative_identification_status,
@@ -405,12 +400,62 @@ fn graph_posterior_bayesian_diagnostics(
     diagnostics
 }
 
+/// The run-level settings a Frequentist graph-posterior effect reads: the study's own when the
+/// study runs it, the sealed operation's when a checked operation does. Resolved once, so the
+/// estimate and refute phases never re-decide which side to read.
+struct EffectRunConfig<'a> {
+    latency_mode: Option<super::LatencyMode>,
+    refute: RefuteSuite,
+    bootstrap_replicates: u32,
+    overlap_policy: Option<OverlapPolicy>,
+    population_registry: Option<&'a super::PopulationRegistry>,
+    /// A sealed operation carries no custom validators.
+    custom_validators: &'a [std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>],
+    /// The estimator procedure every atom is fitted with.
+    spec: crate::estimator_spec::EstimatorSpec,
+}
+
+impl<'a> EffectRunConfig<'a> {
+    fn resolve(
+        study: &'a super::Study,
+        checked: Option<&'a super::super::CheckedGraphPosteriorEffect>,
+        estimator_id: EstimatorId,
+    ) -> Self {
+        match checked {
+            Some(operation) => Self {
+                latency_mode: operation.latency_mode(),
+                refute: operation.validation(),
+                bootstrap_replicates: operation.bootstrap_replicates(),
+                overlap_policy: Some(operation.overlap()),
+                population_registry: operation
+                    .population_registry()
+                    .or(study.population_registry.as_ref()),
+                custom_validators: &[],
+                spec: operation.procedure().clone(),
+            },
+            None => Self {
+                latency_mode: study.latency_mode,
+                refute: study.refute,
+                bootstrap_replicates: study.bootstrap_replicates,
+                overlap_policy: study.overlap_policy,
+                population_registry: study.population_registry.as_ref(),
+                custom_validators: &study.custom_validators,
+                spec: study
+                    .estimator_spec
+                    .as_deref()
+                    .cloned()
+                    .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id)),
+            },
+        }
+    }
+}
+
 /// Resolved inputs shared by the Frequentist graph-posterior estimate and refute phases.
 #[derive(Clone, Copy)]
 struct GraphPosteriorFrequentistRoute<'a> {
     data: &'a TabularData,
     query: &'a AverageEffectQuery,
-    checked: Option<&'a super::super::CheckedGraphPosteriorEffect>,
+    run: &'a EffectRunConfig<'a>,
     estimator_id: EstimatorId,
     conditional: bool,
 }
@@ -1066,10 +1111,7 @@ impl super::Study {
         );
         clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-        super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
-        );
+        super::super::stage::emit_uncertainty(self.stage_sink.as_ref(), &estimate);
         Ok(BayesianGcompPoint { est, prep, ws, posterior, estimate })
     }
 
@@ -1095,9 +1137,7 @@ impl super::Study {
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
         if let Some(operation) = checked_operation {
-            if operation.query != *query
-                || !matches!(operation.inference, InferenceMode::Bayesian(_))
-            {
+            if operation.query != *query || !operation.inference.is_bayesian() {
                 return Err(CausalError::Compile {
                     message: "prepared Bayesian g-computation binding changed after prepare".into(),
                 });
@@ -1208,8 +1248,9 @@ impl super::Study {
         query: &AverageEffectQuery,
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
-        class_tag: &str,
+        class_tag: super::pag_path::ClassTag,
     ) -> Result<StudyResult, CausalError> {
+        let class_tag = class_tag.as_str();
         let ClassEnvelopeRun {
             run: ExecuteRun { physical, ctx, started, identify_cached },
             envelope,
@@ -1354,7 +1395,9 @@ impl super::Study {
         }
         let fits = ctx.map_indexed(kept.len(), |i, inner| {
             let (key, estimand, status, outcome_slot) = &kept[i];
-            let prep = prepared.get(key).expect("kept key is prepared");
+            let prep = prepared.get(key).ok_or_else(|| CausalError::Compile {
+                message: "class atom was kept for fitting without a prepared problem".into(),
+            })?;
             let mut est = est.clone();
             est.prior = atom_priors.get(key).cloned().flatten();
             let mut ws = BayesianGCompWorkspace::default();
@@ -1485,377 +1528,6 @@ impl super::Study {
             ValidationSink { refutations: &mut refutations, diagnostics },
         )?;
         Ok((refutations, predictive_checks))
-    }
-
-    /// Compile path for a supplied graph posterior ([`crate::StudyBuilder::graph_posterior`]).
-    ///
-    /// `self.graph` is not consulted here beyond its class (it only carries the
-    /// placeholder shape `stub_accepted_graph_for` built at `build()` time) — the logical
-    /// plan needs a structure argument for row-count / classification bookkeeping only.
-    /// Real identification happens per-graph, against the posterior atoms, in
-    /// [`Self::execute_graph_posterior_bayesian`],
-    /// [`Self::execute_graph_posterior_frequentist`],
-    /// [`Self::execute_admg_graph_posterior`],
-    /// [`Self::execute_class_graph_posterior`],
-    /// [`Self::execute_temporal_class_graph_posterior`], or
-    /// [`Self::execute_dbn_posterior_bayesian`].
-    ///
-    /// # Errors
-    ///
-    /// `InferenceMode::Frequentist` on a temporal (DBN) posterior — that combiner
-    /// is 1.7 — or an unsupported data/query combination (graph-posterior analysis
-    /// supports tabular average-effect, temporal-effect, temporal-mediation, or
-    /// temporal response queries).
-    pub(super) fn compile_graph_posterior(
-        &self,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        match (&self.data, &self.query) {
-            (DataInput::Tabular(data), CausalQuery::Response(q)) => {
-                self.compile_graph_posterior_response(data, q, ctx)
-            }
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
-                self.compile_graph_posterior_average_effect(data, q, ctx)
-            }
-            (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q)) => {
-                self.compile_graph_posterior_conditional_effect(data, q, ctx)
-            }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::TemporalEffect(q),
-            ) => self.compile_graph_posterior_temporal_effect(data, q, ctx),
-            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Response(q)) => {
-                self.compile_graph_posterior_temporal_response(data, q, ctx)
-            }
-            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
-                self.compile_graph_posterior_temporal_mediation(data, q, ctx)
-            }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::NestedCounterfactual(_)
-                | CausalQuery::PathSpecific(_)
-                | CausalQuery::Counterfactual(_)
-                | CausalQuery::Distribution(_),
-            ) if matches!(
-                self.graph_posterior.as_ref().map(|posterior| posterior.atom_kind),
-                Some(
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
-                )
-            ) =>
-            {
-                self.compile_graph_posterior_cross_world(data, ctx)
-            }
-            _ => Err(CausalError::Unsupported {
-                message: super::dispatch::GRAPH_POSTERIOR_QUERY_REFUSAL,
-            }),
-        }
-    }
-
-    /// Tabular response compile over placeholder shapes of the posterior's atom kind.
-    fn compile_graph_posterior_response(
-        &self,
-        data: &TabularData,
-        q: &antecedent_core::ResponseQuery,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
-        let mut logical = if matches!(
-            atom_kind,
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Admg
-                    | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
-            )
-        ) {
-            super::compile_logical_admg_response(data, q, self.validation_suite_id(), self)?
-        } else {
-            let n_vars = u32::try_from(data.schema().len()).map_err(|_| CausalError::Compile {
-                message: "too many variables for graph-posterior compile".into(),
-            })?;
-            let stub = Dag::with_variables(n_vars);
-            if matches!(atom_kind, Some(antecedent_discovery::GraphPosteriorAtomKind::Cpdag)) {
-                let cpdag = antecedent_graph::Cpdag::from_dag(&stub);
-                let (identifier, estimator) = self.resolve_class_response_pair(q);
-                compile_logical_static_cpdag_response(StaticCpdagResponseCompileInput {
-                    data,
-                    cpdag: &cpdag,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?
-            } else if matches!(atom_kind, Some(antecedent_discovery::GraphPosteriorAtomKind::Pag)) {
-                let pag = Pag::with_variables(n_vars);
-                let (identifier, estimator) = self.resolve_class_response_pair(q);
-                compile_logical_static_pag_response(StaticPagResponseCompileInput {
-                    data,
-                    pag: &pag,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?
-            } else {
-                let (identifier, estimator) = self.resolve_response_pair(q);
-                compile_logical_static_response(StaticResponseCompileInput {
-                    data,
-                    graph: &stub,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?
-            }
-        };
-        logical.record.discovery_algorithm =
-            Some(self.graph_posterior_discovery_algorithm("graph_posterior"));
-        logical.compile_physical(ctx)
-    }
-
-    /// Tabular average-effect compile: the identifier / estimator follow the atom kind and inference mode.
-    fn compile_graph_posterior_average_effect(
-        &self,
-        data: &TabularData,
-        q: &AverageEffectQuery,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let n_vars = u32::try_from(data.schema().len()).map_err(|_| CausalError::Compile {
-            message: "too many variables for graph-posterior compile".into(),
-        })?;
-        let stub = Dag::with_variables(n_vars);
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
-        let (identifier, estimator) = match atom_kind {
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Admg
-                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
-            ) => (Arc::from("general.id"), Arc::from("functional.effect")),
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                | antecedent_discovery::GraphPosteriorAtomKind::Pag,
-            ) => (
-                Arc::from("generalized.adjustment"),
-                match &self.inference {
-                    InferenceMode::Frequentist => Arc::from("linear.adjustment.ate"),
-                    InferenceMode::Bayesian(_) => Arc::from("bayesian.gcomp"),
-                },
-            ),
-            _ => (
-                Arc::from("backdoor.adjustment"),
-                match &self.inference {
-                    InferenceMode::Frequentist => Arc::from("linear.adjustment.ate"),
-                    InferenceMode::Bayesian(_) => Arc::from("bayesian.gcomp"),
-                },
-            ),
-        };
-        let mut logical = compile_logical_static_ate(StaticAteCompileInput {
-            data,
-            graph: &stub,
-            query: q,
-            validation_suite: self.validation_suite_id(),
-            identifier,
-            estimator,
-        })?;
-        logical.record.discovery_algorithm =
-            Some(self.graph_posterior_discovery_algorithm("graph_posterior"));
-        logical.compile_physical(ctx)
-    }
-
-    /// Tabular conditional-effect compile over a placeholder DAG.
-    fn compile_graph_posterior_conditional_effect(
-        &self,
-        data: &TabularData,
-        q: &antecedent_core::ConditionalEffectQuery,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let n_vars = u32::try_from(data.schema().len()).map_err(|_| CausalError::Compile {
-            message: "too many variables for graph-posterior compile".into(),
-        })?;
-        let stub = Dag::with_variables(n_vars);
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
-        let (identifier, estimator) = match atom_kind {
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                | antecedent_discovery::GraphPosteriorAtomKind::Pag,
-            ) => self.resolve_class_conditional_pair(),
-            _ => (
-                Arc::from("backdoor.adjustment"),
-                match &self.inference {
-                    InferenceMode::Frequentist => {
-                        Arc::from(EstimatorId::ConditionalLinearAdjustment.as_str())
-                    }
-                    InferenceMode::Bayesian(_) => {
-                        Arc::from(EstimatorId::BayesianConditional.as_str())
-                    }
-                },
-            ),
-        };
-        let mut logical = compile_logical_static_ate(StaticAteCompileInput {
-            data,
-            graph: &stub,
-            query: &q.inner,
-            validation_suite: self.validation_suite_id(),
-            identifier,
-            estimator,
-        })?;
-        logical.record.plan_id = Arc::from("static_conditional_graph_posterior");
-        logical.query = CausalQuery::ConditionalEffect(q.clone());
-        logical.record.discovery_algorithm =
-            Some(self.graph_posterior_discovery_algorithm("graph_posterior"));
-        logical.compile_physical(ctx)
-    }
-
-    /// Temporal-effect compile over a DBN or temporal-class posterior.
-    fn compile_graph_posterior_temporal_effect(
-        &self,
-        data: &TimeSeriesData,
-        q: &TemporalEffectQuery,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let class = match &self.data {
-            DataInput::Event(_) => DataClassification::Event,
-            _ => DataClassification::Temporal,
-        };
-        let mut logical = compile_logical_temporal_effect_classified(
-            data,
-            &TemporalDag::empty(),
-            q,
-            self.split,
-            false,
-            class,
-        )?;
-        let class_atom = matches!(
-            self.graph_posterior.as_ref().map(|gp| gp.atom_kind),
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        );
-        if class_atom && !q.effect_modifiers.is_empty() {
-            // The conditional point is the completion-weighted linear producer,
-            // including under a Bayesian isotropic prior. It is not the ATE g-computation.
-            logical.record.identifier =
-                Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-            logical.record.estimator =
-                Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str()));
-        } else if is_multi_step_sustained(q) {
-            logical.record.estimator = Some(Arc::from("temporal.sequential.gcomp"));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
-        }
-        logical.record.validation_suite = self.validation_suite_id();
-        logical.record.discovery_algorithm =
-            Some(self.graph_posterior_discovery_algorithm("dbn_posterior"));
-        logical.compile_physical(ctx)
-    }
-
-    /// Temporal-response compile over a DBN or temporal-class posterior.
-    fn compile_graph_posterior_temporal_response(
-        &self,
-        data: &TimeSeriesData,
-        q: &antecedent_core::ResponseQuery,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        super::temporal_posterior_response::dbn_posterior_response_supported(q)?;
-        let mut logical = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
-        if matches!(
-            self.graph_posterior.as_ref().map(|gp| gp.atom_kind),
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        ) {
-            logical.record.identifier =
-                Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-        }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            logical.record.estimator =
-                Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
-        }
-        logical.record.validation_suite = self.validation_suite_id();
-        logical.record.discovery_algorithm =
-            Some(self.graph_posterior_discovery_algorithm("dbn_posterior"));
-        logical.compile_physical(ctx)
-    }
-
-    /// Temporal-mediation compile over a DBN or temporal-class posterior.
-    fn compile_graph_posterior_temporal_mediation(
-        &self,
-        data: &TimeSeriesData,
-        q: &antecedent_core::MediationQuery,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        q.validate()?;
-        let class = match &self.data {
-            DataInput::Event(_) => DataClassification::Event,
-            _ => DataClassification::Temporal,
-        };
-        let mut logical = compile_logical_temporal_effect_classified(
-            data,
-            &TemporalDag::empty(),
-            &TemporalEffectQuery::pulse(q.treatment, q.outcome, 1.0),
-            self.split,
-            false,
-            class,
-        )?;
-        logical.record.plan_id = Arc::from("temporal_mediation");
-        logical.record.identifier = Some(Arc::from("temporal.mediation"));
-        logical.record.estimator =
-            Some(Arc::from(if matches!(self.inference, InferenceMode::Frequentist) {
-                EstimatorId::TemporalMediation.as_str()
-            } else {
-                EstimatorId::BayesianTemporalMediation.as_str()
-            }));
-        logical.record.validation_suite = self.validation_suite_id();
-        logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
-        logical.query = CausalQuery::Mediation(q.clone());
-        logical.record.discovery_algorithm =
-            Some(self.graph_posterior_discovery_algorithm("dbn_posterior"));
-        logical.compile_physical(ctx)
-    }
-
-    /// Cross-world compile over a temporal-class posterior: the linear temporal
-    /// adjustment plan keyed by the posterior's class.
-    fn compile_graph_posterior_cross_world(
-        &self,
-        data: &TimeSeriesData,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let (treatment, outcome) =
-            super::temporal_class_point::cross_world_plan_variables(&self.query)?;
-        let plan_id = match self.graph.class() {
-            GraphClass::TemporalPag => "temporal_pag_cross_world",
-            _ => "temporal_cpdag_cross_world",
-        };
-        let logical = LogicalAnalysisPlan {
-            record: antecedent_contract::LogicalAnalysisPlanRecord {
-                plan_id: Arc::from(plan_id),
-                data_classification: antecedent_contract::DataClassification::Temporal,
-                discovery_algorithm: Some(
-                    self.graph_posterior
-                        .as_ref()
-                        .and_then(|gp| gp.algorithm.clone())
-                        .unwrap_or_else(|| Arc::from("graph_posterior")),
-                ),
-                graph_review_required: false,
-                identifier: Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str())),
-                estimator: Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str())),
-                validation_suite: self.validation_suite_id(),
-                query_variables: Arc::from([treatment, outcome]),
-            },
-            query: self.query.clone(),
-            split: None,
-            row_count_hint: data.row_count() as u64,
-        };
-        logical.compile_physical(ctx)
-    }
-
-    /// Discovery algorithm recorded on a graph-posterior plan, or `fallback` when the
-    /// posterior names none.
-    fn graph_posterior_discovery_algorithm(&self, fallback: &str) -> Arc<str> {
-        self.graph_posterior
-            .as_ref()
-            .and_then(|gp| gp.algorithm.clone())
-            .unwrap_or_else(|| Arc::from(fallback))
     }
 
     /// Execute a supplied static graph posterior into a Bayesian effect envelope.
@@ -2294,7 +1966,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if checked.is_none() && !matches!(self.inference, InferenceMode::Frequentist) {
+        if checked.is_none() && !self.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
                 message: "execute_graph_posterior_frequentist requires inference=Frequentist",
             });
@@ -2310,6 +1982,7 @@ impl super::Study {
         } else {
             EstimatorId::LinearAdjustmentAte
         };
+        let run = EffectRunConfig::resolve(self, checked, estimator_id);
         let (identified, identify_cached) = if let Some(operation) = checked {
             (operation.identification().clone(), true)
         } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
@@ -2324,14 +1997,13 @@ impl super::Study {
         };
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
-            checked
-                .map_or(self.latency_mode, super::super::CheckedGraphPosteriorEffect::latency_mode),
+            run.latency_mode,
             identified.graphs.clone(),
             ctx,
             &mut subsample_notes,
         )?;
         let route =
-            GraphPosteriorFrequentistRoute { data, query, checked, estimator_id, conditional };
+            GraphPosteriorFrequentistRoute { data, query, run: &run, estimator_id, conditional };
         let atoms =
             self.estimate_graph_posterior_frequentist_atoms(&route, &identified, &graphs, ctx)?;
         let mix =
@@ -2383,9 +2055,7 @@ impl super::Study {
         graphs: &WeightedGraphSamples,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosteriorFrequentistAtoms, CausalError> {
-        let GraphPosteriorFrequentistRoute {
-            data, query, checked, estimator_id, conditional, ..
-        } = *route;
+        let GraphPosteriorFrequentistRoute { data, query, run, conditional, .. } = *route;
         let keep = identified_envelope_keys(graphs);
 
         let mut se_items = Vec::new();
@@ -2400,15 +2070,6 @@ impl super::Study {
         let estimates = ctx.map_indexed(kept.len(), |i, inner| {
             let atom = kept[i];
             let mut case_ws = StaticEstimateWorkspaces::default();
-            let case_spec = checked.map_or_else(
-                || {
-                    self.estimator_spec
-                        .as_deref()
-                        .cloned()
-                        .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id))
-                },
-                |operation| operation.procedure().clone(),
-            );
             let estimate = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 ConditionalLinearAdjustment::new()
@@ -2416,20 +2077,14 @@ impl super::Study {
                     .map_err(CausalError::from)
             } else {
                 estimate_static_effect(
-                    &case_spec,
+                    &run.spec,
                     StaticEstimateInput {
                         data,
                         estimand: &atom.estimand,
                         query,
-                        bootstrap_replicates: checked
-                            .map_or(self.bootstrap_replicates, |operation| {
-                                operation.bootstrap_replicates()
-                            }),
-                        overlap_policy: checked
-                            .map_or(self.overlap_policy, |operation| Some(operation.overlap())),
-                        population_registry: checked
-                            .and_then(|operation| operation.population_registry())
-                            .or(self.population_registry.as_ref()),
+                        bootstrap_replicates: run.bootstrap_replicates,
+                        overlap_policy: run.overlap_policy,
+                        population_registry: run.population_registry,
                     },
                     atom.identification.required_assumptions.clone(),
                     inner,
@@ -2486,7 +2141,7 @@ impl super::Study {
         refute_atoms: &[EnvelopeRefuteAtom],
         ctx: &ExecutionContext,
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-        let GraphPosteriorFrequentistRoute { data, query, checked, estimator_id, .. } = *route;
+        let GraphPosteriorFrequentistRoute { data, query, run, estimator_id, .. } = *route;
         let estimator = estimator_id.as_str();
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = if graph_dependent {
@@ -2499,10 +2154,9 @@ impl super::Study {
                 let (mut per_atom, mut per_notes) = EnvelopeRefutation {
                     data,
                     query,
-                    suite: checked
-                        .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
+                    suite: run.refute,
                     estimator,
-                    custom: if checked.is_some() { &[] } else { &self.custom_validators },
+                    custom: run.custom_validators,
                     temporal: None,
                 }
                 .run(std::slice::from_ref(atom), &mut refute_ws, ctx)?;
@@ -2523,10 +2177,9 @@ impl super::Study {
             EnvelopeRefutation {
                 data,
                 query,
-                suite: checked
-                    .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
+                suite: run.refute,
                 estimator,
-                custom: if checked.is_some() { &[] } else { &self.custom_validators },
+                custom: run.custom_validators,
                 temporal: None,
             }
             .run(refute_atoms, &mut refute_ws, ctx)?
@@ -2545,7 +2198,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if is_multi_step_sustained(query) && self.split.is_some() {
+        if query.is_multi_step_sustained() && self.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "multi-step sustained g-computation currently requires no discovery-estimation split",
             });
@@ -2588,7 +2241,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    if is_multi_step_sustained(query) {
+                    if query.is_multi_step_sustained() {
                         EstimatorId::TemporalSequentialGcomp
                     } else {
                         EstimatorId::TemporalLinearAdjustment
@@ -2662,7 +2315,7 @@ impl super::Study {
                 continue;
             }
             let mut assumptions = atom.identification.required_assumptions.clone();
-            let design = if is_multi_step_sustained(query) {
+            let design = if query.is_multi_step_sustained() {
                 assumptions.push(sequential_linear_sem_assumption(DBN_LINEAR_SEM));
                 TemporalAtomDesign::sequential(
                     data,
@@ -2781,7 +2434,7 @@ impl super::Study {
         let (refutations, diagnostics) =
             if self.refute == RefuteSuite::None && self.custom_validators.is_empty() {
                 (Vec::new(), Vec::new())
-            } else if is_multi_step_sustained(query) {
+            } else if query.is_multi_step_sustained() {
                 let validation_atoms = contexts
                     .iter()
                     .zip(atom_estimates)
@@ -2864,7 +2517,7 @@ impl super::Study {
             }
         };
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-        let multi_step = is_multi_step_sustained(query);
+        let multi_step = query.is_multi_step_sustained();
         if multi_step {
             self.ensure_dbn_multi_step_bayesian_admitted(&cfg)?;
         }
@@ -2969,7 +2622,7 @@ impl super::Study {
                 message: "multi-step sustained g-computation currently requires no discovery-estimation split",
             });
         }
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
                 message: "multi-step sustained inference requires isotropic per-mechanism priors",
             });
@@ -3235,7 +2888,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if query.horizons.len() > 1 && matches!(self.inference, InferenceMode::Frequentist) {
+        if query.horizons.len() > 1 && self.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
                 message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
@@ -3245,7 +2898,7 @@ impl super::Study {
             return self
                 .execute_dbn_posterior_mediation_multi_horizon(data, gp, query, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Frequentist) {
+        if self.inference.is_frequentist() {
             return self
                 .execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
         }
@@ -3393,9 +3046,13 @@ impl super::Study {
         let started = Instant::now();
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
-            InferenceMode::Frequentist => unreachable!("Frequentist DBN mediation is routed above"),
+            InferenceMode::Frequentist => {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian DBN-posterior mediation requires inference=Bayesian",
+                });
+            }
         };
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
                 message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
             });
@@ -3517,8 +3174,7 @@ impl super::Study {
 
         let DbnMediationRun { data, query, .. } = *run;
         let Some(horizons) = atom.horizons.as_ref() else {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         };
         let Ok(clicks) =
@@ -3534,13 +3190,11 @@ impl super::Study {
                     })
             })
         else {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         };
         if clicks.is_empty() {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         }
         state.horizon_dependent |= super::temporal_path::mediation_horizon_z_differs(&clicks);
@@ -3575,14 +3229,16 @@ impl super::Study {
             }
         }
         if !click_ok {
-            state.flag_unidentified(atom.key);
             if estimation_failed {
                 state.unevaluable_weight += state.key_weights.get(atom.key);
             }
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         }
-        let (click, qh, preparations) = published.expect("non-empty clicks");
+        let Some((click, qh, preparations)) = published else {
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
+            return None;
+        };
         match state.first_z.as_ref() {
             Some(z) if z.as_ref() != click.adjustment.as_ref() => state.distinct_z = true,
             None => state.first_z = Some(Arc::clone(&click.adjustment)),
@@ -3625,10 +3281,7 @@ impl super::Study {
         let mechanisms = match fit(cfg.prior_scale) {
             Ok(mechanisms) => mechanisms,
             Err(error) => {
-                state.flag_unidentified(key);
-                state.unevaluable_weight += state.key_weights.get(key);
-                state.first_estimation_error.get_or_insert_with(|| error.to_string());
-                state.fit_demoted += 1;
+                state.demote_unevaluable(key, DbnAtomDemotion::Fit, &error);
                 return;
             }
         };
@@ -3640,10 +3293,7 @@ impl super::Study {
         ) {
             Ok(composed) => composed,
             Err(error) => {
-                state.flag_unidentified(key);
-                state.unevaluable_weight += state.key_weights.get(key);
-                state.first_estimation_error.get_or_insert_with(|| error.to_string());
-                state.fit_demoted += 1;
+                state.demote_unevaluable(key, DbnAtomDemotion::Fit, &error);
                 return;
             }
         };
@@ -3668,12 +3318,7 @@ impl super::Study {
                     composed,
                 });
             }
-            Err(error) => {
-                state.flag_unidentified(key);
-                state.unevaluable_weight += state.key_weights.get(key);
-                state.first_estimation_error.get_or_insert_with(|| error.to_string());
-                state.draws_demoted += 1;
-            }
+            Err(error) => state.demote_unevaluable(key, DbnAtomDemotion::Draws, &error),
         }
     }
 
@@ -3758,6 +3403,29 @@ impl DbnMediationFits {
         if let Some(idx) = self.key_index.get(&key).copied() {
             self.flags[idx] = GraphIdentFlag::Unidentified;
         }
+    }
+
+    /// Flag the atom unidentified and count the stage that dropped it.
+    fn demote(&mut self, key: u64, reason: DbnAtomDemotion) {
+        self.flag_unidentified(key);
+        match reason {
+            DbnAtomDemotion::Prepare => self.prepare_demoted += 1,
+            DbnAtomDemotion::Fit => self.fit_demoted += 1,
+            DbnAtomDemotion::Draws => self.draws_demoted += 1,
+        }
+    }
+
+    /// [`Self::demote`] for an atom whose estimation failed: its identified weight is booked
+    /// as unevaluable and the first failure message is kept for the disclosure.
+    fn demote_unevaluable(
+        &mut self,
+        key: u64,
+        reason: DbnAtomDemotion,
+        error: &impl std::fmt::Display,
+    ) {
+        self.unevaluable_weight += self.key_weights.get(key);
+        self.first_estimation_error.get_or_insert_with(|| error.to_string());
+        self.demote(key, reason);
     }
 }
 

@@ -137,7 +137,7 @@ const BAYESIAN_PROVENANCE: (&str, &str) =
 /// Whether `config` carries a coefficient prior the isotropic temporal fits
 /// cannot take.
 fn has_mapped_prior(config: &BayesianConfig) -> bool {
-    config.prior.is_some() || config.prior_artifact.is_some() || config.external_compose.is_some()
+    config.has_transfer()
 }
 
 /// Fit and assemble the temporal effect of `inputs`.
@@ -399,7 +399,11 @@ fn single_window_predictive_checks(
     predictive_checks.push(post_rep);
 
     if matches!(refute, RefuteSuite::Full) {
-        let InferenceMode::Bayesian(cfg) = inputs.inference else { unreachable!() };
+        let InferenceMode::Bayesian(cfg) = inputs.inference else {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian predictive checks require inference=Bayesian",
+            });
+        };
         let mut ws = BayesianGCompWorkspace::default();
         let (summary, sens) = evaluate_bayesian_prior_sensitivity(
             cfg,

@@ -1,5 +1,5 @@
-// Observation / Sequence tuple-level circular-block bootstrap.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Observation / Sequence tuple-level circular-block bootstrap.
 
 use super::{
     Arc, CausalError, ExecutionContext, IdentificationStatus, IdentifiedEstimand,

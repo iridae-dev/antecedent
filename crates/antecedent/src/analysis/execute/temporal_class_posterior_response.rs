@@ -6,18 +6,19 @@ use super::response_path::{
     mix_response_values, mix_support_reports, response_envelope_from_weighted,
     response_identified_value, response_primary_pair, response_scalar_summary,
 };
+use super::temporal_path::bare_class_atom;
 use super::temporal_posterior_response::dbn_posterior_response_supported;
 use super::{
     AcceptedGraph, Arc, AverageEffectQuery, CausalError, CausalQuery, CausalResponse, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphIdentFlag, GraphPosterior,
     GraphPosteriorScope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
-    Intervention, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    Strategy, StructuralAggregationPolicy, Study, StudyResult, TableView, TabularData,
-    TemporalAtomDesign, TemporalEffectQuery, TemporalRefutation, TimeSeriesData, VariableId,
-    elapsed_ns, identification_status_ok_for_case, provenance_ids,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant, Intervention,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy,
+    StructuralAggregationPolicy, Study, StudyResult, TableView, TabularData, TemporalAtomDesign,
+    TemporalEffectQuery, TemporalRefutation, TimeSeriesData, VariableId, elapsed_ns,
+    identification_status_ok_for_case, provenance_ids,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
     resolve_structural_aggregation, scalar_identified_set, select_estimand,
     shared_circular_block_mixture_se, temporal_class_block_span,
@@ -100,7 +101,7 @@ impl super::Study {
             (structural_set, conditional),
             (unidentified_mass + failed_mass) == 0.0,
         );
-        let estimator_id = self.class_posterior_estimator_id();
+        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         Ok(self.finish_identified_execute(
@@ -129,15 +130,6 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
-    }
-
-    /// The temporal response estimator the study's inference mode runs.
-    fn class_posterior_estimator_id(&self) -> EstimatorId {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            EstimatorId::TemporalResponseBayesian
-        } else {
-            EstimatorId::TemporalResponseGcomp
-        }
     }
 
     /// Whether the prepared handle retains an identification for this posterior.
@@ -550,26 +542,12 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
         match outcome {
             None | Some(Err(())) => {
                 fold.unidentified_mass += weight;
-                fold.atoms.push(StructuralResponseAtom {
-                    posterior: None,
-                    response: None,
-                    graph_key: key,
-                    weight,
-                    status: IdentificationStatus::NotIdentified,
-                    value: None,
-                });
+                fold.atoms.push(bare_class_atom(key, weight, IdentificationStatus::NotIdentified));
             }
             Some(Ok(result)) => {
                 let Some(response) = result.payload.into_response() else {
                     fold.failed_mass += weight;
-                    fold.atoms.push(StructuralResponseAtom {
-                        posterior: None,
-                        response: None,
-                        graph_key: key,
-                        weight,
-                        status: result.identification.status,
-                        value: None,
-                    });
+                    fold.atoms.push(bare_class_atom(key, weight, result.identification.status));
                     continue;
                 };
                 let Some(value) =
@@ -577,12 +555,8 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                 else {
                     fold.failed_mass += weight;
                     fold.atoms.push(StructuralResponseAtom {
-                        posterior: None,
                         response: Some(response),
-                        graph_key: key,
-                        weight,
-                        status: result.identification.status,
-                        value: None,
+                        ..bare_class_atom(key, weight, result.identification.status)
                     });
                     continue;
                 };
@@ -599,12 +573,9 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                 }
                 fold.contributing.push(result.estimand);
                 fold.atoms.push(StructuralResponseAtom {
-                    posterior: None,
                     response: Some(response.clone()),
-                    graph_key: key,
-                    weight,
-                    status: result.identification.status,
                     value: Some(value),
+                    ..bare_class_atom(key, weight, result.identification.status)
                 });
                 fold.weighted.push((key, weight, response));
             }
@@ -740,7 +711,7 @@ fn temporal_class_response_pooled_block_se(
     weighted: &[(u64, f64, CausalResponse)],
     ctx: &ExecutionContext,
 ) -> Result<Option<f64>, CausalError> {
-    if !matches!(study.inference, InferenceMode::Frequentist) || study.bootstrap_replicates == 0 {
+    if !study.inference.is_frequentist() || study.bootstrap_replicates == 0 {
         return Ok(None);
     }
     if !matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })
@@ -887,15 +858,13 @@ fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, 
         _ => Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
     };
     Ok(TemporalEffectQuery {
-        treatment,
-        outcome,
-        policy: temporal.policy.clone(),
-        control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
         active,
-        horizon_steps: horizon,
-        max_history_lag: temporal.max_history_lag,
-        target_population: query.target_population.clone(),
-        effect_modifiers: std::sync::Arc::from([]),
+        ..super::temporal_path::unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            horizon,
+            query.target_population.clone(),
+        )
     })
 }
 

@@ -15,14 +15,13 @@ use super::{
     Arc, AverageEffectQuery, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, EffectEstimate, EstimationWorkspace, EstimatorId, ExecutionContext,
     GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
-    InferenceMode, Instant, Intervention, OverlapPolicy, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study, StudyResult, TabularData,
-    VariableId, elapsed_ns, identify_admg_query, identify_cached_diagnostic, mass_fields,
-    provenance_ids, push_graph_posterior_structural_aggregation_diagnostic,
-    resolve_posterior_status, resolve_structural_aggregation, select_estimand,
-    support_from_functional_eval,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, Instant,
+    Intervention, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun,
+    RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty,
+    ResponseValue, Strategy, Study, StudyResult, TabularData, VariableId, elapsed_ns,
+    identify_admg_query, identify_cached_diagnostic, mass_fields, provenance_ids,
+    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
+    resolve_structural_aggregation, select_estimand, support_from_functional_eval,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::result::{
@@ -433,7 +432,7 @@ impl super::Study {
                 "estimate.response.admg_graph_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                if self.inference.is_bayesian() {
                     "multi-atom Bayesian ADMG graph-posterior response withholds an aggregate \
                      credible band: graph-specific dispersion and a frozen-weight aggregate are \
                      different objects"
@@ -548,7 +547,7 @@ fn estimate_admg_posterior_atom_response(
     ctx: &ExecutionContext,
 ) -> Result<CausalResponse, CausalError> {
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
-    let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
+    let bayesian = study.inference.is_bayesian();
     match &query.functional {
         ResponseFunctional::InterventionResponse { .. } => {
             let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
@@ -597,7 +596,7 @@ fn estimate_admg_mean_curve(
     ctx: &ExecutionContext,
 ) -> Result<CausalResponse, CausalError> {
     let AtomAdjacency { mask, n_vars } = adjacency;
-    let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
+    let bayesian = study.inference.is_bayesian();
     let ResponseFunctional::MeanCurve { outcome, treatment: tx } = &query.functional else {
         return Err(CausalError::Unsupported {
             message: "ADMG graph-posterior response is licensed for InterventionResponse and \

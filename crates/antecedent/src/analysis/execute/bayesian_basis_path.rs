@@ -130,9 +130,7 @@ impl Study {
         };
         if cfg.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
             || cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-            || cfg.prior.is_some()
-            || cfg.prior_artifact.is_some()
-            || cfg.external_compose.is_some()
+            || cfg.has_transfer()
         {
             return Err(CausalError::Unsupported {
                 message: "bayesian.basis.gcomp requires the conjugate GaussianIdentity backend with its declared isotropic shrinkage prior; transferred or composed priors are not supported",

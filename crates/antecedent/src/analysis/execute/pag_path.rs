@@ -167,10 +167,34 @@ impl AdmgLevelFits {
 }
 
 /// Names a CPDAG/PAG class path in its refusals and disclosures.
-#[derive(Clone, Copy)]
-struct ClassAteLabel {
-    tag: &'static str,
-    upper: &'static str,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ClassTag {
+    Cpdag,
+    Pag,
+}
+
+impl ClassTag {
+    /// Lowercase tag used in diagnostic ids and prose.
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cpdag => "cpdag",
+            Self::Pag => "pag",
+        }
+    }
+
+    /// Uppercase name used at the head of a refusal.
+    const fn upper(self) -> &'static str {
+        match self {
+            Self::Cpdag => "CPDAG",
+            Self::Pag => "PAG",
+        }
+    }
+}
+
+impl std::fmt::Display for ClassTag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// Per-completion results of a class ATE, accumulated in envelope order.
@@ -381,7 +405,7 @@ impl super::Study {
             data,
             admg,
             curve,
-            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
+            bayesian: self.inference.is_bayesian(),
             identifier_id,
             estimator_id,
             treatment,
@@ -649,7 +673,7 @@ impl super::Study {
             },
             identification,
             Strategy::new(identifier_id, estimator_id),
-            ClassAteLabel { tag: "pag", upper: "PAG" },
+            ClassTag::Pag,
         )
         .map(|result| self.attach_certificate(result, certificate))
     }
@@ -689,7 +713,7 @@ impl super::Study {
             },
             identification,
             Strategy::new(identifier_id, estimator_id),
-            ClassAteLabel { tag: "cpdag", upper: "CPDAG" },
+            ClassTag::Cpdag,
         )
         .map(|result| self.attach_certificate(result, certificate))
     }
@@ -703,17 +727,15 @@ impl super::Study {
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
         strategy: Strategy,
-        label: ClassAteLabel,
+        label: ClassTag,
     ) -> Result<StudyResult, CausalError> {
-        let ClassAteLabel { tag, upper } = label;
+        let (tag, upper) = (label.as_str(), label.upper());
         let estimator_id = strategy.estimator;
         let envelope = run.envelope;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if matches!(self.inference, InferenceMode::Bayesian(_))
-                || matches!(estimator_id, EstimatorId::BayesianGcomp)
-            {
+            if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianGcomp) {
                 return self.execute_pag_nonidentified_prior(query, run, identification, tag);
             }
             return Err(CausalError::not_identified(
@@ -723,7 +745,7 @@ impl super::Study {
             ));
         }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self.execute_pag_bayesian(data, query, run, identification, tag);
+            return self.execute_pag_bayesian(data, query, run, identification, label);
         }
         self.finish_class_ate_frequentist(data, query, run, identification, strategy, label)
     }
@@ -736,9 +758,9 @@ impl super::Study {
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
         strategy: Strategy,
-        label: ClassAteLabel,
+        label: ClassTag,
     ) -> Result<StudyResult, CausalError> {
-        let ClassAteLabel { tag, upper } = label;
+        let (tag, upper) = (label.as_str(), label.upper());
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let ClassEnvelopeRun {
             run: ExecuteRun { physical, ctx, started, identify_cached },

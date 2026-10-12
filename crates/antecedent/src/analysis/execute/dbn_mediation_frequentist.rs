@@ -1,5 +1,5 @@
-// Frequentist DBN-posterior temporal mediation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Frequentist DBN-posterior temporal mediation.
 
 use super::temporal_posterior_response::dbn_posterior_structural_atoms;
 use super::{

@@ -1,5 +1,5 @@
-// Shared circular-block mixture SE for temporal class / DBN envelopes.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Shared circular-block mixture SE for temporal class / DBN envelopes.
 
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,

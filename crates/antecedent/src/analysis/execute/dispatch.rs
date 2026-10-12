@@ -12,8 +12,8 @@ use super::{
     PhysicalExecutionPlan, RefuteSuite, ResponseQuery, RouteInput, StaticMediationSource, Strategy,
     StudyResult, TableView, TabularData, TimeSeriesData, VariableId, admg_has_bidirected,
     admg_without_latents_to_dag, classify_analysis_route, classify_route, data_modality,
-    graph_posterior_response_supported, reject_dag_only_on_pag, response_functional_is_derivative,
-    temporal_admg_projection,
+    graph_posterior_response_supported, is_class_atom, reject_dag_only_on_pag,
+    response_functional_is_derivative, temporal_admg_projection,
 };
 use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
 use crate::graph::Dag;
@@ -26,6 +26,22 @@ pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "response queries, and series temporal-effect, temporal-mediation, or temporal ",
     "response queries only",
 );
+
+/// The refusal for a route whose data or query kind disagrees with the one the route was
+/// classified from. Classification reads both, so reaching this means a caller swapped the
+/// study's data or query between planning and execution.
+fn route_mismatch() -> CausalError {
+    CausalError::Compile {
+        message: "execution route does not match the study's data or query kind".into(),
+    }
+}
+
+/// The wire names of a typed identifier/estimator pair, as plan records carry them.
+pub(super) fn wire_pair(
+    (identifier, estimator): (IdentifierId, EstimatorId),
+) -> (Arc<str>, Arc<str>) {
+    (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+}
 
 impl super::Study {
     /// The estimator the caller selected, or `None` for a builder placeholder.
@@ -70,7 +86,7 @@ impl super::Study {
                     self.query,
                     CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)
                 )
-                || !matches!(self.inference, InferenceMode::Bayesian(_)))
+                || !self.inference.is_bayesian())
         {
             return Err(CausalError::Unsupported {
                 message: "bayesian.basis.gcomp requires Bayesian inference, tabular data, a supplied DAG, and an ATE or CATE query",
@@ -270,8 +286,8 @@ impl super::Study {
                 });
             }
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_), GraphClass::Pag) => {
-                let (identifier, _) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
+                let (identifier, _) = self.resolve_pag_ids();
+                reject_dag_only_on_pag(&self.graph, identifier)?;
             }
             _ => {}
         }
@@ -302,10 +318,9 @@ impl super::Study {
             if let Some(est) = &self.estimator {
                 let multi_step = matches!(
                     &self.query,
-                    CausalQuery::TemporalEffect(q)
-                        if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                    CausalQuery::TemporalEffect(q) if q.is_multi_step_sustained()
                 );
-                let bayesian = matches!(self.inference, crate::InferenceMode::Bayesian(_));
+                let bayesian = self.inference.is_bayesian();
                 let ok = *est == EstimatorId::TemporalLinearAdjustment
                     || (multi_step && *est == EstimatorId::TemporalSequentialGcomp)
                     || (bayesian && !multi_step && *est == EstimatorId::BayesianTemporalGcomp);
@@ -329,34 +344,51 @@ impl super::Study {
         default_identifier: IdentifierId,
         default_estimator: EstimatorId,
     ) -> (Arc<str>, Arc<str>) {
-        let identifier = self.identifier.unwrap_or(default_identifier);
-        let estimator = self.estimator.unwrap_or(default_estimator);
-        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+        wire_pair(self.resolve_id_est_ids(default_identifier, default_estimator))
+    }
+
+    /// [`Self::resolve_id_est_pair`] as typed ids.
+    fn resolve_id_est_ids(
+        &self,
+        default_identifier: IdentifierId,
+        default_estimator: EstimatorId,
+    ) -> (IdentifierId, EstimatorId) {
+        (self.identifier.unwrap_or(default_identifier), self.estimator.unwrap_or(default_estimator))
     }
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     pub(super) fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_static_ids())
+    }
+
+    /// [`Self::resolve_static_pair`] as typed ids.
+    pub(super) fn resolve_static_ids(&self) -> (IdentifierId, EstimatorId) {
         let identifier = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
         let estimator = if identifier == IdentifierId::GeneralId {
             self.estimator
                 .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
                 .unwrap_or(EstimatorId::FunctionalEffect)
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        } else if self.inference.is_bayesian() {
             self.estimator.unwrap_or(EstimatorId::BayesianGcomp)
         } else {
             self.estimator.unwrap_or(DEFAULT_ESTIMATOR_ID)
         };
-        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+        (identifier, estimator)
     }
 
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
     pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
-        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        wire_pair(self.resolve_pag_ids())
+    }
+
+    /// [`Self::resolve_pag_pair`] as typed ids.
+    pub(super) fn resolve_pag_ids(&self) -> (IdentifierId, EstimatorId) {
+        let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianGcomp
         } else {
             DEFAULT_PAG_ESTIMATOR_ID
         };
-        self.resolve_id_est_pair(DEFAULT_PAG_IDENTIFIER_ID, estimator)
+        self.resolve_id_est_ids(DEFAULT_PAG_IDENTIFIER_ID, estimator)
     }
 
     /// Incomplete TemporalCpdag/Pag pulse: envelope identifier + temporal linear estimator.
@@ -373,29 +405,39 @@ impl super::Study {
     /// A same-tier bidirected clique must not kick a licensed AIPW study onto the
     /// functional-effect identifier.
     pub(super) fn resolve_admg_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_admg_ids())
+    }
+
+    /// [`Self::resolve_admg_pair`] as typed ids.
+    pub(super) fn resolve_admg_ids(&self) -> (IdentifierId, EstimatorId) {
         if self
             .tiered
             .as_ref()
             .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
         {
-            self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
+            self.resolve_id_est_ids(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
         } else {
             let identifier = self.identifier.unwrap_or(DEFAULT_ADMG_IDENTIFIER_ID);
             let estimator = self.caller_selected_estimator().unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
-            (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+            (identifier, estimator)
         }
     }
 
     /// Resolve identifier/estimator for `ConditionalEffect`.
     pub(super) fn resolve_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
-        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        wire_pair(self.resolve_conditional_ids())
+    }
+
+    /// [`Self::resolve_conditional_pair`] as typed ids.
+    pub(super) fn resolve_conditional_ids(&self) -> (IdentifierId, EstimatorId) {
+        let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
         } else {
             DEFAULT_CONDITIONAL_ESTIMATOR_ID
         };
         (
-            Arc::from(self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID).as_str()),
-            Arc::from(self.caller_selected_estimator().unwrap_or(estimator).as_str()),
+            self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID),
+            self.caller_selected_estimator().unwrap_or(estimator),
         )
     }
 
@@ -411,9 +453,7 @@ impl super::Study {
 
     /// Resolve the response estimator from the functional when the caller did not override it.
     pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
-        if matches!(self.inference, InferenceMode::Bayesian(_))
-            && !response_functional_is_derivative(&query.functional)
-        {
+        if self.inference.is_bayesian() && !response_functional_is_derivative(&query.functional) {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID).as_str()),
                 Arc::from(
@@ -439,7 +479,7 @@ impl super::Study {
         &self,
         query: &ResponseQuery,
     ) -> (Arc<str>, Arc<str>) {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
                 Arc::from(
@@ -458,16 +498,19 @@ impl super::Study {
 
     /// Resolve identifier/estimator for Cpdag/Pag `ConditionalEffect`.
     pub(super) fn resolve_class_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
-        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        wire_pair(self.resolve_class_conditional_ids())
+    }
+
+    /// [`Self::resolve_class_conditional_pair`] as typed ids.
+    pub(super) fn resolve_class_conditional_ids(&self) -> (IdentifierId, EstimatorId) {
+        let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
         } else {
             EstimatorId::ConditionalLinearAdjustment
         };
         (
-            Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
-            Arc::from(
-                self.estimator_spec.as_deref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
-            ),
+            self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID),
+            self.estimator_spec.as_deref().map_or(estimator, crate::EstimatorSpec::id),
         )
     }
 
@@ -481,11 +524,12 @@ impl super::Study {
         (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
-    pub(super) fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), CausalError> {
-        if matches!(
-            estimator.parse::<EstimatorId>()?,
-            EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear
-        ) && self.rd.is_none()
+    pub(super) fn ensure_rd_config_present(
+        &self,
+        estimator: EstimatorId,
+    ) -> Result<(), CausalError> {
+        if matches!(estimator, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)
+            && self.rd.is_none()
         {
             return Err(CausalError::Compile {
                 message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
@@ -548,11 +592,8 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if let (DataInput::Temporal(series) | DataInput::Event(series), true) = (
             data,
-            matches!(
-                gp.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            ) && super::temporal_class_point::temporal_class_point_family(&self.query),
+            is_class_atom(gp.atom_kind)
+                && super::temporal_class_point::temporal_class_point_family(&self.query),
         ) {
             return self.execute_temporal_class_graph_posterior_family(series, gp, physical, ctx);
         }
@@ -612,7 +653,7 @@ impl super::Study {
         }
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+                let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
                 self.execute_tabular_route(
                     route,
                     data,
@@ -623,7 +664,7 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalCrossWorld) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class_cross_world(data, physical, ctx);
@@ -635,9 +676,9 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
+                let CausalQuery::Mediation(q) = &self.query else { return Err(route_mismatch()) };
                 if self.graph.class() == GraphClass::TemporalCpdag {
                     return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
                 }
@@ -648,9 +689,11 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalEffect) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                let CausalQuery::TemporalEffect(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class(data, q, physical, ctx);
                 }
@@ -661,9 +704,9 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalResponse) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class_response(data, q, physical, ctx);
                 }
@@ -694,8 +737,8 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Panel(panel) = data else { unreachable!() };
-        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+        let DataInput::Panel(panel) = data else { return Err(route_mismatch()) };
+        let CausalQuery::TemporalEffect(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class(panel, q, physical, ctx);
         }
@@ -712,8 +755,8 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Panel(panel) = data else { unreachable!() };
-        let CausalQuery::Response(q) = &self.query else { unreachable!() };
+        let DataInput::Panel(panel) = data else { return Err(route_mismatch()) };
+        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class_response(panel, q, physical, ctx);
         }
@@ -730,8 +773,8 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::MultiEnv(multi) = data else { unreachable!() };
-        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+        let DataInput::MultiEnv(multi) = data else { return Err(route_mismatch()) };
+        let CausalQuery::TemporalEffect(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return Err(CausalError::Unsupported {
                 message: "multi-environment data supports only a supplied TemporalDag",
@@ -828,7 +871,9 @@ impl super::Study {
                 self.execute_tabular_distribution_route(data, physical, execution, ctx)
             }
             AnalysisRoute::PathSpecific => {
-                let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
+                let CausalQuery::PathSpecific(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self
                     .require_execute_dag("PathSpecific execute requires a supplied static DAG")?;
                 self.execute_path_specific(data, graph, q, physical, ctx)
@@ -840,40 +885,48 @@ impl super::Study {
                 self.execute_tabular_static_mediation_route(data, physical, execution, ctx)
             }
             AnalysisRoute::Counterfactual => {
-                let CausalQuery::Counterfactual(q) = &self.query else { unreachable!() };
+                let CausalQuery::Counterfactual(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self
                     .require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
             }
             AnalysisRoute::Anomaly => {
-                let CausalQuery::AnomalyAttribution(q) = &self.query else { unreachable!() };
+                let CausalQuery::AnomalyAttribution(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self.require_execute_dag(
                     "AnomalyAttribution execute requires a supplied static DAG",
                 )?;
                 self.execute_anomaly(data, graph, q, physical, ctx)
             }
             AnalysisRoute::ChangeAttribution => {
-                let CausalQuery::ChangeAttribution(q) = &self.query else { unreachable!() };
+                let CausalQuery::ChangeAttribution(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self.require_execute_dag(
                     "ChangeAttribution execute requires a supplied static DAG",
                 )?;
                 self.execute_change_attribution(data, graph, q, physical, ctx)
             }
             AnalysisRoute::MechanismChange => {
-                let CausalQuery::MechanismChange(q) = &self.query else { unreachable!() };
+                let CausalQuery::MechanismChange(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self.require_execute_dag(
                     "MechanismChange execute requires a supplied static DAG",
                 )?;
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
             AnalysisRoute::UnitChange => {
-                let CausalQuery::UnitChange(q) = &self.query else { unreachable!() };
+                let CausalQuery::UnitChange(q) = &self.query else { return Err(route_mismatch()) };
                 let graph =
                     self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
             AnalysisRoute::Transport => {
-                let CausalQuery::Transport(q) = &self.query else { unreachable!() };
+                let CausalQuery::Transport(q) = &self.query else { return Err(route_mismatch()) };
                 self.execute_transport(data, q, physical, ctx)
             }
             AnalysisRoute::Interference => {
@@ -912,7 +965,7 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Response(q) = &self.query else { unreachable!() };
+        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.graph_ref() {
             GraphRef::Dag(graph) => {
                 self.execute_response(data, graph, q, physical, execution.response_curve(), ctx)
@@ -967,15 +1020,15 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
-        if let Some(background) = self.tiered.clone() {
+        let CausalQuery::AverageEffect(q) = &self.query else { return Err(route_mismatch()) };
+        if let Some(background) = &self.tiered {
             let (identifier, estimator) = physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
             return self.execute_tiered_average(
                 data,
                 q,
                 physical,
                 ctx,
-                &background,
+                background,
                 Strategy::new(identifier, estimator),
             );
         }
@@ -1030,7 +1083,7 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
+        let CausalQuery::Distribution(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.graph_ref() {
             GraphRef::Dag(graph) => self.execute_distribution(
                 data,
@@ -1072,7 +1125,7 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
+        let CausalQuery::ConditionalEffect(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.class() {
             GraphClass::Dag => {
                 let graph = self.require_execute_dag(
@@ -1106,7 +1159,7 @@ impl super::Study {
             CausalQuery::NestedCounterfactual(q) => {
                 self.execute_nested_counterfactual(data, graph, q, physical, execution, ctx)
             }
-            _ => unreachable!(),
+            _ => Err(route_mismatch()),
         }
     }
 
@@ -1117,7 +1170,7 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Interference(q) = &self.query else { unreachable!() };
+        let CausalQuery::Interference(q) = &self.query else { return Err(route_mismatch()) };
         if matches!(
             q.assignment,
             antecedent_core::AssignmentDesign::ClusterRandomization { .. }
@@ -1154,7 +1207,7 @@ impl super::Study {
         let mediation = operation.mediation_query();
         let mut result =
             self.execute_static_mediation_total(data, graph, mediation, physical, ctx)?;
-        let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
+        let bayesian = self.inference.is_bayesian();
         // Both inference modes publish the shared-exogenous natural
         // direct effect. That plugin is the outcome-regression slope
         // the contract replays; the mediation posterior mean is not.
@@ -1329,7 +1382,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self
                 .identifier
@@ -1351,7 +1404,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianRobustAte)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
@@ -1371,7 +1424,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
@@ -1404,7 +1457,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianGcomp)
             && self
                 .identifier
@@ -1424,7 +1477,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianConditional)
             && self
                 .identifier
@@ -1456,7 +1509,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticMediationDag {
@@ -1476,7 +1529,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.split.is_none()
             && self.custom_validators.is_empty()
             && self.point_validation()
@@ -1499,7 +1552,6 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && self
@@ -1533,7 +1585,7 @@ impl super::Study {
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.as_ref().is_some_and(|posterior| {
             posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
-        }) && matches!(self.inference, InferenceMode::Frequentist)
+        }) && self.inference.is_frequentist()
             && self.point_validation()
             && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
@@ -1547,13 +1599,8 @@ impl super::Study {
                 );
             }
         }
-        if self.graph_posterior.as_ref().is_some_and(|posterior| {
-            matches!(
-                posterior.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        }) && matches!(self.inference, InferenceMode::Frequentist)
+        if self.graph_posterior.as_ref().is_some_and(|posterior| is_class_atom(posterior.atom_kind))
+            && self.inference.is_frequentist()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
             if let Some(
@@ -1584,7 +1631,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.point_validation()
             && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::ConditionalLinearAdjustment)
@@ -1603,7 +1650,6 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticResponseDag { data, query, .. }) = route {
@@ -1659,7 +1705,7 @@ impl super::Study {
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
         {
@@ -1730,7 +1776,7 @@ impl super::Study {
         // preparation; nearby estimators execute through the ordinary dispatcher.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(
                 super::super::prepared::checked_aipw_fitter(self).overlap,
@@ -1779,7 +1825,7 @@ impl super::Study {
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(
                 route,
@@ -1791,7 +1837,7 @@ impl super::Study {
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(route, Some(RouteInput::StaticAteDag { .. }));
         let checked_propensity = matches!(
@@ -1800,7 +1846,7 @@ impl super::Study {
         ) && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(
                 route,
@@ -1870,7 +1916,6 @@ impl super::Study {
             }
         }
         if self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
             && self.graph_posterior.as_ref().is_some_and(|posterior| {
                 matches!(
@@ -1926,7 +1971,7 @@ impl super::Study {
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && self.shared_batch_design.is_none()
             && self.continuous_cell.is_none()
@@ -1953,7 +1998,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
             && self.estimator.is_none_or(|id| id == EstimatorId::BayesianGcomp)
             && matches!(
@@ -1997,14 +2042,10 @@ impl super::Study {
             crate::analysis::GraphPosteriorEffectTarget::from_query(&self.query),
             &self.data,
         ) {
-            let class_atoms = matches!(
-                posterior.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            );
+            let class_atoms = is_class_atom(posterior.atom_kind);
             let dag_atoms =
                 posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag;
-            let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
+            let bayesian = self.inference.is_bayesian();
             let expected =
                 if bayesian { target.bayesian_estimator() } else { target.frequentist_estimator() };
             let identifier = if class_atoms {
@@ -2048,7 +2089,6 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && self.observation_delayed_entry.is_none()
@@ -2133,7 +2173,7 @@ impl super::Study {
             && self.tiered.is_none()
             && self.split.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
         {
@@ -2179,7 +2219,7 @@ impl super::Study {
         // operation admits executes through the ordinary dispatcher below.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
             && matches!(
                 self.estimator_spec.as_deref(),
@@ -2228,7 +2268,6 @@ impl super::Study {
             && self.graph.class() == GraphClass::Admg
             && self.graph.as_admg().is_some_and(admg_has_bidirected)
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
             && self.identifier.is_none_or(|identifier| identifier == IdentifierId::GeneralId)
             && self.estimator.is_none_or(|estimator| estimator == EstimatorId::FunctionalEffect)
@@ -2256,7 +2295,7 @@ impl super::Study {
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.custom_validators.is_empty()
             && self.point_validation()
             && matches!(self.query, CausalQuery::Mediation(_))

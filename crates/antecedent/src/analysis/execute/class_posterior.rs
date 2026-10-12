@@ -153,7 +153,7 @@ impl super::Study {
         class_tag: &str,
     ) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
+        if self.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
                 DiagnosticKind::Scientific,

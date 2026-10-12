@@ -42,7 +42,7 @@ impl super::Study {
                 message: "bayesian.robust_ate requires Bayesian inference".into(),
             });
         };
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
                 message: "bayesian.robust_ate uses a Bayesian-bootstrap row law and does not accept coefficient or transferred priors",
             });
@@ -90,7 +90,7 @@ impl super::Study {
         inference: &InferenceMode,
         query: &AverageEffectQuery,
     ) -> Result<(), CausalError> {
-        if !matches!(inference, InferenceMode::Bayesian(_)) {
+        if !inference.is_bayesian() {
             return Err(CausalError::Unsupported {
                 message: "bayesian.robust_ate requires Bayesian inference",
             });

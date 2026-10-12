@@ -1,5 +1,5 @@
-// Imbens–Manski / product-posterior envelope diagnostics for class mixtures.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Imbens–Manski / product-posterior envelope diagnostics for class mixtures.
 
 use super::{
     CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,

@@ -14,9 +14,9 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefuteSuite, Strategy, Study, StudyResult, TabularData, elapsed_ns,
-    mass_fields, overlap_diagnostic, provenance_ids, resolve_posterior_status,
+    IdentifiedKeyWeights, IdentifierId, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
+    RefuteSuite, Strategy, Study, StudyResult, TabularData, elapsed_ns, mass_fields,
+    overlap_diagnostic, provenance_ids, resolve_posterior_status,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
@@ -205,7 +205,7 @@ impl super::Study {
     /// Withheld-posterior, class-envelope, aggregation-policy and overlap disclosures.
     fn admg_graph_posterior_diagnostics(&self, mixed: &MixedAdmgPosterior) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
+        if self.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
                 DiagnosticKind::Scientific,
