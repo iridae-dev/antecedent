@@ -1403,7 +1403,7 @@ impl super::Study {
                     },
                     identification,
                     Strategy::new(identifier_id, estimator_id),
-                    "pag",
+                    super::pag_path::ClassTag::Pag,
                 )
                 .map(|result| {
                     self.attach_certificate(
@@ -1442,7 +1442,7 @@ impl super::Study {
                     },
                     identification,
                     Strategy::new(identifier_id, estimator_id),
-                    "cpdag",
+                    super::pag_path::ClassTag::Cpdag,
                 )
                 .map(|result| {
                     self.attach_certificate(
@@ -1468,7 +1468,7 @@ impl super::Study {
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
         strategy: Strategy,
-        class_tag: &str,
+        class_tag: super::pag_path::ClassTag,
     ) -> Result<StudyResult, CausalError> {
         let estimator_id = strategy.estimator;
         let envelope = run.envelope;
@@ -1490,7 +1490,7 @@ impl super::Study {
                     &query.inner,
                     run,
                     identification,
-                    class_tag,
+                    class_tag.as_str(),
                 );
             }
             return Err(CausalError::not_identified(
@@ -1524,7 +1524,7 @@ impl super::Study {
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
         strategy: Strategy,
-        class_tag: &str,
+        class_tag: super::pag_path::ClassTag,
     ) -> Result<StudyResult, CausalError> {
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let ClassEnvelopeRun {
@@ -1540,7 +1540,7 @@ impl super::Study {
         let mut diagnostics = vec![envelope_diag];
         let atoms =
             evaluate_conditional_atoms(data, &data_est, query, envelope, estimator_id, ctx)?;
-        let (mut estimate, estimand, n_contributing) = atoms.pooled_estimate(class_tag)?;
+        let (mut estimate, estimand, n_contributing) = atoms.pooled_estimate(class_tag.as_str())?;
         let ConditionalAtoms { refute_atoms, grid_atoms, outcomes, .. } = atoms;
         if query.inner.outcome_functional.thresholds().is_some()
             || query.inner.outcome_functional.quantile_level().is_some()
@@ -1580,7 +1580,8 @@ impl super::Study {
             super::pag_path::static_class_structural_mixture(envelope, &outcomes);
         if let Some(mixture) = structural_response.as_ref() {
             diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
-                mixture, class_tag,
+                mixture,
+                class_tag.as_str(),
             ));
         }
         Ok(self.finish_identified_execute(

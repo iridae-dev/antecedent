@@ -1205,8 +1205,9 @@ impl super::Study {
         query: &AverageEffectQuery,
         run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
-        class_tag: &str,
+        class_tag: super::pag_path::ClassTag,
     ) -> Result<StudyResult, CausalError> {
+        let class_tag = class_tag.as_str();
         let ClassEnvelopeRun {
             run: ExecuteRun { physical, ctx, started, identify_cached },
             envelope,
