@@ -548,24 +548,31 @@ impl Source<'_> {
     fn screen(self, action: &DecisionAction) -> Option<(FeasibilityStatus, &'static str)> {
         let mut missing = false;
         let mut masked = false;
-        for wanted in &action.inputs {
-            match self {
-                Self::Law(artifact) => {
-                    let found = artifact.quantities().iter().position(|candidate| {
-                        ScientificQuantity::try_from(candidate.clone())
-                            .is_ok_and(|q| q.require_same_coordinate(wanted).is_ok())
-                    });
-                    match found {
+        match self {
+            Self::Law(artifact) => {
+                let parsed: Vec<Option<ScientificQuantity>> = artifact
+                    .quantities()
+                    .iter()
+                    .map(|candidate| ScientificQuantity::try_from(candidate.clone()).ok())
+                    .collect();
+                let mask = artifact.metadata().supported.as_deref();
+                for wanted in &action.inputs {
+                    match parsed.iter().position(|quantity| {
+                        quantity.as_ref().is_some_and(|quantity| {
+                            quantity.require_same_coordinate(wanted).is_ok()
+                        })
+                    }) {
                         None => missing = true,
                         Some(column) => {
-                            let mask = artifact.metadata().supported.as_deref();
                             if mask.is_some_and(|m| m.get(column).is_some_and(|ok| !*ok)) {
                                 masked = true;
                             }
                         }
                     }
                 }
-                Self::Means(means) => {
+            }
+            Self::Means(means) => {
+                for wanted in &action.inputs {
                     if !means.coordinates.iter().any(|c| c.require_same_coordinate(wanted).is_ok())
                     {
                         missing = true;

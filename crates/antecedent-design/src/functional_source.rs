@@ -152,7 +152,7 @@ impl LawFunctionalArtifact {
             .actions
             .iter()
             .find(|action| action.id == self.action)
-            .expect("evaluated action");
+            .ok_or_else(|| functional_invalid("functional_source.missing_action"))?;
         Ok(serde_json::json!({
             "identity":blake3_hex(&self.export()?),
             "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{}:{}", self.result.source_mode.representation.label(), self.result.source_mode.needs_error_receipt),
@@ -162,10 +162,14 @@ impl LawFunctionalArtifact {
             "contributors":action.utility.inputs_used().iter().filter_map(|index|action.inputs.get(*index)).map(antecedent_io_core::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),
             "verification_scope":"original finite law and functional replay; source labels preserve declared standing",
             "native_authority_issued":false,"calibration_license_issued":false,
-            "lineage":chain.links().iter().map(|link| serde_json::json!({
-                "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":chain.digest_of(&link.id).expect("validated link"),
-                "parent_digests":link.parents.iter().map(|id|chain.digest_of(id).expect("validated parent")).collect::<Vec<_>>()
-            })).collect::<Vec<_>>()
+            "lineage":chain.links().iter().map(|link| {
+                let digest = chain.digest_of(&link.id).map_err(|_| functional_invalid("functional_source.invalid_source"))?;
+                let parent_digests = link.parents.iter().map(|id| chain.digest_of(id).map_err(|_| functional_invalid("functional_source.invalid_source"))).collect::<Result<Vec<_>, _>>()?;
+                Ok::<_, IoError>(serde_json::json!({
+                    "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":digest,
+                    "parent_digests":parent_digests
+                }))
+            }).collect::<Result<Vec<_>, _>>()?
         }))
     }
     /// Export full original law rows, weights, axes, coupling and request for replay.

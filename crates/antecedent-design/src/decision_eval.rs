@@ -184,20 +184,33 @@ struct Table {
     weights: Vec<f64>,
 }
 
+/// Each source coordinate, parsed once. A wire that does not convert is skipped,
+/// matching the old per-lookup `try_from` filter.
+fn parsed_quantities(source: &DistributionArtifact) -> Vec<Option<ScientificQuantity>> {
+    source
+        .quantities()
+        .iter()
+        .map(|candidate| ScientificQuantity::try_from(candidate.clone()).ok())
+        .collect()
+}
+
 fn locate(
-    source: &DistributionArtifact,
+    parsed: &[Option<ScientificQuantity>],
     action: &str,
     position: usize,
     wanted: &ScientificQuantity,
 ) -> Result<usize, DecisionEvalError> {
-    let found = source.quantities().iter().position(|candidate| {
-        ScientificQuantity::try_from(candidate.clone())
-            .is_ok_and(|q| q.require_same_coordinate(wanted).is_ok())
-    });
-    found.ok_or_else(|| DecisionEvalError::QuantityNotFound {
-        action: action.to_owned(),
-        input: position,
-    })
+    parsed
+        .iter()
+        .position(|quantity| {
+            quantity
+                .as_ref()
+                .is_some_and(|quantity| quantity.require_same_coordinate(wanted).is_ok())
+        })
+        .ok_or_else(|| DecisionEvalError::QuantityNotFound {
+            action: action.to_owned(),
+            input: position,
+        })
 }
 
 /// Utilities of the contract's actions (or of action `only` alone) on `source`.
@@ -205,6 +218,15 @@ fn build_table(
     contract: &DecisionContract,
     source: &DistributionArtifact,
     only: Option<usize>,
+) -> Result<Table, DecisionEvalError> {
+    build_table_with(contract, source, only, &parsed_quantities(source))
+}
+
+fn build_table_with(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+    only: Option<usize>,
+    parsed: &[Option<ScientificQuantity>],
 ) -> Result<Table, DecisionEvalError> {
     let alignment = source.metadata().identity.alignment;
     if alignment != DrawAlignment::Joint {
@@ -231,7 +253,7 @@ fn build_table(
         }
         let mut columns = Vec::with_capacity(action.inputs.len());
         for (position, quantity) in action.inputs.iter().enumerate() {
-            let column = locate(source, &action.id, position, quantity)?;
+            let column = locate(&parsed, &action.id, position, quantity)?;
             if mask.is_some_and(|m| !m[column]) {
                 return Err(DecisionEvalError::UnsupportedCoordinate {
                     action: action.id.clone(),
@@ -302,7 +324,8 @@ pub fn evaluate_contract(
             "needs identified-set or structure inputs, not one draw source",
         ));
     }
-    let table = build_table(contract, source, None)?;
+    let parsed = parsed_quantities(source);
+    let table = build_table_with(contract, source, None, &parsed)?;
     let n = source.n_draws();
     // An exact finite law has no sampling error: its draws are the distribution.
     let exact = source.metadata().calibration == DistributionCalibration::Exact;
@@ -319,7 +342,7 @@ pub fn evaluate_contract(
                 .inputs
                 .iter()
                 .enumerate()
-                .map(|(p, q)| locate(source, &action.id, p, q))
+                .map(|(p, q)| locate(&parsed, &action.id, p, q))
                 .collect::<Result<_, _>>()?;
             let [_, width] = source.shape();
             let mut held = 0.0;
@@ -386,7 +409,12 @@ pub fn evaluate_contract(
                     utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
                 (weighted_mean(&indicator, weights), exact.then_some(0.0))
             }
-            DecisionCriterion::Quantile { p } => (left_inverse(utility, weights, p), None),
+            DecisionCriterion::Quantile { p } => (
+                left_inverse(utility, weights, p).ok_or_else(|| {
+                    DecisionEvalError::NonFiniteUtility { action: action.id.clone() }
+                })?,
+                None,
+            ),
             DecisionCriterion::ExpectedRegret if is_admissible => {
                 (weighted_mean(&regret, weights), exact.then_some(0.0))
             }
@@ -405,7 +433,7 @@ pub fn evaluate_contract(
         outcomes.push(ActionOutcome {
             id: action.id.clone(),
             admissible: is_admissible,
-            exclusions: exclusions[index].clone(),
+            exclusions: std::mem::take(&mut exclusions[index]),
             expected_utility,
             value,
             standard_error,
@@ -505,7 +533,7 @@ pub struct FunctionalValue {
 const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
 /// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF.
-fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
+fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> Option<f64> {
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
     let mut cumulative = 0.0;
@@ -515,10 +543,10 @@ fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
         }
         cumulative += weights[index];
         if cumulative >= p || (cumulative - p).abs() <= MASS_TOLERANCE * cumulative.max(p) {
-            return values[index];
+            return Some(values[index]);
         }
     }
-    values[*order.iter().rev().find(|&&i| weights[i] > 0.0).expect("positive total weight")]
+    order.iter().rev().find(|&&i| weights[i] > 0.0).map(|&index| values[index])
 }
 
 /// Mean of the lowest or highest probability mass `p`, splitting the boundary
@@ -693,7 +721,12 @@ impl ActionLaw {
                     .sum();
                 (mass, None)
             }
-            DecisionFunctional::Quantile { p } => (left_inverse(utility, weights, p), None),
+            DecisionFunctional::Quantile { p } => (
+                left_inverse(utility, weights, p).ok_or_else(|| {
+                    DecisionEvalError::NonFiniteUtility { action: action.id.clone() }
+                })?,
+                None,
+            ),
             DecisionFunctional::TailExpectation { p, tail } => {
                 (fractional_tail_mean(utility, weights, p, tail), None)
             }

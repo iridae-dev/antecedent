@@ -1275,12 +1275,16 @@ pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifac
     let report = inputs.report;
     let ranking = DesignRankingValue::from_evsi(report, inputs.source_digests)?;
     let decision = decision_wire(inputs)?;
+    let mut declared_by_id = BTreeMap::new();
+    for candidate in &inputs.request.candidates {
+        declared_by_id.entry(candidate.semantic_id.as_str()).or_insert(candidate);
+    }
     let mut candidates = Vec::with_capacity(report.candidates.len());
     for row in &report.candidates {
-        let declared =
-            inputs.request.candidates.iter().find(|c| c.semantic_id == row.semantic_id).ok_or(
-                DesignRankingArtifactError::InvalidWire("report names an unknown candidate"),
-            )?;
+        let declared = declared_by_id
+            .get(row.semantic_id.as_str())
+            .copied()
+            .ok_or(DesignRankingArtifactError::InvalidWire("report names an unknown candidate"))?;
         let prepared = declared.provider.prepare(&declared.signal_request)?;
         if prepared.receipt.identity() != row.signal_receipt.identity() {
             return Err(DesignRankingArtifactError::SignalInconsistent {
