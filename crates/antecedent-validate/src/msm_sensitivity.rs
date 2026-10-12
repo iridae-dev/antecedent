@@ -70,7 +70,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::fmt;
+use thiserror::Error;
 
 use antecedent_core::reason_code;
 
@@ -85,7 +85,7 @@ pub const MSM_MAX_GRID_POINTS: usize = 1024;
 /// Largest admitted `Lambda`.
 pub const MSM_MAX_LAMBDA: f64 = 1.0e3;
 /// Smallest admitted bisection tolerance.
-pub const MSM_MIN_TOLERANCE: f64 = 1e-12;
+pub const MSM_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
 /// Largest admitted bisection tolerance.
 pub const MSM_MAX_TOLERANCE: f64 = 1e-3;
 /// Largest admitted `|sum - 1|` of a stratum-mass vector or an outcome law.
@@ -171,7 +171,8 @@ impl MsmSensitivitySpec {
 }
 
 /// Typed refusal of the MSM contract.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Error)]
+#[error("{detail}: {message}")]
 pub struct MsmSensitivityError {
     /// Registered reason code.
     pub code: &'static str,
@@ -194,14 +195,6 @@ impl MsmSensitivityError {
         self.detail
     }
 }
-
-impl fmt::Display for MsmSensitivityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.detail, self.message)
-    }
-}
-
-impl std::error::Error for MsmSensitivityError {}
 
 fn refuse(
     code: &'static str,
@@ -553,30 +546,28 @@ fn tipping_of(
         bracket,
         tolerance: spec.tolerance,
     };
-    if reached(1.0) {
-        return done(
+    let crossing = match crate::tipping::first_crossing(
+        1.0,
+        spec.lambda_max,
+        spec.tolerance,
+        MSM_MAX_BISECTIONS,
+        reached,
+        |_| Ok::<(), std::convert::Infallible>(()),
+    ) {
+        Ok(crossing) => crossing,
+        // The hook is infallible; a budget stop is not part of this contract.
+        Err(infallible) => match infallible {},
+    };
+    match crossing {
+        crate::tipping::Crossing::AtOrigin => done(
             TippingStatus::ReachedAtOrigin,
             Some(TippingBracket { lower: 1.0, upper: 1.0, iterations: 0 }),
-        );
-    }
-    if !reached(spec.lambda_max) {
-        return done(TippingStatus::NotReachedInBox, None);
-    }
-    let (mut lower, mut upper) = (1.0_f64, spec.lambda_max);
-    let mut iterations = 0;
-    while upper - lower > spec.tolerance && iterations < MSM_MAX_BISECTIONS {
-        iterations += 1;
-        let middle = lower + (upper - lower) / 2.0;
-        if middle <= lower || middle >= upper {
-            break;
-        }
-        if reached(middle) {
-            upper = middle;
-        } else {
-            lower = middle;
+        ),
+        crate::tipping::Crossing::NotInInterval => done(TippingStatus::NotReachedInBox, None),
+        crate::tipping::Crossing::Bracket { lower, upper, iterations } => {
+            done(TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations }))
         }
     }
-    done(TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations }))
 }
 
 /// Marginal sensitivity model bounds of the stratified ATE over a `Lambda` grid, with

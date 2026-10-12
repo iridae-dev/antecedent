@@ -30,14 +30,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::fmt;
-
 use antecedent_core::{
     ExecutionContext, RegimeId, SearchBudget, SearchLimits, SearchReceipt, SearchStop, reason_code,
 };
 use antecedent_expr::ExactTransportData;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::BoundZTransportFunctional;
+use thiserror::Error;
 
 use crate::mechanism_sensitivity::{
     DiscreteKernelSensitivity, DiscreteKernelSensitivityError, DiscreteKernelSensitivityResult,
@@ -66,7 +65,7 @@ pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEA
 /// Hard cap on replicates of the (closed) endpoint bootstrap.
 pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 /// Smallest admitted bracketing tolerance.
-pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = 1e-12;
+pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
 /// Largest admitted bracketing tolerance.
 pub const JOINT_SENSITIVITY_MAX_TOLERANCE: f64 = 1e-2;
 /// Largest admitted `|sum - 1|` of the shared parent marginal (the one-factor
@@ -218,9 +217,10 @@ impl JointDeviationSpec {
 }
 
 /// Typed refusal of the joint sensitivity contract.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Error)]
 pub enum JointSensitivityError {
     /// A reason-coded refusal with its `joint_sensitivity.*` detail.
+    #[error("{detail}: {message}")]
     Refused {
         /// Registered reason code.
         code: &'static str,
@@ -230,6 +230,10 @@ pub enum JointSensitivityError {
         message: String,
     },
     /// The shared budget stopped before the range was computed.
+    #[error(
+        "{JOINT_SENSITIVITY_BUDGET_DETAIL}: the shared budget stopped before the range ({})",
+        .0.stop.code()
+    )]
     Budget(SearchReceipt),
 }
 
@@ -252,21 +256,6 @@ impl JointSensitivityError {
         }
     }
 }
-
-impl fmt::Display for JointSensitivityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Refused { detail, message, .. } => write!(f, "{detail}: {message}"),
-            Self::Budget(receipt) => write!(
-                f,
-                "{JOINT_SENSITIVITY_BUDGET_DETAIL}: the shared budget stopped before the range ({})",
-                receipt.stop.code()
-            ),
-        }
-    }
-}
-
-impl std::error::Error for JointSensitivityError {}
 
 fn refuse(
     code: &'static str,
@@ -720,8 +709,12 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
             "joint_sensitivity.invalid_fraction",
             error.to_string(),
         ),
+        ZTransportSensitivityError::Cancelled => refuse(
+            reason_code!("transport_budget_cancel"),
+            "joint_sensitivity.cancelled",
+            error.to_string(),
+        ),
         ZTransportSensitivityError::IncompleteKernel
-        | ZTransportSensitivityError::Cancelled
         | ZTransportSensitivityError::InvalidSensitivity(_) => refuse(
             reason_code!("transport_support_failure"),
             "joint_sensitivity.incomplete_kernel",
@@ -907,16 +900,6 @@ struct Bracketing<'b, 'c> {
 }
 
 impl Bracketing<'_, '_> {
-    /// Whether the response reaches the threshold at `t` along `line`, on the
-    /// same closed-form floating-point evaluation that reports the range.
-    fn reached(&self, line: Line, t: f64) -> bool {
-        let (minimum, maximum, ..) = match line {
-            Line::Kernel { parent } => self.factors.extrema_at(t, parent),
-            Line::Parent => self.factors.extrema_at(0.0, t),
-        };
-        if self.upward { maximum >= self.threshold } else { minimum <= self.threshold }
-    }
-
     /// Certified bisection of the first crossing on `[0, extent]`, charging
     /// every iteration (depth = iteration) with the cumulative live state;
     /// `Err` is the budget stop that left the line unresolved.
@@ -925,32 +908,35 @@ impl Bracketing<'_, '_> {
         line: Line,
         extent: f64,
     ) -> Result<(TippingStatus, Option<TippingBracket>), SearchStop> {
-        self.budget.charge(0, self.bytes)?;
-        if self.reached(line, 0.0) {
-            return Ok((
+        let bytes = self.bytes;
+        self.budget.charge(0, bytes)?;
+        let factors = self.factors;
+        let upward = self.upward;
+        let threshold = self.threshold;
+        let crossing = crate::tipping::first_crossing(
+            0.0,
+            extent,
+            self.tolerance,
+            usize::MAX,
+            |t| {
+                let (minimum, maximum, ..) = match line {
+                    Line::Kernel { parent } => factors.extrema_at(t, parent),
+                    Line::Parent => factors.extrema_at(0.0, t),
+                };
+                if upward { maximum >= threshold } else { minimum <= threshold }
+            },
+            |iteration| self.budget.charge(iteration, bytes),
+        )?;
+        Ok(match crossing {
+            crate::tipping::Crossing::AtOrigin => (
                 TippingStatus::ReachedAtOrigin,
                 Some(TippingBracket { lower: 0.0, upper: 0.0, iterations: 0 }),
-            ));
-        }
-        if extent <= 0.0 || !self.reached(line, extent) {
-            return Ok((TippingStatus::NotReachedInBox, None));
-        }
-        let (mut lower, mut upper) = (0.0_f64, extent);
-        let mut iterations = 0;
-        while upper - lower > self.tolerance {
-            iterations += 1;
-            self.budget.charge(iterations, self.bytes)?;
-            let middle = lower + (upper - lower) / 2.0;
-            if middle <= lower || middle >= upper {
-                break;
+            ),
+            crate::tipping::Crossing::NotInInterval => (TippingStatus::NotReachedInBox, None),
+            crate::tipping::Crossing::Bracket { lower, upper, iterations } => {
+                (TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations }))
             }
-            if self.reached(line, middle) {
-                upper = middle;
-            } else {
-                lower = middle;
-            }
-        }
-        Ok((TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations })))
+        })
     }
 }
 
