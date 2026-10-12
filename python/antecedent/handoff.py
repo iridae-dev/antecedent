@@ -16,8 +16,11 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
-from .errors import CausalError, CausalUnsupportedError, CausalValueError
+from ._digest import canonical_digest
+from .errors import CausalError
 from .estimation import IdentifyResult
+from .extensibility import ProviderRefusal, ProviderValueRefusal
+from .extensibility import _refuse as _provider_refuse
 from .identify import Identification
 from .ids import Identifier
 from .results import AnalysisResult, CausalResponseView, IdentificationView
@@ -41,6 +44,37 @@ _GRAPH_POSTERIOR_MARKERS = ("posterior", "mcmc")
 # ``CausalProviderSpec`` digests match the EconML-named handoff.
 _DEFAULT_TOOL = "antecedent.handoff.EconMLSpec"
 _DEFAULT_ADAPTER_ID = "antecedent.handoff.EconMLProviderAdapter"
+
+
+#: Reason codes of a refusal to hand off an estimand: it was a ``CausalUnsupportedError``
+#: and stays one; every other handoff refusal was a ``ValueError`` and still is.
+_ESTIMAND_REFUSALS = frozenset({"route_not_supported", "effect_not_identified"})
+
+
+def _refuse(
+    detail: str,
+    message: str,
+    *,
+    remedy: str,
+    code: str = "invalid_argument",
+    offending: str | None = None,
+) -> ProviderRefusal:
+    """A typed handoff refusal: registered ``reason_code``, ``detail`` and ``remedy``.
+
+    Each site keeps the class it raised before it gained a code: refusing an estimand
+    is a :class:`~antecedent.errors.CausalUnsupportedError`; every other refusal is
+    also a :class:`ValueError` (:class:`~antecedent.errors.CausalValueError`).
+    """
+    return _provider_refuse(
+        detail,
+        message,
+        code=code,
+        remedy=remedy,
+        offending=offending,
+        stage="handoff",
+        error=ProviderRefusal if code in _ESTIMAND_REFUSALS else ProviderValueRefusal,
+    )
+
 
 _NAMED_COLUMNS = {
     "Y": "outcome",
@@ -89,7 +123,12 @@ class AdjustmentHandoff:
         from .extensibility import CausalProviderSpec, ProviderCapability
 
         if not isinstance(self.tool, str) or not self.tool.strip():
-            raise CausalValueError("adjustment handoff tool must be a non-empty string")
+            raise _refuse(
+                "handoff.tool_invalid",
+                "adjustment handoff tool must be a non-empty string",
+                offending="tool",
+                remedy="name the adapter that consumes this handoff, or omit tool=",
+            )
         return CausalProviderSpec(
             query_family="point_identified_adjustment_estimand",
             identification_requirements=(self.identifier, "point_identified"),
@@ -150,23 +189,49 @@ class AdjustmentHandoff:
         subjects must be aligned separately to avoid crossing panel boundaries.
         """
         if layout not in ("econml", "named"):
-            raise CausalValueError("adjustment handoff layout must be 'econml' or 'named'")
+            raise _refuse(
+                "handoff.layout_unknown",
+                "adjustment handoff layout must be 'econml' or 'named'",
+                offending="layout",
+                remedy="pass layout='econml' (Y, T, W, X) or layout='named'",
+            )
         names = (self.outcome, *self.treatments, *self.confounders, *self.modifiers)
         missing = [name for name in names if name not in data]
         if missing:
-            raise CausalValueError(f"adjustment handoff missing columns: {missing}")
+            raise _refuse(
+                "handoff.columns_missing",
+                f"adjustment handoff missing columns: {missing}",
+                code="unknown_variable",
+                offending=", ".join(missing),
+                remedy="pass data holding the outcome, treatment, confounder and modifier "
+                "columns this handoff names",
+            )
         arrays = {name: np.asarray(data[name]) for name in names}
         if any(col.ndim != 1 for col in arrays.values()):
-            raise CausalValueError("adjustment handoff requires one-dimensional columns")
+            raise _refuse(
+                "handoff.columns_not_one_dimensional",
+                "adjustment handoff requires one-dimensional columns",
+                code="schema_mismatch",
+                remedy="pass each variable as a one-dimensional column",
+            )
         if len({len(col) for col in arrays.values()}) != 1:
-            raise CausalValueError("adjustment handoff columns must have the same number of rows")
+            raise _refuse(
+                "handoff.columns_unaligned",
+                "adjustment handoff columns must have the same number of rows",
+                code="schema_mismatch",
+                remedy="align the columns to the same rows before the handoff",
+            )
         t_offsets = self.treatment_offsets or (0,) * len(self.treatments)
         w_offsets = self.confounder_offsets or (0,) * len(self.confounders)
         offsets = (0, self.outcome_offset, *t_offsets, *w_offsets)
         n = len(arrays[self.outcome])
         origins = np.arange(max(0, -min(offsets)), min(n, n - max(offsets)))
         if self.temporal and not len(origins):
-            raise CausalValueError("adjustment handoff has no rows after temporal alignment")
+            raise _refuse(
+                "handoff.no_rows_after_alignment",
+                "adjustment handoff has no rows after temporal alignment",
+                remedy="supply a longer series than the largest certified lag offset",
+            )
         targets = [
             arrays[name][origins + offset]
             for name, offset in zip(self.treatments, t_offsets, strict=True)
@@ -205,12 +270,20 @@ class AdjustmentHandoff:
                 or not np.isfinite(weights).all()
                 or (weights < 0).any()
             ):
-                raise CausalValueError(
-                    "target weights must be finite non-negative weights aligned to input rows"
+                raise _refuse(
+                    "handoff.target_weights_invalid",
+                    "target weights must be finite non-negative weights aligned to input rows",
+                    offending="target_weights",
+                    remedy="give one finite non-negative weight per input row",
                 )
             aligned = weights[origins]
             if aligned.sum() <= 0:
-                raise CausalValueError("target weights have no mass on aligned rows")
+                raise _refuse(
+                    "handoff.target_weights_no_mass",
+                    "target weights have no mass on aligned rows",
+                    offending="target_weights",
+                    remedy="give positive weight to at least one retained row",
+                )
             cols["sample_weight"] = aligned
         if self.temporal:
             cols["origins"] = origins
@@ -226,12 +299,12 @@ class AdjustmentHandoff:
         effect: Any,
         interval: Any | None = None,
         data: Mapping[str, Any] | None = None,
-        label: Literal["ate"] | None = None,
+        label: Literal["ate", "cate"] | None = None,
         value_types: Mapping[str, Literal["continuous", "binary", "count"]] | None = None,
         contrast: tuple[float, float] | None = None,
         learner_version: str | None = None,
         outcome_units: str | None = None,
-        support: Sequence[str] | None = None,
+        support: str | Sequence[str] | None = None,
     ) -> ExternalEstimate:
         """Attach a caller-fitted external estimate as attested, not re-verifiable, evidence.
 
@@ -239,16 +312,22 @@ class AdjustmentHandoff:
         payload are hashed onto ``claim.attested``; calibration stays
         ``unavailable`` / ``attested_not_reverifiable``.
 
-        A scalar effect labelled ``label="ate"`` is a claim of one value, so it is
-        bound through :meth:`antecedent.external.ExternalSpec.bind` like any foreign
-        response: the identified contract, the learner as a
-        :class:`~antecedent.external.ProviderObject` (``learner_version`` is its
-        version, never inferred), per-coordinate ``support`` labels and the lineage
-        come along as :attr:`ExternalEstimate.claim`, and a mismatch refuses with
-        the same structured refusal. ``outcome_units`` names the units of the
-        outcome; they are never inferred. An unlabelled or array payload (for
-        example a row-level CATE) is not a bounded response grid: it stays an
-        opaque attested payload with no bound claim.
+        A labelled effect is a claim, so it is bound through
+        :meth:`antecedent.external.ExternalSpec.bind` like any foreign response: the
+        identified contract, the learner as a :class:`~antecedent.external.ProviderObject`
+        (``learner_version`` is its version, never inferred), support labels and the
+        lineage come along as :attr:`ExternalEstimate.claim`, and a mismatch refuses
+        with the same structured refusal. ``outcome_units`` names the units of the
+        outcome; they are never inferred.
+
+        - ``label="ate"``: one scalar effect, bound as a one-coordinate response
+          (``support`` is one label).
+        - ``label="cate"``: one conditional effect per row (a one-dimensional array
+          aligned to the handoff's rows), bound as a
+          :class:`~antecedent.external.BoundExternalColumn`: one scientific quantity
+          and the column's digest, size and support counts, never one coordinate per
+          row. ``support`` is one label for every row or one per row.
+        - unlabelled: an opaque attested payload with no bound claim.
 
         ``value_types`` (name -> ``continuous`` / ``binary`` / ``count``) and ``contrast``
         (``(control, active)`` treatment levels) are recorded in the receipt's target as
@@ -262,19 +341,37 @@ class AdjustmentHandoff:
         identification, snapshot, snapshot_payload = _bind_parent_identities(self, parent, data)
         effect_arr = np.asarray(effect, dtype=np.float64)
         scalar: float | None = None
+        column: np.ndarray | None = None
         if label == "ate":
             if effect_arr.shape not in ((), (1,)):
-                raise CausalValueError("label='ate' requires a scalar effect")
+                raise _refuse(
+                    "handoff.label_ate_not_scalar",
+                    "label='ate' requires a scalar effect",
+                    offending="effect",
+                    remedy="pass one number, or label a row-level array label='cate'",
+                )
             scalar = float(np.reshape(effect_arr, ()))
+        elif label == "cate":
+            column = _row_effects(self, effect_arr, data)
+        elif label is not None:
+            raise _refuse(
+                "handoff.label_unknown",
+                f"label must be 'ate', 'cate' or None; got {label!r}",
+                offending="label",
+                remedy="label a scalar effect 'ate' and a one-value-per-row array 'cate'",
+            )
         names = _receipt_names(self)
         declared_types = None
         if value_types is not None:
             unknown = sorted(set(value_types) - set(names))
             missing = [name for name in names if name not in value_types]
             if unknown or missing:
-                raise CausalValueError(
+                raise _refuse(
+                    "handoff.value_types_mismatch",
                     "value_types must name exactly the receipt variables "
-                    f"(unknown: {unknown}, missing: {missing})"
+                    f"(unknown: {unknown}, missing: {missing})",
+                    offending="value_types",
+                    remedy="give one value type for each of: " + ", ".join(names),
                 )
             declared_types = [str(value_types[name]) for name in names]
         from . import artifacts
@@ -282,20 +379,23 @@ class AdjustmentHandoff:
 
         config_bytes = _canonical_config(learner_config)
         payload = _payload_bytes(effect_arr, interval)
-        if scalar is None:
+        if scalar is None and column is None:
             if support is not None or learner_version is not None or outcome_units is not None:
-                raise CausalValueError(
+                raise _refuse(
+                    "handoff.claim_arguments_without_label",
                     "learner_version, outcome_units and support describe a bound claim; "
-                    "they apply only to a scalar effect labelled label='ate'"
+                    "they apply only to an effect labelled label='ate' or label='cate'",
+                    offending="label",
+                    remedy="label the effect, or drop the claim-describing arguments",
                 )
             claim = None
         else:
-            claim = _bind_scalar_claim(
+            claim = _bind_claim(
                 self,
                 learner=str(learner),
                 config=config_bytes,
                 payload=payload,
-                value=scalar,
+                value=column if column is not None else cast(float, scalar),
                 interval=interval is not None,
                 identification=identification,
                 snapshot=snapshot,
@@ -326,7 +426,12 @@ class AdjustmentHandoff:
         )
         decoded = artifacts.loads(encoded)
         if not isinstance(decoded.contract, Mapping):
-            raise CausalValueError("external estimate receipt is missing a contract")
+            raise _refuse(
+                "handoff.receipt_contract_missing",
+                "external estimate receipt is missing a contract",
+                code="external_binding_mismatch",
+                remedy="re-attach the estimate; the receipt encoder returned no contract",
+            )
         return ExternalEstimate(encoded, decoded.contract, claim)
 
 
@@ -345,11 +450,21 @@ class AdjustmentProviderAdapter:
         from .extensibility import ProviderExecution
 
         if "data" not in request:
-            raise CausalValueError("adjustment provider request requires caller data")
+            raise _refuse(
+                "handoff.request_data_missing",
+                "adjustment provider request requires caller data",
+                offending="data",
+                remedy="pass the caller's columns as request['data']",
+            )
         columns = self.handoff.columns(request["data"])
         result = self.executor(columns, request)
         if not isinstance(result, Mapping) or "effect" not in result or "learner" not in result:
-            raise CausalValueError("adjustment executor must return learner and effect")
+            raise _refuse(
+                "handoff.executor_result_invalid",
+                "adjustment executor must return learner and effect",
+                offending="executor",
+                remedy="return a mapping with at least 'learner' and 'effect'",
+            )
         allowed = {
             "learner",
             "learner_config",
@@ -361,8 +476,11 @@ class AdjustmentProviderAdapter:
         }
         unknown = set(result) - allowed
         if unknown:
-            raise CausalValueError(
-                f"adjustment executor returned unsupported fields: {sorted(unknown)}"
+            raise _refuse(
+                "handoff.executor_fields_unsupported",
+                f"adjustment executor returned unsupported fields: {sorted(unknown)}",
+                offending=", ".join(sorted(unknown)),
+                remedy="return only: " + ", ".join(sorted(allowed)),
             )
         receipt = self.handoff.attach(
             learner=result["learner"],
@@ -404,18 +522,24 @@ class ExternalEstimate:
 
     @property
     def claim(self) -> BoundExternalClaim | None:
-        """The bound external claim of a scalar ``label="ate"`` effect, else ``None``.
+        """The bound claim of a labelled effect, else ``None``.
 
-        The same object ``external.bind`` returns: it carries the learner as a
-        provider (with its declared version), per-coordinate support labels and
-        the lineage back to the identified contract. An opaque array payload
-        asserts no values, so it has no claim.
+        The same object ``external.bind`` returns: a
+        :class:`~antecedent.external.BoundExternalClaim` for a scalar ``label="ate"``
+        and a :class:`~antecedent.external.BoundExternalColumn` for a row-level
+        ``label="cate"``. It carries the learner as a provider (with its declared
+        version), support labels and the lineage back to the identified contract.
+        An unlabelled payload asserts nothing, so it has no claim.
         """
         return cast("BoundExternalClaim | None", self._claim)
 
     @property
     def support(self) -> tuple[str, ...]:
-        """Per-coordinate support labels of :attr:`claim` (``missing_evidence`` if undeclared)."""
+        """Support labels of :attr:`claim` (``missing_evidence`` if undeclared).
+
+        One per coordinate for a scalar; a row-level column reports its worst row label,
+        and ``claim.support_counts`` has the rows per label.
+        """
         return () if self._claim is None else self._claim.support
 
     @property
@@ -435,8 +559,13 @@ class ExternalEstimate:
         :meth:`antecedent.external.ExternalSpec.load` and ``claim.identity``.
         """
         if self._claim is None:
-            raise CausalValueError(
-                "this estimate has no bound claim: only a scalar label='ate' effect is bound"
+            raise _refuse(
+                "handoff.no_bound_claim",
+                "this estimate has no bound claim: only an effect labelled label='ate' "
+                "(scalar) or label='cate' (one value per row) is bound",
+                code="attested_not_reverifiable",
+                offending="label",
+                remedy="attach the effect with label='ate' or label='cate'",
             )
         return cast(bytes, self._claim.export(artifact_id=artifact_id))
 
@@ -516,8 +645,11 @@ class ExternalEstimate:
 
     def export(self, *, artifact_id: str = "external-estimate") -> bytes:
         if artifact_id != "external-estimate":
-            raise CausalValueError(
-                "An attested external estimate is immutable; its artifact ID cannot be rewritten."
+            raise _refuse(
+                "handoff.artifact_id_immutable",
+                "An attested external estimate is immutable; its artifact ID cannot be rewritten.",
+                offending="artifact_id",
+                remedy="export the receipt unchanged, or attach the estimate again",
             )
         return self._bytes
 
@@ -565,33 +697,51 @@ def adjustment(
             if case["adjustment_coordinates"]
         ]
         if not sets or not all(item == sets[0] for item in sets):
-            raise CausalUnsupportedError(
-                "adjustment handoff requires a common certified adjustment set"
+            raise _refuse(
+                "handoff.no_common_adjustment_set",
+                "adjustment handoff requires a common certified adjustment set",
+                code="route_not_supported",
+                remedy="identify one adjustment set valid for every case, or hand off per case",
             )
         adjustment_set = [item["name"] for item in sets[0]]
         kwargs["confounder_offsets"] = tuple(item["offset"] for item in sets[0])
         kwargs["treatment_offsets"] = tuple(item["offset"] for item in certificate["treatments"])
         kwargs["outcome_offset"] = certificate["outcome"]["offset"]
     elif temporal:
-        raise CausalUnsupportedError(
+        raise _refuse(
+            "handoff.temporal_certificate_missing",
             "adjustment handoff needs an identification certificate preserving temporal offsets; "
-            "use identify(graph=..., query=...)"
+            "use identify(graph=..., query=...)",
+            code="route_not_supported",
+            remedy="call identify(graph=..., query=...) and hand off its result",
         )
     declared = _modifier_set(query, modifiers)
     forbidden = {treatment} if isinstance(treatment, str) else set(treatment)
     forbidden.add(outcome)
     if any(name in forbidden for name in declared):
-        raise CausalValueError(
-            "adjustment handoff modifiers must be pre-treatment and not the outcome"
+        raise _refuse(
+            "handoff.modifier_not_pretreatment",
+            "adjustment handoff modifiers must be pre-treatment and not the outcome",
+            offending="modifiers",
+            remedy="name modifiers measured before treatment, other than the treatment or outcome",
         )
     certified_modifiers = set(adjustment_set) | set(_modifier_set(query, None))
     if any(name not in certified_modifiers for name in declared):
-        raise CausalUnsupportedError(
+        raise _refuse(
+            "handoff.modifier_uncertified",
             "adjustment handoff modifiers need a pre-treatment certificate: "
-            "identify the modifier context first or use certified adjustment variables"
+            "identify the modifier context first or use certified adjustment variables",
+            code="route_not_supported",
+            offending="modifiers",
+            remedy="identify the modifier context first, or use certified adjustment variables",
         )
     if any(name not in set(adjustment_set) or name in forbidden for name in target_depends_on):
-        raise CausalValueError("target weights must depend only on certified adjustment variables")
+        raise _refuse(
+            "handoff.target_weights_dependence",
+            "target weights must depend only on certified adjustment variables",
+            offending="target_depends_on",
+            remedy="declare only certified adjustment variables in target_depends_on",
+        )
     if target_weights is not None:
         weights = np.asarray(target_weights, dtype=float)
         if (
@@ -601,11 +751,19 @@ def adjustment(
             or (weights < 0).any()
             or weights.sum() <= 0
         ):
-            raise CausalValueError(
-                "target weights must be a finite non-negative vector with positive mass"
+            raise _refuse(
+                "handoff.target_weights_invalid",
+                "target weights must be a finite non-negative vector with positive mass",
+                offending="target_weights",
+                remedy="pass a one-dimensional finite non-negative vector with positive total",
             )
         if not target_depends_on and not np.all(weights == weights[0]):
-            raise CausalValueError("nonconstant target weights require declared target_depends_on")
+            raise _refuse(
+                "handoff.target_weights_undeclared",
+                "nonconstant target weights require declared target_depends_on",
+                offending="target_depends_on",
+                remedy="name the adjustment variables the weights depend on",
+            )
     if outcome_functional is None:
         outcome_functional = getattr(query, "outcome_functional", None)
     return AdjustmentHandoff(
@@ -645,9 +803,13 @@ def _require_attachable(spec: AdjustmentHandoff) -> None:
         _require_adjustment_parent(spec._parent)
         return
     if spec.identifier not in _ADJUSTMENT_IDENTIFIERS:
-        raise CausalUnsupportedError(
+        raise _refuse(
+            "handoff.identifier_not_adjustment",
             "adjustment handoff requires a backdoor or generalized-adjustment "
-            f"identifier; got {spec.identifier!r}"
+            f"identifier; got {spec.identifier!r}",
+            code="route_not_supported",
+            offending=str(spec.identifier),
+            remedy="hand off a backdoor or generalized-adjustment estimand",
         )
     view = IdentificationView(
         status=spec.status,
@@ -657,8 +819,12 @@ def _require_attachable(spec: AdjustmentHandoff) -> None:
         derivation_step_count=0,
     )
     if not view:
-        raise CausalUnsupportedError(
-            f"adjustment handoff requires point identification; got status {spec.status!r}"
+        raise _refuse(
+            "handoff.not_point_identified",
+            f"adjustment handoff requires point identification; got status {spec.status!r}",
+            code="effect_not_identified",
+            offending=str(spec.status),
+            remedy="strengthen the identification to point identification before the handoff",
         )
 
 
@@ -670,18 +836,25 @@ def _require_adjustment_parent(
     structure_source: str | None = None,
 ) -> tuple[str, str, list[str], str | None, str | tuple[str, ...], str]:
     if structure_source == "graph_posterior" or _graph_posterior_result(result):
-        raise CausalUnsupportedError(
+        raise _refuse(
+            "handoff.graph_posterior_mixture",
             "adjustment handoff refuses graph-posterior mixtures; there is no single "
-            "adjustment set to pass to another estimator"
+            "adjustment set to pass to another estimator",
+            code="route_not_supported",
+            remedy="accept one graph and identify on it, then hand that result off",
         )
     status, method, adjustment_set, identifier, treatment, outcome = _unpack(
         result, treatment=treatment, outcome=outcome
     )
     resolved = identifier or method
     if resolved not in _ADJUSTMENT_IDENTIFIERS:
-        raise CausalUnsupportedError(
+        raise _refuse(
+            "handoff.identifier_not_adjustment",
             "adjustment handoff requires a backdoor or generalized-adjustment "
-            f"identifier; got {resolved!r}"
+            f"identifier; got {resolved!r}",
+            code="route_not_supported",
+            offending=str(resolved),
+            remedy="hand off a backdoor or generalized-adjustment estimand",
         )
     view = IdentificationView(
         status=status,
@@ -691,19 +864,48 @@ def _require_adjustment_parent(
         derivation_step_count=0,
     )
     if not view:
-        raise CausalUnsupportedError(
-            f"adjustment handoff requires point identification; got status {status!r}"
+        raise _refuse(
+            "handoff.not_point_identified",
+            f"adjustment handoff requires point identification; got status {status!r}",
+            code="effect_not_identified",
+            offending=str(status),
+            remedy="strengthen the identification to point identification before the handoff",
         )
     return status, method, adjustment_set, identifier, treatment, outcome
 
 
-def _bind_scalar_claim(
+def _row_effects(
+    spec: AdjustmentHandoff, effect: np.ndarray, data: Mapping[str, Any] | None
+) -> np.ndarray:
+    """A row-level effect column: one-dimensional, non-empty and aligned to the handoff's rows."""
+    if effect.ndim != 1 or not effect.size:
+        raise _refuse(
+            "handoff.label_cate_not_column",
+            "label='cate' requires a one-dimensional effect with one value per row",
+            offending="effect",
+            remedy="pass the learner's per-row conditional effects as a 1-D array, or label "
+            "a single number label='ate'",
+        )
+    if data is not None:
+        rows = len(spec.columns(data)["Y"])
+        if effect.size != rows:
+            raise _refuse(
+                "handoff.cate_rows_misaligned",
+                f"label='cate' effect has {effect.size} values for {rows} aligned rows",
+                code="schema_mismatch",
+                offending="effect",
+                remedy="produce one effect per row of spec.columns(data), in that order",
+            )
+    return effect
+
+
+def _bind_claim(
     spec: AdjustmentHandoff,
     *,
     learner: str,
     config: bytes,
     payload: bytes,
-    value: float,
+    value: float | np.ndarray,
     interval: bool,
     identification: str | None,
     snapshot: str | None,
@@ -711,14 +913,20 @@ def _bind_scalar_claim(
     contrast: tuple[float, float] | None,
     learner_version: str | None,
     outcome_units: str | None,
-    support: Sequence[str] | None,
+    support: str | Sequence[str] | None,
 ) -> BoundExternalClaim:
-    """Bind a labelled scalar effect through ``external.bind``; every refusal is Rust's."""
+    """Bind a labelled effect through ``external.bind``; every refusal is Rust's.
+
+    A scalar is one coordinate (functional ``ate``). A row-level array is one
+    quantity (functional ``cate``) bound as a column, so a CATE of any length is a
+    single claim and never one coordinate per row.
+    """
     from dataclasses import replace
 
     from . import _native
     from .external import (
         UNSPECIFIED_UNITS,
+        ColumnResponse,
         ExternalSpec,
         ProviderObject,
         Response,
@@ -726,9 +934,13 @@ def _bind_scalar_claim(
     )
     from .joint_distribution import ScientificQuantity
 
-    if not np.isfinite(value):
-        raise CausalValueError(
-            "a labelled ATE must be finite; refusing to bind a non-finite effect"
+    is_column = isinstance(value, np.ndarray)
+    if not np.isfinite(value).all():
+        raise _refuse(
+            "handoff.effect_not_finite",
+            "a labelled effect must be finite; refusing to bind a non-finite effect",
+            offending="effect",
+            remedy="pass finite effect values",
         )
     treatments = ",".join(spec.treatments)
     if contrast is not None and len(spec.treatments) == 1:
@@ -752,7 +964,7 @@ def _bind_scalar_claim(
         population_id="target",
         regime_id=regime,
         horizon=0,
-        functional_id="ate",
+        functional_id="cate" if is_column else "ate",
         conditioning=(),
         transform_id=transform,
     )
@@ -769,8 +981,8 @@ def _bind_scalar_claim(
             list(spec.confounder_offsets),
         ],
     }
-    graph_id = "handoff:" + _native.canonical_json_digest_hex(
-        "antecedent.handoff.adjustment_contract.v1", json.dumps(contract_name)
+    graph_id = "handoff:" + canonical_digest(
+        "antecedent.handoff.adjustment_contract.v1", contract_name
     )
     external_spec = ExternalSpec(
         contract_id="",
@@ -785,35 +997,57 @@ def _bind_scalar_claim(
         else external_spec._content_id(with_coordinates=True)
     )
     external_spec = replace(external_spec, contract_id=contract_id)
-    request = _native.canonical_json_digest_hex(
+    request = canonical_digest(
         "antecedent.handoff.request.v1",
-        json.dumps(
-            {
-                "learner": learner,
-                "config": _native.blake3_digest_hex(config),
-                "payload": _native.blake3_digest_hex(payload),
-            }
-        ),
+        {
+            "learner": learner,
+            "config": _native.blake3_digest_hex(config),
+            "payload": _native.blake3_digest_hex(payload),
+        },
     )
     provider = ProviderObject(
         provider_id=learner,
-        object_id=f"effect:{spec.outcome}~{treatments}",
+        object_id=f"{'cate' if is_column else 'effect'}:{spec.outcome}~{treatments}",
         version=(learner_version or "").strip() or UNSPECIFIED_UNITS,
         snapshot=snapshot_id,
         request=request,
         meaning="interventional_predictive",
         capabilities=("mean",),
     )
+    method = "caller_attested_interval" if interval else None
+    assumptions = (spec.identifier, "point_identified")
+    if is_column:
+        return external_spec.bind(
+            ColumnResponse(
+                provider=provider,
+                values=np.asarray(value, dtype=np.float64),
+                assumptions=assumptions,
+                attested_by=learner,
+                uncertainty_method=method,
+                support=None if support is None else _support(support),
+            )
+        )
+    if isinstance(support, str):
+        raise _refuse(
+            "handoff.support_not_a_sequence",
+            "a scalar effect's support is a sequence with one label",
+            offending="support",
+            remedy="pass support=['supported'] (one label per coordinate)",
+        )
     return external_spec.bind(
         Response(
             provider=provider,
-            values=(value,),
-            assumptions=(spec.identifier, "point_identified"),
+            values=(float(value),),
+            assumptions=assumptions,
             attested_by=learner,
-            uncertainty_method="caller_attested_interval" if interval else None,
+            uncertainty_method=method,
             support=None if support is None else tuple(support),
         )
     )
+
+
+def _support(support: str | Sequence[str]) -> str | tuple[str, ...]:
+    return support if isinstance(support, str) else tuple(support)
 
 
 def _receipt_names(spec: AdjustmentHandoff) -> list[str]:
@@ -889,8 +1123,12 @@ def _bind_parent_identities(
         None if snapshot is not None or data is None else _snapshot_payload(spec, data)
     )
     if snapshot is None and snapshot_payload is None:
-        raise CausalValueError(
-            "external estimate attach needs a parent data snapshot or data= for spec.columns"
+        raise _refuse(
+            "handoff.snapshot_missing",
+            "external estimate attach needs a parent data snapshot or data= for spec.columns",
+            offending="data",
+            remedy="pass data= (the columns the learner was fitted on), or attach through a "
+            "handoff derived from an analysis result",
         )
     return identification, snapshot, snapshot_payload
 
@@ -902,8 +1140,11 @@ def _unpack(
     outcome: str | None,
 ) -> tuple[str, str, list[str], str | None, str | tuple[str, ...], str]:
     if not isinstance(result, (AnalysisResult, CausalResponseView, Identification, IdentifyResult)):
-        raise CausalValueError(
-            f"adjustment handoff expects an identification or analysis result; got {type(result)!r}"
+        raise _refuse(
+            "handoff.result_type",
+            f"adjustment handoff expects an identification or analysis result; got {type(result)!r}",
+            offending=type(result).__name__,
+            remedy="pass the result of identify(...) or analyze(...)",
         )
     query = getattr(result, "query", getattr(result, "estimand", None))
     certificate = getattr(result, "certificate", None)
@@ -917,18 +1158,25 @@ def _unpack(
         names = tuple(item.variable for item in query.interventions)
         certified_t = names[0] if len(names) == 1 else names
     if not certified_t or not certified_y:
-        raise CausalValueError(
+        raise _refuse(
+            "handoff.query_identity_missing",
             "adjustment handoff needs a result carrying its certified treatment and outcome; "
-            "caller-supplied names cannot establish query identity"
+            "caller-supplied names cannot establish query identity",
+            offending="result",
+            remedy="hand off the result of identify(...) or analyze(...), not bare names",
         )
     requested = (treatment,) if isinstance(treatment, str) else treatment
     expected = (certified_t,) if isinstance(certified_t, str) else certified_t
     if (requested is not None and requested != expected) or (
         outcome is not None and outcome != certified_y
     ):
-        raise CausalValueError(
+        raise _refuse(
+            "handoff.query_identity_mismatch",
             "adjustment handoff treatment/outcome must match the certified query, "
-            "including every joint treatment"
+            "including every joint treatment",
+            code="external_binding_mismatch",
+            offending="treatment" if requested != expected else "outcome",
+            remedy="omit treatment= and outcome=, or pass exactly the certified names",
         )
     if isinstance(result, (AnalysisResult, CausalResponseView)):
         ident = result.identification

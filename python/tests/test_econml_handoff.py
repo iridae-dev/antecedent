@@ -480,7 +480,9 @@ def test_attach_scalar_ate_is_bound_through_external_bind() -> None:
     assert attached.value == 2.0 and list(claim.values) == [2.0]
     assert attached.support == ("supported",)
     assert claim.uncertainty_method == "caller_attested_interval"
-    assert "econml.dml.LinearDML/" in attached.provider_label and "@0.15.1#" in attached.provider_label
+    assert (
+        "econml.dml.LinearDML/" in attached.provider_label and "@0.15.1#" in attached.provider_label
+    )
     assert {"causal_contract", "external_provider", "claim"} <= claim.stages_behind()
     (quantity,) = claim.quantities
     assert quantity.units == "mmHg" and quantity.functional_id == "ate"
@@ -500,3 +502,119 @@ def test_attach_scalar_ate_is_bound_through_external_bind() -> None:
         spec.attach(learner="x", effect=np.ones(3), data=data, learner_version="1")
     with pytest.raises(antecedent.errors.CausalValueError):
         spec.attach(learner="x", effect=float("nan"), data=data, label="ate")
+
+
+def test_attach_cate_column_is_bound_with_lineage_support_and_provider_version() -> None:
+    from antecedent.extensibility import ProviderTrust
+    from antecedent.external import BoundExternalColumn, ExternalSpec
+
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
+    )
+    spec = antecedent.handoff.econml(identified)
+    data = _backdoor_data(5_000)
+    rng = np.random.default_rng(3)
+    cate = 2.0 + 0.5 * data["z"] + rng.normal(scale=0.01, size=len(data["t"]))
+    labels = tuple("weak_overlap" if i % 5 == 0 else "supported" for i in range(len(cate)))
+    attached = spec.attach(
+        learner="econml.dml.CausalForestDML",
+        learner_config={"n_estimators": 50},
+        effect=cate,
+        data=data,
+        label="cate",
+        contrast=(0.0, 1.0),
+        learner_version="0.15.1",
+        outcome_units="mmHg",
+        support=labels,
+    )
+    claim = attached.claim
+    assert isinstance(claim, BoundExternalColumn)
+    assert not claim.native and claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert claim.rows == len(cate) and claim.dtype == "float64"
+    assert claim.support_counts == {"supported": 4_000, "weak_overlap": 1_000}
+    assert attached.support == ("weak_overlap",) == claim.support
+    assert claim.support_status == "weak_overlap"
+    assert "econml.dml.CausalForestDML/cate:y~t@0.15.1#" in attached.provider_label
+    assert {"causal_contract", "external_provider", "claim"} <= claim.stages_behind()
+    (quantity,) = claim.quantities
+    assert quantity.functional_id == "cate" and quantity.units == "mmHg"
+    assert quantity.regime_id == "do(t=1) - do(t=0)"
+    # The claim names one quantity and keeps the column by its digest, never its rows.
+    assert claim.covers(cate) and not claim.covers(cate + 1e-9) and not claim.covers(cate[:-1])
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="rows"):
+        _ = claim.values
+    exported = attached.export_claim()
+    assert len(exported) < 16 * 1024
+    reloaded = ExternalSpec(contract_id="", graph_id="", identification="", quantities=()).load(
+        exported, expected_identity=claim.identity
+    )
+    assert isinstance(reloaded, BoundExternalColumn) and reloaded.covers(cate)
+    assert reloaded.identity_fields == claim.identity_fields
+    # The attested-estimate receipt is built exactly as for any attach.
+    assert antecedent.load(attached.export()).calibration.status == "unavailable"
+    plain = spec.attach(learner="econml.dml.CausalForestDML", effect=cate, data=data)
+    assert plain.claim is None
+
+    uniform = spec.attach(
+        learner="x", effect=cate, data=data, label="cate", support="supported"
+    ).claim
+    assert uniform.support_counts == {"supported": len(cate)}
+    missing = spec.attach(learner="x", effect=cate, data=data, label="cate").claim
+    assert missing.support_counts == {"missing_evidence": len(cate)}
+    assert missing.support_status == "missing_evidence"
+
+
+def test_attach_refusals_are_typed_with_reason_codes_and_remedies() -> None:
+    from antecedent.errors import CausalUnsupportedError, CausalValueError
+    from antecedent.extensibility import ProviderRefusal
+
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
+    )
+    spec = antecedent.handoff.econml(identified)
+    data = _backdoor_data(20)
+
+    def refused(call, detail, code):
+        with pytest.raises(ProviderRefusal) as caught:
+            call()
+        error = caught.value
+        assert error.detail == detail
+        assert error.reason_code == code
+        assert error.remedy
+        assert error.stage == "handoff"
+        return error
+
+    error = refused(
+        lambda: spec.attach(learner="x", effect=np.ones(20), data=data, label="ate"),
+        "handoff.label_ate_not_scalar",
+        "invalid_argument",
+    )
+    assert isinstance(error, CausalValueError) and isinstance(error, ValueError)
+    refused(
+        lambda: spec.attach(learner="x", effect=np.ones(7), data=data, label="cate"),
+        "handoff.cate_rows_misaligned",
+        "schema_mismatch",
+    )
+    refused(
+        lambda: spec.attach(learner="x", effect=np.ones((20, 2)), data=data, label="cate"),
+        "handoff.label_cate_not_column",
+        "invalid_argument",
+    )
+    refused(
+        lambda: spec.attach(learner="x", effect=1.0, data=data, label="att"),  # type: ignore[arg-type]
+        "handoff.label_unknown",
+        "invalid_argument",
+    )
+    refused(
+        lambda: spec.attach(learner="x", effect=np.full(20, np.nan), data=data, label="cate"),
+        "handoff.effect_not_finite",
+        "invalid_argument",
+    )
+    refused(
+        lambda: spec.columns({"t": data["t"]}),
+        "handoff.columns_missing",
+        "unknown_variable",
+    )
+    opaque = spec.attach(learner="x", effect=np.ones(20), data=data)
+    error = refused(opaque.export_claim, "handoff.no_bound_claim", "attested_not_reverifiable")
+    assert isinstance(error, CausalUnsupportedError)
