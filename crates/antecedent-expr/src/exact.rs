@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -462,7 +461,7 @@ impl ExactDiscreteLaw {
             && spec.intervention.iter().all(|a| {
                 self.interventions
                     .iter()
-                    .any(|b| a.variable == b.variable && value_key(&a.value) == value_key(&b.value))
+                    .any(|b| a.variable == b.variable && same_value_key(&a.value, &b.value))
             })
             && (spec.domain == DomainRef::Observational) == self.interventions.is_empty()
             && spec
@@ -635,24 +634,73 @@ pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
     acc.total()
 }
 
-type WorldIndex = HashMap<Arc<str>, HashMap<RegimeId, HashMap<Vec<InterventionAssignment>, usize>>>;
+/// One population, regime, and normalized intervention world.
+///
+/// Equal worlds share one intervention slice. Lookup is one map.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+struct WorldBinding {
+    population: Arc<str>,
+    regime: RegimeId,
+    interventions: Arc<[InterventionAssignment]>,
+}
+
+type WorldIndex = HashMap<WorldBinding, usize>;
+
+fn integral_level(value: f64) -> Option<i64> {
+    if value.is_finite() && value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0 {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "finite integral f64, explicitly within the exact i64 range"
+        )]
+        Some(value as i64)
+    } else {
+        None
+    }
+}
+
+/// `value_key(left) == value_key(right)` without building either key.
+///
+/// A non-integral float, including NaN, compares as `Value` does.
+pub(crate) fn same_value_key(left: &Value, right: &Value) -> bool {
+    match (integral_or_self(left), integral_or_self(right)) {
+        (Ok(a), Ok(b)) => a == b,
+        (Err(a), Err(b)) => a == b,
+        _ => false,
+    }
+}
+
+fn integral_or_self(value: &Value) -> Result<i64, &Value> {
+    match value {
+        Value::Float64(level) => integral_level(*level).ok_or(value),
+        Value::Int64(level) => Ok(*level),
+        other => Err(other),
+    }
+}
 
 // Normalize exactly represented integral numeric levels locally, without changing
 // core Value equality or the original table/serialized coordinate representation.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "Finite integral f64, explicitly within the exact i64 range"
-)]
 pub(crate) fn value_key(value: &Value) -> Value {
     match value {
-        Value::Float64(x)
-            if x.is_finite() && x.fract() == 0.0 && x.abs() <= 9_007_199_254_740_992.0 =>
-        {
-            Value::Int64(*x as i64)
-        }
+        Value::Float64(level) => match integral_level(*level) {
+            Some(level) => Value::Int64(level),
+            None => Value::Float64(*level),
+        },
         other => other.clone(),
     }
 }
+
+fn world_binding(
+    population: impl Into<Arc<str>>,
+    regime: RegimeId,
+    interventions: &[InterventionAssignment],
+) -> WorldBinding {
+    WorldBinding {
+        population: population.into(),
+        regime,
+        interventions: Arc::from(world_key(interventions)),
+    }
+}
+
 fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignment> {
     let mut key: Vec<_> = assignments
         .iter()
@@ -660,16 +708,6 @@ fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignme
         .collect();
     key.sort_by_key(|a| a.variable);
     key
-}
-
-fn lookup_world_key(assignments: &[InterventionAssignment]) -> Cow<'_, [InterventionAssignment]> {
-    let ordered = assignments.windows(2).all(|pair| pair[0].variable < pair[1].variable);
-    let normalized = assignments.iter().all(|a| value_key(&a.value) == a.value);
-    if ordered && normalized {
-        Cow::Borrowed(assignments)
-    } else {
-        Cow::Owned(world_key(assignments))
-    }
 }
 
 type JointQueryKey =
@@ -726,11 +764,10 @@ impl ExactTransportData {
         let mut domain_keys = HashMap::<VariableId, HashSet<Value>>::new();
         for (i, law) in laws.iter().enumerate() {
             if index
-                .entry(law.population.clone())
-                .or_default()
-                .entry(law.regime)
-                .or_default()
-                .insert(world_key(&law.interventions), i)
+                .insert(
+                    world_binding(Arc::clone(&law.population), law.regime, &law.interventions),
+                    i,
+                )
                 .is_some()
             {
                 return Err(law.error("duplicate_law_binding"));
@@ -851,23 +888,27 @@ impl ExactTransportData {
             conditioning: Arc::from([]),
             interventions: Arc::from(spec.intervention),
         };
-        let regimes =
-            self.index.get(spec.population).ok_or_else(|| missing("missing_exact_provider"))?;
-        let world = lookup_world_key(spec.intervention);
+        let wanted = world_key(spec.intervention);
         let index = match spec.regime {
-            Some(regime) => regimes.get(&regime).and_then(|worlds| worlds.get(world.as_ref())),
+            Some(regime) => self
+                .index
+                .get(&world_binding(Arc::<str>::from(spec.population), regime, spec.intervention))
+                .copied(),
             None => self.world_bound_regimes.as_ref().and_then(|cited| {
-                regimes
+                self.index
                     .iter()
-                    .filter(|(regime, _)| cited.contains(regime))
-                    .filter_map(|(regime, worlds)| Some((regime, worlds.get(world.as_ref())?)))
-                    .filter(|(_, index)| self.laws[**index].covers(spec))
-                    .min_by_key(|(regime, _)| regime.raw())
-                    .map(|(_, index)| index)
+                    .filter(|(binding, index)| {
+                        binding.population.as_ref() == spec.population
+                            && cited.contains(&binding.regime)
+                            && binding.interventions.as_ref() == wanted.as_slice()
+                            && self.laws[**index].covers(spec)
+                    })
+                    .min_by_key(|(binding, _)| binding.regime.raw())
+                    .map(|(_, index)| *index)
             }),
         };
         index
-            .map(|index| &self.laws[*index])
+            .map(|index| &self.laws[index])
             .filter(|law| law.covers(spec))
             .ok_or_else(|| missing("missing_exact_provider"))
     }
@@ -901,8 +942,11 @@ impl ExactTransportData {
                     law.positions(spec.conditioned_on, assignment).map_err(locate)?;
                 let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
                 let key = self.factor_cache.as_ref().map(|_| {
-                    let index = self.index[spec.population][&law.regime]
-                        [lookup_world_key(spec.intervention).as_ref()];
+                    let index = self.index[&world_binding(
+                        Arc::clone(&law.population),
+                        law.regime,
+                        spec.intervention,
+                    )];
                     (self.law_identities[index], outputs.clone(), conditions.clone())
                 });
                 if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
@@ -1067,16 +1111,18 @@ mod tests {
         let probabilities = [0.1, 0.2, 0.3, 0.400_000_000_001];
         let table = law("source", &probabilities).unwrap();
         assert_eq!(table.probabilities(), &probabilities);
-        assert!(ExactDiscreteLaw::try_new(
-            "p",
-            RegimeId::from_raw(0),
-            [],
-            [axis(0), axis(0)],
-            [0.25; 4],
-            "s",
-            LawTolerance::default()
-        )
-        .is_err());
+        assert!(
+            ExactDiscreteLaw::try_new(
+                "p",
+                RegimeId::from_raw(0),
+                [],
+                [axis(0), axis(0)],
+                [0.25; 4],
+                "s",
+                LawTolerance::default()
+            )
+            .is_err()
+        );
     }
     #[test]
     fn conditions_and_marginalizes_by_axis_coordinate() {
@@ -1305,5 +1351,36 @@ mod tests {
         }
         // One axis pinned to two different levels is the empty event.
         assert!(table.mass(&[(0, 0), (0, 1)]).abs() == 0.0);
+    }
+
+    #[test]
+    fn integral_float_selects_the_int_intervention_world() {
+        assert!(same_value_key(&Value::Float64(1.0), &Value::Int64(1)));
+        assert!(same_value_key(&Value::Float64(-0.0), &Value::Int64(0)));
+        assert!(!same_value_key(&Value::Float64(1.5), &Value::Int64(1)));
+        assert!(same_value_key(&Value::Float64(f64::NAN), &Value::Float64(f64::NAN)));
+        let law = ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(1),
+            [InterventionAssignment { variable: v(0), value: Value::Int64(1) }],
+            [axis(1)],
+            [0.25, 0.75],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([law], 1).unwrap();
+        let intervention = [InterventionAssignment { variable: v(0), value: Value::Float64(1.0) }];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(1)),
+            domain: DomainRef::Interventional,
+            variables: &[v(1)],
+            conditioned_on: &[],
+            intervention: &intervention,
+        };
+        let assignment = Assignment::from_pairs([(v(1), Value::Int64(1))]);
+        let p = data.probability_checked(&spec, &assignment).unwrap();
+        assert!((p - 0.75).abs() < 1e-15);
     }
 }
