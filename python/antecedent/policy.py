@@ -398,7 +398,9 @@ class PolicyValue:
         if self.mu0 is not None and self.mu1 is not None:
             coerce_fields(self, mu0=tuple(float(v) for v in self.mu0))
             coerce_fields(self, mu1=tuple(float(v) for v in self.mu1))
-        coerce_fields(self, evaluation_subject_ids=tuple(str(v) for v in self.evaluation_subject_ids))
+        coerce_fields(
+            self, evaluation_subject_ids=tuple(str(v) for v in self.evaluation_subject_ids)
+        )
         if self.regret_candidates is None:
             if self.regret_training_subject_ids is not None:
                 raise CausalValueError("regret training IDs require a fixed candidate class")

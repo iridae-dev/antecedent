@@ -111,7 +111,10 @@ class MultiArmExperimentDesign:
             return
         for name in ("realized_assignment", "action_labels", "assignment_units", "outcome_units"):
             object.__setattr__(self, name, tuple(getattr(self, name)))
-        coerce_fields(self, assignment_probabilities=tuple(tuple(row) for row in self.assignment_probabilities))
+        coerce_fields(
+            self,
+            assignment_probabilities=tuple(tuple(row) for row in self.assignment_probabilities),
+        )
         n = len(self.realized_assignment)
         labels = self.action_labels
         if (
@@ -361,11 +364,16 @@ class ExperimentDesign:
                 probability = tuple(probability)
             coerce_fields(self, assignment=BernoulliAssignment(probability))
         elif isinstance(self.assignment, ClusterRandomization):
-            coerce_fields(self, assignment=ClusterRandomization(
+            coerce_fields(
+                self,
+                assignment=ClusterRandomization(
                     tuple(self.assignment.clusters), self.assignment.treated_clusters
-                ))
+                ),
+            )
         elif isinstance(self.assignment, StratifiedRandomization):
-            coerce_fields(self, assignment=StratifiedRandomization(dict(self.assignment.treated_per_block)))
+            coerce_fields(
+                self, assignment=StratifiedRandomization(dict(self.assignment.treated_per_block))
+            )
         if not isinstance(
             self.assignment,
             (

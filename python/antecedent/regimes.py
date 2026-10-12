@@ -240,13 +240,18 @@ class LongitudinalRegime:
             raise CausalValueError("MSM requires more observed subjects than coefficients")
         coerce_fields(self, treatment_history=tuple(tuple(map(bool, row)) for row in history))
         coerce_fields(self, actions=tuple(tuple(map(bool, row)) for row in actions))
-        coerce_fields(self, treatment_probabilities=tuple(tuple(map(float, row)) for row in probabilities))
+        coerce_fields(
+            self, treatment_probabilities=tuple(tuple(map(float, row)) for row in probabilities)
+        )
         coerce_fields(self, censoring_probabilities=tuple(tuple(map(float, row)) for row in censor))
         coerce_fields(self, outcome_observed=tuple(map(bool, observed)))
         coerce_fields(self, subject_ids=ids)
         coerce_fields(self, fold_ids=folds)
         if predictions is not None:
-            coerce_fields(self, period_outcome_predictions=tuple(tuple(map(float, row)) for row in predictions))
+            coerce_fields(
+                self,
+                period_outcome_predictions=tuple(tuple(map(float, row)) for row in predictions),
+            )
         if numerator is not None:
             coerce_fields(self, stabilizing_numerator_probabilities=tuple(map(float, numerator)))
         if q is not None:
@@ -255,7 +260,9 @@ class LongitudinalRegime:
             assert observation is not None
             assert self.prediction_fold_ids is not None
             coerce_fields(self, q_predictions=tuple(tuple(map(float, row)) for row in q))
-            coerce_fields(self, observation_history=tuple(tuple(map(bool, row)) for row in observation))
+            coerce_fields(
+                self, observation_history=tuple(tuple(map(bool, row)) for row in observation)
+            )
             coerce_fields(self, prediction_fold_ids=tuple(resolved(self.prediction_fold_ids)))
 
     @property
