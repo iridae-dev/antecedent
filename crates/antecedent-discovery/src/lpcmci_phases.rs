@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -12,7 +13,8 @@ use antecedent_graph::{
 };
 use antecedent_stats::FdrAdjustment;
 
-use crate::engine::{DiscoveryWorkspace, PcmciEngine};
+use crate::combinations::Combinations;
+use crate::engine::{CiMemo, CiProbe, DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::pag_evidence_from_oriented;
 use crate::orientation::OrientationState;
@@ -191,32 +193,6 @@ fn potential_parents_at(
     }
     out.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
     out.dedup();
-    out
-}
-
-fn combinations<T: Copy>(items: &[T], k: usize) -> Vec<Vec<T>> {
-    if k == 0 {
-        return vec![Vec::new()];
-    }
-    if k > items.len() {
-        return Vec::new();
-    }
-    let mut out = Vec::new();
-    let mut indices: Vec<usize> = (0..k).collect();
-    loop {
-        out.push(indices.iter().map(|&index| items[index]).collect());
-        let mut position = k;
-        while position > 0 && indices[position - 1] == position - 1 + items.len() - k {
-            position -= 1;
-        }
-        if position == 0 {
-            break;
-        }
-        indices[position - 1] += 1;
-        for next in position..k {
-            indices[next] = indices[next - 1] + 1;
-        }
-    }
     out
 }
 
@@ -425,6 +401,7 @@ fn ancestral_removal_phase(
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
+    let mut memo = CiMemo::default();
     let rules = prelim_lpcmci_rules();
     let batches = ancestral_link_batches(variables, max_lag);
 
@@ -467,6 +444,7 @@ fn ancestral_removal_phase(
                                 target_lag: Lag,
                                 other: VariableId,
                                 other_lag: Lag,
+                                memo: &mut CiMemo,
                                 workspace: &mut DiscoveryWorkspace|
                  -> Result<
                     (Option<(Vec<(VariableId, Lag)>, f64, f64)>, u64),
@@ -491,28 +469,35 @@ fn ancestral_removal_phase(
                     if search.len() < p_pc {
                         return Ok((None, 0));
                     }
-                    let mut best: Option<(Vec<(VariableId, Lag)>, f64, f64)> = None;
                     let mut tests = 0u64;
-                    let mut cond = Vec::new();
-                    for combo in combinations(&search, p_pc) {
-                        cond.clear();
-                        cond.extend_from_slice(&s_def);
-                        for c in &combo {
-                            if !cond.contains(c) {
-                                cond.push(*c);
+                    let link =
+                        LaggedLink { source: other, source_lag: other_lag, target, target_lag };
+                    let sets = Combinations::new(&search, p_pc).map(|combo| {
+                        let mut cond = s_def.clone();
+                        for c in combo {
+                            if !cond.contains(&c) {
+                                cond.push(c);
                             }
                         }
                         cond.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
-                        let link =
-                            LaggedLink { source: other, source_lag: other_lag, target, target_lag };
-                        let (stat, p) = engine.ci_statistic(frame, link, &cond, workspace, ctx)?;
-                        tests += 1;
-                        // break_once_separated: first independence after stable combo order.
-                        if p > alpha {
-                            best = Some((cond, stat, p));
-                            break;
-                        }
-                    }
+                        Ok(cond)
+                    });
+                    // break_once_separated: first independence after stable combo order.
+                    let best = engine.scan_ci_sets(
+                        CiProbe { frame, link },
+                        sets,
+                        memo,
+                        workspace,
+                        ctx,
+                        |cond, stat, p| {
+                            tests += 1;
+                            if p > alpha {
+                                ControlFlow::Break((cond, stat, p))
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        },
+                    )?;
                     Ok((best, tests))
                 };
 
@@ -542,6 +527,7 @@ fn ancestral_removal_phase(
                             Lag::CONTEMPORANEOUS,
                             x,
                             x_lag,
+                            &mut memo,
                             workspace,
                         )?;
                         ci_tests += tests;
@@ -553,8 +539,17 @@ fn ancestral_removal_phase(
                     }
                 }
                 if sep_cond.is_none() && test_x {
-                    let (separation, tests) =
-                        try_side(engine, pag, idx, x, x_lag, y, Lag::CONTEMPORANEOUS, workspace)?;
+                    let (separation, tests) = try_side(
+                        engine,
+                        pag,
+                        idx,
+                        x,
+                        x_lag,
+                        y,
+                        Lag::CONTEMPORANEOUS,
+                        &mut memo,
+                        workspace,
+                    )?;
                     ci_tests += tests;
                     // `try_side` returns `tests == 0` exactly when its own search pool was
                     // smaller than `p_pc`, i.e. this side is exhausted. Any real test means the
@@ -657,6 +652,7 @@ fn non_ancestral_removal_phase(
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
+    let mut memo = CiMemo::default();
     let rules = prelim_lpcmci_rules();
 
     for p_pc in 0..=max_p {
@@ -705,28 +701,34 @@ fn non_ancestral_removal_phase(
                     if search.len() < p_pc {
                         continue;
                     }
-                    let mut best: Option<(Vec<(VariableId, Lag)>, f64, f64)> = None;
-                    let mut candidate_cond = Vec::new();
-                    for combo in combinations(&search, p_pc) {
-                        candidate_cond.clear();
-                        candidate_cond.extend_from_slice(&cond);
+                    let link = LaggedLink {
+                        source: x,
+                        source_lag: x_lag,
+                        target: y,
+                        target_lag: Lag::CONTEMPORANEOUS,
+                    };
+                    let sets = Combinations::new(&search, p_pc).map(|combo| {
+                        let mut candidate_cond = cond.clone();
                         candidate_cond.extend_from_slice(&combo);
                         candidate_cond
                             .sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
-                        let link = LaggedLink {
-                            source: x,
-                            source_lag: x_lag,
-                            target: y,
-                            target_lag: Lag::CONTEMPORANEOUS,
-                        };
-                        let (stat, p) =
-                            engine.ci_statistic(frame, link, &candidate_cond, workspace, ctx)?;
-                        ci_tests += 1;
-                        if p > alpha {
-                            best = Some((std::mem::take(&mut candidate_cond), stat, p));
-                            break;
-                        }
-                    }
+                        Ok(candidate_cond)
+                    });
+                    let best = engine.scan_ci_sets(
+                        CiProbe { frame, link },
+                        sets,
+                        &mut memo,
+                        workspace,
+                        ctx,
+                        |candidate_cond, stat, p| {
+                            ci_tests += 1;
+                            if p > alpha {
+                                ControlFlow::Break((candidate_cond, stat, p))
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        },
+                    )?;
                     let Some((cond, _stat, _p)) = best else {
                         continue;
                     };

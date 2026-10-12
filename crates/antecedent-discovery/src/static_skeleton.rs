@@ -13,7 +13,8 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_stats::{CiBatchRequest, CiQuery, ConditionalIndependence, ConfidenceMethod};
 
-use crate::combinations::for_each_combination_vars;
+use crate::ci::{ChunkSchedule, run_ci_batch};
+use crate::combinations::Combinations;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
@@ -41,7 +42,7 @@ pub(crate) struct StaticSkeleton {
 
 /// Inputs of [`run_static_skeleton`].
 pub(crate) struct StaticSkeletonInput<'a> {
-    pub ci: &'a dyn ConditionalIndependence,
+    pub ci: &'a (dyn ConditionalIndependence + Sync),
     pub constraints: &'a DiscoveryConstraints,
     pub cols: &'a [&'a [f64]],
     pub var_index: &'a HashMap<VariableId, usize>,
@@ -154,6 +155,45 @@ pub(crate) fn static_ci_test(
     Ok((result.statistic, result.p_value))
 }
 
+/// `x ⊥ y | z` for every `z` of `zs` as one (possibly threaded) CI batch, or `None` when it
+/// cannot be batched (a single test, an unknown variable, no prepared test, a failing batch).
+/// `None` sends the caller down [`static_ci_test`], which reports a failure at the test that
+/// causes it.
+fn static_ci_batch(
+    input: &StaticSkeletonInput<'_>,
+    x: VariableId,
+    y: VariableId,
+    zs: &[Vec<VariableId>],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+) -> Option<Vec<antecedent_stats::CiResult>> {
+    if zs.len() < 2 {
+        return None;
+    }
+    let StaticSkeletonInput { ci, constraints, cols, var_index, .. } = *input;
+    let xi = *var_index.get(&x)?;
+    let yi = *var_index.get(&y)?;
+    let mut queries = Vec::with_capacity(zs.len());
+    let mut z_flat = Vec::new();
+    for z in zs {
+        let z_start = z_flat.len();
+        for v in z {
+            z_flat.push(*var_index.get(v)?);
+        }
+        queries.push(CiQuery { x: xi, y: yi, z_start, z_len: z.len() });
+    }
+    let req = CiBatchRequest {
+        columns: cols,
+        queries: &queries,
+        z_flat: &z_flat,
+        significance: constraints.significance,
+        confidence: ConfidenceMethod::default(),
+    };
+    let prepared = workspace.prepared_ci.as_ref()?;
+    let results = run_ci_batch(ci, prepared, &req, &mut workspace.ci, ctx).ok()?;
+    (results.len() == zs.len()).then_some(results)
+}
+
 /// Record `sep` as the separating set of `{x, y}` in both directions.
 pub(crate) fn record_sepset(
     sepsets: &mut PcSepsets,
@@ -167,32 +207,38 @@ pub(crate) fn record_sepset(
     sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
 }
 
-/// Sorted, deduplicated size-`depth` conditioning candidates for `x ⊥ y`, drawn from the
-/// neighbours of `x` and of `y` (each excluding the other endpoint).
-fn candidate_sets(
-    x: VariableId,
-    y: VariableId,
+/// Neighbours of `v` other than `other`, in ascending id order.
+fn sorted_neighbours(
+    v: VariableId,
+    other: VariableId,
     adj: &HashSet<(u32, u32)>,
     variables: &[VariableId],
-    depth: usize,
-    combo_scratch: &mut Vec<VariableId>,
-) -> Vec<Vec<VariableId>> {
-    let nx: Vec<VariableId> =
-        adjacent_vars(x, adj, variables).into_iter().filter(|&v| v != y).collect();
-    let ny: Vec<VariableId> =
-        adjacent_vars(y, adj, variables).into_iter().filter(|&v| v != x).collect();
-    let mut cand_sets: Vec<Vec<VariableId>> = Vec::new();
-    for neighbours in [&nx, &ny] {
-        if neighbours.len() >= depth {
-            for_each_combination_vars(neighbours, depth, combo_scratch, |c| {
-                cand_sets.push(c.to_vec());
-                true
-            });
-        }
-    }
-    cand_sets.sort_unstable();
-    cand_sets.dedup();
-    cand_sets
+) -> Vec<VariableId> {
+    let mut out: Vec<VariableId> =
+        adjacent_vars(v, adj, variables).into_iter().filter(|&u| u != other).collect();
+    out.sort_unstable();
+    out
+}
+
+/// Merge of two ascending streams without repeats into one ascending stream without repeats.
+fn sorted_union<T: Ord>(
+    a: impl Iterator<Item = T>,
+    b: impl Iterator<Item = T>,
+) -> impl Iterator<Item = T> {
+    let (mut a, mut b) = (a.peekable(), b.peekable());
+    std::iter::from_fn(move || match (a.peek(), b.peek()) {
+        (None, None) => None,
+        (Some(_), None) => a.next(),
+        (None, Some(_)) => b.next(),
+        (Some(l), Some(r)) => match l.cmp(r) {
+            std::cmp::Ordering::Less => a.next(),
+            std::cmp::Ordering::Greater => b.next(),
+            std::cmp::Ordering::Equal => {
+                b.next();
+                a.next()
+            }
+        },
+    })
 }
 
 /// Largest number of neighbours an endpoint of a remaining edge has besides the other endpoint.
@@ -203,6 +249,74 @@ fn max_excess_degree(adj: &HashSet<(u32, u32)>) -> usize {
         *degree.entry(hi).or_default() += 1;
     }
     adj.iter().map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1)).max().unwrap_or(0)
+}
+
+/// The edge `x — y` (`key`) and the conditioning-set size a scan of it runs at.
+#[derive(Clone, Copy)]
+struct EdgeScan {
+    x: VariableId,
+    y: VariableId,
+    key: (u32, u32),
+    depth: usize,
+}
+
+/// Separating set found for an edge (if any) and the statistic and p-value of the least
+/// significant test it faced (max p).
+type EdgeScanOutcome = (Option<Vec<VariableId>>, Option<(f64, f64)>);
+
+/// Test `x ⊥ y` under the size-`depth` conditioning candidates drawn from the neighbours of `x`
+/// and of `y`, in ascending order and without repeats, until a set separates them.
+///
+/// Upcoming candidates are evaluated in speculative batches (see [`ChunkSchedule`]); results
+/// past the separating set are discarded, so what is counted and recorded is exactly what a
+/// one-test-at-a-time scan would. Returns the separating set, if any, and the statistic and
+/// p-value of the least significant test faced (max p).
+fn scan_edge(
+    input: &StaticSkeletonInput<'_>,
+    edge: EdgeScan,
+    skel: &mut StaticSkeleton,
+    depth_tests: &mut u64,
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<EdgeScanOutcome, DiscoveryError> {
+    let EdgeScan { x, y, key, depth } = edge;
+    let alpha = input.constraints.alpha;
+    let nx = sorted_neighbours(x, y, &skel.adj, input.variables);
+    let ny = sorted_neighbours(y, x, &skel.adj, input.variables);
+    let mut cand_sets = sorted_union(Combinations::new(&nx, depth), Combinations::new(&ny, depth));
+    let mut weakest: Option<(f64, f64)> = None;
+    let mut schedule = ChunkSchedule::new(ctx);
+    loop {
+        let chunk: Vec<Vec<VariableId>> = cand_sets.by_ref().take(schedule.next_size()).collect();
+        if chunk.is_empty() {
+            return Ok((None, weakest));
+        }
+        let batch = static_ci_batch(input, x, y, &chunk, workspace, ctx);
+        for (k, z) in chunk.into_iter().enumerate() {
+            let (stat, p) = match &batch {
+                Some(results) => {
+                    let r = &results[k];
+                    if !r.statistic.is_finite() || !r.p_value.is_finite() {
+                        return Err(DiscoveryError::stats_msg(
+                            "non-finite CI statistic or p-value",
+                        ));
+                    }
+                    (r.statistic, r.p_value)
+                }
+                None => static_ci_test(input, x, y, &z, workspace, ctx)?,
+            };
+            skel.ci_tests += 1;
+            *depth_tests += 1;
+            skel.family_p.push(p);
+            skel.family_edge.push(key);
+            if p > alpha {
+                return Ok((Some(z), weakest));
+            }
+            if weakest.is_none_or(|(_, wp)| p > wp) {
+                weakest = Some((stat, p));
+            }
+        }
+    }
 }
 
 /// PC adjacency search (order-dependent, deterministic traversal — see
@@ -222,7 +336,6 @@ pub(crate) fn run_static_skeleton(
     ctx: &ExecutionContext,
 ) -> Result<StaticSkeleton, DiscoveryError> {
     let StaticSkeletonInput { constraints, variables, label, .. } = *input;
-    let alpha = constraints.alpha;
     let max_cond = constraints.max_cond_size;
 
     let mut skel = StaticSkeleton {
@@ -245,7 +358,6 @@ pub(crate) fn run_static_skeleton(
         }
     }
 
-    let mut combo_scratch = Vec::new();
     let mut depth = 0usize;
     loop {
         let mut depth_tests = 0u64;
@@ -264,30 +376,18 @@ pub(crate) fn run_static_skeleton(
             if constraints.static_required(x, y) {
                 continue;
             }
-            let cand_sets = candidate_sets(x, y, &skel.adj, variables, depth, &mut combo_scratch);
-
-            let mut separating: Option<&Vec<VariableId>> = None;
-            // Statistic / p-value of the least significant test this edge faced at this
-            // depth (max p).
-            let mut weakest: Option<(f64, f64)> = None;
-            for z in &cand_sets {
-                let (stat, p) = static_ci_test(input, x, y, z, workspace, ctx)?;
-                skel.ci_tests += 1;
-                depth_tests += 1;
-                skel.family_p.push(p);
-                skel.family_edge.push(key);
-                if p > alpha {
-                    separating = Some(z);
-                    break;
-                }
-                if weakest.is_none_or(|(_, wp)| p > wp) {
-                    weakest = Some((stat, p));
-                }
-            }
+            let (separating, weakest) = scan_edge(
+                input,
+                EdgeScan { x, y, key, depth },
+                &mut skel,
+                &mut depth_tests,
+                workspace,
+                ctx,
+            )?;
 
             if let Some(z) = separating {
                 skel.adj.remove(&key);
-                record_sepset(&mut skel.sepsets, x, y, z);
+                record_sepset(&mut skel.sepsets, x, y, &z);
             } else if let Some((statistic, p_value)) = weakest {
                 let link = ScoredLink {
                     link: LaggedLink {

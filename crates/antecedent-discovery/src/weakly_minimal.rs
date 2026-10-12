@@ -2,13 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::LaggedFrame;
 use antecedent_graph::DenseNodeId;
 
-use crate::engine::{DiscoveryWorkspace, PcmciEngine};
+use crate::engine::{CiMemo, CiProbe, DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::orientation::OrientationState;
 use crate::result::LaggedLink;
@@ -38,13 +39,23 @@ pub fn make_sepset_weakly_minimal(
         z.iter().copied().filter(|&(v, l)| !ancs_set.contains(&(v.raw(), l.raw()))).collect();
 
     let mut best_sepsets: Vec<(f64, Vec<(VariableId, Lag)>)> = Vec::new();
-    for &drop in &removable {
-        let z_a: Vec<_> = z.iter().copied().filter(|&p| p != drop).collect();
-        let (stat, p) = engine.ci_statistic(frame, link, &z_a, workspace, ctx)?;
-        if p > engine.constraints.alpha {
-            best_sepsets.push((stat.abs(), z_a));
-        }
-    }
+    let sets = removable
+        .iter()
+        .map(|&drop| Ok(z.iter().copied().filter(|&p| p != drop).collect::<Vec<_>>()));
+    let alpha = engine.constraints.alpha;
+    engine.scan_ci_sets(
+        CiProbe { frame, link },
+        sets,
+        &mut CiMemo::default(),
+        workspace,
+        ctx,
+        |z_a, stat, p| {
+            if p > alpha {
+                best_sepsets.push((stat.abs(), z_a));
+            }
+            ControlFlow::<()>::Continue(())
+        },
+    )?;
 
     if best_sepsets.is_empty() {
         return Ok(z.to_vec());

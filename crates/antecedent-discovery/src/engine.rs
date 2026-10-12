@@ -32,6 +32,27 @@ use crate::result::{
     LaggedLink, PcSepsets, ScoredLink, discovery_assumptions,
 };
 
+/// A tested link and its conditioning set.
+type CiKey = (LaggedLink, Vec<(VariableId, Lag)>);
+
+/// The lagged frame and the link a scan of conditioning sets tests on it.
+#[derive(Clone, Copy)]
+pub(crate) struct CiProbe<'a> {
+    pub frame: &'a LaggedFrame,
+    pub link: LaggedLink,
+}
+
+/// CI outcomes of one run keyed by tested link and conditioning set.
+///
+/// A test is a pure function of its link, conditioning set and the frame, so a repeated one
+/// is answered from here instead of being run again.
+#[derive(Debug, Default)]
+pub(crate) struct CiMemo {
+    outcomes: HashMap<CiKey, (f64, f64)>,
+    /// Tests actually run (memo misses).
+    pub computed: u64,
+}
+
 /// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
 const MAX_CI_COLS: usize = 32;
 
@@ -885,6 +906,127 @@ impl PcmciEngine {
                 Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
         }
         Ok(())
+    }
+
+    /// CI tests of `link` under each conditioning set of `conds` as one (possibly threaded)
+    /// batch, or `None` when the sets cannot be batched (masked frame, oversized or unknown
+    /// columns, a failing batch). `None` sends the caller down the one-test-at-a-time path,
+    /// which reports each failure at the test that causes it.
+    fn ci_batch(
+        &self,
+        frame: &LaggedFrame,
+        link: LaggedLink,
+        conds: &[&[(VariableId, Lag)]],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Option<Vec<antecedent_stats::CiResult>> {
+        if conds.len() < 2 || !frame.is_fully_valid() {
+            return None;
+        }
+        let xi = frame.column_index(link.source, link.source_lag)?;
+        let yi = frame.column_index(link.target, link.target_lag)?;
+        let mut queries = Vec::with_capacity(conds.len());
+        let mut z_flat = Vec::new();
+        for cond in conds {
+            if 2 + cond.len() > MAX_CI_COLS {
+                return None;
+            }
+            let z_start = z_flat.len();
+            for &(v, l) in *cond {
+                z_flat.push(frame.column_index(v, l)?);
+            }
+            queries.push(CiQuery { x: xi, y: yi, z_start, z_len: cond.len() });
+        }
+        self.ensure_prepared_ci(frame, workspace, ctx).ok()?;
+        let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: self.constraints.significance,
+            confidence: ConfidenceMethod::default(),
+        };
+        let prepared = workspace.prepared_ci.as_ref()?;
+        let results =
+            crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx).ok()?;
+        (results.len() == conds.len()).then_some(results)
+    }
+
+    /// Visit the CI outcome of `link` under each conditioning set of `sets`, in order, until
+    /// `visit` breaks.
+    ///
+    /// Equivalent to calling [`Self::ci_statistic`] on each set in turn and stopping at the
+    /// first break: upcoming sets are evaluated in speculative batches (see
+    /// [`crate::ci::ChunkSchedule`]) whose results past the break are only kept in `memo`,
+    /// and an error is reported at the set that causes it, after every earlier set was
+    /// visited.
+    ///
+    /// # Errors
+    ///
+    /// The first failing set's error (a failure of the generator counts at its position).
+    pub(crate) fn scan_ci_sets<B>(
+        &self,
+        probe: CiProbe<'_>,
+        mut sets: impl Iterator<Item = Result<Vec<(VariableId, Lag)>, DiscoveryError>>,
+        memo: &mut CiMemo,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+        mut visit: impl FnMut(Vec<(VariableId, Lag)>, f64, f64) -> std::ops::ControlFlow<B>,
+    ) -> Result<Option<B>, DiscoveryError> {
+        let CiProbe { frame, link } = probe;
+        let mut schedule = crate::ci::ChunkSchedule::new(ctx);
+        loop {
+            let mut chunk: Vec<Vec<(VariableId, Lag)>> = Vec::new();
+            let mut pending: Option<DiscoveryError> = None;
+            for item in sets.by_ref().take(schedule.next_size()) {
+                match item {
+                    Ok(cond) => chunk.push(cond),
+                    Err(e) => {
+                        pending = Some(e);
+                        break;
+                    }
+                }
+            }
+            if chunk.is_empty() && pending.is_none() {
+                return Ok(None);
+            }
+
+            let mut missing: Vec<&[(VariableId, Lag)]> = Vec::new();
+            for cond in &chunk {
+                let known = memo.outcomes.contains_key(&(link, cond.clone()))
+                    || missing.iter().any(|m| *m == cond.as_slice());
+                if !known {
+                    missing.push(cond);
+                }
+            }
+            if let Some(results) = self.ci_batch(frame, link, &missing, workspace, ctx) {
+                for (cond, r) in missing.iter().zip(results) {
+                    // A non-finite outcome is left out so that it errors where it is visited.
+                    if r.statistic.is_finite() && r.p_value.is_finite() {
+                        memo.outcomes.insert((link, cond.to_vec()), (r.statistic, r.p_value));
+                        memo.computed += 1;
+                    }
+                }
+            }
+
+            for cond in chunk {
+                let key = (link, cond);
+                let (stat, p) = if let Some(&hit) = memo.outcomes.get(&key) {
+                    hit
+                } else {
+                    let out = self.ci_statistic(frame, link, &key.1, workspace, ctx)?;
+                    memo.outcomes.insert(key.clone(), out);
+                    memo.computed += 1;
+                    out
+                };
+                if let std::ops::ControlFlow::Break(b) = visit(key.1, stat, p) {
+                    return Ok(Some(b));
+                }
+            }
+            if let Some(e) = pending {
+                return Err(e);
+            }
+        }
     }
 
     /// CI test of `link.source ⊥ link.target | cond` on `frame`.

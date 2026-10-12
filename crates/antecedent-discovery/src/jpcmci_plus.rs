@@ -409,7 +409,7 @@ impl JpcmciPlus {
         // Force-direct exogenous → system edges before Meek.
         force_orient_exogenous(&mut cpdag, &mut state, &logical_exog, &system)?;
 
-        let majority_delta = orient_majority_colliders(
+        let (majority_delta, majority_tests) = orient_majority_colliders(
             &engine4,
             frame,
             &lagged_parents,
@@ -418,6 +418,11 @@ impl JpcmciPlus {
             workspace,
             ctx,
         )?;
+        ci_tests += majority_tests;
+        iterations.push(DiscoveryIteration {
+            label: Arc::from("jpcmci_plus.majority_collider"),
+            ci_tests: majority_tests,
+        });
         let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 4] =
             [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3, &ContempMeekR4];
         let meek_delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;

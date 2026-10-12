@@ -7,9 +7,79 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_stats::ensure_alpha_resolvable;
+use antecedent_core::ExecutionContext;
+use antecedent_stats::{StatsError, ensure_alpha_resolvable};
 
 use crate::error::DiscoveryError;
+
+/// Smallest number of queries worth a thread of their own: below it the spawn and the fresh
+/// per-thread workspace cost more than the tests.
+const MIN_QUERIES_PER_THREAD: usize = 4;
+
+/// Evaluate `request` against `prepared`, splitting the queries across the context's threads
+/// when there are enough of them.
+///
+/// Every query is independent of its batch position (permutation streams are keyed by the
+/// query, never by its index), so the results are bit-identical for any thread count and
+/// arrive in query order.
+///
+/// # Errors
+///
+/// The first failing part's error, as `test_batch` would report it.
+pub(crate) fn run_ci_batch(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Vec<CiResult>, StatsError> {
+    let n = request.queries.len();
+    let threads = (ctx.parallelism.max_threads.get() as usize).min(n / MIN_QUERIES_PER_THREAD);
+    if threads < 2 {
+        return ci.test_batch(prepared, request, workspace, ctx).map(|out| out.results);
+    }
+    let per_part = n.div_ceil(threads);
+    let parts = n.div_ceil(per_part);
+    let chunks = ctx.map_indexed(parts, |part, inner| {
+        let lo = part * per_part;
+        let hi = (lo + per_part).min(n);
+        let sub = CiBatchRequest { queries: &request.queries[lo..hi], ..request.clone() };
+        ci.test_batch(prepared, &sub, &mut CiWorkspace::default(), inner).map(|out| out.results)
+    })?;
+    Ok(chunks.into_iter().flatten().collect())
+}
+
+/// Sizes of the successive chunks of a scan that stops at its first hit.
+///
+/// A serial context evaluates one test at a time, exactly as an unbatched loop would. A
+/// threaded one starts with a single test (most edges separate or fail immediately) and then
+/// widens geometrically, so the tests evaluated past the hit stay within a small multiple of
+/// the tests that were needed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ChunkSchedule {
+    next: usize,
+    threads: usize,
+    cap: usize,
+}
+
+impl ChunkSchedule {
+    pub(crate) fn new(ctx: &ExecutionContext) -> Self {
+        let threads = ctx.parallelism.max_threads.get() as usize;
+        Self { next: 1, threads, cap: if threads <= 1 { 1 } else { threads * 16 } }
+    }
+
+    pub(crate) fn next_size(&mut self) -> usize {
+        let size = self.next;
+        self.next = if self.threads <= 1 {
+            1
+        } else if size == 1 {
+            self.threads * MIN_QUERIES_PER_THREAD
+        } else {
+            (size * 2).min(self.cap)
+        };
+        size
+    }
+}
 
 /// Refuse a CI test / `alpha` / multiplicity combination whose decisions would not mean what
 /// they say.

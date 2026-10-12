@@ -46,3 +46,7 @@ harness = false
 [[bench]]
 name = "rpcmci"
 harness = false
+
+[[bench]]
+name = "ci_search"
+harness = false

@@ -16,11 +16,11 @@ use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
 
-use crate::combinations::for_each_combination;
+use crate::combinations::Combinations;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{
-    DiscoveryWorkspace, LaggedSearch, PcmciEngine, mci_conditioning_bounded, parents_of_target,
-    refuse_truncated_mci,
+    CiMemo, CiProbe, DiscoveryWorkspace, LaggedSearch, PcmciEngine, mci_conditioning_bounded,
+    parents_of_target, refuse_truncated_mci,
 };
 use crate::error::DiscoveryError;
 use crate::evidence::{
@@ -201,7 +201,7 @@ impl PcmciPlus {
         let mut state = orientation_state_from_sepsets(&node_ids, &sepsets);
 
         // --- Step 3: majority collider (with subset re-tests) ---
-        let majority_delta = orient_majority_colliders(
+        let (majority_delta, majority_tests) = orient_majority_colliders(
             &self.engine,
             frame,
             &lagged_parents,
@@ -210,6 +210,11 @@ impl PcmciPlus {
             workspace,
             ctx,
         )?;
+        ci_tests += majority_tests;
+        iterations.push(DiscoveryIteration {
+            label: Arc::from("pcmci_plus.majority_collider"),
+            ci_tests: majority_tests,
+        });
 
         // --- Step 4: Meek R1–R4 contemporaneous only ---
         let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 4] =
@@ -513,6 +518,9 @@ pub(crate) fn contemp_mci_phase(
 ///
 /// Matches pinned baseline `contemp_collider_rule='majority'`. Conflicts / ambiguous triples
 /// are recorded out-of-band (`conflict_edges`) and conflicting edges are marked `x-x`.
+///
+/// Returns the orientation delta and the number of distinct CI tests the votes ran: the same
+/// `(a, b, S)` test recurs under several centres, and each is run and counted once.
 pub(crate) fn orient_majority_colliders(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
@@ -521,10 +529,11 @@ pub(crate) fn orient_majority_colliders(
     state: &mut OrientationState,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-) -> Result<RuleDelta, DiscoveryError> {
+) -> Result<(RuleDelta, u64), DiscoveryError> {
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let mut memo = CiMemo::default();
     let n = graph.node_count();
 
     let mut contemp_nodes = Vec::new();
@@ -565,6 +574,7 @@ pub(crate) fn orient_majority_colliders(
                     lagged_parents,
                     graph,
                     &vote,
+                    &mut memo,
                     workspace,
                     ctx,
                 )?;
@@ -605,7 +615,7 @@ pub(crate) fn orient_majority_colliders(
             }
         }
     }
-    Ok(delta)
+    Ok((delta, memo.computed))
 }
 
 /// Orient leg `endpoint → c` if the edge is still undirected.
@@ -673,12 +683,17 @@ struct MajorityVote {
     alpha: f64,
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the engine, frame, graph, vote and the run's memo and workspace are independent borrows of one majority pass"
+)]
 fn majority_sep_counts(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
     lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
     graph: &antecedent_graph::TemporalCpdag,
     vote: &MajorityVote,
+    memo: &mut CiMemo,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<(u32, u32), DiscoveryError> {
@@ -723,61 +738,50 @@ fn majority_sep_counts(
     let mut n_sep = 0u32;
     let mut n_with_c = 0u32;
     let c_key = (vc, lc);
-    let mut scratch = Vec::new();
-    let mut vote_err: Option<DiscoveryError> = None;
-    for q in 0..=max_cond.min(cand.len()) {
-        for_each_combination(&cand, q, &mut scratch, |s| {
-            if vote_err.is_some() {
-                return false;
+    let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
+    let mut others = Vec::new();
+    // Whether `c` is in the candidate part `S` of each generated set, in generation order.
+    let s_has_c = std::cell::RefCell::new(std::collections::VecDeque::new());
+    // Reserve room for S *before* building the lagged MCI block (same honesty as the
+    // contemporaneous MCI phase): truncating after appending S would drop lagged parents from
+    // the tail.
+    let sets = (0..=max_cond.min(cand.len())).flat_map(|q| Combinations::new(&cand, q)).map(|s| {
+        let s_budget = MAX_MCI_COND.saturating_sub(s.len());
+        let dropped = mci_conditioning_bounded(
+            link,
+            parents_of_target(lagged_parents, vb),
+            parents_of_target(lagged_parents, va),
+            s_budget,
+            &mut others,
+        );
+        refuse_truncated_mci(dropped)?;
+        s_has_c.borrow_mut().push_back(s.contains(&c_key));
+        let mut merged: Vec<(VariableId, Lag)> = Vec::with_capacity(s.len() + others.len());
+        merged.extend_from_slice(&s);
+        for &x in &others {
+            if !merged.contains(&x) {
+                merged.push(x);
             }
-            // Reserve room for S *before* building the lagged MCI block (same honesty as
-            // the contemporaneous MCI phase): truncating after appending S would drop
-            // lagged parents from the tail.
-            let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
-            let s_budget = MAX_MCI_COND.saturating_sub(s.len());
-            let dropped = mci_conditioning_bounded(
-                link,
-                parents_of_target(lagged_parents, vb),
-                parents_of_target(lagged_parents, va),
-                s_budget,
-                &mut workspace.others,
-            );
-            if let Err(e) = refuse_truncated_mci(dropped) {
-                vote_err = Some(e);
-                return false;
-            }
-            let mut merged: Vec<(VariableId, Lag)> =
-                Vec::with_capacity(s.len() + workspace.others.len());
-            merged.extend_from_slice(s);
-            for &x in &workspace.others {
-                if !merged.contains(&x) {
-                    merged.push(x);
-                }
-            }
-            workspace.others = merged;
-            let cond = std::mem::take(&mut workspace.others);
-            let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
-            let result = engine.ci_statistic(frame, link, &cond, workspace, ctx);
-            workspace.others = cond;
-            match result {
-                Ok((_, p)) if p > alpha => {
-                    n_sep = n_sep.saturating_add(1);
-                    if s.contains(&c_key) {
-                        n_with_c = n_with_c.saturating_add(1);
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    vote_err = Some(e);
-                    return false;
-                }
-            }
-            true
-        });
-        if let Some(e) = vote_err.take() {
-            return Err(e);
         }
-    }
+        Ok(merged)
+    });
+    engine.scan_ci_sets(
+        CiProbe { frame, link },
+        sets,
+        memo,
+        workspace,
+        ctx,
+        |_cond, _stat, p| {
+            let has_c = s_has_c.borrow_mut().pop_front() == Some(true);
+            if p > alpha {
+                n_sep = n_sep.saturating_add(1);
+                if has_c {
+                    n_with_c = n_with_c.saturating_add(1);
+                }
+            }
+            std::ops::ControlFlow::<()>::Continue(())
+        },
+    )?;
     Ok((n_sep, n_with_c))
 }
 
@@ -991,9 +995,17 @@ mod tests {
             .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: false }));
         let mut ws = DiscoveryWorkspace::default();
         let vote = MajorityVote { a, b, c, max_cond: 1, alpha: 0.05 };
-        let (n_sep, n_with_c) =
-            majority_sep_counts(&collider_engine, &frame, &[], &graph, &vote, &mut ws, &ctx)
-                .unwrap();
+        let (n_sep, n_with_c) = majority_sep_counts(
+            &collider_engine,
+            &frame,
+            &[],
+            &graph,
+            &vote,
+            &mut CiMemo::default(),
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!((n_sep, n_with_c), (1, 0), "collider case: c must never appear in a sepset");
         assert!(f64::from(n_with_c) / f64::from(n_sep) < 0.5);
 
@@ -1003,8 +1015,17 @@ mod tests {
             .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: true }));
         let mut ws = DiscoveryWorkspace::default();
         let vote = MajorityVote { a, b, c, max_cond: 1, alpha: 0.05 };
-        let (n_sep, n_with_c) =
-            majority_sep_counts(&chain_engine, &frame, &[], &graph, &vote, &mut ws, &ctx).unwrap();
+        let (n_sep, n_with_c) = majority_sep_counts(
+            &chain_engine,
+            &frame,
+            &[],
+            &graph,
+            &vote,
+            &mut CiMemo::default(),
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!((n_sep, n_with_c), (1, 1), "chain/fork case: every sepset must contain c");
         assert!(f64::from(n_with_c) / f64::from(n_sep) > 0.5);
     }
@@ -1144,8 +1165,17 @@ mod tests {
         let engine = PcmciEngine::new().with_ci(Arc::new(AlwaysCiError));
         let mut ws = DiscoveryWorkspace::default();
         let vote = MajorityVote { a, b, c, max_cond: 1, alpha: 0.05 };
-        let err = majority_sep_counts(&engine, &frame, &[], &graph, &vote, &mut ws, &ctx)
-            .expect_err("CI failure must not be swallowed as a non-vote");
+        let err = majority_sep_counts(
+            &engine,
+            &frame,
+            &[],
+            &graph,
+            &vote,
+            &mut CiMemo::default(),
+            &mut ws,
+            &ctx,
+        )
+        .expect_err("CI failure must not be swallowed as a non-vote");
         let msg = err.to_string();
         assert!(
             msg.contains("forced CI failure") || msg.contains("Internal") || msg.contains("stats"),
