@@ -23,8 +23,10 @@
 
 use std::env;
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+#[cfg(unix)]
 use std::process::Command;
 
 fn main() {
@@ -45,8 +47,9 @@ fn main() {
     }
     if let Some(dir) = config.lib_dir() {
         println!("cargo:rustc-link-search=native={dir}");
+        #[cfg(unix)]
         if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() == Ok("unix") {
-            emit_test_only_rpath(&dir);
+            emit_test_only_rpath(dir);
         }
     }
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
@@ -59,6 +62,7 @@ fn main() {
 }
 
 /// Point the test executable at `dir` without recording that path on the cdylib.
+#[cfg(unix)]
 fn emit_test_only_rpath(dir: &str) {
     let Some(ld) = linker_path() else {
         println!(
@@ -94,6 +98,7 @@ fn emit_test_only_rpath(dir: &str) {
     println!("cargo:rustc-link-arg=-fuse-ld={}", wrapper.display());
 }
 
+#[cfg(unix)]
 fn linker_path() -> Option<String> {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         if let Some(path) = command_stdout("xcrun", &["--find", "ld"]) {
@@ -110,6 +115,7 @@ fn linker_path() -> Option<String> {
     command_stdout("which", &["ld"]).filter(|path| !path.is_empty())
 }
 
+#[cfg(unix)]
 fn command_stdout(program: &str, args: &[&str]) -> Option<String> {
     let output = Command::new(program).args(args).output().ok()?;
     if !output.status.success() {
@@ -118,6 +124,7 @@ fn command_stdout(program: &str, args: &[&str]) -> Option<String> {
     Some(String::from_utf8(output.stdout).ok()?.trim().to_string())
 }
 
+#[cfg(unix)]
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
