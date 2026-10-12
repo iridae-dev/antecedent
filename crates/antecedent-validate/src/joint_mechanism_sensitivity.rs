@@ -1252,3 +1252,16 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         replicates_failed: failed,
     }))
 }
+
+#[cfg(test)]
+mod kernel_error_tests {
+    use super::{ZTransportSensitivityError, kernel_error};
+
+    #[test]
+    fn no_budget_cancellation_is_its_own_detail() {
+        let error = kernel_error(&ZTransportSensitivityError::Cancelled);
+        assert_eq!(error.detail(), "joint_sensitivity.cancelled");
+        assert_eq!(error.reason_code(), "transport_budget_cancel");
+        assert_ne!(error.detail(), "joint_sensitivity.incomplete_kernel");
+    }
+}
