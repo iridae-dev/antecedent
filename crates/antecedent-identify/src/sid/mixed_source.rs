@@ -108,16 +108,16 @@ use antecedent_core::{
 use antecedent_expr::{
     CausalExprArena, DistributionLeaf, DomainRef, ExprId, ExprNode, LeafBinding,
 };
-use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
+use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
 
-use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
+use super::meta::{identify_meta_catalog_metered, MetaSource, MetaTransportQuery};
 use super::z_transport::{
-    ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery, ZTransportSourceSpec,
-    decide_z_transport_reporting,
+    decide_z_transport_reporting, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery,
+    ZTransportSourceSpec,
 };
 use super::{
-    CatalogTransportResult, ClassicalTransportQuery, IdentificationError, MzTransportDecision,
-    MzTransportQuery, SearchCharge, SharedSearch, identify_catalog_transport_metered,
+    identify_catalog_transport_metered, CatalogTransportResult, ClassicalTransportQuery,
+    IdentificationError, MzTransportDecision, MzTransportQuery, SearchCharge, SharedSearch,
 };
 
 /// Observed variables in the graph.
@@ -245,6 +245,7 @@ pub fn mixed_source_rule_names() -> Vec<&'static str> {
 type Mask = u16;
 
 const fn bit(index: usize) -> Mask {
+    assert!(index < Mask::BITS as usize, "mixed-source mask index exceeds u16");
     1 << index
 }
 
@@ -367,14 +368,8 @@ impl ValidatedMixedSourceQuery {
 }
 
 fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError> {
-    graph
-        .nodes()
-        .iter()
-        .map(|node| match node {
-            NodeRef::Static(variable) => Ok(*variable),
-            _ => Err(invalid_query(&"the graph must consist of static variables")),
-        })
-        .collect()
+    super::static_nodes::static_variables(graph)
+        .map_err(|()| invalid_query(&"the graph must consist of static variables"))
 }
 
 /// Validate a query against the graph and catalog and classify every regime.
@@ -979,6 +974,9 @@ impl<'g> Engine<'g> {
         query: &MixedSourceQuery,
     ) -> Result<Self, IdentificationError> {
         let n = variables.len();
+        if n >= usize::try_from(Mask::BITS).unwrap_or(usize::MAX) {
+            return Err(bounds_exceeded());
+        }
         let mask_of = |vs: &[VariableId]| {
             vs.iter().try_fold(0, |acc: Mask, v| {
                 variables
@@ -1397,7 +1395,11 @@ impl Checker {
             .iter()
             .map(|v| self.variables.iter().position(|w| w == v).ok_or_else(invalid_derivation))
             .collect::<Result<Set, _>>()?;
-        if set.len() == variables.len() { Ok(set) } else { Err(invalid_derivation()) }
+        if set.len() == variables.len() {
+            Ok(set)
+        } else {
+            Err(invalid_derivation())
+        }
     }
 
     /// Ancestors of `seeds` (inclusive) along directed edges not entering `over`.
@@ -3565,7 +3567,7 @@ mod tests {
     /// Completeness against the complete ID algorithm (single observational study).
     mod reference {
         use super::*;
-        use crate::{IdIdentifier, IdentificationWorkspace, result::IdentificationStatus};
+        use crate::{result::IdentificationStatus, IdIdentifier, IdentificationWorkspace};
         use antecedent_core::{
             CausalQuery, Intervention, InterventionalDistributionQuery, SearchBudget, Value,
         };

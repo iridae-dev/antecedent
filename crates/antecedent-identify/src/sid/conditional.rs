@@ -77,20 +77,20 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional_witness::{
-    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessSearch, search_conditional_witness,
-    verify_conditional_witness,
+    search_conditional_witness, verify_conditional_witness, ConditionalWitnessCheck,
+    ConditionalWitnessRecord, WitnessSearch,
 };
 use super::mixed_source::{Checker, Set};
 use super::{
+    identify_catalog_transport_metered, identify_classical_transport_metered, sid_memory_bytes,
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportDerivation,
     ClassicalTransportQuery, ClassicalTransportResult, SHedgeCertificate, SHedgeRecord,
-    SharedSearch, SidDerivationRecord, SidLimits, identify_catalog_transport_metered,
-    identify_classical_transport_metered, sid_memory_bytes,
+    SharedSearch, SidDerivationRecord, SidLimits,
 };
 use crate::IdentificationError;
 use antecedent_core::{
-    DEFAULT_SEARCH_MEMORY_BYTES, EvidenceCatalog, ExecutionContext, SearchBudget, SearchLimits,
-    SearchReceipt, VariableId,
+    EvidenceCatalog, ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, VariableId,
+    DEFAULT_SEARCH_MEMORY_BYTES,
 };
 use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
@@ -364,7 +364,11 @@ impl ConditionalTransportDerivation {
 /// Map an inner sID check failure to this route's detail; budget, cancellation
 /// and memory keep their own kind.
 fn checked_error(error: IdentificationError) -> IdentificationError {
-    if error.is_budget_or_cancel() { error } else { invalid_derivation() }
+    if error.is_budget_or_cancel() {
+        error
+    } else {
+        invalid_derivation()
+    }
 }
 
 /// A checked conditional derivation whose reduced joint is bound to a catalog.
@@ -789,14 +793,8 @@ pub(super) fn validate(
 
 /// Static variable of every dense node, in dense order.
 pub(super) fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError> {
-    graph
-        .nodes()
-        .iter()
-        .map(|node| match node {
-            antecedent_graph::NodeRef::Static(variable) => Ok(*variable),
-            _ => Err(invalid_query("only static observed nodes are supported")),
-        })
-        .collect()
+    super::static_nodes::static_variables(graph)
+        .map_err(|()| invalid_query("only static observed nodes are supported"))
 }
 
 /// Dense index of `v` in `variables`.
@@ -867,7 +865,11 @@ fn rule_two_checked(checker: &Checker, y: &Set, x: &Set, w: usize, rest: &Set) -
 
 /// Cancellation poll of a record check run outside a decision's budget.
 fn poll_cancellation(ctx: &ExecutionContext) -> Result<(), IdentificationError> {
-    if ctx.cancellation.is_cancelled() { Err(IdentificationError::Cancelled) } else { Ok(()) }
+    if ctx.cancellation.is_cancelled() {
+        Err(IdentificationError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 /// Independently replay recorded moves (each must satisfy rule 2 at its turn)
