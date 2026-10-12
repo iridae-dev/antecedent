@@ -234,6 +234,10 @@ impl JointBayesianSession {
 /// This internal route publishes no calibrated posterior or confidence interval.
 /// # Errors
 /// Original identification/likelihood/prior ownership refusals, bounds, or receipt errors.
+#[allow(
+    clippy::too_many_lines,
+    reason = "plans the staged recalculation and runs each stage the plan marks changed against one receipt recorder and one live session, so the stage bodies share the counters and the previous session"
+)]
 pub fn execute_joint_bayesian_with_receipt(
     session: &mut JointBayesianSession,
     request: &JointBayesianRequest,

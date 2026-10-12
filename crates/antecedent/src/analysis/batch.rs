@@ -1129,6 +1129,10 @@ fn batch_claim_alignment(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "aligns every result's influence to the shared row universe, forms the level covariance, then branches on the declared family contrast; each early exit must also record candidate selection, so the phases share one `results` borrow"
+)]
 fn attach_batch_family_joint_inference(
     results: &mut [StudyResult],
     data: &TabularData,
@@ -1552,6 +1556,10 @@ fn rows_disjoint(a: &[u32], b: &[u32]) -> bool {
     true
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "ranks the family by the screen's procedure (BH, BY, max-t or none) and writes one selection record onto every result; the procedures share the same result walk"
+)]
 fn attach_candidate_selection(
     results: &mut [StudyResult],
     screen: Option<&CandidateScreen>,

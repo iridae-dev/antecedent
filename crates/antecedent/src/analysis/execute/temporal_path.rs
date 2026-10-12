@@ -5547,8 +5547,8 @@ pub(super) fn temporal_linear_derivative_response(
     identification: &IdentificationResult,
     spec: DerivativeSpec<'_>,
 ) -> Result<CausalResponse, CausalError> {
-    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     use antecedent_core::{DerivativeWeighting, ResponseFunctional as F};
+    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     if query.target_population != antecedent_core::TargetPopulation::AllObserved {
         return Err(CausalError::Unsupported {
             message: "temporal derivative requires the all-observed population",
@@ -5945,6 +5945,7 @@ fn identified_horizon_entries<'a>(
 
 /// The series, query, specification and unfold indexer a temporal derivative
 /// response is computed from.
+#[derive(Clone, Copy)]
 struct DerivativeResponseInputs<'a> {
     data: &'a TimeSeriesData,
     query: &'a ResponseQuery,

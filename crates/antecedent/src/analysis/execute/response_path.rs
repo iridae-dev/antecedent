@@ -776,6 +776,10 @@ mod checked_derivative_operation_tests {
     use antecedent_graph::{Dag, DenseNodeId};
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "builds the linear truth fixture, seals the derivative operation and asserts the point, the refused rebind and the bound query"
+    )]
     fn sealed_point_derivative_matches_independent_linear_truth_and_binds_query() {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(1);

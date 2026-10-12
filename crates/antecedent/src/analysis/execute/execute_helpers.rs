@@ -1211,6 +1211,7 @@ pub(super) fn static_aligned_influence(
 /// Per threshold, each atom is estimated on the same indicator transform, IFs
 /// are aligned to the original row universe, and `F_a(c)` / scores are mixed
 /// by frozen completion weight — the same rule as class-aware mean CATEs.
+#[allow(clippy::too_many_lines, reason = "for each threshold, refits every identified completion on the exceedance outcome and mixes arm CDFs, influences and supports by frozen completion weight into the same output vectors")]
 pub(super) fn attach_class_conditional_functional_grid(
     estimate: EffectEstimate,
     data: &TabularData,
@@ -2950,6 +2951,7 @@ impl super::Study {
     }
 }
 
+#[allow(clippy::too_many_lines, reason = "assembles one StudyResult from the finish record: diagnostics are pushed in a fixed order against one seen-code set, then provenance, estimate and certificate are read from the same record")]
 fn finish_identified_execute_with_context(
     context: &IdentifiedResultContext,
     tabular_data: Option<&TabularData>,

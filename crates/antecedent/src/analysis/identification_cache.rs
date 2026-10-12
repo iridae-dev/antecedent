@@ -741,6 +741,10 @@ pub(crate) fn build_dbn_posterior_identification_cache(
 /// Pag). Completions that disagree keep envelope status; unidentified class
 /// mass stays on [`CachedTemporalClassPosteriorIdentification::graphs`].
 /// Completion enumeration is not posterior probability.
+#[allow(
+    clippy::too_many_lines,
+    reason = "validates the temporal class posterior's lag masks and atom kind, then identifies each CPDAG or PAG atom under one configuration and walks the samples once into atoms, weights and flags"
+)]
 pub(crate) fn build_temporal_class_posterior_identification_cache(
     posterior: &GraphPosterior,
     variables: &[antecedent_core::VariableId],
@@ -880,6 +884,10 @@ fn cache_temporal_class_atom(
 /// requested horizon. An atom that fails any horizon stays unidentified;
 /// unidentified mass is retained. Atoms are DAGs: there is no completion
 /// enumeration.
+#[allow(
+    clippy::too_many_lines,
+    reason = "validates the DBN response posterior, identifies each atom's horizons under cancellation and records the demotion reasons while walking the samples once"
+)]
 pub(crate) fn build_dbn_posterior_response_identification_cache(
     posterior: &GraphPosterior,
     variables: &[antecedent_core::VariableId],

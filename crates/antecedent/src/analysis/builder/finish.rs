@@ -540,6 +540,10 @@ fn apply_design_contract(
     Ok(())
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "one stage of the finish chain, every stage of which returns Result so the chain composes with `?`"
+)]
 fn retarget_cutoff_estimand(
     contracted: ContractedQuery,
 ) -> Result<RetargetedEstimand, CausalError> {

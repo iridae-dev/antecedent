@@ -159,7 +159,7 @@ pub(super) fn assemble_temporal_class_conditional(
     graph_class: GraphClass,
     refute: RefuteSuite,
     inference: &InferenceMode,
-    policy: &antecedent_core::KernelPolicy,
+    policy: antecedent_core::KernelPolicy,
 ) -> Result<
     (
         EffectEstimate,
@@ -191,7 +191,7 @@ pub(super) fn assemble_temporal_class_conditional(
             &estimand,
             query,
             indexer,
-            policy,
+            &policy,
             prior_scale,
         )
         .map_err(CausalError::from)
@@ -592,7 +592,7 @@ impl super::Study {
                     self.graph.class(),
                     self.refute,
                     &self.inference,
-                    &ctx.kernel_policy,
+                    ctx.kernel_policy,
                 )?;
             if !estimate.ate.is_finite() {
                 continue;
@@ -612,7 +612,7 @@ impl super::Study {
         self.finish_posterior_point(
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
-            pairs,
+            &pairs,
             chosen,
             (query.treatment, query.outcome),
             EstimatorId::TemporalLinearAdjustment,
@@ -691,7 +691,7 @@ impl super::Study {
         let result = self.finish_posterior_point(
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
-            pairs,
+            &pairs,
             chosen,
             (treatment, outcome),
             match &self.inference {
@@ -799,7 +799,7 @@ impl super::Study {
         self.finish_posterior_point(
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
-            pairs,
+            &pairs,
             chosen,
             (treatment, outcome),
             EstimatorId::TemporalLinearAdjustment,
@@ -810,7 +810,7 @@ impl super::Study {
         &self,
         run: ExecuteRun<'_>,
         cache: &crate::analysis::prepared::CachedTemporalClassPosteriorIdentification,
-        pairs: Vec<(f64, f64)>,
+        pairs: &[(f64, f64)],
         chosen: Option<(
             antecedent_core::AssumptionSet,
             IdentifiedEstimand,
@@ -831,7 +831,7 @@ impl super::Study {
                     cache.graphs.unidentified_mass()
                 ),
             })?;
-        let point = weighted_derivative_mean(&pairs)?;
+        let point = weighted_derivative_mean(pairs)?;
         let unidentified = cache.graphs.unidentified_mass();
         identification.status = resolve_posterior_status(
             atom_status,
@@ -1183,23 +1183,24 @@ fn derivative_probe(query: &ResponseQuery) -> Result<TemporalEffectQuery, Causal
     })
 }
 
+/// Response, estimand, identification, diagnostics, structural mixture and status of one
+/// class envelope's derivative.
+type ClassDerivative = (
+    CausalResponse,
+    IdentifiedEstimand,
+    IdentificationResult,
+    Vec<Diagnostic>,
+    crate::result::StructuralResponseMixture,
+    IdentificationStatus,
+);
+
 fn derivative_on_envelope(
     data: &TimeSeriesData,
     query: &ResponseQuery,
     bundle: &antecedent_identify::TemporalClassEnvelope,
     graph_class: GraphClass,
     spec: DerivativeSpec<'_>,
-) -> Result<
-    (
-        CausalResponse,
-        IdentifiedEstimand,
-        IdentificationResult,
-        Vec<Diagnostic>,
-        crate::result::StructuralResponseMixture,
-        IdentificationStatus,
-    ),
-    CausalError,
-> {
+) -> Result<ClassDerivative, CausalError> {
     let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     let envelope = &bundle.envelope;
     if matches!(envelope.status, IdentificationStatus::NotIdentified)

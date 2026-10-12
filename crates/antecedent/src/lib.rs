@@ -619,6 +619,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "builds the discrete chain, runs the natural path-specific effect and asserts it against the exact path decomposition"
+    )]
     fn end_to_end_path_specific_natural_effect() {
         // Discrete chain T → M → Y (no direct edge): path via M is the total effect.
         let mut b = CausalSchemaBuilder::new();

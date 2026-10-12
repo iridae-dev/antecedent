@@ -752,6 +752,10 @@ mod tests {
 
     /// `dual_environments` declares the same coordinates for the target
     /// population too, the natural catalog shape.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "builds the catalog, selection diagram and exact laws of one fixture variant, each depending on the environment flags"
+    )]
     fn fixture_with_environments(
         empirical: bool,
         dual_environments: bool,
@@ -981,6 +985,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "enumerates the exact disconnected SCM, executes the complementary sources and compares the joint target effect with the enumeration"
+    )]
     fn complementary_source_components_execute_the_exact_joint_target_effect() {
         // Exact disconnected SCM: U1,U2 are independent Uniform(0,1),
         // Z=1[U1 < 0.25 + 0.45 W], Y=1[U2 < 0.60 - 0.20 X].

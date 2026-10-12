@@ -143,6 +143,15 @@ pub(super) struct AtomMixInput<'a, A> {
     pub estimand_fallback: bool,
 }
 
+// Manual impls: the input only borrows `A`, so it is `Copy` whatever `A` is.
+impl<A> Clone for AtomMixInput<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for AtomMixInput<'_, A> {}
+
 /// Scalar mixture shared by the posterior-atom routes.
 pub(super) struct MixedAtomEvals {
     /// Aggregation policy over the contributing estimands.
@@ -588,7 +597,9 @@ mod tests {
             .map(|&key| Eval {
                 key,
                 estimand: estimand.clone(),
-                influence: (0..40).map(|r| ((r * 7 + key as usize) % 11) as f64 - 5.0).collect(),
+                influence: (0..40)
+                    .map(|r| ((r * 7 + usize::try_from(key).unwrap()) % 11) as f64 - 5.0)
+                    .collect(),
             })
             .collect();
         let proofs: Vec<Proof> =

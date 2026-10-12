@@ -954,6 +954,10 @@ mod identify_only_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "fixture of two disagreeing atoms, one Bayesian run and the pinned scalar, SE, mixture and identified-set assertions"
+    )]
     fn graph_posterior_ate_known_truth_mixture() {
         // Analytic fixture: atom 0 estimates the unadjusted effect 3, atom 1
         // adjusts for Z and estimates 2, and atom 2 is the reverse-causal
@@ -1158,6 +1162,10 @@ mod identify_only_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the frequentist twin of the Bayesian mixture pin: same disagreeing atoms, one run and its pinned assertions"
+    )]
     fn graph_posterior_ate_known_truth_mixture_frequentist() {
         // Same disagreeing atoms as the Bayesian pin: scalar ate and SE are
         // withheld under GraphDependentAtoms; structural_response publishes

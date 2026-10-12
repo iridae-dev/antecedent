@@ -82,14 +82,14 @@ impl LagAlignedScm {
                 message: "unfolded window exceeds u32 nodes".into(),
             })?;
             let key = indexer.key_of(dense_id)?;
-            if key.offset == 0 {
-                contemporaneous.push(dense_id);
-            } else if key.offset < 0 {
-                lagged.push(dense_id);
-            } else {
-                return Err(CausalError::Compile {
-                    message: "lag-aligned attribution unfolds one contemporaneous slice".into(),
-                });
+            match key.offset.cmp(&0) {
+                std::cmp::Ordering::Equal => contemporaneous.push(dense_id),
+                std::cmp::Ordering::Less => lagged.push(dense_id),
+                std::cmp::Ordering::Greater => {
+                    return Err(CausalError::Compile {
+                        message: "lag-aligned attribution unfolds one contemporaneous slice".into(),
+                    });
+                }
             }
         }
         let mut order = contemporaneous;

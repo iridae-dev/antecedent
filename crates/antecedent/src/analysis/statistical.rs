@@ -1626,6 +1626,10 @@ pub(super) fn validate_sample_summaries(
     Ok(())
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "checks the wire's uncertainty row against the prepared study stage by stage (budget, replicate means, failure policy, intervals) building one estimate"
+)]
 fn validate_uncertainty(
     wire: &StatisticalExecutionWire,
     point: antecedent_expr::ExactDistribution,
@@ -1789,6 +1793,10 @@ fn validate_uncertainty(
     Ok(estimate)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "checks the Bayesian posterior wire's metadata, draw rows and intervals against the point distribution, building one posterior estimate"
+)]
 fn validate_bayesian_posterior(
     wire: Option<&BayesianTransportPosteriorWire>,
     point: &antecedent_expr::ExactDistribution,

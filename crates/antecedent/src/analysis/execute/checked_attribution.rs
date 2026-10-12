@@ -536,13 +536,10 @@ fn attribution_graph(
     Ok(if let Some(dag) = study.graph.as_dag() {
         (dag.clone(), None)
     } else if let Some(temporal) = study.graph.as_temporal_dag() {
-        let series = match &study.data {
-            DataInput::Temporal(series) | DataInput::Event(series) => series,
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "temporal attribution requires a time series",
-                });
-            }
+        let (DataInput::Temporal(series) | DataInput::Event(series)) = &study.data else {
+            return Err(CausalError::Unsupported {
+                message: "temporal attribution requires a time series",
+            });
         };
         let aligned = super::temporal_attribution::LagAlignedScm::unfold(temporal, series)?;
         let dag = aligned.dag.clone();

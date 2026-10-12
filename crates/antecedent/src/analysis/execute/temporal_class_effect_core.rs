@@ -161,7 +161,7 @@ fn fit_class_conditional(
             inputs.graph_class,
             inputs.refute,
             inputs.inference,
-            &ctx.kernel_policy,
+            ctx.kernel_policy,
         )?;
     Ok(TemporalClassEffectFit {
         estimand,
@@ -667,6 +667,10 @@ fn mix_sequential_class_atoms(
     Ok((estimate, posterior, identified_set_interval))
 }
 
+/// Refutation reports, diagnostics and predictive checks of a sequential class fit.
+type SequentialClassValidation =
+    (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>, Vec<PredictiveCheckReport>);
+
 /// The refutation and predictive-check results of the evaluated completions:
 /// on the class posterior when the estimate is finite, otherwise on each
 /// completion with its report labelled by completion.
@@ -677,10 +681,7 @@ fn validate_sequential_class_atoms(
     run: &mut SequentialClassRun,
     posterior: &mut Option<CausalPosterior>,
     ctx: &ExecutionContext,
-) -> Result<
-    (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>, Vec<PredictiveCheckReport>),
-    CausalError,
-> {
+) -> Result<SequentialClassValidation, CausalError> {
     let TemporalClassEffectInputs { data, query, .. } = *inputs;
     let sims = crate::analysis::latency::predictive_check_sims(inputs.latency_mode);
     if estimate.ate.is_finite() {
