@@ -9,7 +9,9 @@ use antecedent_data::TabularData;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
-use crate::graph_posterior::{GraphPrior, edge_required, log_prior_mask, parents_of, set_edge};
+use crate::graph_posterior::{
+    GraphPrior, GraphPriorTable, edge_required, log_prior_mask, parents_of, set_edge,
+};
 use crate::pc::collect_float_columns;
 
 /// Build column-major [`GraphScoreData`] from tabular float columns.
@@ -58,6 +60,68 @@ pub(crate) fn score_dag_mask(
         total += s;
     }
     Some(total)
+}
+
+/// Scores every DAG of an exhaustive enumeration from a table of local scores.
+///
+/// Over `n` labelled nodes there are only `n * 2^(n-1)` distinct `(node, parent set)` local
+/// scores, so each is computed once up front and a mask is then scored by summation, in node
+/// order, exactly as [`score_dag_mask`] does.
+pub(crate) struct DagScorer {
+    n: usize,
+    prior: GraphPriorTable,
+    /// `local[node << n | parents]`: `None` when the score is not finite or not computable.
+    local: Vec<Option<f64>>,
+}
+
+impl DagScorer {
+    pub(crate) fn new(
+        n: usize,
+        data: &GraphScoreData,
+        family: GraphScoreFamily,
+        prior: &GraphPrior,
+        variables: &[VariableId],
+    ) -> Self {
+        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+            data_version: 1,
+            family,
+            var_fingerprint: n as u64,
+            penalty_fingerprint: data.n_rows as u64,
+        });
+        let mut local = vec![None; n << n];
+        for node in 0..n {
+            for parents in 0..(1usize << n) {
+                if parents & (1 << node) != 0 {
+                    continue;
+                }
+                let pa: Arc<[u32]> = (0..n)
+                    .filter(|&p| parents & (1 << p) != 0)
+                    .map(|p| u32::try_from(p).unwrap_or(u32::MAX))
+                    .collect();
+                local[(node << n) | parents] = u32::try_from(node)
+                    .ok()
+                    .and_then(|node| cache.local_score(data, node, &pa).ok())
+                    .filter(|s| s.is_finite());
+            }
+        }
+        Self { n, prior: GraphPriorTable::new(n, prior, variables), local }
+    }
+
+    /// BIC + log prior of `mask` (`None` if invalid), bit-identical to [`score_dag_mask`].
+    pub(crate) fn score(&self, mask: u64) -> Option<f64> {
+        let n = self.n;
+        let mut total = self.prior.log_prior(mask)?;
+        for node in 0..n {
+            let mut parents = 0usize;
+            for p in 0..n {
+                if p != node && mask & self.prior.bit(p, node) != 0 {
+                    parents |= 1 << p;
+                }
+            }
+            total += self.local[(node << n) | parents]?;
+        }
+        Some(total)
+    }
 }
 
 /// Start mask samplers inside the constrained support rather than hoping that

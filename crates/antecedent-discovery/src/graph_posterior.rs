@@ -457,6 +457,9 @@ pub fn parents_of(mask: u64, n: usize, node: usize) -> Vec<u32> {
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
 pub fn mask_is_dag(mask: u64, n: usize) -> bool {
+    if n <= MASK_DAG_FAST_NODES {
+        return mask_is_dag_bits(mask, n);
+    }
     let mut parents = vec![Vec::new(); n];
     let mut children = vec![Vec::new(); n];
     for i in 0..n {
@@ -470,6 +473,36 @@ pub fn mask_is_dag(mask: u64, n: usize) -> bool {
         }
     }
     is_dag(&parents, &children)
+}
+
+/// Largest node count whose parent sets fit one byte each (`8 * 7 = 56` edge bits).
+const MASK_DAG_FAST_NODES: usize = 8;
+
+/// Allocation-free Kahn peel over per-node parent bitsets.
+fn mask_is_dag_bits(mask: u64, n: usize) -> bool {
+    let mut parents = [0u8; MASK_DAG_FAST_NODES];
+    for (j, pa) in parents.iter_mut().enumerate().take(n) {
+        for i in 0..n {
+            if i != j && has_edge(mask, n, i, j) {
+                *pa |= 1 << i;
+            }
+        }
+    }
+    let mut remaining: u8 = if n == 0 { 0 } else { u8::MAX >> (8 - n) };
+    loop {
+        let before = remaining;
+        for (v, &pa) in parents.iter().enumerate().take(n) {
+            if remaining & (1 << v) != 0 && pa & remaining == 0 {
+                remaining &= !(1 << v);
+            }
+        }
+        if remaining == 0 {
+            return true;
+        }
+        if remaining == before {
+            return false;
+        }
+    }
 }
 
 /// Build a [`Dag`] from a packed adjacency bitmask.
@@ -828,53 +861,92 @@ pub fn log_prior_mask(
     prior: &GraphPrior,
     variables: &[VariableId],
 ) -> Option<f64> {
-    let max_pa = prior.constraints.max_parents.unwrap_or(n.saturating_sub(1));
-    for j in 0..n {
-        let pa = parents_of(mask, n, j);
-        if pa.len() > max_pa {
-            return None;
-        }
-        for &p in &pa {
-            if edge_forbidden(&prior.constraints, variables, p as usize, j) {
-                return None;
-            }
-        }
-    }
-    for i in 0..n {
-        for j in 0..n {
-            if i == j {
-                continue;
-            }
-            if edge_required(&prior.constraints, variables, i, j) && !has_edge(mask, n, i, j) {
-                return None;
-            }
-            if edge_forbidden(&prior.constraints, variables, i, j) && has_edge(mask, n, i, j) {
-                return None;
-            }
-        }
-    }
-    if !mask_is_dag(mask, n) {
-        return None;
-    }
-    match prior.edge_inclusion {
-        None => Some(0.0),
-        Some(p) => {
-            let lp = p.ln();
-            let lq = (1.0 - p).ln();
-            let mut s = 0.0;
-            for i in 0..n {
-                for j in 0..n {
-                    if i == j {
-                        continue;
-                    }
-                    if edge_forbidden(&prior.constraints, variables, i, j) {
-                        continue;
-                    }
-                    s += if has_edge(mask, n, i, j) { lp } else { lq };
+    GraphPriorTable::new(n, prior, variables).log_prior(mask)
+}
+
+/// Constraint and edge-prior facts of one `(n, prior, variables)` triple, resolved once so that
+/// scoring many masks does not re-derive them per mask.
+pub(crate) struct GraphPriorTable {
+    n: usize,
+    /// `bit[i * n + j]` is the packed bit of `i → j` (`0` on the diagonal).
+    bit: Vec<u64>,
+    forbidden: u64,
+    required: u64,
+    max_parents: usize,
+    /// `(ln p, ln (1 - p))` of the Bernoulli edge prior, when one is set.
+    edge_logs: Option<(f64, f64)>,
+}
+
+impl GraphPriorTable {
+    pub(crate) fn new(n: usize, prior: &GraphPrior, variables: &[VariableId]) -> Self {
+        let mut bit = vec![0u64; n * n];
+        let mut forbidden = 0u64;
+        let mut required = 0u64;
+        for i in 0..n {
+            for j in 0..n {
+                if i == j {
+                    continue;
+                }
+                let b = 1u64.checked_shl(edge_bit(n, i, j)).unwrap_or(0);
+                bit[i * n + j] = b;
+                if edge_forbidden(&prior.constraints, variables, i, j) {
+                    forbidden |= b;
+                }
+                if edge_required(&prior.constraints, variables, i, j) {
+                    required |= b;
                 }
             }
-            Some(s)
         }
+        Self {
+            n,
+            bit,
+            forbidden,
+            required,
+            max_parents: prior.constraints.max_parents.unwrap_or(n.saturating_sub(1)),
+            edge_logs: prior.edge_inclusion.map(|p| (p.ln(), (1.0 - p).ln())),
+        }
+    }
+
+    /// Packed bit of `from → to`.
+    #[inline]
+    pub(crate) fn bit(&self, from: usize, to: usize) -> u64 {
+        self.bit[from * self.n + to]
+    }
+
+    /// Log prior of `mask`, `None` when it violates a constraint or is cyclic.
+    pub(crate) fn log_prior(&self, mask: u64) -> Option<f64> {
+        let n = self.n;
+        if mask & self.forbidden != 0 || self.required & !mask != 0 {
+            return None;
+        }
+        if self.max_parents < n.saturating_sub(1) {
+            for j in 0..n {
+                let in_degree = (0..n).filter(|&i| mask & self.bit(i, j) != 0).count();
+                if in_degree > self.max_parents {
+                    return None;
+                }
+            }
+        }
+        if !mask_is_dag(mask, n) {
+            return None;
+        }
+        let Some((lp, lq)) = self.edge_logs else {
+            return Some(0.0);
+        };
+        let mut s = 0.0;
+        for i in 0..n {
+            for j in 0..n {
+                if i == j {
+                    continue;
+                }
+                let b = self.bit(i, j);
+                if self.forbidden & b != 0 {
+                    continue;
+                }
+                s += if mask & b != 0 { lp } else { lq };
+            }
+        }
+        Some(s)
     }
 }
 
