@@ -1082,7 +1082,7 @@ fn law_stage(
         .estimate
         .as_effect()
         .ok_or(RecalcRunError::Request("recalc.primary_result_is_not_an_effect"))?;
-    Ok(LawValue { ate: effect.ate, std_error: effect.se_analytic })
+    Ok(LawValue { ate: effect.ate, std_error: effect.se_analytic() })
 }
 
 pub(crate) fn decide(

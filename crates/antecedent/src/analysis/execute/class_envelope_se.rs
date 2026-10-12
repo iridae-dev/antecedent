@@ -181,7 +181,7 @@ impl TemporalAtomDesign {
         match self {
             Self::Linear { point, .. } => {
                 let mut estimate = point.clone();
-                estimate.assumptions = assumptions;
+                estimate.provenance.assumptions = assumptions;
                 estimate
             }
             Self::Sequential { point, .. } => {
@@ -213,7 +213,7 @@ impl TemporalAtomDesign {
     /// Per-row influence of the atom's estimate on its own aligned rows.
     fn influence(&self) -> Option<&[f64]> {
         match self {
-            Self::Linear { point, .. } => point.influence.as_deref(),
+            Self::Linear { point, .. } => point.scores.influence.as_deref(),
             Self::Sequential { influence, .. } => influence.as_deref(),
         }
     }

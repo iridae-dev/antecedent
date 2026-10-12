@@ -569,15 +569,15 @@ mod tests {
                             bootstrap_replicates: 24
                         }
                     ));
-                    assert!(estimate.se_bootstrap.is_some());
+                    assert!(estimate.se_bootstrap().is_some());
                 }
                 EstimatorId::PropensityMatching => {
                     assert!(matches!(
                         operation.lowering().uncertainty,
                         CheckedPropensityUncertainty::AbadieImbensAnalytic { .. }
                     ));
-                    assert!(estimate.se_analytic.is_finite());
-                    assert!(estimate.se_bootstrap.is_none());
+                    assert!(estimate.se_analytic().is_finite());
+                    assert!(estimate.se_bootstrap().is_none());
                 }
                 _ => unreachable!(),
             }

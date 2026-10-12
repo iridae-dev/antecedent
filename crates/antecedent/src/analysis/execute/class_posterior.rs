@@ -117,17 +117,18 @@ impl super::Study {
                 mixed.mixture.unidentified_mass,
             )),
         );
-        diagnostics.push(overlap_diagnostic(mixed.estimate.overlap));
+        diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
         let n_contributing = evals
             .iter()
             .filter(|eval| eval.estimate.as_ref().is_some_and(|estimate| estimate.ate.is_finite()))
             .count();
         diagnostics
-            .extend(envelope_se_omission_diagnostic(n_contributing, mixed.estimate.se_analytic));
+            .extend(envelope_se_omission_diagnostic(n_contributing, mixed.estimate.se_analytic()));
         if n_contributing > 1
-            && mixed.estimate.se_analytic.is_finite()
+            && mixed.estimate.se_analytic().is_finite()
             && mixed
                 .estimate
+                .scores
                 .influence
                 .as_ref()
                 .is_some_and(|inf| inf.iter().all(|v| v.is_finite()))
@@ -275,8 +276,9 @@ fn evaluate_class_atom_frequentist(
             total += w;
             lo = lo.min(estimate.ate);
             hi = hi.max(estimate.ate);
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, query, estimand, inf))
@@ -285,7 +287,7 @@ fn evaluate_class_atom_frequentist(
                 atom_weights.push(w);
             }
             if primary.is_none() {
-                primary = Some((estimand.clone(), estimate.assumptions.clone()));
+                primary = Some((estimand.clone(), estimate.provenance.assumptions.clone()));
             }
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
@@ -310,7 +312,7 @@ fn evaluate_class_atom_frequentist(
             EffectEstimate::new(weighted / total, se, assumptions, OverlapPolicy::ExplicitOverride);
         if atom_ifs.len() == n_contributing {
             if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
+                estimate.scores.influence = Some(inf);
             }
         }
         Some(estimate)
@@ -376,7 +378,7 @@ fn evaluate_class_atom_bayesian(
             hi = hi.max(summary.ate);
             if primary.is_none() {
                 primary = Some(estimand.clone());
-                assumptions = summary.assumptions.clone();
+                assumptions = summary.provenance.assumptions.clone();
                 atom_posterior = Some(posterior);
             }
             refute_atoms.push(EnvelopeRefuteAtom {
@@ -431,7 +433,7 @@ impl AtomEvalView for ClassAtomEval {
     }
 
     fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
-        self.estimate.as_ref().map(|estimate| &estimate.assumptions)
+        self.estimate.as_ref().map(|estimate| &estimate.provenance.assumptions)
     }
 
     fn identified_bounds(&self) -> Option<(f64, f64)> {
@@ -443,11 +445,11 @@ impl AtomEvalView for ClassAtomEval {
     }
 
     fn analytic_se(&self) -> Option<f64> {
-        self.estimate.as_ref().map(|estimate| estimate.se_analytic)
+        self.estimate.as_ref().map(|estimate| estimate.se_analytic())
     }
 
     fn influence(&self) -> Option<&[f64]> {
-        self.estimate.as_ref().and_then(|estimate| estimate.influence.as_deref())
+        self.estimate.as_ref().and_then(|estimate| estimate.scores.influence.as_deref())
     }
 }
 

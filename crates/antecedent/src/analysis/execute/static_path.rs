@@ -377,7 +377,7 @@ impl super::Study {
         // table it kept names the projected treatment and adjustment ids. Restore the original
         // semantic ids (projection keeps the adjustment order) so the table agrees with the
         // identified estimand and with the prepare-time table of the same plan.
-        if let Some(table) = point.score_table.as_mut() {
+        if let Some(table) = point.scores.table.as_mut() {
             table.treatment = query.treatment;
             table.adjustment_set = Arc::clone(&estimand.adjustment_set);
         }
@@ -486,7 +486,8 @@ impl super::Study {
                 let filled = est
                     .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
                     .map_err(CausalError::from)?;
-                let cancelled = filled.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+                let cancelled =
+                    filled.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
                 if cancelled {
                     clock.mark_cancelled();
                 } else {
@@ -522,7 +523,8 @@ impl super::Study {
                     ctx,
                     &mut estimate_ws,
                 )?;
-                let cancelled = filled.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+                let cancelled =
+                    filled.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
                 if cancelled {
                     clock.mark_cancelled();
                 } else {
@@ -536,7 +538,7 @@ impl super::Study {
             }
         };
 
-        let cancelled = estimate.bootstrap_cancelled || clock.cancelled();
+        let cancelled = estimate.uncertainty.bootstrap.cancelled || clock.cancelled();
 
         let (refutations, na_diagnostics) = if cancelled {
             (Vec::new(), Vec::new())
@@ -587,8 +589,8 @@ impl super::Study {
             self,
             ctx.rng.master_seed(),
         )?;
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -733,9 +735,9 @@ impl super::Study {
         let outcome = *query.outcomes.first().ok_or_else(|| CausalError::Compile {
             message: "distribution query missing outcome".into(),
         })?;
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let cancelled = estimate.bootstrap_cancelled;
-        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let cancelled = estimate.uncertainty.bootstrap.cancelled;
+        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
 
         // An ADMG distribution only reaches here at validation none (gated above).
         let refutations = if self.refute == RefuteSuite::None {
@@ -1288,8 +1290,9 @@ impl super::Study {
             let w = case.weight.0;
             outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, &query.inner, &estimand, inf))
@@ -1300,7 +1303,7 @@ impl super::Study {
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
             }
             grid_atoms.push((w, estimand.clone()));
             refute_atoms.push(EnvelopeRefuteAtom {
@@ -1333,7 +1336,7 @@ impl super::Study {
         );
         if atom_ifs.len() == n_contributing {
             if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
+                estimate.scores.influence = Some(inf);
             }
         }
         if query.inner.outcome_functional.thresholds().is_some()
@@ -1370,8 +1373,8 @@ impl super::Study {
             None,
         )?;
         diagnostics.extend(na_diagnostics);
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
         // Completions that disagree publish their identified set, exactly as the
         // class ATE arm does; a point-identified envelope stays a point.
         let structural_response =
@@ -1472,9 +1475,11 @@ impl super::Study {
             )
         };
         let estimate = mediation.effect.clone();
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let (cancelled, early_stopped) =
-            (estimate.bootstrap_cancelled, estimate.bootstrap_early_stopped);
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let (cancelled, early_stopped) = (
+            estimate.uncertainty.bootstrap.cancelled,
+            estimate.uncertainty.bootstrap.early_stopped,
+        );
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
@@ -1696,6 +1701,7 @@ impl super::Study {
                 antecedent_core::ResponseValue::Scalar(estimate.ate),
             ));
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, query, estimand, inf))
@@ -1705,7 +1711,7 @@ impl super::Study {
             }
             if primary.is_none() {
                 primary = Some(estimand.clone());
-                assumptions = estimate.assumptions;
+                assumptions = estimate.provenance.assumptions;
             }
         }
         let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
@@ -1747,7 +1753,7 @@ impl super::Study {
             .collect();
         if let Some(cov) = &covariance {
             let c = antecedent_estimate::max_t_critical(cov, 0.95, 4096, 15)?;
-            estimate.scenario_intervals = Some(
+            estimate.scenarios.intervals = Some(
                 values
                     .iter()
                     .enumerate()
@@ -1766,7 +1772,7 @@ impl super::Study {
                 "tiered_unknown",
             ));
         }
-        estimate.scenario_effects = Some(values.into());
+        estimate.scenarios.effects = Some(values.into());
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,

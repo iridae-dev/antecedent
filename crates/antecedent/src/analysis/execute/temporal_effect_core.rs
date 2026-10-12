@@ -223,8 +223,8 @@ fn fit_sustained(
         estimate
     };
     Ok(TemporalEffectFit {
-        bootstrap_replicates_ok: estimate.bootstrap_replicates_ok,
-        cancelled: estimate.bootstrap_cancelled,
+        bootstrap_replicates_ok: estimate.uncertainty.bootstrap.replicates_ok,
+        cancelled: estimate.uncertainty.bootstrap.cancelled,
         estimate,
         estimator_id: EstimatorId::TemporalSequentialGcomp,
         refutations,
@@ -470,8 +470,8 @@ fn fit_single_window(
         push_conflict_diagnostics(&mut diagnostics, summary);
     }
     Ok(TemporalEffectFit {
-        bootstrap_replicates_ok: estimate.bootstrap_replicates_ok,
-        cancelled: estimate.bootstrap_cancelled,
+        bootstrap_replicates_ok: estimate.uncertainty.bootstrap.replicates_ok,
+        cancelled: estimate.uncertainty.bootstrap.cancelled,
         estimate,
         estimator_id,
         refutations,

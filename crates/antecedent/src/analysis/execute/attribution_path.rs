@@ -241,7 +241,7 @@ fn execute_checked_counterfactual_plan(
                 posterior.assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             );
-            estimate.se_analytic = posterior.summaries.sd[eq];
+            estimate.uncertainty.analytic.se = posterior.summaries.sd[eq];
             (estimate, Some(posterior), ite)
         } else {
             (
@@ -261,7 +261,7 @@ fn execute_checked_counterfactual_plan(
         _ => None,
     };
     let mut estimate = estimate;
-    estimate.unit_effects_homogeneous = homogeneous.is_some();
+    estimate.heterogeneity.unit_effects_homogeneous = homogeneous.is_some();
     let observed = data.float64_values(treatment)?;
     let min = observed.iter().copied().fold(f64::INFINITY, f64::min);
     let max = observed.iter().copied().fold(f64::NEG_INFINITY, f64::max);
@@ -649,7 +649,7 @@ impl super::Study {
             if let Some(index) = posterior.effect_column() {
                 if let Some(estimate) = result.estimate.as_effect_mut() {
                     estimate.ate = posterior.summaries.mean[index];
-                    estimate.se_analytic = posterior.summaries.sd[index];
+                    estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
                 }
             }
             result.posterior = Some(posterior);

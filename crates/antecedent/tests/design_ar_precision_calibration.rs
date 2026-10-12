@@ -136,7 +136,8 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
                 .estimate
                 .as_effect()
                 .unwrap()
-                .first_stage_diagnostics
+                .diagnostics
+                .first_stage
                 .clone()
                 .unwrap();
             assert!(
@@ -159,7 +160,8 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
                         .estimate
                         .as_effect()
                         .unwrap()
-                        .first_stage_diagnostics
+                        .diagnostics
+                        .first_stage
                         .as_ref()
                         .unwrap(),
                     &diagnostic

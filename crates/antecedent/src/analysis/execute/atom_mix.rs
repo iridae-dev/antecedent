@@ -324,7 +324,7 @@ where
     let mut estimate = EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride);
     if joint {
         if let Some(influence) = mixed_static_influence(&outer_atom_ifs, &outer_atom_weights) {
-            estimate.influence = Some(influence);
+            estimate.scores.influence = Some(influence);
         }
     }
     // A component posterior is not the posterior of a weighted aggregate.

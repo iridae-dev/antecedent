@@ -339,9 +339,9 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     let fresh_result = fresh.estimate(&changed, &ctx).unwrap();
     assert!((refreshed.effect() - fresh_result.effect()).abs() < 1e-12);
     assert!(
-        (refreshed.estimate.as_effect().unwrap().se_analytic
-            - fresh_result.estimate.as_effect().unwrap().se_analytic)
-            .abs()
+        (refreshed.estimate.as_effect().unwrap().se_analytic()
+            - fresh_result.estimate.as_effect().unwrap().se_analytic())
+        .abs()
             < 1e-12
     );
     assert_eq!(after.identities, fresh.contract().unwrap().identities);
@@ -442,9 +442,9 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     assert_eq!(section.target.query, consumed.body.query);
     assert_eq!(section.target.query, consumed.body.identification.query);
     assert_eq!(section.target.schema.variable_names(), names);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_finite());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
     assert!(
-        (result.effect() - 2.0).abs() < 1.96 * result.estimate.as_effect().unwrap().se_analytic
+        (result.effect() - 2.0).abs() < 1.96 * result.estimate.as_effect().unwrap().se_analytic()
     );
     let body = result.analysis_result_wire(prepared.query()).unwrap();
     let mut legacy = Vec::new();
@@ -481,7 +481,7 @@ fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
         prepared.contract().unwrap().identities.identification_product
     );
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!(retargeted.estimate.as_effect().unwrap().se_analytic.is_finite());
+    assert!(retargeted.estimate.as_effect().unwrap().se_analytic().is_finite());
     assert!((retargeted.effect() - 2.0).abs() < 0.35);
     assert!((retargeted.effect() - estimated.effect()).abs() < 1e-10);
     let bytes = prepared.encode_contracted_result(&retargeted, "dag-ate-retarget", &ctx).unwrap();
@@ -5069,9 +5069,9 @@ fn composition_prepared_estimate_matches_fresh() {
         study(data.clone(), dag, query).prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     assert!((prepared_result.effect() - fresh.effect()).abs() < 1e-12);
     assert!(
-        (prepared_result.estimate.as_effect().unwrap().se_analytic
-            - fresh.estimate.as_effect().unwrap().se_analytic)
-            .abs()
+        (prepared_result.estimate.as_effect().unwrap().se_analytic()
+            - fresh.estimate.as_effect().unwrap().se_analytic())
+        .abs()
             < 1e-12
     );
 }
@@ -5215,9 +5215,9 @@ fn missing_row_padding_does_not_upgrade_calibration() {
         assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), 100);
         (
             result.effect(),
-            result.estimate.as_effect().unwrap().se_analytic,
+            result.estimate.as_effect().unwrap().se_analytic(),
             claim.status.to_string(),
-            result.estimate.as_effect().unwrap().n_obs,
+            result.estimate.as_effect().unwrap().provenance.n_obs,
         )
     };
     let (e0, se0, status0, n0) = run(0);
@@ -5296,9 +5296,16 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
         let contract = prepared.contract().unwrap();
         let basis = &result.calibration_bases(&contract).unwrap()[0];
         assert!(basis.scope.row_count < contract.row_count || pad == 0);
-        assert_eq!(basis.scope.row_count, result.estimate.as_effect().unwrap().n_obs.unwrap());
+        assert_eq!(
+            basis.scope.row_count,
+            result.estimate.as_effect().unwrap().provenance.n_obs.unwrap()
+        );
         assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), basis.scope.row_count);
-        (result.effect(), result.estimate.as_effect().unwrap().n_obs, basis.scope.row_count)
+        (
+            result.effect(),
+            result.estimate.as_effect().unwrap().provenance.n_obs,
+            basis.scope.row_count,
+        )
     };
     let (e0, n0, scope0) = run(0);
     let (e1, n1, scope1) = run(400);
@@ -5327,8 +5334,13 @@ fn temporal_calibration_scope_uses_lag_aligned_n() {
         .unwrap();
     let result = prepared.estimate_series(&series, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
-    let analysis_n =
-        result.estimate.as_effect().unwrap().n_obs.expect("temporal pulse records lag-aligned n");
+    let analysis_n = result
+        .estimate
+        .as_effect()
+        .unwrap()
+        .provenance
+        .n_obs
+        .expect("temporal pulse records lag-aligned n");
     assert!(analysis_n < snapshot_n, "lag alignment must drop at least the history window");
     assert_eq!(contract.row_count, snapshot_n);
     let basis = &result.calibration_bases(&contract).unwrap()[0];

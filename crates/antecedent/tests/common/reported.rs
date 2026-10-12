@@ -81,13 +81,22 @@ pub fn normal_at(est: f64, se: f64, level: f64) -> Option<(f64, f64)> {
 /// the rule `execute_helpers` uses to choose the interval method.
 #[must_use]
 pub fn scalar_reported_se(result: &StudyResult) -> (f64, &'static str) {
-    match result.estimate.as_effect().unwrap().se_bootstrap.filter(|s| s.is_finite() && *s > 0.0) {
+    match result.estimate.as_effect().unwrap().se_bootstrap().filter(|s| s.is_finite() && *s > 0.0)
+    {
         Some(se)
-            if result.estimate.as_effect().unwrap().bootstrap_replicates_ok.unwrap_or(0) > 0 =>
+            if result
+                .estimate
+                .as_effect()
+                .unwrap()
+                .uncertainty
+                .bootstrap
+                .replicates_ok
+                .unwrap_or(0)
+                > 0 =>
         {
             (se, "bootstrap_se")
         }
-        _ => (result.estimate.as_effect().unwrap().se_analytic, "analytic_se"),
+        _ => (result.estimate.as_effect().unwrap().se_analytic(), "analytic_se"),
     }
 }
 

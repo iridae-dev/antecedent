@@ -1217,7 +1217,7 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
         result.estimate.as_effect().unwrap().ate
     );
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic.is_nan(),
+        result.estimate.as_effect().unwrap().se_analytic().is_nan(),
         "two atoms share observations; no mixture SE"
     );
     assert!(
@@ -1227,7 +1227,7 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
             .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
         "the missing mixture SE must be declared, as on the Pulse envelope"
     );
-    assert!(!result.estimate.as_effect().unwrap().assumptions.entries.is_empty());
+    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.entries.is_empty());
 }
 
 fn oriented_dag() -> antecedent_graph::TemporalDag {

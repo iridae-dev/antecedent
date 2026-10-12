@@ -63,7 +63,7 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     assert_eq!(fit.n_post_periods, 2);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_with_unlicensed_placebo_rank");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption)
             .contains("convex_donor_combination_is_a_valid_counterfactual")
@@ -346,7 +346,7 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     assert!((fit.effect - 5.0).abs() < 1e-4);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_augmented_no_interval");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("donor_ridge_outcome_model_transports")
     }));

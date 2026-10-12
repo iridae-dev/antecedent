@@ -625,7 +625,7 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
     };
     assert!((conditional - direct_effect).abs() < tolerance);
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic.is_finite(),
+        result.estimate.as_effect().unwrap().se_analytic().is_finite(),
         "Cpdag: two-atom same-estimand mix must publish a joint IF SE"
     );
     assert!(
@@ -667,7 +667,7 @@ fn class_posterior_frequentist_numeric_pins() {
     let same_result = run(data, same, InferenceMode::Frequentist);
     assert!(has_policy(&same_result, StructuralAggregationPolicy::SameEstimandWeightedMean));
     assert!((same_result.estimate.as_effect().unwrap().ate - direct_effect).abs() < tolerance);
-    assert!(same_result.estimate.as_effect().unwrap().se_analytic.is_finite());
+    assert!(same_result.estimate.as_effect().unwrap().se_analytic().is_finite());
 }
 
 #[test]

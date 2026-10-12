@@ -405,8 +405,8 @@ fn adjusted_scalar_paths_match_existing_study_engines_without_bootstrap() {
         let original = original.estimate.as_effect().unwrap();
         let retained = full(&request);
         close(retained.law.ate, original.ate);
-        close(retained.law.std_error, original.se_analytic);
-        assert!(original.se_bootstrap.is_none());
+        close(retained.law.std_error, original.se_analytic());
+        assert!(original.se_bootstrap().is_none());
     }
 }
 

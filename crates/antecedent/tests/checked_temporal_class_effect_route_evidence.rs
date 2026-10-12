@@ -148,7 +148,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                         .estimate
                         .as_effect()
                         .unwrap()
-                        .se_bootstrap
+                        .se_bootstrap()
                         .expect("shared circular-block procedure must execute");
                     assert!(standard_error.is_finite() && standard_error >= 0.0);
 

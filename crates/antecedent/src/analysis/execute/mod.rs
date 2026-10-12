@@ -695,7 +695,7 @@ mod envelope_refuter_target_tests {
             .unwrap()
             .run(&ExecutionContext::for_tests(2))
             .unwrap();
-        assert!(result.estimate.as_effect().unwrap().se_analytic.is_finite());
+        assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
         assert!(result.diagnostics.iter().all(|d| {
             d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
                 && d.code.as_ref() != "estimate.graph_posterior.joint_if_se"
@@ -1221,7 +1221,7 @@ mod identify_only_tests {
                 !click.estimate.as_effect().unwrap().ate.is_finite(),
                 "{suite:?} scalar ate must be withheld when estimands disagree"
             );
-            assert!(!click.estimate.as_effect().unwrap().se_analytic.is_finite());
+            assert!(!click.estimate.as_effect().unwrap().se_analytic().is_finite());
             assert!(!fresh.estimate.as_effect().unwrap().ate.is_finite());
             assert!(!refreshed.estimate.as_effect().unwrap().ate.is_finite());
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");

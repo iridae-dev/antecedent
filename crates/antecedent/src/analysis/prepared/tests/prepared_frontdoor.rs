@@ -106,7 +106,10 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
         "estimate={}",
         first.estimate.as_effect().unwrap().ate
     );
-    assert_eq!(first.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
+    assert_eq!(
+        first.estimate.as_effect().unwrap().uncertainty.analytic.kind,
+        Some(AnalyticSeKind::Hc1)
+    );
     let first_bytes =
         prepared.encode_contracted_result(&first, "checked-frontdoor", &context).unwrap();
     let first_consumed = antecedent_io::consume_analysis_result(&first_bytes).unwrap();
@@ -123,7 +126,10 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
         "estimate={}",
         refreshed.estimate.as_effect().unwrap().ate
     );
-    assert_eq!(refreshed.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
+    assert_eq!(
+        refreshed.estimate.as_effect().unwrap().uncertainty.analytic.kind,
+        Some(AnalyticSeKind::Hc1)
+    );
     assert!(matches!(prepared.execution, PreparedExecution::FrontDoorLinear(_)));
     let refreshed_bytes = prepared
         .encode_contracted_result(&refreshed, "checked-frontdoor-refresh", &context)

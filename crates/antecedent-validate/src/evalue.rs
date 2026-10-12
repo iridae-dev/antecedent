@@ -191,7 +191,7 @@ fn is_binary(outcome: &[f64]) -> bool {
 /// Standard error of the estimate: bootstrap when present, else analytic; `None` unless
 /// finite and non-negative.
 fn usable_se(problem: &RefutationProblem<'_>) -> Option<f64> {
-    let se = problem.original.se_bootstrap.unwrap_or(problem.original.se_analytic);
+    let se = problem.original.se_bootstrap().unwrap_or(problem.original.se_analytic());
     (se.is_finite() && se >= 0.0).then_some(se)
 }
 

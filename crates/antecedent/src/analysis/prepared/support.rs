@@ -130,11 +130,11 @@ pub(super) fn overlay_prepared_score_functional(
                 antecedent_core::ResponseValue::Scalar(estimate.ate),
             );
             response.uncertainty = antecedent_core::ResponseUncertainty::Scalar {
-                standard_error: estimate.se_analytic,
+                standard_error: estimate.se_analytic(),
                 lower: estimate.ate
-                    - crate::result::reported_se_interval_z() * estimate.se_analytic,
+                    - crate::result::reported_se_interval_z() * estimate.se_analytic(),
                 upper: estimate.ate
-                    + crate::result::reported_se_interval_z() * estimate.se_analytic,
+                    + crate::result::reported_se_interval_z() * estimate.se_analytic(),
                 level: 0.95,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
                 draws: None,

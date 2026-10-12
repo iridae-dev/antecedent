@@ -129,10 +129,10 @@ impl super::Study {
                     ctx,
                 );
                 let se_bootstrap = block.se.is_finite().then_some(block.se);
-                let influence = estimate.influence.clone();
+                let influence = estimate.scores.influence.clone();
                 estimate = EffectEstimate::from_parts(
                     estimate.ate,
-                    estimate.se_analytic,
+                    estimate.se_analytic(),
                     BootstrapAccounting {
                         se: se_bootstrap,
                         replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
@@ -141,13 +141,13 @@ impl super::Study {
                         cancelled: ctx.cancellation.is_cancelled(),
                         early_stopped: false,
                     },
-                    estimate.assumptions.clone(),
-                    estimate.overlap,
-                    estimate.overlap_report.clone(),
-                    estimate.retained_memory_bytes,
+                    estimate.provenance.assumptions.clone(),
+                    estimate.provenance.overlap,
+                    estimate.diagnostics.overlap_report.clone(),
+                    estimate.provenance.retained_memory_bytes,
                 )
                 .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
-                estimate.influence = influence;
+                estimate.scores.influence = influence;
                 if se_bootstrap.is_some() {
                     shared_block = Some(block);
                 }
@@ -202,7 +202,7 @@ impl super::Study {
                 mixed.mixture.unidentified_mass,
             )),
         );
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         if let Some(block) = shared_block {
             diagnostics.push(
                 Diagnostic::new(
@@ -236,10 +236,14 @@ impl super::Study {
             .iter()
             .filter(|eval| eval.estimate.as_ref().is_some_and(|estimate| estimate.ate.is_finite()))
             .count();
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
         if n_contributing > 1
-            && estimate.se_analytic.is_finite()
-            && estimate.influence.as_ref().is_some_and(|inf| inf.iter().all(|v| v.is_finite()))
+            && estimate.se_analytic().is_finite()
+            && estimate
+                .scores
+                .influence
+                .as_ref()
+                .is_some_and(|inf| inf.iter().all(|v| v.is_finite()))
         {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.joint_if_se",
@@ -278,7 +282,7 @@ impl super::Study {
         }
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
+        let bootstrap_replicates_ok = estimate.uncertainty.bootstrap.replicates_ok;
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -396,14 +400,14 @@ fn evaluate_temporal_class_atom_frequentist(
             total += w;
             lo = lo.min(estimate.ate);
             hi = hi.max(estimate.ate);
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             fitted_designs.push(TemporalClassFittedDesign {
                 completion_weight: w,
                 design,
                 indexer: indexer.clone(),
             });
             if primary.is_none() {
-                primary = Some((estimand.clone(), estimate.assumptions.clone()));
+                primary = Some((estimand.clone(), estimate.provenance.assumptions.clone()));
             }
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
@@ -503,7 +507,7 @@ fn evaluate_temporal_class_atom_bayesian(
             hi = hi.max(summary.ate);
             if primary.is_none() {
                 primary = Some(estimand.clone());
-                assumptions = summary.assumptions.clone();
+                assumptions = summary.provenance.assumptions.clone();
                 atom_posterior = Some(posterior);
             }
             refute_atoms.push(EnvelopeRefuteAtom {
@@ -605,7 +609,7 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
             hi = hi.max(estimate.ate);
             if primary.is_none() {
                 primary = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
                 atom_posterior = posterior;
             }
             sequential_atoms.push(super::sequential_validation::SequentialValidationAtom {
@@ -664,7 +668,7 @@ impl AtomEvalView for TemporalClassAtomEval {
     }
 
     fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
-        self.estimate.as_ref().map(|estimate| &estimate.assumptions)
+        self.estimate.as_ref().map(|estimate| &estimate.provenance.assumptions)
     }
 
     fn identified_bounds(&self) -> Option<(f64, f64)> {
@@ -676,11 +680,11 @@ impl AtomEvalView for TemporalClassAtomEval {
     }
 
     fn analytic_se(&self) -> Option<f64> {
-        self.estimate.as_ref().map(|estimate| estimate.se_analytic)
+        self.estimate.as_ref().map(|estimate| estimate.se_analytic())
     }
 
     fn influence(&self) -> Option<&[f64]> {
-        self.estimate.as_ref().and_then(|estimate| estimate.influence.as_deref())
+        self.estimate.as_ref().and_then(|estimate| estimate.scores.influence.as_deref())
     }
 }
 

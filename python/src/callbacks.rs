@@ -420,7 +420,7 @@ impl CustomEffectValidator for PyCustomValidator {
             };
             let kwargs = PyDict::new(py);
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;
-            kwargs.set_item("se_analytic", problem.original.se_analytic).map_err(py_err)?;
+            kwargs.set_item("se_analytic", problem.original.se_analytic()).map_err(py_err)?;
             kwargs.set_item("method", problem.estimand.method.to_string()).map_err(py_err)?;
             let adj: Vec<String> = problem
                 .estimand
@@ -680,8 +680,8 @@ impl antecedent::StageResultSink for PyStageResultSink {
                 | antecedent::StageEvent::Uncertainty { estimate } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("ate", estimate.ate);
-                    let _ = d.set_item("se_analytic", estimate.se_analytic);
-                    let _ = d.set_item("se_bootstrap", estimate.se_bootstrap);
+                    let _ = d.set_item("se_analytic", estimate.se_analytic());
+                    let _ = d.set_item("se_bootstrap", estimate.se_bootstrap());
                     d
                 }
                 antecedent::StageEvent::Validate { refutations, predictive_checks } => {

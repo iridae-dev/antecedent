@@ -2275,10 +2275,10 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_set_interval_truncated: identified_set.truncated,
         certificate_json,
         ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
-        se_analytic: effect.map_or(f64::NAN, |estimate| estimate.se_analytic),
-        se_bootstrap: effect.and_then(|estimate| estimate.se_bootstrap),
+        se_analytic: effect.map_or(f64::NAN, |estimate| estimate.se_analytic()),
+        se_bootstrap: effect.and_then(|estimate| estimate.se_bootstrap()),
         bootstrap_replicates_failed: effect
-            .and_then(|estimate| estimate.bootstrap_replicates_failed),
+            .and_then(|estimate| estimate.uncertainty.bootstrap.replicates_failed),
         adjustment_set,
         identification_status,
         refutation_passed: validation.passed,
@@ -2383,7 +2383,9 @@ pub(crate) fn ate_result_from_analysis(
         validation,
         performance,
         assumptions: effect
-            .map_or(&result.identification.required_assumptions, |estimate| &estimate.assumptions)
+            .map_or(&result.identification.required_assumptions, |estimate| {
+                &estimate.provenance.assumptions
+            })
             .entries
             .iter()
             .map(|r| format!("{:?}", r.assumption))

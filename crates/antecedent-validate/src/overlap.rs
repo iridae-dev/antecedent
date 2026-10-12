@@ -73,7 +73,7 @@ impl OverlapRefuter {
         if let Some(report) = self.continuous_report(problem)? {
             return Ok(report);
         }
-        let (report, replicates) = if let Some(r) = &problem.original.overlap_report {
+        let (report, replicates) = if let Some(r) = &problem.original.diagnostics.overlap_report {
             (r.clone(), 0)
         } else {
             let fit = crate::common::diagnostic_overlap_report_with(
@@ -110,7 +110,7 @@ impl OverlapRefuter {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<Option<RefutationReport>, ValidationError> {
-        if problem.original.overlap_report.is_none() {
+        if problem.original.diagnostics.overlap_report.is_none() {
             let mut ids = vec![problem.treatment(), problem.outcome()];
             ids.extend_from_slice(&problem.estimand.adjustment_set);
             ids.extend_from_slice(&problem.query.effect_modifiers);

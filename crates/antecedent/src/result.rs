@@ -1416,7 +1416,7 @@ impl PublishedScalarUncertainty {
     pub fn select(estimate: &EffectEstimate) -> Self {
         use antecedent_core::IntervalMethod as M;
 
-        if let Some(diagnostics) = &estimate.first_stage_diagnostics {
+        if let Some(diagnostics) = &estimate.diagnostics.first_stage {
             if let Some((lower, upper, level)) = diagnostics.anderson_rubin {
                 if !lower.is_nan()
                     && !upper.is_nan()
@@ -1433,9 +1433,9 @@ impl PublishedScalarUncertainty {
                     };
                 }
             }
-            if positive_finite(estimate.se_analytic) {
+            if positive_finite(estimate.se_analytic()) {
                 return Self {
-                    standard_error: Some(estimate.se_analytic),
+                    standard_error: Some(estimate.se_analytic()),
                     method: M::AnalyticSe,
                     level: REPORTED_SE_INTERVAL_LEVEL,
                     withheld_reason: None,
@@ -1446,9 +1446,9 @@ impl PublishedScalarUncertainty {
             return Self::withhold_iv(diagnostics.uncertainty_withheld);
         }
 
-        if estimate.se_bootstrap.is_some_and(positive_finite) {
+        if estimate.se_bootstrap().is_some_and(positive_finite) {
             return Self {
-                standard_error: estimate.se_bootstrap,
+                standard_error: estimate.se_bootstrap(),
                 method: M::BootstrapSe,
                 level: REPORTED_SE_INTERVAL_LEVEL,
                 withheld_reason: None,
@@ -1456,9 +1456,9 @@ impl PublishedScalarUncertainty {
                 upper: None,
             };
         }
-        if positive_finite(estimate.se_analytic) {
+        if positive_finite(estimate.se_analytic()) {
             return Self {
-                standard_error: Some(estimate.se_analytic),
+                standard_error: Some(estimate.se_analytic()),
                 method: M::AnalyticSe,
                 level: REPORTED_SE_INTERVAL_LEVEL,
                 withheld_reason: None,
@@ -1481,7 +1481,7 @@ impl PublishedScalarUncertainty {
     /// cluster-DML few-cluster reference), the normal quantile otherwise.
     #[must_use]
     pub fn critical_value(&self, estimate: &EffectEstimate) -> f64 {
-        match (self.method, estimate.se_reference_df) {
+        match (self.method, estimate.uncertainty.analytic.reference_df) {
             (antecedent_core::IntervalMethod::AnalyticSe, Some(df)) if df > 0.0 => {
                 antecedent_stats::student_t_ppf(0.5 + self.level / 2.0, df)
             }
@@ -1719,13 +1719,13 @@ impl StudyResult {
             let published = PublishedScalarUncertainty::select(estimate);
             match published.method {
                 M::BootstrapSe => {
-                    let (method, dependence) = match estimate.block_family {
+                    let (method, dependence) = match estimate.uncertainty.block.family {
                         Some(family) => (M::CircularBlockSe, circular_block_dependence(family)),
                         None => (M::BootstrapSe, self.se_dependence(None)),
                     };
                     let mut binding = IntervalBinding::new(method, published.level, dependence);
-                    binding.replicates_ok = estimate.bootstrap_replicates_ok;
-                    binding.replicates_failed = estimate.bootstrap_replicates_failed;
+                    binding.replicates_ok = estimate.uncertainty.bootstrap.replicates_ok;
+                    binding.replicates_failed = estimate.uncertainty.bootstrap.replicates_failed;
                     return binding;
                 }
                 M::AnalyticSe => {
@@ -1735,10 +1735,10 @@ impl StudyResult {
                         if panel_interval || randomized_cluster_interval {
                             "cluster"
                         } else {
-                            self.se_dependence(estimate.se_kind)
+                            self.se_dependence(estimate.uncertainty.analytic.kind)
                         },
                     );
-                    binding.se_kind = estimate.se_kind;
+                    binding.se_kind = estimate.uncertainty.analytic.kind;
                     return binding;
                 }
                 M::AndersonRubin => {
@@ -1754,7 +1754,7 @@ impl StudyResult {
             return IntervalBinding::none(base);
         };
         if !effect_estimate.ate.is_finite() {
-            if let Some(bands) = effect_estimate.scenario_intervals.as_deref() {
+            if let Some(bands) = effect_estimate.scenarios.intervals.as_deref() {
                 if !bands.is_empty() {
                     return IntervalBinding::new(
                         M::SimultaneousBand,
@@ -1787,10 +1787,14 @@ impl StudyResult {
             Method::ImbensManskiSharedBlock => {
                 binding.dependence =
                     circular_block_dependence(antecedent_estimate::CircularBlockFamily::Mixture);
-                binding.replicates_ok =
-                    self.estimate.as_effect().and_then(|effect| effect.bootstrap_replicates_ok);
-                binding.replicates_failed =
-                    self.estimate.as_effect().and_then(|effect| effect.bootstrap_replicates_failed);
+                binding.replicates_ok = self
+                    .estimate
+                    .as_effect()
+                    .and_then(|effect| effect.uncertainty.bootstrap.replicates_ok);
+                binding.replicates_failed = self
+                    .estimate
+                    .as_effect()
+                    .and_then(|effect| effect.uncertainty.bootstrap.replicates_failed);
             }
             Method::ProductPosteriorEnvelopeQuantile => {
                 binding.posterior_draws = structural
@@ -1909,7 +1913,9 @@ impl StudyResult {
         let assumptions = self
             .estimate
             .as_effect()
-            .map_or(&self.identification.required_assumptions, |estimate| &estimate.assumptions);
+            .map_or(&self.identification.required_assumptions, |estimate| {
+                &estimate.provenance.assumptions
+            });
         AnalysisTraceWire {
             assumptions: assumptions_to_wire(assumptions),
             derivation: self
@@ -1971,7 +1977,7 @@ mod published_scalar_uncertainty_tests {
             AssumptionSet::default(),
             OverlapPolicy::ExplicitOverride,
         );
-        estimate.se_bootstrap = se_bootstrap;
+        estimate.uncertainty.bootstrap.se = se_bootstrap;
         estimate
     }
 

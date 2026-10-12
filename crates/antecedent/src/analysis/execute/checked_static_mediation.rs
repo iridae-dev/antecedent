@@ -183,9 +183,9 @@ impl CheckedStaticMediationOperation {
             )?
         };
         let (replicates_ok, cancelled, early_stopped) = (
-            estimate.bootstrap_replicates_ok,
-            estimate.bootstrap_cancelled,
-            estimate.bootstrap_early_stopped,
+            estimate.uncertainty.bootstrap.replicates_ok,
+            estimate.uncertainty.bootstrap.cancelled,
+            estimate.uncertainty.bootstrap.early_stopped,
         );
         Ok(finish_identified_execute_with_context(
             &bound.result_context,

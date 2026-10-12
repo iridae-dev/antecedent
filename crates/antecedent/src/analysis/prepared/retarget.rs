@@ -286,13 +286,14 @@ impl PreparedStudy {
         .with_exceedance_cdf(cdf)
         .with_monotone_rearranged(out.monotone_rearranged);
         // The iid max-t score inference is not a cluster object: it stays withheld there.
-        estimate.score_inference =
+        estimate.scores.inference =
             (!interval_withheld && cluster_df.is_none()).then_some(inference);
         if let Some(df) = cluster_df {
             // The cluster-summed standard error is published with its few-cluster t reference.
-            estimate.se_analytic = se;
-            estimate.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
-            estimate.se_kind =
+            estimate.uncertainty.analytic.se = se;
+            estimate.uncertainty.analytic.reference_df =
+                Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+            estimate.uncertainty.analytic.kind =
                 Some(if self.cluster_units().is_some_and(|units| units.second.is_some()) {
                     antecedent_estimate::AnalyticSeKind::Multiway
                 } else {
@@ -301,9 +302,9 @@ impl PreparedStudy {
         }
         if let Some((value, influence)) = quantile.as_ref() {
             estimate.ate = *value;
-            estimate.se_analytic =
+            estimate.uncertainty.analytic.se =
                 antecedent_estimate::joint_influence_covariance(&[influence], None)?.se(0);
-            estimate.influence = Some(influence.clone().into());
+            estimate.scores.influence = Some(influence.clone().into());
         }
         let (treatment, outcome) = match &self.analysis.query {
             CausalQuery::AverageEffect(q) => (q.treatment, q.outcome),
@@ -424,15 +425,15 @@ impl PreparedStudy {
                         standard_error: result
                             .estimate
                             .as_effect()
-                            .map(|effect| effect.se_analytic)
+                            .map(|effect| effect.se_analytic())
                             .unwrap_or(f64::NAN),
                         lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
                             effect.ate
-                                - crate::result::reported_se_interval_z() * effect.se_analytic
+                                - crate::result::reported_se_interval_z() * effect.se_analytic()
                         }),
                         upper: result.estimate.as_effect().map_or(f64::NAN, |effect| {
                             effect.ate
-                                + crate::result::reported_se_interval_z() * effect.se_analytic
+                                + crate::result::reported_se_interval_z() * effect.se_analytic()
                         }),
                         level: 0.95,
                         interpretation: antecedent_core::IntervalInterpretation::Confidence,

@@ -403,8 +403,8 @@ mod tests {
         assert_eq!(result.logical_plan.plan_id.as_ref(), "temporal_response");
         assert_eq!(result.response().unwrap().estimand, query.functional);
         assert_eq!(
-            result.estimate.as_effect().unwrap().n_obs,
-            reference.estimate.as_effect().unwrap().n_obs
+            result.estimate.as_effect().unwrap().provenance.n_obs,
+            reference.estimate.as_effect().unwrap().provenance.n_obs
         );
         assert_eq!(result.provenance, reference.provenance);
         assert_eq!(

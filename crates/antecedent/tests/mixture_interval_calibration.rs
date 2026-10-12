@@ -261,7 +261,7 @@ fn freq_interval_at(result: &StudyResult, level: f64) -> Option<(f64, f64)> {
     let z = if (level - LEVEL).abs() < 1e-12 { Z90 } else { Z95 };
     normal_interval(
         result.estimate.as_effect().unwrap().ate,
-        result.estimate.as_effect().unwrap().se_bootstrap,
+        result.estimate.as_effect().unwrap().se_bootstrap(),
         z,
     )
 }
@@ -397,7 +397,7 @@ impl FreqTally {
             self.estimates.push(result.estimate.as_effect().unwrap().ate);
         }
         if let Some(se) =
-            result.estimate.as_effect().unwrap().se_bootstrap.filter(|se| se.is_finite())
+            result.estimate.as_effect().unwrap().se_bootstrap().filter(|se| se.is_finite())
         {
             self.ses.push(se);
         }
@@ -1865,9 +1865,9 @@ fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
     let mix = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), boot, 41);
     let a = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_a_only(), boot, 41);
     let b = run_freq_dbn(data, pulse_query(), fixtures::dbn_atom_b_only(), boot, 41);
-    let se = mix.estimate.as_effect().unwrap().se_bootstrap.expect("shared-block SE");
-    let se_a = a.estimate.as_effect().unwrap().se_bootstrap.expect("atom A SE");
-    let se_b = b.estimate.as_effect().unwrap().se_bootstrap.expect("atom B SE");
+    let se = mix.estimate.as_effect().unwrap().se_bootstrap().expect("shared-block SE");
+    let se_a = a.estimate.as_effect().unwrap().se_bootstrap().expect("atom A SE");
+    let se_b = b.estimate.as_effect().unwrap().se_bootstrap().expect("atom B SE");
     let (wa, wb) = (DBN_WEIGHTS[0] / DBN_IDENTIFIED_MASS, DBN_WEIGHTS[1] / DBN_IDENTIFIED_MASS);
     let independent = ((wa * se_a).powi(2) + (wb * se_b).powi(2)).sqrt();
     eprintln!("DBN shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
@@ -1932,9 +1932,9 @@ fn heterogeneous_cpdag_shared_block_se_carries_cross_atom_covariance() {
         values[1].unwrap(),
         1e-10,
     );
-    let se = mix.estimate.as_effect().unwrap().se_bootstrap.expect("shared-block SE");
-    let se_a = a.estimate.as_effect().unwrap().se_bootstrap.expect("completion 0 SE");
-    let se_b = b.estimate.as_effect().unwrap().se_bootstrap.expect("completion 1 SE");
+    let se = mix.estimate.as_effect().unwrap().se_bootstrap().expect("shared-block SE");
+    let se_a = a.estimate.as_effect().unwrap().se_bootstrap().expect("completion 0 SE");
+    let se_b = b.estimate.as_effect().unwrap().se_bootstrap().expect("completion 1 SE");
     let independent = ((0.5 * se_a).powi(2) + (0.5 * se_b).powi(2)).sqrt();
     eprintln!("CPDAG shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
     assert!(se > 0.5 * se_a && se > 0.5 * se_b);

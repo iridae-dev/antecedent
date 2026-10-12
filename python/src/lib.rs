@@ -1676,53 +1676,56 @@ pub(crate) fn shared_study_sections(
     let latency_mode =
         result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
     let bootstrap_replicates_ok =
-        result.performance.bootstrap_replicates_ok.or(estimate.bootstrap_replicates_ok);
-    let cancelled = result.performance.cancelled || estimate.bootstrap_cancelled;
+        result.performance.bootstrap_replicates_ok.or(estimate.uncertainty.bootstrap.replicates_ok);
+    let cancelled = result.performance.cancelled || estimate.uncertainty.bootstrap.cancelled;
     let stage_timings: Vec<(String, u64)> =
         result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
     let identification = IdentificationSection {
         status: identification_status.clone(),
         method: method.clone(),
         adjustment_set: adjustment_set.clone(),
-        assumption_count: estimate.assumptions.len(),
+        assumption_count: estimate.provenance.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let (distribution_atoms, mean_interval) =
         distribution_sections(names, result.distribution());
-    let overlap_ess = estimate.overlap_report.as_ref().and_then(|r| r.ess);
-    let overlap_propensity_min = estimate.overlap_report.as_ref().map(|r| r.propensity_min);
+    let overlap_ess = estimate.diagnostics.overlap_report.as_ref().and_then(|r| r.ess);
+    let overlap_propensity_min =
+        estimate.diagnostics.overlap_report.as_ref().map(|r| r.propensity_min);
     let estimate = EstimateSection {
         ate: estimate.ate.is_finite().then_some(estimate.ate),
-        se_analytic: estimate.se_analytic,
-        se_bootstrap: estimate.se_bootstrap,
+        se_analytic: estimate.se_analytic(),
+        se_bootstrap: estimate.se_bootstrap(),
         estimator_id: estimator_id.clone(),
         method: method.clone(),
         overlap_ess,
         overlap_propensity_min,
-        functional_means: estimate.score_inference.as_ref().map(|s| s.raw_means.clone()).or_else(
+        functional_means: estimate.scores.inference.as_ref().map(|s| s.raw_means.clone()).or_else(
             || {
                 estimate
-                    .score_table
+                    .scores
+                    .table
                     .as_ref()
                     .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
             },
         ),
         joint_covariance: estimate
-            .joint_covariance
+            .joint
+            .covariance
             .as_ref()
             .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
-        score_inference: estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
-        scenario_effects: estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
-        scenario_intervals: estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
-        exceedance_cdf: estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
-        monotone_rearranged: estimate.monotone_rearranged,
+        score_inference: estimate.scores.inference.as_ref().map(ScoreInferenceSection::from),
+        scenario_effects: estimate.scenarios.effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: estimate.scenarios.intervals.as_ref().map(|v| v.to_vec()),
+        exceedance_cdf: estimate.joint.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: estimate.joint.monotone_rearranged,
         interaction_structurally_zero: result
             .response()
             .as_ref()
             .map(|r| r.interaction_structurally_zero)
-            .or(Some(estimate.interaction_structurally_zero)),
-        unit_effects_homogeneous: Some(estimate.unit_effects_homogeneous),
-        score_table: estimate.score_table.as_ref().map(|t| ScoreTableSection {
+            .or(Some(estimate.joint.interaction_structurally_zero)),
+        unit_effects_homogeneous: Some(estimate.heterogeneity.unit_effects_homogeneous),
+        score_table: estimate.scores.table.as_ref().map(|t| ScoreTableSection {
             n_rows: t.n_rows,
             n_folds: t.n_folds,
             provenance: t.nuisance_provenance.to_string(),
@@ -1737,11 +1740,12 @@ pub(crate) fn shared_study_sections(
             treatment: t.treatment.raw(),
             intervened: t.intervened.iter().map(|v| v.raw()).collect(),
         }),
-        simultaneous_interval: estimate.simultaneous_interval,
-        adjusted_p_values: estimate.adjusted_p_values,
-        family_contrast: estimate.family_contrast,
-        family_contrast_interval: estimate.family_contrast_interval,
+        simultaneous_interval: estimate.family.simultaneous_interval,
+        adjusted_p_values: estimate.family.adjusted_p_values,
+        family_contrast: estimate.family.contrast,
+        family_contrast_interval: estimate.family.contrast_interval,
         candidate_selection: estimate
+            .family
             .candidate_selection
             .as_ref()
             .map(|s| CandidateSelectionSection {
@@ -1764,23 +1768,28 @@ pub(crate) fn shared_study_sections(
                     disjoint: s.disjoint,
                 })
             }),
-        evalue: estimate.evalue,
-        evalue_threshold: estimate.evalue_threshold,
+        evalue: estimate.diagnostics.evalue,
+        evalue_threshold: estimate.diagnostics.evalue_threshold,
         distribution_atoms,
         mean_interval,
-        cate: estimate.cate.as_ref().map(|c| c.to_vec()),
-        cate_se: estimate.cate_se.as_ref().map(|c| c.to_vec()),
-        cate_leaf_dispersion: estimate.cate_leaf_dispersion.as_ref().map(|c| c.to_vec()),
-        outcome_oof_r2: estimate.outcome_oof_r2,
-        treatment_oof_logloss: estimate.treatment_oof_logloss,
-        crossfit_folds: estimate.crossfit_folds,
-        crossfit_seed: estimate.crossfit_seed,
+        cate: estimate.heterogeneity.cate.as_ref().map(|c| c.to_vec()),
+        cate_se: estimate.heterogeneity.cate_se.as_ref().map(|c| c.to_vec()),
+        cate_leaf_dispersion: estimate
+            .heterogeneity
+            .cate_leaf_dispersion
+            .as_ref()
+            .map(|c| c.to_vec()),
+        outcome_oof_r2: estimate.crossfit.outcome_oof_r2,
+        treatment_oof_logloss: estimate.crossfit.treatment_oof_logloss,
+        crossfit_folds: estimate.crossfit.folds,
+        crossfit_seed: estimate.crossfit.seed,
         learner_provenance: estimate
+            .crossfit
             .learner_provenance
             .iter()
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
-        penalized_fallback: estimate.penalized.as_ref().and_then(|report| {
+        penalized_fallback: estimate.diagnostics.penalized.as_ref().and_then(|report| {
             report.fallback.as_ref().map(|f| {
                 (
                     f.failed_fit.stage.to_string(),
@@ -1791,10 +1800,15 @@ pub(crate) fn shared_study_sections(
                 )
             })
         }),
-        penalized_support: estimate.penalized.as_ref().map_or_else(Vec::new, |report| {
-            report.selected_support.iter().map(|s| (s.fold, s.names.clone())).collect()
-        }),
+        penalized_support: estimate
+            .diagnostics
+            .penalized
+            .as_ref()
+            .map_or_else(Vec::new, |report| {
+                report.selected_support.iter().map(|s| (s.fold, s.names.clone())).collect()
+            }),
         penalized_bootstrap: estimate
+            .diagnostics
             .penalized
             .as_ref()
             .and_then(|report| report.variance.as_ref())

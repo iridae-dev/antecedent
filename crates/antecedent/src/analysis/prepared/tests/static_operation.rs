@@ -105,7 +105,7 @@ fn checked_aipw_click_uses_retained_fitter_after_study_config_changes() {
         Some(Arc::new(EstimatorSpec::Aipw(Box::new(changed_fitter))));
     let second = prepared.estimate(&data, &context).unwrap();
     assert!((second.effect() - first.effect()).abs() < 1e-10);
-    assert!(second.estimate.as_effect().unwrap().se_bootstrap.is_none());
+    assert!(second.estimate.as_effect().unwrap().se_bootstrap().is_none());
 
     prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
         Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
@@ -143,14 +143,14 @@ fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() 
     assert_eq!(operation.fitter.bootstrap_replicates, 0);
     let first = prepared.estimate(&data, &context).unwrap();
     assert!((first.effect() - 2.0).abs() < 0.2);
-    assert!(first.estimate.as_effect().unwrap().se_bootstrap.is_none());
+    assert!(first.estimate.as_effect().unwrap().se_bootstrap().is_none());
 
     prepared.analysis.bootstrap_replicates = 9;
     prepared.analysis.estimator_spec =
         Some(Arc::new(EstimatorSpec::Aipw(Box::new(AipwAte::new()))));
     let second = prepared.estimate(&data, &context).unwrap();
     assert!((second.effect() - first.effect()).abs() < 1e-10);
-    assert!(second.estimate.as_effect().unwrap().se_bootstrap.is_none());
+    assert!(second.estimate.as_effect().unwrap().se_bootstrap().is_none());
 
     let graph =
         Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
@@ -170,7 +170,7 @@ fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() 
         .prepare(&context)
         .unwrap();
     let with_bootstrap_result = with_bootstrap.estimate(&data, &context).unwrap();
-    assert!(with_bootstrap_result.estimate.as_effect().unwrap().se_bootstrap.is_some());
+    assert!(with_bootstrap_result.estimate.as_effect().unwrap().se_bootstrap().is_some());
 }
 
 #[test]

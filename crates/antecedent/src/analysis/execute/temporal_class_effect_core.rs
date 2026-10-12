@@ -500,7 +500,7 @@ pub(super) fn fit_class_sequential(
                 se_analytic,
                 &block,
                 bootstrap_replicates,
-                seq_atoms[0].estimate.assumptions.clone(),
+                seq_atoms[0].estimate.provenance.assumptions.clone(),
                 ctx,
             ),
             None,
@@ -570,7 +570,7 @@ pub(super) fn fit_class_sequential(
     Ok(TemporalClassEffectFit {
         estimand,
         estimator_id: EstimatorId::TemporalSequentialGcomp,
-        bootstrap_replicates_ok: estimate.bootstrap_replicates_ok,
+        bootstrap_replicates_ok: estimate.uncertainty.bootstrap.replicates_ok,
         cancelled: ctx.cancellation.is_cancelled(),
         estimate,
         refutations,

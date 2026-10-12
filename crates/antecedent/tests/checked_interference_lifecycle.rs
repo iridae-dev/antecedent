@@ -84,8 +84,8 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
     assert_eq!(direct.support_status, result.support_status);
     assert_eq!(result.support_status, None);
     assert!((result.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
-    assert!((result.estimate.as_effect().unwrap().se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
-    assert!(result.estimate.as_effect().unwrap().simultaneous_interval.is_none());
+    assert!((result.estimate.as_effect().unwrap().se_analytic() - 2.0_f64.sqrt()).abs() < 1e-12);
+    assert!(result.estimate.as_effect().unwrap().family.simultaneous_interval.is_none());
     assert_eq!(result.interference().unwrap().minimum_exposure_probability, 0.5);
     let artifact =
         prepared.encode_contracted_result(&result, "cluster-total-effect", &ctx).unwrap();

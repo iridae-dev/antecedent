@@ -157,7 +157,7 @@ impl FreqTally {
         let est = &result.estimate;
         let interval = normal_interval(
             est.as_effect().unwrap().ate,
-            est.as_effect().unwrap().se_bootstrap,
+            est.as_effect().unwrap().se_bootstrap(),
             Z90,
         );
         if interval.is_some() {
@@ -167,7 +167,7 @@ impl FreqTally {
         self.reported.record(
             normal_interval(
                 est.as_effect().unwrap().ate,
-                est.as_effect().unwrap().se_bootstrap,
+                est.as_effect().unwrap().se_bootstrap(),
                 Z95,
             ),
             self.truth,
@@ -175,7 +175,7 @@ impl FreqTally {
         if est.as_effect().unwrap().ate.is_finite() {
             self.estimates.push(est.as_effect().unwrap().ate);
         }
-        if let Some(se) = est.as_effect().unwrap().se_bootstrap.filter(|se| se.is_finite()) {
+        if let Some(se) = est.as_effect().unwrap().se_bootstrap().filter(|se| se.is_finite()) {
             self.ses.push(se);
         }
         let fired = has_diagnostic(result, SHORT_SERIES);

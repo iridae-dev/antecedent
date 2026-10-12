@@ -116,7 +116,8 @@ fn a_dml_batch_retargets_its_own_scores_with_the_joint_covariance() {
             .estimate
             .as_effect()
             .unwrap()
-            .score_table
+            .scores
+            .table
             .as_ref()
             .expect("DML keeps its scores");
         // The table names the identified estimand's ids, not the projected table's renumbering.
@@ -132,7 +133,7 @@ fn a_dml_batch_retargets_its_own_scores_with_the_joint_covariance() {
         close(point.value, result.estimate.as_effect().unwrap().ate, "uniform retarget = DML ate");
         close(
             point.std_error.unwrap(),
-            result.estimate.as_effect().unwrap().se_analytic,
+            result.estimate.as_effect().unwrap().se_analytic(),
             "uniform se = DML se",
         );
         assert!(point.nuisance_provenance.starts_with("dml.crossfit.v1;route=dml;"));
@@ -199,7 +200,7 @@ fn a_dml_fit_without_scores_refuses_the_retarget() {
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
         assert_eq!(failure.detail.as_deref(), Some("batch_retarget.scores_unavailable"));
         let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-        assert!(results[0].estimate.as_effect().unwrap().score_table.is_none());
+        assert!(results[0].estimate.as_effect().unwrap().scores.table.is_none());
         let report = prepared.retarget(&estimated, &request(rows), &ctx).unwrap();
         let failure = report.claims[0].outcome.as_ref().unwrap_err();
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
@@ -222,7 +223,8 @@ fn assert_marginal_scores_retarget(spec: EstimatorSpec, route: &str) {
         .estimate
         .as_effect()
         .unwrap()
-        .score_table
+        .scores
+        .table
         .as_ref()
         .expect("marginal scores kept");
     assert!(table.nuisance_provenance.contains(route), "{}", table.nuisance_provenance);
@@ -237,7 +239,7 @@ fn assert_marginal_scores_retarget(spec: EstimatorSpec, route: &str) {
     );
     close(
         point.std_error.unwrap(),
-        results[0].estimate.as_effect().unwrap().se_analytic,
+        results[0].estimate.as_effect().unwrap().se_analytic(),
         "uniform se",
     );
 }

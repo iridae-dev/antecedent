@@ -119,7 +119,7 @@ impl CheckedPathSpecificEffectOperation {
             ctx,
         )?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
             antecedent_core::DiagnosticKind::Execution,
@@ -156,7 +156,7 @@ impl CheckedPathSpecificEffectOperation {
                 common: &self.common,
                 identification: &self.cache.identification,
                 estimand: &self.cache.estimand,
-                estimate_assumptions: estimate.assumptions.clone(),
+                estimate_assumptions: estimate.provenance.assumptions.clone(),
                 estimate,
                 diagnostics,
                 refutations,
@@ -241,7 +241,7 @@ impl CheckedFunctionalEffectOperation {
             ctx,
         )?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
             antecedent_core::DiagnosticKind::Execution,
@@ -283,7 +283,7 @@ impl CheckedFunctionalEffectOperation {
                 common: &self.common,
                 identification: &self.cache.identification,
                 estimand: &self.cache.estimand,
-                estimate_assumptions: estimate.assumptions.clone(),
+                estimate_assumptions: estimate.provenance.assumptions.clone(),
                 estimate,
                 diagnostics,
                 refutations,
@@ -495,12 +495,13 @@ impl CheckedAdmgResponseCurveOperation {
             {
                 let mut ws = antecedent_estimate::FunctionalDistributionWorkspace::default();
                 if let Ok(effect) = self.fitter.estimate(&member.prepared, &mut ws, ctx) {
-                    if let Some(se) = effect.se_bootstrap {
+                    if let Some(se) = effect.se_bootstrap() {
                         if se.is_finite() && se > 0.0 {
                             let z = crate::result::reported_se_interval_z();
                             freq_bounds.push((value - z * se, value + z * se));
                             freq_scalar_se = se;
-                            freq_replicates_ok = effect.bootstrap_replicates_ok.unwrap_or(0);
+                            freq_replicates_ok =
+                                effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0);
                         }
                     }
                 }
@@ -921,7 +922,7 @@ impl CheckedAipwOperation {
             .fitter
             .fit_checked(&self.preparation, &mut workspace, ctx)
             .map_err(CausalError::from)?;
-        let cancelled = estimate.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+        let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None
         {
             (Vec::new(), Vec::new())
@@ -943,14 +944,14 @@ impl CheckedAipwOperation {
             (reports, diagnostics)
         };
         let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
             antecedent_core::DiagnosticKind::Execution,
             antecedent_core::DiagnosticSeverity::Info,
             "identification reused from the prepare-time cache",
         ));
-        diagnostics.push(if estimate.score_table.is_some() {
+        diagnostics.push(if estimate.scores.table.is_some() {
             antecedent_core::Diagnostic::new(
                 "estimate.aipw.crossfit_scores",
                 antecedent_core::DiagnosticKind::Scientific,
@@ -982,10 +983,15 @@ impl CheckedAipwOperation {
                 &[],
                 &self.cache.identification.required_assumptions,
             ),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
+            (
+                estimate_artifact,
+                estimate_operation,
+                &[identify_artifact],
+                &estimate.provenance.assumptions,
+            ),
         );
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
         let mut result = assemble_result(AssembleArgs {
             logical: &self.physical.logical.record,
             physical: &self.physical.record,
@@ -1295,7 +1301,7 @@ impl CheckedLinearOperation {
             self.stage_sink.as_ref(),
             &crate::analysis::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
         );
-        let cancelled = estimate.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+        let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         if cancelled {
             clock.mark_cancelled();
         } else {
@@ -1352,7 +1358,7 @@ impl CheckedLinearOperation {
             );
         }
         let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
             antecedent_core::DiagnosticKind::Execution,
@@ -1371,10 +1377,15 @@ impl CheckedLinearOperation {
                 &[],
                 &self.cache.identification.required_assumptions,
             ),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
+            (
+                estimate_artifact,
+                estimate_operation,
+                &[identify_artifact],
+                &estimate.provenance.assumptions,
+            ),
         );
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
         let mut result = assemble_result(AssembleArgs {
             logical: &self.physical.logical.record,
             physical: &self.physical.record,
@@ -1555,7 +1566,7 @@ impl CheckedDistributionOperation {
             message: "distribution query missing outcome".into(),
         })?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.extend(distribution_interval_diagnostics_for_prepared(&distribution));
         if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
             &self.cache.identification,
@@ -1594,7 +1605,7 @@ impl CheckedDistributionOperation {
                 common: &self.common,
                 identification: &self.cache.identification,
                 estimand: &self.cache.estimand,
-                estimate_assumptions: estimate.assumptions.clone(),
+                estimate_assumptions: estimate.provenance.assumptions.clone(),
                 estimate,
                 diagnostics,
                 refutations,

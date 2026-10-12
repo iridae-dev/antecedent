@@ -168,7 +168,7 @@ fn estimate_linear_gaussian_ate_stable_float() {
     assert_eq!(result.estimand.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
     assert_eq!(result.refutations.len(), 2);
     assert!(result.refutations.iter().all(|r| r.passed));
-    assert!(!result.estimate.as_effect().unwrap().assumptions.is_empty());
+    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.is_empty());
     assert!(!result.identification.derivation.steps.is_empty());
 
     let trace = result.analysis_trace_wire();

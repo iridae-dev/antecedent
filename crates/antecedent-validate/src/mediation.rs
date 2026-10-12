@@ -254,7 +254,7 @@ pub fn refute_static_mediation(
                 d,
                 graph,
                 q,
-                original.effect.assumptions.clone(),
+                original.effect.provenance.assumptions.clone(),
                 0,
                 extra,
                 ctx,

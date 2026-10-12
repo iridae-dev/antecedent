@@ -179,7 +179,7 @@ fn main() {
     let estimator = DrLearner::new();
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
     let result = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
-    let model = result.fitted_effect.as_ref().unwrap();
+    let model = result.heterogeneity.fitted_effect.as_ref().unwrap();
     let model_bytes = antecedent_io::to_cbor(model.as_ref()).unwrap();
     let loaded: antecedent_estimate::FittedEffect = antecedent_io::from_cbor(&model_bytes).unwrap();
     loaded.validate().unwrap();

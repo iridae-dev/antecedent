@@ -75,7 +75,7 @@ impl OverlapRuleRefuter {
             report.refuter = Arc::from("overlap.continuous_rule");
             return Ok(report);
         }
-        let report = if let Some(r) = &problem.original.overlap_report {
+        let report = if let Some(r) = &problem.original.diagnostics.overlap_report {
             r.clone()
         } else {
             let fit = self.diagnostic_report(problem, eps, propensity)?;

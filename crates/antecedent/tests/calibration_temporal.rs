@@ -250,7 +250,7 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
         Some((study, result))
     };
     let interval_pair = |result: &StudyResult| {
-        result.estimate.as_effect().unwrap().se_bootstrap.map_or([None, None], |se| {
+        result.estimate.as_effect().unwrap().se_bootstrap().map_or([None, None], |se| {
             [
                 normal_at(result.estimate.as_effect().unwrap().ate, se, REPORTED_LEVEL),
                 normal_at(result.estimate.as_effect().unwrap().ate, se, GATE_LEVEL),
@@ -310,7 +310,11 @@ fn temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval() {
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
     assert_eq!(effect, dag.estimate.as_effect().unwrap().ate, "same contrast");
-    assert_eq!(Some(se), dag.estimate.as_effect().unwrap().se_bootstrap, "same circular-block SE");
+    assert_eq!(
+        Some(se),
+        dag.estimate.as_effect().unwrap().se_bootstrap(),
+        "same circular-block SE"
+    );
 }
 
 /// The shared contrast is the class result's **own** estimate, so the reported
@@ -328,12 +332,12 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
         "the shared contrast is the result's estimate"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().se_bootstrap,
+        result.estimate.as_effect().unwrap().se_bootstrap(),
         Some(se),
         "under the shared circular-block SE"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().block_family,
+        result.estimate.as_effect().unwrap().uncertainty.block.family,
         Some(CircularBlockFamily::Mediation),
         "keyed to the mediation block family"
     );

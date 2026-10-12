@@ -378,7 +378,7 @@ fn summarize_checked_result(
             if !effect.ate.is_finite() {
                 return Err(RecalcRunError::Request("recalc.design_point_unavailable"));
             }
-            let law = LawValue { ate: effect.ate, std_error: effect.se_analytic };
+            let law = LawValue { ate: effect.ate, std_error: effect.se_analytic() };
             recorder.record(Counter::LawSummary, 1);
             Ok(law)
         },
@@ -485,7 +485,7 @@ pub fn execute_design_with_receipt(
                 let diagnostics = result
                     .estimate
                     .as_effect()
-                    .and_then(|e| e.first_stage_diagnostics.as_ref())
+                    .and_then(|e| e.diagnostics.first_stage.as_ref())
                     .ok_or(RecalcRunError::Request("recalc.iv_diagnostics_unavailable"))?;
                 if !diagnostics
                     .anderson_rubin

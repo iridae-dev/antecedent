@@ -773,7 +773,7 @@ impl PreparedStudy {
             // score table; the trimmed common-support procedure has no table and
             // binds the rows its preparation retained.
             let rows = match (
-                result.estimate.as_effect().and_then(|effect| effect.score_table.as_ref()),
+                result.estimate.as_effect().and_then(|effect| effect.scores.table.as_ref()),
                 checked.lowering().procedure,
             ) {
                 (Some(table), _) => table.row_index.to_vec(),
@@ -1299,7 +1299,7 @@ impl StudyResult {
             homogeneous: self
                 .estimate
                 .as_effect()
-                .is_some_and(|effect| effect.unit_effects_homogeneous),
+                .is_some_and(|effect| effect.heterogeneity.unit_effects_homogeneous),
             intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
                 antecedent_io::UnitEffectIntervalsWire {
                     lower: intervals.lower.to_vec(),
@@ -1396,7 +1396,7 @@ impl StudyResult {
             standard_error: published.standard_error,
             interval_lower: published.lower,
             interval_upper: published.upper,
-            assumptions: antecedent_io::assumptions_to_wire(&effect.assumptions),
+            assumptions: antecedent_io::assumptions_to_wire(&effect.provenance.assumptions),
             support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
             diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
             refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
@@ -2420,10 +2420,11 @@ fn analysis_row_count(result: &StudyResult, contract: &CausalContract) -> u64 {
         .as_effect()
         .and_then(|estimate| {
             estimate
+                .provenance
                 .n_obs
-                .or_else(|| estimate.influence.as_ref().map(|rows| rows.len() as u64))
-                .or_else(|| estimate.score_table.as_ref().map(|table| table.n_rows as u64))
-                .or_else(|| estimate.block_resampling.map(|block| block.rows as u64))
+                .or_else(|| estimate.scores.influence.as_ref().map(|rows| rows.len() as u64))
+                .or_else(|| estimate.scores.table.as_ref().map(|table| table.n_rows as u64))
+                .or_else(|| estimate.uncertainty.block.resampling.map(|block| block.rows as u64))
         })
         .unwrap_or(contract.row_count)
 }
@@ -3282,7 +3283,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         interval_lower: published.as_ref().and_then(|p| p.lower),
         interval_upper: published.as_ref().and_then(|p| p.upper),
         assumptions: antecedent_io::assumptions_to_wire(
-            effect.map_or(&result.identification.required_assumptions, |e| &e.assumptions),
+            effect
+                .map_or(&result.identification.required_assumptions, |e| &e.provenance.assumptions),
         ),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
@@ -3291,18 +3293,18 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
-        cate: effect.and_then(|v| v.cate.as_ref().map(|v| v.to_vec())),
-        fitted_effect: effect.and_then(|v| v.fitted_effect.as_deref().cloned()),
-        cate_se: effect.and_then(|v| v.cate_se.as_ref().map(|v| v.to_vec())),
+        cate: effect.and_then(|v| v.heterogeneity.cate.as_ref().map(|v| v.to_vec())),
+        fitted_effect: effect.and_then(|v| v.heterogeneity.fitted_effect.as_deref().cloned()),
+        cate_se: effect.and_then(|v| v.heterogeneity.cate_se.as_ref().map(|v| v.to_vec())),
         cate_leaf_dispersion: effect
-            .and_then(|v| v.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
-        outcome_oof_r2: effect.and_then(|v| v.outcome_oof_r2),
-        treatment_oof_logloss: effect.and_then(|v| v.treatment_oof_logloss),
-        crossfit_folds: effect.and_then(|v| v.crossfit_folds),
-        crossfit_seed: effect.and_then(|v| v.crossfit_seed),
+            .and_then(|v| v.heterogeneity.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
+        outcome_oof_r2: effect.and_then(|v| v.crossfit.outcome_oof_r2),
+        treatment_oof_logloss: effect.and_then(|v| v.crossfit.treatment_oof_logloss),
+        crossfit_folds: effect.and_then(|v| v.crossfit.folds),
+        crossfit_seed: effect.and_then(|v| v.crossfit.seed),
         learner_provenance: effect
             .into_iter()
-            .flat_map(|v| v.learner_provenance.iter())
+            .flat_map(|v| v.crossfit.learner_provenance.iter())
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
     };

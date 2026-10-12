@@ -143,7 +143,10 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             "estimate={}",
             result.estimate.as_effect().unwrap().ate
         );
-        assert_eq!(result.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.analytic.kind,
+            Some(AnalyticSeKind::Hc1)
+        );
         prepared.study_mut().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
             Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
         )));
@@ -153,7 +156,10 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             "estimate={}",
             refreshed.estimate.as_effect().unwrap().ate
         );
-        assert_eq!(refreshed.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
+        assert_eq!(
+            refreshed.estimate.as_effect().unwrap().uncertainty.analytic.kind,
+            Some(AnalyticSeKind::Hc1)
+        );
         assert!(matches!(prepared.execution, PreparedExecution::Iv(_)));
         prepared.study_mut().query =
             crate::CausalQuery::AverageEffect(AverageEffectQuery::with_levels(

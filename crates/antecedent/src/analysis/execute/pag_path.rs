@@ -522,8 +522,9 @@ impl super::Study {
             let w = case.weight.0;
             outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, query, &estimand, inf))
@@ -534,7 +535,7 @@ impl super::Study {
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
             }
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
@@ -566,7 +567,7 @@ impl super::Study {
         );
         if atom_ifs.len() == n_contributing {
             if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
+                estimate.scores.influence = Some(inf);
             }
         }
 
@@ -586,8 +587,8 @@ impl super::Study {
         )?;
         diagnostics.extend(na_diagnostics);
 
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
         // A partially identified envelope carries its identified set and the
         // per-completion values it spans; a point-identified one stays a point.
         let structural_response = static_class_structural_mixture(&envelope, &outcomes);
@@ -725,8 +726,9 @@ impl super::Study {
             let w = case.weight.0;
             outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, query, &estimand, inf))
@@ -737,7 +739,7 @@ impl super::Study {
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
             }
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
@@ -769,7 +771,7 @@ impl super::Study {
         );
         if atom_ifs.len() == n_contributing {
             if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
+                estimate.scores.influence = Some(inf);
             }
         }
 
@@ -789,8 +791,8 @@ impl super::Study {
         )?;
         diagnostics.extend(na_diagnostics);
 
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
         // A partially identified envelope carries its identified set and the
         // per-completion values it spans; a point-identified one stays a point.
         let structural_response = static_class_structural_mixture(&envelope, &outcomes);

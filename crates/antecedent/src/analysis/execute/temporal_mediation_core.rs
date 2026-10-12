@@ -315,7 +315,7 @@ fn fit_frequentist_horizon(
             ctx,
         )
         .map_err(CausalError::from)?;
-    let cancelled = mediation.effect.bootstrap_cancelled;
+    let cancelled = mediation.effect.uncertainty.bootstrap.cancelled;
     let mut diagnostics = Vec::new();
     if block.replicates_attempted > 0 {
         mediation.effect = mediation
@@ -356,16 +356,16 @@ fn fit_frequentist_horizon(
     let replicates_ok = Some(block.replicates_ok);
     let uncertainty = if block.replicates_attempted > 0 {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-            requested: mediation.effect.se_bootstrap,
+            requested: mediation.effect.se_bootstrap(),
             block,
         }
     } else {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
             standard_error: mediation
                 .effect
-                .se_analytic
+                .se_analytic()
                 .is_finite()
-                .then_some(mediation.effect.se_analytic),
+                .then_some(mediation.effect.se_analytic()),
         }
     };
     Ok(HorizonFit {

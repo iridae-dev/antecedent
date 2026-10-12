@@ -970,8 +970,8 @@ impl super::Study {
                         result.posterior = None;
                         if let Some(estimate) = result.estimate.as_effect_mut() {
                             estimate.ate = effect_point;
-                            estimate.se_analytic = f64::NAN;
-                            estimate.se_bootstrap = None;
+                            estimate.uncertainty.analytic.se = f64::NAN;
+                            estimate.uncertainty.bootstrap.se = None;
                         }
                         result.interval = None;
                         if let Some(components) = result.payload.mediation_mut() {

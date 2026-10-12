@@ -416,8 +416,8 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
     let reference = frequentist(coalesced());
     assert!((mixed.as_effect().unwrap().ate - reference.as_effect().unwrap().ate).abs() < 1e-10);
     let (se, reference_se) = (
-        mixed.as_effect().unwrap().se_bootstrap.unwrap(),
-        reference.as_effect().unwrap().se_bootstrap.unwrap(),
+        mixed.as_effect().unwrap().se_bootstrap().unwrap(),
+        reference.as_effect().unwrap().se_bootstrap().unwrap(),
     );
     assert!(
         se.is_finite() && (se - reference_se).abs() < 1e-10,

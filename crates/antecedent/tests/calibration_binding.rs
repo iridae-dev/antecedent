@@ -375,8 +375,8 @@ fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: 
     );
     assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic.is_finite()
-            && result.estimate.as_effect().unwrap().se_analytic > 0.0
+        result.estimate.as_effect().unwrap().se_analytic().is_finite()
+            && result.estimate.as_effect().unwrap().se_analytic() > 0.0
     );
 }
 
@@ -417,8 +417,8 @@ fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
                     result.estimate.as_effect().unwrap().ate.to_bits()
                 );
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().se_analytic.to_bits(),
-                    result.estimate.as_effect().unwrap().se_analytic.to_bits()
+                    replay.estimate.as_effect().unwrap().se_analytic().to_bits(),
+                    result.estimate.as_effect().unwrap().se_analytic().to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
@@ -458,8 +458,8 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                     result.estimate.as_effect().unwrap().ate.to_bits()
                 );
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().se_analytic.to_bits(),
-                    result.estimate.as_effect().unwrap().se_analytic.to_bits()
+                    replay.estimate.as_effect().unwrap().se_analytic().to_bits(),
+                    result.estimate.as_effect().unwrap().se_analytic().to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());

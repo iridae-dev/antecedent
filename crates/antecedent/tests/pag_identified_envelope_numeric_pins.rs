@@ -344,12 +344,12 @@ fn pag_identified_envelope_average_effect_pins() {
                     result.estimate.as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic
+                    (result.estimate.as_effect().unwrap().se_analytic()
                         - freq["expected_se"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope joint-IF SE {} vs numpy reference",
-                    result.estimate.as_effect().unwrap().se_analytic
+                    result.estimate.as_effect().unwrap().se_analytic()
                 );
                 assert!(
                     !result
@@ -391,7 +391,7 @@ fn pag_identified_envelope_average_effect_pins() {
                 // coupling even though neither completion's own moments move. That reproduces
                 // deterministically under the fixture's frozen seed, so this re-pins to the
                 // current, verified output rather than the fixture's stale mean/SD.
-                let sd = result.estimate.as_effect().unwrap().se_analytic;
+                let sd = result.estimate.as_effect().unwrap().se_analytic();
                 let expected_mean = 0.376_238_176_353_573;
                 let expected_sd = 0.023_106_965_314_873_36;
                 assert!(
@@ -436,12 +436,12 @@ fn pag_identified_envelope_conditional_effect_pins() {
                     result.estimate.as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic
+                    (result.estimate.as_effect().unwrap().se_analytic()
                         - freq["expected_se"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope CATE joint-IF SE {} vs numpy reference",
-                    result.estimate.as_effect().unwrap().se_analytic
+                    result.estimate.as_effect().unwrap().se_analytic()
                 );
             }
 
@@ -467,9 +467,9 @@ fn pag_identified_envelope_conditional_effect_pins() {
                     result.estimate.as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic - expected_sd).abs() < 1e-9,
+                    (result.estimate.as_effect().unwrap().se_analytic() - expected_sd).abs() < 1e-9,
                     "Bayesian PAG CATE envelope SD {}",
-                    result.estimate.as_effect().unwrap().se_analytic
+                    result.estimate.as_effect().unwrap().se_analytic()
                 );
             }
         }

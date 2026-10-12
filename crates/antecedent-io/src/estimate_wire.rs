@@ -287,7 +287,7 @@ pub struct FirstStageDiagnosticsWire {
 /// Encode effect estimate.
 #[must_use]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
-    let (overlap_policy, overlap_clip, overlap_trim) = match e.overlap {
+    let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap {
         OverlapPolicy::ExplicitOverride => ("explicit_override".into(), None, None),
         OverlapPolicy::RequireDiagnostics { clip, trim } => {
             ("require_diagnostics".into(), clip, trim)
@@ -295,18 +295,18 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
     };
     EffectEstimateWire {
         ate: e.ate,
-        se_analytic: e.se_analytic,
-        se_bootstrap: e.se_bootstrap,
-        bootstrap_replicates_ok: e.bootstrap_replicates_ok,
-        bootstrap_replicates_failed: e.bootstrap_replicates_failed,
-        bootstrap_cancelled: e.bootstrap_cancelled,
-        bootstrap_early_stopped: e.bootstrap_early_stopped,
-        assumptions: assumptions_to_wire(&e.assumptions),
+        se_analytic: e.se_analytic(),
+        se_bootstrap: e.se_bootstrap(),
+        bootstrap_replicates_ok: e.uncertainty.bootstrap.replicates_ok,
+        bootstrap_replicates_failed: e.uncertainty.bootstrap.replicates_failed,
+        bootstrap_cancelled: e.uncertainty.bootstrap.cancelled,
+        bootstrap_early_stopped: e.uncertainty.bootstrap.early_stopped,
+        assumptions: assumptions_to_wire(&e.provenance.assumptions),
         overlap_policy,
         overlap_clip,
         overlap_trim,
-        overlap_report: e.overlap_report.as_ref().map(overlap_report_to_wire),
-        first_stage_diagnostics: e.first_stage_diagnostics.as_ref().map(|diagnostic| {
+        overlap_report: e.diagnostics.overlap_report.as_ref().map(overlap_report_to_wire),
+        first_stage_diagnostics: e.diagnostics.first_stage.as_ref().map(|diagnostic| {
             FirstStageDiagnosticsWire {
                 f_statistic: diagnostic.f_statistic,
                 df1: u64::try_from(diagnostic.df1).unwrap_or(u64::MAX),
@@ -316,43 +316,47 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
                 uncertainty_withheld: diagnostic.uncertainty_withheld.map(str::to_owned),
             }
         }),
-        retained_memory_bytes: e.retained_memory_bytes,
-        simultaneous_interval: e.simultaneous_interval,
-        adjusted_p_values: e.adjusted_p_values,
-        family_contrast: e.family_contrast,
-        family_contrast_interval: e.family_contrast_interval,
-        unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
-        cate: e.cate.as_ref().map(|v| v.to_vec()),
-        fitted_effect: e.fitted_effect.as_deref().cloned(),
-        cate_se: e.cate_se.as_ref().map(|v| v.to_vec()),
-        cate_leaf_dispersion: e.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
-        outcome_oof_r2: e.outcome_oof_r2,
-        treatment_oof_logloss: e.treatment_oof_logloss,
-        crossfit_folds: e.crossfit_folds,
-        crossfit_seed: e.crossfit_seed,
+        retained_memory_bytes: e.provenance.retained_memory_bytes,
+        simultaneous_interval: e.family.simultaneous_interval,
+        adjusted_p_values: e.family.adjusted_p_values,
+        family_contrast: e.family.contrast,
+        family_contrast_interval: e.family.contrast_interval,
+        unit_effects_homogeneous: e.heterogeneity.unit_effects_homogeneous.then_some(true),
+        cate: e.heterogeneity.cate.as_ref().map(|v| v.to_vec()),
+        fitted_effect: e.heterogeneity.fitted_effect.as_deref().cloned(),
+        cate_se: e.heterogeneity.cate_se.as_ref().map(|v| v.to_vec()),
+        cate_leaf_dispersion: e.heterogeneity.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
+        outcome_oof_r2: e.crossfit.outcome_oof_r2,
+        treatment_oof_logloss: e.crossfit.treatment_oof_logloss,
+        crossfit_folds: e.crossfit.folds,
+        crossfit_seed: e.crossfit.seed,
         learner_provenance: e
+            .crossfit
             .learner_provenance
             .iter()
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
-        evalue: e.evalue,
-        evalue_threshold: e.evalue_threshold,
-        candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
-            screen_id: s.screen_id.to_string(),
-            procedure: s.procedure.to_string(),
-            winner_index: s.winner_index,
-            family_size: s.family_size,
-            screen_rows: s.screen_rows.to_vec(),
-            estimate_rows: s.estimate_rows.to_vec(),
-            disjoint: s.disjoint,
+        evalue: e.diagnostics.evalue,
+        evalue_threshold: e.diagnostics.evalue_threshold,
+        candidate_selection: e.family.candidate_selection.as_ref().map(|s| {
+            CandidateSelectionWire {
+                screen_id: s.screen_id.to_string(),
+                procedure: s.procedure.to_string(),
+                winner_index: s.winner_index,
+                family_size: s.family_size,
+                screen_rows: s.screen_rows.to_vec(),
+                estimate_rows: s.estimate_rows.to_vec(),
+                disjoint: s.disjoint,
+            }
         }),
-        scenario_effects: e.scenario_effects.as_ref().map(|v| v.to_vec()),
-        scenario_intervals: e.scenario_intervals.as_ref().map(|v| v.to_vec()),
+        scenario_effects: e.scenarios.effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: e.scenarios.intervals.as_ref().map(|v| v.to_vec()),
         joint_covariance: e
-            .joint_covariance
+            .joint
+            .covariance
             .as_ref()
             .map(|c| JointCovarianceWire { dim: c.dim, values: c.values.to_vec() }),
-        score_inference: e.score_inference.as_ref().map(|s| ScoreInferenceWire {
+        score_inference: e.scores.inference.as_ref().map(|s| ScoreInferenceWire {
             raw_means: s.raw_means.clone(),
             lower: s.lower.clone(),
             upper: s.upper.clone(),
@@ -365,10 +369,10 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
             propensity_range: s.support.propensity_range,
             overlap_ok: s.support.overlap_ok,
         }),
-        score_table: e.score_table.as_ref().map(score_table_to_wire),
-        exceedance_cdf: e.exceedance_cdf.as_ref().map(|v| v.to_vec()),
-        monotone_rearranged: e.monotone_rearranged,
-        interaction_structurally_zero: e.interaction_structurally_zero.then_some(true),
+        score_table: e.scores.table.as_ref().map(score_table_to_wire),
+        exceedance_cdf: e.joint.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: e.joint.monotone_rearranged,
+        interaction_structurally_zero: e.joint.interaction_structurally_zero.then_some(true),
     }
 }
 
@@ -487,39 +491,39 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
         {
             return Err(IoError::Convert("invalid joint covariance".into()));
         }
-        estimate.joint_covariance = Some(antecedent_estimate::JointCovariance {
+        estimate.joint.covariance = Some(antecedent_estimate::JointCovariance {
             dim: c.dim,
             values: c.values.clone().into(),
         });
     }
-    estimate.score_inference =
+    estimate.scores.inference =
         w.score_inference.as_ref().map(score_inference_from_wire).transpose()?;
-    estimate.simultaneous_interval = w.simultaneous_interval;
-    estimate.adjusted_p_values = w.adjusted_p_values;
-    estimate.family_contrast = w.family_contrast;
-    estimate.family_contrast_interval = w.family_contrast_interval;
-    estimate.evalue = w.evalue;
-    estimate.evalue_threshold = w.evalue_threshold;
-    estimate.candidate_selection =
+    estimate.family.simultaneous_interval = w.simultaneous_interval;
+    estimate.family.adjusted_p_values = w.adjusted_p_values;
+    estimate.family.contrast = w.family_contrast;
+    estimate.family.contrast_interval = w.family_contrast_interval;
+    estimate.diagnostics.evalue = w.evalue;
+    estimate.diagnostics.evalue_threshold = w.evalue_threshold;
+    estimate.family.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
-    estimate.scenario_effects = w.scenario_effects.clone().map(Into::into);
-    estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
-    estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
-    estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
+    estimate.scenarios.effects = w.scenario_effects.clone().map(Into::into);
+    estimate.scenarios.intervals = w.scenario_intervals.clone().map(Into::into);
+    estimate.joint.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
+    estimate.heterogeneity.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
     if let Some(model) = &w.fitted_effect {
         if model.version == 1 && model.predictor.version == 1 {
             model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            estimate.fitted_effect = Some(std::sync::Arc::new(model.clone()));
+            estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model.clone()));
         }
     }
-    estimate.cate = w.cate.clone().map(Into::into);
-    estimate.cate_se = w.cate_se.clone().map(Into::into);
-    estimate.cate_leaf_dispersion = w.cate_leaf_dispersion.clone().map(Into::into);
-    estimate.outcome_oof_r2 = w.outcome_oof_r2;
-    estimate.treatment_oof_logloss = w.treatment_oof_logloss;
-    estimate.crossfit_folds = w.crossfit_folds;
-    estimate.crossfit_seed = w.crossfit_seed;
-    estimate.learner_provenance = w
+    estimate.heterogeneity.cate = w.cate.clone().map(Into::into);
+    estimate.heterogeneity.cate_se = w.cate_se.clone().map(Into::into);
+    estimate.heterogeneity.cate_leaf_dispersion = w.cate_leaf_dispersion.clone().map(Into::into);
+    estimate.crossfit.outcome_oof_r2 = w.outcome_oof_r2;
+    estimate.crossfit.treatment_oof_logloss = w.treatment_oof_logloss;
+    estimate.crossfit.folds = w.crossfit_folds;
+    estimate.crossfit.seed = w.crossfit_seed;
+    estimate.crossfit.learner_provenance = w
         .learner_provenance
         .iter()
         .map(|(spec, implementation, version)| antecedent_estimate::LearnerProvenance {
@@ -781,27 +785,30 @@ mod tests {
         .with_cate(Some(vec![1.0, 3.0].into()))
         .with_cate_se(Some(vec![0.2, 0.4].into()))
         .with_cate_leaf_dispersion(Some(vec![0.3, 0.5].into()));
-        effect.learner_provenance.push(antecedent_estimate::LearnerProvenance {
+        effect.crossfit.learner_provenance.push(antecedent_estimate::LearnerProvenance {
             spec: "ridge".into(),
             implementation: "faer".into(),
             version: "0.24".into(),
         });
-        effect.outcome_oof_r2 = Some(0.8);
-        effect.treatment_oof_logloss = Some(0.4);
-        effect.crossfit_folds = Some(5);
-        effect.crossfit_seed = Some(42);
+        effect.crossfit.outcome_oof_r2 = Some(0.8);
+        effect.crossfit.treatment_oof_logloss = Some(0.4);
+        effect.crossfit.folds = Some(5);
+        effect.crossfit.seed = Some(42);
         let wire = effect_estimate_to_wire(&effect);
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded: EffectEstimateWire = serde_json::from_slice(&bytes).unwrap();
         let restored = effect_estimate_from_wire(&decoded).unwrap();
-        assert_eq!(restored.outcome_oof_r2, effect.outcome_oof_r2);
-        assert_eq!(restored.treatment_oof_logloss, effect.treatment_oof_logloss);
-        assert_eq!(restored.crossfit_folds, effect.crossfit_folds);
-        assert_eq!(restored.crossfit_seed, effect.crossfit_seed);
-        assert_eq!(restored.cate, effect.cate);
-        assert_eq!(restored.cate_se, effect.cate_se);
-        assert_eq!(restored.cate_leaf_dispersion, effect.cate_leaf_dispersion);
-        assert_eq!(restored.learner_provenance, effect.learner_provenance);
+        assert_eq!(restored.crossfit.outcome_oof_r2, effect.crossfit.outcome_oof_r2);
+        assert_eq!(restored.crossfit.treatment_oof_logloss, effect.crossfit.treatment_oof_logloss);
+        assert_eq!(restored.crossfit.folds, effect.crossfit.folds);
+        assert_eq!(restored.crossfit.seed, effect.crossfit.seed);
+        assert_eq!(restored.heterogeneity.cate, effect.heterogeneity.cate);
+        assert_eq!(restored.heterogeneity.cate_se, effect.heterogeneity.cate_se);
+        assert_eq!(
+            restored.heterogeneity.cate_leaf_dispersion,
+            effect.heterogeneity.cate_leaf_dispersion
+        );
+        assert_eq!(restored.crossfit.learner_provenance, effect.crossfit.learner_provenance);
     }
 
     fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {

@@ -246,7 +246,8 @@ impl super::Study {
                                     ok.min(block.replicates_ok)
                                 }),
                             );
-                            class_block_cancelled |= mediation.effect.bootstrap_cancelled;
+                            class_block_cancelled |=
+                                mediation.effect.uncertainty.bootstrap.cancelled;
                             class_shared_horizons += 1;
                             if single_horizon {
                                 class_shared_contrast = Some(mediation.clone());
@@ -269,7 +270,7 @@ impl super::Study {
                             ));
                             let uncertainty = if block.replicates_attempted > 0 {
                                 antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                                    requested: mediation.effect.se_bootstrap,
+                                    requested: mediation.effect.se_bootstrap(),
                                     block,
                                 }
                             } else {
@@ -1137,11 +1138,11 @@ impl super::Study {
                 ctx,
             )
             .map_err(CausalError::from)?;
-            bootstrap_cancelled |= effect.bootstrap_cancelled;
+            bootstrap_cancelled |= effect.uncertainty.bootstrap.cancelled;
             let (point, lo, hi) = if let Some(post) = posterior.as_ref() {
                 (post.summaries.mean[0], post.summaries.q025[0], post.summaries.q975[0])
             } else {
-                let se = effect.se_bootstrap.unwrap_or(effect.se_analytic);
+                let se = effect.se_bootstrap().unwrap_or(effect.se_analytic());
                 (effect.ate, effect.ate - z * se, effect.ate + z * se)
             };
             if let Some(post) = posterior.as_ref() {
@@ -1923,7 +1924,7 @@ impl super::Study {
                     primary_estimand = Some(estimand);
                     primary_identification = Some(case.result.clone());
                     primary_envelope = Some(bundle.envelope.clone());
-                    assumptions = effect.assumptions;
+                    assumptions = effect.provenance.assumptions;
                 }
             }
             if horizon_values.is_empty() {
@@ -4497,11 +4498,11 @@ pub(super) fn sequential_dependence_se_diagnostics(
     replicates: u32,
 ) -> Vec<Diagnostic> {
     let (block_length, rows, kernel_bias) =
-        estimate.block_resampling.map_or((0, 0, 1.0), |geometry| {
+        estimate.uncertainty.block.resampling.map_or((0, 0, 1.0), |geometry| {
             (geometry.block_length, geometry.rows, geometry.kernel_bias)
         });
-    let scores: Vec<&[f64]> = estimate.influence.as_deref().into_iter().collect();
-    let effective_rows = if estimate.block_resampling.is_some() {
+    let scores: Vec<&[f64]> = estimate.scores.influence.as_deref().into_iter().collect();
+    let effective_rows = if estimate.uncertainty.block.resampling.is_some() {
         antecedent_estimate::score_effective_rows(&scores, block_length)
     } else {
         f64::NAN
@@ -4517,7 +4518,7 @@ pub(super) fn sequential_dependence_se_diagnostics(
             "se_bootstrap refits every mechanism of the sequential g-computation on the \
              same circular blocks of consecutive lag-aligned rows ({}/{replicates} \
              replicates){}",
-            estimate.bootstrap_replicates_ok.unwrap_or(0),
+            estimate.uncertainty.bootstrap.replicates_ok.unwrap_or(0),
             if replicates == 0 { "; request bootstrap_replicates > 0 for an interval" } else { "" },
         ),
     )
@@ -4540,7 +4541,7 @@ pub(super) fn single_window_dependence_se_diagnostics(
             "se_bootstrap refits the lag-aligned design on circular blocks of \
              consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
              ignores serial dependence and no HAC SE is calibrated for this cell{}",
-            estimate.bootstrap_replicates_ok.unwrap_or(0),
+            estimate.uncertainty.bootstrap.replicates_ok.unwrap_or(0),
             dependence.replicates_attempted,
             if dependence.replicates_attempted == 0 {
                 "; request bootstrap_replicates > 0 for an interval"

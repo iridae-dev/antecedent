@@ -73,7 +73,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
             &prep,
             &mut warmed,
             &ExecutionContext::for_tests(2),
-            estimate.as_effect().unwrap().assumptions.clone(),
+            estimate.as_effect().unwrap().provenance.assumptions.clone(),
         )
         .unwrap();
     let warmed_cap = warmed.ols.scratch.capacity() + warmed.ols.rhs.capacity();
@@ -124,7 +124,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &data,
         &estimand,
         &query,
-        estimate.as_effect().unwrap().assumptions.clone(),
+        estimate.as_effect().unwrap().provenance.assumptions.clone(),
         10,
         Some(OverlapPolicy::require_diagnostics()),
         None,
@@ -162,7 +162,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &data,
         &estimand,
         &query,
-        estimate.as_effect().unwrap().assumptions.clone(),
+        estimate.as_effect().unwrap().provenance.assumptions.clone(),
         0,
         None,
         None,

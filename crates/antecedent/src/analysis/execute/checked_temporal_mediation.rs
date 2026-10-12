@@ -601,7 +601,7 @@ mod tests {
             64,
         );
         assert_eq!(
-            result.estimate.as_effect().unwrap().block_family,
+            result.estimate.as_effect().unwrap().uncertainty.block.family,
             Some(antecedent_estimate::CircularBlockFamily::Mediation)
         );
         let interval = result.primary_interval_binding(false);

@@ -1871,9 +1871,9 @@ fn analysis_result_from_run(
         se_analytic: result
             .estimate
             .as_effect()
-            .map(|effect| effect.se_analytic)
+            .map(|effect| effect.se_analytic())
             .unwrap_or(f64::NAN),
-        se_bootstrap: result.estimate.as_effect().and_then(|effect| effect.se_bootstrap),
+        se_bootstrap: result.estimate.as_effect().and_then(|effect| effect.se_bootstrap()),
         plan_id,
         modality,
         discovery_algorithm: result
@@ -1915,7 +1915,7 @@ fn analysis_result_from_run(
         assumption_count: result
             .estimate
             .as_effect()
-            .map(|effect| effect.assumptions.len())
+            .map(|effect| effect.provenance.assumptions.len())
             .unwrap_or(0),
         derivation_step_count: result.identification.derivation.steps.len(),
         estimator_id,

@@ -229,7 +229,7 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     );
     assert!(result.interval.is_none());
     assert!(result.posterior.is_none());
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(
         result
             .diagnostics

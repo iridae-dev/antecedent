@@ -158,7 +158,7 @@ fn headline(result: &StudyResult, truth: f64) -> Rep {
     let est = &result.estimate;
     rep_from(
         result,
-        &[(est.as_effect().unwrap().ate, est.as_effect().unwrap().se_bootstrap, truth)],
+        &[(est.as_effect().unwrap().ate, est.as_effect().unwrap().se_bootstrap(), truth)],
     )
 }
 

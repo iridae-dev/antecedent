@@ -185,9 +185,9 @@ impl BootstrapRefute {
         // The published interval's blocks: sized on every normal-equation score.
         // A bootstrapped estimate carries the length its interval resampled;
         // otherwise (no replicates, or a different design) derive it once here.
-        let block = match problem.original.block_resampling {
+        let block = match problem.original.uncertainty.block.resampling {
             Some(geometry)
-                if problem.original.bootstrap_replicates_ok.is_some()
+                if problem.original.uncertainty.bootstrap.replicates_ok.is_some()
                     && geometry.rows == rows.rows =>
             {
                 geometry.block_length
@@ -208,7 +208,7 @@ impl BootstrapRefute {
             .ate_on_row_indices_into(&prep, workspace, &all_rows, &mut x_boot, &mut y_boot)
             .map_err(ValidationError::from)?;
         let gap = (full - problem.original.ate).abs();
-        let sd = problem.original.se_analytic;
+        let sd = problem.original.se_analytic();
         if sd.is_finite() && sd > 0.0 && gap > STAND_IN_MAX_GAP_SD * sd {
             return Err(ValidationError::NotApplicable {
                 message: "the published estimate differs from the least-squares contrast by \

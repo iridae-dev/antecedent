@@ -616,14 +616,14 @@ fn temporal_class_graph_posterior_shared_block_se_when_mixable() {
                 "{kind:?} {:?}: must publish shared circular-block SE",
                 query.policy
             );
-            let se = result.estimate.as_effect().unwrap().se_bootstrap.expect("se_bootstrap");
+            let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("se_bootstrap");
             assert!(se.is_finite() && se > 0.0, "{kind:?} {:?}: positive block SE", query.policy);
             assert!(
                 result
                     .diagnostics
                     .iter()
                     .all(|d| d.code.as_ref() != "estimate.graph_posterior.joint_if_se")
-                    || result.estimate.as_effect().unwrap().influence.is_some(),
+                    || result.estimate.as_effect().unwrap().scores.influence.is_some(),
                 "joint-IF diagnostic only when influence is published"
             );
         }
@@ -645,7 +645,7 @@ fn temporal_class_graph_posterior_shared_block_withheld_when_graph_dependent() {
     assert!(has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms));
     assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(!has_diagnostic(&result, SHARED_BLOCK));
-    assert!(result.estimate.as_effect().unwrap().se_bootstrap.is_none());
+    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
 }
 
 fn mediation_series(n: usize) -> TimeSeriesData {
@@ -767,7 +767,7 @@ fn temporal_class_graph_posterior_mediation_envelope() {
             .estimate
             .as_effect()
             .unwrap()
-            .se_bootstrap
+            .se_bootstrap()
             .is_some_and(|se| se.is_finite() && se > 0.0)
     );
 }

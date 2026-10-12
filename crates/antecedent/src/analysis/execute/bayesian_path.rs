@@ -418,7 +418,7 @@ impl super::Study {
             )
         });
         diagnostics.extend(subsample_notes);
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics
             .push(envelope_mass_diagnostic(format!("estimate.{class_tag}.envelope"), &posterior));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
@@ -1027,7 +1027,7 @@ impl super::Study {
             estimate.ate = mixed.ate;
         } else {
             estimate.ate = f64::NAN;
-            estimate.se_analytic = f64::NAN;
+            estimate.uncertainty.analytic.se = f64::NAN;
         }
         let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: no identified graph atoms".into(),
@@ -1063,7 +1063,7 @@ impl super::Study {
             )
             .with_fields(mass_fields(Some(mixed.mixture.identified_mass), unidentified_mass)),
         );
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(envelope_mass_diagnostic("estimate.graph_posterior.envelope", &posterior));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
@@ -1320,10 +1320,11 @@ impl super::Study {
         let key_weights = IdentifiedKeyWeights::new(&graphs);
         for (atom, estimate) in estimates {
             let w = key_weights.get(atom.key);
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             // Every atom is fit on the same rows; embed its IF in the original
             // row universe so the mixture SE carries cross-atom covariance.
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, query, &atom.estimand, inf))
@@ -1334,7 +1335,7 @@ impl super::Study {
             if primary_estimand.is_none() {
                 primary_estimand = Some(atom.estimand.clone());
                 primary_identification = Some(atom.identification.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
             }
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: atom.key,
@@ -1393,7 +1394,7 @@ impl super::Study {
             EffectEstimate::new(mixed.ate, se, assumptions, OverlapPolicy::ExplicitOverride);
         if joint {
             if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
+                estimate.scores.influence = Some(inf);
             }
         }
         identification.status = resolve_posterior_status(
@@ -1425,9 +1426,9 @@ impl super::Study {
                 unidentified_mass,
             )),
         );
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
-        if joint && estimate.se_analytic.is_finite() {
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
+        if joint && estimate.se_analytic().is_finite() {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.joint_if_se",
                 DiagnosticKind::Scientific,
@@ -1617,7 +1618,7 @@ impl super::Study {
                 primary = Some((
                     atom.estimand.clone(),
                     atom.identification.clone(),
-                    estimate.assumptions.clone(),
+                    estimate.provenance.assumptions.clone(),
                 ));
             }
             contexts.push((atom, weight));
@@ -2081,7 +2082,7 @@ impl super::Study {
         let estimate = effect_from_posterior(&posterior)?;
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
@@ -2627,7 +2628,7 @@ impl super::Study {
         let mut mediation = mix_dbn_mediation_estimate(&estimate, &refute_atoms);
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
         let estimate_demoted = prepare_demoted + fit_demoted + draws_demoted;
         let mut demotion_summary =
@@ -3138,8 +3139,12 @@ fn static_envelope_atom_correlation(
             )
             .ok()?
         };
-        let aligned =
-            static_aligned_influence(data, query, &atom.estimand, estimate.influence.as_deref()?)?;
+        let aligned = static_aligned_influence(
+            data,
+            query,
+            &atom.estimand,
+            estimate.scores.influence.as_deref()?,
+        )?;
         if aligned.iter().any(|v| !v.is_finite()) {
             return None;
         }

@@ -75,7 +75,7 @@ impl EffectRefit for SequentialRefitter<'_> {
             self.query,
             antecedent_estimate::SequentialInference {
                 status: self.atom.status,
-                assumptions: self.atom.estimate.assumptions.clone(),
+                assumptions: self.atom.estimate.provenance.assumptions.clone(),
                 bootstrap_replicates: 0,
                 bayesian: self.bayes,
             },
@@ -137,10 +137,10 @@ impl EffectRefit for SequentialRefitter<'_> {
         let rows = design.aligned_rows().rows;
         // A bootstrapped Frequentist contrast carries the length its interval
         // resampled; otherwise derive it once from the prepared design.
-        let block_length = match self.atom.estimate.block_resampling {
+        let block_length = match self.atom.estimate.uncertainty.block.resampling {
             Some(geometry)
                 if self.bayes.is_none()
-                    && self.atom.estimate.bootstrap_replicates_ok.is_some()
+                    && self.atom.estimate.uncertainty.bootstrap.replicates_ok.is_some()
                     && geometry.rows == rows =>
             {
                 geometry.block_length
@@ -175,7 +175,7 @@ fn stand_in_is_faithful(
     design: &antecedent_estimate::SequentialContrastDesign,
     posterior: &EffectEstimate,
 ) -> bool {
-    let sd = posterior.se_analytic;
+    let sd = posterior.se_analytic();
     if !(sd.is_finite() && sd > 0.0) {
         return true;
     }
@@ -329,14 +329,14 @@ pub(super) fn validate_sequential(
                         query,
                         antecedent_estimate::SequentialInference {
                             status: atom.status,
-                            assumptions: atom.estimate.assumptions.clone(),
+                            assumptions: atom.estimate.provenance.assumptions.clone(),
                             bootstrap_replicates: 0,
                             bayesian: Some(&est),
                         },
                         ctx,
                     )?;
                     means.push(effect.ate);
-                    sds.push(effect.se_analytic);
+                    sds.push(effect.se_analytic());
                 }
                 sensitivity.push((
                     atom.weight,

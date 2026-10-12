@@ -145,7 +145,7 @@ fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
         tally.record(
             normal_interval(
                 result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Some(result.estimate.as_effect().unwrap().se_analytic()),
                 Z90,
             ),
             TRUTH,
@@ -153,7 +153,7 @@ fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
         reported.record(
             normal_interval(
                 result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Some(result.estimate.as_effect().unwrap().se_analytic()),
                 Z95,
             ),
             TRUTH,

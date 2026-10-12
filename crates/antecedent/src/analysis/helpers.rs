@@ -475,8 +475,8 @@ pub(crate) fn attach_score_functional_grid(
         coefficients[1] = 1.0;
         let contrast = table.linear_contrast(&summary, &coefficients)?;
         estimate.ate = contrast.value;
-        estimate.se_analytic = contrast.se;
-        estimate.influence = Some(
+        estimate.uncertainty.analytic.se = contrast.se;
+        estimate.scores.influence = Some(
             table
                 .column(0)?
                 .iter()
@@ -485,7 +485,7 @@ pub(crate) fn attach_score_functional_grid(
                 .collect::<Vec<_>>()
                 .into(),
         );
-        if estimate.se_bootstrap.take().is_some() {
+        if estimate.se_bootstrap().take().is_some() {
             diagnostics.push(Diagnostic::new(
                 "estimate.functional.crossfit_inference",
                 DiagnosticKind::Scientific,
@@ -495,10 +495,10 @@ pub(crate) fn attach_score_functional_grid(
         }
     } else if n_thresholds > 1 {
         estimate.ate = f64::NAN;
-        estimate.se_analytic = f64::NAN;
-        estimate.se_bootstrap = None;
-        estimate.influence = None;
-        estimate.simultaneous_interval = None;
+        estimate.uncertainty.analytic.se = f64::NAN;
+        estimate.uncertainty.bootstrap.se = None;
+        estimate.scores.influence = None;
+        estimate.family.simultaneous_interval = None;
         diagnostics.push(Diagnostic::new(
             "estimate.functional.grid_scalar_cleared",
             DiagnosticKind::Scientific,
@@ -513,7 +513,7 @@ pub(crate) fn attach_score_functional_grid(
         .with_joint_covariance(Some(summary.covariance))
         .with_exceedance_cdf(cdf)
         .with_monotone_rearranged(monotone_rearranged);
-    estimate.score_inference = Some(inference);
+    estimate.scores.inference = Some(inference);
     Ok((estimate, diagnostics))
 }
 
@@ -597,9 +597,9 @@ pub(crate) fn attach_quantile_from_table(
     let mut diagnostics = Vec::new();
     let se = antecedent_stats::iid_se(&influence);
     estimate.ate = q1 - q0;
-    estimate.se_analytic = se;
-    estimate.influence = Some(influence.clone().into());
-    estimate.se_bootstrap = None;
+    estimate.uncertainty.analytic.se = se;
+    estimate.scores.influence = Some(influence.clone().into());
+    estimate.uncertainty.bootstrap.se = None;
     diagnostics.push(Diagnostic::new(
         "estimate.functional.quantile",
         DiagnosticKind::Scientific,
@@ -618,8 +618,8 @@ pub(crate) fn attach_quantile_from_table(
     // attach_score_functional_grid clears multi-threshold ate; restore the QTE.
     let mut estimate = estimate;
     estimate.ate = q1 - q0;
-    estimate.se_analytic = se;
-    estimate.influence = Some(influence.into());
+    estimate.uncertainty.analytic.se = se;
+    estimate.scores.influence = Some(influence.into());
     Ok((estimate, diagnostics))
 }
 
@@ -667,10 +667,11 @@ pub(crate) fn attach_joint_quantile_from_table(
     )?;
     let (mut out, mut diagnostics) = attach_score_functional_grid(estimate, table)?;
     out.ate = q.value;
-    out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&q.influence], None)?.se(0);
-    out.influence = Some(q.influence.into());
-    out.se_bootstrap = None;
-    out.simultaneous_interval = None;
+    out.uncertainty.analytic.se =
+        antecedent_estimate::joint_influence_covariance(&[&q.influence], None)?.se(0);
+    out.scores.influence = Some(q.influence.into());
+    out.uncertainty.bootstrap.se = None;
+    out.family.simultaneous_interval = None;
     diagnostics.retain(|d| d.code.as_ref() != "estimate.functional.grid_scalar_cleared");
     diagnostics.push(quantile_scope_diagnostic());
     Ok((out, diagnostics))
@@ -703,12 +704,12 @@ pub(crate) fn mirror_refuted_evalue(
     };
     match refutations.iter().find(|r| r.refuter.as_ref() == EVALUE_REFUTER) {
         Some(report) => {
-            estimate.evalue = Some(report.comparison);
-            estimate.evalue_threshold = Some(EValue::new().threshold);
+            estimate.diagnostics.evalue = Some(report.comparison);
+            estimate.diagnostics.evalue_threshold = Some(EValue::new().threshold);
         }
-        None if estimate.evalue_threshold.is_some() => {
-            estimate.evalue = None;
-            estimate.evalue_threshold = None;
+        None if estimate.diagnostics.evalue_threshold.is_some() => {
+            estimate.diagnostics.evalue = None;
+            estimate.diagnostics.evalue_threshold = None;
         }
         None => {}
     }
@@ -747,7 +748,7 @@ fn attach_tiered_evalue(
     outcome: VariableId,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if estimate.evalue.is_some() || !estimate.ate.is_finite() {
+    if estimate.diagnostics.evalue.is_some() || !estimate.ate.is_finite() {
         return;
     }
     let Ok(y) = data.float64_values(outcome) else {
@@ -808,7 +809,7 @@ fn attach_tiered_evalue(
         ));
         return;
     }
-    estimate.evalue = Some(evalue);
+    estimate.diagnostics.evalue = Some(evalue);
     let mut report = Diagnostic::new(
         "tiered.evalue.vanderweele_approx",
         DiagnosticKind::Scientific,
@@ -955,10 +956,11 @@ pub(crate) fn attach_conditional_quantile(
     let influence: Vec<_> =
         arms[1].influence.iter().zip(&arms[0].influence).map(|(a, b)| a - b).collect();
     out.ate = arms[1].value - arms[0].value;
-    out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&influence], None)?.se(0);
-    out.influence = Some(influence.into());
-    out.se_bootstrap = None;
-    out.simultaneous_interval = None;
+    out.uncertainty.analytic.se =
+        antecedent_estimate::joint_influence_covariance(&[&influence], None)?.se(0);
+    out.scores.influence = Some(influence.into());
+    out.uncertainty.bootstrap.se = None;
+    out.family.simultaneous_interval = None;
     Ok(())
 }
 
@@ -1025,9 +1027,9 @@ pub(crate) fn attach_conditional_functional_grid(
         });
     }
     let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
-    out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
+    out.joint.covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
     let n_eff = n_eff_by_arm[0] + n_eff_by_arm[1];
-    out.score_inference = Some(inference_from_influence_columns(
+    out.scores.inference = Some(inference_from_influence_columns(
         &raw_cdf,
         &refs,
         &event_n_eff,
@@ -1042,21 +1044,21 @@ pub(crate) fn attach_conditional_functional_grid(
         },
     )?);
     if thresholds.len() == 1 && threshold_supported.iter().any(|&supported| !supported) {
-        out.se_analytic = f64::NAN;
-        out.se_bootstrap = None;
-        out.influence = None;
-        out.simultaneous_interval = None;
+        out.uncertainty.analytic.se = f64::NAN;
+        out.uncertainty.bootstrap.se = None;
+        out.scores.influence = None;
+        out.family.simultaneous_interval = None;
     }
     let mut cdf = raw_cdf.clone();
     let rearranged = project_conditional_cdf(&mut cdf)?;
     out = out.with_monotone_rearranged(rearranged);
-    out.exceedance_cdf = Some(Arc::from(cdf));
+    out.joint.exceedance_cdf = Some(Arc::from(cdf));
     if thresholds.len() > 1 {
         out.ate = f64::NAN;
-        out.se_analytic = f64::NAN;
-        out.se_bootstrap = None;
-        out.influence = None;
-        out.simultaneous_interval = None;
+        out.uncertainty.analytic.se = f64::NAN;
+        out.uncertainty.bootstrap.se = None;
+        out.scores.influence = None;
+        out.family.simultaneous_interval = None;
     }
     if let Some(tau) = query.inner.outcome_functional.quantile_level() {
         attach_conditional_quantile(

@@ -254,12 +254,12 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
     });
     for (study, result) in &runs {
         points.push(result.estimate.as_effect().unwrap().ate);
-        se_sum += result.estimate.as_effect().unwrap().se_analytic;
+        se_sum += result.estimate.as_effect().unwrap().se_analytic();
         bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(
                 result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Some(result.estimate.as_effect().unwrap().se_analytic()),
                 Z90,
             ),
             TRUTH_SAME_ESTIMAND,
@@ -267,7 +267,7 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
         reported.record(
             normal_interval(
                 result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic),
+                Some(result.estimate.as_effect().unwrap().se_analytic()),
                 Z95,
             ),
             TRUTH_SAME_ESTIMAND,

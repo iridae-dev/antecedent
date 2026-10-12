@@ -336,7 +336,7 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
     let mut ws = EstimationWorkspace::default();
     let ctx = ExecutionContext::for_tests(17);
     let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-    assert!(original.overlap_report.is_none());
+    assert!(original.diagnostics.overlap_report.is_none());
 
     let problem = RefutationProblem::new(
         &data,
@@ -607,13 +607,13 @@ fn refit_effect_honors_caller_se_kind() {
         (home_effect.ate - hc1_effect.ate).abs() < 1e-9,
         "se_kind must not change the point estimate"
     );
-    assert!(home_effect.se_analytic.is_finite() && home_effect.se_analytic > 0.0);
-    assert!(hc1_effect.se_analytic.is_finite() && hc1_effect.se_analytic > 0.0);
+    assert!(home_effect.se_analytic().is_finite() && home_effect.se_analytic() > 0.0);
+    assert!(hc1_effect.se_analytic().is_finite() && hc1_effect.se_analytic() > 0.0);
     assert!(
-        (home_effect.se_analytic - hc1_effect.se_analytic).abs() > 1e-6,
+        (home_effect.se_analytic() - hc1_effect.se_analytic()).abs() > 1e-6,
         "expected caller-configured se_kind to change the refit SE: homoskedastic={} hc1={}",
-        home_effect.se_analytic,
-        hc1_effect.se_analytic,
+        home_effect.se_analytic(),
+        hc1_effect.se_analytic(),
     );
 
     // Regression guard on the plumbing change itself: a refuter whose `estimator` field is
@@ -766,8 +766,8 @@ fn evalue_uses_the_residual_sd_of_the_outcome_regression() {
     let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
     assert!((original.ate - 2.0).abs() < 1e-9, "fixture must recover ATE 2, got {}", original.ate);
     // Point estimate only: a degenerate interval isolates the point-estimate conversion.
-    original.se_analytic = 0.0;
-    original.se_bootstrap = None;
+    original.uncertainty.analytic.se = 0.0;
+    original.uncertainty.bootstrap.se = None;
     let problem = RefutationProblem::new(
         &data,
         &estimand,
@@ -813,14 +813,14 @@ fn evalue_gates_on_the_confidence_limit_not_only_the_point_estimate() {
     };
     // A very imprecise estimate (se 2 against ATE 2): the 95% interval covers the null, so the
     // interval-limit E-value is 1 and the check fails although the point E-value is large.
-    original.se_analytic = 2.0;
-    original.se_bootstrap = None;
+    original.uncertainty.analytic.se = 2.0;
+    original.uncertainty.bootstrap.se = None;
     let wide = problem_with(&original);
     assert_eq!(wide.comparison, 1.0);
     assert!(!wide.passed);
     // se 0.5: the lower limit 2 - 1.96 * 0.5 = 1.02 does not cover the null; the E-value is that
     // limit's, smaller than the point estimate's.
-    original.se_analytic = 0.5;
+    original.uncertainty.analytic.se = 0.5;
     let narrow = problem_with(&original);
     let limit = 2.0 - 1.959_963_984_540_054 * 0.5;
     let expected = evalue_of_smd(limit / sigma);
@@ -831,7 +831,7 @@ fn evalue_gates_on_the_confidence_limit_not_only_the_point_estimate() {
     );
     assert!(narrow.comparison < evalue_of_smd(2.0 / sigma));
     // No usable standard error: the point E-value is reported but cannot support a pass.
-    original.se_analytic = f64::NAN;
+    original.uncertainty.analytic.se = f64::NAN;
     let unknown = problem_with(&original);
     assert!(!unknown.passed && !unknown.informative);
 }
@@ -876,8 +876,8 @@ fn evalue_of_a_binary_outcome_uses_the_arm_risk_ratio() {
     let query = crate::test_support::ate_query();
     let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
     original.ate = 0.10;
-    original.se_analytic = 0.0;
-    original.se_bootstrap = None;
+    original.uncertainty.analytic.se = 0.0;
+    original.uncertainty.bootstrap.se = None;
     let problem = RefutationProblem::new(
         &data,
         &estimand,

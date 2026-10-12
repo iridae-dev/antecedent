@@ -423,8 +423,11 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
             result.estimate.as_effect().unwrap().ate
         );
         assert!(result.refutations.is_empty(), "{policy:?}: none runs no refuter");
-        assert!(result.estimate.as_effect().unwrap().se_bootstrap.is_some());
-        assert_eq!(result.estimate.as_effect().unwrap().bootstrap_replicates_ok, Some(12));
+        assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+            Some(12)
+        );
         assert!(result.diagnostics.iter().any(|diagnostic| {
             diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
             && diagnostic.message.contains("shared circular-block")
@@ -804,8 +807,8 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
             < 1e-12
     );
     assert_eq!(
-        click.estimate.as_effect().unwrap().se_bootstrap,
-        fresh.estimate.as_effect().unwrap().se_bootstrap
+        click.estimate.as_effect().unwrap().se_bootstrap(),
+        fresh.estimate.as_effect().unwrap().se_bootstrap()
     );
     // A one-shot run now prepares and executes the sealed DBN-posterior mediation
     // operation, so the fresh result reports its identification as cached once.
@@ -828,11 +831,17 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
 
     // Dependence-honest SE from the shared circular-block replicates.
     let se =
-        fresh.estimate.as_effect().unwrap().se_bootstrap.expect("Frequentist DBN mediation SE");
+        fresh.estimate.as_effect().unwrap().se_bootstrap().expect("Frequentist DBN mediation SE");
     assert!(se.is_finite() && se > 0.0, "se {se}");
-    assert!(fresh.estimate.as_effect().unwrap().se_analytic.is_nan());
-    let ok =
-        fresh.estimate.as_effect().unwrap().bootstrap_replicates_ok.expect("replicates recorded");
+    assert!(fresh.estimate.as_effect().unwrap().se_analytic().is_nan());
+    let ok = fresh
+        .estimate
+        .as_effect()
+        .unwrap()
+        .uncertainty
+        .bootstrap
+        .replicates_ok
+        .expect("replicates recorded");
     assert!((20..=40).contains(&ok), "replicates_ok {ok}");
     assert!(
         fresh
@@ -905,8 +914,8 @@ fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replic
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    assert!(result.estimate.as_effect().unwrap().se_bootstrap.is_none());
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(
         result
             .diagnostics
@@ -1068,12 +1077,12 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     let upper = atom_values.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
     let set = structural.identified_set.as_ref().expect("atom range");
     assert_eq!((set.lower[0], set.upper[0]), (lower, upper));
-    let se = result.estimate.as_effect().unwrap().se_bootstrap.expect("mixture SE");
+    let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("mixture SE");
     assert!(se.is_finite() && se > 0.0);
     // The shared-block mixture SE is a circular-block construction, not an iid bootstrap: the
     // interval label (and the calibration record it keys) must say so.
     assert_eq!(
-        result.estimate.as_effect().unwrap().block_family,
+        result.estimate.as_effect().unwrap().uncertainty.block.family,
         Some(antecedent_estimate::CircularBlockFamily::Mixture)
     );
     let binding = result.primary_interval_binding(false);
@@ -1082,7 +1091,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     // The same replicate SD with no block family recorded models no serial correlation on a
     // series; it is not the `iid` construction a calibration of exchangeable rows describes.
     let mut unblocked = result.clone();
-    unblocked.estimate.as_effect_mut().unwrap().block_family = None;
+    unblocked.estimate.as_effect_mut().unwrap().uncertainty.block.family = None;
     assert_eq!(unblocked.primary_interval_binding(false).dependence, "serial_unmodelled");
     match &result.mediation_grid().unwrap().slices[0].uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {

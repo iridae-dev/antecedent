@@ -124,10 +124,11 @@ impl super::Study {
             |s| s.family,
         );
         let mut estimate = mixed.estimate.with_block_family(family);
-        estimate.se_analytic = f64::NAN;
-        estimate.se_bootstrap = requested_se;
-        estimate.bootstrap_replicates_ok = replicates_requested.then_some(replicates_ok);
-        estimate.bootstrap_replicates_failed =
+        estimate.uncertainty.analytic.se = f64::NAN;
+        estimate.uncertainty.bootstrap.se = requested_se;
+        estimate.uncertainty.bootstrap.replicates_ok =
+            replicates_requested.then_some(replicates_ok);
+        estimate.uncertainty.bootstrap.replicates_failed =
             replicates_requested.then_some(replicates_attempted.saturating_sub(replicates_ok));
         let mediation = mixed.mediation.map(|m| TemporalMediationEstimate {
             effect: estimate.clone(),
@@ -491,7 +492,7 @@ fn evaluate_temporal_class_mediation_atom_frequentist(
             effect: EffectEstimate::new(
                 ate,
                 f64::NAN,
-                prep.estimate().effect.assumptions.clone(),
+                prep.estimate().effect.provenance.assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             ),
             total: prep.estimate().total,
@@ -596,7 +597,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
                         effect: EffectEstimate::new(
                             mean,
                             f64::NAN,
-                            effect_from_posterior(&composed)?.assumptions,
+                            effect_from_posterior(&composed)?.provenance.assumptions,
                             OverlapPolicy::ExplicitOverride,
                         ),
                         total: None,
@@ -613,7 +614,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
             effect: EffectEstimate::new(
                 weighted / total,
                 f64::NAN,
-                effect_from_posterior(posterior)?.assumptions,
+                effect_from_posterior(posterior)?.provenance.assumptions,
                 OverlapPolicy::ExplicitOverride,
             ),
             total: None,
@@ -661,7 +662,7 @@ impl AtomEvalView for TemporalClassMediationAtomEval {
     }
 
     fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
-        self.mediation.as_ref().map(|mediation| &mediation.effect.assumptions)
+        self.mediation.as_ref().map(|mediation| &mediation.effect.provenance.assumptions)
     }
 
     fn identified_bounds(&self) -> Option<(f64, f64)> {

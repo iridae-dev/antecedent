@@ -127,7 +127,10 @@ impl super::Study {
             InferenceMode::Frequentist => {
                 let mut estimate =
                     atom.fit(&unit_ids, ctx, identification.required_assumptions.clone())?;
-                estimate.assumptions.push(panel_estimand_assumption(clusters, unit_ids.len()));
+                estimate
+                    .provenance
+                    .assumptions
+                    .push(panel_estimand_assumption(clusters, unit_ids.len()));
                 let boot = panel_unit_bootstrap(
                     std::slice::from_ref(&atom),
                     self.bootstrap_replicates,
@@ -196,8 +199,10 @@ impl super::Study {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
-        let (bootstrap_replicates_ok, cancelled) =
-            (estimate.bootstrap_replicates_ok, estimate.bootstrap_cancelled);
+        let (bootstrap_replicates_ok, cancelled) = (
+            estimate.uncertainty.bootstrap.replicates_ok,
+            estimate.uncertainty.bootstrap.cancelled,
+        );
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -316,6 +321,7 @@ impl super::Study {
             let mut estimate =
                 atom.fit(&unit_ids, ctx, case.result.required_assumptions.clone())?;
             estimate
+                .provenance
                 .assumptions
                 .push(panel_estimand_assumption(PanelClusters::Units, unit_ids.len()));
             refute_atoms.push(PanelRefuteAtom {
@@ -325,12 +331,12 @@ impl super::Study {
                 estimate: estimate.clone(),
             });
             weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             total_w += w;
             atom_values[i] = Some(estimate.ate);
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
             }
             fitted.push(atom);
         }
@@ -384,8 +390,8 @@ impl super::Study {
             None,
         );
         boot.attach(&mut estimate, self.bootstrap_replicates);
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let cancelled = estimate.bootstrap_cancelled;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let cancelled = estimate.uncertainty.bootstrap.cancelled;
         let identification = envelope_to_identification_result_for(
             envelope,
             CausalQuery::TemporalEffect(query.clone()),
@@ -556,7 +562,7 @@ impl super::Study {
             };
             envelope_conflict = envelope_conflict.or(conflict);
             let mut atom_estimate = effect_from_posterior(&posterior)?;
-            atom_estimate.assumptions = case.result.required_assumptions.clone();
+            atom_estimate.provenance.assumptions = case.result.required_assumptions.clone();
             case_means[i] = Some(atom_estimate.ate);
             refute_atoms.push(PanelRefuteAtom {
                 key,
@@ -1993,7 +1999,7 @@ fn fit_panel_sequential_atom(
             });
         }
         unit_ates.push(estimate.ate);
-        last_assumptions = estimate.assumptions.clone();
+        last_assumptions = estimate.provenance.assumptions.clone();
         units.push(PanelSequentialUnitFit { estimate, posterior, mechanisms, seed: unit_seed });
     }
     Ok(PanelSequentialAtom {
@@ -2232,7 +2238,8 @@ fn panel_cluster_se_fit(
     let mut workspace = EstimationWorkspace::default();
     let mut estimate =
         estimator.fit(prep, &mut workspace, ctx, assumptions).map_err(CausalError::from)?;
-    estimate.se_analytic *= antecedent_stats::few_cluster_t_ratio(clusters, PANEL_INTERVAL_LEVEL);
+    estimate.uncertainty.analytic.se *=
+        antecedent_stats::few_cluster_t_ratio(clusters, PANEL_INTERVAL_LEVEL);
     Ok(estimate)
 }
 
@@ -2260,10 +2267,10 @@ impl PanelUnitBootstrap {
         if requested == 0 {
             return;
         }
-        estimate.se_bootstrap = self.se;
-        estimate.bootstrap_replicates_ok = Some(self.completed);
-        estimate.bootstrap_replicates_failed = Some(self.failed);
-        estimate.bootstrap_cancelled = self.cancelled;
+        estimate.uncertainty.bootstrap.se = self.se;
+        estimate.uncertainty.bootstrap.replicates_ok = Some(self.completed);
+        estimate.uncertainty.bootstrap.replicates_failed = Some(self.failed);
+        estimate.uncertainty.bootstrap.cancelled = self.cancelled;
     }
 
     fn diagnostic(&self, clusters: PanelClusters, requested: u32) -> Option<Diagnostic> {

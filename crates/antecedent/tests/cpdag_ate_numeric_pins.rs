@@ -277,10 +277,10 @@ fn cpdag_ate_envelope_numeric_pin() {
                 // Joint-IF SE of the frozen-weight mixture on shared rows, pinned
                 // against the independent numpy reference (reference.py).
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic - freq_se).abs()
+                    (result.estimate.as_effect().unwrap().se_analytic() - freq_se).abs()
                         < freq_se_tol,
                     "CPDAG envelope joint-IF SE {} vs reference {freq_se}",
-                    result.estimate.as_effect().unwrap().se_analytic
+                    result.estimate.as_effect().unwrap().se_analytic()
                 );
                 assert!(
                     !result

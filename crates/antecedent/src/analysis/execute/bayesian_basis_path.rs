@@ -175,7 +175,7 @@ impl Study {
         let mut estimate =
             EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride)
                 .with_n_obs(rows.len() as u64);
-        estimate.cate =
+        estimate.heterogeneity.cate =
             Some(Arc::from((0..rows.len()).map(|row| summaries.mean[row + 1]).collect::<Vec<_>>()));
         let mut diagnostics = vec![Diagnostic::new(
             "estimate.bayesian_basis_gcomp.prediction_diagnostics",

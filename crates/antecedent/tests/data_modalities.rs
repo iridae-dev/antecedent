@@ -139,7 +139,7 @@ fn panel_stacked_estimate_with_cluster_se() {
         result.estimate.as_effect().unwrap().ate
     );
     assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_finite());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
 }
 
 fn xy_series_with_unit_effect(n: usize, seed: f64, treat: f64, unit_eff: f64) -> TimeSeriesData {
@@ -591,7 +591,7 @@ fn bayesian_panel_class_pulse_uses_completion_masses() {
     );
     assert!(enumeration.posterior.is_none());
     assert!(
-        enumeration.estimate.as_effect().unwrap().se_bootstrap.is_none(),
+        enumeration.estimate.as_effect().unwrap().se_bootstrap().is_none(),
         "no frequentist bootstrap under Bayes"
     );
     assert!(has(&enumeration, "estimate.temporal_class.enumeration_not_probability"));
@@ -941,19 +941,25 @@ fn panel_class_pulse_unit_bootstrap_resamples_fresh_clusters() {
         .graph(TemporalCpdag::from_temporal_dag(&lagged_ty_dag())));
     let dag = run(Study::panel(panel(units)).graph(lagged_ty_dag()));
     for result in [&class, &dag] {
-        assert_eq!(result.estimate.as_effect().unwrap().bootstrap_replicates_ok, Some(199));
-        assert_eq!(result.estimate.as_effect().unwrap().bootstrap_replicates_failed, Some(0));
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+            Some(199)
+        );
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_failed,
+            Some(0)
+        );
     }
     let (class_se, dag_se) = (
-        class.estimate.as_effect().unwrap().se_bootstrap.unwrap(),
-        dag.estimate.as_effect().unwrap().se_bootstrap.unwrap(),
+        class.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
+        dag.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
     );
     eprintln!(
         "class boot={class_se} dag boot={dag_se} analytic={}",
-        class.estimate.as_effect().unwrap().se_analytic
+        class.estimate.as_effect().unwrap().se_analytic()
     );
     assert!((class_se / dag_se - 1.0).abs() < 0.2, "class={class_se} dag={dag_se}");
-    let analytic = class.estimate.as_effect().unwrap().se_analytic;
+    let analytic = class.estimate.as_effect().unwrap().se_analytic();
     assert!(
         class_se > 0.5 * analytic && class_se < 2.0 * analytic,
         "bootstrap={class_se} analytic={analytic}"
@@ -963,8 +969,8 @@ fn panel_class_pulse_unit_bootstrap_resamples_fresh_clusters() {
     // replicate refits both completions.
     let units: Vec<_> = (0..4).map(|i| confounded_unit(200, 11 + i)).collect();
     let two = run(Study::panel(panel(units)).graph(cpdag_two()));
-    assert_eq!(two.estimate.as_effect().unwrap().bootstrap_replicates_ok, Some(199));
-    let se = two.estimate.as_effect().unwrap().se_bootstrap.unwrap();
+    assert_eq!(two.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok, Some(199));
+    let se = two.estimate.as_effect().unwrap().se_bootstrap().unwrap();
     eprintln!("two-completion boot={se}");
     assert!(se > 1e-3, "two-completion bootstrap SE={se}");
 }
@@ -1083,9 +1089,9 @@ fn panel_class_sequential_se_is_the_between_unit_t_se() {
         pooled.estimate.as_effect().unwrap().ate
     );
     assert!(
-        (pooled.estimate.as_effect().unwrap().se_analytic - expected_se).abs() < 1e-9,
+        (pooled.estimate.as_effect().unwrap().se_analytic() - expected_se).abs() < 1e-9,
         "se={} expected={expected_se}",
-        pooled.estimate.as_effect().unwrap().se_analytic
+        pooled.estimate.as_effect().unwrap().se_analytic()
     );
 }
 
@@ -1465,7 +1471,7 @@ fn panel_routes_name_their_estimand_and_refuse_short_units() {
                 && d.message.contains("pooled common-coefficient"))
     );
     assert!(
-        ids(&pulse.estimate.as_effect().unwrap().assumptions)
+        ids(&pulse.estimate.as_effect().unwrap().provenance.assumptions)
             .contains(&"panel.estimand.pooled_common_coefficient".to_owned())
     );
 
@@ -1571,5 +1577,5 @@ fn multi_env_pulse_pools_every_environment() {
         }),
         "the pooled multi-environment estimand must be named"
     );
-    assert!(forward.estimate.as_effect().unwrap().se_analytic.is_finite());
+    assert!(forward.estimate.as_effect().unwrap().se_analytic().is_finite());
 }

@@ -106,16 +106,25 @@ fn report<'a>(result: &'a StudyResult, name: &str) -> &'a antecedent_validate::R
 /// when the refuter did not run.
 fn assert_evalue_fields(result: &StudyResult, ran: bool, label: &str) {
     if !ran {
-        assert_eq!(result.estimate.as_effect().unwrap().evalue, None, "{label}");
-        assert_eq!(result.estimate.as_effect().unwrap().evalue_threshold, None, "{label}");
+        assert_eq!(result.estimate.as_effect().unwrap().diagnostics.evalue, None, "{label}");
+        assert_eq!(
+            result.estimate.as_effect().unwrap().diagnostics.evalue_threshold,
+            None,
+            "{label}"
+        );
         return;
     }
     let report = report(result, "sensitivity.evalue");
-    assert_eq!(result.estimate.as_effect().unwrap().evalue, Some(report.comparison), "{label}");
+    assert_eq!(
+        result.estimate.as_effect().unwrap().diagnostics.evalue,
+        Some(report.comparison),
+        "{label}"
+    );
     let threshold = result
         .estimate
         .as_effect()
         .unwrap()
+        .diagnostics
         .evalue_threshold
         .expect("threshold must accompany the evalue");
     assert_eq!(threshold, antecedent_validate::DEFAULT_EVALUE_THRESHOLD, "{label}");
@@ -734,7 +743,10 @@ fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects() {
             assert!((high - 1.4).abs() < 0.05, "{label}: b=1 subgroup effect {high}");
             assert!(unit_effect_spread(&cf.unit_effects) > 0.5, "{label}");
 
-            assert!(!result.estimate.as_effect().unwrap().unit_effects_homogeneous, "{label}");
+            assert!(
+                !result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous,
+                "{label}"
+            );
             assert!(homogeneity_diagnostic(&result).is_none(), "{label}");
             let mechanisms = diagnostic(&result, "gcm.counterfactual.mechanisms").unwrap();
             assert!(
@@ -833,7 +845,7 @@ fn counterfactual_dag_additive_outcome_reports_rejected_heterogeneity_not_homoge
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
     let cf = result.counterfactual().unwrap();
     assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "linear family must still be selected");
-    assert!(!result.estimate.as_effect().unwrap().unit_effects_homogeneous);
+    assert!(!result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
     let rejected = diagnostic(&result, "gcm.counterfactual.heterogeneity_rejected")
         .expect("the rejected heterogeneity families must be recorded");
@@ -868,7 +880,10 @@ fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity() {
                 staged(&data, &graph, accepted, query.clone(), inference, RefuteSuite::None, 21);
             let cf = result.counterfactual().unwrap();
             assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "{label}");
-            assert!(result.estimate.as_effect().unwrap().unit_effects_homogeneous, "{label}");
+            assert!(
+                result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous,
+                "{label}"
+            );
             let disclosure = homogeneity_diagnostic(&result)
                 .unwrap_or_else(|| panic!("{label}: homogeneity disclosure missing"));
             assert_eq!(disclosure.severity, antecedent_core::DiagnosticSeverity::Warning);
@@ -914,7 +929,7 @@ fn counterfactual_dag_exp_modifier_unit_effects_rise_with_the_modifier() {
     let result =
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
     let cf = result.counterfactual().unwrap();
-    assert!(!result.estimate.as_effect().unwrap().unit_effects_homogeneous);
+    assert!(!result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
     let rank = |values: &[f64]| {
         let mut order: Vec<usize> = (0..values.len()).collect();
@@ -1083,6 +1098,6 @@ fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim() {
         unit_effect_spread(&cf.unit_effects) > 1e-9,
         "a discrete outcome must not produce one constant contrast"
     );
-    assert!(!result.estimate.as_effect().unwrap().unit_effects_homogeneous);
+    assert!(!result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
 }

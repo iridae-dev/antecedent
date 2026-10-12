@@ -304,7 +304,7 @@ impl DrSession {
         self.live
             .as_ref()
             .and_then(|live| live.result.estimate.as_effect())
-            .and_then(|effect| effect.fitted_effect.as_deref())
+            .and_then(|effect| effect.heterogeneity.fitted_effect.as_deref())
     }
     /// Feature names in the retained CATE model's exact role order.
     #[must_use]
@@ -484,8 +484,10 @@ pub fn execute_dr_with_receipt(
                                 ));
                             }
                             let mut bounds = Vec::new();
-                            if let Some(model) =
-                                result.estimate.as_effect().and_then(|e| e.fitted_effect.as_ref())
+                            if let Some(model) = result
+                                .estimate
+                                .as_effect()
+                                .and_then(|e| e.heterogeneity.fitted_effect.as_ref())
                             {
                                 let table = prepared.score_table().ok_or(
                                     RecalcRunError::Request("recalc.dr_scores_unavailable"),
@@ -546,7 +548,7 @@ pub fn execute_dr_with_receipt(
             .as_effect()
             .ok_or(RecalcRunError::Request("recalc.dr_effect_unavailable"))?;
         recorder.record(Counter::Reweight, 1);
-        LawValue { ate: effect.ate, std_error: effect.se_analytic }
+        LawValue { ate: effect.ate, std_error: effect.se_analytic() }
     } else {
         held.ok_or(RecalcRunError::NoLiveState(Stage::Law))?.law
     };

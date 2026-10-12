@@ -109,7 +109,7 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
         .unwrap();
     assert_eq!(prepared.checked_aipw_ate().unwrap().lowering().bootstrap_replicates, 8);
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!(result.estimate.as_effect().unwrap().se_bootstrap.is_some());
+    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
     let bytes = prepared.encode_contracted_result(&result, "checked-aipw-bootstrap", &ctx).unwrap();
     assert!(
         antecedent_io::consume_analysis_result(&bytes)

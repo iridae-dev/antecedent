@@ -1935,7 +1935,7 @@ fn admg_frontdoor_distribution_known_truth() {
                             .estimate
                             .as_effect()
                             .unwrap()
-                            .se_bootstrap
+                            .se_bootstrap()
                             .expect("bootstrap SE");
                         assert!(se.is_finite() && se > 0.0, "{label} {stage}: SE {se}");
                     }

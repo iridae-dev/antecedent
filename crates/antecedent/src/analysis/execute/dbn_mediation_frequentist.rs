@@ -195,7 +195,7 @@ impl super::Study {
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
         let mut assumptions = identification.required_assumptions.clone();
-        for record in &designs[0].estimate().effect.assumptions.entries {
+        for record in &designs[0].estimate().effect.provenance.assumptions.entries {
             assumptions.push(record.clone());
         }
         let family = shared.as_ref().map_or_else(

@@ -169,7 +169,7 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
         result.estimate.as_effect().unwrap().ate.is_nan(),
         "scalar ate withheld under GraphDependentAtoms"
     );
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     let structural = result.structural_response.as_ref().unwrap();
     let set = structural.identified_set.as_ref().unwrap();
     assert_eq!(set.lower.len(), 1);

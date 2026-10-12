@@ -156,7 +156,7 @@ fn run_method(
     // Anderson-Rubin intervals for IV`); there is no SE fixture entry for it
     // and none to check here.
     if method_id != "iv_2sls" {
-        let se = result.estimate.as_effect().unwrap().se_analytic;
+        let se = result.estimate.as_effect().unwrap().se_analytic();
         assert!(se.is_finite() && se >= 0.0, "{method_id}: bad se_analytic={se}");
         if !assert_true {
             let row = &expected["methods"][method_id];

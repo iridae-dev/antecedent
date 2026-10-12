@@ -547,7 +547,7 @@ impl super::Study {
             pairs.push((weight, estimate.ate));
             if chosen.is_none() {
                 chosen = Some((
-                    estimate.assumptions.clone(),
+                    estimate.provenance.assumptions.clone(),
                     estimand,
                     identification,
                     diagnostics,

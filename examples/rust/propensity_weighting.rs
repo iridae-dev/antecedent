@@ -110,7 +110,7 @@ pub fn run() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(11))?;
 
-    let report = result.estimate.as_effect().unwrap().overlap_report.as_ref();
+    let report = result.estimate.as_effect().unwrap().diagnostics.overlap_report.as_ref();
     let ess = report.and_then(|r| r.ess);
     let pmin = report.map(|r| r.propensity_min);
     println!(

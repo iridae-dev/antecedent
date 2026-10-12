@@ -239,7 +239,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
                 .estimate
                 .as_effect()
                 .unwrap()
-                .se_bootstrap
+                .se_bootstrap()
                 .unwrap_or_else(|| panic!("{class} mixture SE"));
             assert!(se.is_finite() && se > 0.0, "{class} mixture SE {se}");
             assert!(
@@ -754,7 +754,7 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                             .estimate
                             .as_effect()
                             .unwrap()
-                            .se_bootstrap
+                            .se_bootstrap()
                             .expect("shared-block mixture SE");
                         assert!(se.is_finite() && se > 0.0, "{tag}: SE {se}");
                         assert!(shared_block, "{tag}: shared circular-block diagnostic");

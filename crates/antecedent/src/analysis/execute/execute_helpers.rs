@@ -1058,7 +1058,7 @@ fn sequential_atom_block(
         .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
         .map(|interval| interval.with_truncated(truncated));
     let se_analytic = mix_weighted_analytic_se(
-        atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
+        atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic())),
     );
     Ok(SequentialAtomBlock { block, identified_set_interval, se_analytic })
 }
@@ -1112,10 +1112,10 @@ pub(super) fn fit_class_linear_atoms<'a>(
         fit.weighted_point += weight * estimate.ate;
         fit.total_weight += weight;
         fit.values[index] = Some(estimate.ate);
-        fit.se_items.push((weight, estimate.se_analytic));
+        fit.se_items.push((weight, estimate.se_analytic()));
         if fit.primary_estimand.is_none() {
             fit.primary_estimand = Some(estimand.clone());
-            fit.assumptions = estimate.assumptions.clone();
+            fit.assumptions = estimate.provenance.assumptions.clone();
         }
         fit.points.push(estimate.ate);
         fit.refute_atoms.push(EnvelopeRefuteAtom {
@@ -1273,9 +1273,9 @@ pub(super) fn attach_class_conditional_functional_grid(
         });
     }
     let refs: Vec<&[f64]> = mixed_columns.iter().map(Vec::as_slice).collect();
-    out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
+    out.joint.covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
     let n_eff = n_eff_by_arm[0] + n_eff_by_arm[1];
-    out.score_inference = Some(antecedent_estimate::inference_from_influence_columns(
+    out.scores.inference = Some(antecedent_estimate::inference_from_influence_columns(
         &mixed_cdf,
         &refs,
         &event_n_eff,
@@ -1294,26 +1294,26 @@ pub(super) fn attach_class_conditional_functional_grid(
         out.ate = mixed_cdf[0] - mixed_cdf[1];
         let contrast: Vec<_> =
             mixed_columns[0].iter().zip(&mixed_columns[1]).map(|(a, b)| a - b).collect();
-        out.se_analytic =
+        out.uncertainty.analytic.se =
             antecedent_estimate::joint_influence_covariance(&[&contrast], None)?.se(0);
-        out.influence = Some(contrast.into());
-        out.se_bootstrap = None;
-        out.simultaneous_interval = None;
+        out.scores.influence = Some(contrast.into());
+        out.uncertainty.bootstrap.se = None;
+        out.family.simultaneous_interval = None;
         if threshold_supported.iter().any(|&supported| !supported) {
-            out.se_analytic = f64::NAN;
-            out.influence = None;
+            out.uncertainty.analytic.se = f64::NAN;
+            out.scores.influence = None;
         }
     }
     let raw_cdf = mixed_cdf.clone();
     let rearranged = super::helpers::project_conditional_cdf(&mut mixed_cdf)?;
     out = out.with_monotone_rearranged(rearranged);
-    out.exceedance_cdf = Some(Arc::from(mixed_cdf));
+    out.joint.exceedance_cdf = Some(Arc::from(mixed_cdf));
     if thresholds.len() > 1 {
         out.ate = f64::NAN;
-        out.se_analytic = f64::NAN;
-        out.se_bootstrap = None;
-        out.influence = None;
-        out.simultaneous_interval = None;
+        out.uncertainty.analytic.se = f64::NAN;
+        out.uncertainty.bootstrap.se = None;
+        out.scores.influence = None;
+        out.family.simultaneous_interval = None;
     }
     if let Some(tau) = query.inner.outcome_functional.quantile_level() {
         super::helpers::attach_conditional_quantile(
@@ -2732,7 +2732,7 @@ fn push_aipw_score_kind(
         | EstimatorId::Dml
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
-            if estimate.score_table.is_some() =>
+            if estimate.scores.table.is_some() =>
         {
             push_unique_diagnostic(
                 diagnostics,
@@ -2766,7 +2766,7 @@ pub(crate) fn push_grid_scalar_cleared(
     seen: &mut std::collections::HashSet<Arc<str>>,
     estimate: &EffectEstimate,
 ) {
-    if let Some(inf) = estimate.score_inference.as_ref() {
+    if let Some(inf) = estimate.scores.inference.as_ref() {
         push_unique_diagnostic(
             diagnostics,
             seen,
@@ -2789,7 +2789,7 @@ pub(crate) fn push_grid_scalar_cleared(
                 ),
             );
         }
-    } else if estimate.score_table.is_none() && estimate.exceedance_cdf.is_some() {
+    } else if estimate.scores.table.is_none() && estimate.joint.exceedance_cdf.is_some() {
         push_unique_diagnostic(
             diagnostics,
             seen,
@@ -2801,7 +2801,7 @@ pub(crate) fn push_grid_scalar_cleared(
             ),
         );
     }
-    if estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
+    if estimate.joint.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
         && !estimate.ate.is_finite()
     {
         push_unique_diagnostic(
@@ -2866,7 +2866,7 @@ fn finish_identified_execute_with_context(
         prebuilt
     } else {
         let mut diagnostics = args.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(args.estimate.overlap));
+        diagnostics.push(overlap_diagnostic(args.estimate.provenance.overlap));
         diagnostics.extend(args.extra_diagnostics);
         diagnostics
     };
@@ -2934,7 +2934,7 @@ fn finish_identified_execute_with_context(
                 est_artifact.as_ref(),
                 est_op.as_ref(),
                 &[id_artifact.as_ref()],
-                &args.estimate.assumptions,
+                &args.estimate.provenance.assumptions,
             ),
         )
     };
@@ -2990,7 +2990,7 @@ fn finish_identified_execute_with_context(
     };
     if is_quantile {
         if let Some(effect) = result.estimate.as_effect_mut() {
-            effect.evalue = None;
+            effect.diagnostics.evalue = None;
         }
         result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
         if matches!(context.query, CausalQuery::ConditionalEffect(_)) {

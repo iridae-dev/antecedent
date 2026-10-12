@@ -123,14 +123,17 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
         panic!("a CoDetermined study reports the closure design, got {:?}", diagnostics.design);
     };
     assert_eq!(adjustment, &[schema.id_of("z").unwrap(), schema.id_of("u").unwrap()]);
-    assert_eq!(*rows, result.estimate.as_effect().unwrap().n_obs);
+    assert_eq!(*rows, result.estimate.as_effect().unwrap().provenance.n_obs);
     assert!(*propensity_scored);
 
     // Overlap is the estimator's own report on that design, never a refit.
     let Availability::Available(report) = &diagnostics.overlap else {
         panic!("AIPW fits a propensity, so the overlap report is carried");
     };
-    assert_eq!(Some(report), result.estimate.as_effect().unwrap().overlap_report.as_ref());
+    assert_eq!(
+        Some(report),
+        result.estimate.as_effect().unwrap().diagnostics.overlap_report.as_ref()
+    );
     assert!(0.0 < report.propensity_min && report.propensity_min < report.propensity_max);
     assert!(report.propensity_max < 1.0);
     // The estimator reports effective sample size per clip threshold, not as one number.
@@ -161,7 +164,7 @@ fn an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value(
     let mut result =
         codetermined_study(&data, RefuteSuite::None).build().unwrap().run(&ctx).unwrap();
     let effect = result.estimate.as_effect_mut().expect("an effect estimate");
-    effect.evalue_threshold = Some(1.5);
+    effect.diagnostics.evalue_threshold = Some(1.5);
     let diagnostics = tier_diagnostics(&result, &ctx).unwrap();
     let reason = diagnostics.evalue.point.unavailable().expect("a limit-minimum is not a point");
     assert_eq!(reason.code, "diagnostic_not_available");
@@ -201,7 +204,7 @@ fn unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnosti
     assert_eq!(scenarios[0].adjustment, vec![era]);
     assert_eq!(scenarios[1].method.as_ref(), "tiered.unknown.closure");
     assert_eq!(scenarios[1].adjustment, vec![era, m]);
-    let effects = result.estimate.as_effect().unwrap().scenario_effects.as_ref().unwrap();
+    let effects = result.estimate.as_effect().unwrap().scenarios.effects.as_ref().unwrap();
     assert_eq!(scenarios[0].effect, effects[0]);
     assert_eq!(scenarios[1].effect, effects[1]);
 

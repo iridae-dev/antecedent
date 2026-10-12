@@ -518,20 +518,20 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
     assert!(
-        pulse_analytic.estimate.as_effect().unwrap().se_analytic.is_nan(),
+        pulse_analytic.estimate.as_effect().unwrap().se_analytic().is_nan(),
         "iid OLS SE must not be published"
     );
-    assert!(pulse_analytic.estimate.as_effect().unwrap().se_bootstrap.is_none());
+    assert!(pulse_analytic.estimate.as_effect().unwrap().se_bootstrap().is_none());
     let se_pulse_b =
-        pulse_boot.estimate.as_effect().unwrap().se_bootstrap.expect("pulse bootstrap SE");
+        pulse_boot.estimate.as_effect().unwrap().se_bootstrap().expect("pulse bootstrap SE");
     assert!(se_pulse_b.is_finite() && se_pulse_b > 0.0, "bootstrap pulse se={se_pulse_b}");
-    assert!(pulse_boot.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(pulse_boot.estimate.as_effect().unwrap().se_analytic().is_nan());
 
     let se_sustained_b = run_sustained(40)
         .estimate
         .as_effect()
         .unwrap()
-        .se_bootstrap
+        .se_bootstrap()
         .expect("sustained bootstrap SE");
     assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
     let pulse_sustained_ratio = se_pulse_b / se_sustained_b;

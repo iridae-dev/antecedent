@@ -1825,7 +1825,7 @@ impl super::Study {
         .with_exceedance_cdf(cdf)
         .with_joint_covariance(Some(summary.covariance))
         .with_monotone_rearranged(monotone_rearranged);
-        estimate.score_inference = Some(score_inference);
+        estimate.scores.inference = Some(score_inference);
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(functional_diagnostics);
@@ -2433,7 +2433,7 @@ impl super::Study {
                  Shpitser–Pearl ID after generalized adjustment failed",
             ));
         }
-        if !estimate.se_analytic.is_finite() && !identified_set_unbanded {
+        if !estimate.se_analytic().is_finite() && !identified_set_unbanded {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
         // Disclose only when the envelope actually dropped per-completion
@@ -2851,7 +2851,7 @@ const fn support_rank(status: antecedent_core::SupportStatus) -> u8 {
 
 /// E-value / overlap on cell.aipw use the requested cell minus the all-zero control cell.
 fn cell_contrast_for_refute(estimate: &EffectEstimate, requested_arm: u32) -> EffectEstimate {
-    let Some(table) = estimate.score_table.as_ref() else {
+    let Some(table) = estimate.scores.table.as_ref() else {
         return estimate.clone();
     };
     let Ok((contrast, _)) = antecedent_estimate::cell_minus_control_contrast(table, requested_arm)
@@ -2860,7 +2860,7 @@ fn cell_contrast_for_refute(estimate: &EffectEstimate, requested_arm: u32) -> Ef
     };
     let mut out = estimate.clone();
     out.ate = contrast.value;
-    out.se_analytic = contrast.se;
+    out.uncertainty.analytic.se = contrast.se;
     out
 }
 
@@ -2880,17 +2880,17 @@ fn attach_response_influence(
             // Column 0's SE describes the reported scalar only. A surface response publishes no
             // scalar (`ate` is NaN), so a standard error here would sit beside no estimate and
             // describe one unnamed grid cell; the joint covariance below carries every cell.
-            if estimate.se_analytic.is_nan() && estimate.ate.is_finite() {
-                estimate.se_analytic = cov.se(0);
+            if estimate.se_analytic().is_nan() && estimate.ate.is_finite() {
+                estimate.uncertainty.analytic.se = cov.se(0);
             }
-            estimate.joint_covariance = Some(cov);
+            estimate.joint.covariance = Some(cov);
         }
         Err(err) if cols.len() > 1 => {
             return Err(CausalError::from(err));
         }
         Err(_) => {}
     }
-    estimate.influence = scores.columns.first().map(|c| Arc::from(c.as_slice()));
+    estimate.scores.influence = scores.columns.first().map(|c| Arc::from(c.as_slice()));
     Ok(())
 }
 
@@ -3100,7 +3100,7 @@ pub(super) fn estimate_general_id_response(
             let point = *point;
             let mut ws = FunctionalDistributionWorkspace::default();
             if let Ok(effect) = est.estimate(&prepared, &mut ws, ctx) {
-                if let Some(se) = effect.se_bootstrap {
+                if let Some(se) = effect.se_bootstrap() {
                     if se.is_finite() && se > 0.0 && point.is_finite() {
                         let z = crate::result::reported_se_interval_z();
                         uncertainty = ResponseUncertainty::Scalar {
@@ -3115,7 +3115,7 @@ pub(super) fn estimate_general_id_response(
                             id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
                             values: Arc::from([
                                 f64::from(bootstrap_replicates),
-                                f64::from(effect.bootstrap_replicates_ok.unwrap_or(0)),
+                                f64::from(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0)),
                             ]),
                             detail: Arc::from(
                                 "general-ID functional.effect response interval is a normal \
@@ -3163,8 +3163,8 @@ mod influence_review_tests {
             OverlapPolicy::ExplicitOverride,
         );
         attach_response_influence(&mut surface, Some(&scores)).unwrap();
-        assert!(surface.se_analytic.is_nan(), "se {}", surface.se_analytic);
-        assert!(surface.joint_covariance.is_some());
+        assert!(surface.se_analytic().is_nan(), "se {}", surface.se_analytic());
+        assert!(surface.joint.covariance.is_some());
     }
 
     #[test]
@@ -3181,9 +3181,9 @@ mod influence_review_tests {
             OverlapPolicy::ExplicitOverride,
         );
         attach_response_influence(&mut scalar, Some(&scores)).unwrap();
-        let expected = scalar.joint_covariance.as_ref().unwrap().se(0);
+        let expected = scalar.joint.covariance.as_ref().unwrap().se(0);
         assert!(expected.is_finite() && expected > 0.0, "se {expected}");
-        assert_eq!(scalar.se_analytic, expected);
+        assert_eq!(scalar.se_analytic(), expected);
     }
 
     #[test]

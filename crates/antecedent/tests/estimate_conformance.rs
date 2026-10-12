@@ -131,7 +131,7 @@ fn estimate_propensity_ipw_recovers_ate() {
     assert_recovers(&result, &expected);
     // No SE comparison here: see `SE_NOT_COMPARABLE`.
     assert!(
-        result.estimate.as_effect().unwrap().overlap_report.is_some(),
+        result.estimate.as_effect().unwrap().diagnostics.overlap_report.is_some(),
         "propensity.weighting must report overlap"
     );
 }
@@ -222,10 +222,12 @@ fn frontdoor_query() -> AverageEffectQuery {
 }
 
 fn records_assumption(result: &antecedent::StudyResult, id: &str) -> bool {
-    result.estimate.as_effect().unwrap().assumptions.entries.iter().any(|r| match &r.assumption {
-        antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
-        antecedent_core::Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
-        _ => false,
+    result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|r| {
+        match &r.assumption {
+            antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
+            antecedent_core::Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
+            _ => false,
+        }
     })
 }
 
@@ -264,11 +266,11 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     let var_u_given_t = 0.01 / 1.01;
     let n_var = 25.0 * (0.01 / 1.01) + 0.16 * (var_u_given_t + 0.01) / 0.01;
     let closed_form = (n_var / 4000.0_f64).sqrt();
-    let log_ratio = (result.estimate.as_effect().unwrap().se_analytic / closed_form).ln();
+    let log_ratio = (result.estimate.as_effect().unwrap().se_analytic() / closed_form).ln();
     assert!(
         log_ratio.abs() < 0.1,
         "se_analytic={} closed form={closed_form}",
-        result.estimate.as_effect().unwrap().se_analytic
+        result.estimate.as_effect().unwrap().se_analytic()
     );
 }
 
@@ -328,7 +330,7 @@ fn estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_doe
     assert_recovers(&functional, &expected);
     assert!(records_assumption(&functional, "frontdoor.functional.saturated_cells"));
     assert!(!records_assumption(&functional, "frontdoor.linear_path_product"));
-    assert!(functional.estimate.as_effect().unwrap().se_analytic > 0.0);
+    assert!(functional.estimate.as_effect().unwrap().se_analytic() > 0.0);
 
     let shortcut = run("frontdoor.linear_two_stage");
     let shortcut_limit = expected["linear_path_product_limit"].as_f64().unwrap();
@@ -384,7 +386,7 @@ fn frontdoor_claim_follows_the_executed_estimator() {
         );
         // Recorded once: the estimate inherits the claim's record, it does not add a second.
         assert_eq!(
-            path_product(&linear.estimate.as_effect().unwrap().assumptions),
+            path_product(&linear.estimate.as_effect().unwrap().provenance.assumptions),
             vec![AssumptionScope::Identification]
         );
 
@@ -508,7 +510,7 @@ fn mediation_linear_claim_is_restricted_under_interaction() {
         vec![AssumptionScope::Identification]
     );
     assert_eq!(
-        restriction(&result.estimate.as_effect().unwrap().assumptions),
+        restriction(&result.estimate.as_effect().unwrap().provenance.assumptions),
         vec![AssumptionScope::Identification]
     );
 }
@@ -699,6 +701,7 @@ fn auto_with_wald_reports_the_iv_claim() {
             .estimate
             .as_effect()
             .unwrap()
+            .provenance
             .assumptions
             .entries
             .iter()
@@ -866,7 +869,7 @@ fn rd_sharp_reports_the_cutoff_effect_and_labels_it() {
         result.diagnostics
     );
     let status = |id: &str| {
-        result.estimate.as_effect().unwrap().assumptions.entries.iter().find_map(|r| {
+        result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().find_map(|r| {
             match &r.assumption {
                 antecedent_core::Assumption::Custom { id: i, .. } if i.as_ref() == id => {
                     Some(r.status)
@@ -987,7 +990,7 @@ fn estimate_rd_sharp_recovers_jump() {
         .run(&ctx)
         .unwrap();
     let declares = |r: &antecedent::StudyResult, id: &str| {
-        r.estimate.as_effect().unwrap().assumptions.entries.iter().any(|a| {
+        r.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| {
             matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p)
                 if p.id.as_ref() == id)
         })
@@ -997,13 +1000,13 @@ fn estimate_rd_sharp_recovers_jump() {
         result.estimate.as_effect().unwrap().ate.to_bits()
     );
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic.is_finite()
-            && classical.estimate.as_effect().unwrap().se_analytic.is_finite()
+        result.estimate.as_effect().unwrap().se_analytic().is_finite()
+            && classical.estimate.as_effect().unwrap().se_analytic().is_finite()
     );
     assert!(
-        (classical.estimate.as_effect().unwrap().se_analytic
-            - result.estimate.as_effect().unwrap().se_analytic)
-            .abs()
+        (classical.estimate.as_effect().unwrap().se_analytic()
+            - result.estimate.as_effect().unwrap().se_analytic())
+        .abs()
             > 1e-9
     );
     assert!(declares(&result, "rd.sharp.conventional_robust_se"));
@@ -1057,8 +1060,8 @@ fn estimate_rd_sharp_analytic_se_matches_reference() {
     let config = antecedent::RdConfig::new(VariableId::from_raw(2), cutoff, bandwidth);
     let default = run(config);
     close(default.estimate.as_effect().unwrap().ate, "jump");
-    close(default.estimate.as_effect().unwrap().se_analytic, "se_hc1");
+    close(default.estimate.as_effect().unwrap().se_analytic(), "se_hc1");
     let classical = run(config.with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic));
     close(classical.estimate.as_effect().unwrap().ate, "jump");
-    close(classical.estimate.as_effect().unwrap().se_analytic, "se_homoskedastic");
+    close(classical.estimate.as_effect().unwrap().se_analytic(), "se_homoskedastic");
 }

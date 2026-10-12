@@ -980,7 +980,7 @@ impl PreparedBatch {
             ScoreSource::Estimated,
             results
                 .iter()
-                .map(|r| r.estimate.as_effect().and_then(|effect| effect.score_table.clone()))
+                .map(|r| r.estimate.as_effect().and_then(|effect| effect.scores.table.clone()))
                 .collect(),
         );
         Ok((results, scores))
@@ -1148,7 +1148,7 @@ fn attach_batch_family_joint_inference(
             data,
             result,
             query,
-            result.estimate.as_effect().and_then(|effect| effect.influence.as_deref()),
+            result.estimate.as_effect().and_then(|effect| effect.scores.influence.as_deref()),
         ) {
             Ok((col, rows)) => {
                 level_aligned.push(col);
@@ -1174,9 +1174,9 @@ fn attach_batch_family_joint_inference(
         let Some(effect) = result.estimate.as_effect_mut() else {
             continue;
         };
-        effect.joint_covariance = Some(level_cov.clone());
+        effect.joint.covariance = Some(level_cov.clone());
         if let Some(c) = crit {
-            effect.simultaneous_interval =
+            effect.family.simultaneous_interval =
                 Some((effect.ate - c * level_cov.se(i), effect.ate + c * level_cov.se(i), 0.95));
         }
     }
@@ -1189,9 +1189,9 @@ fn attach_batch_family_joint_inference(
                     let Some(effect) = result.estimate.as_effect_mut() else {
                         continue;
                     };
-                    effect.adjusted_p_values = None;
-                    effect.family_contrast = None;
-                    effect.family_contrast_interval = None;
+                    effect.family.adjusted_p_values = None;
+                    effect.family.contrast = None;
+                    effect.family.contrast_interval = None;
                     result.diagnostics.push(antecedent_core::Diagnostic::new(
                         "batch.joint_if",
                         antecedent_core::DiagnosticKind::Scientific,
@@ -1212,9 +1212,9 @@ fn attach_batch_family_joint_inference(
                             let Some(effect) = result.estimate.as_effect_mut() else {
                                 continue;
                             };
-                            effect.adjusted_p_values = None;
-                            effect.family_contrast = None;
-                            effect.family_contrast_interval = None;
+                            effect.family.adjusted_p_values = None;
+                            effect.family.contrast = None;
+                            effect.family.contrast_interval = None;
                             result.diagnostics.push(antecedent_core::Diagnostic::new(
                                 "batch.joint_if",
                                 antecedent_core::DiagnosticKind::Scientific,
@@ -1248,9 +1248,9 @@ fn attach_batch_family_joint_inference(
                         let Some(effect) = result.estimate.as_effect_mut() else {
                             continue;
                         };
-                        effect.adjusted_p_values = None;
-                        effect.family_contrast = None;
-                        effect.family_contrast_interval = None;
+                        effect.family.adjusted_p_values = None;
+                        effect.family.contrast = None;
+                        effect.family.contrast_interval = None;
                         result.diagnostics.push(antecedent_core::Diagnostic::new(
                             "batch.joint_if",
                             antecedent_core::DiagnosticKind::Scientific,
@@ -1299,7 +1299,7 @@ fn align_influence_to_rows(
     ids.extend(result.estimand.adjustment_set.iter().copied());
     ids.extend(result.estimand.instruments.iter().copied());
     ids.extend(result.estimand.mediators.iter().copied());
-    if let Some(table) = result.estimate.as_effect().and_then(|effect| effect.score_table.as_ref())
+    if let Some(table) = result.estimate.as_effect().and_then(|effect| effect.scores.table.as_ref())
     {
         ids.push(table.treatment);
         ids.extend(table.intervened.iter().copied());
@@ -1345,7 +1345,7 @@ fn cell_family_contrast_claim(
     if query.outcome_functional.quantile_level().is_some() {
         return None;
     }
-    let table = result.estimate.as_effect()?.score_table.as_ref()?;
+    let table = result.estimate.as_effect()?.scores.table.as_ref()?;
     if table.distinct_threshold_count() > 1 {
         return None;
     }
@@ -1391,11 +1391,11 @@ fn attach_family_p_values(
         let Some(effect) = result.estimate.as_effect_mut() else {
             continue;
         };
-        effect.adjusted_p_values = Some((bh[i], by[i]));
+        effect.family.adjusted_p_values = Some((bh[i], by[i]));
         if contrast.is_some() {
             let se = cov.se(i);
-            effect.family_contrast = Some((values[i], se));
-            effect.family_contrast_interval =
+            effect.family.contrast = Some((values[i], se));
+            effect.family.contrast_interval =
                 crit.map(|c| (values[i] - c * se, values[i] + c * se, 0.95));
         }
         let mut d = antecedent_core::Diagnostic::new(
@@ -1595,14 +1595,14 @@ fn attach_candidate_selection(
                             .filter(|(_, result)| {
                                 result.estimate.as_effect().is_some_and(|effect| {
                                     effect.ate.is_finite()
-                                        && effect.se_analytic.is_finite()
-                                        && effect.se_analytic >= 0.0
+                                        && effect.se_analytic().is_finite()
+                                        && effect.se_analytic() >= 0.0
                                 })
                             })
                             .max_by(|a, b| {
                                 let score = |result: &StudyResult| {
                                     result.estimate.as_effect().map(|effect| {
-                                        let scale = effect.se_analytic.abs().max(1e-12);
+                                        let scale = effect.se_analytic().abs().max(1e-12);
                                         effect.ate.abs() / scale
                                     })
                                 };
@@ -1647,15 +1647,16 @@ fn attach_candidate_selection(
     for result in results.iter_mut() {
         result.candidate_selection = Some(selection.clone());
         if let Some(effect) = result.estimate.as_effect_mut() {
-            effect.candidate_selection = Some(antecedent_estimate::CandidateSelectionRecord {
-                screen_id: std::sync::Arc::clone(&selection.screen_id),
-                procedure: std::sync::Arc::from(selection.procedure.as_str()),
-                winner_index: selection.winner_index,
-                family_size: selection.family_size,
-                screen_rows: std::sync::Arc::clone(&selection.screen_rows),
-                estimate_rows: std::sync::Arc::clone(&selection.estimate_rows),
-                disjoint: selection.disjoint,
-            });
+            effect.family.candidate_selection =
+                Some(antecedent_estimate::CandidateSelectionRecord {
+                    screen_id: std::sync::Arc::clone(&selection.screen_id),
+                    procedure: std::sync::Arc::from(selection.procedure.as_str()),
+                    winner_index: selection.winner_index,
+                    family_size: selection.family_size,
+                    screen_rows: std::sync::Arc::clone(&selection.screen_rows),
+                    estimate_rows: std::sync::Arc::clone(&selection.estimate_rows),
+                    disjoint: selection.disjoint,
+                });
         }
         if recorded {
             let mut d = antecedent_core::Diagnostic::new(

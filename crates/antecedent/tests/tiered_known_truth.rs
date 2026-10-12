@@ -194,17 +194,17 @@ fn codetermined_average_effect_known_truth() {
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
             let est = &result.estimate;
             assert!(
-                est.as_effect().unwrap().se_analytic.is_finite()
-                    && est.as_effect().unwrap().se_analytic > 0.0,
+                est.as_effect().unwrap().se_analytic().is_finite()
+                    && est.as_effect().unwrap().se_analytic() > 0.0,
                 "{estimator:?}"
             );
             assert!(
                 (est.as_effect().unwrap().ate - CODETERMINED_TRUTH).abs()
-                    < 4.0 * est.as_effect().unwrap().se_analytic
+                    < 4.0 * est.as_effect().unwrap().se_analytic()
                     && (est.as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12,
                 "{estimator:?} CoDetermined ATE {} (se {}) vs analytic truth {CODETERMINED_TRUTH}",
                 est.as_effect().unwrap().ate,
-                est.as_effect().unwrap().se_analytic
+                est.as_effect().unwrap().se_analytic()
             );
         }
         assert!(
@@ -261,18 +261,20 @@ fn unknown_scenarios_known_truth() {
             .estimate
             .as_effect()
             .unwrap()
-            .scenario_effects
+            .scenarios
+            .effects
             .as_ref()
             .expect("scenario effects");
         let cov = result
             .estimate
             .as_effect()
             .unwrap()
-            .joint_covariance
+            .joint
+            .covariance
             .as_ref()
             .expect("joint IF covariance");
         let bands =
-            result.estimate.as_effect().unwrap().scenario_intervals.as_ref().expect("joint band");
+            result.estimate.as_effect().unwrap().scenarios.intervals.as_ref().expect("joint band");
         assert_eq!(effects.len(), 2);
         for (j, truth) in UNKNOWN_TRUTH.iter().enumerate() {
             let se = cov.se(j);

@@ -94,13 +94,13 @@ fn assert_bit_identical(batch: &StudyResult, solo: &StudyResult, what: &str) {
         "{what}: ate"
     );
     assert_eq!(
-        batch.estimate.as_effect().unwrap().se_analytic.to_bits(),
-        solo.estimate.as_effect().unwrap().se_analytic.to_bits(),
+        batch.estimate.as_effect().unwrap().se_analytic().to_bits(),
+        solo.estimate.as_effect().unwrap().se_analytic().to_bits(),
         "{what}: se_analytic"
     );
     let (Some(a), Some(b)) = (
-        &batch.estimate.as_effect().unwrap().influence,
-        &solo.estimate.as_effect().unwrap().influence,
+        &batch.estimate.as_effect().unwrap().scores.influence,
+        &solo.estimate.as_effect().unwrap().scores.influence,
     ) else {
         panic!("{what}: both runs publish the influence function");
     };

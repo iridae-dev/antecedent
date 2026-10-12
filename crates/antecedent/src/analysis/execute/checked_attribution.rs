@@ -287,7 +287,7 @@ impl CheckedAttributionOperation {
                     if let Some(posterior) = &posterior {
                         if let Some(index) = posterior.effect_column() {
                             estimate.ate = posterior.summaries.mean[index];
-                            estimate.se_analytic = posterior.summaries.sd[index];
+                            estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
                         }
                     }
                 }
@@ -504,9 +504,9 @@ fn publish_lag_aligned(
     if mean.is_finite() {
         estimate.ate = mean;
     }
-    estimate.se_analytic = f64::NAN;
-    estimate.se_bootstrap = None;
-    estimate.bootstrap_replicates_ok = None;
+    estimate.uncertainty.analytic.se = f64::NAN;
+    estimate.uncertainty.bootstrap.se = None;
+    estimate.uncertainty.bootstrap.replicates_ok = None;
     diagnostics.push(Diagnostic::new(
         "gcm.attribution.posterior_mean_only",
         DiagnosticKind::Execution,

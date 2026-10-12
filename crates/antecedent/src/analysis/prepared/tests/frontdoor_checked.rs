@@ -135,7 +135,7 @@ fn frontdoor_prepared_click_uses_retained_fit_after_study_config_changes() {
     assert!((estimate.effect() - 1.4).abs() < 0.1, "estimate={}", estimate.effect());
     let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
     assert!((refreshed.effect() - estimate.effect()).abs() < 0.05);
-    assert!(refreshed.estimate.as_effect().unwrap().assumptions.entries.iter().any(|entry| {
+    assert!(refreshed.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| {
         matches!(&entry.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "frontdoor.linear_path_product")
     }));
 }

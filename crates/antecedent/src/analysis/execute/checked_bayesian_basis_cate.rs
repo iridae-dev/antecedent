@@ -243,7 +243,7 @@ impl CheckedBayesianBasisCateExecution {
             OverlapPolicy::ExplicitOverride,
         )
         .with_n_obs(rows.len() as u64);
-        estimate.cate =
+        estimate.heterogeneity.cate =
             Some(Arc::from((0..rows.len()).map(|r| summaries.mean[r + 1]).collect::<Vec<_>>()));
         let args = IdentifiedExecuteFinish::new(
             &self.physical,

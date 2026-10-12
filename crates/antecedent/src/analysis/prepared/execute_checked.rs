@@ -508,7 +508,7 @@ impl PreparedStudy {
         started: Instant,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let cancelled = estimate.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+        let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
             if cancelled || self.analysis.refute == RefuteSuite::None {
                 (Vec::new(), Vec::new())
@@ -531,7 +531,7 @@ impl PreparedStudy {
                 (reports, diagnostics)
             };
         let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
             antecedent_core::DiagnosticKind::Execution,
@@ -540,15 +540,20 @@ impl PreparedStudy {
         ));
         diagnostics.append(&mut extra_diagnostics);
         let identifier_id = self.plan.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
         let (identify_artifact, identify_operation) =
             crate::strategy_table::identify_provenance_step(identifier_id);
         let (estimate_artifact, estimate_operation) =
             crate::strategy_table::estimate_provenance_step(estimator_id);
         let provenance = provenance_pair(
             (identify_artifact, identify_operation, &[], &identification.required_assumptions),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
+            (
+                estimate_artifact,
+                estimate_operation,
+                &[identify_artifact],
+                &estimate.provenance.assumptions,
+            ),
         );
         let mut result = assemble_result(AssembleArgs {
             logical: &self.plan.logical.record,
@@ -604,7 +609,7 @@ impl PreparedStudy {
         started: Instant,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let cancelled = estimate.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+        let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
             if cancelled || metadata.refute == RefuteSuite::None {
                 (Vec::new(), Vec::new())
@@ -627,7 +632,7 @@ impl PreparedStudy {
                 (reports, diagnostics)
             };
         let mut diagnostics = metadata.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         if metadata.identifier != crate::strategy_table::IdentifierId::RdSharp {
             diagnostics.push(antecedent_core::Diagnostic::new(
                 "exec.identify.cached",
@@ -642,8 +647,8 @@ impl PreparedStudy {
                 tier, configured,
             ));
         }
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
         let (identify_artifact, identify_operation) =
             crate::strategy_table::identify_provenance_step(metadata.identifier);
         let (estimate_artifact, estimate_operation) =
@@ -655,7 +660,12 @@ impl PreparedStudy {
                 &[],
                 &metadata.identification.required_assumptions,
             ),
-            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
+            (
+                estimate_artifact,
+                estimate_operation,
+                &[identify_artifact],
+                &estimate.provenance.assumptions,
+            ),
         );
         let mut result = assemble_result(AssembleArgs {
             logical: &metadata.physical.logical.record,

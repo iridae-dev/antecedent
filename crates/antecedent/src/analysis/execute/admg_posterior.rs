@@ -176,7 +176,7 @@ impl super::Study {
                 mixed.mixture.unidentified_mass,
             )),
         );
-        diagnostics.push(overlap_diagnostic(mixed.estimate.overlap));
+        diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
 
         let (refutations, refute_diagnostics) =
             refute_admg_graph_posterior(self, data, query, &identified, &evals, mixed.policy, ctx)?;
@@ -244,7 +244,7 @@ impl AtomEvalView for AdmgAtomEval {
     }
 
     fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
-        Some(&self.estimate.assumptions)
+        Some(&self.estimate.provenance.assumptions)
     }
 
     fn identified_bounds(&self) -> Option<(f64, f64)> {

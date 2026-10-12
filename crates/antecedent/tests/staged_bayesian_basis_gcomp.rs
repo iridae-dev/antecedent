@@ -111,7 +111,8 @@ fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     .unwrap();
     let (_, _, cate, _) = run(cate_query);
     assert_eq!(cate.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    let values = cate.estimate.as_effect().unwrap().cate.as_ref().expect("row CATE summary");
+    let values =
+        cate.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("row CATE summary");
     assert_eq!(values.len(), data.row_count());
     assert!((values[0] - (0.5 - 0.75)).abs() < 0.12, "low-z CATE={}", values[0]);
     assert!((values[1] - (0.5 + 0.75)).abs() < 0.12, "high-z CATE={}", values[1]);
@@ -237,7 +238,8 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
             .abs()
             < 1e-12
     );
-    let cate = result.estimate.as_effect().unwrap().cate.as_ref().expect("CATE summary");
+    let cate =
+        result.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("CATE summary");
     assert!((cate[0] - (0.5 - 0.75)).abs() < 0.12);
     assert!((cate[1] - (0.5 + 0.75)).abs() < 0.12);
     let posterior = result.posterior.as_ref().expect("posterior");

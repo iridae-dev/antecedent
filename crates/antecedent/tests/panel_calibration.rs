@@ -76,7 +76,7 @@ fn panel_pulse_cluster_se_ar09_nominal_95_coverage() {
         analytic.record(
             normal_interval(
                 est.as_effect().unwrap().ate,
-                Some(est.as_effect().unwrap().se_analytic),
+                Some(est.as_effect().unwrap().se_analytic()),
                 Z95,
             ),
             PERSISTENT.beta,
@@ -101,12 +101,12 @@ fn panel_pulse_unit_bootstrap_ar09_nominal_95_coverage() {
     });
     for (study, result) in &runs {
         let est = &result.estimate;
-        assert_eq!(est.as_effect().unwrap().bootstrap_replicates_failed, Some(0));
+        assert_eq!(est.as_effect().unwrap().uncertainty.bootstrap.replicates_failed, Some(0));
         bind(&mut boot, study, result);
         boot.record(
             normal_interval(
                 est.as_effect().unwrap().ate,
-                est.as_effect().unwrap().se_bootstrap,
+                est.as_effect().unwrap().se_bootstrap(),
                 Z95,
             ),
             PERSISTENT.beta,
