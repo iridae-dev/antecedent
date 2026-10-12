@@ -76,3 +76,31 @@ path = "fuzz_targets/arrow_metadata.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "query_wire"
+path = "fuzz_targets/query_wire.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "contract_section"
+path = "fuzz_targets/contract_section.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "artifact_reader"
+path = "fuzz_targets/artifact_reader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "causal_payload"
+path = "fuzz_targets/causal_payload.rs"
+test = false
+doc = false
+bench = false
