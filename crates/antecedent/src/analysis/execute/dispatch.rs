@@ -36,6 +36,16 @@ fn route_mismatch() -> CausalError {
     }
 }
 
+/// Whether a graph-posterior atom is a CPDAG or PAG equivalence class (as opposed to a single
+/// DAG or ADMG), which routes through the class-envelope executors.
+pub(super) const fn is_class_atom(kind: antecedent_discovery::GraphPosteriorAtomKind) -> bool {
+    matches!(
+        kind,
+        antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+            | antecedent_discovery::GraphPosteriorAtomKind::Pag
+    )
+}
+
 /// The wire names of a typed identifier/estimator pair, as plan records carry them.
 pub(super) fn wire_pair(
     (identifier, estimator): (IdentifierId, EstimatorId),
@@ -592,11 +602,8 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if let (DataInput::Temporal(series) | DataInput::Event(series), true) = (
             data,
-            matches!(
-                gp.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            ) && super::temporal_class_point::temporal_class_point_family(&self.query),
+            is_class_atom(gp.atom_kind)
+                && super::temporal_class_point::temporal_class_point_family(&self.query),
         ) {
             return self.execute_temporal_class_graph_posterior_family(series, gp, physical, ctx);
         }
@@ -1024,14 +1031,14 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let CausalQuery::AverageEffect(q) = &self.query else { return Err(route_mismatch()) };
-        if let Some(background) = self.tiered.clone() {
+        if let Some(background) = &self.tiered {
             let (identifier, estimator) = physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
             return self.execute_tiered_average(
                 data,
                 q,
                 physical,
                 ctx,
-                &background,
+                background,
                 Strategy::new(identifier, estimator),
             );
         }
@@ -1602,13 +1609,8 @@ impl super::Study {
                 );
             }
         }
-        if self.graph_posterior.as_ref().is_some_and(|posterior| {
-            matches!(
-                posterior.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        }) && self.inference.is_frequentist()
+        if self.graph_posterior.as_ref().is_some_and(|posterior| is_class_atom(posterior.atom_kind))
+            && self.inference.is_frequentist()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
             if let Some(
@@ -2050,11 +2052,7 @@ impl super::Study {
             crate::analysis::GraphPosteriorEffectTarget::from_query(&self.query),
             &self.data,
         ) {
-            let class_atoms = matches!(
-                posterior.atom_kind,
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            );
+            let class_atoms = is_class_atom(posterior.atom_kind);
             let dag_atoms =
                 posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag;
             let bayesian = self.inference.is_bayesian();

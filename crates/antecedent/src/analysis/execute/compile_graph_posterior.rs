@@ -13,6 +13,8 @@ use super::{
     compile_logical_temporal_response,
 };
 
+use super::dispatch::is_class_atom;
+
 impl super::Study {
     /// Compile path for a supplied graph posterior ([`crate::StudyBuilder::graph_posterior`]).
     ///
@@ -62,13 +64,11 @@ impl super::Study {
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
                 | CausalQuery::Distribution(_),
-            ) if matches!(
-                self.graph_posterior.as_ref().map(|posterior| posterior.atom_kind),
-                Some(
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
-                )
-            ) =>
+            ) if self
+                .graph_posterior
+                .as_ref()
+                .map(|posterior| posterior.atom_kind)
+                .is_some_and(is_class_atom) =>
             {
                 self.compile_graph_posterior_cross_world(data, ctx)
             }
@@ -256,13 +256,8 @@ impl super::Study {
             false,
             class,
         )?;
-        let class_atom = matches!(
-            self.graph_posterior.as_ref().map(|gp| gp.atom_kind),
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        );
+        let class_atom =
+            self.graph_posterior.as_ref().map(|gp| gp.atom_kind).is_some_and(is_class_atom);
         if class_atom && !q.effect_modifiers.is_empty() {
             // The conditional point is the completion-weighted linear producer,
             // including under a Bayesian isotropic prior. It is not the ATE g-computation.
@@ -291,13 +286,7 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         super::temporal_posterior_response::dbn_posterior_response_supported(q)?;
         let mut logical = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
-        if matches!(
-            self.graph_posterior.as_ref().map(|gp| gp.atom_kind),
-            Some(
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
-            )
-        ) {
+        if self.graph_posterior.as_ref().map(|gp| gp.atom_kind).is_some_and(is_class_atom) {
             logical.record.identifier =
                 Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         }
