@@ -1197,15 +1197,19 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
         };
         let data = noisy_lag1_pulse_series(n, 13_000 + u64::from(s));
         let (_, posterior) = estimate_sustained_window(
-            &data,
-            &g,
-            &id_res.indexer,
-            estimand,
+            &crate::temporal_sequential::SequentialProblem {
+                data: &data,
+                graph: &g,
+                indexer: &id_res.indexer,
+                estimand: estimand,
+            },
             &q,
-            IdentificationStatus::NonparametricallyIdentified,
-            antecedent_core::AssumptionSet::default(),
-            0,
-            Some(&bayes),
+            crate::temporal_sequential::SequentialInference {
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: antecedent_core::AssumptionSet::default(),
+                bootstrap_replicates: 0,
+                bayesian: Some(&bayes),
+            },
             &ExecutionContext::for_tests(1),
         )
         .unwrap();

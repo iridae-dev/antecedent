@@ -1124,18 +1124,19 @@ impl super::Study {
             require_identified(&entry.identification)?;
             let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
             let (effect, posterior) = antecedent_estimate::estimate_sequence_mechanisms(
-                data,
-                graph,
-                &entry.indexer,
-                &entry.estimand,
-                outcome,
-                outcome_offset,
-                overlays,
-                entry.identification.status,
-                assumptions.clone(),
-                // Frequentist bands: the joint tuple bootstrap below.
-                0,
-                bayes.as_ref(),
+                &antecedent_estimate::SequentialProblem {
+                    data: data,
+                    graph: graph,
+                    indexer: &entry.indexer,
+                    estimand: &entry.estimand,
+                },
+                &antecedent_estimate::SequenceTarget {
+                    outcome: outcome,
+                    outcome_offset: outcome_offset,
+                    overlays: overlays,
+                },
+                antecedent_estimate::SequentialInference { status: entry.identification.status, assumptions: assumptions.clone(), bootstrap_replicates: // Frequentist bands: the joint tuple bootstrap below.
+                0, bayesian: bayes.as_ref() },
                 ctx,
             )
             .map_err(CausalError::from)?;
@@ -1873,17 +1874,23 @@ impl super::Study {
                         )
                     };
                     antecedent_estimate::estimate_sequence_mechanisms(
-                        adjusted.as_ref().unwrap_or(data),
-                        &dag,
-                        indexer,
-                        &estimand,
-                        outcome,
-                        outcome_offset,
-                        &overlays,
-                        case.result.status,
-                        case.result.required_assumptions.clone(),
-                        0,
-                        bayes.as_ref(),
+                        &antecedent_estimate::SequentialProblem {
+                            data: adjusted.as_ref().unwrap_or(data),
+                            graph: &dag,
+                            indexer: indexer,
+                            estimand: &estimand,
+                        },
+                        &antecedent_estimate::SequenceTarget {
+                            outcome: outcome,
+                            outcome_offset: outcome_offset,
+                            overlays: &overlays,
+                        },
+                        antecedent_estimate::SequentialInference {
+                            status: case.result.status,
+                            assumptions: case.result.required_assumptions.clone(),
+                            bootstrap_replicates: 0,
+                            bayesian: bayes.as_ref(),
+                        },
                         ctx,
                     )
                     .map_err(CausalError::from)?

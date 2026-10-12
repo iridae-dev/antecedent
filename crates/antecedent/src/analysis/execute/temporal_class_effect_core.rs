@@ -356,23 +356,29 @@ pub(super) fn fit_class_sequential(
                 bayes.as_ref().map(|est| BayesianGComputationAte { seed, ..est.clone() });
             let (estimate, posterior) =
                 antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                    data,
-                    &dag,
-                    indexer,
-                    &estimand,
-                    query,
-                    case.result.status,
-                    assumptions.clone(),
-                    // The published frequentist interval bootstraps the atoms jointly
-                    // below. An atom's own replicates only fix the dependence-aware
-                    // block length its refuters resample on, so they are drawn only
-                    // when a refuter will read it.
-                    if bayes.is_some() || inputs.refute != RefuteSuite::None {
-                        bootstrap_replicates
-                    } else {
-                        0
+                    &antecedent_estimate::SequentialProblem {
+                        data,
+                        graph: &dag,
+                        indexer,
+                        estimand: &estimand,
                     },
-                    completion_bayes.as_ref(),
+                    query,
+                    antecedent_estimate::SequentialInference {
+                        status: case.result.status,
+                        assumptions: assumptions.clone(),
+                        // The published frequentist interval bootstraps the atoms jointly
+                        // below. An atom's own replicates only fix the dependence-aware
+                        // block length its refuters resample on, so they are drawn only
+                        // when a refuter will read it.
+                        bootstrap_replicates: if bayes.is_some()
+                            || inputs.refute != RefuteSuite::None
+                        {
+                            bootstrap_replicates
+                        } else {
+                            0
+                        },
+                        bayesian: completion_bayes.as_ref(),
+                    },
                     ctx,
                     Some(&mut mechanisms),
                 )

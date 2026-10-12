@@ -66,15 +66,19 @@ impl EffectRefit for SequentialRefitter<'_> {
                 .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?
             };
         Ok(estimate_sustained_window(
-            &series,
-            &graph,
-            &indexer,
-            &self.atom.estimand,
+            &antecedent_estimate::SequentialProblem {
+                data: &series,
+                graph: &graph,
+                indexer: &indexer,
+                estimand: &self.atom.estimand,
+            },
             self.query,
-            self.atom.status,
-            self.atom.estimate.assumptions.clone(),
-            0,
-            self.bayes,
+            antecedent_estimate::SequentialInference {
+                status: self.atom.status,
+                assumptions: self.atom.estimate.assumptions.clone(),
+                bootstrap_replicates: 0,
+                bayesian: self.bayes,
+            },
             ctx,
         )?
         .0)
@@ -106,10 +110,12 @@ impl EffectRefit for SequentialRefitter<'_> {
             .map_err(antecedent_validate::ValidationError::from)
             .and_then(|series| {
                 antecedent_estimate::SequentialContrastDesign::prepare(
-                    &series,
-                    &self.atom.graph,
-                    &self.atom.indexer,
-                    &self.atom.estimand,
+                    &antecedent_estimate::SequentialProblem {
+                        data: &series,
+                        graph: &self.atom.graph,
+                        indexer: &self.atom.indexer,
+                        estimand: &self.atom.estimand,
+                    },
                     self.query,
                     self.atom.status,
                     ctx,
@@ -314,15 +320,19 @@ pub(super) fn validate_sequential(
                     let mut est = estimator.clone();
                     est.prior_scale = scale;
                     let (effect, _) = estimate_sustained_window(
-                        data,
-                        &atom.graph,
-                        &atom.indexer,
-                        &atom.estimand,
+                        &antecedent_estimate::SequentialProblem {
+                            data: data,
+                            graph: &atom.graph,
+                            indexer: &atom.indexer,
+                            estimand: &atom.estimand,
+                        },
                         query,
-                        atom.status,
-                        atom.estimate.assumptions.clone(),
-                        0,
-                        Some(&est),
+                        antecedent_estimate::SequentialInference {
+                            status: atom.status,
+                            assumptions: atom.estimate.assumptions.clone(),
+                            bootstrap_replicates: 0,
+                            bayesian: Some(&est),
+                        },
                         ctx,
                     )?;
                     means.push(effect.ate);

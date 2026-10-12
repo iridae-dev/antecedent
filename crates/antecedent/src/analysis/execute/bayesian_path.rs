@@ -1910,19 +1910,7 @@ impl super::Study {
                 assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
                 let mut mechanisms = Vec::new();
                 let Ok((atom_estimate, Some(posterior))) =
-                    antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                        data,
-                        &graph,
-                        &indexer,
-                        &estimand,
-                        query,
-                        identification.status,
-                        assumptions,
-                        self.bootstrap_replicates,
-                        sequential_bayes.as_ref(),
-                        ctx,
-                        Some(&mut mechanisms),
-                    )
+                    antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(&antecedent_estimate::SequentialProblem { data: data, graph: &graph, indexer: &indexer, estimand: &estimand }, query, antecedent_estimate::SequentialInference { status: identification.status, assumptions: assumptions, bootstrap_replicates: self.bootstrap_replicates, bayesian: sequential_bayes.as_ref() }, ctx, Some(&mut mechanisms))
                 else {
                     if let Some(idx) = key_index.get(&key).copied() {
                         flags[idx] = GraphIdentFlag::Unidentified;

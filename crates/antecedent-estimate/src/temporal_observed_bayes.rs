@@ -31,15 +31,14 @@ use crate::{
     plan_from_response_query,
 };
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope,
-    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus,
-    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus, VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+    CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
+    ExecutionContext, HorizonIdentification, IdentificationStatus, ObservationSpec,
+    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus, VariableId,
 };
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
-use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_kernels::{quantile_type7_sorted, standard_normal};
 use antecedent_prob::{
@@ -536,8 +535,7 @@ pub fn estimate_observed_temporal_response(
     estimator: &BayesianGComputationAte,
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, CausalPosterior), EstimationError> {
-    let TemporalIdentification { horizons: identifications, status, assumptions: mut assumptions } =
-        identified;
+    let TemporalIdentification { horizons: identifications, status, mut assumptions } = identified;
     query.validate()?;
     if ctx.cancellation.is_cancelled() {
         return Err(EstimationError::data_msg("observed temporal posterior cancelled"));

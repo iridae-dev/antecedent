@@ -11,7 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
-#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -45,6 +45,48 @@ use crate::{
 
 /// Stream salt of the root-mean shift draws, apart from every mechanism's own stream.
 const ROOT_MEAN_STREAM: u64 = 0x2007_3A11_C0DE_51DE;
+
+/// The observed series and the identified unfolded design every sequential estimator fits:
+/// the temporal graph, its dense-node indexer and the identified unfolded estimand.
+#[derive(Clone, Copy)]
+pub struct SequentialProblem<'a> {
+    /// The observed series.
+    pub data: &'a TimeSeriesData,
+    /// The temporal DAG the unfolded design comes from.
+    pub graph: &'a TemporalDag,
+    /// Dense-node to (variable, offset) indexer of the unfolded graph.
+    pub indexer: &'a TemporalIndexer,
+    /// The identified unfolded estimand.
+    pub estimand: &'a IdentifiedEstimand,
+}
+
+/// The outcome node and per-node overlays of a sequence level.
+///
+/// `O` is [`SequentialMechanismOverlay`] or the plain [`SequentialNodeOverlay`].
+#[derive(Clone, Copy)]
+pub struct SequenceTarget<'a, O = SequentialMechanismOverlay> {
+    /// Outcome template variable.
+    pub outcome: VariableId,
+    /// Absolute time offset of the outcome copy.
+    pub outcome_offset: i32,
+    /// The per-node overlays; no two may assign the same (variable, time).
+    pub overlays: &'a [O],
+}
+
+/// How a sequential estimate is made uncertain and what it is published with: the
+/// identification status and assumptions it carries, and whether a Frequentist block
+/// bootstrap or a Bayesian composition supplies the interval.
+#[derive(Clone)]
+pub struct SequentialInference<'a> {
+    /// Identification status; the design must be point identified.
+    pub status: IdentificationStatus,
+    /// Assumptions the identification requires, carried onto the estimate.
+    pub assumptions: AssumptionSet,
+    /// Frequentist circular-block bootstrap replicates (ignored when `bayesian` is set).
+    pub bootstrap_replicates: u32,
+    /// Bayesian composition of independent Gaussian mechanism posteriors, when requested.
+    pub bayesian: Option<&'a BayesianGComputationAte>,
+}
 
 /// One intervened unfolded node and the licensed overlay applied there.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -178,30 +220,12 @@ enum SequentialEval {
 /// ratio ([`crate::serial_dependence`]), so the composed interval is a
 /// generalized posterior with a serial-dependence correction.
 pub fn estimate_sustained_window(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
+    problem: &SequentialProblem<'_>,
     query: &TemporalEffectQuery,
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    estimate_sustained_window_with_validation(
-        data,
-        graph,
-        indexer,
-        estimand,
-        query,
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
-        ctx,
-        None,
-    )
+    estimate_sustained_window_with_validation(problem, query, inference, ctx, None)
 }
 
 /// A fitted stationary mechanism, retained for predictive validation of the actual SEM.
@@ -217,19 +241,14 @@ pub struct SequentialBayesianMechanism {
 
 /// Fit a sustained policy and optionally retain its actual stationary Bayesian mechanisms.
 pub fn estimate_sustained_window_with_validation(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
+    problem: &SequentialProblem<'_>,
     query: &TemporalEffectQuery,
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let (overlays, delta) = sustained_contrast_overlays(query, estimand, status)?;
+    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let bayesian = inference.bayesian;
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
         return Err(EstimationError::unsupported(
             "sequential Bayesian g-computation requires GaussianIdentity",
@@ -241,18 +260,14 @@ pub fn estimate_sustained_window_with_validation(
         ));
     }
     estimate_sequential(
-        data,
-        graph,
-        indexer,
-        estimand,
-        query.outcome,
-        query.outcome_offset(),
-        &overlays,
+        problem,
+        &SequenceTarget {
+            outcome: query.outcome,
+            outcome_offset: query.outcome_offset(),
+            overlays: &overlays,
+        },
         SequentialEval::Contrast { delta },
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
+        inference,
         ctx,
         query.effect_modifiers.as_ref(),
         validation,
@@ -319,22 +334,19 @@ impl SequentialContrastDesign {
     ///
     /// The same refusals as [`estimate_sustained_window`], or lag-alignment failures.
     pub fn prepare(
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        indexer: &TemporalIndexer,
-        estimand: &IdentifiedEstimand,
+        problem: &SequentialProblem<'_>,
         query: &TemporalEffectQuery,
         status: IdentificationStatus,
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        let (overlays, delta) = sustained_contrast_overlays(query, estimand, status)?;
+        let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, status)?;
         let setup = SequentialSetup::build(
-            data,
-            graph,
-            indexer,
-            query.outcome,
-            query.outcome_offset(),
-            &overlays,
+            problem,
+            &SequenceTarget {
+                outcome: query.outcome,
+                outcome_offset: query.outcome_offset(),
+                overlays: &overlays,
+            },
             SequentialEval::Contrast { delta },
             query.effect_modifiers.as_ref(),
             ctx,
@@ -429,33 +441,21 @@ impl SequentialContrastDesign {
 ///
 /// Empty or duplicate overlays, unidentified estimand, or fit failures.
 pub fn estimate_sequence_overlays(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialNodeOverlay],
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_, SequentialNodeOverlay>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     let mechanisms =
-        overlays.iter().copied().map(SequentialMechanismOverlay::from).collect::<Vec<_>>();
+        target.overlays.iter().copied().map(SequentialMechanismOverlay::from).collect::<Vec<_>>();
     estimate_sequence_mechanisms(
-        data,
-        graph,
-        indexer,
-        estimand,
-        outcome,
-        outcome_offset,
-        &mechanisms,
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
+        problem,
+        &SequenceTarget {
+            outcome: target.outcome,
+            outcome_offset: target.outcome_offset,
+            overlays: &mechanisms,
+        },
+        inference,
         ctx,
     )
 }
@@ -466,19 +466,14 @@ pub fn estimate_sequence_overlays(
 /// # Errors
 /// Invalid parameters, duplicate coordinates, unidentified design, or fit failures.
 pub fn estimate_sequence_mechanisms(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialMechanismOverlay],
-    status: IdentificationStatus,
-    mut assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_>,
+    mut inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    let overlays = target.overlays;
+    let (estimand, status, bayesian) = (problem.estimand, inference.status, inference.bayesian);
+    let assumptions = &mut inference.assumptions;
     if overlays.iter().any(|overlay| overlay.bounds.is_some()) {
         let restriction = SequentialMechanismOverlay::mean_target_assumption();
         if !assumptions.entries.contains(&restriction) {
@@ -519,23 +514,7 @@ pub fn estimate_sequence_mechanisms(
             "composed sequence HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
-    estimate_sequential(
-        data,
-        graph,
-        indexer,
-        estimand,
-        outcome,
-        outcome_offset,
-        overlays,
-        SequentialEval::Level,
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
-        ctx,
-        &[],
-        None,
-    )
+    estimate_sequential(problem, target, SequentialEval::Level, inference, ctx, &[], None)
 }
 
 /// RNG stream base for the sequential circular-block row bootstrap.
@@ -575,16 +554,14 @@ impl SequentialSetup {
         reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
     )]
     fn build(
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        indexer: &TemporalIndexer,
-        outcome: VariableId,
-        outcome_offset: i32,
-        overlays: &[SequentialMechanismOverlay],
+        problem: &SequentialProblem<'_>,
+        target: &SequenceTarget<'_>,
         eval: SequentialEval,
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
+        let SequentialProblem { data, graph, indexer, .. } = *problem;
+        let SequenceTarget { outcome, outcome_offset, overlays } = *target;
         let modifiers =
             if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
         let unfolded =
@@ -1120,33 +1097,17 @@ fn append_design_columns(
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
 )]
 fn estimate_sequential(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialMechanismOverlay],
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_>,
     eval: SequentialEval,
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
     modifiers: &[VariableId],
     mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let setup = SequentialSetup::build(
-        data,
-        graph,
-        indexer,
-        outcome,
-        outcome_offset,
-        overlays,
-        eval,
-        modifiers,
-        ctx,
-    )?;
+    let SequentialProblem { data, indexer, estimand, .. } = *problem;
+    let SequentialInference { status, assumptions, bootstrap_replicates, bayesian } = inference;
+    let setup = SequentialSetup::build(problem, target, eval, modifiers, ctx)?;
     let order = &setup.order;
     let parents = &setup.parents;
     let designs = &setup.designs;
@@ -1591,17 +1552,23 @@ mod tests {
         let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
         let bayes = BayesianGComputationAte::new();
         let (_, posterior) = estimate_sequence_mechanisms(
-            &data,
-            &graph,
-            &id_res.indexer,
-            &estimand,
-            VariableId::from_raw(1),
-            0,
-            &overlays,
-            IdentificationStatus::NonparametricallyIdentified,
-            AssumptionSet::new(),
-            0,
-            Some(&bayes),
+            &SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &id_res.indexer,
+                estimand: &estimand,
+            },
+            &SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
+            SequentialInference {
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: AssumptionSet::new(),
+                bootstrap_replicates: 0,
+                bayesian: Some(&bayes),
+            },
             &ExecutionContext::for_tests(5),
         )
         .unwrap();
@@ -1638,15 +1605,21 @@ mod tests {
                 TargetPopulation::AllObserved,
             )
             .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
         let ctx = ExecutionContext::for_tests(5);
         let build = |eval| {
             SequentialSetup::build(
-                &data,
-                &graph,
-                &id_res.indexer,
-                VariableId::from_raw(1),
-                0,
-                &overlays,
+                &SequentialProblem {
+                    data: &data,
+                    graph: &graph,
+                    indexer: &id_res.indexer,
+                    estimand: &estimand,
+                },
+                &SequenceTarget {
+                    outcome: VariableId::from_raw(1),
+                    outcome_offset: 0,
+                    overlays: &overlays,
+                },
                 eval,
                 &[],
                 &ctx,

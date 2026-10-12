@@ -152,7 +152,15 @@ impl TemporalAtomDesign {
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let design = antecedent_estimate::SequentialContrastDesign::prepare(
-            data, graph, indexer, estimand, query, status, ctx,
+            &antecedent_estimate::SequentialProblem {
+                data: data,
+                graph: graph,
+                indexer: indexer,
+                estimand: estimand,
+            },
+            query,
+            status,
+            ctx,
         )
         .map_err(CausalError::from)?;
         let point = design.estimate().map_err(CausalError::from)?;

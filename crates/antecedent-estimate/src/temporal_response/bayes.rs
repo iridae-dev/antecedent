@@ -6,14 +6,13 @@ use crate::error::EstimationError;
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, CredibleDraws, Diagnostic, DiagnosticKind, DiagnosticScope,
-    DiagnosticSeverity, ExecutionContext, IdentificationStatus, Intervention, ParametricAssumption,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    SupportDiagnostic, TargetPopulation, TemporalEffectQuery, Value,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+    CausalResponse, CredibleDraws, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
+    ExecutionContext, IdentificationStatus, Intervention, ParametricAssumption, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    TargetPopulation, TemporalEffectQuery, Value,
 };
-use antecedent_data::{TemporalIndexer, TimeSeriesData};
-use antecedent_expr::IdentifiedEstimand;
+use antecedent_data::TimeSeriesData;
 
 use super::{
     TemporalIdentification, TemporalResponseEstimator, assumptions::HorizonTempering,
@@ -42,7 +41,7 @@ impl TemporalResponseEstimator {
         let TemporalIdentification {
             horizons: identifications,
             status: identification_status,
-            assumptions: mut assumptions,
+            mut assumptions,
         } = identified;
         query.validate()?;
         if query.observation != antecedent_core::ObservationSpec::Complete

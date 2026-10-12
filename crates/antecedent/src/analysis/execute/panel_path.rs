@@ -1977,15 +1977,19 @@ fn fit_panel_sequential_atom(
         let mut mechanisms = Vec::new();
         let (estimate, posterior) =
             antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                &unit.series,
-                dag,
-                indexer,
-                estimand,
+                &antecedent_estimate::SequentialProblem {
+                    data: &unit.series,
+                    graph: dag,
+                    indexer: indexer,
+                    estimand: estimand,
+                },
                 query,
-                status,
-                assumptions.clone(),
-                0,
-                unit_bayes.as_ref(),
+                antecedent_estimate::SequentialInference {
+                    status: status,
+                    assumptions: assumptions.clone(),
+                    bootstrap_replicates: 0,
+                    bayesian: unit_bayes.as_ref(),
+                },
                 ctx,
                 Some(&mut mechanisms),
             )

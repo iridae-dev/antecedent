@@ -220,13 +220,17 @@ pub fn tuple_block_observation_replicates(
                     .iter()
                     .map(|&(estimand, indexer, outcome_offset, status)| {
                         antecedent_estimate::prepare_sequence_level(
-                            fit_data,
-                            graph,
-                            indexer,
-                            estimand,
-                            *outcome,
-                            outcome_offset,
-                            overlays,
+                            &antecedent_estimate::SequentialProblem {
+                                data: fit_data,
+                                graph: graph,
+                                indexer: indexer,
+                                estimand: estimand,
+                            },
+                            &antecedent_estimate::SequenceTarget {
+                                outcome: *outcome,
+                                outcome_offset: outcome_offset,
+                                overlays: overlays,
+                            },
                             status,
                             ctx,
                         )

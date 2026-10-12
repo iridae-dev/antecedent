@@ -579,15 +579,19 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
         let completion_bayes = BayesianGComputationAte { seed, ..bayes.clone() };
         let (estimate, posterior) =
             antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                data,
-                &dag,
-                indexer,
-                &estimand,
+                &antecedent_estimate::SequentialProblem {
+                    data: data,
+                    graph: &dag,
+                    indexer: indexer,
+                    estimand: &estimand,
+                },
                 query,
-                case.result.status,
-                case_assumptions,
-                0,
-                Some(&completion_bayes),
+                antecedent_estimate::SequentialInference {
+                    status: case.result.status,
+                    assumptions: case_assumptions,
+                    bootstrap_replicates: 0,
+                    bayesian: Some(&completion_bayes),
+                },
                 ctx,
                 None,
             )

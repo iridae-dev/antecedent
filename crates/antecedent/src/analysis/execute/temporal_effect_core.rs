@@ -165,15 +165,19 @@ fn fit_sustained(
     let mut mechanisms = Vec::new();
     let (estimate, mut posterior) =
         antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-            data,
-            graph,
-            indexer,
-            estimand,
+            &antecedent_estimate::SequentialProblem {
+                data: data,
+                graph: graph,
+                indexer: indexer,
+                estimand: estimand,
+            },
             query,
-            identification.status,
-            assumptions,
-            inputs.bootstrap_replicates,
-            bayes.as_ref(),
+            antecedent_estimate::SequentialInference {
+                status: identification.status,
+                assumptions: assumptions,
+                bootstrap_replicates: inputs.bootstrap_replicates,
+                bayesian: bayes.as_ref(),
+            },
             ctx,
             Some(&mut mechanisms),
         )

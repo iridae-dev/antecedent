@@ -259,15 +259,19 @@ fn bench_temporal_response(c: &mut Criterion) {
             b.iter(|| {
                 let (effect, posterior) =
                     antecedent_estimate::temporal_sequential::estimate_sustained_window(
-                        &data,
-                        &graph,
-                        &identification.indexer,
-                        &identification.result.estimands[0],
+                        &antecedent_estimate::temporal_sequential::SequentialProblem {
+                            data: &data,
+                            graph: &graph,
+                            indexer: &identification.indexer,
+                            estimand: &identification.result.estimands[0],
+                        },
                         &query,
-                        identification.result.status,
-                        identification.result.required_assumptions.clone(),
-                        if bayesian { 0 } else { 20 },
-                        bayesian.then_some(&est),
+                        antecedent_estimate::temporal_sequential::SequentialInference {
+                            status: identification.result.status,
+                            assumptions: identification.result.required_assumptions.clone(),
+                            bootstrap_replicates: if bayesian { 0 } else { 20 },
+                            bayesian: bayesian.then_some(&est),
+                        },
                         &ctx,
                     )
                     .unwrap();

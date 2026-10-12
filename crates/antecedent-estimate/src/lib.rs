@@ -367,8 +367,9 @@ pub use temporal_response_dispersion::{
     CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows,
 };
 pub use temporal_sequential::{
-    SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,
-    estimate_sequence_mechanisms, estimate_sequence_overlays, estimate_sustained_window,
+    SequenceTarget, SequentialContrastDesign, SequentialInference, SequentialMechanismOverlay,
+    SequentialNodeOverlay, SequentialProblem, estimate_sequence_mechanisms,
+    estimate_sequence_overlays, estimate_sustained_window,
 };
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
