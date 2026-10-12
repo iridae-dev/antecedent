@@ -1,0 +1,282 @@
+//! Sealers of the static response routes: derivative, cell-AIPW, DAG
+//! response, and the legacy mean-curve operation.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use super::{SealContext, SealOutcome};
+use crate::accepted::GraphClass;
+use crate::analysis::builder::{DataInput, RefuteSuite};
+use crate::analysis::prepared::{CheckedStaticResponseCurve, PreparedExecution};
+use crate::error::CausalError;
+use crate::inference::InferenceMode;
+use antecedent_core::{CausalQuery, OutcomeFunctional, TargetPopulation};
+use std::sync::Arc;
+
+pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { source, analysis, plan, .. } = *cx;
+    let sealed = match (
+        &source.data,
+        &source.query,
+        analysis.identification_cache.as_deref(),
+        analysis.graph.class(),
+    ) {
+        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.refute == RefuteSuite::None
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.inference,
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                )
+                && query.temporal.is_none()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(
+                    query.functional,
+                    antecedent_core::ResponseFunctional::PointDerivative { .. }
+                        | antecedent_core::ResponseFunctional::AverageDerivative { .. }
+                        | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+                        | antecedent_core::ResponseFunctional::Jacobian { .. }
+                ) =>
+        {
+            let identifier =
+                cx.plan_identifier(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)?;
+            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)?;
+            Some(crate::analysis::execute::CheckedDerivativeResponseOperation::checked(
+                analysis.graph.as_dag().expect("checked Dag response"),
+                query,
+                &cache.identification,
+                &cache.estimand,
+                identifier,
+                estimator,
+                analysis.inference.clone(),
+                analysis.response_options.clone().unwrap_or_default(),
+            )?)
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::DerivativeResponse))
+}
+
+pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { source, analysis, plan, .. } = *cx;
+    let sealed = match (
+        &source.data,
+        &source.query,
+        analysis.identification_cache.as_deref(),
+        analysis.graph.class(),
+    ) {
+        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.inference,
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                )
+                && query.temporal.is_none()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && (matches!(
+                    query.functional,
+                    antecedent_core::ResponseFunctional::MeanCurve { .. }
+                ) && analysis.refute == RefuteSuite::None
+                    || matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                    ) && (matches!(analysis.inference, InferenceMode::Frequentist)
+                        || analysis.refute == RefuteSuite::None)) =>
+        {
+            let identifier =
+                cx.plan_identifier(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)?;
+            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)?;
+            let bayesian = matches!(analysis.inference, InferenceMode::Bayesian(_));
+            if bayesian && estimator == crate::strategy_table::EstimatorId::ResponseBayesian
+                || !bayesian
+                    && estimator == crate::strategy_table::EstimatorId::ResponseKennedyDr
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    )
+                || !bayesian
+                    && estimator == crate::strategy_table::EstimatorId::ResponseInterventionGcomp
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                    )
+            {
+                Some(crate::analysis::execute::CheckedStaticDagResponseOperation::checked(
+                    analysis.graph.as_dag().expect("checked DAG response"),
+                    query,
+                    &cache.identification,
+                    &cache.estimand,
+                    identifier,
+                    estimator,
+                    analysis.response_options.clone().unwrap_or_default(),
+                    analysis.inference.clone(),
+                    analysis.refute,
+                )?)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::StaticDagResponse))
+}
+
+pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { source, analysis, plan, ctx, .. } = *cx;
+    let sealed = match (
+        &source.data,
+        &source.query,
+        analysis.identification_cache.as_deref(),
+        analysis.graph.class(),
+    ) {
+        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                ) =>
+        {
+            let identifier =
+                cx.plan_identifier(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)?;
+            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)?;
+            if estimator == crate::strategy_table::EstimatorId::CellAipw
+                && analysis.custom_validators.is_empty()
+                && analysis.shared_batch_design.is_none()
+                && analysis.continuous_cell.is_none()
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+            {
+                Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
+                    &crate::analysis::execute::CellAipwStructure::Dag(
+                        analysis.graph.as_dag().expect("checked DAG response").clone(),
+                    ),
+                    query,
+                    &cache.identification,
+                    &cache.estimand,
+                    identifier,
+                    estimator,
+                    ctx.rng.master_seed(),
+                    analysis.refute,
+                    if analysis.structure_source == crate::support::StructureSource::Accepted {
+                        crate::analysis::execute::DagResponseOrigin::Accepted
+                    } else {
+                        crate::analysis::execute::DagResponseOrigin::Explicit
+                    },
+                )?)
+            } else {
+                None
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Admg)
+            if analysis.graph_posterior.is_none()
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.tiered.as_ref().is_some_and(|background| {
+                    background.within_tier == antecedent_graph::WithinTier::CoDetermined
+                })
+                && analysis.custom_validators.is_empty()
+                && analysis.shared_batch_design.is_none()
+                && analysis.continuous_cell.is_none()
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::CellAipw.as_str())
+                && plan.logical.record.identifier.as_deref()
+                    == Some(
+                        crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str(),
+                    ) =>
+        {
+            let (Some(admg), Some(background)) =
+                (analysis.graph.as_admg(), analysis.tiered.as_ref())
+            else {
+                return Err(CausalError::Compile {
+                    message: "CoDetermined joint cell prepare lost its closure ADMG or tiers"
+                        .into(),
+                });
+            };
+            Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
+                &crate::analysis::execute::CellAipwStructure::TierClosure {
+                    admg: admg.clone(),
+                    background: background.clone(),
+                },
+                query,
+                &cache.identification,
+                &cache.estimand,
+                crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+                crate::strategy_table::EstimatorId::CellAipw,
+                ctx.rng.master_seed(),
+                analysis.refute,
+                crate::analysis::execute::DagResponseOrigin::Explicit,
+            )?)
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::CellAipwResponse))
+}
+
+pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { source, analysis, plan, .. } = *cx;
+    let sealed = match (
+        &source.data,
+        &source.query,
+        analysis.identification_cache.as_deref(),
+        analysis.graph.class(),
+    ) {
+        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+            if query.temporal.is_none()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == TargetPopulation::AllObserved
+                && matches!(
+                    query.functional,
+                    antecedent_core::ResponseFunctional::MeanCurve { .. }
+                )
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)
+                    == crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER
+                && plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
+                    == crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR =>
+        {
+            let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =
+                &query.functional
+            else {
+                unreachable!()
+            };
+            Some(CheckedStaticResponseCurve {
+                query: query.clone(),
+                grid: Arc::from(
+                    treatment
+                        .grid
+                        .values()
+                        .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                ),
+                identification: cache.identification.clone(),
+                estimand: cache.estimand.clone(),
+                identifier: crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID,
+                estimator: crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR_ID,
+            })
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::StaticResponseCurve))
+}
