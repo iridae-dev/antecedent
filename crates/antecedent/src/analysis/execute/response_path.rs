@@ -266,7 +266,7 @@ impl CheckedStaticDagResponseOperation {
         };
         // A Bayesian intervention level publishes a posterior, not the plugin
         // g-computation level the cheap/full refuters are licensed for.
-        let bayesian = matches!(inference, InferenceMode::Bayesian(_));
+        let bayesian = inference.is_bayesian();
         let admissible_refuter = match query.functional {
             ResponseFunctional::MeanCurve { .. } => refute == RefuteSuite::None,
             ResponseFunctional::InterventionResponse { .. } if bayesian => {
@@ -470,7 +470,7 @@ impl CheckedStaticDagResponseOperation {
         config: &BayesianConfig,
         ctx: &ExecutionContext,
     ) -> Result<CausalResponse, CausalError> {
-        if (config.prior_artifact.is_some() || config.external_compose.is_some())
+        if (config.has_transferred_source())
             && config.prior_mapping.is_none()
             && config.prior.is_none()
         {
@@ -482,7 +482,7 @@ impl CheckedStaticDagResponseOperation {
             });
         }
         let mut bayes = bayesian_gcomp(config, ctx);
-        if config.prior_artifact.is_some() || config.external_compose.is_some() {
+        if config.has_transferred_source() {
             let (outcome, treatments) = response_prior_targets(&self.query.functional)?;
             let prep = self
                 .fitter
@@ -1105,7 +1105,7 @@ impl super::Study {
         let (mut fits, identification) =
             self.fit_graph_posterior_response_atoms(&run, &identified)?;
         let pooled = self.pool_graph_posterior_response(&run, &fits, identification)?;
-        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        let estimator_id = if self.inference.is_bayesian() {
             EstimatorId::ResponseBayesian
         } else {
             EstimatorId::default_for_response(&query.functional)
@@ -1333,7 +1333,7 @@ impl super::Study {
         // Only a scalar aggregate takes the joint-IF SE: for a curve the first
         // score column is the influence of the first grid point alone.
         let mixed_if_se = (weighted.len() > 1
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && matches!(conditional, ResponseValue::Scalar(_))
             && atom_scores.len() == weighted.len())
         .then(|| mixed_response_scalar_se(atom_scores, data.row_count()))
@@ -1437,7 +1437,7 @@ impl super::Study {
                 "estimate.response.graph_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                if self.inference.is_bayesian() {
                     "multi-atom Bayesian graph-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and uncertainty of a \
                      frozen-weight aggregate are different objects"
@@ -1484,7 +1484,7 @@ impl super::Study {
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
             && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut refute_ws = EstimationWorkspace::default();
@@ -1782,7 +1782,7 @@ impl super::Study {
         }
         let mut response_scores = None;
         let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+            if cfg.has_transferred_source()
                 && cfg.prior_mapping.is_none()
                 && cfg.prior.is_none()
             {
@@ -1794,7 +1794,7 @@ impl super::Study {
                 });
             }
             let mut bayes = bayesian_gcomp(cfg, ctx);
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            if cfg.has_transferred_source() {
                 let (outcome, treatments) = response_prior_targets(&query.functional)?;
                 let prep = response_estimator
                     .prepare_linear_response_problem(data_est, outcome, &treatments)
@@ -2563,7 +2563,7 @@ impl super::Study {
             response_estimator.options = options.clone();
         }
         let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+            if cfg.has_transferred_source()
                 && cfg.prior_mapping.is_none()
                 && cfg.prior.is_none()
             {
@@ -2574,7 +2574,7 @@ impl super::Study {
                 });
             }
             let mut bayes = bayesian_gcomp(cfg, inputs.ctx);
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            if cfg.has_transferred_source() {
                 let (outcome, treatments) = response_prior_targets(&inputs.query.functional)?;
                 let prep = response_estimator
                     .prepare_linear_response_problem(inputs.data_est, outcome, &treatments)
@@ -2675,7 +2675,7 @@ impl super::Study {
         // completion is identified and each returns the same response (they
         // share the adjustment set, so their posteriors are one posterior),
         // any mixture of them is that posterior: its band is the class band.
-        if matches!(self.inference, InferenceMode::Bayesian(_))
+        if self.inference.is_bayesian()
             && envelope.unidentified_weight.0 <= 1e-12
             && unestimated_id_mass <= 1e-12
         {
@@ -2843,7 +2843,7 @@ impl super::Study {
         // band and nothing is omitted.
         let atom_uncertainty_dropped = matches!(mixed.uncertainty, ResponseUncertainty::None)
             && weighted.iter().any(|(_, _, r)| !matches!(r.uncertainty, ResponseUncertainty::None));
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && atom_uncertainty_dropped {
+        if self.inference.is_bayesian() && atom_uncertainty_dropped {
             diagnostics.push(Diagnostic::new(
                 "estimate.envelope.response_posterior_not_mixed",
                 DiagnosticKind::Scientific,

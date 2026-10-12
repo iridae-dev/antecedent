@@ -530,7 +530,7 @@ impl super::Study {
                 scalar_estimate,
                 Strategy::new(
                     IdentifierId::GeneralizedAdjustment,
-                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    if self.inference.is_bayesian() {
                         EstimatorId::BayesianTemporalMediation
                     } else {
                         EstimatorId::TemporalMediation
@@ -829,7 +829,7 @@ impl super::Study {
         };
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let observed_bayes = matches!(self.inference, InferenceMode::Bayesian(_))
+        let observed_bayes = self.inference.is_bayesian()
             && query.observation != ObservationSpec::Complete;
         let (cache, identify_cached) =
             self.temporal_response_identification(graph, query, temporal, (treatment, outcome))?;
@@ -964,7 +964,7 @@ impl super::Study {
             (
                 Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                     graph,
-                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    if self.inference.is_bayesian() {
                         EstimatorId::TemporalResponseBayesian
                     } else {
                         EstimatorId::TemporalResponseGcomp
@@ -1002,9 +1002,7 @@ impl super::Study {
         }
         let prior_scale = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
+                if cfg.has_transfer()
                 {
                     return Err(CausalError::Unsupported {
                         message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
@@ -1164,7 +1162,7 @@ impl super::Study {
         let mut observed_posterior = None;
         let mut response = if observed_bayes {
             let InferenceMode::Bayesian(cfg) = &self.inference else {unreachable!()};
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            if cfg.has_transferred_source() {
                 return Err(CausalError::Unsupported {message: "observed temporal mechanisms need independent per-mechanism priors; a transferred response coefficient prior has no such mapping"});
             }
             let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, graph, antecedent_estimate::TemporalIdentification { horizons: identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, query, &bayesian_gcomp(cfg, ctx), ctx).map_err(CausalError::from)?;
@@ -1302,7 +1300,7 @@ impl super::Study {
             });
         }
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+            if cfg.has_transfer()
             {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence inference requires isotropic per-mechanism priors",
@@ -1465,7 +1463,7 @@ impl super::Study {
         for diagnostic in posterior_note_diagnostics(&horizon_posteriors) {
             push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
         }
-        if !attach_scalar_posterior && matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if !attach_scalar_posterior && self.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal.sequence_posterior_not_attached",
                 DiagnosticKind::Scientific,
@@ -1629,7 +1627,7 @@ impl super::Study {
         let observation_query = qh.clone();
         let adjustment = class_atom_adjustment(&estimand, indexer);
         let series_owned = if qh.observation == ObservationSpec::Complete
-            || matches!(self.inference, InferenceMode::Bayesian(_))
+            || self.inference.is_bayesian()
         {
             None
         } else {
@@ -1676,7 +1674,7 @@ impl super::Study {
             horizon,
             response,
         )?;
-        if series_owned.is_some() && matches!(self.inference, InferenceMode::Frequentist) {
+        if series_owned.is_some() && self.inference.is_frequentist() {
             run.observation_atoms.push(ClassObservationAtom {
                 atom_index,
                 horizon_index,
@@ -1718,7 +1716,7 @@ impl super::Study {
                 let Some(dag) = case.graph.sequential_dag() else {
                     return Ok(None);
                 };
-                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                if cfg.has_transferred_source() {
                     return Err(CausalError::Unsupported {
                         message: "prior_artifact stays refused on observed temporal Bayes",
                     });
@@ -1831,7 +1829,7 @@ impl super::Study {
             );
         }
         diagnostics.extend(class_response_identified_set_diagnostics(
-            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.inference.is_bayesian(),
             self.class_prior.is_some(),
         ));
         if query.observation != ObservationSpec::Complete {
@@ -1884,7 +1882,7 @@ impl super::Study {
 
     /// The temporal response estimator the study's inference mode runs.
     fn temporal_response_estimator_id(&self) -> EstimatorId {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             EstimatorId::TemporalResponseBayesian
         } else {
             EstimatorId::TemporalResponseGcomp
@@ -1911,7 +1909,7 @@ impl super::Study {
             ctx,
         } = request;
         if query.observation == ObservationSpec::Complete
-            || !matches!(self.inference, InferenceMode::Frequentist)
+            || !self.inference.is_frequentist()
             || self.bootstrap_replicates == 0
         {
             return Ok(false);
@@ -2000,7 +1998,7 @@ impl super::Study {
         })?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+            if cfg.has_transfer()
             {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence transfer stays refused on incomplete classes",
@@ -2415,7 +2413,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if matches!(self.inference, InferenceMode::Bayesian(_))
+        if self.inference.is_bayesian()
             && query.effect_modifiers.is_empty()
             && !query.is_multi_step_sustained()
         {
@@ -5029,9 +5027,7 @@ impl super::Study {
     fn cross_world_prior_scale(&self) -> Result<Option<f64>, CausalError> {
         match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
+                if cfg.has_transfer()
                 {
                     return Err(CausalError::Unsupported {
                         message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",

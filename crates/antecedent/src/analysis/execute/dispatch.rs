@@ -70,7 +70,7 @@ impl super::Study {
                     self.query,
                     CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)
                 )
-                || !matches!(self.inference, InferenceMode::Bayesian(_)))
+                || !self.inference.is_bayesian())
         {
             return Err(CausalError::Unsupported {
                 message: "bayesian.basis.gcomp requires Bayesian inference, tabular data, a supplied DAG, and an ATE or CATE query",
@@ -305,7 +305,7 @@ impl super::Study {
                     CausalQuery::TemporalEffect(q)
                         if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
                 );
-                let bayesian = matches!(self.inference, crate::InferenceMode::Bayesian(_));
+                let bayesian = self.inference.is_bayesian();
                 let ok = *est == EstimatorId::TemporalLinearAdjustment
                     || (multi_step && *est == EstimatorId::TemporalSequentialGcomp)
                     || (bayesian && !multi_step && *est == EstimatorId::BayesianTemporalGcomp);
@@ -341,7 +341,7 @@ impl super::Study {
             self.estimator
                 .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
                 .unwrap_or(EstimatorId::FunctionalEffect)
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        } else if self.inference.is_bayesian() {
             self.estimator.unwrap_or(EstimatorId::BayesianGcomp)
         } else {
             self.estimator.unwrap_or(DEFAULT_ESTIMATOR_ID)
@@ -351,7 +351,7 @@ impl super::Study {
 
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
     pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
-        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianGcomp
         } else {
             DEFAULT_PAG_ESTIMATOR_ID
@@ -388,7 +388,7 @@ impl super::Study {
 
     /// Resolve identifier/estimator for `ConditionalEffect`.
     pub(super) fn resolve_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
-        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
         } else {
             DEFAULT_CONDITIONAL_ESTIMATOR_ID
@@ -411,7 +411,7 @@ impl super::Study {
 
     /// Resolve the response estimator from the functional when the caller did not override it.
     pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
-        if matches!(self.inference, InferenceMode::Bayesian(_))
+        if self.inference.is_bayesian()
             && !response_functional_is_derivative(&query.functional)
         {
             return (
@@ -439,7 +439,7 @@ impl super::Study {
         &self,
         query: &ResponseQuery,
     ) -> (Arc<str>, Arc<str>) {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
                 Arc::from(
@@ -458,7 +458,7 @@ impl super::Study {
 
     /// Resolve identifier/estimator for Cpdag/Pag `ConditionalEffect`.
     pub(super) fn resolve_class_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
-        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
         } else {
             EstimatorId::ConditionalLinearAdjustment
@@ -1154,7 +1154,7 @@ impl super::Study {
         let mediation = operation.mediation_query();
         let mut result =
             self.execute_static_mediation_total(data, graph, mediation, physical, ctx)?;
-        let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
+        let bayesian = self.inference.is_bayesian();
         // Both inference modes publish the shared-exogenous natural
         // direct effect. That plugin is the outcome-regression slope
         // the contract replays; the mediation posterior mean is not.
@@ -1329,7 +1329,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self
                 .identifier
@@ -1351,7 +1351,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianRobustAte)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
@@ -1371,7 +1371,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
@@ -1404,7 +1404,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianGcomp)
             && self
                 .identifier
@@ -1424,7 +1424,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianConditional)
             && self
                 .identifier
@@ -1456,7 +1456,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticMediationDag {
@@ -1476,7 +1476,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.split.is_none()
             && self.custom_validators.is_empty()
             && self.point_validation()
@@ -1499,7 +1499,6 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && self
@@ -1533,7 +1532,7 @@ impl super::Study {
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.as_ref().is_some_and(|posterior| {
             posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
-        }) && matches!(self.inference, InferenceMode::Frequentist)
+        }) && self.inference.is_frequentist()
             && self.point_validation()
             && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
@@ -1553,7 +1552,7 @@ impl super::Study {
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                     | antecedent_discovery::GraphPosteriorAtomKind::Pag
             )
-        }) && matches!(self.inference, InferenceMode::Frequentist)
+        }) && self.inference.is_frequentist()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
             if let Some(
@@ -1584,7 +1583,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.point_validation()
             && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::ConditionalLinearAdjustment)
@@ -1603,7 +1602,6 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticResponseDag { data, query, .. }) = route {
@@ -1659,7 +1657,7 @@ impl super::Study {
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
         {
@@ -1730,7 +1728,7 @@ impl super::Study {
         // preparation; nearby estimators execute through the ordinary dispatcher.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(
                 super::super::prepared::checked_aipw_fitter(self).overlap,
@@ -1779,7 +1777,7 @@ impl super::Study {
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(
                 route,
@@ -1791,7 +1789,7 @@ impl super::Study {
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(route, Some(RouteInput::StaticAteDag { .. }));
         let checked_propensity = matches!(
@@ -1800,7 +1798,7 @@ impl super::Study {
         ) && self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && matches!(
                 route,
@@ -1870,7 +1868,6 @@ impl super::Study {
             }
         }
         if self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
             && self.graph_posterior.as_ref().is_some_and(|posterior| {
                 matches!(
@@ -1926,7 +1923,7 @@ impl super::Study {
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.is_none()
             && self.structure_source == crate::support::StructureSource::Explicit
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
             && self.shared_batch_design.is_none()
             && self.continuous_cell.is_none()
@@ -1953,7 +1950,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
             && self.estimator.is_none_or(|id| id == EstimatorId::BayesianGcomp)
             && matches!(
@@ -2004,7 +2001,7 @@ impl super::Study {
             );
             let dag_atoms =
                 posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag;
-            let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
+            let bayesian = self.inference.is_bayesian();
             let expected =
                 if bayesian { target.bayesian_estimator() } else { target.frequentist_estimator() };
             let identifier = if class_atoms {
@@ -2048,7 +2045,6 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && self.observation_delayed_entry.is_none()
@@ -2133,7 +2129,7 @@ impl super::Study {
             && self.tiered.is_none()
             && self.split.is_none()
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
         {
@@ -2179,7 +2175,7 @@ impl super::Study {
         // operation admits executes through the ordinary dispatcher below.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
             && matches!(
                 self.estimator_spec.as_deref(),
@@ -2228,7 +2224,6 @@ impl super::Study {
             && self.graph.class() == GraphClass::Admg
             && self.graph.as_admg().is_some_and(admg_has_bidirected)
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
             && self.identifier.is_none_or(|identifier| identifier == IdentifierId::GeneralId)
             && self.estimator.is_none_or(|estimator| estimator == EstimatorId::FunctionalEffect)
@@ -2256,7 +2251,7 @@ impl super::Study {
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
             && self.fixed_structure()
-            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.inference.is_bayesian()
             && self.custom_validators.is_empty()
             && self.point_validation()
             && matches!(self.query, CausalQuery::Mediation(_))

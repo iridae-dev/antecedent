@@ -715,9 +715,7 @@ pub(crate) fn functional_bayesian_draws(
     let InferenceMode::Bayesian(config) = inference else {
         return Ok(None);
     };
-    if config.prior_artifact.is_some()
-        || config.external_compose.is_some()
-        || config.prior.is_some()
+    if config.has_transfer()
     {
         return Err(CausalError::Unsupported { message: FUNCTIONAL_BAYESIAN_PRIOR_REFUSAL });
     }
@@ -806,7 +804,7 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         n_draws: finish.n_draws,
         cancelled: finish.cancelled,
         early_stopped: finish.early_stopped,
-        bayesian: matches!(finish.common.inference, InferenceMode::Bayesian(_)),
+        bayesian: finish.common.inference.is_bayesian(),
     });
     // The interval binding was derived above without the response; a route that
     // wants it re-derived asks for `rebind_bayesian_interval`.
@@ -835,7 +833,7 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
     }
     if finish.rebind_bayesian_interval {
-        result.rebind_interval(matches!(finish.common.inference, InferenceMode::Bayesian(_)));
+        result.rebind_interval(finish.common.inference.is_bayesian());
     }
     result
 }
@@ -3079,7 +3077,7 @@ fn finish_identified_execute_with_context(
         n_draws: extras.n_draws,
         cancelled: args.cancelled,
         early_stopped: args.early_stopped,
-        bayesian: matches!(context.inference, InferenceMode::Bayesian(_)),
+        bayesian: context.inference.is_bayesian(),
     });
     result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
         identification,
@@ -3105,7 +3103,7 @@ fn finish_identified_execute_with_context(
     }
     result.predictive_checks = extras.predictive_checks;
     result.structural_response = extras.structural_response;
-    result.rebind_interval(matches!(context.inference, InferenceMode::Bayesian(_)));
+    result.rebind_interval(context.inference.is_bayesian());
     result.support_status = context.support_status;
     result.structure_source = context.structure_source;
     // A named predicate or custom distribution is a handle; encoding the

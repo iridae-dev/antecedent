@@ -209,7 +209,7 @@ impl super::Study {
 
     /// The estimator the study's inference mode runs for a temporal response.
     fn dbn_posterior_estimator_id(&self) -> EstimatorId {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             EstimatorId::TemporalResponseBayesian
         } else {
             EstimatorId::TemporalResponseGcomp
@@ -426,7 +426,7 @@ impl super::Study {
                 "estimate.response.dbn_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                if self.inference.is_bayesian() {
                     "multi-atom Bayesian DBN-posterior response withholds an aggregate \
                      credible band: graph-specific dispersion and a frozen-weight aggregate \
                      are different objects"

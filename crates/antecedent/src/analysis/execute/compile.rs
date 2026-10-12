@@ -35,7 +35,7 @@ fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
 }
 
 fn temporal_response_estimator_id(inference: &InferenceMode) -> &'static str {
-    if matches!(inference, InferenceMode::Bayesian(_)) {
+    if inference.is_bayesian() {
         EstimatorId::TemporalResponseBayesian.as_str()
     } else {
         EstimatorId::TemporalResponseGcomp.as_str()
@@ -438,7 +438,7 @@ impl super::Study {
         )?;
         if q.is_multi_step_sustained() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_))
+        } else if self.inference.is_bayesian()
             && q.effect_modifiers.is_empty()
         {
             plan.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
@@ -453,7 +453,7 @@ impl super::Study {
         graph: &TemporalDag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let mut plan = compile_logical_temporal_response(data, graph, q, false)?;
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
         }
         Ok(plan)
@@ -516,7 +516,7 @@ impl super::Study {
             false,
             DataClassification::Panel,
         )?;
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             plan.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         Ok(plan)
@@ -636,7 +636,7 @@ impl super::Study {
         plan.record.plan_id = Arc::from("temporal_mediation");
         plan.record.identifier = Some(Arc::from("temporal.mediation"));
         plan.record.estimator =
-            Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            Some(Arc::from(if self.inference.is_bayesian() {
                 "temporal.mediation.bayesian"
             } else {
                 "temporal.mediation"
@@ -664,7 +664,7 @@ impl super::Study {
         plan.record.plan_id = Arc::from("temporal_mediation_class");
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
-            Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            Some(Arc::from(if self.inference.is_bayesian() {
                 EstimatorId::BayesianTemporalMediation.as_str()
             } else {
                 EstimatorId::TemporalMediation.as_str()
@@ -740,7 +740,7 @@ impl super::Study {
             DataClassification::Tabular,
             "transport_trial",
             "transport.sid",
-            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            if self.inference.is_bayesian() {
                 "transport.trial_bayesian_bootstrap"
             } else {
                 "transport.trial_ipw"
@@ -767,7 +767,7 @@ impl super::Study {
             DataClassification::Tabular,
             "interference_design",
             "interference.design",
-            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            if self.inference.is_bayesian() {
                 "interference.bayesian_gaussian"
             } else if matches!(
                 q.assignment,
@@ -1300,7 +1300,7 @@ impl super::Study {
         if query.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_))
+        } else if self.inference.is_bayesian()
             && query.effect_modifiers.is_empty()
         {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));

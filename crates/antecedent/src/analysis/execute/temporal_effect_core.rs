@@ -137,7 +137,7 @@ const BAYESIAN_PROVENANCE: (&str, &str) =
 /// Whether `config` carries a coefficient prior the isotropic temporal fits
 /// cannot take.
 fn has_mapped_prior(config: &BayesianConfig) -> bool {
-    config.prior.is_some() || config.prior_artifact.is_some() || config.external_compose.is_some()
+    config.has_transfer()
 }
 
 /// Fit and assemble the temporal effect of `inputs`.

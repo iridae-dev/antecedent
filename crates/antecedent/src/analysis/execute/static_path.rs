@@ -1054,7 +1054,7 @@ impl super::Study {
         CausalError,
     > {
         if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some()
+            if cfg.has_transfer()
             {
                 return Err(CausalError::Unsupported {
                     message: "functional Bayesian prior transfer requires a declared \
@@ -1303,7 +1303,7 @@ impl super::Study {
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp) {
             return self.execute_bayesian_basis(data, graph, &query.inner, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return self.execute_bayesian(data, graph, &query.inner, physical, None, ctx);
         }
         let started = Instant::now();
@@ -1495,7 +1495,7 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if matches!(self.inference, InferenceMode::Bayesian(_))
+            if self.inference.is_bayesian()
                 || matches!(estimator_id, EstimatorId::BayesianConditional)
             {
                 return self.execute_pag_nonidentified_prior(
@@ -1513,7 +1513,7 @@ impl super::Study {
                 ),
             ));
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_))
+        if self.inference.is_bayesian()
             || matches!(estimator_id, EstimatorId::BayesianConditional)
         {
             return self.execute_pag_bayesian(data, &query.inner, run, identification, class_tag);

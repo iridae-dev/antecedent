@@ -44,9 +44,7 @@ impl MediationInference<'_> {
 pub(super) fn require_isotropic_mediation_prior(
     config: &BayesianConfig,
 ) -> Result<(), CausalError> {
-    if config.prior.is_some()
-        || config.prior_artifact.is_some()
-        || config.external_compose.is_some()
+    if config.has_transfer()
     {
         return Err(CausalError::Unsupported {
             message: "Bayesian temporal mediation supports isotropic mechanism priors; shared or transferred coefficient priors are not licensed",

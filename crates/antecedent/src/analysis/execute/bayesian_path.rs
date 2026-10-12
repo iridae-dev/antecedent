@@ -1096,7 +1096,7 @@ impl super::Study {
         // `exec.identify.cached` diagnostic below.
         if let Some(operation) = checked_operation {
             if operation.query != *query
-                || !matches!(operation.inference, InferenceMode::Bayesian(_))
+                || !operation.inference.is_bayesian()
             {
                 return Err(CausalError::Compile {
                     message: "prepared Bayesian g-computation binding changed after prepare".into(),
@@ -1739,7 +1739,7 @@ impl super::Study {
                 Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str()));
         } else if is_multi_step_sustained(q) {
             logical.record.estimator = Some(Arc::from("temporal.sequential.gcomp"));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        } else if self.inference.is_bayesian() {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.validation_suite = self.validation_suite_id();
@@ -1767,7 +1767,7 @@ impl super::Study {
             logical.record.identifier =
                 Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
         }
@@ -1800,7 +1800,7 @@ impl super::Study {
         logical.record.plan_id = Arc::from("temporal_mediation");
         logical.record.identifier = Some(Arc::from("temporal.mediation"));
         logical.record.estimator =
-            Some(Arc::from(if matches!(self.inference, InferenceMode::Frequentist) {
+            Some(Arc::from(if self.inference.is_frequentist() {
                 EstimatorId::TemporalMediation.as_str()
             } else {
                 EstimatorId::BayesianTemporalMediation.as_str()
@@ -2294,7 +2294,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if checked.is_none() && !matches!(self.inference, InferenceMode::Frequentist) {
+        if checked.is_none() && !self.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
                 message: "execute_graph_posterior_frequentist requires inference=Frequentist",
             });
@@ -2969,7 +2969,7 @@ impl super::Study {
                 message: "multi-step sustained g-computation currently requires no discovery-estimation split",
             });
         }
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
                 message: "multi-step sustained inference requires isotropic per-mechanism priors",
             });
@@ -3235,7 +3235,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if query.horizons.len() > 1 && matches!(self.inference, InferenceMode::Frequentist) {
+        if query.horizons.len() > 1 && self.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
                 message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
@@ -3245,7 +3245,7 @@ impl super::Study {
             return self
                 .execute_dbn_posterior_mediation_multi_horizon(data, gp, query, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Frequentist) {
+        if self.inference.is_frequentist() {
             return self
                 .execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
         }
@@ -3395,7 +3395,7 @@ impl super::Study {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => unreachable!("Frequentist DBN mediation is routed above"),
         };
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
                 message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
             });

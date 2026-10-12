@@ -12,7 +12,7 @@ use super::{
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphIdentFlag, GraphPosterior,
     GraphPosteriorScope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant,
     Intervention, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
     Strategy, StructuralAggregationPolicy, Study, StudyResult, TableView, TabularData,
@@ -133,7 +133,7 @@ impl super::Study {
 
     /// The temporal response estimator the study's inference mode runs.
     fn class_posterior_estimator_id(&self) -> EstimatorId {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             EstimatorId::TemporalResponseBayesian
         } else {
             EstimatorId::TemporalResponseGcomp
@@ -740,7 +740,7 @@ fn temporal_class_response_pooled_block_se(
     weighted: &[(u64, f64, CausalResponse)],
     ctx: &ExecutionContext,
 ) -> Result<Option<f64>, CausalError> {
-    if !matches!(study.inference, InferenceMode::Frequentist) || study.bootstrap_replicates == 0 {
+    if !study.inference.is_frequentist() || study.bootstrap_replicates == 0 {
         return Ok(None);
     }
     if !matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })

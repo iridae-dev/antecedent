@@ -379,7 +379,7 @@ impl super::Study {
         if query.is_multi_step_sustained() {
             return self.execute_panel_class_sequential(panel, query, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return self.execute_panel_class_bayesian(panel, query, physical, ctx);
         }
         let started = Instant::now();
@@ -742,7 +742,7 @@ impl super::Study {
 
     /// Estimator a panel response records: Bayesian or frequentist temporal g-computation.
     fn panel_response_estimator_id(&self) -> EstimatorId {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             EstimatorId::TemporalResponseBayesian
         } else {
             EstimatorId::TemporalResponseGcomp
@@ -833,7 +833,7 @@ impl super::Study {
         ));
         diagnostics.push(panel_between_unit_band_diagnostic(units));
         diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal_response.panel.bayesian_cluster_band",
                 DiagnosticKind::Scientific,
@@ -902,7 +902,7 @@ impl super::Study {
         )?;
         let mut response = average_unit_panel_responses(
             &unit_responses,
-            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.inference.is_bayesian(),
         )?;
         if let Some(per_horizon) = response.horizon_identification.as_mut() {
             for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
@@ -1199,7 +1199,7 @@ impl super::Study {
             };
             let response = average_unit_panel_responses(
                 &unit_responses,
-                matches!(self.inference, InferenceMode::Bayesian(_)),
+                self.inference.is_bayesian(),
             )?;
             let atom_assumptions = response.assumptions.clone();
             state.assembly.push_atom(
@@ -1242,7 +1242,7 @@ impl super::Study {
             ),
         ));
         diagnostics.extend(super::temporal_path::class_response_identified_set_diagnostics(
-            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.inference.is_bayesian(),
             self.class_prior.is_some(),
         ));
         diagnostics.push(Diagnostic::new(

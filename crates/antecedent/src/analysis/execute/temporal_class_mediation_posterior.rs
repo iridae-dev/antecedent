@@ -90,7 +90,7 @@ impl super::Study {
                           contract",
             });
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return self.execute_temporal_class_graph_posterior_mediation_bayesian(
                 data, gp, query, physical, ctx,
             );
@@ -273,7 +273,7 @@ impl super::Study {
         ),
         block: &ClassMediationBlock,
     ) -> Vec<Diagnostic> {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && posterior_withheld {
+        if self.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
                 DiagnosticKind::Scientific,
@@ -367,7 +367,7 @@ impl super::Study {
             horizon,
         )?;
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
+        if self.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
                 DiagnosticKind::Scientific,

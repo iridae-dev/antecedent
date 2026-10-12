@@ -195,7 +195,7 @@ impl super::Study {
             .bound_to(data)?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
-        let bayesian_model = matches!(self.inference, InferenceMode::Bayesian(_));
+        let bayesian_model = self.inference.is_bayesian();
         let estimated = if bayesian_model {
             None
         } else {
@@ -270,7 +270,7 @@ fn interference_bayesian_estimate(
             message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
         });
     }
-    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+    if cfg.has_transfer() {
         return Err(CausalError::Unsupported {
             message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
         });
@@ -513,7 +513,7 @@ pub(super) fn transport_primary_pair(
 /// The Bayesian trial route owns its row-law prior; coefficient and transferred
 /// priors have no meaning for it.
 pub(super) fn refuse_transport_bayesian_priors(cfg: &BayesianConfig) -> Result<(), CausalError> {
-    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+    if cfg.has_transfer() {
         return Err(CausalError::Unsupported {
             message: "Bayesian trial transport uses an empirical-support row-law prior and does not accept coefficient or transferred priors",
         });

@@ -67,7 +67,7 @@ impl super::Study {
         let mut shared_block = None;
         let mut shared_block_designs = 0usize;
         let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-        if matches!(self.inference, InferenceMode::Frequentist)
+        if self.inference.is_frequentist()
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
             && self.bootstrap_replicates > 0
         {
@@ -142,7 +142,7 @@ impl super::Study {
             &[TemporalClassAtomEval],
         ),
     ) -> Vec<Diagnostic> {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && posterior_withheld {
+        if self.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
                 DiagnosticKind::Scientific,
@@ -197,7 +197,7 @@ impl super::Study {
             ));
         } else if shared_block_designs > 1
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.inference.is_frequentist()
             && self.bootstrap_replicates > 0
         {
             diagnostics.push(envelope_se_omits_between_atom_variance());
