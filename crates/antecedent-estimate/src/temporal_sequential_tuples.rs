@@ -529,7 +529,7 @@ mod tests {
                 overlays: &overlays,
             },
             crate::temporal_sequential::SequentialInference {
-                status: status,
+                status,
                 assumptions: AssumptionSet::new(),
                 bootstrap_replicates: 0,
                 bayesian: None,
