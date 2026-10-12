@@ -39,7 +39,7 @@ def members(obj):
         from pydantic import BaseModel
         if isinstance(obj, type) and issubclass(obj, BaseModel):
             names |= {n for n in obj.model_fields if not n.startswith("_")}
-    except Exception:
+    except ImportError:
         pass
     return sorted(names)
 

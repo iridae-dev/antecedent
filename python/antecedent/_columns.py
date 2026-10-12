@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import is_dataclass, replace
-from typing import Any, TypeVar, overload
+from typing import Any, TypeVar, cast, overload
 
 import numpy as np
 
@@ -31,17 +31,53 @@ from .errors import CausalValueError
 _T = TypeVar("_T")
 
 
+def coerce_fields(obj: Any, /, **fields: Any) -> None:
+    """Assign fields on a frozen dataclass.
+
+    Frozen ``__post_init__`` methods cannot write ``self.x = ...``. This is the
+    one helper for that write. The values are whatever the caller already
+    validated; this function does not coerce them further.
+    """
+    for name, value in fields.items():
+        object.__setattr__(obj, name, value)
+
+
+def hold_unresolved(obj: Any, /, **fields: Any) -> bool:
+    """Skip validation while a column name (or a nested design) is still unresolved.
+
+    Returns True when ``__post_init__`` should return. Sets ``_deferred_columns``
+    so :func:`resolve_columns` rebuilds the object against the table at prepare.
+    """
+    if not defer_columns(obj):
+        return False
+    coerce_fields(obj, _deferred_columns=True, **fields)
+    return True
+
+
+def _require_resolved(value: object) -> None:
+    """Refuse a column name that reached prepare still unresolved.
+
+    ``assert`` is stripped by ``python -O``, which would then hand the name to
+    the estimator as if it were a one-row column.
+    """
+    if isinstance(value, str):
+        raise CausalValueError(
+            "column-name input must be resolved before prepare",
+            reason_code="invalid_argument",
+        )
+
+
 def resolved(value: Sequence[_T] | str) -> Sequence[_T]:
     """Narrow a column-name field to its array once :func:`resolve_columns` has run.
 
     A design query accepts a row-aligned input either inline or as the name of a
     data column (a ``str``). :func:`resolve_columns` rebuilds the query with the
     named column's array before the native study is prepared, so by the time a
-    prepared study reads the field the ``str`` branch is gone. This asserts that
+    prepared study reads the field the ``str`` branch is gone. This checks that
     invariant and hands the caller (and the type checker) the sequence.
     """
-    assert not isinstance(value, str), "column-name input must be resolved before prepare"
-    return value
+    _require_resolved(value)
+    return cast(Sequence[_T], value)
 
 
 @overload
@@ -52,8 +88,8 @@ def resolved_opt(value: Sequence[_T] | str | None) -> Sequence[_T] | None:
     """Like :func:`resolved`, but pass ``None`` through for optional fields."""
     if value is None:
         return None
-    assert not isinstance(value, str), "column-name input must be resolved before prepare"
-    return value
+    _require_resolved(value)
+    return cast(Sequence[_T], value)
 
 
 def resolved_scalar(value: float | Sequence[float] | str) -> float | Sequence[float]:
@@ -63,8 +99,17 @@ def resolved_scalar(value: float | Sequence[float] | str) -> float | Sequence[fl
     that :func:`resolve_columns` has already turned into a sequence, so the ``str``
     branch is gone by prepare.
     """
-    assert not isinstance(value, str), "column-name input must be resolved before prepare"
-    return value
+    _require_resolved(value)
+    return cast(float | Sequence[float], value)
+
+
+def _shown(value: Any) -> Any:
+    """The value as ``tolist`` would have shown it in a refusal."""
+    return value.item() if isinstance(value, np.generic) else value
+
+
+def _first_bad(mask: np.ndarray, values: np.ndarray) -> Any:
+    return _shown(values[np.flatnonzero(mask)[0]])
 
 
 def _cast_bool(arr: np.ndarray, field: str, name: str) -> tuple[bool, ...]:
@@ -73,8 +118,31 @@ def _cast_bool(arr: np.ndarray, field: str, name: str) -> tuple[bool, ...]:
     ``bool(v)`` would turn NaN, arm codes ``2``, and the string ``"False"`` into
     ``True``; the inline path refuses those, so the column path does too.
     """
+    if arr.dtype == np.bool_ or arr.dtype == bool:
+        return tuple(arr.tolist())
+    if arr.dtype.kind in "iuf":
+        ok = np.isfinite(arr) & ((arr == 0) | (arr == 1))
+        if not np.all(ok):
+            bad = _first_bad(~ok, arr)
+            raise CausalValueError(
+                f"{field}={name!r}: column values must be bool or encoded as 0/1; got {bad!r}"
+            )
+        return tuple(arr.astype(bool, copy=False).tolist())
+    if arr.dtype == object:
+        try:
+            ok = np.isin(arr, (0, 1, False, True))
+        except (TypeError, ValueError):
+            ok = None
+        if ok is not None:
+            if not np.all(ok):
+                bad = arr[np.flatnonzero(~ok)[0]]
+                raise CausalValueError(
+                    f"{field}={name!r}: column values must be bool or encoded as 0/1; "
+                    f"got {_shown(bad)!r}"
+                )
+            return tuple(np.asarray(arr, dtype=bool).tolist())
     out: list[bool] = []
-    for value in arr.tolist():
+    for value in arr:
         if isinstance(value, (bool, np.bool_)) or (
             isinstance(value, (int, float, np.integer, np.floating)) and value in (0, 1)
         ):
@@ -88,8 +156,22 @@ def _cast_bool(arr: np.ndarray, field: str, name: str) -> tuple[bool, ...]:
 
 def _cast_int(arr: np.ndarray, field: str, name: str) -> tuple[int, ...]:
     """Finite integral numbers; a fractional, non-finite, or non-numeric value is refused."""
+    if arr.dtype.kind in "iu":
+        return tuple(arr.tolist())
+    if arr.dtype.kind == "f":
+        integral = np.isfinite(arr) & (arr == np.trunc(arr))
+        if not np.all(integral):
+            bad = _first_bad(~integral, arr)
+            raise CausalValueError(
+                f"{field}={name!r}: column values must be finite integers; got {bad!r}"
+            )
+        if arr.size == 0:
+            return ()
+        if float(np.max(np.abs(arr))) <= float(np.iinfo(np.int64).max):
+            return tuple(arr.astype(np.int64).tolist())
+        return tuple(int(value) for value in arr.tolist())
     out: list[int] = []
-    for value in arr.tolist():
+    for value in arr:
         if isinstance(value, (bool, np.bool_)) or not isinstance(
             value, (int, float, np.integer, np.floating)
         ):

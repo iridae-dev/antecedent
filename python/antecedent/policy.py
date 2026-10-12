@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from ._columns import resolved, resolved_opt
+from ._columns import coerce_fields, hold_unresolved, resolved, resolved_opt
 from ._data import as_columns
 from ._native import evaluate_binary_policy as _evaluate_binary_policy
 from ._native import evaluate_binary_policy_doubly_robust as _evaluate_binary_policy_doubly_robust
@@ -39,19 +39,14 @@ class BinaryPolicy:
     _COLUMN_FIELDS = {"actions": "bool"}
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
-            # policy against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         actions = tuple(self.actions)
         if any(not isinstance(action, (bool, np.bool_)) for action in actions):
             raise CausalValueError("policy actions must be bool values")
         if not actions:
             raise CausalValueError("policy actions must not be empty")
-        object.__setattr__(self, "actions", tuple(bool(action) for action in actions))
+        coerce_fields(self, actions=tuple(bool(action) for action in actions))
         if self.capacity is not None and (
             isinstance(self.capacity, bool)
             or not isinstance(self.capacity, Integral)
@@ -59,7 +54,7 @@ class BinaryPolicy:
         ):
             raise CausalValueError("capacity must be a non-negative integer")
         if self.capacity is not None:
-            object.__setattr__(self, "capacity", int(self.capacity))
+            coerce_fields(self, capacity=int(self.capacity))
         if self.budget is not None and (not isfinite(self.budget) or self.budget < 0.0):
             raise CausalValueError("budget must be finite and non-negative")
         if self.max_treatment_rate is not None and (
@@ -116,12 +111,7 @@ class MultiActionPolicy:
     _COLUMN_FIELDS = {"recommendations": "str"}
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
-            # policy against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         labels = tuple(self.action_labels)
         recommendations = tuple(self.recommendations)
@@ -131,8 +121,8 @@ class MultiActionPolicy:
             raise CausalValueError("action_labels must be unique")
         if not recommendations or any(v not in labels for v in recommendations):
             raise CausalValueError("recommendations must name a declared action for each row")
-        object.__setattr__(self, "action_labels", labels)
-        object.__setattr__(self, "recommendations", recommendations)
+        coerce_fields(self, action_labels=labels)
+        coerce_fields(self, recommendations=recommendations)
         if self.costs is not None:
             try:
                 costs = tuple(float(v) for v in self.costs)
@@ -140,14 +130,14 @@ class MultiActionPolicy:
                 raise CausalValueError("costs must be numeric") from error
             if len(costs) != len(labels) or any(not isfinite(v) or v < 0 for v in costs):
                 raise CausalValueError("costs must have one finite non-negative value per action")
-            object.__setattr__(self, "costs", costs)
+            coerce_fields(self, costs=costs)
         if self.capacities is not None:
             capacities = tuple(self.capacities)
             if len(capacities) != len(labels) or any(
                 isinstance(v, bool) or not isinstance(v, Integral) or v < 0 for v in capacities
             ):
                 raise CausalValueError("capacities must have one non-negative integer per action")
-            object.__setattr__(self, "capacities", tuple(int(v) for v in capacities))
+            coerce_fields(self, capacities=tuple(int(v) for v in capacities))
         if self.budget is not None and (
             isinstance(self.budget, bool) or not isfinite(self.budget) or self.budget < 0
         ):
@@ -182,10 +172,10 @@ class MultiActionPolicy:
             mask = raw_mask.astype(bool)
         if mask.shape != matrix.shape or (~mask).all(axis=1).any():
             raise CausalValueError("each row must have at least one available action")
-        picks = [
-            labels[int(np.argmax(np.where(mask[i], matrix[i], -np.inf)))]
-            for i in range(len(matrix))
-        ]
+        # First maximum wins, matching a per-row argmax. Unavailable actions are
+        # below every finite score.
+        chosen = np.argmax(np.where(mask, matrix, -np.inf), axis=1)
+        picks = [labels[int(index)] for index in chosen]
         return cls(labels, picks, costs, capacities, budget)
 
 
@@ -345,14 +335,7 @@ class PolicyValue:
         )
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column names (and any deferred nested policy)
-            # unvalidated; resolve_columns rebuilds this query against the data at
-            # prepare, re-running every check below with arrays in hand.
-            object.__setattr__(self, "_deferred_columns", True)
-            object.__setattr__(self, "_ownership", "deferred")
+        if hold_unresolved(self, _ownership="deferred"):
             return
         if not isinstance(self.outcome, str) or not self.outcome:
             raise CausalValueError("outcome must be a non-empty column name")
@@ -369,13 +352,14 @@ class PolicyValue:
         if (self.mu0 is None) != (self.mu1 is None):
             raise CausalValueError("mu0 and mu1 must be supplied together")
         if self.mu0 is not None:
-            # The exclusive-or check above guarantees mu1 is present whenever mu0 is.
-            assert self.mu1 is not None
+            mu1 = self.mu1
+            if mu1 is None:
+                raise CausalValueError("mu0 and mu1 must be supplied together")
             n = len(self.policy.actions)
             if (
                 len(self.mu0) != n
-                or len(self.mu1) != n
-                or not all(isfinite(float(value)) for value in (*self.mu0, *self.mu1))
+                or len(mu1) != n
+                or not all(isfinite(float(value)) for value in (*self.mu0, *mu1))
             ):
                 raise CausalValueError(
                     "mu0 and mu1 must have one finite prediction per evaluation row"
@@ -408,15 +392,13 @@ class PolicyValue:
                 resolved_opt(self.fold_ids),
                 resolved_opt(self.prediction_excluded_fold_ids),
             )
-        object.__setattr__(self, "assignment", tuple(bool(v) for v in self.assignment))
+        coerce_fields(self, assignment=tuple(bool(v) for v in self.assignment))
         # Omitted predictions stay None (not ``()``) so ``dataclasses.replace`` round-trips
         # the query; the native call site turns None into an empty prediction list.
         if self.mu0 is not None and self.mu1 is not None:
-            object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0))
-            object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1))
-        object.__setattr__(
-            self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids)
-        )
+            coerce_fields(self, mu0=tuple(float(v) for v in self.mu0))
+            coerce_fields(self, mu1=tuple(float(v) for v in self.mu1))
+        coerce_fields(self, evaluation_subject_ids=tuple(str(v) for v in self.evaluation_subject_ids))
         if self.regret_candidates is None:
             if self.regret_training_subject_ids is not None:
                 raise CausalValueError("regret training IDs require a fixed candidate class")
@@ -474,10 +456,10 @@ class PolicyValue:
                 raise CausalValueError(
                     "regret training IDs must be unique, nonempty, and disjoint from evaluation subjects"
                 )
-            object.__setattr__(self, "regret_candidates", candidates)
-            object.__setattr__(self, "regret_training_subject_ids", training)
+            coerce_fields(self, regret_candidates=candidates)
+            coerce_fields(self, regret_training_subject_ids=training)
         if self.available is not None:
-            object.__setattr__(self, "available", tuple(self.available))
+            coerce_fields(self, available=tuple(self.available))
         if self.uplift_scores is None:
             if self.uplift_bin_count != 0 or self.uplift_training_subject_ids is not None:
                 raise CausalValueError(
@@ -510,10 +492,10 @@ class PolicyValue:
                 raise CausalValueError(
                     "uplift_training_subject_ids must be unique, non-empty, and disjoint from evaluation subjects"
                 )
-            object.__setattr__(self, "uplift_scores", tuple(float(v) for v in scores))
-            object.__setattr__(self, "uplift_bin_count", int(self.uplift_bin_count))
-            object.__setattr__(self, "uplift_training_subject_ids", training)
-        object.__setattr__(self, "_ownership", ownership)
+            coerce_fields(self, uplift_scores=tuple(float(v) for v in scores))
+            coerce_fields(self, uplift_bin_count=int(self.uplift_bin_count))
+            coerce_fields(self, uplift_training_subject_ids=training)
+        coerce_fields(self, _ownership=ownership)
 
 
 @dataclass(frozen=True, slots=True)
@@ -547,13 +529,7 @@ class MultiActionPolicyValue:
     _COLUMN_NESTED = ("policy", "reference")
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column names (and any deferred nested policy)
-            # unvalidated; resolve_columns rebuilds this query against the data at
-            # prepare, re-running every check below with arrays in hand.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty column name")
@@ -594,11 +570,9 @@ class MultiActionPolicyValue:
             raise CausalValueError(
                 "each randomized action probability must be positive and rows must sum to one"
             )
-        object.__setattr__(self, "assignment", tuple(self.assignment))
-        object.__setattr__(self, "evaluation_subject_ids", ids)
-        object.__setattr__(
-            self, "propensities", tuple(tuple(map(float, row)) for row in probabilities)
-        )
+        coerce_fields(self, assignment=tuple(self.assignment))
+        coerce_fields(self, evaluation_subject_ids=ids)
+        coerce_fields(self, propensities=tuple(tuple(map(float, row)) for row in probabilities))
         if self.available is not None:
             mask = np.asarray(self.available, dtype=object)
             if mask.shape != (n, len(labels)) or any(
@@ -607,9 +581,7 @@ class MultiActionPolicyValue:
                 raise CausalValueError(
                     "available must contain one bool per evaluation row and action"
                 )
-            object.__setattr__(
-                self, "available", tuple(tuple(bool(v) for v in row) for row in mask)
-            )
+            coerce_fields(self, available=tuple(tuple(bool(v) for v in row) for row in mask))
         if self.baseline_groups is not None:
             groups = tuple(self.baseline_groups)
             if len(groups) != n or any(
@@ -618,7 +590,7 @@ class MultiActionPolicyValue:
                 raise CausalValueError(
                     "baseline_groups must contain one non-empty pre-treatment label per row"
                 )
-            object.__setattr__(self, "baseline_groups", groups)
+            coerce_fields(self, baseline_groups=groups)
 
 
 @dataclass(frozen=True, slots=True)
@@ -738,7 +710,7 @@ class ConditionalDoseResponse:
             raise CausalValueError(
                 "target_doses must be finite and non-empty unless fixed policy doses are supplied"
             )
-        object.__setattr__(self, "target_doses", targets)
+        coerce_fields(self, target_doses=targets)
         if not isfinite(self.bandwidth) or self.bandwidth <= 0.0:
             raise CausalValueError("bandwidth must be finite and positive")
         if (
@@ -747,7 +719,7 @@ class ConditionalDoseResponse:
             or self.min_local_support < 2
         ):
             raise CausalValueError("min_local_support must be an integer of at least two")
-        object.__setattr__(self, "min_local_support", int(self.min_local_support))
+        coerce_fields(self, min_local_support=int(self.min_local_support))
         if self.density_provenance not in ("known", "externally_estimated"):
             raise CausalValueError("density_provenance must be known or externally_estimated")
         if (self.policy_doses is None) != (self.reference_doses is None):
