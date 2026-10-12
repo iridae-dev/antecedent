@@ -548,7 +548,12 @@ fn build_witness(
             ));
         };
         let n = parents.len();
-        let configs = 1usize << n;
+        let configs = crate::pow2::checked_pow2(n).ok_or_else(|| {
+            refuse(
+                ChainRecoveryDetail::InvalidQuery,
+                "a witness mechanism has too many parents to enumerate",
+            )
+        })?;
         let (mut a, mut b) = (vec![30u32; configs], vec![30u32; configs]);
         if node == censored {
             b = vec![24u32; configs];
@@ -598,7 +603,8 @@ fn model_masses(
         let expected = sorted_parents(graph, VariableId::from_raw(m.node))
             .ok_or_else(|| bad("a mechanism names a node outside the graph"))?;
         if m.parents != expected
-            || m.numerators.len() != 1usize << expected.len()
+            || crate::pow2::checked_pow2(expected.len())
+                .is_none_or(|configs| m.numerators.len() != configs)
             || m.numerators.iter().any(|k| *k > CHAIN_WITNESS_SCALE)
             || m.parents.iter().any(|p| !order.contains(p))
         {

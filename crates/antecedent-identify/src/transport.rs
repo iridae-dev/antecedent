@@ -8,7 +8,7 @@ use antecedent_core::{ResponseFunctional, TransportOutcome, TransportQuery, Vari
 use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
 use crate::selection_separation::{
-    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset,
+    for_each_admissible_subset, MutilatedSelection, SubsetSearchEnd,
 };
 use crate::{IdentificationError, PreparedAdmg};
 
@@ -20,7 +20,10 @@ fn standardizer_subset_budget() -> usize {
     let candidates = antecedent_core::TheoremScope::classical_sid()
         .computation_limits
         .max_standardizer_candidates;
-    1usize << candidates.min(usize::BITS - 1)
+    // A candidate count past the word width used to be clamped with `min(BITS - 1)`,
+    // which is `2^(BITS-1)`, not a wrapped shift. `checked_pow2` is that same value.
+    crate::pow2::checked_pow2(usize::try_from(candidates).unwrap_or(usize::MAX))
+        .unwrap_or(1usize << (usize::BITS - 1))
 }
 
 /// Population-labelled symbolic distribution required by a transport formula.
@@ -917,11 +920,9 @@ mod tests {
         };
         match formula {
             TransportFormula::RecursiveFactorization { factors, .. } => {
-                assert!(
-                    factors
-                        .iter()
-                        .all(|f| f.population.as_ref() == "target" && f.interventions.is_empty())
-                );
+                assert!(factors
+                    .iter()
+                    .all(|f| f.population.as_ref() == "target" && f.interventions.is_empty()));
             }
             other => panic!("expected observational target factorization, got {other:?}"),
         }

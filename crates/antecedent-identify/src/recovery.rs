@@ -93,8 +93,8 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
 
 use crate::sid::{
-    ClassicalTransportQuery, ClassicalTransportResult, SearchCharge, SharedSearch,
-    identify_classical_transport_metered,
+    identify_classical_transport_metered, ClassicalTransportQuery, ClassicalTransportResult,
+    SearchCharge, SharedSearch,
 };
 
 /// Most partially observed variables one query may declare.
@@ -1039,7 +1039,7 @@ pub fn decide_observation_recovery(
     let observed = observed_distribution(&query, catalog)?;
     charge(&mut search, at, 1, base)?;
     if let Some(&(x, r)) = violations.first() {
-        let witness = self_censoring_witness(&m, x, r);
+        let witness = self_censoring_witness(&m, x, r)?;
         return nonrecoverable(&m, witness, &mut search, at.with(Stage::Witness), base);
     }
     let formula = at.with(Stage::Formula);
@@ -1397,7 +1397,11 @@ fn check_formula(
 /// The closed-form self-censoring witness for `x -> r`: every mechanism a fair
 /// coin except `x` and `r`, which differ between the two models while
 /// `P(r = 1, x)` is equal.
-fn self_censoring_witness(m: &MGraph<'_>, x: VariableId, r: VariableId) -> RecoveryWitness {
+fn self_censoring_witness(
+    m: &MGraph<'_>,
+    x: VariableId,
+    r: VariableId,
+) -> Result<RecoveryWitness, RecoveryError> {
     let half = WITNESS_SCALE / 2;
     let mut first = Vec::new();
     let mut second = Vec::new();
@@ -1407,13 +1411,22 @@ fn self_censoring_witness(m: &MGraph<'_>, x: VariableId, r: VariableId) -> Recov
         }
         let parents =
             m.graph.parents(m.dense[v]).iter().map(|p| var(m.graph, *p)).collect::<Vec<_>>();
-        let configs = 1usize << parents.len();
+        let configs = crate::pow2::checked_pow2(parents.len()).ok_or_else(|| {
+            refuse(
+                RecoveryDetail::BoundsExceeded,
+                "a witness mechanism has too many parents to enumerate",
+            )
+        })?;
         let at = parents.iter().position(|p| *p == x);
         let table = |x1: u32, x0: u32| -> Vec<u32> {
             (0..configs)
                 .map(|c| {
                     let bit = at.map(|i| (c >> (parents.len() - 1 - i)) & 1);
-                    if bit == Some(1) { x1 } else { x0 }
+                    if bit == Some(1) {
+                        x1
+                    } else {
+                        x0
+                    }
                 })
                 .collect()
         };
@@ -1428,7 +1441,7 @@ fn self_censoring_witness(m: &MGraph<'_>, x: VariableId, r: VariableId) -> Recov
         first.push(WitnessMechanism { node: v.raw(), parents: raw.clone(), numerators: a });
         second.push(WitnessMechanism { node: v.raw(), parents: raw, numerators: b });
     }
-    RecoveryWitness { edge: (x.raw(), r.raw()), first, second }
+    Ok(RecoveryWitness { edge: (x.raw(), r.raw()), first, second })
 }
 
 /// Verify a witness against an m-graph by exact enumeration: both models are
@@ -1497,7 +1510,9 @@ fn verify_witness_charged(
                     "a mechanism's parents are not the node's graph parents (not Markov to the m-graph)",
                 ));
             }
-            if mechanism.numerators.len() != 1 << graph_parents.len() {
+            if crate::pow2::checked_pow2(graph_parents.len())
+                .is_none_or(|configs| mechanism.numerators.len() != configs)
+            {
                 return Err(bad("a mechanism must give one probability per parent configuration"));
             }
             if mechanism.numerators.iter().any(|k| *k == 0 || *k >= WITNESS_SCALE) {
@@ -1549,7 +1564,11 @@ fn verify_witness_charged(
                     Role::Partial(_) => continue,
                     Role::Proxy(i) => {
                         let p = &pairs[*i];
-                        if value(p.1) == 1 { value(p.0) } else { 2 }
+                        if value(p.1) == 1 {
+                            value(p.0)
+                        } else {
+                            2
+                        }
                     }
                     Role::Response(_) | Role::Full => value(*v),
                 });
@@ -2028,7 +2047,7 @@ mod tests {
         let canonical = q.canonical();
         let m = resolve_roles(&g, &canonical).unwrap();
         let ctx = ExecutionContext::for_tests(1);
-        let witness = self_censoring_witness(&m, v(0), v(1));
+        let witness = self_censoring_witness(&m, v(0), v(1)).unwrap();
         let mut search =
             SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
         assert!(matches!(

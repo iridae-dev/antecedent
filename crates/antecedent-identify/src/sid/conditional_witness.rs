@@ -38,7 +38,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional::{
-    ConditionalTransportQuery, dense_variables, invalid_derivation, validate,
+    dense_variables, invalid_derivation, validate, ConditionalTransportQuery,
 };
 use crate::IdentificationError;
 use antecedent_core::ExecutionContext;
@@ -269,9 +269,13 @@ impl Shape {
     }
 
     /// Rows of node `j`'s mechanism under latent cardinalities `cards`.
-    fn rows(&self, j: usize, cards: &[usize]) -> usize {
-        (1usize << self.parents[j].len())
-            * self.incident[j].iter().map(|e| cards[*e]).product::<usize>()
+    ///
+    /// `None` when the parent-set power of two does not fit in `usize`. Under the
+    /// observed-node cap that exponent is at most five, and the value is the same
+    /// shift the length check used to make.
+    fn rows(&self, j: usize, cards: &[usize]) -> Option<usize> {
+        let parents = crate::pow2::checked_pow2(self.parents[j].len())?;
+        Some(parents * self.incident[j].iter().map(|e| cards[*e]).product::<usize>())
     }
 
     /// Row of node `j` in `world` (observed bits) and latent configuration `u`.
@@ -288,7 +292,15 @@ impl Shape {
 
     /// Enumeration work of one model with these latent cardinalities.
     fn work(&self, cards: &[usize]) -> u64 {
-        let cells = (1u64 << (2 * self.n)) + (1u64 << self.n);
+        // `1 << (2n)` overflows once `n >= 32`. The public routes cap `n` at
+        // [`super::conditional::ADMG_CONDITIONAL_MAX_OBSERVED`] before this runs, so an
+        // in-cap diagram gets the same cell count; a larger one is over every work bound.
+        let Some(cells) = crate::pow2::checked_pow2_u64(self.n.saturating_mul(2))
+            .zip(crate::pow2::checked_pow2_u64(self.n))
+            .map(|(wide, narrow)| wide.saturating_add(narrow))
+        else {
+            return u64::MAX;
+        };
         let configs = cards.iter().map(|c| *c as u64).fold(1u64, u64::saturating_mul);
         cells.saturating_mul(configs).saturating_mul(self.n.max(1) as u64)
     }
@@ -360,7 +372,7 @@ fn parse_model(shape: &Shape, record: &WitnessModelRecord) -> Result<Model, Iden
         if record.node != shape.ids[j] || record.parents != parents || record.latents != incident {
             return Err(rejected("a mechanism is not over its node's graph parents and latents"));
         }
-        if record.ones.len() != shape.rows(j, &cards) {
+        if Some(record.ones.len()) != shape.rows(j, &cards) {
             return Err(rejected("a mechanism has the wrong number of rows"));
         }
         record
@@ -429,7 +441,7 @@ impl Integral {
             codes.push(u.clone());
             next_config(&mut u, cards);
         }
-        let worlds = 1usize << shape.n;
+        let worlds = crate::pow2::checked_pow2(shape.n)?;
         let table = |kernels: &[Vec<Q>]| -> Option<Vec<(i128, Vec<i128>)>> {
             (0..shape.n)
                 .map(|j| {
@@ -516,7 +528,7 @@ fn level(
 /// still refused rather than divided).
 fn query_value(shape: &Shape, model: &Integral, at: &Level) -> Option<Q> {
     let (mut num, mut den) = (Q::ZERO, Q::ZERO);
-    for world in 0..(1usize << shape.n) {
+    for world in 0..crate::pow2::checked_pow2(shape.n)? {
         if world & at.x_mask != at.x_bits || world & at.w_mask != at.w_bits {
             continue;
         }
@@ -526,7 +538,11 @@ fn query_value(shape: &Shape, model: &Integral, at: &Level) -> Option<Q> {
             num = num.add(p)?;
         }
     }
-    if den.n == 0 { None } else { num.div(den) }
+    if den.n == 0 {
+        None
+    } else {
+        num.div(den)
+    }
 }
 
 /// The two query values a shape-checked witness gives, after checking that the
@@ -541,7 +557,7 @@ fn evaluate(
     let first = Integral::new(shape, &parse_model(shape, &record.first)?).ok_or_else(overflow)?;
     let second = Integral::new(shape, &parse_model(shape, &record.second)?).ok_or_else(overflow)?;
     let mut compared = 0usize;
-    let full = 1usize << shape.n;
+    let full = crate::pow2::checked_pow2(shape.n).ok_or_else(overflow)?;
     for mask in 0..=full {
         if ctx.cancellation.is_cancelled() {
             return Err(IdentificationError::Cancelled);
@@ -612,14 +628,26 @@ const fn fp_mul(a: u64, b: u64) -> u64 {
     let x = a as u128 * b as u128;
     let folded = (x as u64 & P) + (x >> 61) as u64;
     let once = if folded >= P { folded - P } else { folded };
-    if once >= P { once - P } else { once }
+    if once >= P {
+        once - P
+    } else {
+        once
+    }
 }
 const fn fp_add(a: u64, b: u64) -> u64 {
     let s = a + b;
-    if s >= P { s - P } else { s }
+    if s >= P {
+        s - P
+    } else {
+        s
+    }
 }
 const fn fp_sub(a: u64, b: u64) -> u64 {
-    if a >= b { a - b } else { a + P - b }
+    if a >= b {
+        a - b
+    } else {
+        a + P - b
+    }
 }
 fn fp_pow(mut a: u64, mut e: u64) -> u64 {
     let mut r = 1;
@@ -660,34 +688,29 @@ fn reconstruct(a: u64) -> Option<Q> {
     (fp_of(q)? == a).then_some(q)
 }
 
-/// Deterministic generator (splitmix64).
-struct Rng(u64);
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-    fn small(&mut self, n: u64) -> i128 {
-        i128::from(1 + self.next() % n)
-    }
+/// SplitMix64 starting at `state`, the same step as [`antecedent_core::CausalRng`].
+fn witness_rng(state: u64) -> antecedent_core::CausalRng {
+    antecedent_core::CausalRng::from_state(state)
+}
+
+fn small(rng: &mut antecedent_core::CausalRng, n: u64) -> i128 {
+    i128::from(1 + rng.next_u64() % n)
 }
 
 /// A seeded strictly positive base model: latent weights in `1..=4`
 /// normalized, mechanism probabilities in `{1/9, ..., 8/9}`.
 fn base_model(shape: &Shape, levels: usize, seed: u64) -> Option<Model> {
-    let mut rng = Rng(0xB1C0_2D17 ^ seed.wrapping_mul(0x1000_0000_01B3) ^ levels as u64);
+    let mut rng = witness_rng(0xB1C0_2D17 ^ seed.wrapping_mul(0x1000_0000_01B3) ^ levels as u64);
     let cards = vec![levels; shape.edges.len()];
     let mut latents = Vec::with_capacity(cards.len());
     for _ in &shape.edges {
-        let weights: Vec<i128> = (0..levels).map(|_| rng.small(4)).collect();
+        let weights: Vec<i128> = (0..levels).map(|_| small(&mut rng, 4)).collect();
         let total: i128 = weights.iter().sum();
         latents.push(weights.iter().map(|w| Q::new(*w, total)).collect::<Option<Vec<_>>>()?);
     }
     let mut kernel = |j: usize| {
-        (0..shape.rows(j, &cards)).map(|_| Q::new(rng.small(8), 9)).collect::<Option<Vec<_>>>()
+        let rows = shape.rows(j, &cards)?;
+        (0..rows).map(|_| Q::new(small(&mut rng, 8), 9)).collect::<Option<Vec<_>>>()
     };
     let source = (0..shape.n).map(&mut kernel).collect::<Option<Vec<_>>>()?;
     let mut target = source.clone();
@@ -712,17 +735,20 @@ enum Block {
 }
 
 /// Columns of a block: `(population is target, mechanism row)`.
-fn block_columns(shape: &Shape, model: &Model, block: Block) -> Vec<(bool, usize)> {
+fn block_columns(shape: &Shape, model: &Model, block: Block) -> Option<Vec<(bool, usize)>> {
     match block {
         Block::Kernel(j) => {
-            let rows = shape.rows(j, &model.cards);
+            let rows = shape.rows(j, &model.cards)?;
             let mut columns: Vec<(bool, usize)> = (0..rows).map(|r| (false, r)).collect();
             if shape.selected[j] {
                 columns.extend((0..rows).map(|r| (true, r)));
             }
-            columns
+            Some(columns)
         }
-        Block::Target(j) => (0..shape.rows(j, &model.cards)).map(|r| (true, r)).collect(),
+        Block::Target(j) => {
+            let rows = shape.rows(j, &model.cards)?;
+            Some((0..rows).map(|r| (true, r)).collect())
+        }
     }
 }
 
@@ -747,12 +773,12 @@ fn mod_model(model: &Model) -> Option<ModModel> {
 }
 
 /// Every supplied law cell as `(target population, intervened mask, world)`.
-fn law_cells(n: usize) -> Vec<(bool, usize, usize)> {
-    let full = 1usize << n;
+fn law_cells(n: usize) -> Option<Vec<(bool, usize, usize)>> {
+    let full = crate::pow2::checked_pow2(n)?;
     let mut cells: Vec<(bool, usize, usize)> =
         (0..full).flat_map(|mask| (0..full).map(move |world| (false, mask, world))).collect();
     cells.extend((0..full).map(|world| (true, 0, world)));
-    cells
+    Some(cells)
 }
 
 /// A base model's factors modulo `P`, tabulated once per base model: for every
@@ -771,7 +797,7 @@ struct Tables {
 }
 
 impl Tables {
-    fn new(shape: &Shape, cards: &[usize], m: &ModModel) -> Self {
+    fn new(shape: &Shape, cards: &[usize], m: &ModModel) -> Option<Self> {
         let configs: usize = cards.iter().product();
         let mut level = vec![vec![0usize; configs]; cards.len()];
         let mut u = vec![0usize; cards.len()];
@@ -781,7 +807,7 @@ impl Tables {
             }
             next_config(&mut u, cards);
         }
-        let worlds = 1usize << shape.n;
+        let worlds = crate::pow2::checked_pow2(shape.n)?;
         let mut row = vec![vec![0usize; worlds * configs]; shape.n];
         let mut source = vec![vec![0u64; worlds * configs]; shape.n];
         let mut target = vec![vec![0u64; worlds * configs]; shape.n];
@@ -802,7 +828,7 @@ impl Tables {
                 }
             }
         }
-        Self { configs, level, row, source, target, latents: m.latents.clone() }
+        Some(Self { configs, level, row, source, target, latents: m.latents.clone() })
     }
 
     /// Latent mass of every configuration.
@@ -848,7 +874,10 @@ fn jacobian(
 ) -> Vec<Vec<u64>> {
     let mut out = vec![vec![0u64; columns.len()]; cells.len()];
     let (block_node, rows) = match block {
-        Block::Kernel(j) => (j, shape.rows(j, cards)),
+        Block::Kernel(j) => match shape.rows(j, cards) {
+            Some(rows) => (j, rows),
+            None => return Vec::new(),
+        },
         Block::Target(j) => (j, 0),
     };
     let latent = t.latent_mass();
@@ -1007,7 +1036,7 @@ fn model_record(shape: &Shape, model: &Model) -> WitnessModelRecord {
 /// law cell, and every query cell, by every column).
 fn attempt_bytes(shape: &Shape, configs: usize, law_cells: usize, columns: usize) -> u64 {
     let word = std::mem::size_of::<u64>() as u64;
-    let worlds = 1u64 << shape.n;
+    let worlds = crate::pow2::checked_pow2_u64(shape.n).unwrap_or(u64::MAX);
     let tables =
         3u64.saturating_mul(shape.n as u64).saturating_mul(worlds).saturating_mul(configs as u64);
     let jacobians = (law_cells as u64).saturating_add(worlds).saturating_mul(columns as u64);
@@ -1037,13 +1066,16 @@ pub fn search_conditional_witness(
     validate(diagram, query)?;
     let shape = Shape::new(diagram)?;
     let levels = QueryLevels::new(&shape, query)?;
-    let cells = law_cells(shape.n);
+    let cells =
+        law_cells(shape.n).ok_or_else(|| rejected("witness exceeds the enumeration bound"))?;
     let target_cells: Vec<(bool, usize, usize)> =
         cells.iter().copied().filter(|(target, _, _)| *target).collect();
     // The target law under do(x): every world, from which each level's
     // numerator and denominator are sums.
+    let query_worlds = crate::pow2::checked_pow2(shape.n)
+        .ok_or_else(|| rejected("witness exceeds the enumeration bound"))?;
     let query_cells: Vec<(bool, usize, usize)> =
-        (0..1usize << shape.n).map(|world| (true, levels.x_mask, world)).collect();
+        (0..query_worlds).map(|world| (true, levels.x_mask, world)).collect();
     let mut attempted = false;
     // Order measured on the three- and four-node classes: three latent levels
     // succeed more often than five or two, and target-only mechanisms are the
@@ -1061,14 +1093,14 @@ pub fn search_conditional_witness(
                 .collect();
             let Some(base) = base_model(&shape, cardinality, seed) else { continue };
             let Some(base_mod) = mod_model(&base) else { continue };
-            let tables = Tables::new(&shape, &base.cards, &base_mod);
+            let Some(tables) = Tables::new(&shape, &base.cards, &base_mod) else { continue };
             let latent = tables.latent_mass();
             let q0: Vec<u64> = query_cells
                 .iter()
                 .map(|&(t, mask, world)| tables.cell(shape.n, t, mask, world, &latent))
                 .collect();
             for block in blocks {
-                let columns = block_columns(&shape, &base, block);
+                let Some(columns) = block_columns(&shape, &base, block) else { continue };
                 let bytes = attempt_bytes(&shape, tables.configs, cells.len(), columns.len());
                 // One charge for the block's linear algebra (its Jacobians and
                 // null space) ...
@@ -1184,11 +1216,16 @@ impl QueryLevels {
     /// `q0` is under the same intervened mask, so each treatment level selects
     /// its own worlds.
     fn first_moved(&self, q0: &[u64], q1: &[u64]) -> Option<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-        for xc in 0..(1usize << self.x.len()) {
+        let (x_n, w_n, y_n) = (
+            crate::pow2::checked_pow2(self.x.len())?,
+            crate::pow2::checked_pow2(self.w.len())?,
+            crate::pow2::checked_pow2(self.y.len())?,
+        );
+        for xc in 0..x_n {
             let (x_bits, x_levels) = Self::bits(&self.x, xc);
-            for wc in 0..(1usize << self.w.len()) {
+            for wc in 0..w_n {
                 let (w_bits, w_levels) = Self::bits(&self.w, wc);
-                for yc in 0..(1usize << self.y.len()) {
+                for yc in 0..y_n {
                     let (y_bits, y_levels) = Self::bits(&self.y, yc);
                     let (mut n0, mut d0, mut n1, mut d1) = (0u64, 0u64, 0u64, 0u64);
                     for (world, (a, b)) in q0.iter().zip(q1).enumerate() {
