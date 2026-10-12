@@ -779,7 +779,6 @@ pub fn pinned_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     let mut cols = vec![vec![0.0; n]; names.len()];
     let [t, y, z, m, v] = [0, 1, 2, 3, 4];
     for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
         let x = i as f64;
         cols[z][i] = (0.37 * x).sin() + 0.5 * (1.3 * x).cos();
         cols[t][i] = 0.6 * cols[z][i] + 0.8 * (0.23 * x + 0.4).sin();

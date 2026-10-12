@@ -293,7 +293,6 @@ fn class_aware_identified_set_interval_survives_the_result_artifact() {
         state ^= state << 13;
         state ^= state >> 7;
         state ^= state << 17;
-        #[allow(clippy::cast_precision_loss)]
         let u = (state >> 11) as f64 / (1u64 << 53) as f64;
         u - 0.5
     };

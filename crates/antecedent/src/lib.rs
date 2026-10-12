@@ -205,7 +205,6 @@ pub use support::{
 // `antecedent::identify`, `antecedent::review`, `antecedent::validate`, `antecedent::planner`.
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use std::sync::Arc;
 

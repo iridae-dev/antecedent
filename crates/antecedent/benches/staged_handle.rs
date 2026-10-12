@@ -1,4 +1,3 @@
-#![allow(clippy::semicolon_if_nothing_returned)]
 //! Prepared derivative and counterfactual execution costs.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(missing_docs)]

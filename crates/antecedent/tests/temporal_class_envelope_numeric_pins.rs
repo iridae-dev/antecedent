@@ -609,7 +609,6 @@ fn identified_pag_pin() -> serde_json::Value {
 
 /// Deterministic series of `identified_pag.json` (`law`), rebuilt exactly by
 /// `identified_pag_reference.py`.
-#[allow(clippy::many_single_char_names)]
 fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
     let names: Vec<&str> =

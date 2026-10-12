@@ -26,7 +26,6 @@ fn dbn_series(n: usize, seed: u64) -> TimeSeriesData {
     let mut state = seed;
     for t in 0..n {
         state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        #[allow(clippy::cast_precision_loss)]
         let u = (state >> 33) as f64 / (1u64 << 31) as f64;
         pressure[t] = u * 2.0 - 1.0;
         if t > 0 {

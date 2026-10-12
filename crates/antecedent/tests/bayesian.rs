@@ -564,7 +564,6 @@ impl SplitMix64 {
     fn next_f64(&mut self) -> f64 {
         // 53 bits of mantissa precision, then shifted into (0, 1].
         let bits = self.next_u64() >> 11;
-        #[allow(clippy::cast_precision_loss)]
         let v = (bits as f64) / (1u64 << 53) as f64;
         1.0 - v
     }

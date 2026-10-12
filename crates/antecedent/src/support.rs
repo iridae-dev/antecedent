@@ -1969,7 +1969,6 @@ mod tests {
 
     /// End-to-end: `Study::build` accepts the licensed Frequentist graph-posterior ATE cell.
     #[test]
-    #[allow(clippy::many_single_char_names)]
     fn build_accepts_graph_posterior_under_frequentist() {
         use antecedent_core::{
             CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
@@ -2044,7 +2043,6 @@ mod tests {
     /// End-to-end class-aware static case: `Study::build` accepts a `ConditionalEffect`
     /// query on a supplied Cpdag once the cell is licensed.
     #[test]
-    #[allow(clippy::many_single_char_names)]
     fn build_accepts_conditional_effect_on_cpdag() {
         use antecedent_core::{
             AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,

@@ -659,7 +659,6 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
 /// whose `[0, 1]` levels match the structural sample-covariate levels and
 /// whose contrast matches both the structural slope and the `AverageEffect`
 /// cell on the same PAG and table.
-#[allow(clippy::many_single_char_names)]
 #[test]
 fn pag_identified_envelope_response_curve_pins_structural_contrast() {
     use antecedent_core::{

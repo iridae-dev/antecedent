@@ -980,7 +980,6 @@ fn class_response_posterior_not_mixed_fires_only_when_uncertainty_is_dropped() {
 
 /// `t`, `y`, `z1`, `z2` with `Y = 1 + 2T + 1.5·Z1 + 0.5·Z2 + e` and `T` driven
 /// by both covariates; `valid[k](i)` marks `z{k+1}` observed at row `i`.
-#[allow(clippy::many_single_char_names)]
 fn two_covariate_response_data(n: usize, valid: [&dyn Fn(usize) -> bool; 2]) -> TabularData {
     use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet};
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};

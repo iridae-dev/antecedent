@@ -544,7 +544,6 @@ fn accepted_counterfactual_matches_explicit_bayesian() {
 /// Known-truth pins for all six Bayesian derivative functionals on explicit and
 /// accepted DAGs (`conformance/response/staged_derivatives`): each asserts the
 /// point value and that the published credible interval brackets the truth.
-#[allow(clippy::many_single_char_names)]
 #[test]
 fn derivative_bayesian_pins() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(

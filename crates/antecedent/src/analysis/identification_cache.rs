@@ -311,7 +311,6 @@ fn collect_graph_posterior_atoms<A>(
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
         let mask = posterior.adjacency[i];
@@ -695,7 +694,6 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
         let key = dbn_envelope_key(i)?;
@@ -834,7 +832,6 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
         let key = dbn_envelope_key(i)?;
@@ -957,7 +954,6 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
         let key = dbn_envelope_key(i)?;
@@ -1057,7 +1053,6 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
         if ctx.cancellation.is_cancelled() {
