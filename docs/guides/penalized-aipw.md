@@ -174,7 +174,7 @@ otherwise no SE). A replicate that cannot be fit (a fold missing an arm, a faile
 boundary propensity) is counted as failed, never replaced; a cancelled run is reported as a
 stop (`bootstrap_cancelled`) and publishes no SE from the partial run.
 
-What is recorded beside the scalar (`EffectEstimate::penalized`, Python
+What is recorded beside the scalar (`EffectEstimate.diagnostics.penalized`, Python
 `estimate.penalized_bootstrap`): the replicates requested, successful and failed; the penalty
 every successful replicate selected on each of its folds, in replicate order (so the record
 replays from the seed under any thread count); and the cross-fitted influence-function SE for

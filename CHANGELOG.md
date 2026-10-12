@@ -36,6 +36,21 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
   - `estimate_sustained_window[_with_validation]`, `estimate_sequence_overlays`, `estimate_sequence_mechanisms`, `SequentialContrastDesign::prepare` and `prepare_sequence_level` take a `SequentialProblem`, `SequenceTarget` and `SequentialInference`.
   - `TemporalResponseEstimator::estimate_bayesian` and `estimate_observed_temporal_response` take a `TemporalIdentification`; `TemporalLinearAdjustment::prepare_with_extras` takes `TemporalDesignInputs`; `temporal_linear_slopes` takes a `TemporalSlopeSpec`; `TemporalMediationEstimator::estimate_with_block_bootstrap` takes a `BlockBootstrap`.
   - `transport_augmented_response_grid` takes `ResponseGridInputs`; `trial_to_target_bayesian_bootstrap` takes a `DrawSpec`; `evaluate_statistical_transport_grid_with_evaluated_point_laws` takes `EvaluatedPointLaws`.
+- `antecedent_estimate::EffectEstimate` is the scalar `ate` plus nine named groups in place of 46 flat fields, so the `struct_excessive_bools` allow is gone. The type stays `#[non_exhaustive]`; `new`, `from_parts` and the `with_*` builders are unchanged, and `se_analytic()` and `se_bootstrap()` read the two standard errors. The groups live in the new `effect_estimate` module and are re-exported at the crate root. Numerics, wire bytes, digests and Python attribute names are unchanged. Old field to new path (`e` is an `EffectEstimate`):
+
+  | Old field | New path |
+  | --- | --- |
+  | `se_analytic`, `se_kind`, `se_reference_df` | `e.uncertainty.analytic.{se, kind, reference_df}` |
+  | `se_bootstrap`, `bootstrap_replicates_ok`, `bootstrap_replicates_failed`, `bootstrap_cancelled`, `bootstrap_early_stopped` | `e.uncertainty.bootstrap.{se, replicates_ok, replicates_failed, cancelled, early_stopped}` |
+  | `block_resampling`, `block_family` | `e.uncertainty.block.{resampling, family}` |
+  | `assumptions`, `overlap`, `n_obs`, `retained_memory_bytes` | `e.provenance.{assumptions, overlap, n_obs, retained_memory_bytes}` |
+  | `overlap_report`, `first_stage_diagnostics`, `evalue`, `evalue_threshold`, `penalized` | `e.diagnostics.{overlap_report, first_stage, evalue, evalue_threshold, penalized}` |
+  | `crossfit_folds`, `crossfit_seed`, `learner_provenance`, `outcome_oof_r2`, `treatment_oof_logloss` | `e.crossfit.{folds, seed, learner_provenance, outcome_oof_r2, treatment_oof_logloss}` |
+  | `score_table`, `score_inference`, `influence` | `e.scores.{table, inference, influence}` |
+  | `simultaneous_interval`, `adjusted_p_values`, `family_contrast`, `family_contrast_interval`, `candidate_selection` | `e.family.{simultaneous_interval, adjusted_p_values, contrast, contrast_interval, candidate_selection}` |
+  | `scenario_effects`, `scenario_intervals` | `e.scenarios.{effects, intervals}` |
+  | `joint_covariance`, `exceedance_cdf`, `monotone_rearranged`, `interaction_structurally_zero` | `e.joint.{covariance, exceedance_cdf, monotone_rearranged, interaction_structurally_zero}` |
+  | `cate`, `fitted_effect`, `cate_se`, `cate_leaf_dispersion`, `unit_effects_homogeneous` | `e.heterogeneity.{cate, fitted_effect, cate_se, cate_leaf_dispersion, unit_effects_homogeneous}` |
 - A `Study` copy no longer deep-copies its configuration or caches. Build-time declarations live in one shared `StudyConfig`, the graph and estimator specification are held behind an `Arc`, and the checked operations, class envelopes and per-horizon certificates share their prepare-time identification caches by reference, so a click, a graph-posterior atom and a sealed handle each cost a reference-count bump. The prepared handle and every checked operation hold the compiled `PhysicalExecutionPlan` behind an `Arc`; `Study::execute` keeps its `&PhysicalExecutionPlan` signature. Results are unchanged. `Study` and `StudyBuilder` now derive `Debug`, so their `Debug` text differs, `dyn CustomEffectValidator` and `dyn StageResultSink` implement `Debug`, and `Study` dereferences to a hidden `StudyConfig`.
 
 ## 2.3.0
