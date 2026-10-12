@@ -21,6 +21,6 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-estimate/src/identified_set.rs",
+ "crates/antecedent-stats/src/identified_set.rs",
  "crates/antecedent/src/result.rs (StructuralResponseMixture identified-set interval)",
 ]

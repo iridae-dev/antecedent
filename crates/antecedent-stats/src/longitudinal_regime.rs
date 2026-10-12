@@ -44,7 +44,7 @@ pub fn ipw_pointwise_interval_95(
     {
         return None;
     }
-    let span = antecedent_stats::NORMAL_Q975 * se;
+    let span = crate::NORMAL_Q975 * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|value| value.is_finite()).then_some(bounds)
 }
@@ -247,7 +247,7 @@ pub fn sequential_dr_pointwise_interval_95(
     if !se.is_finite() || se <= 0.0 {
         return None;
     }
-    let span = antecedent_stats::NORMAL_Q975 * se;
+    let span = crate::NORMAL_Q975 * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
 }
@@ -353,7 +353,7 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
     if !se.is_finite() || se <= 0.0 {
         return None;
     }
-    let span = antecedent_stats::NORMAL_Q975 * se;
+    let span = crate::NORMAL_Q975 * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
 }
@@ -475,14 +475,21 @@ mod tests {
             reason = "tests assert exact deterministic estimates and coverage arithmetic"
         )
     )]
+    use antecedent_core::splitmix64;
+
     use super::*;
+
+    /// A uniform draw in `[0, 1)` from the next `SplitMix64` output.
+    fn splitmix64_unit(state: &mut u64) -> f64 {
+        (splitmix64(state) >> 11) as f64 / (1_u64 << 53) as f64
+    }
 
     #[test]
     fn three_period_sequential_dr_interval_covers_randomized_truth() {
         let n = 800;
         let simulations = 2_000;
         let mut state = 0x87A4_12CD_95EF_3B60_u64;
-        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
+        let mut uniform = || splitmix64_unit(&mut state);
         let actions = vec![true; n * 3];
         let q = (0..n).flat_map(|_| [4.4, 4.7, 5.1]).collect::<Vec<_>>();
         let p = vec![0.5; n * 3];
@@ -534,7 +541,7 @@ mod tests {
         let simulations = 2_000;
         let truth = 5.0;
         let mut state = 0xA83D_91E4_57C0_2FB6_u64;
-        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
+        let mut uniform = || splitmix64_unit(&mut state);
         let actions = vec![true; n * 3];
         let p = vec![0.5; n * 3];
         let c = vec![0.95; n * 3];
@@ -604,7 +611,7 @@ mod tests {
         let n = 300;
         let simulations = 2_000;
         let mut state = 0xD73A_94E1_2B6C_850F_u64;
-        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
+        let mut uniform = || splitmix64_unit(&mut state);
         let actions = vec![true; n * 2];
         let q = (0..n).flat_map(|_| [3.5, 4.2]).collect::<Vec<_>>();
         let p = vec![0.5; n * 2];
@@ -649,10 +656,8 @@ mod tests {
                 / (n * (n - 1)) as f64)
                 .sqrt();
             assert!(se.is_finite() && se > 0.0);
-            covered_90 +=
-                usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
-            covered_95 +=
-                usize::from((summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se);
+            covered_90 += usize::from((summary.value - 4.0).abs() <= crate::normal_ppf(0.95) * se);
+            covered_95 += usize::from((summary.value - 4.0).abs() <= crate::NORMAL_Q975 * se);
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
             let coverage = hits as f64 / f64::from(simulations);
@@ -676,7 +681,7 @@ mod tests {
         let simulations = 2_000;
         let truth = 4.0;
         let mut state = 0x149C_6F82_D30A_5BE7_u64;
-        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
+        let mut uniform = || splitmix64_unit(&mut state);
         let actions = vec![true; n * 2];
         let p = vec![0.4; n * 2];
         let c = vec![0.85; n * 2];
@@ -733,10 +738,8 @@ mod tests {
                 / (n * (n - 1)) as f64)
                 .sqrt();
             assert!(se.is_finite() && se > 0.0);
-            covered_90 +=
-                usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
-            covered_95 +=
-                usize::from((summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se);
+            covered_90 += usize::from((summary.value - 4.0).abs() <= crate::normal_ppf(0.95) * se);
+            covered_95 += usize::from((summary.value - 4.0).abs() <= crate::NORMAL_Q975 * se);
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
             let coverage = hits as f64 / f64::from(simulations);
@@ -762,7 +765,7 @@ mod tests {
         let n = 500;
         let simulations = 2_000;
         let mut state = 0x72B4_07D1_9C38_EF65_u64;
-        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
+        let mut uniform = || splitmix64_unit(&mut state);
         let actions = vec![true; n * 2];
         let treatment_probabilities = vec![0.5; n * 2];
         let censoring_probabilities = vec![0.9; n * 2];
@@ -814,7 +817,7 @@ mod tests {
         let simulations = 2_000;
         let truth = 5.0;
         let mut state = 0x51ED_270B_C7A9_D341_u64;
-        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
+        let mut uniform = || splitmix64_unit(&mut state);
         let actions = vec![true; subjects * 2];
         let treatment_probabilities = vec![0.5; subjects * 2];
         let censoring_probabilities = vec![0.9; subjects * 2];

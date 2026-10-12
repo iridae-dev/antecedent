@@ -55,7 +55,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::norm_cdf;
-use antecedent_stats::normal_ppf as norm_inv;
+
+use crate::normal_ppf as norm_inv;
 
 /// How an [`IdentifiedSetInterval`] was computed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,7 +140,7 @@ fn selection_threshold(rows: usize) -> f64 {
 
 /// Sample standard deviation of an iterator of draws (`NaN` below two draws).
 fn sample_sd(values: impl Iterator<Item = f64>) -> f64 {
-    antecedent_stats::sample_std(&values.collect::<Vec<_>>())
+    crate::sample_std(&values.collect::<Vec<_>>())
 }
 
 /// IM critical value: solve `Φ(c + r) − Φ(−c) = level` for `c ≥ 0` with
@@ -356,7 +357,7 @@ impl Selection {
 fn quantile(values: &[f64], p: f64) -> f64 {
     let mut sorted: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
     sorted.sort_by(f64::total_cmp);
-    antecedent_stats::quantile_sorted(&sorted, p, antecedent_stats::QuantileRule::ExchangeableRank)
+    crate::quantile_sorted(&sorted, p, crate::QuantileRule::ExchangeableRank)
 }
 
 #[cfg(test)]

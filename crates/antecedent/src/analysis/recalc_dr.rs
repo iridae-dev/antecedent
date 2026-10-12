@@ -369,9 +369,9 @@ impl DrSession {
                 return Err(RecalcRunError::Request("recalc.dr_prediction_out_of_support"));
             }
         }
-        model
-            .predict(features, columns, nrows, ctx)
-            .map_err(|e| RecalcRunError::Execution(e.into()))
+        model.predict(features, columns, nrows, ctx).map_err(|e| {
+            RecalcRunError::Execution(antecedent_estimate::EstimationError::from(e).into())
+        })
     }
     /// Export frozen marginal scores for the existing independent score resume consumer.
     /// # Errors

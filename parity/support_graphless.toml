@@ -468,7 +468,7 @@ min_rows = 300
 min_reported_intervals = 1
 min_probability = 0.4
 requires_disjoint_nuisance_training = true
-known_truth_test = "crates/antecedent-estimate/src/longitudinal_regime.rs::subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth"
+known_truth_test = "crates/antecedent-stats/src/longitudinal_regime.rs::subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth"
 retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery"
 limitations = "Known sequential randomization over two periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 300 subjects, at least 200 observed outcomes, at least 50 subjects whose realized treatment matches the evaluated regime across both periods, per-period action probability at least 0.4, conditional censoring survival at least 0.85, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Longer histories, fitted-Q uncertainty, g-formula, and MSM intervals are not licensed by this row."
 
@@ -482,7 +482,7 @@ min_rows = 800
 min_reported_intervals = 1
 min_probability = 0.5
 requires_disjoint_nuisance_training = true
-known_truth_test = "crates/antecedent-estimate/src/longitudinal_regime.rs::three_period_excluded_fold_q_interval_covers_randomized_truth"
+known_truth_test = "crates/antecedent-stats/src/longitudinal_regime.rs::three_period_excluded_fold_q_interval_covers_randomized_truth"
 retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_horizon"
 limitations = "Known sequential randomization over three periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 800 subjects, at least 600 observed outcomes, at least 60 subjects whose realized treatment matches the evaluated regime across all three periods, per-period action probability at least 0.5, conditional censoring survival at least 0.95, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Four or more periods, fitted-Q uncertainty, g-formula, and MSM intervals are not licensed by this row."
 
@@ -547,7 +547,7 @@ assignment_unit = "unit"
 min_rows = 300
 min_reported_intervals = 1
 min_probability = 0.2
-known_truth_test = "crates/antecedent-estimate/src/longitudinal_regime.rs::fixed_known_q_g_formula_interval_covers_regime_truth"
+known_truth_test = "crates/antecedent-stats/src/longitudinal_regime.rs::fixed_known_q_g_formula_interval_covers_regime_truth"
 retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery"
 limitations = "Two-period g-formula value under known sequential randomization from a caller-declared fixed and known conditional period-reward (Q) law, with one outcome row per independent subject. Requires at least 300 subjects, per-period action probability at least 0.2, conditional censoring survival at least 0.8, a finite positive independent-subject score variance, and an actually published pointwise 95% normal interval. A 2,000-replication known-truth coverage test at 400 subjects confirms nominal coverage of the population regime value. The single normal interval is conditional on the declared fixed Q law and excludes all fitted-, selected-, or cross-fitted-Q uncertainty; the caller separately attests the law is fixed and known. Longer horizons, any fitted-Q uncertainty, the sequential doubly robust route, and MSM coefficient intervals are not licensed by this row."
 

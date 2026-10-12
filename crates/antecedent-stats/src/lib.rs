@@ -20,8 +20,10 @@ pub mod fit_counts;
 pub mod gam;
 pub mod glm;
 pub mod gram;
+pub mod identified_set;
 pub mod interference;
 pub mod linalg;
+pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
 pub mod observation;
@@ -87,6 +89,10 @@ pub use glm::{
 pub use gram::{
     accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd,
     column_is_constant, form_xtx, form_xty, invert_square,
+};
+pub use identified_set::{
+    IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
+    imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,

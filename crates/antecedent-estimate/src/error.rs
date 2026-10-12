@@ -363,6 +363,18 @@ impl From<EstimationError> for antecedent_io_core::IoError {
     }
 }
 
+impl From<antecedent_learn::FittedEffectError> for EstimationError {
+    fn from(error: antecedent_learn::FittedEffectError) -> Self {
+        use antecedent_learn::FittedEffectError;
+        match error {
+            FittedEffectError::InvalidArgument(message) => Self::data_msg(message),
+            FittedEffectError::Predictor(message) => Self::stats_msg(message),
+            // The enum is non-exhaustive; a future variant renders as its own text.
+            other => Self::stats_msg(other.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{EstimationError, RefusalFields};

@@ -48,7 +48,7 @@ pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
-pub mod identified_set;
+pub use antecedent_stats::identified_set;
 pub mod interference;
 pub mod interference_observational;
 pub mod interference_saturation;
@@ -125,10 +125,11 @@ pub mod joint_cell_factorized;
 pub mod learned_continuous;
 pub mod learned_joint_transport;
 pub mod learned_trial;
-pub mod longitudinal_regime;
+pub use antecedent_stats::longitudinal_regime;
 pub mod marginal_structural_model;
 pub mod matched_case_control;
 pub mod smoothed_dose;
+pub use antecedent_learn::{FittedEffect, FittedEffectError};
 pub use estimator_menu::{
     EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
     transport_estimator_menu_with,
@@ -152,8 +153,6 @@ pub use smoothed_dose::{
 };
 #[cfg(feature = "calibration-internal")]
 pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
-mod fitted_effect;
-pub use fitted_effect::FittedEffect;
 
 pub use admg_conditional_transport::{
     AdmgConditionalExactPlan, prepare_exact_admg_conditional_transport,
