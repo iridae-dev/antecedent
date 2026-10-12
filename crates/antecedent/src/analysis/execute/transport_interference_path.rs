@@ -139,73 +139,29 @@ impl super::Study {
             scope: antecedent_core::AssumptionScope::Estimation,
             status: antecedent_core::AssumptionStatus::Declared,
         });
+        let columns = TrialColumns {
+            outcomes: &outcomes,
+            treatment: &treatment_bool,
+            trial: &trial_bool,
+            selection: &selection,
+            propensity: &propensity,
+        };
         let (estimate, posterior, estimator_id, diagnostic) = match inference {
             InferenceMode::Bayesian(cfg) => {
-                refuse_transport_bayesian_priors(cfg)?;
-                let draws = trial_to_target_bayesian_bootstrap(
+                let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
+                    cfg,
                     transport_id,
-                    &outcomes,
-                    &treatment_bool,
-                    &trial_bool,
-                    &selection,
-                    &propensity,
-                    antecedent_estimate::DrawSpec::new(
-                        cfg.n_draws,
-                        ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
-                    ),
-                )
-                .map_err(CausalError::from)?;
-                assumptions.push(antecedent_core::AssumptionRecord {
-                    assumption: antecedent_core::Assumption::ParametricRestriction(
-                        antecedent_core::ParametricAssumption {
-                            id: Arc::from("transport.trial_empirical_support_prior"),
-                            description: Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"),
-                        },
-                    ),
-                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                        algorithm: Arc::from("transport.trial_bayesian_bootstrap"),
-                    },
-                    scope: antecedent_core::AssumptionScope::Estimation,
-                    status: antecedent_core::AssumptionStatus::Declared,
-                });
-                let schema = antecedent_prob::PosteriorSchema {
-                    quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-                        name: Arc::from("transported_ate"),
-                    }]),
-                };
-                let draws = antecedent_prob::PosteriorDraws::from_column_major(
-                    schema,
-                    draws.len(),
-                    Arc::<[f64]>::from(draws),
-                )?;
-                let posterior = CausalPosterior {
-                    summaries: draws.summarize(),
-                    draws,
-                    identification: identification.status,
-                    prior_sensitivity: None,
-                    conflict_summary: None,
-                    diagnostics: InferenceDiagnostics::analytic(
-                        "transport.trial_bayesian_bootstrap",
-                    ),
+                    &columns,
                     assumptions,
-                    unidentified_mass: 0.0,
-                    subsampled_out_mass: 0.0,
-                    unevaluable_mass: 0.0,
-                    early_stopped: false,
-                    treatment_contrast: None,
-                };
-                let estimate = effect_from_posterior(&posterior)?;
+                    identification.status,
+                    ctx,
+                )?;
                 transported.ipw = estimate.ate;
                 (
                     estimate,
                     Some(posterior),
                     EstimatorId::TransportTrialBayesianBootstrap,
-                    Diagnostic::new(
-                        "estimate.transport.trial_bayesian_bootstrap",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "Dirichlet trial-row-law posterior of binary trial-to-target IPW; supplied probabilities and target sample size held fixed",
-                    ),
+                    diagnostic,
                 )
             }
             InferenceMode::Frequentist => {
@@ -313,65 +269,14 @@ impl super::Study {
                 )
             }
             InferenceMode::Bayesian(cfg) => {
-                if cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
-                    });
-                }
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
-                    });
-                }
-                let model = estimate_interference_bayesian(
+                let (estimate, posterior, diagnostic) = self.interference_bayesian_estimate(
+                    cfg,
                     query,
-                    &spec.network,
-                    &spec.assignment,
-                    cfg.n_draws,
-                    ctx.rng.stream_for(StreamDomain::Bayesian, 0x1F7E).next_u64(),
-                    cfg.prior_scale,
-                )
-                .map_err(CausalError::from)?;
-                let assumptions = interference_bayesian_assumptions(cfg.prior_scale);
-                let schema = antecedent_prob::PosteriorSchema {
-                    quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-                        name: Arc::from("finite_network_exposure_contrast"),
-                    }]),
-                };
-                let draws = antecedent_prob::PosteriorDraws::from_column_major(
-                    schema,
-                    model.contrast_draws.len(),
-                    Arc::<[f64]>::from(model.contrast_draws),
+                    &spec,
+                    identification.status,
+                    ctx,
                 )?;
-                let posterior = CausalPosterior {
-                    summaries: draws.summarize(),
-                    draws,
-                    identification: identification.status,
-                    prior_sensitivity: None,
-                    conflict_summary: None,
-                    diagnostics: InferenceDiagnostics::analytic("interference.bayesian_gaussian"),
-                    assumptions: assumptions.clone(),
-                    unidentified_mass: 0.0,
-                    subsampled_out_mass: 0.0,
-                    unevaluable_mass: 0.0,
-                    early_stopped: false,
-                    treatment_contrast: None,
-                };
-                let estimate = effect_from_posterior(&posterior)?;
-                (
-                    estimate,
-                    Some(posterior),
-                    EstimatorId::InterferenceBayesianGaussian,
-                    Diagnostic::new(
-                        "estimate.interference.bayesian_gaussian",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "finite-network posterior under an additive Gaussian potential-outcome model with shared unit disturbances; conditional on fixed network and realized assignment",
-                    ),
-                )
+                (estimate, Some(posterior), EstimatorId::InterferenceBayesianGaussian, diagnostic)
             }
         };
         let mut result = self.finish_identified_execute(
@@ -392,6 +297,155 @@ impl super::Study {
         result.posterior = posterior;
         Ok(result)
     }
+
+    /// Conjugate-Gaussian finite-network posterior for the exposure contrast under the declared isotropic prior.
+    fn interference_bayesian_estimate(
+        &self,
+        cfg: &BayesianConfig,
+        query: &antecedent_core::InterferenceQuery,
+        spec: &crate::InterferenceSpec,
+        status: IdentificationStatus,
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
+        if cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
+            });
+        }
+        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
+            });
+        }
+        let model = estimate_interference_bayesian(
+            query,
+            &spec.network,
+            &spec.assignment,
+            cfg.n_draws,
+            ctx.rng.stream_for(StreamDomain::Bayesian, 0x1F7E).next_u64(),
+            cfg.prior_scale,
+        )
+        .map_err(CausalError::from)?;
+        let assumptions = interference_bayesian_assumptions(cfg.prior_scale);
+        let schema = antecedent_prob::PosteriorSchema {
+            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+                name: Arc::from("finite_network_exposure_contrast"),
+            }]),
+        };
+        let draws = antecedent_prob::PosteriorDraws::from_column_major(
+            schema,
+            model.contrast_draws.len(),
+            Arc::<[f64]>::from(model.contrast_draws),
+        )?;
+        let posterior = CausalPosterior {
+            summaries: draws.summarize(),
+            draws,
+            identification: status,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics: InferenceDiagnostics::analytic("interference.bayesian_gaussian"),
+            assumptions: assumptions.clone(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+        };
+        let estimate = effect_from_posterior(&posterior)?;
+        Ok((
+            estimate,
+            posterior,
+            Diagnostic::new(
+                "estimate.interference.bayesian_gaussian",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "finite-network posterior under an additive Gaussian potential-outcome model with shared unit disturbances; conditional on fixed network and realized assignment",
+            ),
+        ))
+    }
+}
+
+/// The binary trial-to-target columns the IPW estimator and its bootstrap read.
+struct TrialColumns<'a> {
+    outcomes: &'a [f64],
+    treatment: &'a [bool],
+    trial: &'a [bool],
+    selection: &'a [f64],
+    propensity: &'a [f64],
+}
+
+/// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows.
+fn bayesian_transport_estimate(
+    cfg: &BayesianConfig,
+    transport_id: &TransportIdentification,
+    columns: &TrialColumns<'_>,
+    mut assumptions: antecedent_core::AssumptionSet,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
+    let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
+    refuse_transport_bayesian_priors(cfg)?;
+    let draws = trial_to_target_bayesian_bootstrap(
+        transport_id,
+        outcomes,
+        treatment,
+        trial,
+        selection,
+        propensity,
+        antecedent_estimate::DrawSpec::new(
+            cfg.n_draws,
+            ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+        ),
+    )
+    .map_err(CausalError::from)?;
+    assumptions.push(antecedent_core::AssumptionRecord {
+                    assumption: antecedent_core::Assumption::ParametricRestriction(
+                        antecedent_core::ParametricAssumption {
+                            id: Arc::from("transport.trial_empirical_support_prior"),
+                            description: Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"),
+                        },
+                    ),
+                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                        algorithm: Arc::from("transport.trial_bayesian_bootstrap"),
+                    },
+                    scope: antecedent_core::AssumptionScope::Estimation,
+                    status: antecedent_core::AssumptionStatus::Declared,
+                });
+    let schema = antecedent_prob::PosteriorSchema {
+        quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+            name: Arc::from("transported_ate"),
+        }]),
+    };
+    let draws = antecedent_prob::PosteriorDraws::from_column_major(
+        schema,
+        draws.len(),
+        Arc::<[f64]>::from(draws),
+    )?;
+    let posterior = CausalPosterior {
+        summaries: draws.summarize(),
+        draws,
+        identification: status,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics: InferenceDiagnostics::analytic("transport.trial_bayesian_bootstrap"),
+        assumptions,
+        unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
+        early_stopped: false,
+        treatment_contrast: None,
+    };
+    let estimate = effect_from_posterior(&posterior)?;
+    Ok((
+        estimate,
+        posterior,
+        Diagnostic::new(
+            "estimate.transport.trial_bayesian_bootstrap",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "Dirichlet trial-row-law posterior of binary trial-to-target IPW; supplied probabilities and target sample size held fixed",
+        ),
+    ))
 }
 
 fn interference_bayesian_identification(

@@ -216,6 +216,7 @@ fn least_squares_stand_in(bayes: &BayesianGComputationAte) -> Arc<str> {
 
 /// What a sequential validation pass runs against: the series and query, the suite and
 /// custom validators, and the predictive-check budget.
+#[derive(Clone, Copy)]
 pub(super) struct SequentialValidation<'a> {
     pub(super) data: &'a TimeSeriesData,
     pub(super) query: &'a TemporalEffectQuery,
@@ -235,21 +236,53 @@ pub(super) fn validate_sequential(
     original: f64,
     ctx: &ExecutionContext,
 ) -> Result<SequentialValidationResults, CausalError> {
-    let SequentialValidation { data, query, suite, custom, predictive_sims } = setup;
-    let table = TabularData::new(data.storage().clone());
-    let average = temporal_refuter_average(query);
-    let mut reports: std::collections::BTreeMap<
-        Arc<str>,
-        Vec<(f64, antecedent_validate::RefutationReport)>,
-    > = std::collections::BTreeMap::new();
-    let mut diagnostics = Vec::new();
-    let mut priors =
-        std::collections::BTreeMap::<VariableId, Vec<(f64, PredictiveCheckReport)>>::new();
-    let mut posts =
-        std::collections::BTreeMap::<VariableId, Vec<(f64, PredictiveCheckReport)>>::new();
-    let mut sensitivity = Vec::new();
-    let grid = antecedent_validate::PriorSensitivity::standard_grid();
+    let pass = SequentialPass {
+        table: TabularData::new(setup.data.storage().clone()),
+        average: temporal_refuter_average(setup.query),
+        grid: antecedent_validate::PriorSensitivity::standard_grid(),
+        setup,
+        bayes,
+    };
+    let mut accumulated = SequentialAccumulators::default();
     for atom in atoms {
+        pass.validate_atom(atom, &mut accumulated, ctx)?;
+    }
+    Ok(mix_sequential_results(accumulated, &pass.grid, original, posterior))
+}
+
+/// The shared inputs every atom of one sequential validation pass reads.
+struct SequentialPass<'a> {
+    setup: SequentialValidation<'a>,
+    bayes: Option<&'a BayesianGComputationAte>,
+    table: TabularData,
+    average: antecedent_core::AverageEffectQuery,
+    grid: antecedent_validate::PriorSensitivity,
+}
+
+/// Per-atom validation products awaiting the cross-atom mixture.
+#[derive(Default)]
+struct SequentialAccumulators {
+    reports:
+        std::collections::BTreeMap<Arc<str>, Vec<(f64, antecedent_validate::RefutationReport)>>,
+    diagnostics: Vec<Diagnostic>,
+    priors: std::collections::BTreeMap<VariableId, Vec<(f64, PredictiveCheckReport)>>,
+    posts: std::collections::BTreeMap<VariableId, Vec<(f64, PredictiveCheckReport)>>,
+    sensitivity: Vec<(f64, antecedent_prob::PriorSensitivitySummary)>,
+}
+
+impl SequentialPass<'_> {
+    /// Runs the validation suite, predictive checks, and prior-sensitivity sweep for one graph atom.
+    fn validate_atom(
+        &self,
+        atom: &SequentialValidationAtom,
+        acc: &mut SequentialAccumulators,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        let SequentialValidation { data, query, suite, custom, predictive_sims } = self.setup;
+        let bayes = self.bayes;
+        let grid = &self.grid;
+        let table = &self.table;
+        let average = &self.average;
         let refitter = SequentialRefitter { atom, query, time: data.time_index(), bayes };
         let temporal = TemporalRefitContext {
             indexer: &atom.indexer,
@@ -260,9 +293,9 @@ pub(super) fn validate_sequential(
             panel: None,
         };
         let problem = RefutationProblem::new(
-            &table,
+            table,
             &atom.estimand,
-            &average,
+            average,
             &atom.estimate,
             Some("temporal.sequential.gcomp"),
             Some(temporal),
@@ -278,15 +311,15 @@ pub(super) fn validate_sequential(
             validation = validation.with_custom(Arc::clone(validator));
         }
         let outcomes = validation.run(&problem, &mut EstimationWorkspace::default(), ctx)?;
-        diagnostics
+        acc.diagnostics
             .extend(crate::analysis::helpers::validator_not_applicable_diagnostics(&outcomes));
         if let Some(estimator) = bayes {
             let checked = ValidationSuite::reports_only(&outcomes)
                 .iter()
                 .any(|report| report.refuter.as_ref() == "bootstrap.ci_coverage");
             let code = "refute.bootstrap.ci_coverage.least_squares_stand_in";
-            if checked && !diagnostics.iter().any(|d: &Diagnostic| d.code.as_ref() == code) {
-                diagnostics.push(Diagnostic::new(
+            if checked && !acc.diagnostics.iter().any(|d: &Diagnostic| d.code.as_ref() == code) {
+                acc.diagnostics.push(Diagnostic::new(
                     code,
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -295,7 +328,7 @@ pub(super) fn validate_sequential(
             }
         }
         for report in ValidationSuite::reports_only(&outcomes) {
-            reports.entry(Arc::clone(&report.refuter)).or_default().push((atom.weight, report));
+            acc.reports.entry(Arc::clone(&report.refuter)).or_default().push((atom.weight, report));
         }
         if let Some(estimator) = bayes.filter(|_| suite != RefuteSuite::None) {
             // Multi-step prior transfer is refused before fitting, so the isotropic
@@ -303,7 +336,7 @@ pub(super) fn validate_sequential(
             // than validate against a prior the mechanisms were not fitted under.
             if estimator.prior.is_some() {
                 return Err(CausalError::Unsupported {
-                    message: "multi-step sustained validation requires isotropic per-mechanism priors",
+                    message: "multi-step sustained validation requires isotropic per-mechanism acc.priors",
                 });
             }
             for mechanism in &atom.mechanisms {
@@ -324,8 +357,8 @@ pub(super) fn validate_sequential(
                 } else {
                     post_check.check(&mechanism.prepared, &mechanism.posterior)?
                 };
-                priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
-                posts.entry(mechanism.variable).or_default().push((atom.weight, post));
+                acc.priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
+                acc.posts.entry(mechanism.variable).or_default().push((atom.weight, post));
             }
             if suite == RefuteSuite::Full {
                 let mut means = Vec::new();
@@ -352,7 +385,7 @@ pub(super) fn validate_sequential(
                     means.push(effect.ate);
                     sds.push(effect.se_analytic());
                 }
-                sensitivity.push((
+                acc.sensitivity.push((
                     atom.weight,
                     antecedent_prob::PriorSensitivitySummary {
                         family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
@@ -364,7 +397,18 @@ pub(super) fn validate_sequential(
                 ));
             }
         }
+        Ok(())
     }
+}
+
+/// Mixes the per-atom reports, predictive checks, and prior sensitivity into the published results.
+fn mix_sequential_results(
+    acc: SequentialAccumulators,
+    grid: &antecedent_validate::PriorSensitivity,
+    original: f64,
+    posterior: Option<&mut CausalPosterior>,
+) -> SequentialValidationResults {
+    let SequentialAccumulators { reports, diagnostics, priors, posts, sensitivity } = acc;
     let mut mixed_reports: Vec<_> = reports
         .values()
         .filter_map(|items| {
@@ -408,5 +452,5 @@ pub(super) fn validate_sequential(
         mixed_reports.push(grid.to_report(&summary, original));
         *post = with_prior_sensitivity(post.clone(), summary);
     }
-    Ok((mixed_reports, diagnostics, predictive))
+    (mixed_reports, diagnostics, predictive)
 }
