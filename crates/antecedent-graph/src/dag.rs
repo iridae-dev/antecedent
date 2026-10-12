@@ -533,8 +533,8 @@ mod tests {
                 }
             }
             for _ in 0..6 {
-                let from = DenseNodeId::from_raw((next() % u64::from(n)) as u32);
-                let to = DenseNodeId::from_raw((next() % u64::from(n)) as u32);
+                let from = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
+                let to = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
                 let max_paths = (next() % 6) as usize;
                 let max_len = (next() % 8) as usize;
                 assert_eq!(

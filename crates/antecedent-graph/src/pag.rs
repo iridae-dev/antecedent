@@ -717,8 +717,8 @@ mod tests {
                 }
             }
             for _ in 0..4 {
-                let x = DenseNodeId::from_raw((next() % u64::from(n)) as u32);
-                let y = DenseNodeId::from_raw((next() % u64::from(n)) as u32);
+                let x = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
+                let y = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
                 let max_len = (next() % 8) as usize;
                 let mut seen = Vec::new();
                 let cut = g.walk_simple_paths(x, y, max_len, |p| {
