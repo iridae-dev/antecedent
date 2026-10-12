@@ -28,7 +28,7 @@ use crate::rcc::RandomCommonCause;
 use crate::riesz::RieszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
-use crate::validator::run_validator;
+use crate::validator::{PreparedRefutation, Validator, run_validator};
 
 use antecedent_estimate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, PreparedBayesianProblem,
@@ -181,11 +181,12 @@ pub enum ValidationOutcome {
     },
 }
 
-/// A built-in validator with caller-chosen settings.
+/// A built-in validator the caller has already built.
 ///
-/// [`ValidationSuite::with`] runs that arm from its `::new()` default (Bayesian
-/// arms from `for_estimator`). [`ValidationSuite::with_configured`] runs this
-/// value instead, and appends the arm when the suite does not already list it.
+/// [`ValidationSuite::with_configured`] stores this value and does not construct
+/// another arm. [`ValidationSuite::with`] stores that arm's `::new()` default
+/// when the slot is empty. Bayesian arms stay `for_estimator` until a check or
+/// grid is stored here.
 #[derive(Clone, Debug)]
 pub enum ConfiguredValidator {
     /// Placebo treatment.
@@ -270,7 +271,9 @@ impl ConfiguredValidator {
     }
 }
 
-/// Caller-supplied replacements for the `::new()` / `for_estimator` suite arms.
+/// Stored suite arms. A frequentist slot holds either the caller's value or the
+/// `::new()` default installed by [`ValidationSuite::with`]. A Bayesian slot
+/// stays empty until the caller stores a check or grid.
 #[derive(Clone, Debug, Default)]
 struct SuiteArms {
     placebo: Option<PlaceboTreatment>,
@@ -318,17 +321,24 @@ impl ValidationSuite {
     }
 
     /// Append a validator (order preserved).
+    ///
+    /// When this arm has no stored value, a frequentist id stores the same
+    /// `::new()` value the runner used to build for an empty slot. An id that
+    /// already holds a caller-built value is left alone. Bayesian ids are not
+    /// built here.
     #[must_use]
     pub fn with(mut self, id: ValidatorId) -> Self {
         self.validators.push(id);
+        self.store_default_if_absent(id);
         self
     }
 
-    /// Run `validator` in place of that arm's `::new()` or `for_estimator` default.
+    /// Store `validator` and run that value.
     ///
-    /// Appends the arm when [`Self::with`] has not already listed it. A later call
-    /// for the same arm replaces the stored value. [`Self::with`] still appends a
-    /// duplicate id, and every copy of that id uses this value.
+    /// The suite does not build a replacement. Appends the arm when [`Self::with`]
+    /// has not already listed it. A later call for the same arm replaces the
+    /// stored value. [`Self::with`] still appends a duplicate id, and every copy
+    /// of that id uses this value.
     #[must_use]
     pub fn with_configured(mut self, validator: ConfiguredValidator) -> Self {
         let id = validator.id();
@@ -337,6 +347,84 @@ impl ValidationSuite {
         }
         validator.store(&mut self.arms);
         self
+    }
+
+    /// Install `id`'s `::new()` arm when the caller has not already stored one.
+    ///
+    /// Bayesian checks need the fitted estimator, so those slots stay empty and
+    /// [`Self::run_one_bayesian`] still builds `for_estimator`.
+    fn store_default_if_absent(&mut self, id: ValidatorId) {
+        let default = match id {
+            ValidatorId::Placebo => self
+                .arms
+                .placebo
+                .is_none()
+                .then(|| ConfiguredValidator::Placebo(PlaceboTreatment::new())),
+            ValidatorId::RandomCommonCause => self
+                .arms
+                .random_common_cause
+                .is_none()
+                .then(|| ConfiguredValidator::RandomCommonCause(RandomCommonCause::new())),
+            ValidatorId::Bootstrap => self
+                .arms
+                .bootstrap
+                .is_none()
+                .then(|| ConfiguredValidator::Bootstrap(BootstrapRefute::new())),
+            ValidatorId::UnobservedCommonCause => {
+                self.arms.unobserved_common_cause.is_none().then(|| {
+                    ConfiguredValidator::UnobservedCommonCause(UnobservedCommonCause::new())
+                })
+            }
+            ValidatorId::Overlap => self
+                .arms
+                .overlap
+                .is_none()
+                .then(|| ConfiguredValidator::Overlap(OverlapRefuter::new())),
+            ValidatorId::OverlapRule => self
+                .arms
+                .overlap_rule
+                .is_none()
+                .then(|| ConfiguredValidator::OverlapRule(OverlapRuleRefuter::new())),
+            ValidatorId::DataSubset => self
+                .arms
+                .data_subset
+                .is_none()
+                .then(|| ConfiguredValidator::DataSubset(DataSubsetRefuter::new())),
+            ValidatorId::DummyOutcome => self
+                .arms
+                .dummy_outcome
+                .is_none()
+                .then(|| ConfiguredValidator::DummyOutcome(DummyOutcome::new())),
+            ValidatorId::EValue => {
+                self.arms.evalue.is_none().then(|| ConfiguredValidator::EValue(EValue::new()))
+            }
+            ValidatorId::Graph => {
+                self.arms.graph.is_none().then(|| ConfiguredValidator::Graph(GraphRefuter::new()))
+            }
+            ValidatorId::LinearSensitivity => self
+                .arms
+                .linear
+                .is_none()
+                .then(|| ConfiguredValidator::LinearSensitivity(LinearSensitivity::new())),
+            ValidatorId::PartialLinearSensitivity => self.arms.partial.is_none().then(|| {
+                ConfiguredValidator::PartialLinearSensitivity(PartialLinearSensitivity::new())
+            }),
+            ValidatorId::NonparametricSensitivity => self.arms.nonparametric.is_none().then(|| {
+                ConfiguredValidator::NonparametricSensitivity(NonparametricSensitivity::new())
+            }),
+            ValidatorId::Riesz => self
+                .arms
+                .riesz
+                .is_none()
+                .then(|| ConfiguredValidator::Riesz(RieszSensitivity::new())),
+            ValidatorId::PriorPredictive
+            | ValidatorId::PosteriorPredictive
+            | ValidatorId::PriorSensitivity
+            | ValidatorId::McmcDiagnostics => None,
+        };
+        if let Some(default) = default {
+            default.store(&mut self.arms);
+        }
     }
 
     /// Append a custom (dyn) effect validator; runs after built-ins.
@@ -460,24 +548,32 @@ impl ValidationSuite {
             let outcome = (|| -> Result<ValidationOutcome, ValidationError> {
                 Ok(match id {
                     ValidatorId::Overlap if problem.temporal.is_none() => {
-                        let default = OverlapRefuter::new();
-                        let overlap = self.arms.overlap.as_ref().unwrap_or(&default);
-                        overlap_as_outcome(overlap.refute_with_propensity(problem, propensity))?
+                        let result = match &self.arms.overlap {
+                            Some(overlap) => overlap.refute_with_propensity(problem, propensity),
+                            None => {
+                                OverlapRefuter::new().refute_with_propensity(problem, propensity)
+                            }
+                        };
+                        overlap_as_outcome(result)?
                     }
                     ValidatorId::OverlapRule if problem.temporal.is_none() => {
-                        let default = OverlapRuleRefuter::new();
-                        let rule = self.arms.overlap_rule.as_ref().unwrap_or(&default);
-                        ValidationOutcome::Report(rule.refute_with_propensity(problem, propensity)?)
+                        let report = match &self.arms.overlap_rule {
+                            Some(rule) => rule.refute_with_propensity(problem, propensity)?,
+                            None => OverlapRuleRefuter::new()
+                                .refute_with_propensity(problem, propensity)?,
+                        };
+                        ValidationOutcome::Report(report)
                     }
                     ValidatorId::Riesz
                         if problem.temporal.is_none()
                             && crate::common::binary_treatment(problem)? =>
                     {
-                        let default = RieszSensitivity::new();
-                        let riesz = self.arms.riesz.as_ref().unwrap_or(&default);
-                        ValidationOutcome::Report(
-                            riesz.refute_with_propensity(problem, propensity)?,
-                        )
+                        let report = match &self.arms.riesz {
+                            Some(riesz) => riesz.refute_with_propensity(problem, propensity)?,
+                            None => RieszSensitivity::new()
+                                .refute_with_propensity(problem, propensity)?,
+                        };
+                        ValidationOutcome::Report(report)
                     }
                     _ => self.run_one(id, problem, workspace, ctx)?,
                 })
@@ -602,8 +698,14 @@ impl ValidationSuite {
     ) -> Result<ValidationOutcome, ValidationError> {
         match id {
             ValidatorId::PriorPredictive => {
-                let default = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
-                let check = self.arms.prior_predictive.as_ref().unwrap_or(&default);
+                let owned;
+                let check = match &self.arms.prior_predictive {
+                    Some(check) => check,
+                    None => {
+                        owned = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                        &owned
+                    }
+                };
                 let prior = bayes.estimator.prior_in_force(bayes.prepared.design.ncols);
                 let rep = check.check_with_prior(bayes.prepared, &prior, ctx)?;
                 Ok(ValidationOutcome::Report(
@@ -611,8 +713,14 @@ impl ValidationSuite {
                 ))
             }
             ValidatorId::PosteriorPredictive => {
-                let default = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
-                let check = self.arms.posterior_predictive.as_ref().unwrap_or(&default);
+                let owned;
+                let check = match &self.arms.posterior_predictive {
+                    Some(check) => check,
+                    None => {
+                        owned = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                        &owned
+                    }
+                };
                 let rep = check.check_with_context(bayes.prepared, bayes.posterior, ctx)?;
                 Ok(ValidationOutcome::Report(
                     rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),
@@ -621,9 +729,16 @@ impl ValidationSuite {
             ValidatorId::PriorSensitivity => {
                 // The grid perturbs the prior the estimator fits with (a supplied or transferred
                 // prior gets its variance-multiplier grid, none the isotropic scale grid).
-                // A configured grid replaces that choice, including which axis it perturbs.
-                let default = PriorSensitivity::for_estimator(bayes.estimator);
-                let sens = self.arms.prior_sensitivity.as_ref().unwrap_or(&default);
+                // A stored grid replaces that choice, including which axis it perturbs.
+                // An empty slot still builds `for_estimator`.
+                let owned;
+                let sens = match &self.arms.prior_sensitivity {
+                    Some(sens) => sens,
+                    None => {
+                        owned = PriorSensitivity::for_estimator(bayes.estimator);
+                        &owned
+                    }
+                };
                 let (summary, _posts) = sens.evaluate_in_force(
                     bayes.estimator,
                     bayes.prepared,
@@ -656,121 +771,87 @@ impl ValidationSuite {
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
         match id {
-            ValidatorId::Placebo => {
-                let default = PlaceboTreatment::new();
-                run_validator(
-                    self.arms.placebo.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::RandomCommonCause => {
-                let default = RandomCommonCause::new();
-                run_validator(
-                    self.arms.random_common_cause.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::Bootstrap => {
-                let default = BootstrapRefute::new();
-                run_validator(
-                    self.arms.bootstrap.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::UnobservedCommonCause => {
-                let default = UnobservedCommonCause::new();
-                run_validator(
-                    self.arms.unobserved_common_cause.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
+            ValidatorId::Placebo => run_stored(
+                self.arms.placebo.as_ref(),
+                PlaceboTreatment::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::RandomCommonCause => run_stored(
+                self.arms.random_common_cause.as_ref(),
+                RandomCommonCause::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::Bootstrap => run_stored(
+                self.arms.bootstrap.as_ref(),
+                BootstrapRefute::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::UnobservedCommonCause => run_stored(
+                self.arms.unobserved_common_cause.as_ref(),
+                UnobservedCommonCause::new,
+                problem,
+                workspace,
+                ctx,
+            ),
             ValidatorId::Overlap => {
-                let default = OverlapRefuter::new();
-                run_validator(
-                    self.arms.overlap.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
+                run_stored(self.arms.overlap.as_ref(), OverlapRefuter::new, problem, workspace, ctx)
             }
-            ValidatorId::OverlapRule => {
-                let default = OverlapRuleRefuter::new();
-                run_validator(
-                    self.arms.overlap_rule.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::DataSubset => {
-                let default = DataSubsetRefuter::new();
-                run_validator(
-                    self.arms.data_subset.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::DummyOutcome => {
-                let default = DummyOutcome::new();
-                run_validator(
-                    self.arms.dummy_outcome.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
+            ValidatorId::OverlapRule => run_stored(
+                self.arms.overlap_rule.as_ref(),
+                OverlapRuleRefuter::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::DataSubset => run_stored(
+                self.arms.data_subset.as_ref(),
+                DataSubsetRefuter::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::DummyOutcome => run_stored(
+                self.arms.dummy_outcome.as_ref(),
+                DummyOutcome::new,
+                problem,
+                workspace,
+                ctx,
+            ),
             ValidatorId::EValue => {
-                let default = EValue::new();
-                run_validator(
-                    self.arms.evalue.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
+                run_stored(self.arms.evalue.as_ref(), EValue::new, problem, workspace, ctx)
             }
             ValidatorId::Graph => {
-                let default = GraphRefuter::new();
-                run_validator(self.arms.graph.as_ref().unwrap_or(&default), problem, workspace, ctx)
+                run_stored(self.arms.graph.as_ref(), GraphRefuter::new, problem, workspace, ctx)
             }
-            ValidatorId::LinearSensitivity => {
-                let default = LinearSensitivity::new();
-                run_validator(
-                    self.arms.linear.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::PartialLinearSensitivity => {
-                let default = PartialLinearSensitivity::new();
-                run_validator(
-                    self.arms.partial.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
-            ValidatorId::NonparametricSensitivity => {
-                let default = NonparametricSensitivity::new();
-                run_validator(
-                    self.arms.nonparametric.as_ref().unwrap_or(&default),
-                    problem,
-                    workspace,
-                    ctx,
-                )
-            }
+            ValidatorId::LinearSensitivity => run_stored(
+                self.arms.linear.as_ref(),
+                LinearSensitivity::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::PartialLinearSensitivity => run_stored(
+                self.arms.partial.as_ref(),
+                PartialLinearSensitivity::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::NonparametricSensitivity => run_stored(
+                self.arms.nonparametric.as_ref(),
+                NonparametricSensitivity::new,
+                problem,
+                workspace,
+                ctx,
+            ),
             ValidatorId::Riesz => {
-                let default = RieszSensitivity::new();
-                run_validator(self.arms.riesz.as_ref().unwrap_or(&default), problem, workspace, ctx)
+                run_stored(self.arms.riesz.as_ref(), RieszSensitivity::new, problem, workspace, ctx)
             }
             ValidatorId::PriorPredictive
             | ValidatorId::PosteriorPredictive
@@ -788,9 +869,32 @@ impl ValidationSuite {
     }
 }
 
+/// Run the stored arm. `default` is the same constructor an empty slot has
+/// always used, and it runs only when the caller did not store a value.
+fn run_stored<'a, T, F>(
+    stored: Option<&T>,
+    default: F,
+    problem: &RefutationProblem<'a>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError>
+where
+    T: Validator<
+            RefutationProblem<'a>,
+            Prepared = PreparedRefutation<'a>,
+            Report = RefutationReport,
+        >,
+    F: FnOnce() -> T,
+{
+    match stored {
+        Some(validator) => run_validator(validator, problem, workspace, ctx),
+        None => run_validator(&default(), problem, workspace, ctx),
+    }
+}
+
 /// One built-in suite arm: a gate, and whether a propensity failure is an
 /// outcome rather than a suite abort. The runner is [`ValidationSuite::execute`],
-/// which uses a configured arm or that arm's `::new()` default.
+/// which uses the stored arm. An empty frequentist slot still runs `::new()`.
 struct SuiteEntry {
     id: ValidatorId,
     gate: fn(&RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError>,
@@ -1361,5 +1465,37 @@ mod tests {
             }
             other => panic!("expected the configured bound, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn with_stores_the_new_default_and_keeps_a_caller_built_arm() {
+        let installed = ValidationSuite::new().with(ValidatorId::Placebo);
+        let stored = installed.arms.placebo.as_ref().expect("default arm");
+        let fresh = PlaceboTreatment::new();
+        assert_eq!(stored.replicates, fresh.replicates);
+        assert_eq!(stored.alpha, fresh.alpha);
+        assert_eq!(stored.mode, fresh.mode);
+        assert_eq!(stored.estimator.bootstrap_replicates, fresh.estimator.bootstrap_replicates);
+
+        let custom = PlaceboTreatment { replicates: 7, ..PlaceboTreatment::new() };
+        let kept = ValidationSuite::new()
+            .with_configured(ConfiguredValidator::Placebo(custom))
+            .with(ValidatorId::Placebo);
+        assert_eq!(kept.arms.placebo.as_ref().expect("caller arm").replicates, 7);
+        assert_eq!(kept.validators, vec![ValidatorId::Placebo, ValidatorId::Placebo]);
+
+        let replaced = ValidationSuite::new().with(ValidatorId::Placebo).with_configured(
+            ConfiguredValidator::Placebo(PlaceboTreatment {
+                replicates: 3,
+                ..PlaceboTreatment::new()
+            }),
+        );
+        assert_eq!(replaced.arms.placebo.as_ref().expect("replaced arm").replicates, 3);
+        assert_eq!(replaced.validators, vec![ValidatorId::Placebo]);
+
+        let bayes = ValidationSuite::new().with(ValidatorId::PriorPredictive);
+        assert!(bayes.arms.prior_predictive.is_none());
+        assert!(bayes.arms.posterior_predictive.is_none());
+        assert!(bayes.arms.prior_sensitivity.is_none());
     }
 }
