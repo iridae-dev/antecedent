@@ -7,6 +7,7 @@ execution (non-native performance).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -15,10 +16,16 @@ from dataclasses import dataclass
 from enum import StrEnum
 from importlib import metadata
 from types import MappingProxyType
-from typing import Any, Protocol, cast, get_args, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, get_args, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
+
+from ._digest import canonical_digest
+from .errors import CausalValueError, StructuredRefusal
+
+if TYPE_CHECKING:
+    from .external import ProviderObject
 
 # Provenance keys only the registry writes: they record which registry entry ran,
 # how it was trusted, and which verification evidence backs it. A provider's own
@@ -125,6 +132,61 @@ class EffectValidator(Protocol):
         adjustment_set: list[str],
     ) -> dict:
         """Must include ``passed: bool``; optional ``refuted_ate``, ``comparison``."""
+
+
+class ProviderRefusal(StructuredRefusal):
+    """A refusal by the provider registry or the adjustment handoff.
+
+    It carries the same structured fields as :class:`~antecedent.external.ExternalRefusal`:
+    :attr:`reason_code` is a registered refusal code, :attr:`detail` the namespaced
+    ``family.slot`` (``provider.*`` or ``handoff.*``), :attr:`offending` what it is
+    about and :attr:`remedy` what the caller can change to proceed. It is a
+    :class:`~antecedent.errors.CausalUnsupportedError`, as an identification refusal
+    always was.
+    """
+
+
+class ProviderValueRefusal(ProviderRefusal, CausalValueError):
+    """A :class:`ProviderRefusal` that is also a :class:`ValueError`.
+
+    The refusals that were a ``ValueError`` before they gained a reason code (an
+    argument, a fixture that differs from its reference, a provider output that
+    breaks its declared contract) keep that class whatever their reason code is,
+    so an ``except ValueError`` written against them still catches.
+    """
+
+
+class UnknownProviderError(ProviderRefusal, KeyError):
+    """A provider name that is not registered or installed; also a :class:`KeyError`."""
+
+    __str__ = Exception.__str__
+
+
+def _refuse(
+    detail: str,
+    message: str,
+    *,
+    code: str = "invalid_argument",
+    remedy: str,
+    offending: str | None = None,
+    stage: str = "provider",
+    error: type[ProviderRefusal] = ProviderValueRefusal,
+) -> ProviderRefusal:
+    """A typed refusal; ``raise`` it. ``code`` must be a registered refusal code.
+
+    A :class:`ProviderValueRefusal` (a ``ValueError`` too) unless ``error`` names another class.
+    """
+    return error(
+        {
+            "code": code,
+            "stage": stage,
+            "detail": detail,
+            "message": message,
+            "offending": offending,
+            "remedy": remedy,
+        },
+        text=message,
+    )
 
 
 class ProviderTrust(StrEnum):
@@ -237,14 +299,12 @@ class CausalProviderSpec:
                     f"got {self.meaning!r}"
                 )
         if isinstance(self.uncertainty_semantics, str):
-            try:
+            with contextlib.suppress(ValueError):
                 object.__setattr__(
                     self,
                     "uncertainty_semantics",
                     UncertaintySemantics(self.uncertainty_semantics),
                 )
-            except ValueError:
-                pass
         for field_name in (
             "identification_requirements",
             "observed_distributions",
@@ -525,7 +585,7 @@ class ProviderVerificationReceipt:
         """Whether ``request`` is exactly one this receipt verified."""
         try:
             digest = _digest("request", request)
-        except TypeError:
+        except (TypeError, ValueError):
             return False
         return any(
             item.request_digest == digest
@@ -638,15 +698,24 @@ class ProviderRegistry:
         needs no Antecedent or Rust rebuild. Every loaded provider remains
         externally attested under the same validation as ``register``.
         """
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError("provider name must be a non-empty string")
-        if name in self._providers:
-            raise ValueError(f"provider {name!r} is already registered")
+        self._require_new(name)
         matches = tuple(metadata.entry_points().select(group="antecedent.providers", name=name))
         if not matches:
-            raise KeyError(f"provider entry point {name!r} is not installed")
+            raise _refuse(
+                "provider.entry_point_not_installed",
+                f"provider entry point {name!r} is not installed",
+                offending=name,
+                remedy="install the distribution that declares this antecedent.providers "
+                "entry point, or register the provider object directly",
+                error=UnknownProviderError,
+            )
         if len(matches) != 1:
-            raise ValueError(f"provider entry point {name!r} is ambiguous")
+            raise _refuse(
+                "provider.entry_point_ambiguous",
+                f"provider entry point {name!r} is ambiguous",
+                offending=name,
+                remedy="uninstall the duplicate distribution so one entry point names it",
+            )
         entry_point = matches[0]
         factory = entry_point.load()
         if not callable(factory):
@@ -663,10 +732,7 @@ class ProviderRegistry:
         *,
         trust: ProviderTrust = ProviderTrust.EXTERNALLY_ATTESTED,
     ) -> None:
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError("provider name must be a non-empty string")
-        if name in self._providers:
-            raise ValueError(f"provider {name!r} is already registered")
+        self._require_new(name)
         spec = getattr(provider, "spec", None)
         if not isinstance(spec, CausalProviderSpec):
             raise TypeError("provider.spec must be a CausalProviderSpec")
@@ -674,26 +740,58 @@ class ProviderRegistry:
             raise TypeError("provider must implement execute(request)")
         executable = cast(ExecutableProvider, provider)
         if trust is ProviderTrust.NATIVE_LICENSED:
-            raise ValueError("Python extensions cannot register as native licensed providers")
+            raise _refuse(
+                "provider.native_licence_not_available",
+                "Python extensions cannot register as native licensed providers",
+                code="external_verification_failed",
+                offending="trust",
+                remedy="register as externally attested; native licensing is granted only to "
+                "providers implemented in the library",
+            )
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
-            raise ValueError(
+            raise _refuse(
+                "provider.trust_requires_evidence",
                 "Python provider registration defaults to externally attested; "
-                "verified and native status require the separate evidence gate"
+                "verified and native status require the separate evidence gate",
+                code="external_verification_failed",
+                offending="trust",
+                remedy="register without trust= and call ProviderRegistry.verify with "
+                "independent fixtures",
             )
         self._providers[name] = (executable, trust)
 
+    def _require_new(self, name: object) -> None:
+        if not isinstance(name, str) or not name.strip():
+            raise _refuse(
+                "provider.name_invalid",
+                "provider name must be a non-empty string",
+                offending="name",
+                remedy="pass the provider name as a non-empty string",
+            )
+        if name in self._providers:
+            raise _refuse(
+                "provider.already_registered",
+                f"provider {name!r} is already registered",
+                offending=name,
+                remedy="use the registered provider, or register this one under another name",
+            )
+
     def get(self, name: str) -> CausalProvider:
-        try:
-            return self._providers[name][0]
-        except KeyError as exc:
-            raise KeyError(f"provider {name!r} is not explicitly registered") from exc
+        return self._entry(name)[0]
 
     def verification_report(self, name: str) -> ProviderVerificationReceipt:
         """Return the host's verification receipt for a verified extension."""
         try:
             return self._verification[name]
         except KeyError as exc:
-            raise KeyError(f"provider {name!r} has no verification report") from exc
+            raise _refuse(
+                "provider.not_verified",
+                f"provider {name!r} has no verification report",
+                code="external_verification_failed",
+                offending=name,
+                remedy="call ProviderRegistry.verify with independent fixtures first",
+                error=UnknownProviderError,
+            ) from exc
 
     def verify(
         self,
@@ -713,16 +811,33 @@ class ProviderRegistry:
         scientific validity of caller supplied truth or grant native licensing.
         Promotion is atomic after every fixture passes.
         """
-        provider, trust = self._providers[name]
+        provider, trust = self._entry(name)
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
-            raise ValueError("only externally attested providers can be verified")
+            raise _refuse(
+                "provider.already_verified",
+                "only externally attested providers can be verified",
+                code="external_verification_failed",
+                offending=name,
+                remedy="a provider is verified once; register a new provider object to "
+                "verify it again",
+            )
         if not isinstance(evidence_origin, str) or not evidence_origin.strip():
-            raise ValueError("evidence_origin must identify the independent fixture source")
+            raise _refuse(
+                "provider.evidence_origin_missing",
+                "evidence_origin must identify the independent fixture source",
+                offending="evidence_origin",
+                remedy="name who held the independent reference, for example 'lab-benchmark/v3'",
+            )
         fixtures = tuple(fixtures)
         if any(not isinstance(fixture, ProviderVerificationFixture) for fixture in fixtures):
             raise TypeError("verification fixtures must be ProviderVerificationFixture")
         if not fixtures or len({fixture.name for fixture in fixtures}) != len(fixtures):
-            raise ValueError("verification requires distinct, non-empty fixtures")
+            raise _refuse(
+                "provider.fixtures_invalid",
+                "verification requires distinct, non-empty fixtures",
+                offending="fixtures",
+                remedy="pass at least one fixture and give each a distinct name",
+            )
         spec = provider.spec
         spec_digest = _digest("spec", _spec_evidence(spec))
         wire_requests = []
@@ -730,7 +845,13 @@ class ProviderRegistry:
             result = self.execute(name, fixture.request)
             wire_requests.append(self._fixture_request(name, spec, spec_digest, fixture, result))
         if _digest("spec", _spec_evidence(provider.spec)) != spec_digest:
-            raise ValueError("provider spec changed during verification")
+            raise _refuse(
+                "provider.spec_changed",
+                "provider spec changed during verification",
+                code="external_binding_mismatch",
+                offending=name,
+                remedy="keep the provider's declarative spec fixed while it is verified",
+            )
         from . import _native
 
         native, refusal = _native.ProviderVerificationReceipt.verify(
@@ -752,23 +873,33 @@ class ProviderRegistry:
         result: ProviderResult,
     ) -> dict[str, Any]:
         """Compare one fixture and state it as a typed request with numeric probes."""
-        label = f"fixture {fixture.name!r}"
+
+        def differs(slot: str, text: str, offending: str) -> ProviderRefusal:
+            return _refuse(
+                f"provider.fixture_{slot}",
+                f"fixture {fixture.name!r}: {text}",
+                code="external_verification_failed",
+                offending=offending,
+                remedy="fix the provider so it reproduces the independent reference, or "
+                "correct a reference that was wrong",
+            )
+
         expected = _provider_array(fixture.expected_estimate, "expected estimate")
         if result.estimate.shape != expected.shape:
-            raise ValueError(f"{label}: estimate differs from reference")
+            raise differs("estimate", "estimate differs from reference", fixture.name)
         probes = [
             _probe("shape", float(result.estimate.size), float(expected.size), 0.0),
             _probe("known_truth", _max_abs_diff(result.estimate, expected), 0.0, fixture.atol),
         ]
         if fixture.expected_uncertainty is None:
             if result.uncertainty is not None:
-                raise ValueError(f"{label}: unexpected uncertainty")
+                raise differs("uncertainty", "unexpected uncertainty", fixture.name)
         else:
             expected_uncertainty = _provider_array(
                 fixture.expected_uncertainty, "expected uncertainty"
             )
             if result.uncertainty is None or result.uncertainty.shape != expected_uncertainty.shape:
-                raise ValueError(f"{label}: uncertainty differs from reference")
+                raise differs("uncertainty", "uncertainty differs from reference", fixture.name)
             probes.append(
                 _probe(
                     "uncertainty",
@@ -778,26 +909,26 @@ class ProviderRegistry:
                 )
             )
         if result.uncertainty is not None and spec.uncertainty_semantics == "point_only":
-            raise ValueError(f"{label}: point-only provider returned uncertainty")
+            raise differs("uncertainty", "point-only provider returned uncertainty", fixture.name)
         if result.assumptions != tuple(fixture.expected_assumptions):
-            raise ValueError(f"{label}: assumptions differ from reference")
+            raise differs("assumptions", "assumptions differ from reference", fixture.name)
         if result.support_status != fixture.expected_support_status:
-            raise ValueError(f"{label}: support differs from reference")
+            raise differs("support", "support differs from reference", fixture.name)
         for key, value in fixture.expected_provenance.items():
             if result.provenance.get(key) != value:
-                raise ValueError(f"{label}: provenance {key!r} differs")
+                raise differs("provenance", f"provenance {key!r} differs", fixture.name)
         if fixture.artifact_digest is not None:
             if (
                 result.artifact is None
                 or hashlib.sha256(result.artifact).hexdigest() != fixture.artifact_digest
             ):
-                raise ValueError(f"{label}: artifact digest differs")
+                raise differs("artifact", "artifact digest differs", fixture.name)
         elif result.artifact is not None:
-            raise ValueError(f"{label}: unverified artifact")
+            raise differs("artifact", "unverified artifact", fixture.name)
         if fixture.artifact_decoder is not None:
             decoded = fixture.artifact_decoder(result.artifact)
             if decoded != fixture.expected_decoded_artifact:
-                raise ValueError(f"{label}: artifact round trip differs")
+                raise differs("artifact", "artifact round trip differs", fixture.name)
         if spec.deterministic:
             replay = self.execute(name, fixture.request)
             probes.append(
@@ -810,7 +941,7 @@ class ProviderRegistry:
             )
         from . import _native
 
-        request_digest = _digest("request", fixture.request)
+        request_digest = _request_digest(fixture.request)
         return {
             "identity": {
                 "provider_id": name,
@@ -849,12 +980,25 @@ class ProviderRegistry:
         spec = self._entry(name)[0].spec
         declared = meaning if meaning is not None else spec.meaning
         if declared is None:
-            raise ValueError(
-                f"provider {name!r} declares no distribution meaning; set spec.meaning or pass meaning="
+            raise _refuse(
+                "provider.meaning_undeclared",
+                f"provider {name!r} declares no distribution meaning; "
+                "set spec.meaning or pass meaning=",
+                code="distribution_meaning_mismatch",
+                offending="meaning",
+                remedy="declare what one value of the provider's law means in "
+                "CausalProviderSpec.meaning, or pass meaning= here",
             )
         if not spec.capabilities:
-            raise ValueError(f"provider {name!r} declares no capabilities; set spec.capabilities")
-        digest = _digest("request", request)
+            raise _refuse(
+                "provider.capabilities_undeclared",
+                f"provider {name!r} declares no capabilities; set spec.capabilities",
+                code="external_capability_missing",
+                offending="capabilities",
+                remedy="list the operations the provider supplies in "
+                "CausalProviderSpec.capabilities",
+            )
+        digest = _request_digest(request)
         return ProviderObject(
             provider_id=name,
             object_id=spec.query_family,
@@ -868,19 +1012,30 @@ class ProviderRegistry:
     def _entry(self, name: str) -> tuple[ExecutableProvider, ProviderTrust]:
         try:
             return self._providers[name]
-        except KeyError as exc:
-            raise KeyError(f"provider {name!r} is not explicitly registered") from exc
+        except (KeyError, TypeError) as exc:
+            raise _refuse(
+                "provider.not_registered",
+                f"provider {name!r} is not explicitly registered",
+                offending=str(name),
+                remedy="register it with ProviderRegistry.register, or load an installed "
+                "one with load_entry_point",
+                error=UnknownProviderError,
+            ) from exc
 
     def execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
-        try:
-            provider, trust = self._providers[name]
-        except KeyError as exc:
-            raise KeyError(f"provider {name!r} is not explicitly registered") from exc
+        provider, trust = self._entry(name)
         spec = provider.spec
         report = self._verification.get(name)
         current_spec_digest = _digest("spec", _spec_evidence(spec))
         if report is not None and current_spec_digest != report.spec_digest:
-            raise ValueError("verified provider spec changed after verification")
+            raise _refuse(
+                "provider.spec_changed",
+                "verified provider spec changed after verification",
+                code="external_binding_mismatch",
+                offending=name,
+                remedy="verify the changed provider again, or restore the verified spec",
+            )
+        request_digest = _request_digest(request)
         effective_trust = trust
         if report is not None and not report.covers(request, spec_digest=current_spec_digest):
             effective_trust = ProviderTrust.EXTERNALLY_ATTESTED
@@ -889,16 +1044,35 @@ class ProviderRegistry:
             raise TypeError("provider execute() must return ProviderExecution")
         estimate = _provider_array(raw.estimate, "estimate")
         if isinstance(spec.output_shape, tuple) and estimate.shape != spec.output_shape:
-            raise ValueError(
-                f"provider estimate shape {estimate.shape} does not match declared {spec.output_shape}"
+            raise _refuse(
+                "provider.output_shape_mismatch",
+                f"provider estimate shape {estimate.shape} does not match "
+                f"declared {spec.output_shape}",
+                code="external_binding_mismatch",
+                offending="estimate",
+                remedy="return an estimate of the declared output_shape, or declare the "
+                "shape the provider returns",
             )
         uncertainty = (
             None if raw.uncertainty is None else _provider_array(raw.uncertainty, "uncertainty")
         )
         if uncertainty is not None and uncertainty.shape not in ((), estimate.shape):
-            raise ValueError("provider uncertainty must be scalar or match the estimate shape")
+            raise _refuse(
+                "provider.uncertainty_shape_mismatch",
+                "provider uncertainty must be scalar or match the estimate shape",
+                code="external_binding_mismatch",
+                offending="uncertainty",
+                remedy="return one uncertainty value, or one per estimate entry",
+            )
         if uncertainty is not None and spec.uncertainty_semantics == "point_only":
-            raise ValueError("point-only provider returned uncertainty")
+            raise _refuse(
+                "provider.uncertainty_undeclared",
+                "point-only provider returned uncertainty",
+                code="external_binding_mismatch",
+                offending="uncertainty",
+                remedy="declare how the uncertainty is to be read in "
+                "CausalProviderSpec.uncertainty_semantics, or return none",
+            )
         provenance = _provider_provenance(spec.provenance)
         provenance.update(_provider_provenance(raw.provenance))
         provenance["registry_name"] = name
@@ -907,14 +1081,8 @@ class ProviderRegistry:
         provenance["trust_boundary"] = effective_trust.value
         if report is not None and effective_trust is ProviderTrust.VERIFIED_EXTENSION:
             provenance["verification_evidence_digest"] = report.evidence_digest
-            provenance["verification_evidence_origin"] = report.evidence_origin
-        try:
-            request_digest = _digest("request", request)
-        except TypeError:
-            if effective_trust is ProviderTrust.VERIFIED_EXTENSION:
-                raise ValueError("verified request must have a canonical digest") from None
-            request_digest = hashlib.sha256(repr(dict(request)).encode("utf-8")).hexdigest()
-            provenance["request_digest_method"] = "repr_fallback_external_only"
+            provenance["verification_evidence_origin"] = cast(str, report.evidence_origin)
+        provenance["request_digest_method"] = _REQUEST_DIGEST_METHOD
         from . import _native
 
         header = {
@@ -988,33 +1156,37 @@ def _spec_evidence(spec: CausalProviderSpec) -> dict[str, Any]:
 
 _DIGEST_DOMAINS = {
     "spec": "antecedent.provider.spec.v1",
-    "request": "antecedent.provider.request.v1",
+    # v2: arrays and tables enter by dtype, shape and byte digest.
+    "request": "antecedent.provider.request.v2",
 }
 
 
 def _digest(domain: str, value: Any) -> str:
-    """Rust's canonical BLAKE3 digest of a JSON-serializable value under ``domain``."""
+    """Canonical digest of a provider spec or request; a value with no JSON form raises."""
+    return canonical_digest(_DIGEST_DOMAINS[domain], value)
 
-    def encode(item: Any) -> Any:
-        if isinstance(item, np.ndarray):
-            return item.tolist()
-        if isinstance(item, np.generic):
-            return item.item()
-        if isinstance(item, Mapping):
-            return {str(key): encode(value) for key, value in item.items()}
-        if isinstance(item, (tuple, list)):
-            return [encode(value) for value in item]
-        if isinstance(item, (str, int, float, bool)) or item is None:
-            return item
-        raise TypeError("verification evidence must be JSON serializable")
 
-    from . import _native
+_REQUEST_DIGEST_METHOD = "canonical_json_v2"
 
-    return str(
-        _native.canonical_json_digest_hex(
-            _DIGEST_DOMAINS[domain], json.dumps(encode(value), allow_nan=False)
-        )
-    )
+
+def _request_digest(request: Mapping[str, Any]) -> str:
+    """The canonical digest of a request, or the refusal that it has none.
+
+    A request is hashed by its content: JSON values, and arrays and column tables
+    by dtype, shape and bytes. There is no fallback to a textual ``repr``, which
+    truncates large data so two datasets could share a digest; an object with no
+    canonical form is refused and must be passed as columns.
+    """
+    try:
+        return _digest("request", request)
+    except (TypeError, ValueError) as error:
+        raise _refuse(
+            "provider.request_not_canonical",
+            f"provider request has no canonical digest: {error}",
+            offending="request",
+            remedy="pass JSON values, NumPy arrays or columns (a dict of arrays, a pandas "
+            "DataFrame or an Arrow table); finite numbers only in lists",
+        ) from error
 
 
 def _probe(kind: str, observed: float, expected: float, tolerance: float) -> dict[str, Any]:
@@ -1040,16 +1212,32 @@ _PROBE_FAILURES = {
 
 def _fixture_refusal(
     refusal: Mapping[str, Any], fixtures: Sequence[ProviderVerificationFixture]
-) -> ValueError:
-    """The ``ValueError`` for a Rust verification refusal, naming the failing fixture."""
+) -> ProviderValueRefusal:
+    """The refusal for a Rust verification refusal, naming the failing fixture."""
     offending = str(refusal.get("offending") or "")
     match = re.fullmatch(r"request\[(\d+)\]\.(\w+)", offending)
     detail = str(refusal.get("detail", "provider verification refused"))
+    subject = offending or None
     if match is not None:
         fixture = fixtures[int(match.group(1))]
         text = _PROBE_FAILURES.get(match.group(2), f"{detail} at {match.group(2)}")
-        return ValueError(f"fixture {fixture.name!r}: {text}")
-    return ValueError(f"{detail}: {offending}" if offending else detail)
+        message = f"fixture {fixture.name!r}: {text}"
+        subject = fixture.name
+    else:
+        message = f"{detail}: {offending}" if offending else detail
+    return ProviderValueRefusal(
+        {
+            "code": refusal.get("code") or "external_verification_failed",
+            "stage": str(refusal.get("stage") or "verify"),
+            "detail": detail,
+            "message": message,
+            "offending": subject,
+            "remedy": refusal.get("remedy")
+            or "fix the provider so it reproduces the independent reference, or correct "
+            "a reference that was wrong",
+        },
+        text=message,
+    )
 
 
 def _same_provider_result(a: ProviderResult, b: ProviderResult) -> bool:
@@ -1086,10 +1274,13 @@ __all__ = [
     "ProviderRegistry",
     "ProviderResult",
     "ProviderQuery",
+    "ProviderRefusal",
+    "ProviderValueRefusal",
     "ProviderVerificationFixture",
     "ProviderVerificationReceipt",
     "ProviderVerificationReport",
     "UncertaintySemantics",
+    "UnknownProviderError",
     "UtilityFn",
     "VerifiedRequest",
     "providers",
