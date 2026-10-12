@@ -7,8 +7,8 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::BayesianBackendKind;
 use antecedent_estimate::{
-    HydrateMapping, PreparedBayesianProblem, coefficient_covariance_from_draws,
-    hydrate_prior_with_coefficient_covariance, is_temporal_coefficient_name,
+    HydrateMapping, HydrateSource, HydrateTarget, PreparedBayesianProblem,
+    coefficient_covariance_from_draws, hydrate_prior, is_temporal_coefficient_name,
 };
 use antecedent_io::PosteriorQuantityWire;
 use antecedent_io::PriorMapping;
@@ -591,16 +591,12 @@ fn hydrate_prior_from_decoded(
     let covariance =
         coefficient_covariance_from_draws(&quantities, &source.draws, source.wire.n_draws as usize)
             .map_err(CausalError::from)?;
-    hydrate_prior_with_coefficient_covariance(
+    hydrate_prior(
         mapping,
-        &quantities,
-        &source.wire.mean,
-        &source.wire.sd,
-        covariance.as_deref(),
-        baseline,
-        target_coef_names,
-        treatment_col,
-        source_contrast,
+        &HydrateSource::summaries(&quantities, &source.wire.mean, &source.wire.sd)
+            .with_coefficient_covariance(covariance.as_deref())
+            .with_source_contrast(source_contrast),
+        &HydrateTarget { baseline, coef_names: target_coef_names, treatment_col },
     )
     .map_err(CausalError::from)
 }
@@ -793,16 +789,11 @@ pub fn mapped_posterior_transfer(
             .map(|(_, _, source, target)| (source.clone(), target.clone()))
             .collect(),
     };
-    let mut prior = hydrate_prior_with_coefficient_covariance(
+    let mut prior = hydrate_prior(
         &mapping,
-        &quantities,
-        &mean,
-        &sd,
-        Some(&covariance),
-        baseline,
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &mean, &sd)
+            .with_coefficient_covariance(Some(&covariance)),
+        &HydrateTarget { baseline, coef_names: &names, treatment_col: None },
     )
     .map_err(CausalError::from)?;
     prior.restrictions.push(antecedent_core::PriorAssumption {

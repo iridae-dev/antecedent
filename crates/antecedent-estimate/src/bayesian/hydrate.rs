@@ -356,77 +356,94 @@ pub enum HydrateMapping {
     },
 }
 
+/// A source posterior as hydration sees it: quantity schema, per-quantity moments, and
+/// the optional absolute coefficient covariance and treatment contrast.
+#[derive(Clone, Copy, Debug)]
+pub struct HydrateSource<'a> {
+    /// Source posterior quantity kinds (artifact column schema).
+    pub quantities: &'a [PosteriorQuantityKind],
+    /// Source posterior means, aligned to [`Self::quantities`].
+    pub mean: &'a [f64],
+    /// Source posterior SDs, aligned to [`Self::quantities`].
+    pub sd: &'a [f64],
+    /// Source's absolute coefficient covariance (row-major `n_coef²`), when its draws
+    /// were retained. `None` hydrates the diagonal prior only.
+    pub coefficient_covariance: Option<&'a [f64]>,
+    /// Source treatment contrast `active − control`, needed by
+    /// [`HydrateMapping::EffectFunctional`].
+    pub source_contrast: Option<f64>,
+}
+
+impl<'a> HydrateSource<'a> {
+    /// A summaries-only source: moments with no covariance or contrast.
+    #[must_use]
+    pub fn summaries(
+        quantities: &'a [PosteriorQuantityKind],
+        mean: &'a [f64],
+        sd: &'a [f64],
+    ) -> Self {
+        Self { quantities, mean, sd, coefficient_covariance: None, source_contrast: None }
+    }
+
+    /// Carry the source's absolute coefficient covariance.
+    #[must_use]
+    pub fn with_coefficient_covariance(mut self, covariance: Option<&'a [f64]>) -> Self {
+        self.coefficient_covariance = covariance;
+        self
+    }
+
+    /// Record the source treatment contrast `active − control`.
+    #[must_use]
+    pub fn with_source_contrast(mut self, contrast: Option<f64>) -> Self {
+        self.source_contrast = contrast;
+        self
+    }
+}
+
+/// The model a hydrated prior is built for: its baseline prior and coefficient layout.
+#[derive(Clone, Copy, Debug)]
+pub struct HydrateTarget<'a> {
+    /// Baseline prior; unmapped dimensions and residual specs are kept from it.
+    pub baseline: &'a PriorSet,
+    /// Target coefficient names in design-column order.
+    pub coef_names: &'a [Arc<str>],
+    /// Treatment coefficient column, when the target has one.
+    pub treatment_col: Option<usize>,
+}
+
 /// Build a coefficient [`PriorSet`] under a declared [`HydrateMapping`].
 ///
 /// - [`HydrateMapping::IdenticalCoefficientSubspace`]: full coef hydrate; hard-errors
-///   when source coef count ≠ baseline length.
+///   when source coef count ≠ baseline length. Carries the source's coefficient
+///   covariance (correlation, dense `V0`; see
+///   [`hydrate_prior_from_coefficient_moments`]) when
+///   [`HydrateSource::coefficient_covariance`] is set, and is diagonal otherwise.
 /// - [`HydrateMapping::EffectFunctional`]: identity-link ATE → slope bridge
 ///   `β ~ N(μ_ATE / Δ, (σ_ATE / Δ)²)` onto the treatment coefficient, or onto
 ///   `treatment_at_mean_modifier` when that CATE coefficient is present.
-///   `source_contrast` is the source `active − control`. Missing or ~0 Δ is a
-///   typed refuse of the mapping. Other dims keep `baseline`.
+///   [`HydrateSource::source_contrast`] is the source `active − control`. Missing or
+///   ~0 Δ is a typed refuse of the mapping. Other dims keep the baseline. Remains
+///   diagonal.
 /// - [`HydrateMapping::NamedParameters`]: maps named source moments onto named
-///   target coefficients; unmapped dims keep `baseline`.
+///   target coefficients; unmapped dims keep the baseline. A complete one-to-one map
+///   of named coefficient columns also carries the full covariance, permuted into
+///   target order; partial or non-coefficient mappings remain diagonal.
 ///
 /// Records `external_effect_prior` / `external_named_prior` on
 /// [`PriorSet::restrictions`].
 ///
-/// Summaries only: identical-subspace hydration is diagonal here. Use
-/// [`hydrate_prior_with_coefficient_covariance`] to carry the source's
-/// coefficient covariance (dense `V0`).
-///
 /// # Errors
 ///
 /// Dimension mismatch, missing effect column, unknown names, missing/zero Δ,
-/// or invalid baseline.
-#[allow(clippy::too_many_arguments)]
+/// a covariance of the wrong size, or invalid baseline.
+#[allow(clippy::too_many_lines)]
 pub fn hydrate_prior(
     mapping: &HydrateMapping,
-    quantities: &[PosteriorQuantityKind],
-    mean: &[f64],
-    sd: &[f64],
-    baseline: &PriorSet,
-    target_coef_names: &[Arc<str>],
-    treatment_col: Option<usize>,
-    source_contrast: Option<f64>,
+    source: &HydrateSource<'_>,
+    target: &HydrateTarget<'_>,
 ) -> Result<PriorSet, EstimationError> {
-    hydrate_prior_with_coefficient_covariance(
-        mapping,
-        quantities,
-        mean,
-        sd,
-        None,
-        baseline,
-        target_coef_names,
-        treatment_col,
-        source_contrast,
-    )
-}
-
-/// [`hydrate_prior`] with the source's absolute coefficient covariance.
-///
-/// [`HydrateMapping::IdenticalCoefficientSubspace`] carries the covariance's
-/// correlation (dense `V0`, see [`hydrate_prior_from_coefficient_moments`]).
-/// [`HydrateMapping::EffectFunctional`] maps one coefficient and remains
-/// diagonal. A complete one-to-one [`HydrateMapping::NamedParameters`] map of
-/// named coefficient columns also carries the full covariance, permuted into
-/// target order. Partial or non-coefficient mappings remain diagonal.
-///
-/// # Errors
-///
-/// As [`hydrate_prior`], or a covariance of the wrong size.
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-pub fn hydrate_prior_with_coefficient_covariance(
-    mapping: &HydrateMapping,
-    quantities: &[PosteriorQuantityKind],
-    mean: &[f64],
-    sd: &[f64],
-    coefficient_covariance: Option<&[f64]>,
-    baseline: &PriorSet,
-    target_coef_names: &[Arc<str>],
-    treatment_col: Option<usize>,
-    source_contrast: Option<f64>,
-) -> Result<PriorSet, EstimationError> {
+    let HydrateSource { quantities, mean, sd, coefficient_covariance, source_contrast } = *source;
+    let HydrateTarget { baseline, coef_names: target_coef_names, treatment_col } = *target;
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::PriorConstruction,
         || {

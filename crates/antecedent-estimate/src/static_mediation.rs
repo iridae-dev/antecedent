@@ -1,11 +1,6 @@
 //! Static additive-linear natural mediation on an identified DAG.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::type_complexity
-)]
+#![allow(clippy::needless_pass_by_value, clippy::too_many_lines, clippy::type_complexity)]
 #![cfg_attr(
     test,
     allow(
@@ -15,8 +10,8 @@
     )
 )]
 use crate::{
-    EffectEstimate, EstimationError, HydrateMapping, OverlapPolicy, TemporalMediationEstimate,
-    hydrate_prior,
+    EffectEstimate, EstimationError, HydrateMapping, HydrateSource, HydrateTarget, OverlapPolicy,
+    TemporalMediationEstimate, hydrate_prior,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -197,6 +192,38 @@ pub struct MediationPriorBridge<'a> {
     pub source_contrast: Option<f64>,
 }
 
+impl<'a> MediationPriorBridge<'a> {
+    /// The source posterior as hydration consumes it (no coefficient covariance: each
+    /// mechanism is hydrated from summaries).
+    fn source(&self) -> HydrateSource<'a> {
+        HydrateSource::summaries(self.quantities, self.mean, self.sd)
+            .with_source_contrast(self.source_contrast)
+    }
+}
+
+/// A static mediation problem: the data, its DAG, the mediation query and any exogenous
+/// nuisance covariates the mechanism regressions condition on.
+#[derive(Clone, Copy, Debug)]
+pub struct StaticMediationProblem<'a> {
+    /// Observed table.
+    pub data: &'a TabularData,
+    /// Identified DAG whose mechanisms are fitted.
+    pub graph: &'a Dag,
+    /// Mediation query (treatment, mediators, outcome, contrast).
+    pub query: &'a MediationQuery,
+    /// Exogenous nuisance covariates added to every mechanism regression.
+    pub extra: &'a [VariableId],
+}
+
+/// Which mechanisms a mapped [`MediationPriorBridge`] may hydrate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BridgeScope {
+    /// Every mechanism whose coefficients the mapping binds.
+    AllMechanisms,
+    /// The outcome mechanism only.
+    OutcomeMechanism,
+}
+
 /// Bayesian linear natural effects: independent Gaussian mechanism posteriors,
 /// then the same additive-linear natural-effect product as [`estimate_static_mediation`].
 ///
@@ -214,27 +241,21 @@ pub struct MediationPriorBridge<'a> {
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
 )]
 pub fn estimate_static_mediation_bayesian(
-    data: &TabularData,
-    graph: &Dag,
-    query: &MediationQuery,
+    problem: &StaticMediationProblem<'_>,
     assumptions: AssumptionSet,
-    extra: &[VariableId],
     estimator: &crate::BayesianGComputationAte,
     identification: antecedent_core::IdentificationStatus,
     bridge: Option<MediationPriorBridge<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
     estimate_static_mediation_bayesian_impl(
-        data,
-        graph,
-        query,
+        problem,
         assumptions,
-        extra,
         estimator,
         identification,
         bridge,
+        BridgeScope::AllMechanisms,
         ctx,
-        false,
     )
 }
 
@@ -242,45 +263,40 @@ pub fn estimate_static_mediation_bayesian(
 /// the outcome mechanism. Checked high-level mediation routes use this entry
 /// point because only the outcome treatment slope defines the natural-direct
 /// functional used by the licensed transfer contract.
-#[allow(clippy::too_many_arguments)]
+///
+/// # Errors
+///
+/// As [`estimate_static_mediation_bayesian`].
 pub fn estimate_static_mediation_bayesian_outcome_prior(
-    data: &TabularData,
-    graph: &Dag,
-    query: &MediationQuery,
+    problem: &StaticMediationProblem<'_>,
     assumptions: AssumptionSet,
-    extra: &[VariableId],
     estimator: &crate::BayesianGComputationAte,
     identification: antecedent_core::IdentificationStatus,
     bridge: Option<MediationPriorBridge<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
     estimate_static_mediation_bayesian_impl(
-        data,
-        graph,
-        query,
+        problem,
         assumptions,
-        extra,
         estimator,
         identification,
         bridge,
+        BridgeScope::OutcomeMechanism,
         ctx,
-        true,
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn estimate_static_mediation_bayesian_impl(
-    data: &TabularData,
-    graph: &Dag,
-    query: &MediationQuery,
+    problem: &StaticMediationProblem<'_>,
     assumptions: AssumptionSet,
-    extra: &[VariableId],
     estimator: &crate::BayesianGComputationAte,
     identification: antecedent_core::IdentificationStatus,
     bridge: Option<MediationPriorBridge<'_>>,
+    scope: BridgeScope,
     ctx: &ExecutionContext,
-    outcome_prior_only: bool,
 ) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
+    let StaticMediationProblem { data, graph, query, extra } = *problem;
+    let outcome_prior_only = scope == BridgeScope::OutcomeMechanism;
     crate::bayesian_mediation::require_gaussian_mediation(estimator)?;
     let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
     if estimator.prior.is_some() {
@@ -576,6 +592,8 @@ fn hydrate_mechanism_prior(
     baseline.push(antecedent_prob::PriorSpec::GaussianCoefficients(
         antecedent_prob::GaussianCoefficientPrior::isotropic(coef_names.len(), prior_scale),
     ));
+    let source = bridge.source();
+    let target = HydrateTarget { baseline: &baseline, coef_names, treatment_col };
     match bridge.mapping {
         HydrateMapping::EffectFunctional { .. }
             if !outcome_mechanism || treatment_col.is_none() =>
@@ -595,28 +613,14 @@ fn hydrate_mechanism_prior(
             }
             return hydrate_prior(
                 &HydrateMapping::NamedParameters { pairs: local_pairs },
-                bridge.quantities,
-                bridge.mean,
-                bridge.sd,
-                &baseline,
-                coef_names,
-                treatment_col,
-                bridge.source_contrast,
+                &source,
+                &target,
             )
             .map(Some);
         }
         HydrateMapping::IdenticalCoefficientSubspace | HydrateMapping::EffectFunctional { .. } => {}
     }
-    match hydrate_prior(
-        bridge.mapping,
-        bridge.quantities,
-        bridge.mean,
-        bridge.sd,
-        &baseline,
-        coef_names,
-        treatment_col,
-        bridge.source_contrast,
-    ) {
+    match hydrate_prior(bridge.mapping, &source, &target) {
         Ok(prior) => Ok(Some(prior)),
         // A banked posterior of another shape does not bind this mechanism; every
         // other failure is a real error.
@@ -809,11 +813,8 @@ mod tests {
         let estimator = crate::BayesianGComputationAte { n_draws: 512, ..Default::default() };
         let ctx = ExecutionContext::for_tests(1941);
         let refused = estimate_static_mediation_bayesian(
-            &data,
-            &graph,
-            &query,
+            &StaticMediationProblem { data: &data, graph: &graph, query: &query, extra: &[] },
             AssumptionSet::new(),
-            &[],
             &estimator,
             antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
             Some(bridge),
@@ -828,11 +829,8 @@ mod tests {
         );
 
         let (estimate, posterior) = estimate_static_mediation_bayesian_outcome_prior(
-            &data,
-            &graph,
-            &query,
+            &StaticMediationProblem { data: &data, graph: &graph, query: &query, extra: &[] },
             AssumptionSet::new(),
-            &[],
             &estimator,
             antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
             Some(bridge),
@@ -965,11 +963,8 @@ mod tests {
             estimate_static_mediation(&data, &graph(true), &q, AssumptionSet::new(), 0, &[], &ctx)
                 .unwrap();
         let bayes = estimate_static_mediation_bayesian(
-            &data,
-            &graph(true),
-            &q,
+            &StaticMediationProblem { data: &data, graph: &graph(true), query: &q, extra: &[] },
             AssumptionSet::new(),
-            &[],
             &crate::BayesianGComputationAte::conjugate(),
             antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
             None,
@@ -1040,11 +1035,8 @@ mod tests {
             MediationContrast::NaturalIndirect,
         );
         let (bayes, posterior) = estimate_static_mediation_bayesian(
-            &data,
-            &graph(true),
-            &q,
+            &StaticMediationProblem { data: &data, graph: &graph(true), query: &q, extra: &[] },
             AssumptionSet::new(),
-            &[],
             &crate::BayesianGComputationAte::conjugate(),
             antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
             None,

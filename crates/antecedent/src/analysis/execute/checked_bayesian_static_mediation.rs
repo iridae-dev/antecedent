@@ -214,11 +214,13 @@ impl CheckedBayesianStaticMediationOperation {
         let estimator = bayesian_gcomp(&bound.config, ctx);
         let (mediation, posterior) =
             antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
-                data,
-                &bound.graph,
-                &bound.query,
+                &antecedent_estimate::StaticMediationProblem {
+                    data: data,
+                    graph: &bound.graph,
+                    query: &bound.query,
+                    extra: &[],
+                },
                 bound.identification.required_assumptions.clone(),
-                &[],
                 &estimator,
                 bound.identification.status,
                 bridge,

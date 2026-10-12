@@ -24,9 +24,9 @@ pub use gcomp::{
 };
 pub use hydrate::{
     HYDRATED_COEFFICIENT_COVARIANCE_ID, HYDRATED_COVARIANCE_DROPPED_ID, HydrateMapping,
-    coefficient_covariance_from_draws, hydrate_prior, hydrate_prior_from_coefficient_moments,
-    hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
-    hydrate_prior_with_coefficient_covariance,
+    HydrateSource, HydrateTarget, coefficient_covariance_from_draws, hydrate_prior,
+    hydrate_prior_from_coefficient_moments, hydrate_prior_from_posterior,
+    hydrate_prior_from_quantity_summaries,
 };
 
 use std::sync::Arc;

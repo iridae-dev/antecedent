@@ -963,11 +963,13 @@ fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
     let estimator =
         antecedent_estimate::BayesianGComputationAte { n_draws: 64, ..Default::default() };
     let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
-        &data,
-        &dag,
-        &query,
+        &antecedent_estimate::StaticMediationProblem {
+            data: &data,
+            graph: &dag,
+            query: &query,
+            extra: &[],
+        },
         antecedent_core::AssumptionSet::default(),
-        &[],
         &estimator,
         source.identification.status,
         Some(bridge),
@@ -997,11 +999,13 @@ fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
         pairs: vec![("slope_t".into(), "typo".into())],
     };
     let err = antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
-        &data,
-        &dag,
-        &query,
+        &antecedent_estimate::StaticMediationProblem {
+            data: &data,
+            graph: &dag,
+            query: &query,
+            extra: &[],
+        },
         antecedent_core::AssumptionSet::default(),
-        &[],
         &estimator,
         source.identification.status,
         Some(antecedent_estimate::MediationPriorBridge { mapping: &bad_mapping, ..bridge }),
@@ -1361,11 +1365,13 @@ fn static_mediation_small_draw_requests_have_finite_uncertainty() {
     for n_draws in [0, 1] {
         let estimator = antecedent_estimate::BayesianGComputationAte::new().with_n_draws(n_draws);
         let err = antecedent_estimate::estimate_static_mediation_bayesian(
-            &data,
-            &dag,
-            &query,
+            &antecedent_estimate::StaticMediationProblem {
+                data: &data,
+                graph: &dag,
+                query: &query,
+                extra: &[],
+            },
             antecedent_core::AssumptionSet::default(),
-            &[],
             &estimator,
             antecedent_core::IdentificationStatus::NonparametricallyIdentified,
             None,
@@ -1379,11 +1385,13 @@ fn static_mediation_small_draw_requests_have_finite_uncertainty() {
     }
     let estimator = antecedent_estimate::BayesianGComputationAte::new().with_n_draws(2);
     let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
-        &data,
-        &dag,
-        &query,
+        &antecedent_estimate::StaticMediationProblem {
+            data: &data,
+            graph: &dag,
+            query: &query,
+            extra: &[],
+        },
         antecedent_core::AssumptionSet::default(),
-        &[],
         &estimator,
         antecedent_core::IdentificationStatus::NonparametricallyIdentified,
         None,

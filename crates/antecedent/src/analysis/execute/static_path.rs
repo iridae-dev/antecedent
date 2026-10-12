@@ -1472,11 +1472,13 @@ impl super::Study {
                 source_contrast: d.source_contrast,
             });
             let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
-                data,
-                graph,
-                query,
+                &antecedent_estimate::StaticMediationProblem {
+                    data: data,
+                    graph: graph,
+                    query: query,
+                    extra: &[],
+                },
                 identification.required_assumptions.clone(),
-                &[],
                 &est,
                 identification.status,
                 bridge,

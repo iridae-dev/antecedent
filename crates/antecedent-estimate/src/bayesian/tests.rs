@@ -1584,13 +1584,8 @@ fn hydrate_effect_functional_maps_treatment_coef() {
     let baseline = PriorSet::weakly_informative(3);
     let prior = hydrate_prior(
         &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        Some(1),
-        Some(0.5),
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.5)),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: Some(1) },
     )
     .unwrap();
     let coef = prior.gaussian_coefficients().unwrap();
@@ -1623,13 +1618,8 @@ fn hydrate_mapping_hard_errors() {
     assert!(
         hydrate_prior(
             &HydrateMapping::IdenticalCoefficientSubspace,
-            &quantities,
-            &mean,
-            &sd,
-            &baseline3,
-            &names3,
-            None,
-            None,
+            &HydrateSource::summaries(&quantities, &mean, &sd),
+            &HydrateTarget { baseline: &baseline3, coef_names: &names3, treatment_col: None },
         )
         .is_err()
     );
@@ -1637,13 +1627,8 @@ fn hydrate_mapping_hard_errors() {
     assert!(
         hydrate_prior(
             &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
-            &quantities,
-            &mean,
-            &sd,
-            &baseline2,
-            &names2,
-            Some(1),
-            Some(1.0),
+            &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(1.0)),
+            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
         )
         .is_err()
     );
@@ -1651,26 +1636,16 @@ fn hydrate_mapping_hard_errors() {
     assert!(
         hydrate_prior(
             &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-            &quantities,
-            &mean,
-            &sd,
-            &baseline2,
-            &names2,
-            Some(1),
-            None,
+            &HydrateSource::summaries(&quantities, &mean, &sd),
+            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
         )
         .is_err()
     );
     assert!(
         hydrate_prior(
             &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-            &quantities,
-            &mean,
-            &sd,
-            &baseline2,
-            &names2,
-            Some(1),
-            Some(0.0),
+            &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.0)),
+            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
         )
         .is_err()
     );
@@ -1678,13 +1653,8 @@ fn hydrate_mapping_hard_errors() {
     assert!(
         hydrate_prior(
             &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
-            &quantities,
-            &mean,
-            &sd,
-            &baseline2,
-            &names2,
-            None,
-            None,
+            &HydrateSource::summaries(&quantities, &mean, &sd),
+            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
         )
         .is_err()
     );
@@ -1692,13 +1662,8 @@ fn hydrate_mapping_hard_errors() {
     assert!(
         hydrate_prior(
             &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
-            &quantities,
-            &mean,
-            &sd,
-            &baseline2,
-            &names2,
-            None,
-            None,
+            &HydrateSource::summaries(&quantities, &mean, &sd),
+            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
         )
         .is_err()
     );
@@ -1721,13 +1686,8 @@ fn hydrate_effect_functional_lands_on_cate_coefficient() {
     let baseline = PriorSet::weakly_informative(4);
     let prior = hydrate_prior(
         &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        None,
-        Some(0.6),
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.6)),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: None },
     )
     .unwrap();
     let coef = prior.gaussian_coefficients().unwrap();
@@ -1750,13 +1710,8 @@ fn hydrate_named_parameters_overwrites_target() {
     let baseline = PriorSet::weakly_informative(2);
     let prior = hydrate_prior(
         &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: None },
     )
     .unwrap();
     let coef = prior.gaussian_coefficients().unwrap();
@@ -1772,18 +1727,17 @@ fn full_named_coefficient_map_permutates_dense_covariance() {
         PosteriorQuantityKind::ResidualVariance,
     ];
     let names = vec![Arc::from("target_y"), Arc::from("target_x")];
-    let prior = hydrate_prior_with_coefficient_covariance(
+    let prior = hydrate_prior(
         &HydrateMapping::NamedParameters {
             pairs: vec![("beta_x".into(), "target_x".into()), ("beta_y".into(), "target_y".into())],
         },
-        &quantities,
-        &[1.0, 2.0, 1.0],
-        &[2.0, 3.0, 0.0],
-        Some(&[4.0, 1.0, 1.0, 9.0]),
-        &PriorSet::weakly_informative(2),
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &[1.0, 2.0, 1.0], &[2.0, 3.0, 0.0])
+            .with_coefficient_covariance(Some(&[4.0, 1.0, 1.0, 9.0])),
+        &HydrateTarget {
+            baseline: &PriorSet::weakly_informative(2),
+            coef_names: &names,
+            treatment_col: None,
+        },
     )
     .unwrap();
     let coefficients = prior.gaussian_coefficients().unwrap();
@@ -1798,37 +1752,35 @@ fn full_named_coefficient_map_permutates_dense_covariance() {
             .any(|restriction| { restriction.id.as_ref() == HYDRATED_COEFFICIENT_COVARIANCE_ID })
     );
     assert!(
-        hydrate_prior_with_coefficient_covariance(
+        hydrate_prior(
             &HydrateMapping::NamedParameters {
                 pairs: vec![
                     ("beta_x".into(), "target_x".into()),
                     ("beta_x".into(), "target_y".into()),
                 ],
             },
-            &quantities,
-            &[1.0, 2.0, 1.0],
-            &[2.0, 3.0, 0.0],
-            Some(&[4.0, 1.0, 1.0, 9.0]),
-            &PriorSet::weakly_informative(2),
-            &names,
-            None,
-            None,
+            &HydrateSource::summaries(&quantities, &[1.0, 2.0, 1.0], &[2.0, 3.0, 0.0])
+                .with_coefficient_covariance(Some(&[4.0, 1.0, 1.0, 9.0])),
+            &HydrateTarget {
+                baseline: &PriorSet::weakly_informative(2),
+                coef_names: &names,
+                treatment_col: None
+            },
         )
         .is_err()
     );
     let mut ambiguous = quantities.clone();
     ambiguous[1] = PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("beta_x")) };
     assert!(
-        hydrate_prior_with_coefficient_covariance(
+        hydrate_prior(
             &HydrateMapping::NamedParameters { pairs: vec![("beta_x".into(), "target_x".into())] },
-            &ambiguous,
-            &[1.0, 2.0, 1.0],
-            &[2.0, 3.0, 0.0],
-            Some(&[4.0, 1.0, 1.0, 9.0]),
-            &PriorSet::weakly_informative(2),
-            &names,
-            None,
-            None,
+            &HydrateSource::summaries(&ambiguous, &[1.0, 2.0, 1.0], &[2.0, 3.0, 0.0])
+                .with_coefficient_covariance(Some(&[4.0, 1.0, 1.0, 9.0])),
+            &HydrateTarget {
+                baseline: &PriorSet::weakly_informative(2),
+                coef_names: &names,
+                treatment_col: None
+            },
         )
         .is_err()
     );
@@ -1856,13 +1808,8 @@ fn hydrate_keeps_absolute_variances_for_source_without_residual_variance() {
 
     let identical = hydrate_prior(
         &HydrateMapping::IdenticalCoefficientSubspace,
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: None },
     )
     .unwrap();
     assert_eq!(identical.absolute_coefficient_scale(), Some(vec![0, 1]));
@@ -1871,13 +1818,8 @@ fn hydrate_keeps_absolute_variances_for_source_without_residual_variance() {
     // Effect functional with Δ = 0.5: absolute Var(β_T) = (0.5 / 0.5)² = 1.
     let effect = hydrate_prior(
         &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        Some(1),
-        Some(0.5),
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.5)),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: Some(1) },
     )
     .unwrap();
     let coef = effect.gaussian_coefficients().unwrap();
@@ -1887,13 +1829,8 @@ fn hydrate_keeps_absolute_variances_for_source_without_residual_variance() {
 
     let named = hydrate_prior(
         &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: None },
     )
     .unwrap();
     let coef = named.gaussian_coefficients().unwrap();
@@ -1934,13 +1871,8 @@ fn hydrate_with_residual_variance_is_unchanged() {
 
     let effect = hydrate_prior(
         &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        Some(1),
-        Some(0.5),
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.5)),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: Some(1) },
     )
     .unwrap();
     assert_eq!(effect.gaussian_coefficients().unwrap().variance.as_ref(), &[100.0, 1.0 / 4.0]);
@@ -1954,13 +1886,8 @@ fn hydrate_with_residual_variance_is_unchanged() {
 
     let named = hydrate_prior(
         &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
-        &quantities,
-        &mean,
-        &sd,
-        &baseline,
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline, coef_names: &names, treatment_col: None },
     )
     .unwrap();
     assert_eq!(named.gaussian_coefficients().unwrap().variance.as_ref(), &[100.0, 0.25 / 4.0]);

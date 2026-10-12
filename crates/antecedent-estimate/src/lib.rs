@@ -172,11 +172,11 @@ pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
     HMC_DRAW_FLOOR_NOTE_PREFIX, HMC_MIN_DRAWS, HYDRATED_COEFFICIENT_COVARIANCE_ID,
-    HYDRATED_COVARIANCE_DROPPED_ID, HydrateMapping, PosteriorFunctionalEvaluator,
-    PreparedBayesianProblem, coefficient_covariance_from_draws, coefficient_names_from_design,
-    hmc_draw_floor_from_notes, hydrate_prior, hydrate_prior_from_coefficient_moments,
-    hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
-    hydrate_prior_with_coefficient_covariance, nonidentified_with_prior, require_bayesian_n_draws,
+    HYDRATED_COVARIANCE_DROPPED_ID, HydrateMapping, HydrateSource, HydrateTarget,
+    PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_covariance_from_draws,
+    coefficient_names_from_design, hmc_draw_floor_from_notes, hydrate_prior,
+    hydrate_prior_from_coefficient_moments, hydrate_prior_from_posterior,
+    hydrate_prior_from_quantity_summaries, nonidentified_with_prior, require_bayesian_n_draws,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
@@ -384,8 +384,9 @@ pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 mod splitmix;
 mod static_mediation;
 pub use static_mediation::{
-    MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,
-    estimate_static_mediation_bayesian_outcome_prior, linear_no_interaction_restriction,
+    MediationPriorBridge, StaticMediationProblem, estimate_static_mediation,
+    estimate_static_mediation_bayesian, estimate_static_mediation_bayesian_outcome_prior,
+    linear_no_interaction_restriction,
 };
 pub mod augmented_panel_did;
 
