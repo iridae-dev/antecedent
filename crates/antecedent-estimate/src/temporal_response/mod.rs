@@ -80,6 +80,18 @@ pub struct TemporalResponseEstimator {
     pub inner: LinearAdjustmentAte,
 }
 
+/// A temporal query's per-horizon identification and the aggregate identification status
+/// and required assumptions the Bayesian temporal estimators publish with their response.
+#[derive(Clone, Debug)]
+pub struct TemporalIdentification<'a> {
+    /// One identified estimand with its unfolded-graph indexer per requested horizon.
+    pub horizons: &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)],
+    /// Aggregate identification status; every horizon must be point identified.
+    pub status: IdentificationStatus,
+    /// Assumptions the identification requires, carried onto the response.
+    pub assumptions: AssumptionSet,
+}
+
 /// The data, identifications and variables one surface fit is run on.
 #[derive(Clone, Copy)]
 struct SurfaceProblem<'a> {

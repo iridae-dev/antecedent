@@ -941,7 +941,24 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 }
 
 fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed: u64) {
-    wald_coverage_on(test, label, se_kind, seed, "binary_iv_scm", binary_iv_scm, 0.05, false);
+    let design = WaldDesign {
+        dgp: "binary_iv_scm",
+        make: binary_iv_scm,
+        min_weak_share: 0.05,
+        boundary: false,
+    };
+    wald_coverage_on(test, label, se_kind, seed, &design);
+}
+
+/// The data-generating design a Wald-IV coverage cell draws from, and how it is gated.
+struct WaldDesign {
+    /// Name recorded for the DGP.
+    dgp: &'static str,
+    make: fn(usize, u64) -> (TabularData, IdentifiedEstimand),
+    /// Share of draws with a weak first stage the design must leave above this floor.
+    min_weak_share: f64,
+    /// A boundary cell records the measured coverage without gating it.
+    boundary: bool,
 }
 
 /// Anderson–Rubin coverage of the Wald estimator on the design `make` draws (`dgp` names it).
@@ -951,11 +968,9 @@ fn wald_coverage_on(
     label: &str,
     se_kind: AnalyticSeKind,
     seed: u64,
-    dgp: &'static str,
-    make: fn(usize, u64) -> (TabularData, IdentifiedEstimand),
-    min_weak_share: f64,
-    boundary: bool,
+    design: &WaldDesign,
 ) {
+    let WaldDesign { dgp, make, min_weak_share, boundary } = *design;
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
@@ -1727,10 +1742,7 @@ fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
         "wald_iv_weak_first_stage_adversarial",
         AnalyticSeKind::Homoskedastic,
         71,
-        "weak_iv_scm",
-        weak_iv_scm,
-        0.2,
-        true,
+        &WaldDesign { dgp: "weak_iv_scm", make: weak_iv_scm, min_weak_share: 0.2, boundary: true },
     );
 }
 

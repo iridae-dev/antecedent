@@ -9,7 +9,6 @@
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,
-    clippy::too_many_arguments,
     clippy::needless_range_loop,
     reason = "small dense closed-form algebra with short symbol names"
 )]

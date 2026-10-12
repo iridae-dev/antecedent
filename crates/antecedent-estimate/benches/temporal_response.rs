@@ -209,10 +209,12 @@ fn bench_temporal_response(c: &mut Criterion) {
         let response = TemporalResponseEstimator::new()
             .estimate_bayesian(
                 &data,
-                &[(&estimand, &indexer); 6],
+                antecedent_estimate::TemporalIdentification {
+                    horizons: &[(&estimand, &indexer); 6],
+                    status: IdentificationStatus::NonparametricallyIdentified,
+                    assumptions: AssumptionSet::new(),
+                },
                 &query,
-                IdentificationStatus::NonparametricallyIdentified,
-                AssumptionSet::new(),
                 &bayes,
                 &ctx,
             )
@@ -288,10 +290,12 @@ fn bench_temporal_response(c: &mut Criterion) {
             let response = est
                 .estimate_bayesian(
                     &data,
-                    &[(&estimand, &indexer)],
+                    antecedent_estimate::TemporalIdentification {
+                        horizons: &[(&estimand, &indexer)],
+                        status: IdentificationStatus::NonparametricallyIdentified,
+                        assumptions: AssumptionSet::new(),
+                    },
                     &query,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    AssumptionSet::new(),
                     &bayes,
                     &ctx,
                 )
@@ -319,10 +323,12 @@ fn bench_temporal_response(c: &mut Criterion) {
             let response = est
                 .estimate_bayesian(
                     &data,
-                    &[(&estimand, &indexer); 6],
+                    antecedent_estimate::TemporalIdentification {
+                        horizons: &[(&estimand, &indexer); 6],
+                        status: IdentificationStatus::NonparametricallyIdentified,
+                        assumptions: AssumptionSet::new(),
+                    },
                     &query,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    AssumptionSet::new(),
                     &bayes,
                     &ctx,
                 )

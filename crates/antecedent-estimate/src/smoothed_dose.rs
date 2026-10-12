@@ -1051,21 +1051,38 @@ type FoldPredictor<'a> = dyn Fn(usize, &[f64], usize, &ExecutionContext) -> Resu
     + Sync
     + 'a;
 
+/// The fold count and per-fold outcome predictor of a cross-fitted outcome model.
+#[derive(Clone, Copy)]
+struct FoldedPredictor<'a> {
+    fold_count: usize,
+    predict: &'a FoldPredictor<'a>,
+}
+
+/// One quadrature rule over the kernel window `[center − half_width, center + half_width]`
+/// of one grid dose.
+#[derive(Clone, Copy)]
+struct TargetQuadrature<'a> {
+    kernel: SmoothingKernel,
+    center: f64,
+    half_width: f64,
+    nodes: &'a [f64],
+    weights: &'a [f64],
+}
+
 /// Target-term quadrature of one grid dose under one rule: `nu_hat` per target row, in
 /// target-row order, each from its own fold's model. Cancellation is polled before every
 /// chunk of at most [`CHUNK_DESIGN_ROWS`] design rows.
-#[allow(clippy::too_many_arguments, reason = "one quadrature rule of one grid dose")]
 fn smoothed_target_rows(
     basis: &DoseBasis,
     input: &SmoothedDoseInput,
-    kernel: SmoothingKernel,
     folds: &[u16],
-    (fold_count, predictor): (usize, &FoldPredictor<'_>),
-    (a, h): (f64, f64),
-    (nodes, weights): (&[f64], &[f64]),
+    predictor: &FoldedPredictor<'_>,
+    rule: &TargetQuadrature<'_>,
     target_rows: &[usize],
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, EstimationError> {
+    let FoldedPredictor { fold_count, predict: predictor } = *predictor;
+    let TargetQuadrature { kernel, center: a, half_width: h, nodes, weights } = *rule;
     let q = nodes.len();
     let kernel_weights: Vec<f64> =
         nodes.iter().zip(weights).map(|(u, w)| w * kernel.density(*u)).collect();
@@ -1219,11 +1236,15 @@ pub fn evaluate_smoothed_dose_models(
             smoothed_target_rows(
                 &options.basis,
                 input,
-                query.kernel,
                 folds,
-                (fold_count, &predictor),
-                (a, bandwidth),
-                (&nodes, &weights),
+                &FoldedPredictor { fold_count, predict: &predictor },
+                &TargetQuadrature {
+                    kernel: query.kernel,
+                    center: a,
+                    half_width: bandwidth,
+                    nodes: &nodes,
+                    weights: &weights,
+                },
                 &target_rows,
                 inner,
             )
@@ -2008,11 +2029,15 @@ mod tests {
             let result = smoothed_target_rows(
                 &basis,
                 &data,
-                SmoothingKernel::Epanechnikov,
                 &folds,
-                (2, &predictor),
-                (2.0, 0.5),
-                (&nodes, &weights),
+                &FoldedPredictor { fold_count: 2, predict: &predictor },
+                &TargetQuadrature {
+                    kernel: SmoothingKernel::Epanechnikov,
+                    center: 2.0,
+                    half_width: 0.5,
+                    nodes: &nodes,
+                    weights: &weights,
+                },
                 &target,
                 &ctx,
             );

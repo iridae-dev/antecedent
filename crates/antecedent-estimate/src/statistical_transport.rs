@@ -431,7 +431,7 @@ pub fn evaluate_statistical_transport_grid(
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    evaluate_grid(functional, input, requests, limits, options, ctx, None, None)
+    evaluate_grid(functional, input, requests, limits, options, ctx, PointLaws::Fit)
 }
 
 /// Evaluate retained point laws without fitting their original samples again.
@@ -450,7 +450,15 @@ pub fn evaluate_statistical_transport_grid_with_point_laws(
     ctx: &ExecutionContext,
     point_laws: &antecedent_expr::ExactTransportData,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    evaluate_grid(functional, input, requests, limits, options, ctx, Some(point_laws), None)
+    evaluate_grid(
+        functional,
+        input,
+        requests,
+        limits,
+        options,
+        ctx,
+        PointLaws::Retained(point_laws),
+    )
 }
 
 /// [`evaluate_statistical_transport_grid_with_point_laws`] for a caller that has already
@@ -461,7 +469,6 @@ pub fn evaluate_statistical_transport_grid_with_point_laws(
 /// `distributions[i]` must be the exact evaluation of `requests[i]` on `point_laws`.
 /// # Errors
 /// A length mismatch, invalid requests, cancellation, or exceeded resources.
-#[allow(clippy::too_many_arguments)]
 pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
@@ -469,10 +476,9 @@ pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
     limits: ExactEvaluationLimits,
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
-    point_laws: &antecedent_expr::ExactTransportData,
-    distributions: Vec<ExactDistribution>,
+    evaluated: EvaluatedPointLaws<'_>,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    if distributions.len() != requests.len() {
+    if evaluated.distributions.len() != requests.len() {
         return Err(EstimationError::data_msg(
             "evaluated point laws do not align with the treatment grid",
         ));
@@ -484,12 +490,30 @@ pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
         limits,
         options,
         ctx,
-        Some(point_laws),
-        Some(distributions),
+        PointLaws::Evaluated(evaluated),
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Retained point laws together with their already-evaluated request distributions.
+#[derive(Debug)]
+pub struct EvaluatedPointLaws<'a> {
+    /// The retained point laws the distributions were evaluated on.
+    pub point_laws: &'a antecedent_expr::ExactTransportData,
+    /// `distributions[i]` is the exact evaluation of `requests[i]` on `point_laws`.
+    pub distributions: Vec<ExactDistribution>,
+}
+
+/// Where a grid evaluation gets its point laws, and whether their request distributions
+/// are already known.
+enum PointLaws<'a> {
+    /// Fit the laws from the input samples and evaluate every request.
+    Fit,
+    /// Use retained laws; evaluate every request on them.
+    Retained(&'a antecedent_expr::ExactTransportData),
+    /// Use retained laws and their evaluated distributions.
+    Evaluated(EvaluatedPointLaws<'a>),
+}
+
 fn evaluate_grid(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
@@ -497,9 +521,15 @@ fn evaluate_grid(
     limits: ExactEvaluationLimits,
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
-    point_laws: Option<&antecedent_expr::ExactTransportData>,
-    evaluated: Option<Vec<ExactDistribution>>,
+    source: PointLaws<'_>,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
+    let (point_laws, evaluated) = match source {
+        PointLaws::Fit => (None, None),
+        PointLaws::Retained(laws) => (Some(laws), None),
+        PointLaws::Evaluated(EvaluatedPointLaws { point_laws, distributions }) => {
+            (Some(point_laws), Some(distributions))
+        }
+    };
     if requests.is_empty() {
         return Err(EstimationError::data_msg("empty treatment grid"));
     }
@@ -1517,8 +1547,7 @@ pub fn mz_transport_bootstrap_interval(
     let mut indexes = Vec::new();
     let drawn = z_draws(
         functional,
-        &tables,
-        data.max_support_rows(),
+        TableDrawer::new(&tables, data.max_support_rows()),
         requests,
         limits,
         &spec,
@@ -1647,8 +1676,7 @@ fn z_interval_over_draws(
         .map_err(EstimationError::data_msg)?;
     let drawn = z_draws(
         functional,
-        &tables,
-        data.max_support_rows(),
+        TableDrawer::new(&tables, data.max_support_rows()),
         std::slice::from_ref(request),
         limits,
         spec,
@@ -1740,11 +1768,9 @@ impl<'t, 'a> TableDrawer<'t, 'a> {
 /// Draw the cited tables `spec.replicates` times and evaluate every request on
 /// each draw. A replicate counts only when every request evaluates, so the
 /// columns stay aligned by replicate id and contrasts are within-replicate.
-#[allow(clippy::too_many_arguments)] // The draw loop's inputs, explicitly.
 fn z_draws(
     functional: &dyn crate::transport::BoundZFormula,
-    tables: &CitedTables<'_>,
-    max_support_rows: usize,
+    mut drawer: TableDrawer<'_, '_>,
     requests: &[Assignment],
     limits: ExactEvaluationLimits,
     spec: &ZDrawSpec,
@@ -1754,7 +1780,6 @@ fn z_draws(
     let outcomes = functional.outcomes().clone();
     let mut columns = requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect::<Vec<_>>();
     let mut failed = 0u32;
-    let mut drawer = TableDrawer::new(tables, max_support_rows);
     for replicate in 0..spec.replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
         let Some(drawn) = drawer.draw(spec, replicate, ctx, &mut draw)? else {

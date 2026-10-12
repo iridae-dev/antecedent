@@ -664,6 +664,16 @@ pub fn aligned_block_bootstrap(
     Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
 }
 
+/// The replicate count and RNG stream base of a circular-block bootstrap. Replicate `r`
+/// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockBootstrap {
+    /// Requested replicates; zero publishes no bootstrap SE.
+    pub replicates: u32,
+    /// Base of the per-replicate RNG streams.
+    pub stream_base: u64,
+}
+
 /// Resample `rows` lag-aligned rows in circular blocks of `block_length` (callers
 /// pass [`dependence_block_length`]) and evaluate `estimate` on each replicate's
 /// row map (`row_src[r]` = source row for replicate row `r`).

@@ -416,10 +416,12 @@ impl CheckedTemporalResponseOperation {
         self.fitter
             .estimate_bayesian(
                 data,
-                &pairs,
+                antecedent_estimate::TemporalIdentification {
+                    horizons: &pairs,
+                    status: status,
+                    assumptions: self.assumptions.clone(),
+                },
                 &self.query,
-                status,
-                self.assumptions.clone(),
                 bayes,
                 ctx,
             )

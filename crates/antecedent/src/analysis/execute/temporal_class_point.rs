@@ -1079,11 +1079,13 @@ fn cross_world_point(
             data,
             estimand,
             indexer,
-            outcome,
-            treatments,
-            treatment_offset,
-            outcome_offset,
-            contemporaneous,
+            &antecedent_estimate::TemporalSlopeSpec {
+                outcome: outcome,
+                treatments: treatments,
+                treatment_offset: treatment_offset,
+                outcome_offset: outcome_offset,
+                contemporaneous: contemporaneous,
+            },
             policy,
             prior_scale,
         )

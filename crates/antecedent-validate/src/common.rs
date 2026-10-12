@@ -437,12 +437,14 @@ pub(crate) fn refit_effect(
         .map_err(ValidationError::from)?;
     let prep = estimator
         .prepare_with_extras(
-            &series,
-            estimand,
-            temporal.temporal_query,
-            temporal.indexer,
-            temporal.split,
-            temporal.kernel_policy,
+            &antecedent_estimate::TemporalDesignInputs {
+                data: &series,
+                estimand,
+                query: temporal.temporal_query,
+                indexer: temporal.indexer,
+                split: temporal.split,
+                policy: temporal.kernel_policy,
+            },
             extra_contemporaneous,
         )
         .map_err(ValidationError::from)?;
@@ -470,12 +472,14 @@ fn panel_prepare_with_extras(
     for unit in panel.units() {
         let prep = estimator
             .prepare_with_extras(
-                &unit.series,
-                estimand,
-                temporal.temporal_query,
-                temporal.indexer,
-                temporal.split,
-                temporal.kernel_policy,
+                &antecedent_estimate::TemporalDesignInputs {
+                    data: &unit.series,
+                    estimand,
+                    query: temporal.temporal_query,
+                    indexer: temporal.indexer,
+                    split: temporal.split,
+                    policy: temporal.kernel_policy,
+                },
                 extra,
             )
             .map_err(ValidationError::from)?;

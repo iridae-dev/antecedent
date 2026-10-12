@@ -151,8 +151,10 @@ impl super::Study {
                     &trial_bool,
                     &selection,
                     &propensity,
-                    cfg.n_draws,
-                    ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+                    antecedent_estimate::DrawSpec::new(
+                        cfg.n_draws,
+                        ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+                    ),
                 )
                 .map_err(CausalError::from)?;
                 assumptions.push(antecedent_core::AssumptionRecord {

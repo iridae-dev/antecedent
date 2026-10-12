@@ -365,8 +365,16 @@ mod tests {
         let (data, q, estimand) = series(240);
         let ctx = ExecutionContext::for_tests(11);
         let est = TemporalMediationEstimator::new();
-        let (single, block) =
-            est.estimate_with_block_bootstrap(&data, &estimand, &q, &[], 60, 0xABCD, &ctx).unwrap();
+        let (single, block) = est
+            .estimate_with_block_bootstrap(
+                &data,
+                &estimand,
+                &q,
+                &[],
+                crate::temporal_block::BlockBootstrap { replicates: 60, stream_base: 0xABCD },
+                &ctx,
+            )
+            .unwrap();
         let atom = est.prepare_shared(&data, &estimand, &q, &[], &ctx).unwrap();
         assert!((atom.estimate().effect.ate - single.effect.ate).abs() < 1e-15);
         for atoms in [vec![&atom], vec![&atom, &atom]] {

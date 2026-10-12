@@ -27,7 +27,8 @@
 
 use crate::{
     BayesianGComputationAte, CausalPosterior, EstimationError, SequentialMechanismOverlay,
-    SequentialNodeOverlay, TemporalInterventionPlan, plan_from_response_query,
+    SequentialNodeOverlay, TemporalIdentification, TemporalInterventionPlan,
+    plan_from_response_query,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -527,20 +528,16 @@ impl Evaluation {
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits; chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
 )]
-#[allow(
-    clippy::too_many_arguments,
-    reason = "public estimator entry point; its parameter list is the published signature"
-)]
 pub fn estimate_observed_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,
-    identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
+    identified: TemporalIdentification<'_>,
     query: &ResponseQuery,
-    status: IdentificationStatus,
-    mut assumptions: AssumptionSet,
     estimator: &BayesianGComputationAte,
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, CausalPosterior), EstimationError> {
+    let TemporalIdentification { horizons: identifications, status, assumptions: mut assumptions } =
+        identified;
     query.validate()?;
     if ctx.cancellation.is_cancelled() {
         return Err(EstimationError::data_msg("observed temporal posterior cancelled"));

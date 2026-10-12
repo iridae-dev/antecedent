@@ -333,16 +333,17 @@ pub use statistical_transport::{
     mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    NestedDirectFitMoments, TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe,
-    TemporalLinearAdjustment, is_temporal_coefficient_name, nested_direct_fit_moments,
-    temporal_coefficient_names, temporal_conditional_marginal_effect, temporal_linear_slopes,
+    NestedDirectFitMoments, TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalDesignInputs,
+    TemporalLinearAdjustment, TemporalSlopeSpec, is_temporal_coefficient_name,
+    nested_direct_fit_moments, temporal_coefficient_names, temporal_conditional_marginal_effect,
+    temporal_linear_slopes,
 };
 pub use temporal_block::{
-    AlignedRows, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap, block_effective_rows,
-    circular_fixed_b_scale, common_time_window, dependence_block_length, effective_rows,
-    fixed_b_scale, kernel_bias_scale, normal_equation_scores, normal_equation_scores_of_residuals,
-    politis_white_block_length, row_block_bootstrap_vec, score_effective_rows,
-    testing_block_length,
+    AlignedRows, BlockBootstrap, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap,
+    block_effective_rows, circular_fixed_b_scale, common_time_window, dependence_block_length,
+    effective_rows, fixed_b_scale, kernel_bias_scale, normal_equation_scores,
+    normal_equation_scores_of_residuals, politis_white_block_length, row_block_bootstrap_vec,
+    score_effective_rows, testing_block_length,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -356,10 +357,10 @@ pub use temporal_response::{
     SIMULTANEOUS_BAND_WITHHELD, TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
     TEMPORAL_RESPONSE_BAND_WITHHELD, TEMPORAL_RESPONSE_BLOCK_CAPPED,
     TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES,
-    TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY, TemporalInterventionPlan, TemporalResponseEstimator,
-    block_dispersion_inflation, circular_block_positions, circular_block_positions_into,
-    clear_simultaneous_band, disclose_response_block_bootstrap, inflate_replicates,
-    max_deviation_band, max_deviation_band_columns, plan_from_response_query,
+    TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY, TemporalIdentification, TemporalInterventionPlan,
+    TemporalResponseEstimator, block_dispersion_inflation, circular_block_positions,
+    circular_block_positions_into, clear_simultaneous_band, disclose_response_block_bootstrap,
+    inflate_replicates, max_deviation_band, max_deviation_band_columns, plan_from_response_query,
     plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_response_dispersion::{
@@ -373,12 +374,13 @@ pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
 };
 pub use transport::{
-    TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
-    TransportResponseGridEstimate, evaluate_exact_mz_transport, evaluate_exact_transport,
-    evaluate_exact_z_transport, is_support_failure, prepare_exact_mz_transport,
-    prepare_exact_transport, prepare_exact_z_transport, refuse_budget, refuse_cancelled,
-    refuse_eval, transport_augmented_response_grid, transport_outcome_kind, trial_aipw_row_scores,
-    trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
+    ResponseGridInputs, TransportEffectEstimate, TransportOverlapDiagnostic,
+    TransportOverlapReport, TransportResponseGridEstimate, evaluate_exact_mz_transport,
+    evaluate_exact_transport, evaluate_exact_z_transport, is_support_failure,
+    prepare_exact_mz_transport, prepare_exact_transport, prepare_exact_z_transport, refuse_budget,
+    refuse_cancelled, refuse_eval, transport_augmented_response_grid, transport_outcome_kind,
+    trial_aipw_row_scores, trial_to_target_bayesian_bootstrap, trial_to_target_effect,
+    trial_to_target_ipw_se,
 };
 pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, DrawSpec, ReplicatePolicy};
 

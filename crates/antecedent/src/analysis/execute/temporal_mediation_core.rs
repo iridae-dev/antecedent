@@ -308,8 +308,10 @@ fn fit_frequentist_horizon(
             &click.estimand,
             horizon_query,
             &click.adjustment,
-            bootstrap_replicates,
-            mediation_block_stream(MediationRoute::Temporal, click.horizon),
+            antecedent_estimate::BlockBootstrap {
+                replicates: bootstrap_replicates,
+                stream_base: mediation_block_stream(MediationRoute::Temporal, click.horizon),
+            },
             ctx,
         )
         .map_err(CausalError::from)?;

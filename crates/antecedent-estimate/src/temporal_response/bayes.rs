@@ -16,7 +16,7 @@ use antecedent_data::{TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
 
 use super::{
-    TemporalResponseEstimator, assumptions::HorizonTempering,
+    TemporalIdentification, TemporalResponseEstimator, assumptions::HorizonTempering,
     assumptions::TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
     assumptions::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
     assumptions::TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE, assumptions::is_tempering_record,
@@ -30,21 +30,20 @@ use super::{
 impl TemporalResponseEstimator {
     /// Bayesian Gaussian linear-additive response on the identified unfolded
     /// design at each horizon. Intervals are pointwise posterior quantiles.
-    #[allow(
-        clippy::too_many_lines,
-        clippy::too_many_arguments,
-        reason = "public estimator entry point; its parameter list is the published signature"
-    )]
+    #[allow(clippy::too_many_lines)]
     pub fn estimate_bayesian(
         &self,
         data: &TimeSeriesData,
-        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
+        identified: TemporalIdentification<'_>,
         query: &ResponseQuery,
-        identification_status: IdentificationStatus,
-        mut assumptions: AssumptionSet,
         estimator: &crate::BayesianGComputationAte,
         ctx: &ExecutionContext,
     ) -> Result<CausalResponse, EstimationError> {
+        let TemporalIdentification {
+            horizons: identifications,
+            status: identification_status,
+            assumptions: mut assumptions,
+        } = identified;
         query.validate()?;
         if query.observation != antecedent_core::ObservationSpec::Complete
             || query.target_population != TargetPopulation::AllObserved

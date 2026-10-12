@@ -191,10 +191,12 @@ impl super::Study {
                 (
                     estimator.estimate_bayesian(
                         data,
-                        &identifications,
+                        antecedent_estimate::TemporalIdentification {
+                            horizons: &identifications,
+                            status: aggregate_status,
+                            assumptions: aggregate_assumptions,
+                        },
                         query,
-                        aggregate_status,
-                        aggregate_assumptions,
                         &bayes,
                         inner,
                     ),

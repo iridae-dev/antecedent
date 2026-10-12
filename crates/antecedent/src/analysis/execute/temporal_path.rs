@@ -230,8 +230,13 @@ impl super::Study {
                                     shared_estimand,
                                     &qh,
                                     shared_adjustment,
-                                    self.bootstrap_replicates,
-                                    mediation_block_stream(MediationRoute::Temporal, horizon),
+                                    antecedent_estimate::BlockBootstrap {
+                                        replicates: self.bootstrap_replicates,
+                                        stream_base: mediation_block_stream(
+                                            MediationRoute::Temporal,
+                                            horizon,
+                                        ),
+                                    },
                                     ctx,
                                 )
                                 .map_err(CausalError::from)?;
@@ -926,10 +931,7 @@ impl super::Study {
             if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
                 return Err(CausalError::Unsupported {message: "observed temporal mechanisms need independent per-mechanism priors; a transferred response coefficient prior has no such mapping"});
             }
-            let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
-                data, graph, &identifications, query, aggregate_status,
-                aggregate_assumptions.clone(), &bayesian_gcomp(cfg, ctx), ctx,
-            ).map_err(CausalError::from)?;
+            let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, graph, antecedent_estimate::TemporalIdentification { horizons: &identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, query, &bayesian_gcomp(cfg, ctx), ctx).map_err(CausalError::from)?;
             observed_posterior = Some(posterior);
             Ok(response)
         } else if let InferenceMode::Bayesian(cfg) = &self.inference {
@@ -939,15 +941,7 @@ impl super::Study {
             )?;
             bayes.prior = resolved;
             conflict_summary = conflict;
-            estimator.estimate_bayesian(
-                data,
-                &identifications,
-                &working_query,
-                aggregate_status,
-                aggregate_assumptions.clone(),
-                &bayes,
-                ctx,
-            )
+            estimator.estimate_bayesian(data, antecedent_estimate::TemporalIdentification { horizons: &identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, &working_query, &bayes, ctx)
         } else {
             estimator.estimate(
                 data,
@@ -1515,16 +1509,7 @@ impl super::Study {
                         }
                         let bayes = bayesian_gcomp(cfg, ctx);
                         let (response, _) =
-                            antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
-                                data,
-                                &dag,
-                                &[(&estimand, indexer)],
-                                &qh,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                &bayes,
-                                ctx,
-                            )
+                            antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, &dag, antecedent_estimate::TemporalIdentification { horizons: &[(&estimand, indexer)], status: case.result.status, assumptions: case.result.required_assumptions.clone() }, &qh, &bayes, ctx)
                             .map_err(CausalError::from)?;
                         response
                     }
@@ -1857,10 +1842,7 @@ impl super::Study {
                 let (effect, posterior) = if query.observation != ObservationSpec::Complete
                     && bayes.is_some()
                 {
-                    let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
-                        data, &dag, &[(&estimand, indexer)], &qh, case.result.status,
-                        case.result.required_assumptions.clone(), bayes.as_ref().expect("Bayesian"), ctx,
-                    ).map_err(CausalError::from)?;
+                    let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, &dag, antecedent_estimate::TemporalIdentification { horizons: &[(&estimand, indexer)], status: case.result.status, assumptions: case.result.required_assumptions.clone() }, &qh, bayes.as_ref().expect("Bayesian"), ctx).map_err(CausalError::from)?;
                     // The observed-data posterior summarizes the sequence response as
                     // its first quantity when no effect column is declared; never index
                     // an absent summary.
@@ -4741,13 +4723,15 @@ impl super::Study {
                     data,
                     used,
                     &found.indexer,
-                    outcome,
-                    treatments,
-                    probe
-                        .try_treatment_offset()
-                        .map_err(|e| CausalError::Compile { message: e.to_string() })?,
-                    probe.outcome_offset(),
-                    contemporaneous,
+                    &antecedent_estimate::TemporalSlopeSpec {
+                        outcome: outcome,
+                        treatments: treatments,
+                        treatment_offset: probe
+                            .try_treatment_offset()
+                            .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                        outcome_offset: probe.outcome_offset(),
+                        contemporaneous: contemporaneous,
+                    },
                     &ctx.kernel_policy,
                     prior_scale,
                 )
@@ -5050,11 +5034,13 @@ pub(super) fn temporal_linear_derivative_response(
             data,
             estimand,
             indexer,
-            outcome,
-            treatments,
-            treatment_offset,
-            outcome_offset,
-            &[],
+            &antecedent_estimate::TemporalSlopeSpec {
+                outcome: outcome,
+                treatments: treatments,
+                treatment_offset: treatment_offset,
+                outcome_offset: outcome_offset,
+                contemporaneous: &[],
+            },
             policy,
             prior_scale,
         )
@@ -5441,10 +5427,12 @@ fn fit_class_bayesian_response(
     let response = TemporalResponseEstimator::new()
         .estimate_bayesian(
             series,
-            &[(estimand, indexer)],
+            antecedent_estimate::TemporalIdentification {
+                horizons: &[(estimand, indexer)],
+                status: status,
+                assumptions: assumptions.clone(),
+            },
             query,
-            status,
-            assumptions.clone(),
             &bayes,
             ctx,
         )

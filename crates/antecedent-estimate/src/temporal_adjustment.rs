@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_wrap, clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_wrap)]
 #![cfg_attr(
     test,
     allow(
@@ -90,6 +90,23 @@ fn single_window_block_length(
     Ok(crate::temporal_block::dependence_block_length(structural_span, rows, &scores))
 }
 
+/// What a lag-aligned temporal adjustment design is prepared from.
+#[derive(Clone, Copy)]
+pub struct TemporalDesignInputs<'a> {
+    /// The observed series.
+    pub data: &'a TimeSeriesData,
+    /// Unfolded backdoor identification.
+    pub estimand: &'a IdentifiedEstimand,
+    /// The temporal effect query.
+    pub query: &'a TemporalEffectQuery,
+    /// Dense-node to (variable, offset) indexer of the unfolded graph.
+    pub indexer: &'a TemporalIndexer,
+    /// Discovery/estimation split, when the series was split.
+    pub split: Option<&'a DiscoveryEstimationSplit>,
+    /// Kernel policy for the lagged-sample preparation.
+    pub policy: &'a KernelPolicy,
+}
+
 /// Temporal linear adjustment for unfolded backdoor estimands.
 #[derive(Clone, Debug)]
 pub struct TemporalLinearAdjustment {
@@ -137,7 +154,10 @@ impl TemporalLinearAdjustment {
         split: Option<&DiscoveryEstimationSplit>,
         policy: &antecedent_core::KernelPolicy,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
-        self.prepare_with_extras(data, estimand, query, indexer, split, policy, &[])
+        self.prepare_with_extras(
+            &TemporalDesignInputs { data, estimand, query, indexer, split, policy },
+            &[],
+        )
     }
 
     /// Like [`Self::prepare`], with optional lag-0 schema covariates.
@@ -147,24 +167,10 @@ impl TemporalLinearAdjustment {
     /// Incompatible estimand, missing columns, or sample preparation failures.
     pub fn prepare_with_extras(
         &self,
-        data: &TimeSeriesData,
-        estimand: &IdentifiedEstimand,
-        query: &TemporalEffectQuery,
-        indexer: &TemporalIndexer,
-        split: Option<&DiscoveryEstimationSplit>,
-        policy: &antecedent_core::KernelPolicy,
+        inputs: &TemporalDesignInputs<'_>,
         extra_contemporaneous: &[VariableId],
     ) -> Result<PreparedEstimationProblem, EstimationError> {
-        self.prepare_aligned_with_extras(
-            data,
-            estimand,
-            query,
-            indexer,
-            split,
-            policy,
-            extra_contemporaneous,
-        )
-        .map(|(prep, _)| prep)
+        self.prepare_aligned_with_extras(inputs, extra_contemporaneous).map(|(prep, _)| prep)
     }
 
     /// Like [`Self::prepare`], also returning which series times the design rows
@@ -186,21 +192,20 @@ impl TemporalLinearAdjustment {
         policy: &antecedent_core::KernelPolicy,
     ) -> Result<(PreparedEstimationProblem, crate::temporal_block::AlignedRows), EstimationError>
     {
-        self.prepare_aligned_with_extras(data, estimand, query, indexer, split, policy, &[])
+        self.prepare_aligned_with_extras(
+            &TemporalDesignInputs { data, estimand, query, indexer, split, policy },
+            &[],
+        )
     }
 
     #[allow(clippy::too_many_lines, clippy::trivially_copy_pass_by_ref)]
     fn prepare_aligned_with_extras(
         &self,
-        data: &TimeSeriesData,
-        estimand: &IdentifiedEstimand,
-        query: &TemporalEffectQuery,
-        indexer: &TemporalIndexer,
-        split: Option<&DiscoveryEstimationSplit>,
-        policy: &antecedent_core::KernelPolicy,
+        inputs: &TemporalDesignInputs<'_>,
         extra_contemporaneous: &[VariableId],
     ) -> Result<(PreparedEstimationProblem, crate::temporal_block::AlignedRows), EstimationError>
     {
+        let TemporalDesignInputs { data, estimand, query, indexer, split, policy } = *inputs;
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
                 message: "temporal linear adjustment requires ExplicitOverride overlap policy",
@@ -826,6 +831,21 @@ pub fn temporal_conditional_marginal_effect(
     Ok((coef[1] + coef[3] * w_bar) * delta)
 }
 
+/// The outcome, treatments and their time offsets of a [`temporal_linear_slopes`] fit.
+#[derive(Clone, Copy, Debug)]
+pub struct TemporalSlopeSpec<'a> {
+    /// Outcome variable (at the outcome offset).
+    pub outcome: VariableId,
+    /// Treatments regressed on, none equal to the outcome.
+    pub treatments: &'a [VariableId],
+    /// Offset of the treatments from the policy origin.
+    pub treatment_offset: i32,
+    /// Offset of the outcome from the policy origin.
+    pub outcome_offset: i32,
+    /// Treatments read at the outcome's own lag rather than the treatment offset.
+    pub contemporaneous: &'a [VariableId],
+}
+
 /// Intercept and partial slopes of one outcome on the named treatments.
 ///
 /// The design is the unfolded temporal back-door regression: intercept, each
@@ -843,14 +863,17 @@ pub fn temporal_linear_slopes(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,
     indexer: &TemporalIndexer,
-    outcome: VariableId,
-    treatments: &[VariableId],
-    treatment_offset: i32,
-    outcome_offset: i32,
-    contemporaneous: &[VariableId],
+    spec: &TemporalSlopeSpec<'_>,
     policy: &antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<(f64, Vec<f64>), EstimationError> {
+    let TemporalSlopeSpec {
+        outcome,
+        treatments,
+        treatment_offset,
+        outcome_offset,
+        contemporaneous,
+    } = *spec;
     if treatments.is_empty() || treatments.contains(&outcome) {
         return Err(EstimationError::unsupported(
             "temporal linear slope needs treatments distinct from the outcome",
@@ -1311,11 +1334,13 @@ mod tests {
                 &data,
                 &estimand,
                 &indexer,
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                -1,
-                0,
-                &[VariableId::from_raw(1)],
+                &TemporalSlopeSpec {
+                    outcome: VariableId::from_raw(2),
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    treatment_offset: -1,
+                    outcome_offset: 0,
+                    contemporaneous: &[VariableId::from_raw(1)],
+                },
                 &policy,
                 prior,
             )

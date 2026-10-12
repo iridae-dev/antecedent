@@ -316,17 +316,16 @@ impl TemporalMediationEstimator {
     /// # Errors
     ///
     /// Validation or point-fit failures. Failed replicates are counted, not raised.
-    #[allow(clippy::too_many_arguments)]
     pub fn estimate_with_block_bootstrap(
         &self,
         data: &TimeSeriesData,
         estimand: &IdentifiedEstimand,
         query: &MediationQuery,
         adjustment: &[LaggedColumn],
-        replicates: u32,
-        stream_base: u64,
+        bootstrap: crate::temporal_block::BlockBootstrap,
         ctx: &ExecutionContext,
     ) -> Result<(TemporalMediationEstimate, TemporalMediationBlockSe), EstimationError> {
+        let crate::temporal_block::BlockBootstrap { replicates, stream_base } = bootstrap;
         let (mediator, delta) = self.validate(estimand, query)?;
         let design = Self::prepare_design(data, mediator, query, adjustment, &[], ctx)?;
         let point = self.fit_design(&design, None, delta)?;

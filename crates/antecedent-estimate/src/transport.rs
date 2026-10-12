@@ -126,17 +126,15 @@ pub struct TransportResponseGridEstimate {
 /// probabilities, non-finite response weights, samples without both source and target rows, an
 /// `identification` that is [`TransportIdentification::NotCertified`], or a recursive-
 /// factorization certificate.
-#[allow(clippy::too_many_arguments)]
 pub fn transport_augmented_response_grid(
     identification: &TransportIdentification,
     outcome: &[f64],
     trial: &[bool],
     selection_probability: &[f64],
-    grid: &[f64],
-    observed_regression: &[f64],
-    target_regression: &[f64],
-    response_weight: &[f64],
+    inputs: &ResponseGridInputs<'_>,
 ) -> Result<TransportResponseGridEstimate, EstimationError> {
+    let ResponseGridInputs { grid, observed_regression, target_regression, response_weight } =
+        *inputs;
     require_dahabreh_compatible_formula(identification, "transport response grid")?;
     let n = outcome.len();
     let cells = n
@@ -217,6 +215,20 @@ pub fn transport_augmented_response_grid(
         source_effective_sample_size: effective_sample_size.into(),
         selection_overlap: diagnostic(&trial_selection_probabilities, &selection_weights),
     })
+}
+
+/// The intervention grid and the grid-local regressions and weights of
+/// [`transport_augmented_response_grid`], laid out as documented there.
+#[derive(Clone, Copy, Debug)]
+pub struct ResponseGridInputs<'a> {
+    /// Intervention levels.
+    pub grid: &'a [f64],
+    /// Source outcome regression at the observed source treatment, per row.
+    pub observed_regression: &'a [f64],
+    /// `target_regression[g * n + i]`: the regression at `grid[g]` for target row `i`.
+    pub target_regression: &'a [f64],
+    /// `response_weight[g * n + i]`: the local smoothing weight for source row `i`.
+    pub response_weight: &'a [f64],
 }
 
 /// Transport a randomized binary-treatment contrast from trial participants to nonparticipants.
@@ -384,7 +396,6 @@ pub(crate) fn trial_to_target_parts(
 ///
 /// Uncertified identification, invalid inputs, fewer than two draws, or a trial
 /// without observed units in both treatment arms.
-#[allow(clippy::too_many_arguments)] // Each slice is a distinct aligned trial/target input.
 pub fn trial_to_target_bayesian_bootstrap(
     identification: &TransportIdentification,
     outcome: &[f64],
@@ -392,9 +403,9 @@ pub fn trial_to_target_bayesian_bootstrap(
     trial: &[bool],
     selection_probability: &[f64],
     treatment_probability: &[f64],
-    n_draws: usize,
-    seed: u64,
+    sampling: crate::util::DrawSpec,
 ) -> Result<Vec<f64>, EstimationError> {
+    let crate::util::DrawSpec { draws: n_draws, seed } = sampling;
     require_dahabreh_compatible_formula(identification, "Bayesian trial-to-target effect")?;
     let target_n = validate_trial_to_target_inputs(
         outcome,
@@ -1353,8 +1364,7 @@ mod tests {
                 &source,
                 &[0.5; 4],
                 &[0.5; 4],
-                10_000,
-                41,
+                crate::util::DrawSpec::new(10_000, 41),
             )
             .unwrap()
         };
@@ -1373,8 +1383,7 @@ mod tests {
                 &source,
                 &[0.5; 4],
                 &[0.5; 4],
-                100,
-                41,
+                crate::util::DrawSpec::new(100, 41)
             )
             .is_err()
         );
@@ -1540,10 +1549,12 @@ mod tests {
             &[1.0, 3.0, 0.0, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 0.0, 0.0],
-            &[1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 0.0, 0.0],
+                target_regression: &[1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap_err();
         assert!(err.to_string().contains("recursive factorization"));
@@ -1556,13 +1567,15 @@ mod tests {
             &[1.0, 3.0, 0.0, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 0.0, 0.0],
-            &[
-                1.0, 1.0, 1.0, 1.0, // target predictions at a=0
-                3.0, 3.0, 3.0, 3.0, // target predictions at a=1
-            ],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 0.0, 0.0],
+                target_regression: &[
+                    1.0, 1.0, 1.0, 1.0, // target predictions at a=0
+                    3.0, 3.0, 3.0, 3.0, // target predictions at a=1
+                ],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap();
         assert_eq!(&*estimate.grid, &[0.0, 1.0]);
@@ -1577,13 +1590,15 @@ mod tests {
             &[1.0, 3.0, 0.0, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 0.0, 0.0],
-            &[
-                1.0, 1.0, 1.0, 1.0, // target predictions at a=0
-                3.0, 3.0, 3.0, 3.0, // target predictions at a=1
-            ],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 0.0, 0.0],
+                target_regression: &[
+                    1.0, 1.0, 1.0, 1.0, // target predictions at a=0
+                    3.0, 3.0, 3.0, 3.0, // target predictions at a=1
+                ],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap_err();
         assert!(
@@ -1598,10 +1613,12 @@ mod tests {
             &[2.0, 4.0, 0.0],
             &[true, true, false],
             &[0.5; 3],
-            &[0.0],
-            &[1.0, 3.0, 0.0],
-            &[0.0, 0.0, 5.0],
-            &[0.5, 0.5, 0.0],
+            &ResponseGridInputs {
+                grid: &[0.0],
+                observed_regression: &[1.0, 3.0, 0.0],
+                target_regression: &[0.0, 0.0, 5.0],
+                response_weight: &[0.5, 0.5, 0.0],
+            },
         )
         .unwrap();
         assert!((estimate.mean[0] - 6.0).abs() < f64::EPSILON);
@@ -1614,10 +1631,12 @@ mod tests {
             &[2.0, 4.0, 0.0],
             &[true, true, false],
             &[0.5; 3],
-            &[0.0],
-            &[1.0, 3.0, 0.0],
-            &[0.0, 0.0, 5.0],
-            &[-0.25, 0.75, 0.0],
+            &ResponseGridInputs {
+                grid: &[0.0],
+                observed_regression: &[1.0, 3.0, 0.0],
+                target_regression: &[0.0, 0.0, 5.0],
+                response_weight: &[-0.25, 0.75, 0.0],
+            },
         )
         .unwrap();
         assert!((estimate.mean[0] - 5.5).abs() < f64::EPSILON);
@@ -1634,13 +1653,15 @@ mod tests {
             &[1.0, 3.0, f64::NAN, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 1.0, 1.0],
-            &[
-                1.0, 1.0, 1.0, 1.0, // target predictions at a=0
-                3.0, 3.0, 3.0, 3.0, // target predictions at a=1
-            ],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 1.0, 1.0],
+                target_regression: &[
+                    1.0, 1.0, 1.0, 1.0, // target predictions at a=0
+                    3.0, 3.0, 3.0, 3.0, // target predictions at a=1
+                ],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap_err();
         assert!(err.to_string().contains("must be finite"));

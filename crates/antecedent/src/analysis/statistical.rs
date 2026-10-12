@@ -909,8 +909,10 @@ impl PreparedStudy<StatisticalPreparedState> {
                 self.state.limits,
                 &point_options,
                 &frozen_ctx,
-                &self.state.data,
-                distributions,
+                antecedent_estimate::statistical_transport::EvaluatedPointLaws {
+                    point_laws: &self.state.data,
+                    distributions,
+                },
             ),
             None => antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
                 &self.state.functional,

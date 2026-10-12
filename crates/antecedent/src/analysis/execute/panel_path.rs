@@ -1842,10 +1842,12 @@ fn fit_unit_panel_responses(
                     estimator
                         .estimate_bayesian(
                             &unit.series,
-                            &identifications,
+                            antecedent_estimate::TemporalIdentification {
+                                horizons: &identifications,
+                                status: status,
+                                assumptions: assumptions.clone(),
+                            },
                             query,
-                            status,
-                            assumptions.clone(),
                             &bayes,
                             ctx,
                         )
