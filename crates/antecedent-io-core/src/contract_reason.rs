@@ -834,6 +834,7 @@ pub(crate) fn publish_reasons(reasons: impl IntoIterator<Item = ContractReason>)
 }
 
 /// Every ledger code, in spelling order. The test locks the historical strings.
+#[cfg(test)]
 pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::BodyEstimate,
     ContractReason::BodyFrontdoorAssumption,
@@ -1033,6 +1034,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::TargetWeightsValues,
 ];
 
+#[cfg(test)]
 const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "body.estimate",
     "body.frontdoor_assumption",

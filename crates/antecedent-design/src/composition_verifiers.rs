@@ -45,20 +45,22 @@ use std::io::Cursor;
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionMetadata, DistributionTrust, DrawAlignment,
     MAX_DISTRIBUTION_ARTIFACT_BYTES,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimMetadata, ExternalClaimTrust,
     MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::sensitivity_artifact::{MAX_SENSITIVITY_ARTIFACT_BYTES, SensitivityArtifact};
-use antecedent_io::wire::ArtifactKind;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::sensitivity_artifact::{
+    MAX_SENSITIVITY_ARTIFACT_BYTES, SensitivityArtifact,
+};
+use antecedent_io_core::wire::ArtifactKind;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -882,7 +884,7 @@ fn inspect_relationship(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
 // Historical work and frozen scores are separate independently validated objects.
 // Neither reports a joint outcome law or authenticates a native provider.
 fn inspect_recalculation_receipt(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
-    use antecedent_io::recalc_receipt_artifact::RecalcReceiptArtifact;
+    use antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifact;
     let artifact = RecalcReceiptArtifact::from_bytes(bytes, None)
         .map_err(|e| failure(BundleStage::SwappedEvidence, e.to_string()))?;
     let meta = artifact.meta();
@@ -905,7 +907,7 @@ fn inspect_recalculation_receipt(bytes: &[u8]) -> Result<Inspected, NodeFailure>
     })
 }
 fn inspect_frozen_scores(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
-    use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
+    use antecedent_io_core::frozen_scores_artifact::FrozenScoreTable;
     let artifact = FrozenScoreTable::from_bytes(bytes, None)
         .map_err(|e| failure(BundleStage::SwappedEvidence, e.to_string()))?;
     Ok(Inspected {
@@ -1306,10 +1308,10 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
         crate::rollout_artifact::ROLLOUT_KIND => Some(NodeKind::Rollout),
         INVERSE_QUERY_ARTIFACT_FEATURE => Some(NodeKind::InverseQuery),
         REPAIR_ARTIFACT_KIND => Some(NodeKind::RepairReport),
-        antecedent_io::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE => {
+        antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE => {
             Some(NodeKind::RecalculationReceipt)
         }
-        antecedent_io::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_FEATURE => {
+        antecedent_io_core::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_FEATURE => {
             Some(NodeKind::FrozenScores)
         }
         _ => None,

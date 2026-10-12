@@ -45,11 +45,11 @@ use antecedent_core::{
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{ClassicalTransportQuery, SidLimits};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::error::IoError;
-use antecedent_io::query_wire::ValueWire;
-use antecedent_io::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
-use antecedent_io::wire::{AdmgWire, DagWire};
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::query_wire::ValueWire;
+use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
+use antecedent_io_core::wire::{AdmgWire, DagWire};
 use serde::{Deserialize, Serialize};
 
 use crate::repair::{
@@ -152,7 +152,7 @@ pub struct ObligationWire {
     /// Declared full scientific coordinates, keyed by structural variable ID.
     /// Legacy structural obligations omit this field rather than inventing units.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub quantities: Vec<(u32, antecedent_io::quantity_wire::ScientificQuantityWire)>,
+    pub quantities: Vec<(u32, antecedent_io_core::quantity_wire::ScientificQuantityWire)>,
     /// Stable id.
     pub id: String,
     /// Kind name.
@@ -555,7 +555,7 @@ fn dense_static(nodes: &[NodeRef]) -> bool {
 }
 
 fn digest<T: Serialize>(domain: IdentityDomain, value: &T) -> Result<String, RepairArtifactError> {
-    antecedent_io::digest_hex(domain, value)
+    antecedent_io_core::digest_hex(domain, value)
         .map_err(|e| RepairArtifactError::invalid(e.to_string()))
 }
 
@@ -639,7 +639,7 @@ fn obligation_wire(obligation: &EvidenceObligation) -> ObligationWire {
             .map(|(variable, quantity)| {
                 (
                     variable.raw(),
-                    antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity),
+                    antecedent_io_core::quantity_wire::ScientificQuantityWire::from(quantity),
                 )
             })
             .collect(),
@@ -931,7 +931,7 @@ impl RepairReportArtifact {
                 let query = f.query();
                 (
                     Some(TransportPremisesWire {
-                        graph: antecedent_io::admg_to_wire(diagram.causal_graph())
+                        graph: antecedent_io_core::admg_to_wire(diagram.causal_graph())
                             .map_err(|e| RepairArtifactError::invalid(e.to_string()))?,
                         selection_targets: raw(diagram.selection_targets()),
                         outcomes: raw(&query.outcomes),
@@ -977,7 +977,7 @@ impl RepairReportArtifact {
                 (
                     None,
                     Some(BackdoorPremisesWire {
-                        graph: antecedent_io::dag_to_wire(f.dag())
+                        graph: antecedent_io_core::dag_to_wire(f.dag())
                             .map_err(|e| RepairArtifactError::invalid(e.to_string()))?,
                         treatment: f.treatment().raw(),
                         outcome: f.outcome().raw(),
@@ -1121,25 +1121,25 @@ impl RepairReportArtifact {
             return Err(RepairArtifactError::invalid("missing artifact id"));
         }
         let body = to_cbor(self).map_err(|e| RepairArtifactError::from_io(&e))?;
-        antecedent_io::encode_container(
-            &antecedent_io::ArtifactContainer {
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
                 kind: REPAIR_ARTIFACT_KIND,
                 note: "repair_search_receipt",
                 max_bytes: MAX_REPAIR_ARTIFACT_BYTES,
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[antecedent_io::OutSection {
+            &[antecedent_io_core::OutSection {
                 id: BODY_SECTION,
-                content_type: antecedent_io::CONTENT_CBOR,
+                content_type: antecedent_io_core::CONTENT_CBOR,
                 bytes: &body,
             }],
         )
         .map_err(|error| match error {
-            antecedent_io::CodecError::FileTooLarge => {
+            antecedent_io_core::CodecError::FileTooLarge => {
                 RepairArtifactError::bounds("the repair artifact is too large")
             }
-            antecedent_io::CodecError::MissingArtifactId => {
+            antecedent_io_core::CodecError::MissingArtifactId => {
                 RepairArtifactError::invalid("missing artifact id")
             }
             other => RepairArtifactError::from_io(&other.into_io("repair artifact")),
@@ -1155,20 +1155,20 @@ impl RepairReportArtifact {
     /// `repair_artifact.invalid_artifact` for a corrupt container, another
     /// layout or a report beyond the declared collection bounds.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, RepairArtifactError> {
-        let parts = antecedent_io::decode_container(
+        let parts = antecedent_io_core::decode_container(
             REPAIR_ARTIFACT_KIND,
             MAX_REPAIR_ARTIFACT_BYTES,
             &[BODY_SECTION],
             bytes,
         )
         .map_err(|error| match error {
-            antecedent_io::CodecError::FileTooLarge => {
+            antecedent_io_core::CodecError::FileTooLarge => {
                 RepairArtifactError::bounds("the repair artifact is too large")
             }
-            antecedent_io::CodecError::SectionsTooLarge => {
+            antecedent_io_core::CodecError::SectionsTooLarge => {
                 RepairArtifactError::bounds("the repair body section is too large")
             }
-            antecedent_io::CodecError::Layout => RepairArtifactError::unsupported_version(
+            antecedent_io_core::CodecError::Layout => RepairArtifactError::unsupported_version(
                 "unsupported repair artifact kind or layout",
             ),
             other => RepairArtifactError::from_io(&other.into_io("repair artifact")),
@@ -1285,7 +1285,7 @@ fn rebuild(
                 })?
                 .to_catalog()
                 .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
-            let graph = antecedent_io::admg_from_wire(&t.graph)
+            let graph = antecedent_io_core::admg_from_wire(&t.graph)
                 .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
             let diagram = SelectionDiagram::try_new(graph, ids(&t.selection_targets).to_vec())
                 .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
@@ -1307,7 +1307,7 @@ fn rebuild(
             ))
         }
         ("backdoor", None, Some(b), None) => {
-            let dag = antecedent_io::dag_from_wire(&b.graph)
+            let dag = antecedent_io_core::dag_from_wire(&b.graph)
                 .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
             let base_law = artifact
                 .data

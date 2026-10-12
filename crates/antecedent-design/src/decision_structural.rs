@@ -16,7 +16,7 @@
 //! Unidentified and unevaluated mass is retained and never renormalized away.
 //! A hard constraint that fails in any structure with mass excludes the action.
 
-use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
 use crate::decision_contract::{
     DecisionContract, DecisionContractError, DecisionCriterion, StructuralPolicy,

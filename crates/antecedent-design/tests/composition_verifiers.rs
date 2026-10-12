@@ -61,19 +61,19 @@ use antecedent_design::{
     AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
     SamplingPlan,
 };
-use antecedent_io::container::{
+use antecedent_io_core::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::external_claim_artifact::{
+use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimTrust, VerificationProbeWire,
 };
-use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use antecedent_io::reader::ArtifactReader;
+use antecedent_io_core::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+use antecedent_io_core::reader::ArtifactReader;
 use serde_json::{Value, json};
 
 fn close(a: f64, b: f64) {

@@ -21,18 +21,18 @@ use antecedent_design::decision_robustness::{
     AtomSupport, ClaimProfile, RobustDecisionResult, RobustVerdict, evaluate_robust,
 };
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
-use antecedent_io::container::{
+use antecedent_io_core::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 type ContractEdit = Box<dyn Fn(&mut AdmissibleDecisionContract)>;
 type ReceiptEdit = Box<dyn Fn(&mut ExternalCallbackReceipt)>;
@@ -215,8 +215,8 @@ fn reseal(bytes: &[u8], kind: &str, edit: impl FnOnce(&mut serde_json::Value)) -
     let body = to_cbor(&value).unwrap();
     let encoded = EncodedArtifact {
         manifest: ArtifactManifest {
-            format_version: antecedent_io::migrate::STABLE_FORMAT,
-            minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
+            format_version: antecedent_io_core::migrate::STABLE_FORMAT,
+            minimum_reader_version: antecedent_io_core::migrate::STABLE_FORMAT,
             artifact_kind: ArtifactKind::Other(kind.into()),
             library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
                 .unwrap(),

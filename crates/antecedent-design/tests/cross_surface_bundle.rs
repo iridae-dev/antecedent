@@ -39,12 +39,12 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::evaluate_contract;
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::external_claim_artifact::ExternalClaimArtifact;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 use antecedent_test_support::{conformance_dir, read_fixture_bytes};
 
 const PY_COMMAND: &str = "python python/tests/generate_cross_surface_bundle_fixtures.py";

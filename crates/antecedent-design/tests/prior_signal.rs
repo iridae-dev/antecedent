@@ -15,7 +15,7 @@ use antecedent_design::prior_signal::{
 };
 use antecedent_design::signal::SignalProvider;
 use antecedent_design::signal::{NativeBinomialSignal, SignalLimits, SignalRequest};
-use antecedent_io::{
+use antecedent_io_core::{
     DesignVariableRole, DesignVariableSummary, EstimandFingerprint, PriorCatalog, PriorSourceMeta,
     PriorSourceRef, TargetDesign,
 };

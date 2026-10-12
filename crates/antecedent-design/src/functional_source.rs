@@ -7,8 +7,8 @@ use crate::decision_contract::{DecisionContract, DecisionFunctional};
 use crate::decision_eval::{FunctionalValue, evaluate_functional};
 use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
 use antecedent_core::{blake3_hex, reason_code};
-use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
-use antecedent_io::{IoError, from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionIdentity};
+use antecedent_io_core::{IoError, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -159,7 +159,7 @@ impl LawFunctionalArtifact {
             "source_metadata":self.source.metadata(),
             "source_evidence":self.source_evidence.as_ref().map(crate::source_evidence::SourceEvidence::summary),
             "native_row_origin_verified":false,"source_evidence_scope":"original scoped diagnostic citation; matching quantities and snapshot do not prove native row origin","action":self.action,"functional":self.functional,
-            "contributors":action.utility.inputs_used().iter().filter_map(|index|action.inputs.get(*index)).map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),
+            "contributors":action.utility.inputs_used().iter().filter_map(|index|action.inputs.get(*index)).map(antecedent_io_core::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),
             "verification_scope":"original finite law and functional replay; source labels preserve declared standing",
             "native_authority_issued":false,"calibration_license_issued":false,
             "lineage":chain.links().iter().map(|link| serde_json::json!({

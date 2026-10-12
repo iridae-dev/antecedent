@@ -62,10 +62,10 @@ use antecedent_design::{
     DesignCost, DesignRankConfig, RepairFamily, SamplingPlan,
 };
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::lineage_wire;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::sensitivity_artifact::SENSITIVITY_CLAIM_LINK_ID;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::external_claim_artifact::lineage_wire;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::sensitivity_artifact::SENSITIVITY_CLAIM_LINK_ID;
 use antecedent_test_support::conformance_dir;
 
 fn fixture_dir() -> std::path::PathBuf {

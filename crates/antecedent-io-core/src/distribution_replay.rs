@@ -11,108 +11,15 @@ use antecedent_expr::{
 use crate::contract_reason::ContractReason;
 use crate::{
     CausalQueryWire, DistributionFactorDomainWire, DistributionFactorKeyWire,
-    DistributionFactorLawsWire, DistributionFactorRowWire, DistributionFactorTableWire,
-    FunctionalProgramWire, InterventionWire, InterventionalDistributionWire, IoError, ValueWire,
-    functional_program_from_wire,
+    DistributionFactorLawsWire, DistributionFactorTableWire, FunctionalProgramWire,
+    InterventionWire, InterventionalDistributionWire, ValueWire, functional_program_from_wire,
 };
 
-const FACTOR_LAWS_FORMAT: u16 = 1;
+/// Wire format version of the portable factor laws.
+pub const FACTOR_LAWS_FORMAT: u16 = 1;
 const MASS_TOLERANCE: f64 = 1e-9;
 const MAX_REPLAY_CELLS: usize = 1_000_000;
 const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
-
-/// Convert a prepared empirical provider snapshot into its portable finite-discrete wire.
-///
-/// # Errors
-///
-/// Returns an error when a semantic identifier cannot be represented on the wire.
-pub fn distribution_factor_laws_to_wire(
-    snapshot: &antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot,
-) -> Result<DistributionFactorLawsWire, IoError> {
-    let key = |requirement: &FactorRequirement| -> Result<DistributionFactorKeyWire, IoError> {
-        Ok(DistributionFactorKeyWire {
-            variables: requirement.variables.iter().map(|id| id.raw()).collect(),
-            conditioned_on: requirement.conditioned_on.iter().map(|id| id.raw()).collect(),
-            intervention: requirement
-                .intervention
-                .iter()
-                .map(|assignment| {
-                    Ok(crate::expr_wire::InterventionAssignmentWire {
-                        symbolic: assignment.is_symbolic(),
-                        variable: assignment.variable.raw(),
-                        value: ValueWire::from_value(&assignment.value),
-                    })
-                })
-                .collect::<Result<_, IoError>>()?,
-            domain: match requirement.domain {
-                DomainRef::Observational => DistributionFactorDomainWire::Observational,
-                DomainRef::Interventional => DistributionFactorDomainWire::Interventional,
-            },
-            population: requirement.population.to_string(),
-            regime: requirement.regime.map(RegimeId::raw),
-        })
-    };
-    let requirements = snapshot.requirements.iter().map(key).collect::<Result<_, _>>()?;
-    let domains = snapshot
-        .provider
-        .domains
-        .iter()
-        .map(|domain| {
-            (domain.variable.raw(), domain.values.iter().map(ValueWire::from_value).collect())
-        })
-        .collect();
-    let factors = snapshot
-        .provider
-        .factors
-        .iter()
-        .map(|factor| {
-            let factor_key = DistributionFactorKeyWire {
-                variables: factor.variables.iter().map(|id| id.raw()).collect(),
-                conditioned_on: factor.conditioned_on.iter().map(|id| id.raw()).collect(),
-                intervention: factor
-                    .intervention
-                    .iter()
-                    .map(|assignment| {
-                        Ok(crate::expr_wire::InterventionAssignmentWire {
-                            symbolic: assignment.is_symbolic(),
-                            variable: assignment.variable.raw(),
-                            value: ValueWire::from_value(&assignment.value),
-                        })
-                    })
-                    .collect::<Result<_, IoError>>()?,
-                domain: match factor.domain {
-                    DomainRef::Observational => DistributionFactorDomainWire::Observational,
-                    DomainRef::Interventional => DistributionFactorDomainWire::Interventional,
-                },
-                population: factor.population.to_string(),
-                regime: factor.regime.map(RegimeId::raw),
-            };
-            Ok(DistributionFactorTableWire {
-                key: factor_key,
-                rows: factor
-                    .rows
-                    .iter()
-                    .map(|row| DistributionFactorRowWire {
-                        values: row.values.iter().map(ValueWire::from_value).collect(),
-                        probability: row.probability,
-                    })
-                    .collect(),
-            })
-        })
-        .collect::<Result<_, IoError>>()?;
-    Ok(DistributionFactorLawsWire {
-        format: FACTOR_LAWS_FORMAT,
-        provider: snapshot.provenance.provider.into(),
-        source_rows: u64::try_from(snapshot.provenance.source_rows)
-            .map_err(|_| IoError::TooLarge)?,
-        complete_case_rows: u64::try_from(snapshot.provenance.complete_case_rows)
-            .map_err(|_| IoError::TooLarge)?,
-        missing_row_policy: snapshot.provenance.missing_row_policy.into(),
-        domains,
-        requirements,
-        factors,
-    })
-}
 
 /// Recompute every finite-discrete distribution atom from its checked program and portable
 /// factor laws. Returns a stable dependency/error key suitable for a refusal report.

@@ -145,7 +145,7 @@ pub enum IdentifiedSetIntervalMethodWire {
 /// probability at least `level` whenever it is one retained identified
 /// completion's effect. Bayesian (`product_posterior_envelope_quantile`): every
 /// retained completion's posterior puts at most `1 − Φ(critical_value)` of its
-/// mass outside each endpoint. Mirrors [`antecedent_estimate::IdentifiedSetInterval`].
+/// mass outside each endpoint. Mirrors [`antecedent_stats::IdentifiedSetInterval`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IdentifiedSetIntervalWire {
     /// Nominal coverage of the true (completion-specific) effect.
@@ -187,9 +187,9 @@ impl IdentifiedSetIntervalMethodWire {
     ///
     /// A construction this wire version has no tag for.
     pub fn try_from_method(
-        method: antecedent_estimate::IdentifiedSetIntervalMethod,
+        method: antecedent_stats::IdentifiedSetIntervalMethod,
     ) -> Result<Self, IoError> {
-        use antecedent_estimate::IdentifiedSetIntervalMethod as Method;
+        use antecedent_stats::IdentifiedSetIntervalMethod as Method;
         match method {
             Method::ImbensManskiSharedBlock => Ok(Self::ImbensManskiSharedBlock),
             Method::ProductPosteriorEnvelopeQuantile => Ok(Self::ProductPosteriorEnvelopeQuantile),
@@ -201,8 +201,8 @@ impl IdentifiedSetIntervalMethodWire {
 
     /// In-memory construction for this wire tag.
     #[must_use]
-    pub const fn method(self) -> antecedent_estimate::IdentifiedSetIntervalMethod {
-        use antecedent_estimate::IdentifiedSetIntervalMethod as Method;
+    pub const fn method(self) -> antecedent_stats::IdentifiedSetIntervalMethod {
+        use antecedent_stats::IdentifiedSetIntervalMethod as Method;
         match self {
             Self::ImbensManskiSharedBlock => Method::ImbensManskiSharedBlock,
             Self::ProductPosteriorEnvelopeQuantile => Method::ProductPosteriorEnvelopeQuantile,
@@ -216,7 +216,7 @@ impl IdentifiedSetIntervalMethodWire {
 ///
 /// A construction with no wire tag (never silently relabelled).
 pub fn identified_set_interval_to_wire(
-    interval: &antecedent_estimate::IdentifiedSetInterval,
+    interval: &antecedent_stats::IdentifiedSetInterval,
 ) -> Result<IdentifiedSetIntervalWire, IoError> {
     Ok(IdentifiedSetIntervalWire {
         level: interval.level,
@@ -243,7 +243,7 @@ pub fn identified_set_interval_to_wire(
 /// negative SDs or critical value, no completions, or fewer than two replicates.
 pub fn identified_set_interval_from_wire(
     wire: &IdentifiedSetIntervalWire,
-) -> Result<antecedent_estimate::IdentifiedSetInterval, IoError> {
+) -> Result<antecedent_stats::IdentifiedSetInterval, IoError> {
     let finite = [
         wire.level,
         wire.lower,
@@ -275,7 +275,7 @@ pub fn identified_set_interval_from_wire(
         usize::try_from(v)
             .map_err(|_| IoError::Convert("identified-set interval count overflows".into()))
     };
-    Ok(antecedent_estimate::IdentifiedSetInterval {
+    Ok(antecedent_stats::IdentifiedSetInterval {
         level: wire.level,
         lower: wire.lower,
         upper: wire.upper,
@@ -1052,7 +1052,7 @@ pub struct AnalysisResultWire {
     pub cate: Option<Vec<f64>>,
     /// Portable fitted effect, bound into the result body identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
+    pub fitted_effect: Option<antecedent_learn::FittedEffect>,
     /// Licensed pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
@@ -1939,7 +1939,7 @@ fn validate_longitudinal_graphless(
         && query.known_fixed_outcome_predictions
         && query.probabilities_known_by_design
     {
-        antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+        antecedent_stats::longitudinal_regime::evaluate_g_formula_value(
             &query.period_outcome_predictions,
             &query.regime_actions,
             &query.treatment_probabilities,
@@ -1950,7 +1950,7 @@ fn validate_longitudinal_graphless(
         )
         .ok()
         .and_then(|summary| {
-            antecedent_estimate::longitudinal_regime::g_formula_fixed_q_pointwise_interval_95(
+            antecedent_stats::longitudinal_regime::g_formula_fixed_q_pointwise_interval_95(
                 &summary,
                 &query.period_outcome_predictions,
                 n,
@@ -4439,8 +4439,8 @@ mod tests {
         result.identification_variables = None;
         assert!(encode_analysis_result_artifact(&result, names, "missing").is_err());
     }
-    fn interval() -> antecedent_estimate::IdentifiedSetInterval {
-        antecedent_estimate::IdentifiedSetInterval {
+    fn interval() -> antecedent_stats::IdentifiedSetInterval {
+        antecedent_stats::IdentifiedSetInterval {
             level: 0.9,
             lower: 0.41,
             upper: 1.12,
@@ -4452,7 +4452,7 @@ mod tests {
             width_retained: true,
             completions: 2,
             replicates: 199,
-            method: antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock,
+            method: antecedent_stats::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock,
             truncated: false,
         }
     }
@@ -4460,19 +4460,19 @@ mod tests {
     #[test]
     fn every_identified_set_construction_has_its_own_wire_tag() {
         let mut tags = Vec::new();
-        for method in antecedent_estimate::IdentifiedSetIntervalMethod::ALL {
-            let original = antecedent_estimate::IdentifiedSetInterval { method, ..interval() };
+        for method in antecedent_stats::IdentifiedSetIntervalMethod::ALL {
+            let original = antecedent_stats::IdentifiedSetInterval { method, ..interval() };
             let wire = identified_set_interval_to_wire(&original).unwrap();
             assert_eq!(identified_set_interval_from_wire(&wire).unwrap().method, method);
             tags.push(serde_json::to_value(wire.method).unwrap());
         }
         tags.dedup();
-        assert_eq!(tags.len(), antecedent_estimate::IdentifiedSetIntervalMethod::ALL.len());
+        assert_eq!(tags.len(), antecedent_stats::IdentifiedSetIntervalMethod::ALL.len());
     }
 
     #[test]
     fn truncated_identified_set_interval_round_trips_and_defaults_to_false() {
-        let original = antecedent_estimate::IdentifiedSetInterval { truncated: true, ..interval() };
+        let original = antecedent_stats::IdentifiedSetInterval { truncated: true, ..interval() };
         let wire = identified_set_interval_to_wire(&original).unwrap();
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["truncated"], true);

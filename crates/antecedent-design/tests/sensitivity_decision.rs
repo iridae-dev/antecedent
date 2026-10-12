@@ -14,7 +14,6 @@
 #![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
-use antecedent_core::RegimeId;
 use antecedent_design::decision_contract::{DecisionCriterion, StructuralPolicy};
 use antecedent_design::decision_structural::StructuralVerdict;
 use antecedent_design::sensitivity_decision::{
@@ -24,12 +23,10 @@ use antecedent_design::sensitivity_decision::{
     SensitivityOutcome, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm, contract_from_artifact, evaluate_sensitivity_decision,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::sensitivity_artifact::{
-    AxisTipping, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
-    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
-    JointSensitivityUncertainty, TippingBracket, TippingStatus,
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::sensitivity_artifact::{
+    JointFactorView, JointSensitivityView, SourceTipping,
 };
 
 fn scientific(name: &str, units: &str) -> ScientificQuantity {
@@ -492,49 +489,35 @@ fn declaration_order_does_not_change_identity_or_decision() {
 }
 
 fn joint_result(
-    factors: Vec<JointFactorBound>,
+    factors: Vec<JointFactorView>,
     (baseline, minimum, maximum): (f64, f64, f64),
-) -> JointMechanismSensitivityResult {
-    JointMechanismSensitivityResult {
+) -> JointSensitivityView {
+    JointSensitivityView {
+        inference_claim: "assumption_range".into(),
+        interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
+        withheld_reason_code: "cell_not_licensed".into(),
+        withheld_detail: "joint_sensitivity.interval_withheld".into(),
         query_binding: "binding-1".into(),
         provider_snapshot: "snapshot-1".into(),
-        source_regime: RegimeId::from_raw(1),
-        factors,
+        source_regime: 1,
+        method: "closed-form product-polytope extrema".into(),
         decision_threshold: Some(0.25),
         baseline,
-        range: JointSensitivityRange {
-            minimum,
-            maximum,
-            minimizing_outcome_by_stratum: vec![],
-            maximizing_outcome_by_stratum: vec![],
-            minimizing_parent_level: None,
-            maximizing_parent_level: None,
-        },
-        axis_tipping: vec![AxisTipping {
-            factor: JointFactor::OutcomeKernel,
+        minimum,
+        maximum,
+        factors,
+        axis_tipping: vec![SourceTipping {
+            factor: "outcome_kernel".into(),
+            status: "bracketed".into(),
+            lower: Some(0.16),
+            upper: Some(0.17),
             analytic: Some(5.0 / 30.0),
-            status: TippingStatus::Bracketed,
-            bracket: Some(TippingBracket { lower: 0.16, upper: 0.17, iterations: 3 }),
         }],
-        frontier: vec![],
-        unresolved_detail: None,
-        receipt: JointSensitivityReceipt {
-            method: "closed-form product-polytope extrema",
-            fraction_box: [0.4, 0.0],
-            tolerance: 1e-9,
-            limits: JointSensitivityLimits::default(),
-            memory_limit_bytes: 0,
-            operations_consumed: 0,
-            depth_reached: 0,
-            live_state_bytes: 0,
-            stop: None,
-            explored: vec![],
-            unevaluated: vec![],
-        },
-        interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval",
-        inference_claim: "assumption_range",
-        uncertainty: JointSensitivityUncertainty::withheld(),
     }
+}
+
+fn factor(name: &str, max_fraction: f64) -> JointFactorView {
+    JointFactorView { factor: name.into(), max_fraction }
 }
 
 fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
@@ -550,10 +533,7 @@ fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     // The range is linear in the fraction: lower = 0.5 - 0.6 t, upper = 0.5 + 0.6 t with
     // t = fraction / 0.4, so at 0, 0.1, 0.2, 0.3, 0.4 it is 0.5, 0.35, 0.2, 0.05, -0.1 below
     // and 0.5, 0.65, 0.8, 0.95, 1.1 above.
-    let result = joint_result(
-        vec![JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.4 }],
-        (0.5, -0.1, 1.1),
-    );
+    let result = joint_result(vec![factor("outcome_kernel", 0.4)], (0.5, -0.1, 1.1));
     let effect = scientific("effect", "utils");
 
     // A status quo of -0.5 is below the whole range: adopting is invariant.
@@ -602,10 +582,7 @@ fn a_joint_sensitivity_result_feeds_a_decision_contract() {
 
     // Two factors are exact only at the unperturbed point and the declared box.
     let joint = joint_result(
-        vec![
-            JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.3 },
-            JointFactorBound { factor: JointFactor::SharedParentMarginal, max_fraction: 0.2 },
-        ],
+        vec![factor("outcome_kernel", 0.3), factor("shared_parent_marginal", 0.2)],
         (1.0, 0.2, 1.8),
     );
     let artifact =

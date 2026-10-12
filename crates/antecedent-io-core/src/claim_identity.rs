@@ -6,9 +6,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::IoError;
+use crate::identity::digest_wire;
 use antecedent_core::{IDENTITY_FORMAT, IdentityDomain, SemanticDigest};
-use antecedent_io_core::IoError;
-use antecedent_io_core::identity::digest_wire;
 use serde::{Deserialize, Serialize};
 
 /// Claim-id payload.

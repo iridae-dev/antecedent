@@ -12,7 +12,7 @@
 //! run a generic scorer.
 
 use antecedent_contract::ScientificQuantity;
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DrawAlignment,
 };
 

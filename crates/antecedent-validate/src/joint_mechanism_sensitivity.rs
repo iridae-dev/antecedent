@@ -446,6 +446,49 @@ pub struct JointMechanismSensitivityResult {
     pub uncertainty: JointSensitivityUncertainty,
 }
 
+impl From<&JointMechanismSensitivityResult>
+    for antecedent_io_core::sensitivity_artifact::JointSensitivityView
+{
+    fn from(result: &JointMechanismSensitivityResult) -> Self {
+        use antecedent_io_core::sensitivity_artifact::{
+            JointFactorView, JointSensitivityView, SourceTipping,
+        };
+        JointSensitivityView {
+            inference_claim: result.inference_claim.into(),
+            interpretation: result.interpretation.into(),
+            withheld_reason_code: result.uncertainty.reason_code.into(),
+            withheld_detail: result.uncertainty.detail.into(),
+            query_binding: result.query_binding.clone(),
+            provider_snapshot: result.provider_snapshot.clone(),
+            source_regime: result.source_regime.raw(),
+            method: result.receipt.method.into(),
+            decision_threshold: result.decision_threshold,
+            baseline: result.baseline,
+            minimum: result.range.minimum,
+            maximum: result.range.maximum,
+            factors: result
+                .factors
+                .iter()
+                .map(|bound| JointFactorView {
+                    factor: bound.factor.name().into(),
+                    max_fraction: bound.max_fraction,
+                })
+                .collect(),
+            axis_tipping: result
+                .axis_tipping
+                .iter()
+                .map(|axis| SourceTipping {
+                    factor: axis.factor.name().into(),
+                    status: axis.status.name().into(),
+                    lower: axis.bracket.map(|b| b.lower),
+                    upper: axis.bracket.map(|b| b.upper),
+                    analytic: axis.analytic,
+                })
+                .collect(),
+        }
+    }
+}
+
 /// Validated box.
 #[derive(Clone, Copy, Debug)]
 struct JointBox {

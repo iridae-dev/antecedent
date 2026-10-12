@@ -6,7 +6,7 @@
 //! recomputed identity) where noted, so only the semantic checks can refuse them.
 
 use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIdentity};
-use antecedent_estimate::{ScoreColumn, ScoreTableWire};
+use antecedent_estimate::{ScoreColumn, ScoreTable, ScoreTableWire};
 use antecedent_io::frozen_scores_artifact::{
     FROZEN_SCORES_ARTIFACT_VERSION, FrozenScoreParts, FrozenScoreTable, FrozenScoresArtifactError,
     MAX_FROZEN_SCORE_COLUMNS, MAX_FROZEN_SCORE_ROWS, decode_parts, encode_parts,
@@ -110,7 +110,7 @@ fn scores_round_trip_is_bit_exact_and_carries_every_identity() {
     for (a, b) in back.propensities.iter().zip(&original.propensities) {
         assert_eq!(a.to_bits(), b.to_bits());
     }
-    let table = again.score_table().unwrap();
+    let table = ScoreTable::from_frozen(&again).unwrap();
     assert_eq!(table.n_rows, ROWS);
     assert_eq!(table.n_columns(), 2);
     // The same bytes are produced for the same content.

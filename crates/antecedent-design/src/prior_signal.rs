@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::is_blank;
-use antecedent_io::{CompatibilityReport, PriorCatalog, TargetDesign};
+use antecedent_io_core::{CompatibilityReport, PriorCatalog, TargetDesign};
 
 use crate::preposterior::DecisionPrior;
 use crate::signal::{NativeBinomialSignal, NativeGaussianMeanSignal, SignalProvider, make_refusal};

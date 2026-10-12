@@ -55,7 +55,7 @@
 use std::collections::HashSet;
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
-use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
 use crate::decision_contract::{
     DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,

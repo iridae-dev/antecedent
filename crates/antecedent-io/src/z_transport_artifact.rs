@@ -18,7 +18,7 @@ use crate::{
     transport_catalog_wire::EvidenceCatalogWire,
     wire::AdmgWire,
 };
-use antecedent_core::{ExecutionContext, IdentityDomain, InterventionAssignment, VariableId};
+use antecedent_core::{ExecutionContext, IdentityDomain, VariableId};
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData, FunctionalProgram,
     ProgramLimits,
@@ -26,7 +26,7 @@ use antecedent_expr::{
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     BoundZTransportFunctional, SidLimits, ZTransportDerivation, ZTransportDerivationRecord,
-    ZTransportQuery, bind_z_transport_catalog,
+    bind_z_transport_catalog,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -39,6 +39,7 @@ pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v2";
 pub const Z_TRANSPORT_NO_INTERVAL: &str = "no_interval_reported";
 
 pub use antecedent_io_core::transport_errors::ZTransportArtifactError;
+pub use antecedent_io_core::transport_query_wire::ZTransportQueryWire;
 /// Bounds a consumer imposes on an artifact it replays. Nothing the artifact
 /// stores raises them.
 #[derive(Clone, Copy, Debug)]
@@ -112,65 +113,6 @@ pub struct ZTransportArtifactWire {
     /// query, proof record and expression. Stable across re-encodings of the
     /// same premises, unlike a digest of the artifact bytes.
     pub premises_digest: String,
-}
-
-/// Portable graph/query coordinates and exact intervention values.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ZTransportQueryWire {
-    /// Outcomes.
-    pub outcomes: Vec<u32>,
-    /// Treatment variables.
-    pub treatments: Vec<u32>,
-    /// Controllable variables.
-    pub controllable: Vec<u32>,
-    /// Concrete experiment assignment.
-    pub experiment_assignment: Vec<(u32, ValueWire)>,
-    /// Source population.
-    pub source: String,
-    /// Target population.
-    pub target: String,
-}
-
-impl ZTransportQueryWire {
-    /// Encode a query.
-    #[must_use]
-    pub fn from_query(query: &ZTransportQuery) -> Self {
-        Self {
-            outcomes: query.outcomes.iter().map(|v| v.raw()).collect(),
-            treatments: query.treatments.iter().map(|v| v.raw()).collect(),
-            controllable: query.controllable.iter().map(|v| v.raw()).collect(),
-            experiment_assignment: query
-                .experiment_assignment
-                .iter()
-                .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                .collect(),
-            source: query.source.to_string(),
-            target: query.target.to_string(),
-        }
-    }
-
-    /// Decode a query. Validation happens against the diagram it is used with.
-    #[must_use]
-    pub fn to_query(&self) -> ZTransportQuery {
-        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
-        ZTransportQuery {
-            outcomes: ids(&self.outcomes).into(),
-            treatments: ids(&self.treatments).into(),
-            controllable: ids(&self.controllable).into(),
-            experiment_assignment: self
-                .experiment_assignment
-                .iter()
-                .map(|(v, x)| InterventionAssignment {
-                    variable: VariableId::from_raw(*v),
-                    value: x.to_value(),
-                })
-                .collect::<Vec<_>>()
-                .into(),
-            source: Arc::from(self.source.as_str()),
-            target: Arc::from(self.target.as_str()),
-        }
-    }
 }
 
 /// Complete point distribution in canonical atom order.

@@ -29,6 +29,7 @@ antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
 antecedent-estimate = { version = "2.4.0", path = "../antecedent-estimate" }
 antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }
 antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
+antecedent-io-core = { version = "2.4.0", path = "../antecedent-io-core" }
 antecedent-discovery = { version = "2.4.0", path = "../antecedent-discovery" }
 antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
 antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }

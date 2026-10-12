@@ -37,10 +37,10 @@ use antecedent_contract::{
     CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
 use antecedent_core::{CanonicalWriter, blake3_hex};
-use antecedent_io::convert::to_cbor;
-use antecedent_io::error::IoError;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::ArtifactKind;
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::wire::ArtifactKind;
 use serde::{Deserialize, Serialize};
 
 /// Artifact kind label of a composition bundle.
@@ -919,20 +919,20 @@ impl CompositionBundle {
             })
             .collect();
         let mut sections = Vec::with_capacity(1 + embedded.len());
-        sections.push(antecedent_io::OutSection {
+        sections.push(antecedent_io_core::OutSection {
             id: BODY_SECTION,
-            content_type: antecedent_io::CONTENT_CBOR,
+            content_type: antecedent_io_core::CONTENT_CBOR,
             bytes: &body,
         });
         for (id, bytes) in &embedded {
-            sections.push(antecedent_io::OutSection {
+            sections.push(antecedent_io_core::OutSection {
                 id,
-                content_type: antecedent_io::CONTENT_BYTES,
+                content_type: antecedent_io_core::CONTENT_BYTES,
                 bytes,
             });
         }
-        antecedent_io::encode_container(
-            &antecedent_io::ArtifactContainer {
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
                 kind: BUNDLE_KIND,
                 note: "composition_bundle",
                 max_bytes: limits.max_bundle_bytes,
@@ -942,7 +942,7 @@ impl CompositionBundle {
             &sections,
         )
         .map_err(|error| match error {
-            antecedent_io::CodecError::FileTooLarge => {
+            antecedent_io_core::CodecError::FileTooLarge => {
                 refused(BundleStage::Oversized, "the bundle exceeds its bound", None)
             }
             other => other.into_io("not a composition bundle").into(),
@@ -1078,7 +1078,7 @@ fn decode(bytes: &[u8], limits: &BundleLimits) -> Result<Decoded, BundleError> {
         return Err(refused(BundleStage::Oversized, "the bundle body exceeds its bound", None));
     }
     let body_bytes = reader.load_section(BODY_SECTION)?.as_bytes().to_vec();
-    let body: BodyWire = antecedent_io::decode_with_version(&body_bytes, |version: u16| {
+    let body: BodyWire = antecedent_io_core::decode_with_version(&body_bytes, |version: u16| {
         if version == BUNDLE_VERSION {
             Ok(())
         } else {

@@ -27,9 +27,9 @@ use antecedent_contract::{
     CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
 use antecedent_core::{CanonicalWriter, SupportStatus};
-use antecedent_io::convert::to_cbor;
-use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{LineageLinkWire, wire_from_chain};
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::external_claim_artifact::{LineageLinkWire, wire_from_chain};
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::{

@@ -7,15 +7,15 @@
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::{SemanticDigest, blake3_hex};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimMetadata, ExternalClaimTrust,
     MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::response_wire::{
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::response_wire::{
     ResponseIdentificationWire, ResponseValueWire, SupportStatusWire,
 };
 use serde::{Deserialize, Serialize};

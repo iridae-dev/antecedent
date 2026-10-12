@@ -39,10 +39,10 @@
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::CanonicalWriter;
-use antecedent_io::convert::to_cbor;
-use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionMetadata};
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionMetadata};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::DecisionContractArtifact;
@@ -1075,8 +1075,8 @@ pub fn encode_parts(
         return Err(IoError::Convert("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta)?;
-    antecedent_io::encode_container(
-        &antecedent_io::ArtifactContainer {
+    antecedent_io_core::encode_container(
+        &antecedent_io_core::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "inverse_functional_query_point_only",
             max_bytes: MAX_INVERSE_QUERY_ARTIFACT_BYTES,
@@ -1084,19 +1084,19 @@ pub fn encode_parts(
             library_version: env!("CARGO_PKG_VERSION"),
         },
         &[
-            antecedent_io::OutSection {
+            antecedent_io_core::OutSection {
                 id: META_SECTION,
-                content_type: antecedent_io::CONTENT_CBOR,
+                content_type: antecedent_io_core::CONTENT_CBOR,
                 bytes: &meta_bytes,
             },
-            antecedent_io::OutSection {
+            antecedent_io_core::OutSection {
                 id: CONTRACT_SECTION,
-                content_type: antecedent_io::CONTENT_BYTES,
+                content_type: antecedent_io_core::CONTENT_BYTES,
                 bytes: contract,
             },
-            antecedent_io::OutSection {
+            antecedent_io_core::OutSection {
                 id: DATA_SECTION,
-                content_type: antecedent_io::CONTENT_BYTES,
+                content_type: antecedent_io_core::CONTENT_BYTES,
                 bytes: data,
             },
         ],
@@ -1113,7 +1113,7 @@ pub fn encode_parts(
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>), IoError> {
-    let parts = antecedent_io::decode_container(
+    let parts = antecedent_io_core::decode_container(
         ARTIFACT_KIND,
         MAX_INVERSE_QUERY_ARTIFACT_BYTES,
         &[META_SECTION, CONTRACT_SECTION, DATA_SECTION],
@@ -1123,7 +1123,7 @@ pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>)
     let Ok([meta_bytes, contract, data]) = <[Vec<u8>; 3]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported inverse query artifact layout".into()));
     };
-    let meta = antecedent_io::decode_with_version(&meta_bytes, |version: u16| {
+    let meta = antecedent_io_core::decode_with_version(&meta_bytes, |version: u16| {
         if version == INVERSE_QUERY_ARTIFACT_VERSION {
             Ok(())
         } else {

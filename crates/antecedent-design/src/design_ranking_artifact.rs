@@ -46,9 +46,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, is_blank};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
 use crate::decision::{DecisionProblem, DecisionTable};
@@ -1098,17 +1098,17 @@ impl DesignRankingArtifactWire {
             .candidates
             .sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
         let body = to_cbor(&ordered)?;
-        antecedent_io::encode_container(
-            &antecedent_io::ArtifactContainer {
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
                 kind: DESIGN_RANKING_ARTIFACT_KIND,
                 note: "design_ranking",
                 max_bytes: MAX_DESIGN_RANKING_ARTIFACT_BYTES,
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[antecedent_io::OutSection {
+            &[antecedent_io_core::OutSection {
                 id: BODY_SECTION,
-                content_type: antecedent_io::CONTENT_CBOR,
+                content_type: antecedent_io_core::CONTENT_CBOR,
                 bytes: &body,
             }],
         )
@@ -1121,7 +1121,7 @@ impl DesignRankingArtifactWire {
     ///
     /// Corruption, truncation, oversize, an unknown layout, or an unknown major version.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let parts = antecedent_io::decode_container(
+        let parts = antecedent_io_core::decode_container(
             DESIGN_RANKING_ARTIFACT_KIND,
             MAX_DESIGN_RANKING_ARTIFACT_BYTES,
             &[BODY_SECTION],

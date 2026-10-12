@@ -28,12 +28,12 @@ use antecedent_design::inverse_query::{
 use antecedent_design::inverse_query_artifact::{
     ExistenceWire, InverseQueryArtifact, SelectionOutcomeWire, decode_parts, encode_parts,
 };
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 
 const REGIMES: [&str; 3] = ["do(a=0)", "do(a=1)", "do(a=2)"];
 const IDS: [&str; 3] = ["a0", "a1", "a2"];

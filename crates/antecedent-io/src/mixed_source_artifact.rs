@@ -18,22 +18,19 @@ use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
     expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire},
-    mz_transport_artifact::MzSourceWire,
     query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire,
     wire::AdmgWire,
 };
 use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, IdentityDomain, InterventionAssignment, SearchLimits,
-    VariableId,
+    EvidenceCatalog, ExecutionContext, IdentityDomain, SearchLimits, VariableId,
 };
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     BoundMixedSourceFunctional, MixedSourceDerivation, MixedSourceDerivationRecord,
-    MixedSourceQuery, ZTransportSourceSpec, bind_mixed_source_catalog,
+    bind_mixed_source_catalog,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
 pub const MIXED_SOURCE_ARTIFACT_VERSION: u32 = 1;
@@ -43,6 +40,7 @@ pub const MIXED_SOURCE_ARTIFACT_FEATURE: &str = "checked_mixed_source_point_v1";
 pub const MIXED_SOURCE_POINT_ONLY: &str = "point_only";
 
 pub use antecedent_io_core::transport_errors::MixedSourceArtifactError;
+pub use antecedent_io_core::transport_query_wire::MixedSourceQueryWire;
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct MixedSourceConsumeLimits {
@@ -69,78 +67,6 @@ impl Default for MixedSourceConsumeLimits {
             max_laws: 256,
             max_law_cells: 1_000_000,
             max_requests: 64,
-        }
-    }
-}
-
-/// Portable canonical mixed-source query.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct MixedSourceQueryWire {
-    /// Outcomes.
-    pub outcomes: Vec<u32>,
-    /// Treatments.
-    pub treatments: Vec<u32>,
-    /// Target population.
-    pub target: String,
-    /// Declared sources of the theorem-scoped routes, in canonical order.
-    pub sources: Vec<MzSourceWire>,
-}
-
-impl MixedSourceQueryWire {
-    /// Encode a query in canonical form.
-    #[must_use]
-    pub fn from_query(query: &MixedSourceQuery) -> Self {
-        let query = query.canonical();
-        let raw = |v: &[VariableId]| v.iter().map(|v| v.raw()).collect::<Vec<_>>();
-        Self {
-            outcomes: raw(&query.outcomes),
-            treatments: raw(&query.treatments),
-            target: query.target.to_string(),
-            sources: query
-                .sources
-                .iter()
-                .map(|s| MzSourceWire {
-                    population: s.population.to_string(),
-                    controllable: raw(&s.controllable),
-                    experiment_assignment: s
-                        .experiment_assignment
-                        .iter()
-                        .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                        .collect(),
-                    selection_targets: raw(&s.selection_targets),
-                })
-                .collect(),
-        }
-    }
-
-    /// Decode. Validation happens when the query is decided.
-    #[must_use]
-    pub fn to_query(&self) -> MixedSourceQuery {
-        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
-        MixedSourceQuery {
-            outcomes: ids(&self.outcomes).into(),
-            treatments: ids(&self.treatments).into(),
-            target: Arc::from(self.target.as_str()),
-            sources: self
-                .sources
-                .iter()
-                .map(|s| ZTransportSourceSpec {
-                    population: Arc::from(s.population.as_str()),
-                    controllable: ids(&s.controllable).into(),
-                    experiment_assignment: s
-                        .experiment_assignment
-                        .iter()
-                        .map(|(v, x)| InterventionAssignment {
-                            variable: VariableId::from_raw(*v),
-                            value: x.to_value(),
-                        })
-                        .collect::<Vec<_>>()
-                        .into(),
-                    selection_targets: ids(&s.selection_targets).into(),
-                })
-                .collect::<Vec<_>>()
-                .into(),
         }
     }
 }

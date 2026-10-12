@@ -11,10 +11,10 @@ use antecedent_contract::{
     CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
 use antecedent_core::CanonicalWriter;
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::DistributionArtifact;
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::DistributionArtifact;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
 use crate::decision_contract::{
@@ -293,17 +293,17 @@ pub(crate) fn encode_section(
     note: &str,
     body: &[u8],
 ) -> Result<Vec<u8>, IoError> {
-    antecedent_io::encode_container(
-        &antecedent_io::ArtifactContainer {
+    antecedent_io_core::encode_container(
+        &antecedent_io_core::ArtifactContainer {
             kind,
             note,
             max_bytes: MAX_DECISION_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[antecedent_io::OutSection {
+        &[antecedent_io_core::OutSection {
             id: section,
-            content_type: antecedent_io::CONTENT_CBOR,
+            content_type: antecedent_io_core::CONTENT_CBOR,
             bytes: body,
         }],
     )
@@ -323,7 +323,7 @@ pub(crate) fn decode_section<T: serde::de::DeserializeOwned>(
     section: &str,
 ) -> Result<T, IoError> {
     let parts =
-        antecedent_io::decode_container(kind, MAX_DECISION_ARTIFACT_BYTES, &[section], bytes)
+        antecedent_io_core::decode_container(kind, MAX_DECISION_ARTIFACT_BYTES, &[section], bytes)
             .map_err(|error| error.into_io("unsupported decision artifact layout"))?;
     let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported decision artifact layout".into()));

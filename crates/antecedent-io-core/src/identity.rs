@@ -50,6 +50,8 @@ use crate::discovery_wire::{
     DiscoveryTemporalGraphWire, TemporalGraphWire, TemporalNodeKeyWire, temporal_dag_to_wire,
 };
 use crate::error::IoError;
+
+pub use crate::claim_identity::{ClaimIdentityWire, claim_digest};
 use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
 use crate::query_wire::{
     CausalQueryWire, InterventionWire, OutcomeFunctionalWire, TargetPopulationWire, ValueWire,

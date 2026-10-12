@@ -10,8 +10,8 @@
 //! the bytes, and it can be replayed: the structural evaluation is recomputed
 //! and must reproduce the stored wire exactly.
 
-use antecedent_io::convert::to_cbor;
-use antecedent_io::error::IoError;
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::error::IoError;
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::source_digest;

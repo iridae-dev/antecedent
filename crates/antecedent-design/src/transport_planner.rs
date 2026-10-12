@@ -174,9 +174,9 @@ pub struct TransportProposalWire {
     /// Digest of the exact base catalog needed to replay this proposal.
     pub base_catalog_digest: String,
     /// Proposed catalog delta.
-    pub delta: antecedent_io::transport_catalog_wire::EvidenceCatalogDeltaWire,
+    pub delta: antecedent_io_core::transport_catalog_wire::EvidenceCatalogDeltaWire,
     /// Checked derivation to replay against the original query and graph.
-    pub proof: antecedent_io::transport_proof::TransportProofWire,
+    pub proof: antecedent_io_core::transport_proof::TransportProofWire,
 }
 
 /// Portable candidate-design description using stable numeric identities.
@@ -237,7 +237,7 @@ impl TransportProposal {
     ///
     /// # Errors
     /// The checked expression exceeds the proof wire's supported capacity.
-    pub fn to_wire(&self) -> Result<TransportProposalWire, antecedent_io::IoError> {
+    pub fn to_wire(&self) -> Result<TransportProposalWire, antecedent_io_core::IoError> {
         Ok(TransportProposalWire {
             version: 1,
             candidate_id: self.candidate.id.to_string(),
@@ -251,10 +251,10 @@ impl TransportProposal {
                 .collect(),
             cost: self.candidate.cost,
             base_catalog_digest: catalog_digest(&self.base_catalog)?,
-            delta: antecedent_io::transport_catalog_wire::EvidenceCatalogDeltaWire::from_delta(
+            delta: antecedent_io_core::transport_catalog_wire::EvidenceCatalogDeltaWire::from_delta(
                 &self.candidate.delta,
             ),
-            proof: antecedent_io::transport_proof::TransportProofWire::from_checked(
+            proof: antecedent_io_core::transport_proof::TransportProofWire::from_checked(
                 self.checked.derivation(),
             )?,
         })
@@ -281,10 +281,11 @@ impl TransportProposal {
     }
 }
 
-fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, antecedent_io::IoError> {
-    let wire = antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(catalog);
+fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, antecedent_io_core::IoError> {
+    let wire =
+        antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire::from_catalog(catalog);
     let bytes = serde_json::to_vec(&wire)
-        .map_err(|error| antecedent_io::IoError::Convert(error.to_string()))?;
+        .map_err(|error| antecedent_io_core::IoError::Convert(error.to_string()))?;
     Ok(blake3_hex(&bytes))
 }
 

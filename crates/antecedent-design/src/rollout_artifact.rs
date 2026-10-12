@@ -13,13 +13,13 @@ use crate::design_ranking_artifact::{
     ConsumeExpectation, DecisionWire, DesignRankingArtifactWire, PriorWire,
     consume_wire as consume_ranking,
 };
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionTrust,
     DrawAlignment,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use serde::{Deserialize, Serialize};
 
 /// Container kind for a finite rollout/study-update binding.
@@ -202,7 +202,7 @@ impl RolloutArtifact {
         };
         if self.source_evidence.len() > crate::source_evidence::MAX_SOURCE_EVIDENCE_BYTES
             || self.source_artifact.len()
-                > antecedent_io::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES
+                > antecedent_io_core::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES
             || self.ranking_artifact.len()
                 > crate::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES
             || self.binding.decision.action_ids.len() > 65_536
@@ -362,23 +362,25 @@ impl RolloutArtifact {
             return Err(refused("rollout.artifact_id_missing"));
         }
         let body = to_cbor(self)?;
-        antecedent_io::encode_container(
-            &antecedent_io::ArtifactContainer {
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
                 kind: ROLLOUT_KIND,
                 note: "finite source-state terminal decision binding",
                 max_bytes: MAX_ROLLOUT_BYTES,
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[antecedent_io::OutSection {
+            &[antecedent_io_core::OutSection {
                 id: SECTION,
-                content_type: antecedent_io::CONTENT_CBOR,
+                content_type: antecedent_io_core::CONTENT_CBOR,
                 bytes: &body,
             }],
         )
         .map_err(|error| match error {
-            antecedent_io::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
-            antecedent_io::CodecError::MissingArtifactId => refused("rollout.artifact_id_missing"),
+            antecedent_io_core::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            antecedent_io_core::CodecError::MissingArtifactId => {
+                refused("rollout.artifact_id_missing")
+            }
             other => other.into_io("rollout artifact"),
         })
     }
@@ -387,12 +389,16 @@ impl RolloutArtifact {
     /// # Errors
     /// Corruption, wrong kind/version or byte limits refuse before replay.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        let parts =
-            antecedent_io::decode_container(ROLLOUT_KIND, MAX_ROLLOUT_BYTES, &[SECTION], bytes)
-                .map_err(|error| match error {
-                    antecedent_io::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
-                    other => other.into_io("rollout artifact"),
-                })?;
+        let parts = antecedent_io_core::decode_container(
+            ROLLOUT_KIND,
+            MAX_ROLLOUT_BYTES,
+            &[SECTION],
+            bytes,
+        )
+        .map_err(|error| match error {
+            antecedent_io_core::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            other => other.into_io("rollout artifact"),
+        })?;
         let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(refused("rollout.artifact_kind_mismatch"));
         };

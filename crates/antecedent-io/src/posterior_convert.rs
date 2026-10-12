@@ -17,10 +17,8 @@ use antecedent_prob::PosteriorQuantityKind;
 
 use crate::container::EncodedArtifact;
 use crate::error::IoError;
-use crate::posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
-    encode_posterior_artifact,
-};
+use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact};
+pub use antecedent_io_core::posterior::decode_causal_posterior_bytes;
 
 /// Which posterior payload to serialize across the FFI / artifact boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -132,20 +130,6 @@ pub fn encode_causal_posterior_with_payload(
         treatment_contrast: posterior.treatment_contrast,
     };
     encode_posterior_artifact(&meta, draws, artifact_id, VERSION)
-}
-
-/// Decode posterior wire metadata + draws (Python / tooling consumers).
-///
-/// Summary artifacts return an empty draws vector.
-///
-/// # Errors
-///
-/// IO failures.
-pub fn decode_causal_posterior_bytes(
-    bytes: &[u8],
-) -> Result<(CausalPosteriorWire, Vec<f64>), IoError> {
-    let artifact = crate::migrate::read_and_migrate(bytes)?;
-    decode_posterior_artifact(&artifact)
 }
 
 #[cfg(test)]

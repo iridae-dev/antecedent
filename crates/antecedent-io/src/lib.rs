@@ -14,10 +14,7 @@ pub use antecedent_io_core::*;
 
 /// Analysis / estimate / identification / refutation / diagnostic wire types.
 pub mod analysis_wire;
-mod claim_identity;
 mod estimate_wire;
-/// Canonical encoding and domain-separated digests for contract identities.
-pub mod identity;
 mod transport_effect_wire;
 
 pub use analysis_wire::{
@@ -26,20 +23,11 @@ pub use analysis_wire::{
     ScoreInferenceWire, ScoreTableWire, effect_estimate_from_wire, effect_estimate_to_wire,
     refutation_from_wire, refutation_to_wire,
 };
-pub use identity::{ClaimIdentityWire, claim_digest};
 
 pub mod admg_conditional_transport_artifact;
-pub mod analysis_result_artifact;
-pub mod calibration;
-mod contract_reason;
-pub mod contract_section;
-pub mod coverage_records_data;
 pub mod cpdag_completion_artifact;
-mod distribution_replay;
-pub use distribution_replay::distribution_factor_laws_to_wire;
-pub mod external_estimate;
-pub mod frozen_scores_artifact;
-pub mod graphless_support;
+mod distribution_factor_laws;
+pub use distribution_factor_laws::distribution_factor_laws_to_wire;
 pub mod joint_bayesian_transport_artifact;
 pub mod learned_joint_transport_artifact;
 pub mod measured_inference;
@@ -59,36 +47,6 @@ pub mod temporal_transport_artifact;
 pub mod transport_interference_wire;
 pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
-pub use analysis_result_artifact::{
-    AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
-    IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterferenceInferenceWire,
-    InterferencePointwiseIntervalWire, InterventionalDistributionWire, LocalPolynomialRatioWire,
-    LongitudinalRegimeWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire,
-    RandomizedEffectWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
-    StructuralWeightBasisWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
-    SyntheticDidWire, TemporalIdentificationWire, TemporalMediationGridWire,
-    TemporalMediationSliceWire, TemporalMediationUncertaintyWire, UnitEffectIntervalsWire,
-    UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    identified_set_interval_from_wire, identified_set_interval_to_wire,
-};
-pub use contract_section::TargetWeightsSectionWire;
-pub use contract_section::{
-    AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
-    AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
-    CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire, ClaimDomainsWire,
-    ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire, ContractReason,
-    IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
-    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
-    checked_aipw_rows_digest, claim_domains, claim_kind_name, consume_analysis_result,
-    contract_seal, decode_analysis_result_contract, project_claim_host, project_lossy_scalar,
-    result_digest, support_empirical, validate_contract_section, validate_mixture_masses,
-    verify_contract_against_body, weight_basis_name,
-};
-pub use external_estimate::{
-    ExternalEstimateAttach, attested_external_estimate, decode_external_estimate_claim,
-    encode_external_estimate_claim, parse_digest_hex,
-};
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
 };

@@ -645,7 +645,7 @@ impl ScoreResumeSession {
     ) -> Result<Self, FrozenScoresArtifactError> {
         let anchor = artifact.declared()?;
         Ok(Self {
-            table: Arc::new(artifact.score_table()?),
+            table: Arc::new(ScoreTable::from_frozen(artifact)?),
             artifact_identity: artifact.identity().to_owned(),
             previous: anchor.clone(),
             anchor,

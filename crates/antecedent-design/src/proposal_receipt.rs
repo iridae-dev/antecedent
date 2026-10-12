@@ -42,7 +42,7 @@ use antecedent_core::{
     CanonicalWriter, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
     ExecutionContext, IdentityDomain, RegimeId, RegimeKind, VariableId,
 };
-use antecedent_io::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
+use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
 
 use crate::design_ranking_artifact::{CandidateWire, DesignRankingArtifactWire};
 use crate::repair::{FamilyVerdict, RepairCancelled, RepairFamily};
@@ -120,9 +120,9 @@ fn list_digest(label: &str, values: &[String]) -> String {
 }
 
 fn regimes_digest(regimes: &[EvidenceRegimeWire]) -> Result<String> {
-    antecedent_io::digest_hex(IdentityDomain::Identification, &regimes.to_vec()).map_err(|error| {
-        ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string())
-    })
+    antecedent_io_core::digest_hex(IdentityDomain::Identification, &regimes.to_vec()).map_err(
+        |error| ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string()),
+    )
 }
 
 // ---------------------------------------------------------------- receipts

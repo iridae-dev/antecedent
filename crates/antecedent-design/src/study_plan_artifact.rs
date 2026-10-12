@@ -40,10 +40,9 @@ use antecedent_identify::{
     STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyPlan, StudyPlanLimits, StudyPlanRoute,
     StudyPlanStop, StudyProposalDerivation, StudySubsetOutcome, ZTransportSourceSpec,
 };
-use antecedent_io::mixed_source_artifact::MixedSourceQueryWire;
-use antecedent_io::mz_transport_artifact::MzSourceWire;
-use antecedent_io::query_wire::ValueWire;
-use antecedent_io::transport_catalog_wire::EvidenceCatalogWire;
+use antecedent_io_core::query_wire::ValueWire;
+use antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire;
+use antecedent_io_core::transport_query_wire::{MixedSourceQueryWire, MzSourceWire};
 use serde::{Deserialize, Serialize};
 
 use crate::study_planner::{
@@ -128,7 +127,7 @@ pub struct StudyPlanPremisesWire {
     /// Ranking version.
     pub ranking: String,
     /// Shared causal graph.
-    pub graph: antecedent_io::wire::AdmgWire,
+    pub graph: antecedent_io_core::wire::AdmgWire,
     /// Canonical query (outcomes, treatments, target, declared sources).
     pub query: MixedSourceQueryWire,
     /// Declared candidates, in id order.
@@ -550,7 +549,7 @@ fn outcome_wire(plan: &StudyPlan) -> StudyPlanOutcomeWire {
 }
 
 fn digest<T: Serialize>(domain: IdentityDomain, value: &T) -> Result<String, StudyPlanError> {
-    antecedent_io::digest_hex(domain, value)
+    antecedent_io_core::digest_hex(domain, value)
         .map_err(|e| StudyPlanError::invalid_artifact(e.to_string()))
 }
 
@@ -621,7 +620,7 @@ impl StudyPlanArtifactWire {
                 "the artifact names another rule set or ranking version",
             ));
         }
-        let graph = antecedent_io::admg_from_wire(&self.premises.graph)
+        let graph = antecedent_io_core::admg_from_wire(&self.premises.graph)
             .map_err(|e| StudyPlanError::invalid_artifact(e.to_string()))?;
         let catalog = self
             .data
@@ -692,7 +691,7 @@ impl StudyPlanResult {
                 route: self.plan.route.name().to_owned(),
                 rule_set: rule_set(&self.plan.route).to_owned(),
                 ranking: STUDY_PLAN_RANKING.to_owned(),
-                graph: antecedent_io::admg_to_wire(&self.graph)
+                graph: antecedent_io_core::admg_to_wire(&self.graph)
                     .map_err(|e| StudyPlanError::invalid_artifact(e.to_string()))?,
                 query: query_wire(&self.plan.route),
                 candidates: self.candidates.iter().map(candidate_wire).collect(),

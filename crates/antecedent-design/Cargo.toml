@@ -21,7 +21,10 @@ antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
 antecedent-contract = { version = "2.4.0", path = "../antecedent-contract" }
 antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
 antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
-antecedent-io = { version = "2.4.0", path = "../antecedent-io" }
+# The artifact layer below the estimators: design never depends on antecedent-estimate,
+# antecedent-validate or the estimator-bound `antecedent-io`. Cross-layer tests that need
+# a fitted result live in the `antecedent` crate.
+antecedent-io-core = { version = "2.4.0", path = "../antecedent-io-core" }
 antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
 antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }
 antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }

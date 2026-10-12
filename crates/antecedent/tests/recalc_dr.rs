@@ -331,9 +331,9 @@ fn dr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data() 
         let exported = session.export_scores().unwrap();
         let bytes = exported.to_bytes("dr-complete-cases").unwrap();
         let restored = FrozenScoreTable::from_bytes(&bytes, None).unwrap();
-        assert_eq!(restored.score_table().unwrap(), *table);
+        assert_eq!(ScoreTable::from_frozen(&restored).unwrap(), *table);
         assert!(FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-        let known = oracle(&restored.score_table().unwrap(), &vec![1.0; 159]);
+        let known = oracle(&ScoreTable::from_frozen(&restored).unwrap(), &vec![1.0; 159]);
         close(known.0, first.law.ate);
         close(known.1, first.law.std_error);
         check_portable_retarget(&request, table, &restored);

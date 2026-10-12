@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::contract_reason::ContractReason;
 use crate::contract_reason::publish_reasons;
-pub use antecedent_io_core::contract_wire::{
+pub use crate::contract_wire::{
     AssumptionSlotWire, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire,
     IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
     SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, checked_aipw_rows_digest,

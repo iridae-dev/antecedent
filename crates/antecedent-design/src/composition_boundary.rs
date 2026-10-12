@@ -30,8 +30,8 @@ use antecedent_contract::{
     ExternalCapability, ExternalRefusal, ExternalTrustState, ProviderTrust, ScientificQuantity,
 };
 use antecedent_core::{CanonicalWriter, SupportStatus};
-use antecedent_io::IoError;
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::IoError;
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
 };
 

@@ -338,6 +338,20 @@ pub fn decode_posterior_meta_from_path(
     Ok(meta)
 }
 
+/// Decode posterior wire metadata + draws (Python / tooling consumers).
+///
+/// Summary artifacts return an empty draws vector.
+///
+/// # Errors
+///
+/// IO failures.
+pub fn decode_causal_posterior_bytes(
+    bytes: &[u8],
+) -> Result<(CausalPosteriorWire, Vec<f64>), IoError> {
+    let artifact = crate::migrate::read_and_migrate(bytes)?;
+    decode_posterior_artifact(&artifact)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

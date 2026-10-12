@@ -23,11 +23,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIdentity};
-use antecedent_estimate::{ScoreColumn, ScoreTable, ScoreTableWire};
 use serde::{Deserialize, Serialize};
 
 use crate::convert::to_cbor;
 use crate::recalc_receipt_artifact::{DeclaredStageWire, identities_from_wire, identities_to_wire};
+use crate::score_wire::{ScoreColumn, ScoreTableWire};
 
 /// The artifact major version this reader writes and accepts.
 pub const FROZEN_SCORES_ARTIFACT_VERSION: u16 = 1;
@@ -116,96 +116,10 @@ fn malformed(text: impl Into<String>) -> FrozenScoresArtifactError {
 // -- wire types ---------------------------------------------------------------------------
 
 /// One score column key on the wire.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ScoreColumnPlain {
-    /// Arm label (a cell mask for joint treatments).
-    pub arm: u32,
-    /// Exceedance threshold; `None` is the mean functional.
-    pub threshold: Option<f64>,
-}
+pub type ScoreColumnPlain = ScoreColumn;
 
-/// The score table as plain data (the shape of `ScoreTableWire`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ScoreTablePlain {
-    /// Observed cell on each retained row.
-    pub observed_arm: Vec<u32>,
-    /// Out-of-fold raw propensity for each score column, column-major.
-    pub propensities: Vec<f64>,
-    /// Observed original outcome.
-    pub observed_outcome: Vec<f64>,
-    /// Complete-case row count.
-    pub n_rows: u64,
-    /// Original data-frame row index of each complete-case row (the row ids).
-    pub row_index: Vec<u32>,
-    /// Fold id of each row.
-    pub fold_ids: Vec<u32>,
-    /// Fold count.
-    pub n_folds: u32,
-    /// Column-major scores.
-    pub scores: Vec<f64>,
-    /// Column keys.
-    pub columns: Vec<ScoreColumnPlain>,
-    /// Adjustment variable raw ids.
-    pub adjustment_set: Vec<u32>,
-    /// Nuisance provenance (the estimator identity label).
-    pub nuisance_provenance: String,
-    /// Applied propensity clip (`None`: unclipped).
-    pub propensity_clip: Option<f64>,
-    /// Treatment raw id.
-    pub treatment: u32,
-    /// Extra intervened raw ids.
-    pub intervened: Vec<u32>,
-}
-
-impl ScoreTablePlain {
-    fn from_wire(wire: ScoreTableWire) -> Self {
-        Self {
-            observed_arm: wire.observed_arm,
-            propensities: wire.propensities,
-            observed_outcome: wire.observed_outcome,
-            n_rows: wire.n_rows,
-            row_index: wire.row_index,
-            fold_ids: wire.fold_ids,
-            n_folds: wire.n_folds,
-            scores: wire.scores,
-            columns: wire
-                .columns
-                .into_iter()
-                .map(|c| ScoreColumnPlain { arm: c.arm, threshold: c.threshold })
-                .collect(),
-            adjustment_set: wire.adjustment_set,
-            nuisance_provenance: wire.nuisance_provenance,
-            propensity_clip: wire.propensity_clip,
-            treatment: wire.treatment,
-            intervened: wire.intervened,
-        }
-    }
-
-    fn to_wire(&self) -> ScoreTableWire {
-        ScoreTableWire {
-            observed_arm: self.observed_arm.clone(),
-            propensities: self.propensities.clone(),
-            observed_outcome: self.observed_outcome.clone(),
-            n_rows: self.n_rows,
-            row_index: self.row_index.clone(),
-            fold_ids: self.fold_ids.clone(),
-            n_folds: self.n_folds,
-            scores: self.scores.clone(),
-            columns: self
-                .columns
-                .iter()
-                .map(|c| ScoreColumn { arm: c.arm, threshold: c.threshold })
-                .collect(),
-            adjustment_set: self.adjustment_set.clone(),
-            nuisance_provenance: self.nuisance_provenance.clone(),
-            propensity_clip: self.propensity_clip,
-            treatment: self.treatment,
-            intervened: self.intervened.clone(),
-        }
-    }
-}
+/// The score table as plain data (the shape of the estimator's `ScoreTableWire`).
+pub type ScoreTablePlain = ScoreTableWire;
 
 /// Stored metadata of a frozen score artifact.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -412,9 +326,10 @@ fn check(
     let n = check_bounds(&meta.table)?;
     check_shape(&meta.table, n, meta.input_rows)?;
     let declared = check_identities(&meta)?;
-    // The estimator's own decoder owns the value checks (finite scores, propensities in
-    // [0, 1], fold ids below the fold count, a sane clip).
-    ScoreTable::from_wire(meta.table.to_wire()).map_err(|e| malformed(e.to_string()))?;
+    // The estimator's decoder applies the same checks (finite scores, propensities in
+    // [0, 1], fold ids below the fold count, a sane clip); the text keeps its
+    // `invalid argument` rendering.
+    meta.table.check().map_err(|e| malformed(format!("invalid argument: {e}")))?;
     let identity = compute_identity(&meta, &declared)?.to_hex();
     if meta.identity != identity {
         return Err(FrozenScoresArtifactError::IdentityMismatch { field: "identity" });
@@ -529,7 +444,7 @@ impl FrozenScoreTable {
             snapshot_digest: snapshot.to_hex(),
             input_rows: parts.input_rows,
             declared: identities_to_wire(&parts.declared),
-            table: ScoreTablePlain::from_wire(parts.table),
+            table: parts.table,
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta, &parts.declared)?.to_hex();
@@ -588,15 +503,7 @@ impl FrozenScoreTable {
     /// The scores in the estimator's wire form.
     #[must_use]
     pub fn table_wire(&self) -> ScoreTableWire {
-        self.meta.table.to_wire()
-    }
-
-    /// The scores as the estimator's score table.
-    ///
-    /// # Errors
-    /// Never for a sealed or consumed artifact.
-    pub fn score_table(&self) -> Result<ScoreTable, FrozenScoresArtifactError> {
-        ScoreTable::from_wire(self.table_wire()).map_err(|e| malformed(e.to_string()))
+        self.meta.table.clone()
     }
 
     /// Serialize through the checksummed sectioned container.

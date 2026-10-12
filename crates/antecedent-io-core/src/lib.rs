@@ -13,31 +13,41 @@
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod arrow_section;
 pub mod artifact_codec;
 pub mod bayesian_prior_recalc_artifact;
+pub mod calibration;
 pub mod causal_artifact;
+mod claim_identity;
 pub mod compact_export;
 pub mod container;
+mod contract_reason;
+pub mod contract_section;
 pub mod contract_wire;
 pub mod contrast_wire;
 pub mod convert;
 pub mod counterfactual_id_artifact;
+pub mod coverage_records_data;
 pub mod cross_world_artifact;
 pub mod discovery_wire;
 pub mod distribution_artifact;
+pub mod distribution_replay;
 pub mod error;
 pub mod exact_law_wire;
 pub mod expr_wire;
 pub mod external_binding_wire;
 pub mod external_callback_artifact;
 pub mod external_claim_artifact;
+pub mod external_estimate;
+pub mod frozen_scores_artifact;
 pub mod graph_dot;
 pub mod graph_gml;
 pub mod graph_json;
 pub mod graph_mixed;
 pub mod graph_networkx;
+pub mod graphless_support;
 pub mod identity;
 pub mod mechanism_wire;
 pub mod migrate;
@@ -56,13 +66,29 @@ pub mod query_wire;
 pub mod reader;
 pub mod recalc_receipt_artifact;
 pub mod response_wire;
+pub mod score_wire;
+pub mod sensitivity_artifact;
 pub mod temporal_recalc_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
 pub mod transport_certificate;
 pub mod transport_point_wire;
 pub mod transport_proof;
+pub mod transport_query_wire;
 pub mod wire;
+pub use analysis_result_artifact::{
+    AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
+    IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterferenceInferenceWire,
+    InterferencePointwiseIntervalWire, InterventionalDistributionWire, LocalPolynomialRatioWire,
+    LongitudinalRegimeWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire,
+    RandomizedEffectWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
+    StructuralWeightBasisWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
+    SyntheticDidWire, TemporalIdentificationWire, TemporalMediationGridWire,
+    TemporalMediationSliceWire, TemporalMediationUncertaintyWire, UnitEffectIntervalsWire,
+    UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
+    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
+    identified_set_interval_from_wire, identified_set_interval_to_wire,
+};
 pub use analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, IdentificationResultWire, IdentifiedEstimandWire,
     RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
@@ -78,15 +104,24 @@ pub use causal_artifact::{
     CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
     decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
+pub use claim_identity::{ClaimIdentityWire, claim_digest};
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
     CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
     pack_section_shared, section_descriptor, section_descriptor_with_policy,
 };
-pub use contract_wire::{
-    AssumptionSlotWire, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire,
+pub use contract_section::TargetWeightsSectionWire;
+pub use contract_section::{
+    AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
+    AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
+    CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire, ClaimDomainsWire,
+    ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire, ContractReason,
     IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
-    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, checked_aipw_rows_digest,
+    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
+    checked_aipw_rows_digest, claim_domains, claim_kind_name, consume_analysis_result,
+    contract_seal, decode_analysis_result_contract, project_claim_host, project_lossy_scalar,
+    result_digest, support_empirical, validate_contract_section, validate_mixture_masses,
+    verify_contract_against_body, weight_basis_name,
 };
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
@@ -103,6 +138,10 @@ pub use error::IoError;
 pub use expr_wire::{
     ExprArenaWire, ExprNodeWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
     functional_program_from_wire, functional_program_to_wire,
+};
+pub use external_estimate::{
+    ExternalEstimateAttach, attested_external_estimate, decode_external_estimate_claim,
+    encode_external_estimate_claim, parse_digest_hex,
 };
 pub use graph_dot::{dag_from_dot, dag_to_dot, dag_wire_from_dot, dag_wire_to_dot};
 pub use graph_gml::{dag_from_gml, dag_to_gml, dag_wire_from_gml, dag_wire_to_gml};
@@ -158,8 +197,9 @@ pub use plan_wire::{
     physical_plan_from_wire, physical_plan_to_wire,
 };
 pub use posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
-    decode_posterior_meta_from_path, decode_posterior_meta_from_seek, encode_posterior_artifact,
+    CausalPosteriorWire, PosteriorQuantityWire, decode_causal_posterior_bytes,
+    decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
+    encode_posterior_artifact,
 };
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,

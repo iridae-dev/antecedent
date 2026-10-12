@@ -7,9 +7,9 @@ use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::DecisionContract;
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::{blake3_hex, reason_code, to_hex};
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::response_wire::{ResponseIdentificationWire, ResponseValueWire};
-use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::response_wire::{ResponseIdentificationWire, ResponseValueWire};
+use antecedent_io_core::{AnalysisResultConsumption, consume_analysis_result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -42,7 +42,7 @@ struct EvidenceWire {
     contract: Option<String>,
     actions: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    external_identity: Option<antecedent_io::external_claim_artifact::ExternalClaimIdentity>,
+    external_identity: Option<antecedent_io_core::external_claim_artifact::ExternalClaimIdentity>,
 }
 
 /// Original recognized analysis result and an optional semantic functional mapping.
@@ -50,8 +50,8 @@ struct EvidenceWire {
 pub struct SourceEvidence {
     source: Arc<[u8]>,
     original: Option<Arc<AnalysisResultConsumption>>,
-    external: Option<Arc<antecedent_io::external_claim_artifact::ExternalClaimArtifact>>,
-    manifest: Arc<antecedent_io::ArtifactManifest>,
+    external: Option<Arc<antecedent_io_core::external_claim_artifact::ExternalClaimArtifact>>,
+    manifest: Arc<antecedent_io_core::ArtifactManifest>,
     coordinates: Arc<[ScientificQuantity]>,
     contract: Option<DecisionContract>,
     actions: Vec<String>,
@@ -64,7 +64,7 @@ impl SourceEvidence {
         if bytes.len() > MAX_SOURCE_EVIDENCE_BYTES {
             return Err(invalid("source_evidence.limits_exceeded"));
         }
-        let manifest = antecedent_io::EncodedArtifact::read_selective(
+        let manifest = antecedent_io_core::EncodedArtifact::read_selective(
             std::io::Cursor::new(bytes),
             &std::collections::HashSet::new(),
         )
@@ -125,13 +125,13 @@ impl SourceEvidence {
     /// Original bound external artifact; independently validates full provider/request/quantity/value identity.
     /// Its declared support and ancestry are retained; absent numeric diagnostics remain explicitly unavailable.
     pub fn from_external(bytes: &[u8]) -> Result<Self, SourceEvidenceError> {
-        use antecedent_io::external_claim_artifact::{
+        use antecedent_io_core::external_claim_artifact::{
             ExternalClaimArtifact, ExternalClaimMetadata, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
         };
         if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
             return Err(invalid("source_evidence.limits_exceeded"));
         }
-        let mut reader = antecedent_io::ArtifactReader::open_seek(std::io::Cursor::new(bytes))
+        let mut reader = antecedent_io_core::ArtifactReader::open_seek(std::io::Cursor::new(bytes))
             .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
         let manifest = reader.manifest().clone();
         if manifest
@@ -142,7 +142,7 @@ impl SourceEvidence {
         {
             return Err(invalid("source_evidence.limits_exceeded"));
         }
-        let metadata: ExternalClaimMetadata = antecedent_io::from_cbor(
+        let metadata: ExternalClaimMetadata = antecedent_io_core::from_cbor(
             reader
                 .load_section("external_claim.meta")
                 .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?
@@ -184,7 +184,7 @@ impl SourceEvidence {
             };
         }
         let encode = |source: &Self| {
-            antecedent_io::to_cbor(&(
+            antecedent_io_core::to_cbor(&(
                 source.manifest.as_ref(),
                 &source.native_original().header,
                 &source.native_original().body,
@@ -427,7 +427,7 @@ impl SourceEvidence {
             let transform = format!(
                 "source_projection:{}",
                 blake3_hex(
-                    &antecedent_io::to_cbor(&(&decision, &self.actions))
+                    &antecedent_io_core::to_cbor(&(&decision, &self.actions))
                         .map_err(|_| invalid("source_evidence.invalid_contract"))?
                 )
             );
