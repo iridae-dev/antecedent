@@ -11,12 +11,13 @@ use super::{
     Arc, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     EffectEstimate, EstimatorId, ExecuteRun, ExecutionContext, GraphClass, GraphPosterior,
     IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedKeyWeights, InferenceMode, Instant, Intervention,
-    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy,
-    StudyResult, TableView, TemporalEffectQuery, TemporalIndexer, TimeSeriesData, VariableId,
-    elapsed_ns, envelope_to_identification_result_for, identification_status_ok_for_case,
-    identify_cached_diagnostic, report_identify_compute, resolve_posterior_status, select_estimand,
+    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
+    Intervention, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    Strategy, StudyResult, TableView, TemporalEffectQuery, TemporalIndexer, TimeSeriesData,
+    VariableId, elapsed_ns, envelope_to_identification_result_for,
+    identification_status_ok_for_case, identify_cached_diagnostic, report_identify_compute,
+    resolve_posterior_status, select_estimand,
 };
 use crate::planner::RouteDefaults;
 use antecedent_core::SupportStatus;
@@ -221,7 +222,116 @@ pub(super) fn assemble_temporal_class_conditional(
     ))
 }
 
+/// The refusal message for a cross-world query whose back-door set is not empty.
+fn cross_world_backdoor_refusal(query: &CausalQuery) -> &'static str {
+    match query {
+        CausalQuery::NestedCounterfactual(_) => {
+            "temporal nested effect is licensed when the back-door set is empty"
+        }
+        CausalQuery::PathSpecific(_) => {
+            "temporal path-specific effect is licensed when the back-door set is empty"
+        }
+        CausalQuery::Counterfactual(_) => {
+            "temporal counterfactual is licensed when the back-door set is empty"
+        }
+        CausalQuery::Distribution(_) => {
+            "temporal interventional mean is licensed when the back-door set is empty"
+        }
+        _ => "temporal cross-world effect is licensed when the back-door set is empty",
+    }
+}
+
+/// The diagnostics of a class derivative response: the envelope, cache
+/// provenance, the point-only note and the support warnings.
+fn class_derivative_diagnostics(
+    envelope: &antecedent_identify::IdentificationEnvelope<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    graph_class: GraphClass,
+    identify_cached: bool,
+    response: &CausalResponse,
+) -> Vec<Diagnostic> {
+    let mut diagnostics =
+        vec![super::temporal_path::temporal_class_envelope_diagnostic(envelope, graph_class)];
+    if identify_cached {
+        diagnostics.push(identify_cached_diagnostic());
+    }
+    diagnostics.push(Diagnostic::new(
+        "estimate.temporal.linear_derivative",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "published value is the completion-weighted slope of the linear unfolded temporal fit; no interval is published",
+    ));
+    diagnostics.extend(response.support.warnings.iter().cloned());
+    diagnostics
+}
+
+/// The linear slope of each identified completion with its weight, the
+/// finite scalar summaries by completion, and the first completion's estimand.
+fn class_derivative_responses(
+    data: &TimeSeriesData,
+    query: &ResponseQuery,
+    bundle: &antecedent_identify::TemporalClassEnvelope,
+    spec: DerivativeSpec<'_>,
+) -> Result<(Vec<(f64, CausalResponse)>, Vec<Option<f64>>, IdentifiedEstimand), CausalError> {
+    let envelope = &bundle.envelope;
+    let mut responses = Vec::new();
+    let mut values = vec![None; envelope.cases.len()];
+    let mut primary_estimand = None;
+    for (index, (case, indexer)) in envelope.cases.iter().zip(bundle.indexers.iter()).enumerate() {
+        if !identification_status_ok_for_case(case.result.status)
+            || case.result.estimands.is_empty()
+        {
+            continue;
+        }
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        let response = super::temporal_path::temporal_linear_derivative_response(
+            data,
+            query,
+            &estimand,
+            indexer,
+            &case.result,
+            spec,
+        )?;
+        let scalar = super::response_path::response_scalar_summary(&response).0;
+        if scalar.is_finite() {
+            values[index] = Some(scalar);
+        }
+        if primary_estimand.is_none() {
+            primary_estimand = Some(estimand);
+        }
+        responses.push((case.weight.0, response));
+    }
+    let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+        message: "temporal class envelope had no estimable identified completions".into(),
+    })?;
+    Ok((responses, values, estimand))
+}
+
 impl super::Study {
+    /// The class envelope a derivative response reads: the prepared handle's
+    /// certificate for the probe's horizon (or its default), else a fresh
+    /// identification.
+    fn derivative_class_envelope(
+        &self,
+        identifier_id: IdentifierId,
+        probe: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<antecedent_identify::TemporalClassEnvelope>, bool), CausalError> {
+        Ok(if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+            if let Some((_, envelope)) =
+                cache.by_horizon.iter().find(|(horizon, _)| *horizon == probe.horizon_steps)
+            {
+                (Arc::clone(envelope), true)
+            } else {
+                (Arc::clone(&cache.envelope), true)
+            }
+        } else {
+            report_identify_compute(ctx);
+            (self.identify_temporal_class(identifier_id, probe)?.envelope.clone(), false)
+        })
+    }
+
     pub(super) fn execute_temporal_class_derivative(
         &self,
         data: &TimeSeriesData,
@@ -259,18 +369,7 @@ impl super::Study {
         };
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
-                if let Some((_, envelope)) =
-                    cache.by_horizon.iter().find(|(horizon, _)| *horizon == probe.horizon_steps)
-                {
-                    (Arc::clone(envelope), true)
-                } else {
-                    (Arc::clone(&cache.envelope), true)
-                }
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
-            };
+            self.derivative_class_envelope(identifier_id, &probe, ctx)?;
         let treatment_offset = probe.try_treatment_offset()?;
         let outcome_offset = probe.outcome_offset();
         let envelope = &bundle.envelope;
@@ -283,58 +382,20 @@ impl super::Study {
                 "temporal class query not identified (no identified mass in envelope)",
             ));
         }
-        let mut responses = Vec::new();
-        let mut values = vec![None; envelope.cases.len()];
-        let mut primary_estimand = None;
-        for (index, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.indexers.iter()).enumerate()
-        {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                continue;
-            }
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            let response = super::temporal_path::temporal_linear_derivative_response(
-                data,
-                query,
-                &estimand,
-                indexer,
-                &case.result,
-                DerivativeSpec {
-                    treatment_offset,
-                    outcome_offset,
-                    policy: &ctx.kernel_policy,
-                    prior_scale,
-                },
-            )?;
-            let scalar = super::response_path::response_scalar_summary(&response).0;
-            if scalar.is_finite() {
-                values[index] = Some(scalar);
-            }
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand);
-            }
-            responses.push((case.weight.0, response));
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "temporal class envelope had no estimable identified completions".into(),
-        })?;
+        let (responses, values, estimand) = class_derivative_responses(
+            data,
+            query,
+            &bundle,
+            DerivativeSpec {
+                treatment_offset,
+                outcome_offset,
+                policy: &ctx.kernel_policy,
+                prior_scale,
+            },
+        )?;
         let mut response = mix_derivative_responses(&responses)?;
-        let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
-            envelope,
-            self.graph.class(),
-        )];
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal.linear_derivative",
-            DiagnosticKind::Execution,
-            DiagnosticSeverity::Info,
-            "published value is the completion-weighted slope of the linear unfolded temporal fit; no interval is published",
-        ));
-        diagnostics.extend(response.support.warnings.iter().cloned());
+        let diagnostics =
+            class_derivative_diagnostics(envelope, self.graph.class(), identify_cached, &response);
         let scalar = super::response_path::response_scalar_summary(&response).0;
         let estimate = point_only_estimate(scalar, response.assumptions.clone());
         let identification =
@@ -407,21 +468,7 @@ impl super::Study {
         let fitted = collect_weighted_points(&bundle, |case, indexer| {
             let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
             if !estimand.adjustment_set.is_empty() {
-                let message = match query {
-                    CausalQuery::NestedCounterfactual(_) => {
-                        "temporal nested effect is licensed when the back-door set is empty"
-                    }
-                    CausalQuery::PathSpecific(_) => {
-                        "temporal path-specific effect is licensed when the back-door set is empty"
-                    }
-                    CausalQuery::Counterfactual(_) => {
-                        "temporal counterfactual is licensed when the back-door set is empty"
-                    }
-                    CausalQuery::Distribution(_) => {
-                        "temporal interventional mean is licensed when the back-door set is empty"
-                    }
-                    _ => "temporal cross-world effect is licensed when the back-door set is empty",
-                };
+                let message = cross_world_backdoor_refusal(query);
                 return Err(CausalError::Unsupported { message });
             }
             cross_world_point(
