@@ -315,20 +315,162 @@ fn fit_conditional(
     })
 }
 
-fn fit_single_window(
+/// The Bayesian temporal g-computation of a single window: the sealed
+/// operation's fit when one was admitted, otherwise a fresh fit under the
+/// resolved prior; returns the estimator and design every check reuses.
+fn fit_single_window_bayesian(
     inputs: &TemporalEffectInputs<'_>,
+    cfg: &crate::BayesianConfig,
+    prep: &antecedent_estimate::PreparedEstimationProblem,
     ctx: &ExecutionContext,
-) -> Result<TemporalEffectFit, CausalError> {
+) -> Result<
+    (EffectEstimate, CausalPosterior, (BayesianTemporalGcomp, PreparedBayesianProblem)),
+    CausalError,
+> {
     let TemporalEffectInputs {
         data,
         query,
         identification,
         estimand,
         indexer,
-        refute,
         checked_bayesian,
         ..
     } = *inputs;
+    if let Some(operation) = checked_bayesian {
+        let fit = crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
+            operation,
+            data,
+            inputs.split,
+            ctx,
+        )?;
+        return Ok((fit.estimate, fit.posterior, (fit.estimator, fit.prepared)));
+    }
+    let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
+    let names = antecedent_estimate::temporal_coefficient_names(data, estimand, query, indexer)
+        .map_err(CausalError::from)?;
+    let bprep =
+        BayesianGComputationAte::from_prepared_temporal(prep, names).map_err(CausalError::from)?;
+    let (resolved_prior, conflict_summary) =
+        resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+    bayes.inner.prior = resolved_prior;
+    let mut ws = BayesianGCompWorkspace::default();
+    let mut posterior =
+        bayes.fit(&bprep, identification.status, &mut ws, ctx).map_err(CausalError::from)?;
+    if let Some(summary) = conflict_summary {
+        posterior = with_conflict_summary(posterior, summary);
+    }
+    let estimate = effect_from_posterior(&posterior)?;
+    Ok((estimate, posterior, (bayes, bprep)))
+}
+
+/// The prior/posterior predictive checks of a Bayesian single window (with
+/// the lag-1 residual discrepancy and prior sensitivity on `Full`), appended
+/// to `refutations`; returns the checks and the posterior carrying any prior
+/// sensitivity summary.
+fn single_window_predictive_checks(
+    inputs: &TemporalEffectInputs<'_>,
+    (bayes, bprep): (&BayesianTemporalGcomp, &PreparedBayesianProblem),
+    post: &CausalPosterior,
+    estimate: &EffectEstimate,
+    refutations: &mut Vec<antecedent_validate::RefutationReport>,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<PredictiveCheckReport>, Option<CausalPosterior>), CausalError> {
+    const PPC_ALPHA: f64 = 0.05;
+    let refute = inputs.refute;
+    let mut predictive_checks = Vec::new();
+    let mut posterior = None;
+    let sims = crate::analysis::latency::predictive_check_sims(inputs.latency_mode);
+    let prior_rep = PriorPredictiveCheck::for_estimator(&bayes.inner, ctx)
+        .with_n_sims(sims)
+        .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
+        .map_err(CausalError::from)?;
+    refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+    predictive_checks.push(prior_rep);
+
+    // `full` adds the lag-1 residual-autocorrelation discrepancy.
+    let post_check = PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx).with_n_sims(sims);
+    let post_rep = if matches!(refute, RefuteSuite::Full) {
+        post_check.check_temporal(bprep, post, ctx.rng.master_seed())
+    } else {
+        post_check.check(bprep, post)
+    }
+    .map_err(CausalError::from)?;
+    refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+    predictive_checks.push(post_rep);
+
+    if matches!(refute, RefuteSuite::Full) {
+        let InferenceMode::Bayesian(cfg) = inputs.inference else { unreachable!() };
+        let mut ws = BayesianGCompWorkspace::default();
+        let (summary, sens) = evaluate_bayesian_prior_sensitivity(
+            cfg,
+            &bayes.inner,
+            bprep,
+            inputs.identification.status,
+            post,
+            &mut ws,
+            ctx,
+        )?;
+        refutations.push(sens.to_report(&summary, estimate.ate));
+        posterior = Some(with_prior_sensitivity(post.clone(), summary));
+    }
+    Ok((predictive_checks, posterior))
+}
+
+/// The refutation suite of a single-window effect with its dependence-honest
+/// SE and PAG-completion notes.
+fn single_window_refutations(
+    inputs: &TemporalEffectInputs<'_>,
+    estimate: &EffectEstimate,
+    estimator_id: EstimatorId,
+    dependence_se: Option<&antecedent_estimate::TemporalDependenceSe>,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    let TemporalEffectInputs { data, query, estimand, indexer, refute, .. } = *inputs;
+    let tabular = TabularData::new(data.storage().clone());
+    let average = temporal_refuter_average(query);
+    let mut workspace = EstimationWorkspace::default();
+    let temporal_ctx = TemporalRefitContext {
+        indexer,
+        temporal_query: query,
+        split: inputs.split,
+        kernel_policy: &ctx.kernel_policy,
+        time_index: Some(data.time_index()),
+        panel: None,
+    };
+    let (refutations, mut diagnostics) = RefutationRun {
+        data: &tabular,
+        estimand,
+        query: &average,
+        estimate,
+        suite: refute,
+        estimator: estimator_id.as_str(),
+        custom: inputs.custom_validators,
+        temporal: Some(temporal_ctx),
+    }
+    .reports(&mut workspace, None, ctx)?;
+    if let Some(info) = dependence_se {
+        diagnostics
+            .extend(super::temporal_path::single_window_dependence_se_diagnostics(estimate, info));
+    }
+    if inputs.completed_to_dag {
+        diagnostics.push(Diagnostic::new(
+            "temporal.pag.completed_to_dag",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "TemporalPag completed to TemporalDag before temporal.backdoor \
+             (completion path; not class-aware temporal PAG identification)",
+        ));
+    }
+
+    Ok((refutations, diagnostics))
+}
+
+fn fit_single_window(
+    inputs: &TemporalEffectInputs<'_>,
+    ctx: &ExecutionContext,
+) -> Result<TemporalEffectFit, CausalError> {
+    let TemporalEffectInputs { data, query, identification, estimand, indexer, refute, .. } =
+        *inputs;
     let mut estimator = TemporalLinearAdjustment::new();
     estimator.inner.bootstrap_replicates = inputs.bootstrap_replicates;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
@@ -342,37 +484,8 @@ fn fit_single_window(
     let mut dependence_se = None;
     let (estimate, posterior, estimate_provenance) = match inputs.inference {
         InferenceMode::Bayesian(cfg) => {
-            let (estimate, posterior) = if let Some(operation) = checked_bayesian {
-                let fit =
-                    crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
-                        operation,
-                        data,
-                        inputs.split,
-                        ctx,
-                    )?;
-                bayes_fit = Some((fit.estimator, fit.prepared));
-                (fit.estimate, fit.posterior)
-            } else {
-                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                let names =
-                    antecedent_estimate::temporal_coefficient_names(data, estimand, query, indexer)
-                        .map_err(CausalError::from)?;
-                let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
-                    .map_err(CausalError::from)?;
-                let (resolved_prior, conflict_summary) =
-                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
-                bayes.inner.prior = resolved_prior;
-                let mut ws = BayesianGCompWorkspace::default();
-                let mut posterior = bayes
-                    .fit(&bprep, identification.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
-                if let Some(summary) = conflict_summary {
-                    posterior = with_conflict_summary(posterior, summary);
-                }
-                let estimate = effect_from_posterior(&posterior)?;
-                bayes_fit = Some((bayes, bprep));
-                (estimate, posterior)
-            };
+            let (estimate, posterior, fit) = fit_single_window_bayesian(inputs, cfg, &prep, ctx)?;
+            bayes_fit = Some(fit);
             (estimate, Some(posterior), BAYESIAN_PROVENANCE)
         }
         InferenceMode::Frequentist => {
@@ -397,88 +510,31 @@ fn fit_single_window(
     };
     let estimate = estimate.with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
 
-    let tabular = TabularData::new(data.storage().clone());
-    let average = temporal_refuter_average(query);
-    let mut workspace = EstimationWorkspace::default();
-    let temporal_ctx = TemporalRefitContext {
-        indexer,
-        temporal_query: query,
-        split: inputs.split,
-        kernel_policy: &ctx.kernel_policy,
-        time_index: Some(data.time_index()),
-        panel: None,
-    };
     let estimator_id = if posterior.is_some() {
         EstimatorId::BayesianTemporalGcomp
     } else {
         EstimatorId::TemporalLinearAdjustment
     };
-    let (mut refutations, mut diagnostics) = RefutationRun {
-        data: &tabular,
-        estimand,
-        query: &average,
-        estimate: &estimate,
-        suite: refute,
-        estimator: estimator_id.as_str(),
-        custom: inputs.custom_validators,
-        temporal: Some(temporal_ctx),
-    }
-    .reports(&mut workspace, None, ctx)?;
-    if let Some(info) = dependence_se.as_ref() {
-        diagnostics
-            .extend(super::temporal_path::single_window_dependence_se_diagnostics(&estimate, info));
-    }
-    if inputs.completed_to_dag {
-        diagnostics.push(Diagnostic::new(
-            "temporal.pag.completed_to_dag",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "TemporalPag completed to TemporalDag before temporal.backdoor \
-             (completion path; not class-aware temporal PAG identification)",
-        ));
-    }
+    let (mut refutations, mut diagnostics) =
+        single_window_refutations(inputs, &estimate, estimator_id, dependence_se.as_ref(), ctx)?;
 
     // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
     // Both run against the resolved prior in force and the fitted (tempered) design.
     let mut posterior = posterior;
     let mut predictive_checks = Vec::new();
     if !matches!(refute, RefuteSuite::None) {
-        if let (Some((bayes, bprep)), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
-            const PPC_ALPHA: f64 = 0.05;
-            let sims = crate::analysis::latency::predictive_check_sims(inputs.latency_mode);
-            let prior_rep = PriorPredictiveCheck::for_estimator(&bayes.inner, ctx)
-                .with_n_sims(sims)
-                .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
-                .map_err(CausalError::from)?;
-            refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
-            predictive_checks.push(prior_rep);
-
-            // `full` adds the lag-1 residual-autocorrelation discrepancy.
-            let post_check =
-                PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx).with_n_sims(sims);
-            let post_rep = if matches!(refute, RefuteSuite::Full) {
-                post_check.check_temporal(bprep, post, ctx.rng.master_seed())
-            } else {
-                post_check.check(bprep, post)
-            }
-            .map_err(CausalError::from)?;
-            refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
-            predictive_checks.push(post_rep);
-
-            if matches!(refute, RefuteSuite::Full) {
-                let InferenceMode::Bayesian(cfg) = inputs.inference else { unreachable!() };
-                let mut ws = BayesianGCompWorkspace::default();
-                let (summary, sens) = evaluate_bayesian_prior_sensitivity(
-                    cfg,
-                    &bayes.inner,
-                    bprep,
-                    identification.status,
-                    post,
-                    &mut ws,
-                    ctx,
-                )?;
-                refutations.push(sens.to_report(&summary, estimate.ate));
-                posterior = Some(with_prior_sensitivity(post.clone(), summary));
+        if let (Some(fit), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
+            let (checks, sensitive) = single_window_predictive_checks(
+                inputs,
+                (&fit.0, &fit.1),
+                post,
+                &estimate,
+                &mut refutations,
+                ctx,
+            )?;
+            predictive_checks = checks;
+            if sensitive.is_some() {
+                posterior = sensitive;
             }
         }
     }
