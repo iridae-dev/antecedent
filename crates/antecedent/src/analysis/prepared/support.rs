@@ -103,26 +103,22 @@ pub(super) fn overlay_prepared_score_functional(
         CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
         _ => return Ok(()),
     };
+    let effect = result.estimate.as_effect().cloned().ok_or_else(|| CausalError::Compile {
+        message: "score functional overlay requires an effect estimate".into(),
+    })?;
     let (estimate, diagnostics) = if let Some(tau) = functional.quantile_level() {
         if let CausalQuery::Response(q) = query {
             crate::analysis::helpers::attach_joint_quantile_from_table(
-                result.estimate.as_effect().expect("effect query").clone(),
+                effect,
                 table.clone(),
                 q,
                 tau,
             )?
         } else {
-            crate::analysis::helpers::attach_quantile_from_table(
-                result.estimate.as_effect().expect("effect query").clone(),
-                table.clone(),
-                tau,
-            )?
+            crate::analysis::helpers::attach_quantile_from_table(effect, table.clone(), tau)?
         }
     } else {
-        crate::analysis::helpers::attach_score_functional_grid(
-            result.estimate.as_effect().expect("effect query").clone(),
-            table.clone(),
-        )?
+        crate::analysis::helpers::attach_score_functional_grid(effect, table.clone())?
     };
     if functional.quantile_level().is_some() {
         if let Some(response) = result.payload.response_mut() {

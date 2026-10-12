@@ -328,7 +328,11 @@ fn fit_ancova(
 }
 
 fn fit_complier(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {
-    let received = query.received_treatment.as_ref().expect("receipt-adjusted method has receipt");
+    let Some(received) = query.received_treatment.as_ref() else {
+        return Err(CausalError::Unsupported {
+            message: "receipt-adjusted randomized effects require the received-treatment column",
+        });
+    };
     let fit = antecedent_estimate::randomized_scores::complier_wald_effect(
         outcomes,
         &query.realized_assignment,

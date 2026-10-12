@@ -471,7 +471,11 @@ impl CheckedPanelDidOperation {
         data: &TabularData,
         post: &[f64],
     ) -> Result<StudyResult, CausalError> {
-        let nuisance = self.query.augmented.as_ref().expect("validated augmented panel");
+        let Some(nuisance) = self.query.augmented.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "augmented panel DiD requires the augmented nuisance block".into(),
+            });
+        };
         let numeric_column = |variable| -> Result<Vec<f64>, CausalError> {
             match data.column(variable).map_err(CausalError::from)? {
                 antecedent_data::ColumnView::Float64(column) => {
@@ -636,7 +640,11 @@ impl CheckedPanelDidOperation {
         data: &TabularData,
         y: &[f64],
     ) -> Result<StudyResult, CausalError> {
-        let (cohort, period) = self.query.target.expect("checked staggered target");
+        let Some((cohort, period)) = self.query.target else {
+            return Err(CausalError::Compile {
+                message: "staggered group-time DiD requires a cohort and period target".into(),
+            });
+        };
         let baseline = cohort - 1;
         let subjects = self.staggered_balanced_subjects(y, baseline, period)?;
         let selected: [Vec<_>; 2] = [

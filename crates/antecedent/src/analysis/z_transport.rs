@@ -452,13 +452,18 @@ impl PreparedZTransport {
     }
 }
 
+fn dense_bound(raw: usize) -> Option<antecedent_graph::DenseNodeId> {
+    u32::try_from(raw).ok().map(antecedent_graph::DenseNodeId::from_raw)
+}
+
 fn same_causal_graph(left: &SelectionDiagram, right: &SelectionDiagram) -> bool {
     let left_graph = left.causal_graph();
     let right_graph = right.causal_graph();
     left_graph.nodes() == right_graph.nodes()
         && (0..left_graph.node_count()).all(|raw| {
-            let id =
-                antecedent_graph::DenseNodeId::from_raw(u32::try_from(raw).expect("graph bound"));
+            let Some(id) = dense_bound(raw) else {
+                return false;
+            };
             left_graph.children(id) == right_graph.children(id)
                 && left_graph.parents(id) == right_graph.parents(id)
                 && left_graph.bidirected_neighbors(id) == right_graph.bidirected_neighbors(id)
@@ -477,8 +482,9 @@ fn queries_are_disconnected_components(
         if labels[root] != usize::MAX {
             continue;
         }
-        let root_id =
-            antecedent_graph::DenseNodeId::from_raw(u32::try_from(root).expect("graph bound"));
+        let Some(root_id) = dense_bound(root) else {
+            return false;
+        };
         labels[root] = label;
         let mut stack = vec![root_id];
         while let Some(node) = stack.pop() {
@@ -528,7 +534,7 @@ fn queries_factorize_under_intervention(
     (left, left_request): (&antecedent_identify::ZTransportQuery, &Assignment),
     (right, right_request): (&antecedent_identify::ZTransportQuery, &Assignment),
 ) -> bool {
-    use antecedent_graph::{DSeparationWorkspace, DenseNodeId, NodeRef};
+    use antecedent_graph::{DSeparationWorkspace, NodeRef};
     // A treatment both components intervene on must be requested at one level;
     // the identify-side factorization applies the same level rule.
     let levels = |query: &antecedent_identify::ZTransportQuery, request: &Assignment| {
@@ -564,7 +570,7 @@ fn queries_factorize_under_intervention(
             .nodes()
             .iter()
             .position(|node| matches!(node, NodeRef::Static(v) if *v == variable))
-            .map(|index| DenseNodeId::from_raw(u32::try_from(index).expect("graph bound")))
+            .and_then(dense_bound)
     };
     let union = left.treatments.iter().chain(right.treatments.iter()).copied().collect::<Vec<_>>();
     let mut treated_ids = Vec::new();
