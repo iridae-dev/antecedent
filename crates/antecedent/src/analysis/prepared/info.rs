@@ -15,7 +15,7 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::EstimatorId;
-use antecedent_core::{CausalQuery, CausalSchema, Intervention};
+use antecedent_core::{CausalQuery, CausalSchema};
 use antecedent_data::TabularData;
 use antecedent_estimate::ScoreTable;
 use std::sync::Arc;
@@ -683,18 +683,5 @@ impl PreparedStudy {
     #[must_use]
     pub fn shared_design(&self) -> Option<&crate::analysis::batch::SharedBatchDesign> {
         self.analysis.shared_batch_design.as_deref()
-    }
-
-    /// Control intervention level frozen on a counterfactual ITE query.
-    #[must_use]
-    pub fn counterfactual_control_level(&self) -> f64 {
-        match self.query() {
-            CausalQuery::Counterfactual(q) => match &q.control {
-                Intervention::Set { value, .. } => value.as_f64().unwrap_or(0.0),
-                _ => 0.0,
-            },
-            CausalQuery::NestedCounterfactual(q) => q.control_value(),
-            _ => 0.0,
-        }
     }
 }

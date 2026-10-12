@@ -32,7 +32,7 @@ use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::strategy_table::EstimatorId;
-use crate::support_matrix_data::{ALLOWED_RULES, CLOSED_RULES, LICENSED, NA_RULES};
+use crate::support_matrix_data::{CLOSED_RULES, LICENSED, NA_RULES};
 
 pub use antecedent_io::graphless_support::{
     GraphlessAssignmentSupport, GraphlessSupportKey, GraphlessSupportStatus, classify_graphless,
@@ -1005,32 +1005,6 @@ fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
     None
 }
 
-/// Historical reason for an `allowed_unlicensed` compatibility entry, if any.
-///
-/// The 0.9 gate requires `parity/support_allowlist.toml` to remain empty.
-#[must_use]
-pub fn allowed_reason(cell: SupportCell) -> Option<&'static str> {
-    allowed_rule(cell).map(|rule| rule.reason)
-}
-
-/// Historical parent family for an `allowed_unlicensed` compatibility entry.
-///
-/// The 0.9 gate requires `parity/support_allowlist.toml` to remain empty.
-#[must_use]
-pub fn allowed_parent(cell: SupportCell) -> Option<&'static str> {
-    allowed_rule(cell).map(|rule| rule.parent)
-}
-
-fn allowed_rule(cell: SupportCell) -> Option<&'static crate::support_matrix_data::AllowedRule> {
-    ALLOWED_RULES.iter().find(|rule| {
-        axis_in(rule.queries, cell.query)
-            && axis_in(rule.graph_classes, cell.graph_class)
-            && axis_in(rule.structures, cell.structure)
-            && axis_in(rule.inferences, cell.inference)
-            && axis_in(rule.validations, cell.validation)
-    })
-}
-
 /// The single static message every unmatched `Refused` cell reports. Cell
 /// coordinates vary at runtime — the caller's [`CausalError::Support`] already
 /// carries the offending cell in its own context — so this stays a fixed,
@@ -1168,9 +1142,6 @@ fn neighbor_action(changed: &[PremiseChange]) -> &'static str {
 
 /// Refuse n/a cells and every unlicensed meaningful cell. Licensed cells pass.
 ///
-/// The `allowed_unlicensed` branch is retained for wire compatibility, but the
-/// 0.9 gate requires zero active allowlist entries.
-///
 /// # Errors
 ///
 /// [`CausalError::Support`] when the cell is n/a or refused. A refusal uses the
@@ -1185,16 +1156,11 @@ pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalE
             if let Some(reason) = refusal_reason(cell) {
                 return Err(CausalError::Support { id: SupportRefusal::Refused, message: reason });
             }
-            if let Some(rule) = allowed_rule(cell) {
-                return Ok(CellStatus::Allowlisted { reason: rule.reason, parent: rule.parent });
-            }
             Err(CausalError::Support { id: SupportRefusal::Refused, message: UNLICENSED })
         }
         CellStatus::Licensed => Ok(CellStatus::Licensed),
         CellStatus::Allowlisted { .. } => {
-            unreachable!(
-                "classify never returns Allowlisted; refuse_if_not_applicable constructs it"
-            )
+            unreachable!("classify never returns Allowlisted")
         }
     }
 }
@@ -2324,52 +2290,6 @@ mod tests {
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let graph = AcceptedGraph::pag(pag);
         assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Pag);
-    }
-
-    // -- retained allowlist compatibility ----------------------------------
-
-    /// One concrete [`SupportCell`] that satisfies `rule`, using the rule's own
-    /// first listed value on each constrained axis and a harmless default
-    /// (`Dag` / `explicit` / `Frequentist` / `none`) on every unconstrained one.
-    /// Every `ALLOWED_RULES` entry constrains `queries`, so this always picks a
-    /// real query; disjointness from licensed / n/a / reason-backed refused cells is enforced by
-    /// `scripts/gate_support_matrix.sh`, not re-derived here.
-    fn representative_cell(rule: &crate::support_matrix_data::AllowedRule) -> SupportCell {
-        SupportCell {
-            query: rule
-                .queries
-                .and_then(|xs| xs.first())
-                .copied()
-                .expect("every allowed rule constrains queries"),
-            graph_class: rule.graph_classes.and_then(|xs| xs.first()).copied().unwrap_or("Dag"),
-            structure: rule.structures.and_then(|xs| xs.first()).copied().unwrap_or("explicit"),
-            inference: rule.inferences.and_then(|xs| xs.first()).copied().unwrap_or("Frequentist"),
-            validation: rule.validations.and_then(|xs| xs.first()).copied().unwrap_or("none"),
-        }
-    }
-
-    /// Every retained `parity/support_allowlist.toml` compatibility row would
-    /// fire. The 0.9 gate requires this loop to have zero entries.
-    #[test]
-    fn every_allowlist_rule_fires_on_its_representative_cell() {
-        use crate::support_matrix_data::ALLOWED_RULES;
-        for rule in ALLOWED_RULES {
-            let cell = representative_cell(rule);
-            assert_eq!(
-                classify(cell),
-                CellStatus::Refused,
-                "{cell:?} (rule reason: {})",
-                rule.reason
-            );
-            assert_eq!(allowed_reason(cell), Some(rule.reason), "{cell:?}");
-            assert_eq!(allowed_parent(cell), Some(rule.parent), "{cell:?}");
-            assert!(!rule.parent.is_empty(), "rule parent must be non-empty: {}", rule.reason);
-            // A retained compatibility entry would still pass through.
-            let passed = refuse_if_not_applicable(cell).unwrap();
-            assert_eq!(passed.as_str(), "allowed_unlicensed", "{cell:?}");
-            assert_eq!(passed.allowlist_reason(), Some(rule.reason), "{cell:?}");
-            assert_eq!(passed.allowlist_parent(), Some(rule.parent), "{cell:?}");
-        }
     }
 
     /// End-to-end: a PAG ATE study is licensed (generalized-adjustment envelope),

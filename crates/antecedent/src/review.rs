@@ -16,13 +16,11 @@
     )
 )]
 
-use antecedent_core::{ExecutionContext, TemporalEffectQuery};
-use antecedent_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
+use antecedent_data::TemporalNodeKey;
 use antecedent_graph::{DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 
 use crate::accepted::AcceptedGraph;
 use crate::error::CausalError;
-use crate::planner::{PhysicalExecutionPlan, compile_logical_temporal_effect};
 
 /// Pending review session that must complete before estimation (DAG discovery).
 #[derive(Clone, Debug)]
@@ -179,22 +177,6 @@ fn edge_in_graph(graph: &TemporalDag, from: TemporalNodeKey, to: TemporalNodeKey
         (Some(f), Some(t)) => graph.children(f).iter().any(|c| *c == t),
         _ => false,
     }
-}
-
-/// Compile a temporal effect with a supplied (already reviewed) graph.
-///
-/// # Errors
-///
-/// Compile failures.
-pub fn compile_temporal_with_graph(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    query: &TemporalEffectQuery,
-    split: Option<DiscoveryEstimationSplit>,
-    ctx: &ExecutionContext,
-) -> Result<PhysicalExecutionPlan, CausalError> {
-    let logical = compile_logical_temporal_effect(data, graph, query, split, false)?;
-    logical.compile_physical_with_graph(ctx, Some(graph.clone()))
 }
 
 #[cfg(test)]

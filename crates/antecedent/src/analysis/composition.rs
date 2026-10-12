@@ -74,12 +74,6 @@ impl BundleBuilder {
         Self { nodes: Vec::new(), dependencies: Vec::new(), limits: BundleLimits::default() }
     }
 
-    /// An empty builder under explicit bounds.
-    #[must_use]
-    pub fn with_limits(limits: BundleLimits) -> Self {
-        Self { nodes: Vec::new(), dependencies: Vec::new(), limits }
-    }
-
     /// The bounds the bundle is built and exported under.
     #[must_use]
     pub fn limits(&self) -> &BundleLimits {

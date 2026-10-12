@@ -141,23 +141,4 @@ impl BoundDecisionContract {
     pub fn contract_artifact(&self) -> Result<AdmissibleContractArtifact, IoError> {
         AdmissibleContractArtifact::new(self.decision.clone())
     }
-
-    /// Seal a robust result with the receipts of any external callback behind it.
-    ///
-    /// # Errors
-    /// A result from another contract, or an invalid receipt, refuses.
-    pub fn seal_result(
-        &self,
-        decision: &AdaptedDecision,
-        adapted: &AdaptedClaims,
-        receipts: Vec<ExternalCallbackReceipt>,
-    ) -> Result<RobustResultArtifact, IoError> {
-        RobustResultArtifact::new(
-            &self.decision,
-            decision.robust.clone(),
-            &adapted.profile,
-            &adapted.atoms,
-            receipts,
-        )
-    }
 }

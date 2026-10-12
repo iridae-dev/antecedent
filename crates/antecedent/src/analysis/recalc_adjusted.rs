@@ -415,11 +415,6 @@ impl AdjustedSession {
     pub fn prediction_columns(&self) -> Option<&[String]> {
         self.live.as_ref().map(|live| live.prediction_columns.as_ref())
     }
-    /// Checked joint-backdoor certificate retained independently of numerical data.
-    #[must_use]
-    pub fn checked_adjustment(&self) -> Option<&CheckedJointAdjustment> {
-        self.live.as_ref().map(|live| live.checked.as_ref())
-    }
     /// Predict means with retained fit: adjustment features then numeric/dummy treatments.
     ///
     /// # Errors

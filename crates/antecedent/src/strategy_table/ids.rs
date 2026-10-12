@@ -957,33 +957,19 @@ impl From<UnknownStrategy> for CausalError {
     }
 }
 
-/// Default identifier id when the builder omits one.
-pub const DEFAULT_IDENTIFIER: &str = "backdoor.adjustment";
-
-/// Default estimator id when the builder omits one.
-pub const DEFAULT_ESTIMATOR: &str = "linear.adjustment.ate";
-
 /// Default identifier as a closed enum.
 pub const DEFAULT_IDENTIFIER_ID: IdentifierId = IdentifierId::BackdoorAdjustment;
 
 /// Default estimator as a closed enum.
 pub const DEFAULT_ESTIMATOR_ID: EstimatorId = EstimatorId::LinearAdjustmentAte;
 
-/// Default distribution identifier.
-pub const DEFAULT_DISTRIBUTION_IDENTIFIER: &str = "general.id";
-/// Default distribution estimator.
-pub const DEFAULT_DISTRIBUTION_ESTIMATOR: &str = "functional.distribution";
 /// Default distribution identifier enum.
 pub const DEFAULT_DISTRIBUTION_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralId;
 /// Default distribution estimator enum.
 pub const DEFAULT_DISTRIBUTION_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalDistribution;
 
-/// Default response identifier.
-pub const DEFAULT_RESPONSE_IDENTIFIER: &str = "response.backdoor";
 /// Default response identifier enum.
 pub const DEFAULT_RESPONSE_IDENTIFIER_ID: IdentifierId = IdentifierId::ResponseBackdoor;
-/// Default response-curve estimator.
-pub const DEFAULT_RESPONSE_ESTIMATOR: &str = "response.kennedy_dr";
 /// Default response-curve estimator enum.
 pub const DEFAULT_RESPONSE_ESTIMATOR_ID: EstimatorId = EstimatorId::ResponseKennedyDr;
 
@@ -1166,50 +1152,25 @@ pub fn validate_static_pair(
     Ok(())
 }
 
-/// Default path-specific identifier.
-pub const DEFAULT_PATH_IDENTIFIER: &str = "path_specific.natural";
-/// Default path-specific estimator.
-pub const DEFAULT_PATH_ESTIMATOR: &str = "functional.effect";
 /// Default path-specific identifier enum.
 pub const DEFAULT_PATH_IDENTIFIER_ID: IdentifierId = IdentifierId::PathSpecificNatural;
 /// Default path-specific estimator enum.
 pub const DEFAULT_PATH_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalEffect;
 
-/// Default PAG / generalized-adjustment identifier.
-pub const DEFAULT_PAG_IDENTIFIER: &str = "generalized.adjustment";
-/// Default PAG estimator.
-pub const DEFAULT_PAG_ESTIMATOR: &str = "linear.adjustment.ate";
 /// Default PAG identifier enum.
 pub const DEFAULT_PAG_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralizedAdjustment;
 /// Default PAG estimator enum.
 pub const DEFAULT_PAG_ESTIMATOR_ID: EstimatorId = EstimatorId::LinearAdjustmentAte;
 
-/// Default ADMG identifier (general ID).
-pub const DEFAULT_ADMG_IDENTIFIER: &str = "general.id";
-/// Default ADMG estimator (functional plug-in).
-pub const DEFAULT_ADMG_ESTIMATOR: &str = "functional.effect";
 /// Default ADMG identifier enum.
 pub const DEFAULT_ADMG_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralId;
 /// Default ADMG estimator enum.
 pub const DEFAULT_ADMG_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalEffect;
 
-/// Default conditional-effect identifier.
-pub const DEFAULT_CONDITIONAL_IDENTIFIER: &str = "backdoor.adjustment";
-/// Default conditional-effect estimator.
-pub const DEFAULT_CONDITIONAL_ESTIMATOR: &str = "conditional.linear.adjustment";
 /// Default conditional identifier enum.
 pub const DEFAULT_CONDITIONAL_IDENTIFIER_ID: IdentifierId = IdentifierId::BackdoorAdjustment;
 /// Default conditional estimator enum.
 pub const DEFAULT_CONDITIONAL_ESTIMATOR_ID: EstimatorId = EstimatorId::ConditionalLinearAdjustment;
-
-/// Default mediation identifier (static Total uses front-door).
-pub const DEFAULT_MEDIATION_IDENTIFIER: &str = "frontdoor";
-/// Default mediation estimator (temporal path).
-pub const DEFAULT_MEDIATION_ESTIMATOR: &str = "temporal.mediation";
-/// Default mediation identifier enum.
-pub const DEFAULT_MEDIATION_IDENTIFIER_ID: IdentifierId = IdentifierId::Frontdoor;
-/// Default mediation estimator enum.
-pub const DEFAULT_MEDIATION_ESTIMATOR_ID: EstimatorId = EstimatorId::TemporalMediation;
 
 /// Whether an identification status is acceptable when estimands are present.
 #[must_use]

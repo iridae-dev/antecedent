@@ -243,12 +243,6 @@ impl PhysicalExecutionPlan {
     }
 }
 
-/// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
-#[must_use]
-pub fn is_dag_only_identifier(identifier: IdentifierId) -> bool {
-    identifier.is_dag_only()
-}
-
 /// Refuse DAG-only identification on a PAG structure.
 ///
 /// # Errors

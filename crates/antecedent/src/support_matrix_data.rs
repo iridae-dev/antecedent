@@ -74,17 +74,6 @@ pub struct NaRule {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct AllowedRule {
-    pub queries: Option<&'static [&'static str]>,
-    pub graph_classes: Option<&'static [&'static str]>,
-    pub structures: Option<&'static [&'static str]>,
-    pub inferences: Option<&'static [&'static str]>,
-    pub validations: Option<&'static [&'static str]>,
-    pub reason: &'static str,
-    pub parent: &'static str,
-}
-
-#[derive(Clone, Copy, Debug)]
 pub struct LicensedCell {
     pub query: &'static str,
     pub graph_class: &'static str,
@@ -103,7 +92,6 @@ const fn table<T: 'static>(load: fn() -> &'static [T]) -> StaticTable<T> {
 
 pub static NA_RULES: StaticTable<NaRule> = table(na_rules);
 pub static CLOSED_RULES: StaticTable<NaRule> = table(closed_rules);
-pub static ALLOWED_RULES: StaticTable<AllowedRule> = table(allowed_rules);
 pub static LICENSED: StaticTable<LicensedCell> = table(licensed);
 
 fn na_rules() -> &'static [NaRule] {
@@ -114,10 +102,6 @@ fn closed_rules() -> &'static [NaRule] {
     matrix().closed_rules
 }
 
-fn allowed_rules() -> &'static [AllowedRule] {
-    matrix().allowed_rules
-}
-
 fn licensed() -> &'static [LicensedCell] {
     matrix().licensed
 }
@@ -125,7 +109,6 @@ fn licensed() -> &'static [LicensedCell] {
 struct Matrix {
     na_rules: &'static [NaRule],
     closed_rules: &'static [NaRule],
-    allowed_rules: &'static [AllowedRule],
     licensed: &'static [LicensedCell],
 }
 
@@ -136,9 +119,6 @@ fn matrix() -> &'static Matrix {
         Matrix {
             na_rules: leak_slice(raw.na_rules.into_iter().map(NaRule::from_raw).collect()),
             closed_rules: leak_slice(raw.closed_rules.into_iter().map(NaRule::from_raw).collect()),
-            allowed_rules: leak_slice(
-                raw.allowed_rules.into_iter().map(AllowedRule::from_raw).collect(),
-            ),
             licensed: leak_slice(raw.licensed.into_iter().map(LicensedCell::from_raw).collect()),
         }
     })
@@ -148,7 +128,6 @@ fn matrix() -> &'static Matrix {
 struct RawMatrix {
     na_rules: Vec<RawRule>,
     closed_rules: Vec<RawRule>,
-    allowed_rules: Vec<RawAllowed>,
     licensed: Vec<RawLicensed>,
 }
 
@@ -160,17 +139,6 @@ struct RawRule {
     inferences: Option<Vec<String>>,
     validations: Option<Vec<String>>,
     reason: String,
-}
-
-#[derive(Deserialize)]
-struct RawAllowed {
-    queries: Option<Vec<String>>,
-    graph_classes: Option<Vec<String>>,
-    structures: Option<Vec<String>>,
-    inferences: Option<Vec<String>>,
-    validations: Option<Vec<String>>,
-    reason: String,
-    parent: String,
 }
 
 #[derive(Deserialize)]
@@ -193,20 +161,6 @@ impl NaRule {
             inferences: opt_strs(raw.inferences),
             validations: opt_strs(raw.validations),
             reason: leak_str(raw.reason),
-        }
-    }
-}
-
-impl AllowedRule {
-    fn from_raw(raw: RawAllowed) -> Self {
-        Self {
-            queries: opt_strs(raw.queries),
-            graph_classes: opt_strs(raw.graph_classes),
-            structures: opt_strs(raw.structures),
-            inferences: opt_strs(raw.inferences),
-            validations: opt_strs(raw.validations),
-            reason: leak_str(raw.reason),
-            parent: leak_str(raw.parent),
         }
     }
 }

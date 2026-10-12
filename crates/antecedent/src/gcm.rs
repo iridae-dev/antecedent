@@ -689,12 +689,6 @@ pub fn attribute_structure_change(
     structure_change(baseline_model, comparison_model, data, query, options, ctx).map_err(map_attr)
 }
 
-/// Builder-style change attribution (§34.3).
-#[must_use]
-pub fn change_attribution_builder() -> ChangeAttribution {
-    ChangeAttribution::new()
-}
-
 /// Mechanism-change detection (not attribution).
 ///
 /// # Errors

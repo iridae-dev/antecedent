@@ -314,33 +314,6 @@ impl TemporalInitialState {
         .export()
     }
 
-    /// The artifact of a refresh onto `panel` and `window`, whichever way it is
-    /// decided: a reusable refresh carries the re-evaluated point and receipt, an
-    /// invalidated one carries its typed reason and no result.
-    ///
-    /// # Errors
-    /// `invalid_argument` for a missing or invalid window, or an encoding failure.
-    pub fn refresh_record(
-        &self,
-        panel: &TemporalUnitPanel,
-        window: &TemporalWindow,
-        interval_existed: bool,
-    ) -> Result<Vec<u8>, IoError> {
-        let held = self.held(interval_existed)?;
-        let new_identity = identity_for(&self.premises, window, panel, self.sequence)?;
-        TemporalRefreshArtifactWire::checked(&RefreshInputs {
-            premises: &self.premises,
-            sequence: self.sequence,
-            query: &self.query,
-            old_identity: &held.identity,
-            old_panel: &self.panel,
-            new_identity: &new_identity,
-            new_panel: panel,
-            interval_invalidated: interval_existed,
-        })?
-        .export()
-    }
-
     /// The receipt a reusable refresh from this window to `new` would carry.
     #[must_use]
     pub fn expected_receipt(

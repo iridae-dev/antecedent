@@ -47,7 +47,7 @@ pub use antecedent_design::design_ranking_artifact::{
     DESIGN_RANKING_ARTIFACT_KIND, DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION,
     DesignRankingArtifactError, DesignRankingArtifactWire, ReplayKind, consume, consume_wire,
 };
-pub use antecedent_design::ranking::{DesignRankingValue, DesignRankingBasis};
+pub use antecedent_design::ranking::{DesignRankingBasis, DesignRankingValue};
 pub use antecedent_design::signal::{SignalTrustLabel, SignalUpdateMode};
 
 fn default_mc_error_tolerance() -> f64 {
