@@ -2197,7 +2197,9 @@ fn factor_provider(
     let mut provider = EmpiricalTableProvider::new();
     for (v, levels) in joint.levels.iter().enumerate() {
         provider.set_domain(
-            VariableId::from_raw(u32::try_from(v).unwrap_or(0)),
+            VariableId::from_raw(
+                u32::try_from(v).expect("counterfactual variable index fits in u32"),
+            ),
             levels.iter().map(|x| Value::f64(*x)),
         );
     }
@@ -2283,7 +2285,9 @@ fn insert_conditional(
         {
             let assignment = Assignment::from_pairs(all.iter().zip(&index).map(|(&v, &l)| {
                 (
-                    VariableId::from_raw(u32::try_from(v).unwrap_or(0)),
+                    VariableId::from_raw(
+                        u32::try_from(v).expect("counterfactual variable index fits in u32"),
+                    ),
                     Value::f64(joint.levels[v][l]),
                 )
             }));
