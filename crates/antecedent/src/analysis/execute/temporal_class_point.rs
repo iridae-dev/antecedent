@@ -359,17 +359,12 @@ impl super::Study {
         }
         let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let probe = TemporalEffectQuery {
-            treatment,
-            outcome,
-            policy: temporal.policy.clone(),
-            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: temporal.horizons[0],
-            max_history_lag: temporal.max_history_lag,
-            target_population: query.target_population.clone(),
-            effect_modifiers: std::sync::Arc::from([]),
-        };
+        let probe = super::temporal_path::unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            temporal.horizons[0],
+            query.target_population.clone(),
+        );
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
             self.derivative_class_envelope(identifier_id, &probe, ctx)?;
@@ -1163,17 +1158,12 @@ fn derivative_probe(query: &ResponseQuery) -> Result<TemporalEffectQuery, Causal
         message: "class-aware temporal derivative requires TemporalResponseSpec".into(),
     })?;
     let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-    Ok(TemporalEffectQuery {
-        treatment,
-        outcome,
-        policy: temporal.policy.clone(),
-        control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-        active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-        horizon_steps: temporal.horizons[0],
-        max_history_lag: temporal.max_history_lag,
-        target_population: query.target_population.clone(),
-        effect_modifiers: std::sync::Arc::from([]),
-    })
+    Ok(super::temporal_path::unit_contrast_query(
+        temporal,
+        (treatment, outcome),
+        temporal.horizons[0],
+        query.target_population.clone(),
+    ))
 }
 
 /// Response, estimand, identification, diagnostics, structural mixture and status of one

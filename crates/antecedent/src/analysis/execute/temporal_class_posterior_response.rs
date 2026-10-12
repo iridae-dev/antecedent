@@ -6,6 +6,7 @@ use super::response_path::{
     mix_response_values, mix_support_reports, response_envelope_from_weighted,
     response_identified_value, response_primary_pair, response_scalar_summary,
 };
+use super::temporal_path::bare_class_atom;
 use super::temporal_posterior_response::dbn_posterior_response_supported;
 use super::{
     AcceptedGraph, Arc, AverageEffectQuery, CausalError, CausalQuery, CausalResponse, Diagnostic,
@@ -541,26 +542,12 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
         match outcome {
             None | Some(Err(())) => {
                 fold.unidentified_mass += weight;
-                fold.atoms.push(StructuralResponseAtom {
-                    posterior: None,
-                    response: None,
-                    graph_key: key,
-                    weight,
-                    status: IdentificationStatus::NotIdentified,
-                    value: None,
-                });
+                fold.atoms.push(bare_class_atom(key, weight, IdentificationStatus::NotIdentified));
             }
             Some(Ok(result)) => {
                 let Some(response) = result.payload.into_response() else {
                     fold.failed_mass += weight;
-                    fold.atoms.push(StructuralResponseAtom {
-                        posterior: None,
-                        response: None,
-                        graph_key: key,
-                        weight,
-                        status: result.identification.status,
-                        value: None,
-                    });
+                    fold.atoms.push(bare_class_atom(key, weight, result.identification.status));
                     continue;
                 };
                 let Some(value) =
@@ -568,12 +555,8 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                 else {
                     fold.failed_mass += weight;
                     fold.atoms.push(StructuralResponseAtom {
-                        posterior: None,
                         response: Some(response),
-                        graph_key: key,
-                        weight,
-                        status: result.identification.status,
-                        value: None,
+                        ..bare_class_atom(key, weight, result.identification.status)
                     });
                     continue;
                 };
@@ -590,12 +573,9 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                 }
                 fold.contributing.push(result.estimand);
                 fold.atoms.push(StructuralResponseAtom {
-                    posterior: None,
                     response: Some(response.clone()),
-                    graph_key: key,
-                    weight,
-                    status: result.identification.status,
                     value: Some(value),
+                    ..bare_class_atom(key, weight, result.identification.status)
                 });
                 fold.weighted.push((key, weight, response));
             }
@@ -878,15 +858,13 @@ fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, 
         _ => Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
     };
     Ok(TemporalEffectQuery {
-        treatment,
-        outcome,
-        policy: temporal.policy.clone(),
-        control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
         active,
-        horizon_steps: horizon,
-        max_history_lag: temporal.max_history_lag,
-        target_population: query.target_population.clone(),
-        effect_modifiers: std::sync::Arc::from([]),
+        ..super::temporal_path::unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            horizon,
+            query.target_population.clone(),
+        )
     })
 }
 

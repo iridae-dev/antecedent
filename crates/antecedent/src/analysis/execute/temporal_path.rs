@@ -106,14 +106,11 @@ impl super::Study {
             indexer,
             envelope,
         } = site;
-        run.structural_atoms.push(crate::result::StructuralResponseAtom {
-            graph_key: ((horizon_index as u64) << 32) | completion_idx as u64,
+        run.structural_atoms.push(bare_class_atom(
+            class_completion_key(horizon_index, completion_idx),
             weight,
-            status: identification.status,
-            value: None,
-            posterior: None,
-            response: None,
-        });
+            identification.status,
+        ));
         if !identification_status_ok_for_case(identification.status) {
             run.aggregate_graph_dependent = true;
             return Ok(());
@@ -1000,17 +997,12 @@ impl super::Study {
             }
             InferenceMode::Frequentist => None,
         };
-        let probe = TemporalEffectQuery {
-            treatment,
-            outcome,
-            policy: temporal.policy.clone(),
-            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: temporal.horizons[0],
-            max_history_lag: temporal.max_history_lag,
-            target_population: query.target_population.clone(),
-            effect_modifiers: std::sync::Arc::from([]),
-        };
+        let probe = unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            temporal.horizons[0],
+            query.target_population.clone(),
+        );
         let response = temporal_linear_derivative_response(
             data,
             query,
@@ -2063,14 +2055,11 @@ impl super::Study {
         let evaluable = identification_status_ok_for_case(case.result.status)
             && !case.result.estimands.is_empty();
         let Some(dag) = evaluable.then(|| case.graph.sequential_dag()).flatten() else {
-            run.structural_atoms.push(crate::result::StructuralResponseAtom {
-                posterior: None,
-                response: None,
-                graph_key: ((horizon_index as u64) << 32) | case_index as u64,
+            run.structural_atoms.push(bare_class_atom(
+                class_completion_key(horizon_index, case_index),
                 weight,
-                status: case.result.status,
-                value: None,
-            });
+                case.result.status,
+            ));
             return Ok(());
         };
         let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
@@ -2089,11 +2078,12 @@ impl super::Study {
         horizon_values.push(effect.ate);
         run.structural_atoms.push(crate::result::StructuralResponseAtom {
             posterior,
-            response: None,
-            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-            weight,
-            status: case.result.status,
             value: Some(ResponseValue::Scalar(effect.ate)),
+            ..bare_class_atom(
+                class_completion_key(horizon_index, case_index),
+                weight,
+                case.result.status,
+            )
         });
         if query.observation != ObservationSpec::Complete && bayes.is_none() {
             run.observation_atoms.push(ClassObservationAtom {
@@ -3212,14 +3202,11 @@ impl ClassResponseAssembly {
         weight: f64,
         status: IdentificationStatus,
     ) {
-        self.structural_atoms.push(crate::result::StructuralResponseAtom {
-            posterior: None,
-            response: None,
-            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
+        self.structural_atoms.push(bare_class_atom(
+            class_completion_key(horizon_index, case_index),
             weight,
             status,
-            value: None,
-        });
+        ));
     }
 
     /// Record one fitted completion surface at this horizon; returns its atom index.
@@ -3262,16 +3249,12 @@ impl ClassResponseAssembly {
         }
         self.horizon_values.push(values);
         self.structural_atoms.push(crate::result::StructuralResponseAtom {
-            posterior: None,
-            response: None,
-            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-            weight,
-            status,
             value: match &response.estimate {
                 ResponseIdentification::PointIdentified(value)
                 | ResponseIdentification::PartiallyIdentified(value) => Some(value.clone()),
                 _ => None,
             },
+            ..bare_class_atom(class_completion_key(horizon_index, case_index), weight, status)
         });
         let index = self.structural_atoms.len() - 1;
         self.supports.push(response.support.clone());
@@ -4613,17 +4596,12 @@ pub(super) fn resolve_temporal_response_prior(
     let mut conflict = None;
     let mut expected_design = None;
     for entry in aligned {
-        let pulse = TemporalEffectQuery {
-            treatment,
-            outcome,
-            policy: temporal.policy.clone(),
-            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: entry.horizon,
-            max_history_lag: temporal.max_history_lag,
-            target_population: antecedent_core::TargetPopulation::AllObserved,
-            effect_modifiers: std::sync::Arc::from([]),
-        };
+        let pulse = unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            entry.horizon,
+            antecedent_core::TargetPopulation::AllObserved,
+        );
         let prep = TemporalLinearAdjustment::new()
             .prepare(data, &entry.estimand, &pulse, &entry.indexer, None, &ctx.kernel_policy)
             .map_err(CausalError::from)?;
@@ -5901,6 +5879,39 @@ fn class_horizon_witness(
     (treatment, outcome): (VariableId, VariableId),
     horizon: u32,
 ) -> TemporalEffectQuery {
+    unit_contrast_query(temporal, (treatment, outcome), horizon, query.target_population.clone())
+}
+
+/// Graph key of the completion at `case_index` of the envelope identified at `horizon_index`.
+pub(super) const fn class_completion_key(horizon_index: usize, case_index: usize) -> u64 {
+    ((horizon_index as u64) << 32) | case_index as u64
+}
+
+/// A completion atom that carries only its mass and identification status.
+pub(super) fn bare_class_atom(
+    graph_key: u64,
+    weight: f64,
+    status: IdentificationStatus,
+) -> crate::result::StructuralResponseAtom {
+    crate::result::StructuralResponseAtom {
+        posterior: None,
+        response: None,
+        graph_key,
+        weight,
+        status,
+        value: None,
+    }
+}
+
+/// The unit-contrast (`do(x = 0)` against `do(x = 1)`) effect query a class response
+/// identifies its completion envelopes with at one horizon, under the response's temporal
+/// policy and history bound and with no effect modifiers.
+pub(super) fn unit_contrast_query(
+    temporal: &antecedent_core::TemporalResponseSpec,
+    (treatment, outcome): (VariableId, VariableId),
+    horizon: u32,
+    target_population: antecedent_core::TargetPopulation,
+) -> TemporalEffectQuery {
     TemporalEffectQuery {
         treatment,
         outcome,
@@ -5909,7 +5920,7 @@ fn class_horizon_witness(
         active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
         horizon_steps: horizon,
         max_history_lag: temporal.max_history_lag,
-        target_population: query.target_population.clone(),
+        target_population,
         effect_modifiers: std::sync::Arc::from([]),
     }
 }
@@ -6392,9 +6403,7 @@ fn plan_class_bayesian_atoms(
             continue;
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-        if plan.primary_estimand.is_none() {
-            plan.primary_estimand = Some(estimand.clone());
-        }
+        plan.primary_estimand.get_or_insert_with(|| estimand.clone());
         plan.flags.push(GraphIdentFlag::Identified);
         plan.fit_atoms.push((key, estimand, case.result.status, indexer.clone(), weight));
     }

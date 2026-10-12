@@ -9,9 +9,9 @@ use super::{
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag,
     IdentificationBasis, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
-    Intervention, ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan,
-    PredictiveCheckReport, PriorSet, RefutationRun, RefuteSuite, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
+    ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan, PredictiveCheckReport,
+    PriorSet, RefutationRun, RefuteSuite, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
     TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
     TemporalLinearAdjustment, TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
     apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
@@ -1085,17 +1085,12 @@ impl super::Study {
         ),
         CausalError,
     > {
-        let horizon_query = TemporalEffectQuery {
-            treatment: run.treatment,
-            outcome: run.outcome,
-            policy: run.temporal.policy.clone(),
-            control: Intervention::set(run.treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(run.treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: horizon,
-            max_history_lag: run.temporal.max_history_lag,
-            target_population: run.query.target_population.clone(),
-            effect_modifiers: std::sync::Arc::from([]),
-        };
+        let horizon_query = super::temporal_path::unit_contrast_query(
+            run.temporal,
+            (run.treatment, run.outcome),
+            horizon,
+            run.query.target_population.clone(),
+        );
         if !run.identify_cached {
             report_identify_compute(run.ctx);
         }
@@ -1394,9 +1389,7 @@ impl super::Study {
                 fits.per_graph
                     .push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
             }
-            if fits.primary_estimand.is_none() {
-                fits.primary_estimand = Some(estimand);
-            }
+            fits.primary_estimand.get_or_insert(estimand);
             fits.atoms.push((weight, key, atom));
         }
         Ok(fits)
@@ -2466,9 +2459,7 @@ impl PanelClassPosteriors<'_> {
         {
             self.per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: draws });
         }
-        if self.primary_estimand.is_none() {
-            self.primary_estimand = Some(estimand);
-        }
+        self.primary_estimand.get_or_insert(estimand);
         self.fits.push((key, bprep, resolved, seed, result.status));
         self.posteriors.push((key, posterior));
 

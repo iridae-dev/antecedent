@@ -922,15 +922,13 @@ fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, 
         _ => Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
     };
     Ok(TemporalEffectQuery {
-        treatment,
-        outcome,
-        policy: temporal.policy.clone(),
-        control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
         active,
-        horizon_steps: horizon,
-        max_history_lag: temporal.max_history_lag,
-        target_population: query.target_population.clone(),
-        effect_modifiers: std::sync::Arc::from([]),
+        ..super::temporal_path::unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            horizon,
+            query.target_population.clone(),
+        )
     })
 }
 
