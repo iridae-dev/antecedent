@@ -358,8 +358,7 @@ fn checked_native(
             != antecedent_io::external_binding_wire::native_contract_identity(
                 &program.graph_id,
                 result
-                    .response
-                    .as_ref()
+                    .response()
                     .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?
                     .identification_status
                     .as_str(),
@@ -384,8 +383,7 @@ fn checked_native(
     };
     NativeResponseClaim::from_response(
         result
-            .response
-            .as_ref()
+            .response()
             .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?,
         session
             .schema()

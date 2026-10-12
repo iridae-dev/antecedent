@@ -278,7 +278,7 @@ impl CheckedSurvivalOperation {
                 ))).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
-        result.survival = Some(crate::SurvivalEstimate {
+        result.payload = crate::result::ResultPayload::Survival(crate::SurvivalEstimate {
             times: summary.times.into(),
             control: summary.control.into(),
             treated: summary.treated.into(),

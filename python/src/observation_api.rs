@@ -256,7 +256,7 @@ fn analyze_observation_response(
         let adjustment_set =
             result.estimand.adjustment_set.iter().map(|v| names[v.as_usize()].clone()).collect();
         observation_response_result(
-            result.response.expect("response route"),
+            result.into_response().expect("response route"),
             treatment,
             outcome,
             adjustment_set,

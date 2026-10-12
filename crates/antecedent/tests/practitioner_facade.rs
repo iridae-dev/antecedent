@@ -39,7 +39,7 @@ fn response_and_temporal_queries_are_constructible_through_facade() {
         .run(&ExecutionContext::for_tests(731))
         .unwrap();
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.unwrap().estimate
+        &result.response().unwrap().estimate
     else {
         panic!("expected identified curve");
     };

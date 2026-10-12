@@ -48,7 +48,7 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.randomized_effect.as_ref().unwrap();
+    let fit = result.randomized_effect().unwrap();
     let [lower, upper] = fit.interval_95.expect("supported switchback interval");
     assert!(lower < fit.effect && fit.effect < upper);
     assert!(fit.standard_error.unwrap() > 0.0);
@@ -104,7 +104,7 @@ fn sparse_or_weak_switchback_remains_point_only() {
             .unwrap()
             .estimate(&data, &ctx)
             .unwrap();
-        let fit = result.randomized_effect.as_ref().unwrap();
+        let fit = result.randomized_effect().unwrap();
         assert!(fit.effect.is_finite());
         assert_eq!(fit.interval_95, None);
         assert_eq!(result.support_status, None);
@@ -126,7 +126,7 @@ fn unequal_sequence_period_counts_refuse_interval_and_license() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(result.randomized_effect.as_ref().unwrap().interval_95, None);
+    assert_eq!(result.randomized_effect().unwrap().interval_95, None);
     assert_eq!(result.support_status, None);
     let bytes = prepared.encode_contracted_result(&result, "unbalanced-switchback", &ctx).unwrap();
     let (_, header, mut artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();

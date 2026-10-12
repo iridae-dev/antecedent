@@ -553,13 +553,11 @@ fn joint_query(a: f64, d: f64) -> ResponseQuery {
 }
 
 fn response_value(result: &antecedent::StudyResult) -> f64 {
-    result.response.as_ref().map_or(result.estimate.as_effect().unwrap().ate, |r| {
-        match &r.estimate {
-            antecedent_core::ResponseIdentification::PointIdentified(
-                antecedent_core::ResponseValue::Scalar(v),
-            ) => *v,
-            _ => result.estimate.as_effect().unwrap().ate,
-        }
+    result.response().map_or(result.estimate.as_effect().unwrap().ate, |r| match &r.estimate {
+        antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Scalar(v),
+        ) => *v,
+        _ => result.estimate.as_effect().unwrap().ate,
     })
 }
 
@@ -577,7 +575,7 @@ fn additive_interaction_is_structurally_zero_cell_aipw_recovers() {
         .run(&ctx)
         .unwrap();
     assert!(
-        additive.response.as_ref().is_some_and(|r| r.interaction_structurally_zero),
+        additive.response().is_some_and(|r| r.interaction_structurally_zero),
         "additive path must disclose structurally zero interaction on the result"
     );
     let mut cells = Vec::new();
@@ -606,7 +604,7 @@ fn additive_interaction_is_structurally_zero_cell_aipw_recovers() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!(cell.response.as_ref().is_some_and(|r| !r.interaction_structurally_zero));
+    assert!(cell.response().is_some_and(|r| !r.interaction_structurally_zero));
     let lo = cell.estimate.as_effect().unwrap().ate
         - 1.96 * cell.estimate.as_effect().unwrap().se_analytic;
     let hi = cell.estimate.as_effect().unwrap().ate
@@ -2565,7 +2563,7 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         !mixed.estimate.as_effect().unwrap().ate.is_finite(),
         "a graph-dependent answer publishes no scalar level"
     );
-    let response = mixed.response.as_ref().expect("class response payload");
+    let response = mixed.response().expect("class response payload");
     let atoms = match &response.estimate {
         ResponseIdentification::GraphDependent(atoms) => atoms.clone(),
         other => panic!("expected per-completion levels, got {other:?}"),
@@ -2882,7 +2880,7 @@ fn pag_response_beyond_adjustment_uses_visibility_aware_general_id() {
             result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
             "general-ID provenance must be visible"
         );
-        let support = result.response.as_ref().expect("response").support.status;
+        let support = result.response().expect("response").support.status;
         assert_eq!(support, SupportStatus::Supported, "complete required CPT cells earn Supported");
     }
 }
@@ -2911,7 +2909,7 @@ fn pag_general_id_response_empty_required_cell_is_not_supported() {
         .run(&ExecutionContext::for_tests(216));
     match result {
         Ok(click) => {
-            let response = click.response.as_ref().expect("response");
+            let response = click.response().expect("response");
             assert_ne!(
                 response.support.status,
                 SupportStatus::Supported,
@@ -3916,7 +3914,7 @@ fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
                     .abs()
                     < 1e-10
             );
-            let response = result.response.as_ref().unwrap();
+            let response = result.response().unwrap();
             let antecedent_core::ResponseIdentification::PointIdentified(
                 antecedent_core::ResponseValue::Scalar(value),
             ) = response.estimate

@@ -1390,7 +1390,7 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         0x110_0440,
     );
     assert_interval_method(&study, &result, "circular_block_se");
-    let response = result.response.as_ref().expect("class response");
+    let response = result.response().expect("class response");
     assert!(matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. }));
     let atoms: Vec<_> = result
         .structural_response
@@ -1441,7 +1441,7 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         0x110_0443,
     );
     assert!(matches!(
-        result.response.as_ref().map(|response| &response.uncertainty),
+        result.response().map(|response| &response.uncertainty),
         Some(ResponseUncertainty::None)
     ));
 }

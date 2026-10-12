@@ -162,8 +162,8 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     let fresh = study.clone().run(&ctx).unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let baseline_click = prepared.estimate_series(&series, &ctx).unwrap();
-    let fresh_grid = fresh.mediation_grid.as_ref().unwrap();
-    let baseline_grid = baseline_click.mediation_grid.as_ref().unwrap();
+    let fresh_grid = fresh.mediation_grid().unwrap();
+    let baseline_grid = baseline_click.mediation_grid().unwrap();
     for (fresh, cached) in fresh_grid.slices.iter().zip(baseline_grid.slices.iter()) {
         assert!((fresh.estimate.effect.ate - cached.estimate.effect.ate).abs() < 1e-12);
     }
@@ -176,7 +176,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     let injected_plan = injected.compile(&ctx).unwrap();
     let mixed = injected.execute(&injected_plan, &ctx).unwrap();
     let repeated = injected.execute(&injected_plan, &ctx).unwrap();
-    let grid = mixed.mediation_grid.as_ref().unwrap();
+    let grid = mixed.mediation_grid().unwrap();
     assert!(
         (grid.slices[0].estimate.effect.ate - fresh_grid.slices[0].estimate.effect.ate).abs()
             < 1e-12
@@ -189,7 +189,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     assert_eq!(grid.slices[1].identification_status, IdentificationStatus::GraphDependent);
     assert_eq!(mixed.identification.status, IdentificationStatus::GraphDependent);
     for (slice, repeated) in
-        grid.slices.iter().zip(repeated.mediation_grid.as_ref().unwrap().slices.iter())
+        grid.slices.iter().zip(repeated.mediation_grid().unwrap().slices.iter())
     {
         assert!((slice.estimate.effect.ate - repeated.estimate.effect.ate).abs() < 1e-12);
     }
@@ -229,7 +229,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     .unwrap();
     injected.dbn_posterior_identification_cache = Some(Arc::new(all_missing));
     let partial_grid = injected.execute(&injected_plan, &ctx).unwrap();
-    let slices = &partial_grid.mediation_grid.as_ref().unwrap().slices;
+    let slices = &partial_grid.mediation_grid().unwrap().slices;
     assert!(
         (slices[0].estimate.effect.ate - fresh_grid.slices[0].estimate.effect.ate).abs() < 1e-12
     );

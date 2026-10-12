@@ -213,7 +213,7 @@ fn grid_tallies(key: RecordKey) -> Vec<CoverageTally> {
 
 /// `(mean, lower, upper)` per grid coordinate of a pointwise or simultaneous band.
 fn band(result: &StudyResult) -> Option<(Vec<f64>, Vec<f64>, Vec<f64>)> {
-    let response = result.response.as_ref()?;
+    let response = result.response()?;
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {
@@ -228,7 +228,7 @@ fn band(result: &StudyResult) -> Option<(Vec<f64>, Vec<f64>, Vec<f64>)> {
 }
 
 fn scalar_interval(result: &StudyResult) -> Option<(f64, f64)> {
-    match result.response.as_ref()?.uncertainty {
+    match result.response()?.uncertainty {
         ResponseUncertainty::Scalar { lower, upper, .. } => Some((lower, upper)),
         _ => None,
     }
@@ -356,7 +356,7 @@ fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
         };
         assert!(
             matches!(
-                result.response.as_ref().map(|r| &r.uncertainty),
+                result.response().map(|r| &r.uncertainty),
                 Some(ResponseUncertainty::SimultaneousBand { .. })
             ),
             "simultaneous replicates must publish a SimultaneousBand"
@@ -674,7 +674,7 @@ fn class_response_cpdag_disagreeing_completions_publish_unbanded_identified_set(
             7,
         )
         .expect("class response runs");
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         assert!(
             matches!(
                 response.estimate,
@@ -1220,7 +1220,7 @@ fn distribution_bayesian(
             reported.skip();
             continue;
         };
-        let dist = result.distribution.as_ref().expect("distribution payload");
+        let dist = result.distribution().expect("distribution payload");
         let posterior = result.posterior.as_ref().expect("posterior");
         let offset = usize::from(posterior.effect_column().is_some());
         let atom = dist
@@ -1305,7 +1305,7 @@ fn distribution_frequentist(test: &'static str, base: f64, seed: u64) {
             tally.skip();
             continue;
         };
-        let dist = result.distribution.as_ref().expect("distribution payload");
+        let dist = result.distribution().expect("distribution payload");
         assert_eq!(dist.atom_uncertainty.len(), dist.atoms.len(), "one interval per atom");
         for (atom, u) in dist.atoms.iter().zip(dist.atom_uncertainty.iter()) {
             if let Some((lo, hi)) = u.interval.bounds() {

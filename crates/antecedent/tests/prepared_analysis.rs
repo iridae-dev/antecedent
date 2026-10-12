@@ -842,10 +842,10 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     let second = prepared.estimate(&data, &ctx).unwrap();
 
     assert!(first.estimate.as_effect().unwrap().ate.is_finite());
-    let first_dist = first.distribution.as_ref().expect("prepared distribution payload");
-    let fresh_dist = fresh.distribution.as_ref().expect("fresh distribution payload");
+    let first_dist = first.distribution().expect("prepared distribution payload");
+    let fresh_dist = fresh.distribution().expect("fresh distribution payload");
     assert_eq!(first_dist.mean.to_bits(), fresh_dist.mean.to_bits());
-    let second_dist = second.distribution.as_ref().expect("second distribution payload");
+    let second_dist = second.distribution().expect("second distribution payload");
     assert_eq!(second_dist.mean.to_bits(), fresh_dist.mean.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
@@ -865,11 +865,11 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
         .expect("true outcome atom");
     assert!((true_atom.probability - 0.7).abs() < 1e-12);
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-    assert!((refreshed.distribution.as_ref().unwrap().mean - 0.7).abs() < 1e-12);
+    assert!((refreshed.distribution().unwrap().mean - 0.7).abs() < 1e-12);
     let (incompatible, _, _) = confounded_scm(64, 91);
     assert!(prepared.refresh(incompatible, &ctx).is_err());
     assert!(
-        (prepared.estimate(&data, &ctx).unwrap().distribution.unwrap().mean - 0.7).abs() < 1e-12
+        (prepared.estimate(&data, &ctx).unwrap().distribution().unwrap().mean - 0.7).abs() < 1e-12
     );
     assert_prepared_contract_consume(
         &prepared,
@@ -1516,9 +1516,8 @@ fn functional_validation_staged_known_truth() {
                 .unwrap();
             let result = prepared.estimate(&data, &ctx).unwrap();
             assert!(
-                (result.distribution.as_ref().unwrap().mean
-                    - pin["distribution_mean"].as_f64().unwrap())
-                .abs()
+                (result.distribution().unwrap().mean - pin["distribution_mean"].as_f64().unwrap())
+                    .abs()
                     < pin["tolerance"].as_f64().unwrap()
             );
             let count = match suite {
@@ -1662,8 +1661,8 @@ fn prepared_admg_distribution_reuses_identification() {
     assert_eq!(cached_count_dist(&fresh), 1);
     assert_eq!(cached_count_dist(&first), 1);
     assert_eq!(cached_count_dist(&second), 1);
-    let fresh_dist = fresh.distribution.as_ref().expect("fresh ADMG distribution");
-    let first_dist = first.distribution.as_ref().expect("prepared ADMG distribution");
+    let fresh_dist = fresh.distribution().expect("fresh ADMG distribution");
+    let first_dist = first.distribution().expect("prepared ADMG distribution");
     assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
     assert_eq!(first.support_status.unwrap().as_str(), "licensed");
     assert!(fresh.refutations.is_empty());
@@ -1687,9 +1686,9 @@ fn prepared_admg_distribution_reuses_identification() {
         let bayesian_result = prepared_bayesian.estimate(&data, &ctx).unwrap();
         let posterior = bayesian_result.posterior.as_ref().expect("ADMG posterior draws");
         assert_eq!(posterior.draws.n_draws, 32);
-        assert!(bayesian_result.distribution.as_ref().unwrap().mean.is_finite());
+        assert!(bayesian_result.distribution().unwrap().mean.is_finite());
         let mass: f64 = bayesian_result
-            .distribution
+            .distribution()
             .as_ref()
             .unwrap()
             .atoms
@@ -1709,7 +1708,7 @@ fn prepared_admg_distribution_reuses_identification() {
         .build()
         .unwrap();
     let accepted_click = accepted.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
-    assert!((accepted_click.distribution.as_ref().unwrap().mean - fresh_dist.mean).abs() < 1e-12);
+    assert!((accepted_click.distribution().unwrap().mean - fresh_dist.mean).abs() < 1e-12);
 }
 
 fn cached_count_dist(result: &antecedent::StudyResult) -> usize {
@@ -1884,7 +1883,7 @@ fn admg_frontdoor_distribution_known_truth() {
                         antecedent_core::IdentificationStatus::NonparametricallyIdentified,
                         "{label} {stage}"
                     );
-                    let dist = result.distribution.as_ref().expect("distribution estimate");
+                    let dist = result.distribution().expect("distribution estimate");
                     let one = dist
                         .atoms
                         .iter()
@@ -1942,7 +1941,7 @@ fn admg_frontdoor_distribution_known_truth() {
                     }
                 }
                 if !bayesian {
-                    let (a, b) = (&fresh.distribution, &click.distribution);
+                    let (a, b) = (fresh.distribution(), click.distribution());
                     assert!((a.as_ref().unwrap().mean - b.as_ref().unwrap().mean).abs() < 1e-12);
                 }
             }

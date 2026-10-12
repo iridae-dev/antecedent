@@ -413,7 +413,7 @@ fn class_responses_export_and_reload_on_cpdag_and_pag() {
             let result = prepared
                 .estimate(&data, &ctx)
                 .unwrap_or_else(|err| panic!("{id}: execute failed: {err}"));
-            let response = result.response.as_ref().unwrap_or_else(|| panic!("{id}: no response"));
+            let response = result.response().unwrap_or_else(|| panic!("{id}: no response"));
             assert_eq!(
                 response.identification_status
                     == antecedent_core::IdentificationStatus::PartiallyIdentified,

@@ -153,7 +153,7 @@ fn atom_levels(result: &antecedent::StudyResult) -> Vec<Option<Vec<f64>>> {
 }
 
 fn point_levels(result: &antecedent::StudyResult) -> Vec<f64> {
-    match &result.response.as_ref().expect("response payload").estimate {
+    match &result.response().expect("response payload").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => vec![*value],
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()
@@ -282,7 +282,7 @@ fn static_class_responses_body() {
                                 "{label} {tag}: disagreeing completions stay set-valued"
                             );
                             let ResponseIdentification::PartiallyIdentified(_) =
-                                &result.response.as_ref().unwrap().estimate
+                                &result.response().unwrap().estimate
                             else {
                                 panic!("{label} {tag}: expected a completion identified set");
                             };

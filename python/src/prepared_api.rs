@@ -4510,9 +4510,9 @@ impl PyPreparedAnalysis {
             bytes
         } else if payload != "result" {
             return Err(PyValueError::new_err("payload must be 'query' or 'result'"));
-        } else if result.mediation_grid.is_some()
+        } else if result.mediation_grid().is_some()
             || result.structural_response.is_some()
-            || (result.posterior.is_some() && result.response.is_some())
+            || (result.posterior.is_some() && result.response().is_some())
         {
             let wire = result
                 .analysis_result_wire_with_context(
@@ -4532,7 +4532,7 @@ impl PyPreparedAnalysis {
             bytes
         } else if let Some(post) = &result.posterior {
             antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
-        } else if let Some(response) = &result.response {
+        } else if let Some(response) = result.response() {
             let payload = antecedent_io::CausalPayloadWire::ResponseResult(Box::new(
                 antecedent_io::causal_response_to_wire(response).map_err(py_err)?,
             ));
@@ -4545,7 +4545,7 @@ impl PyPreparedAnalysis {
             let mut bytes = Vec::new();
             artifact.write_to(&mut bytes).map_err(py_err)?;
             bytes
-        } else if result.mediation.is_some() || result.counterfactual.is_some() {
+        } else if result.mediation().is_some() || result.counterfactual().is_some() {
             let wire = result
                 .static_result_wire(self.inner.query(), self.inner.population_registry())
                 .map_err(|e| match e {
@@ -4621,8 +4621,7 @@ impl PyPreparedAnalysis {
             .transpose()?;
         if let (Some(supplied), Some(labels)) = (&quantities, &labels) {
             let response = result
-                .response
-                .as_ref()
+                .response()
                 .ok_or_else(|| crate::value_err("scientific coordinates require a response"))?;
             let expected = antecedent_contract::response_coordinates(
                 response,
@@ -4785,7 +4784,7 @@ pub(crate) fn response_from_retained(
     prepared: &antecedent::PreparedStudy,
     ctx: &ExecutionContext,
 ) -> PyResult<ResponseAnalysisResult> {
-    let response = result.response.clone().ok_or_else(|| {
+    let response = result.response().cloned().ok_or_else(|| {
         PyValueError::new_err("prepared response estimate did not carry a response payload")
     })?;
     let name_of = |id: antecedent_core::VariableId| {

@@ -655,7 +655,7 @@ impl super::Study {
         )?;
         response.identification_status = result.identification.status;
         let mut result = result;
-        result.response = Some(response);
+        result.payload = crate::result::ResultPayload::Response(response);
         Ok(result)
     }
 

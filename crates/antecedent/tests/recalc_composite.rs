@@ -59,7 +59,7 @@ fn fixture() -> (CompositeSession, CompositeRequest, reference::Provider, refere
     let binding = ProgramBinding {
         contract_id: antecedent_io::external_binding_wire::native_contract_identity(
             &graph_id,
-            result.response.as_ref().unwrap().identification_status.as_str(),
+            result.response().unwrap().identification_status.as_str(),
             None,
         )
         .unwrap(),
@@ -263,7 +263,7 @@ fn native_data_refresh_counts_real_factors_and_retains_both_providers() {
             .identities
             .data_snapshot
     );
-    let response = session.native().result().unwrap().response.as_ref().unwrap();
+    let response = session.native().result().unwrap().response().unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean: means, .. },
     ) = &response.estimate

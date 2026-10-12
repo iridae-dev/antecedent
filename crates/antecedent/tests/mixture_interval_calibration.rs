@@ -974,7 +974,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
         )
     });
     for (study, result) in &runs {
-        let response = result.response.as_ref().expect("curve");
+        let response = result.response().expect("curve");
         let ResponseUncertainty::PointwiseBand { level, lower, upper, .. } = &response.uncertainty
         else {
             panic!("temporal MeanCurve must publish a pointwise band");
@@ -1052,7 +1052,7 @@ fn bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
         (study, result)
     });
     for (study, result) in &runs {
-        let response = result.response.as_ref().expect("temporal response curve");
+        let response = result.response().expect("temporal response curve");
         let ResponseUncertainty::PointwiseBand { level, lower, upper, .. } = &response.uncertainty
         else {
             panic!("one-atom temporal DAG posterior must publish a Bayesian pointwise band");
@@ -1109,7 +1109,7 @@ fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage(
         (study, result)
     });
     for (study, result) in &runs {
-        let response = result.response.as_ref().expect("intervention response");
+        let response = result.response().expect("intervention response");
         let ResponseUncertainty::Scalar { level, .. } = response.uncertainty else {
             panic!("one-atom temporal DAG posterior response must publish scalar uncertainty");
         };
@@ -1143,7 +1143,7 @@ fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage(
 /// identified point may surface as a scalar interval or as a one-cell pointwise
 /// band, and both carry the `circular_block_se` bounds at [`REPORTED_LEVEL`].
 fn freq_response_interval(result: &StudyResult, index: usize) -> Option<(f64, f64)> {
-    match &result.response.as_ref()?.uncertainty {
+    match &result.response()?.uncertainty {
         ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
             (lower.len() > index && upper.len() > index).then(|| (lower[index], upper[index]))
         }
@@ -2066,7 +2066,7 @@ fn confounded_mediation_recovers_total_direct_mediated_in_both_modes() {
             let label = format!("{inference:?} {contrast:?}");
             let result = run_confounded_mediation(SANITY_N, contrast, inference.clone(), 0, 13, 41);
             close(&label, result.estimate.as_effect().unwrap().ate, truth, 0.02);
-            let slice = &result.mediation_grid.as_ref().expect("mediation grid").slices[0];
+            let slice = &result.mediation_grid().expect("mediation grid").slices[0];
             let adjustment: Vec<(u32, i32)> =
                 slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
             assert_eq!(adjustment, vec![(3, -1), (4, -1)], "{label}: S(1) = {{z[t-1], w[t-1]}}");

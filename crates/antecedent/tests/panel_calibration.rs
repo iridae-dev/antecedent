@@ -146,7 +146,7 @@ fn between_unit_band_coverage(test: &'static str, units: usize, seed: u64) {
         (study, result)
     });
     for (study, result) in &runs {
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
             panic!("panel response must publish a between-unit band");
         };

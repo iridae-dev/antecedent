@@ -462,7 +462,7 @@ fn panel_response_curve_uses_unit_cluster_bands() {
         .run(&ExecutionContext::for_tests(2))
         .unwrap();
     assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
-    let response = result.response.as_ref().expect("panel response surface");
+    let response = result.response().expect("panel response surface");
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
     ) = &response.estimate
@@ -509,7 +509,7 @@ fn bayesian_panel_response_uses_unit_cluster_bands() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    let response = result.response.as_ref().expect("Bayesian panel response surface");
+    let response = result.response().expect("Bayesian panel response surface");
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
     ) = &response.estimate
@@ -684,7 +684,7 @@ fn panel_class_response_uses_completion_surfaces() {
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    let response = result.response.as_ref().expect("panel class response surface");
+    let response = result.response().expect("panel class response surface");
     let antecedent_core::ResponseIdentification::PartiallyIdentified(
         antecedent_core::ResponseValue::Envelope(envelope),
     ) = &response.estimate
@@ -728,7 +728,7 @@ fn panel_class_response_identified_set_spans_disagreeing_completions() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let antecedent_core::ResponseIdentification::PartiallyIdentified(
         antecedent_core::ResponseValue::Envelope(envelope),
     ) = &response.estimate
@@ -783,14 +783,14 @@ fn panel_class_response_covers_several_horizons() {
     let class = run(Study::panel(panel(units.clone()))
         .graph(TemporalCpdag::from_temporal_dag(&lagged_ty_dag())));
     let dag = run(Study::panel(panel(units)).graph(lagged_ty_dag()));
-    let response = class.response.as_ref().unwrap();
+    let response = class.response().unwrap();
     let antecedent_core::ResponseIdentification::PartiallyIdentified(
         antecedent_core::ResponseValue::Envelope(envelope),
     ) = &response.estimate
     else {
         panic!("expected a partially identified envelope, got {:?}", response.estimate);
     };
-    let (dag_mean, dag_grid) = match &dag.response.as_ref().unwrap().estimate {
+    let (dag_mean, dag_grid) = match &dag.response().unwrap().estimate {
         antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Surface { mean, grid, .. },
         ) => (mean.to_vec(), grid.to_vec()),
@@ -1009,7 +1009,7 @@ fn panel_response_band_is_the_between_unit_t_interval() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(2))
                 .unwrap();
-            point_surface(result.response.as_ref().unwrap())
+            point_surface(result.response().unwrap())
         })
         .collect();
     for boot in [0, 199] {
@@ -1022,7 +1022,7 @@ fn panel_response_band_is_the_between_unit_t_interval() {
             .unwrap()
             .run(&ExecutionContext::for_tests(2))
             .unwrap();
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         let mean = point_surface(response);
         let antecedent_core::ResponseUncertainty::PointwiseBand { level, lower, upper, .. } =
             &response.uncertainty
@@ -1115,7 +1115,7 @@ fn panel_response_support_and_assumptions_describe_every_unit() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap()
-            .response
+            .into_response()
             .unwrap()
             .support
     };
@@ -1135,7 +1135,7 @@ fn panel_response_support_and_assumptions_describe_every_unit() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let support = &response.support;
     assert_eq!(dose1(support), dose1(&unit_supports[2]), "{support:?}");
     assert_ne!(support.status, SupportStatus::Supported);
@@ -1199,7 +1199,7 @@ fn bayesian_panel_response_applies_the_caller_prior_to_every_unit() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
-        let mean = point_surface(result.response.as_ref().unwrap());
+        let mean = point_surface(result.response().unwrap());
         mean[1] - mean[0]
     };
     let prior = PriorSet {
@@ -1478,14 +1478,14 @@ fn panel_routes_name_their_estimand_and_refuse_short_units() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    let surface = point_surface(response.response.as_ref().unwrap());
+    let surface = point_surface(response.response().unwrap());
     let contrast = surface[1] - surface[0];
     assert!(response.diagnostics.iter().any(|d| {
         d.code.as_ref() == "estimate.temporal_response.panel.estimand"
             && d.message.contains("equal-weight average")
     }));
     assert!(
-        ids(&response.response.as_ref().unwrap().assumptions)
+        ids(&response.response().unwrap().assumptions)
             .contains(&"panel.estimand.equal_weight_unit_average".to_owned())
     );
     // The two estimands really differ on this panel: the pooled effect leans to the

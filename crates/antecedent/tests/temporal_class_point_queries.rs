@@ -437,7 +437,7 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
                             )
                         };
                         let result = run(bayes(builder, bayesian));
-                        let response = result.response.as_ref().unwrap();
+                        let response = result.response().unwrap();
                         let ResponseIdentification::PointIdentified(value) = &response.estimate
                         else {
                             panic!("{key} unidentified");

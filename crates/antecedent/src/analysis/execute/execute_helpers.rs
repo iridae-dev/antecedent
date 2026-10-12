@@ -169,6 +169,19 @@ pub(super) enum GcmSlot {
     Unit(antecedent_attribution::UnitChangeResult),
 }
 
+impl GcmSlot {
+    fn into_payload(self) -> crate::result::ResultPayload {
+        use crate::result::ResultPayload;
+        match self {
+            Self::Counterfactual(value) => ResultPayload::Counterfactual(value),
+            Self::Anomaly(value) => ResultPayload::Anomaly(value),
+            Self::Change(value) => ResultPayload::ChangeAttribution(value),
+            Self::Mechanism(value) => ResultPayload::MechanismChange(value),
+            Self::Unit(value) => ResultPayload::UnitChange(value),
+        }
+    }
+}
+
 pub(super) fn provenance_ids(
     artifact: impl Into<Arc<str>>,
     op: impl Into<Arc<str>>,
@@ -731,15 +744,10 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         identification: finish.identification.clone(),
         estimand: finish.estimand.clone(),
         estimate: finish.estimate,
-        distribution: finish.distribution,
         posterior: finish.posterior,
-        mediation: None,
-        mediation_grid: None,
-        counterfactual: None,
-        anomaly: None,
-        change_attribution: None,
-        mechanism_change: None,
-        unit_change: None,
+        payload: finish
+            .distribution
+            .map_or(crate::result::ResultPayload::Scalar, crate::result::ResultPayload::Distribution),
         refutations: finish.refutations,
         diagnostics: finish.diagnostics,
         provenance,
@@ -755,7 +763,15 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         early_stopped: finish.early_stopped,
         bayesian: matches!(finish.common.inference, InferenceMode::Bayesian(_)),
     });
-    result.response = finish.response;
+    // The interval binding was derived above without the response; a route that
+    // wants it re-derived asks for `rebind_bayesian_interval`.
+    if let Some(response) = finish.response {
+        debug_assert!(
+            matches!(result.payload, crate::result::ResultPayload::Scalar),
+            "a result carries one payload family"
+        );
+        result.payload = crate::result::ResultPayload::Response(response);
+    }
     result.certificate = Some(crate::AnalysisIdentification {
         identification: crate::Identification::Point {
             result: finish.identification.clone(),
@@ -2928,30 +2944,22 @@ fn finish_identified_execute_with_context(
         physical_record = record;
         diagnostics.push(diagnostic);
     }
-    let (counterfactual, anomaly, change_attribution, mechanism_change, unit_change) =
-        match extras.gcm {
-            Some(GcmSlot::Counterfactual(v)) => (Some(v), None, None, None, None),
-            Some(GcmSlot::Anomaly(v)) => (None, Some(v), None, None, None),
-            Some(GcmSlot::Change(v)) => (None, None, Some(v), None, None),
-            Some(GcmSlot::Mechanism(v)) => (None, None, None, Some(v), None),
-            Some(GcmSlot::Unit(v)) => (None, None, None, None, Some(v)),
-            None => (None, None, None, None, None),
-        };
+    let payload = crate::result::ResultPayload::one_of([
+        args.distribution.map(crate::result::ResultPayload::Distribution),
+        (args.mediation.is_some() || extras.mediation_grid.is_some()).then(|| {
+            crate::result::ResultPayload::from_mediation(args.mediation, extras.mediation_grid)
+        }),
+        extras.gcm.map(GcmSlot::into_payload),
+        extras.response.map(crate::result::ResultPayload::Response),
+    ]);
     let mut result = assemble_result(AssembleArgs {
         logical: &args.physical.logical.record,
         physical: &physical_record,
         identification: args.identification,
         estimand: args.estimand,
         estimate: args.estimate,
-        distribution: args.distribution,
         posterior: extras.posterior,
-        mediation: args.mediation,
-        mediation_grid: extras.mediation_grid,
-        counterfactual,
-        anomaly,
-        change_attribution,
-        mechanism_change,
-        unit_change,
+        payload,
         refutations: args.refutations,
         diagnostics,
         provenance,
@@ -2992,7 +3000,6 @@ fn finish_identified_execute_with_context(
         }
     }
     result.predictive_checks = extras.predictive_checks;
-    result.response = extras.response;
     result.structural_response = extras.structural_response;
     result.rebind_interval(matches!(context.inference, InferenceMode::Bayesian(_)));
     result.support_status = context.support_status;

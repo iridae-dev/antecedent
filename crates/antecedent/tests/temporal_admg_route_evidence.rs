@@ -123,14 +123,14 @@ fn posterior(graph: &Admg, unidentified: bool) -> GraphPosterior {
 }
 
 fn response_value(result: &antecedent::StudyResult) -> f64 {
-    match &result.response.as_ref().expect("response").estimate {
+    match &result.response().expect("response").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         other => panic!("expected a point-identified scalar, got {other:?}"),
     }
 }
 
 fn curve_means(result: &antecedent::StudyResult) -> Vec<f64> {
-    match &result.response.as_ref().expect("response").estimate {
+    match &result.response().expect("response").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()
         }
@@ -564,7 +564,7 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                 assert_eq!(program.mapping().source, program.mapping().executable);
                 let result =
                     prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
-                let mean = result.distribution.as_ref().expect("distribution").mean;
+                let mean = result.distribution().expect("distribution").mean;
                 assert!(
                     (mean - p_truth).abs() < if bayesian { 0.08 } else { 1e-9 },
                     "{coordinate} do(t={level}): {mean} vs {p_truth}"
@@ -649,7 +649,7 @@ fn temporal_admg_transport_explicit() {
                 "{coordinate}"
             );
         } else {
-            let transported = result.transport.as_ref().expect("transport");
+            let transported = result.transport().expect("transport");
             assert!(
                 (transported.ipw - ipw).abs() <= ipw_tolerance,
                 "{coordinate}: {}",

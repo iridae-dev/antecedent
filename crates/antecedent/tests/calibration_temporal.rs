@@ -99,7 +99,7 @@ fn run(
 
 /// `(effect, block SE)` of the single class slice.
 fn slice_effect(result: &StudyResult) -> Option<(f64, f64)> {
-    let slice = result.mediation_grid.as_ref()?.slices.first()?;
+    let slice = result.mediation_grid()?.slices.first()?;
     match slice.uncertainty {
         TemporalMediationUncertainty::FrequentistBlockBootstrap { requested: Some(se), .. } => {
             Some((slice.estimate.effect.ate, se))
@@ -337,16 +337,15 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
         Some(CircularBlockFamily::Mediation),
         "keyed to the mediation block family"
     );
-    assert!(result.mediation.is_some(), "the mediation record travels with the scalar");
+    assert!(result.mediation().is_some(), "the mediation record travels with the scalar");
     let contract = study.inspect().expect("inspect");
     let methods: Vec<String> = constructions(&contract, &result)
         .into_iter()
         .map(|(construction, _)| construction.interval_method)
         .collect();
     assert_eq!(methods, ["circular_block_se"], "the class publishes a readable interval");
-    let set = result.mediation_grid.as_ref().expect("grid").slices[0]
-        .identified_set
-        .expect("identified set");
+    let set =
+        result.mediation_grid().expect("grid").slices[0].identified_set.expect("identified set");
     assert_eq!((set.lower, set.upper), (effect, effect), "the set is that one contrast");
 
     // Capped enumeration: the examined completions are not the whole class, so
@@ -363,7 +362,7 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
         capped.estimate.as_effect().unwrap().ate.is_nan(),
         "a capped class publishes no scalar"
     );
-    assert!(capped.mediation.is_none());
+    assert!(capped.mediation().is_none());
     let capped_contract = capped_study.inspect().expect("inspect");
     let capped_methods: Vec<String> = constructions(&capped_contract, &capped)
         .into_iter()

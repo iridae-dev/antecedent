@@ -131,7 +131,7 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                 drop(builder);
                 drop(study);
                 let result = prepared.estimate_retained(&ctx).unwrap();
-                let response = result.response.as_ref().unwrap();
+                let response = result.response().unwrap();
                 let ResponseIdentification::PointIdentified(value) = &response.estimate else {
                     panic!("{key} unidentified");
                 };
@@ -208,7 +208,7 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
         scale: DerivativeScale::Identity,
     };
     let outside = run(point(0.0));
-    let outside_response = outside.response.as_ref().unwrap();
+    let outside_response = outside.response().unwrap();
     let ResponseIdentification::PointIdentified(ResponseValue::Scalar(slope)) =
         &outside_response.estimate
     else {
@@ -223,14 +223,14 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
     }));
 
     let inside = run(point(3.0));
-    assert_eq!(inside.response.as_ref().unwrap().support.status, SupportStatus::Supported);
+    assert_eq!(inside.response().unwrap().support.status, SupportStatus::Supported);
 
     let average = run(ResponseFunctional::AverageDerivative {
         outcome: VariableId::from_raw(2),
         treatment: VariableId::from_raw(0),
         weighting: DerivativeWeighting::Observed,
     });
-    let average_support = &average.response.as_ref().unwrap().support;
+    let average_support = &average.response().unwrap().support;
     assert_eq!(average_support.status, SupportStatus::Supported);
     assert!(average_support.query_region.minima[0] >= 2.0);
     assert!(average_support.query_region.maxima[0] <= 4.0);
@@ -243,11 +243,11 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
         scale: DerivativeScale::Identity,
     };
     assert_eq!(
-        run(jacobian([0.0, 0.5])).response.as_ref().unwrap().support.status,
+        run(jacobian([0.0, 0.5])).response().unwrap().support.status,
         SupportStatus::OutsideEmpiricalSupport
     );
     assert_eq!(
-        run(jacobian([3.0, 0.5])).response.as_ref().unwrap().support.status,
+        run(jacobian([3.0, 0.5])).response().unwrap().support.status,
         SupportStatus::Supported
     );
     let directional = |at: [f64; 2]| ResponseFunctional::DirectionalDerivative {
@@ -257,11 +257,11 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
         direction: Arc::from([1.0, 0.0]),
     };
     assert_eq!(
-        run(directional([10.0, 0.5])).response.as_ref().unwrap().support.status,
+        run(directional([10.0, 0.5])).response().unwrap().support.status,
         SupportStatus::OutsideEmpiricalSupport
     );
     assert_eq!(
-        run(directional([3.0, 0.5])).response.as_ref().unwrap().support.status,
+        run(directional([3.0, 0.5])).response().unwrap().support.status,
         SupportStatus::Supported
     );
 }

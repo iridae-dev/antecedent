@@ -427,58 +427,59 @@ impl CheckedLongitudinalRegimeOperation {
         if graphless_licensed {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
-        result.longitudinal_regime = Some(crate::LongitudinalRegimeEstimate {
-            method: Arc::from(method),
-            graphless_support_status: graphless_licensed
-                .then_some(crate::support::CellStatus::Licensed),
-            rule_id: self.query.rule_id.clone(),
-            rule_version: self.query.rule_version.clone(),
-            rule_provenance: self.query.rule_provenance.clone(),
-            value: summary.value,
-            value_standard_error: msm
-                .as_ref()
-                .map(|fit| fit.intercept_standard_error)
-                .or(summary.score_standard_error)
-                .or_else(|| dr_interval.map(|(se, _)| se))
-                .or_else(|| g_formula_interval.map(|(se, _)| se)),
-            value_interval_95: ipw_interval
-                .or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept))
-                .or_else(|| dr_interval.map(|(_, bounds)| bounds))
-                .or_else(|| g_formula_interval.map(|(_, bounds)| bounds)),
-            period_intervals_95: msm_intervals
-                .as_ref()
-                .map(|intervals| Arc::from(intervals.period_effects.as_slice())),
-            interval_reason: interval_reason.map(Arc::from),
-            effective_sample_size: summary.effective_sample_size,
-            matched_observed_fraction: summary.matched_observed_fraction,
-            maximum_weight: summary.maximum_weight,
-            minimum_action_probability: summary.minimum_action_probability,
-            minimum_censoring_probability: summary.minimum_censoring_probability,
-            uncertainty: Arc::from(if msm_intervals.is_some() {
-                "pointwise_subject_clustered_cr1_95"
-            } else if msm.is_some() {
-                "pointwise_subject_clustered_cr1_no_interval"
-            } else if dr_interval.is_some() {
-                "pointwise_subject_score_conditional_excluded_fold_q_95"
-            } else if g_formula_interval.is_some() {
-                "pointwise_subject_score_conditional_fixed_known_q_95"
-            } else if ipw_interval.is_some() {
-                "pointwise_subject_score_95"
-            } else {
-                "point_only_no_interval"
-            }),
-            probability_ownership: Arc::from("known_sequential_randomization"),
-            period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),
-            standard_errors: msm.as_ref().map(|fit| Arc::from(fit.standard_errors.as_slice())),
-            stabilizing_numerator_probabilities: msm.as_ref().map(|_| {
-                self.query
-                    .stabilizing_numerator_probabilities
+        result.payload =
+            crate::result::ResultPayload::LongitudinalRegime(crate::LongitudinalRegimeEstimate {
+                method: Arc::from(method),
+                graphless_support_status: graphless_licensed
+                    .then_some(crate::support::CellStatus::Licensed),
+                rule_id: self.query.rule_id.clone(),
+                rule_version: self.query.rule_version.clone(),
+                rule_provenance: self.query.rule_provenance.clone(),
+                value: summary.value,
+                value_standard_error: msm
                     .as_ref()
-                    .expect("validated MSM numerator")
-                    .clone()
-            }),
-            observed_subjects: msm.as_ref().map(|fit| fit.observed_subjects),
-        });
+                    .map(|fit| fit.intercept_standard_error)
+                    .or(summary.score_standard_error)
+                    .or_else(|| dr_interval.map(|(se, _)| se))
+                    .or_else(|| g_formula_interval.map(|(se, _)| se)),
+                value_interval_95: ipw_interval
+                    .or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept))
+                    .or_else(|| dr_interval.map(|(_, bounds)| bounds))
+                    .or_else(|| g_formula_interval.map(|(_, bounds)| bounds)),
+                period_intervals_95: msm_intervals
+                    .as_ref()
+                    .map(|intervals| Arc::from(intervals.period_effects.as_slice())),
+                interval_reason: interval_reason.map(Arc::from),
+                effective_sample_size: summary.effective_sample_size,
+                matched_observed_fraction: summary.matched_observed_fraction,
+                maximum_weight: summary.maximum_weight,
+                minimum_action_probability: summary.minimum_action_probability,
+                minimum_censoring_probability: summary.minimum_censoring_probability,
+                uncertainty: Arc::from(if msm_intervals.is_some() {
+                    "pointwise_subject_clustered_cr1_95"
+                } else if msm.is_some() {
+                    "pointwise_subject_clustered_cr1_no_interval"
+                } else if dr_interval.is_some() {
+                    "pointwise_subject_score_conditional_excluded_fold_q_95"
+                } else if g_formula_interval.is_some() {
+                    "pointwise_subject_score_conditional_fixed_known_q_95"
+                } else if ipw_interval.is_some() {
+                    "pointwise_subject_score_95"
+                } else {
+                    "point_only_no_interval"
+                }),
+                probability_ownership: Arc::from("known_sequential_randomization"),
+                period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),
+                standard_errors: msm.as_ref().map(|fit| Arc::from(fit.standard_errors.as_slice())),
+                stabilizing_numerator_probabilities: msm.as_ref().map(|_| {
+                    self.query
+                        .stabilizing_numerator_probabilities
+                        .as_ref()
+                        .expect("validated MSM numerator")
+                        .clone()
+                }),
+                observed_subjects: msm.as_ref().map(|fit| fit.observed_subjects),
+            });
         Ok(result)
     }
 }

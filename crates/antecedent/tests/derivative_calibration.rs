@@ -255,7 +255,7 @@ fn run(
     seed: u64,
 ) -> Result<CausalResponse, String> {
     let (_, result) = run_study(data, graph, functional, bandwidth, inference, seed)?;
-    result.response.ok_or_else(|| "no response".to_owned())
+    result.into_response().ok_or_else(|| "no response".to_owned())
 }
 
 /// [`run`], keeping the study and its full result (to bind coverage records).
@@ -283,7 +283,7 @@ fn run_study(
     let study = builder.build().map_err(|e| e.to_string())?;
     let ctx = ExecutionContext::for_tests(seed);
     let result = study.run(&ctx).map_err(|e| e.to_string())?;
-    if result.response.is_none() {
+    if result.response().is_none() {
         return Err("no response".to_owned());
     }
     Ok((study, result))
@@ -369,7 +369,7 @@ fn scalar_coverage(
     for (rep, scored) in runs.iter().enumerate() {
         match scored {
             Ok((study, result)) => {
-                let response = result.response.as_ref().expect("response");
+                let response = result.response().expect("response");
                 let interval = scalar_interval(response);
                 if record.is_some() {
                     bind(&mut tally, study, result);
@@ -671,7 +671,7 @@ fn run_elasticity_frequentist(
     let study = builder.build().map_err(|e| e.to_string())?;
     let ctx = ExecutionContext::for_tests(seed);
     let result = study.run(&ctx).map_err(|e| e.to_string())?;
-    if result.response.is_none() {
+    if result.response().is_none() {
         return Err("no response".to_owned());
     }
     Ok((study, result))
@@ -700,7 +700,7 @@ fn elasticity_frequentist_coverage(
     for (rep, scored) in runs.iter().enumerate() {
         match scored {
             Ok((study, result)) => {
-                let response = result.response.as_ref().expect("response");
+                let response = result.response().expect("response");
                 let interval = scalar_interval_at(response, level);
                 if rep == 0 {
                     // The interval must be a published Confidence scalar, and its
@@ -800,7 +800,7 @@ fn elasticity_weak_positive_level_fieller_probe() {
                 continue;
             }
         };
-        let response = result.response.as_ref().expect("response");
+        let response = result.response().expect("response");
         let interval = scalar_interval_at(response, 0.95);
         if interval.is_none() {
             unbounded += 1;
@@ -853,7 +853,7 @@ fn gam_coverage(
         match scored {
             Ok((study, result)) => {
                 bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
-                let response = result.response.as_ref().expect("response");
+                let response = result.response().expect("response");
                 let values: Vec<f64> = match &response.estimate {
                     ResponseIdentification::PointIdentified(
                         ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values),

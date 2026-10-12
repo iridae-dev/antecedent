@@ -2259,7 +2259,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_unevaluable_mass,
     } = sections;
     let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
-        result.mediation_grid.as_ref().map_or(&[], |grid| grid.slices.as_ref());
+        result.mediation_grid().map_or(&[], |grid| grid.slices.as_ref());
     let mediation_uncertainty: Vec<_> =
         mediation_slices.iter().map(crate::mediation_uncertainty_projection).collect();
 
@@ -2285,7 +2285,7 @@ pub(crate) fn ate_result_from_analysis(
         refutation_ran: validation.ran,
         refutation_count: validation.count,
         refutations,
-        policy_value: result.policy_value.as_ref().map(|value| {
+        policy_value: result.policy_value().map(|value| {
             let mut section = crate::policy_api::PolicyValueSection::from(value);
             section.graphless_support_status = result
                 .support_status
@@ -2293,7 +2293,7 @@ pub(crate) fn ate_result_from_analysis(
                 .map(str::to_string);
             section
         }),
-        continuous_dose_response: result.continuous_dose_response.as_ref().map(|value| {
+        continuous_dose_response: result.continuous_dose_response().map(|value| {
             let mut section = crate::policy_api::ContinuousDoseResponseSection::from(value);
             section.graphless_support_status = result
                 .support_status
@@ -2389,30 +2389,30 @@ pub(crate) fn ate_result_from_analysis(
             .map(|r| format!("{:?}", r.assumption))
             .collect(),
         support_diagnostics: result.support_diagnostics().map(|d| d.message.to_string()).collect(),
-        unit_effects: result.counterfactual.as_ref().map(|cf| cf.unit_effects.to_vec()),
+        unit_effects: result.counterfactual().map(|cf| cf.unit_effects.to_vec()),
         unit_effect_intervals: result
-            .counterfactual
+            .counterfactual()
             .as_ref()
             .and_then(|cf| cf.unit_effect_intervals.as_ref())
             .map(|i| i.lower.iter().copied().zip(i.upper.iter().copied()).collect()),
         unit_effect_intervals_level: result
-            .counterfactual
+            .counterfactual()
             .as_ref()
             .and_then(|cf| cf.unit_effect_intervals.as_ref())
             .map(|i| i.level),
         unit_effect_intervals_method: result
-            .counterfactual
+            .counterfactual()
             .as_ref()
             .and_then(|cf| cf.unit_effect_intervals.as_ref())
             .map(|i| i.method.to_owned()),
         unit_extrapolative: result
-            .counterfactual
+            .counterfactual()
             .as_ref()
             .and_then(|cf| cf.unit_extrapolative.as_ref())
             .map(|flags| flags.to_vec()),
-        mediation_total: result.mediation.as_ref().and_then(|m| m.total),
-        mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
-        mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        mediation_total: result.mediation().and_then(|m| m.total),
+        mediation_direct: result.mediation().and_then(|m| m.direct),
+        mediation_mediated: result.mediation().and_then(|m| m.mediated),
         mediation_horizons: mediation_slices.iter().map(|slice| slice.horizon).collect(),
         mediation_effects: mediation_slices.iter().map(|slice| slice.estimate.effect.ate).collect(),
         mediation_totals: mediation_slices
@@ -2453,19 +2453,18 @@ pub(crate) fn ate_result_from_analysis(
             .iter()
             .map(|slice| slice.identified_set.map(|set| set.upper))
             .collect(),
-        mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
+        mediation_joint_posterior: result.mediation_grid().map(|grid| grid.joint_posterior),
         transport: result
-            .transport
-            .as_ref()
+            .transport()
             .map(crate::transport_interference_api::TransportSection::from_estimate),
-        interference: result.interference.as_ref().map(|estimate| {
+        interference: result.interference().map(|estimate| {
             crate::transport_interference_api::InterferenceSection::from_estimate(
                 estimate,
                 &result.diagnostics,
-                result.interference_inference.as_ref(),
+                result.interference_inference(),
             )
         }),
-        randomized_effect: result.randomized_effect.as_ref().map(|value| {
+        randomized_effect: result.randomized_effect().map(|value| {
             let mut section = crate::experiment_api::RandomizedEffectSection::from(value);
             section.graphless_support_status = result
                 .support_status
@@ -2473,7 +2472,7 @@ pub(crate) fn ate_result_from_analysis(
                 .map(str::to_string);
             section
         }),
-        panel_did: result.panel_did.as_ref().map(|value| {
+        panel_did: result.panel_did().map(|value| {
             let mut section = crate::quasi_api::PanelDidSection::from(value);
             section.graphless_support_status = result
                 .support_status
@@ -2481,9 +2480,9 @@ pub(crate) fn ate_result_from_analysis(
                 .map(str::to_string);
             section
         }),
-        synthetic_control: result.synthetic_control.as_ref().map(Into::into),
-        synthetic_did: result.synthetic_did.as_ref().map(Into::into),
-        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|value| {
+        synthetic_control: result.synthetic_control().map(Into::into),
+        synthetic_did: result.synthetic_did().map(Into::into),
+        local_polynomial_ratio: result.local_polynomial_ratio().map(|value| {
             let mut section = crate::quasi_api::LocalPolynomialRatioSection::from(value);
             section.graphless_support_status = result
                 .support_status
@@ -2491,14 +2490,14 @@ pub(crate) fn ate_result_from_analysis(
                 .map(str::to_string);
             section
         }),
-        survival: result.survival.as_ref().map(Into::into),
-        longitudinal_regime: result.longitudinal_regime.as_ref().map(Into::into),
+        survival: result.survival().map(Into::into),
+        longitudinal_regime: result.longitudinal_regime().map(Into::into),
         anomaly: result
-            .anomaly
-            .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores, names)),
+            .anomaly()
+            .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores.iter().cloned(), names)),
         change_attribution: result
-            .change_attribution
-            .map(|change| crate::gcm_api::change_result_from_rust(change, names)),
+            .change_attribution()
+            .map(|change| crate::gcm_api::change_result_from_rust(change.clone(), names)),
         evidence_status,
         allowlist_reason,
         allowlist_parent,

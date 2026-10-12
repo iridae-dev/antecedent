@@ -856,7 +856,7 @@ fn class_posterior_graph_posterior_response_runs() {
                     "{label} {query_label} {inference:?}: structural_aggregation diagnostic"
                 );
                 assert!(
-                    result.response.is_some(),
+                    result.response().is_some(),
                     "{label} {query_label} {inference:?}: response payload"
                 );
             }

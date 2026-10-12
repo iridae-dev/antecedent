@@ -88,7 +88,7 @@ pub fn run() -> Result<(), CausalError> {
         .bootstrap_replicates(0)
         .build()?
         .run(&ctx)?;
-    let cf = result.counterfactual.as_ref().expect("unit ITE");
+    let cf = result.counterfactual().expect("unit ITE");
     println!(
         "mean_ite={:.4} n={} estimator={}",
         cf.mean_ite,

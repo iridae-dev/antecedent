@@ -1052,7 +1052,7 @@ fn licensed_family_counterfactual_frequentist_consumes() {
         "cf-f",
         &ctx,
     );
-    let cf = result.counterfactual.as_ref().expect("counterfactual payload");
+    let cf = result.counterfactual().expect("counterfactual payload");
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.03);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let labels: std::collections::HashMap<_, _> =
@@ -1179,7 +1179,7 @@ fn licensed_family_distribution_frequentist_consumes() {
         "dist-f",
         &ctx,
     );
-    let dist = result.distribution.as_ref().expect("distribution payload");
+    let dist = result.distribution().expect("distribution payload");
     assert!((dist.mean - 0.7).abs() < 0.08);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let contract = consumed.contract.as_ref().unwrap();
@@ -1291,7 +1291,7 @@ fn licensed_family_distribution_bayesian_consumes() {
         "dist-b",
         &ctx,
     );
-    let dist = result.distribution.as_ref().expect("distribution payload");
+    let dist = result.distribution().expect("distribution payload");
     assert!((dist.mean - 0.7).abs() < 0.08);
     assert!(result.posterior.is_some());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
@@ -1342,7 +1342,7 @@ fn licensed_family_response_curve_frequentist_consumes() {
         &ctx,
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.as_ref().expect("response payload").estimate
+        &result.response().expect("response payload").estimate
     else {
         panic!("expected a point-identified response surface");
     };
@@ -2571,7 +2571,7 @@ fn licensed_family_temporal_response_curve_consumes() {
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_response_operation")]
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.as_ref().expect("temporal response").estimate
+        &result.response().expect("temporal response").estimate
     else {
         panic!("expected a point-identified temporal response surface");
     };
@@ -2610,7 +2610,7 @@ fn licensed_family_temporal_sequence_consumes() {
     .with_temporal(temporal_spec(&pin));
     let (result, consumed) = consume_temporal_response(&series, graph, query, "tseq-f");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.as_ref().expect("sequence response").estimate
+        &result.response().expect("sequence response").estimate
     else {
         panic!("expected a point-identified sequence surface");
     };
@@ -2678,7 +2678,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
     );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("response.bayesian"));
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.as_ref().expect("response payload").estimate
+        &result.response().expect("response payload").estimate
     else {
         panic!("expected a point-identified Bayesian response surface");
     };
@@ -2732,7 +2732,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
         &ctx,
     );
     assert!(result.posterior.is_some());
-    let cf = result.counterfactual.as_ref().expect("counterfactual payload");
+    let cf = result.counterfactual().expect("counterfactual payload");
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.15);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     assert!(
@@ -2967,7 +2967,7 @@ fn licensed_family_response_observation_obligations_inspect() {
         &ctx,
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.as_ref().expect("observed response").estimate
+        &result.response().expect("observed response").estimate
     else {
         panic!("expected a point-identified observed response");
     };
@@ -3340,7 +3340,7 @@ fn licensed_family_intervention_response_static_consumes() {
         &ctx,
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
-        result.response.as_ref().expect("intervention response").estimate
+        result.response().expect("intervention response").estimate
     else {
         panic!("expected a scalar intervention response");
     };
@@ -3373,7 +3373,7 @@ fn licensed_family_intervention_response_cheap_validation_consumes() {
     );
     assert!(!result.refutations.is_empty());
     let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
-        result.response.as_ref().expect("intervention response").estimate
+        result.response().expect("intervention response").estimate
     else {
         panic!("expected a scalar intervention response");
     };
@@ -3511,7 +3511,7 @@ fn licensed_family_temporal_cpdag_response_curve_consumes() {
     assert_eq!(inspected.graph_class.as_str(), "TemporalCpdag");
     let prepared = built.prepare(&ctx).unwrap();
     let result = prepared.estimate_series(&series, &ctx).unwrap();
-    assert!(result.response.is_some());
+    assert!(result.response().is_some());
     match prepared.encode_contracted_result(&result, "tresp-tcpdag", &ctx) {
         Ok(bytes) => {
             let consumed = consume_analysis_result(&bytes).unwrap();
@@ -3556,7 +3556,7 @@ fn licensed_family_temporal_pag_response_curve_inspects() {
     assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
     assert_eq!(inspected.graph_class.as_str(), "TemporalPag");
     match built.prepare(&ctx).and_then(|prepared| prepared.estimate_series(&series, &ctx)) {
-        Ok(result) => assert!(result.response.is_some()),
+        Ok(result) => assert!(result.response().is_some()),
         Err(err) => {
             assert!(
                 err.to_string().contains("no identified mass")
@@ -3636,7 +3636,7 @@ fn licensed_family_temporal_pag_response_curve_consumes() {
         "tresp-tpag",
         &ctx,
     );
-    assert!(result.response.is_some());
+    assert!(result.response().is_some());
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalPag");
 }
 
@@ -3868,7 +3868,7 @@ fn licensed_family_temporal_response_observation_independent_given() {
         "tresp-obs",
         &ctx,
     );
-    assert!(result.response.is_some());
+    assert!(result.response().is_some());
     let observation = consumed
         .contract
         .as_ref()
@@ -4127,7 +4127,7 @@ fn licensed_family_response_right_censored_observation_consumes() {
         "tresp-rc",
         &ctx,
     );
-    assert!(result.response.is_some());
+    assert!(result.response().is_some());
     let observation = consumed
         .contract
         .as_ref()
@@ -4345,7 +4345,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     let pulse_est = pulse.estimate_series(&pulse_series, &ctx).unwrap();
     let curve_est = curve.estimate_series(&curve_series, &ctx).unwrap();
     assert!(pulse_est.effect().is_finite());
-    assert!(curve_est.response.as_ref().is_some());
+    assert!(curve_est.response().is_some());
 
     let mut state = new_antecedent_state(CacheBudget::new(1 << 20));
     apply_state_event(
@@ -4398,7 +4398,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert_ne!(curve_id.data_snapshot, curve_after.data_snapshot);
     let pulse_again = pulse.estimate_series(&longer, &ctx).unwrap();
     assert!((pulse_again.effect() - pulse_refresh.effect()).abs() < 1e-12);
-    assert!(curve_refresh.response.as_ref().is_some());
+    assert!(curve_refresh.response().is_some());
 
     let v1 = state.version;
     publish_recomputed_results(

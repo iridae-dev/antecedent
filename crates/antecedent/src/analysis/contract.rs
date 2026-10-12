@@ -82,12 +82,12 @@ fn bind_graphless_reasoning(
     result: &StudyResult,
     query: &CausalQuery,
 ) -> Result<(), CausalError> {
-    let graphless = result.continuous_dose_response.is_some()
-        || result.policy_value.is_some()
-        || result.panel_did.is_some()
-        || result.survival.is_some()
-        || result.randomized_effect.is_some()
-        || result.longitudinal_regime.is_some();
+    let graphless = result.continuous_dose_response().is_some()
+        || result.policy_value().is_some()
+        || result.panel_did().is_some()
+        || result.survival().is_some()
+        || result.randomized_effect().is_some()
+        || result.longitudinal_regime().is_some();
     if !graphless {
         return Ok(());
     }
@@ -126,13 +126,13 @@ fn graphless_coordinate(
         detail: "licensed graphless result does not match this handle's query",
     };
     let mut coordinate = None;
-    if result.continuous_dose_response.is_some() {
+    if result.continuous_dose_response().is_some() {
         coordinate = Some(
             "graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals"
                 .to_string(),
         );
     }
-    if result.policy_value.is_some() {
+    if result.policy_value().is_some() {
         let CausalQuery::PolicyValue(query) = query else { return Err(MISMATCH) };
         let multi = query.multi_action.is_some();
         let uplift = query.uplift_bin_count > 0;
@@ -148,7 +148,7 @@ fn graphless_coordinate(
         );
         coordinate = Some(format!("graphless:policy_value/{design}/{method}/{claim}"));
     }
-    if result.panel_did.is_some() {
+    if result.panel_did().is_some() {
         let CausalQuery::PanelDid(query) = query else { return Err(MISMATCH) };
         let key = super::execute::panel_did_graphless_key(query.design);
         coordinate = Some(format!(
@@ -156,7 +156,7 @@ fn graphless_coordinate(
             key.family, key.design, key.method, key.inference_claim
         ));
     }
-    if result.survival.is_some() {
+    if result.survival().is_some() {
         // The licensed scalar route is fixed by the query's entry and
         // censoring facets. Cumulative incidence never reaches this arm; only
         // the paired RMST + horizon survival scalar intervals carry a
@@ -177,7 +177,7 @@ fn graphless_coordinate(
             "graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"
         ));
     }
-    if result.randomized_effect.is_some() {
+    if result.randomized_effect().is_some() {
         // Preparation cannot know the realized outcome variance, so the
         // executed graphless license binds in the result-specific reasoning
         // and claim only after estimation. The Wald complier effect is its
@@ -194,7 +194,7 @@ fn graphless_coordinate(
             );
         coordinate = Some(format!("graphless:{family}/{design}/{method}/{claim}"));
     }
-    if result.longitudinal_regime.is_some() {
+    if result.longitudinal_regime().is_some() {
         use antecedent_core::LongitudinalRegimeMethod as Method;
         let CausalQuery::LongitudinalRegime(query) = query else { return Err(MISMATCH) };
         let (design, method, claim) = match query.method {
@@ -937,7 +937,7 @@ impl PreparedStudy {
     ) -> Result<Vec<u8>, CausalError> {
         let quantities = labels
             .map(|labels| {
-                let response = result.response.as_ref().ok_or_else(|| CausalError::Compile {
+                let response = result.response().ok_or_else(|| CausalError::Compile {
                     message: "scientific coordinates require a native response".into(),
                 })?;
                 antecedent_contract::response_coordinates(
@@ -1217,14 +1217,14 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if self.randomized_effect.is_some()
-            || self.synthetic_control.is_some()
-            || self.synthetic_did.is_some()
-            || self.local_polynomial_ratio.is_some()
-            || self.policy_value.is_some()
-            || self.continuous_dose_response.is_some()
-            || self.survival.is_some()
-            || self.longitudinal_regime.is_some()
+        let calibration = if self.randomized_effect().is_some()
+            || self.synthetic_control().is_some()
+            || self.synthetic_did().is_some()
+            || self.local_polynomial_ratio().is_some()
+            || self.policy_value().is_some()
+            || self.continuous_dose_response().is_some()
+            || self.survival().is_some()
+            || self.longitudinal_regime().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -1281,8 +1281,7 @@ impl StudyResult {
         artifact_id: &str,
     ) -> Result<(), CausalError> {
         wire.response = self
-            .response
-            .as_ref()
+            .response()
             .map(antecedent_io::causal_response_to_wire)
             .transpose()
             .map_err(|err| io_err(&err))?;
@@ -1292,26 +1291,25 @@ impl StudyResult {
             .map(|posterior| antecedent_io::encode_causal_posterior_bytes(posterior, artifact_id))
             .transpose()
             .map_err(|err| io_err(&err))?;
-        wire.mediation_grid = self.mediation_grid.as_ref().map(mediation_grid_wire);
+        wire.mediation_grid = self.mediation_grid().map(mediation_grid_wire);
         wire.structural_response =
             self.structural_response.as_ref().map(structural_response_wire).transpose()?;
-        wire.unit_effects =
-            self.counterfactual.as_ref().map(|ite| antecedent_io::UnitEffectsWire {
-                effects: ite.unit_effects.to_vec(),
-                homogeneous: self
-                    .estimate
-                    .as_effect()
-                    .is_some_and(|effect| effect.unit_effects_homogeneous),
-                intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
-                    antecedent_io::UnitEffectIntervalsWire {
-                        lower: intervals.lower.to_vec(),
-                        upper: intervals.upper.to_vec(),
-                        level: intervals.level,
-                        method: intervals.method.to_string(),
-                    }
-                }),
-                extrapolative: ite.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
-            });
+        wire.unit_effects = self.counterfactual().map(|ite| antecedent_io::UnitEffectsWire {
+            effects: ite.unit_effects.to_vec(),
+            homogeneous: self
+                .estimate
+                .as_effect()
+                .is_some_and(|effect| effect.unit_effects_homogeneous),
+            intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
+                antecedent_io::UnitEffectIntervalsWire {
+                    lower: intervals.lower.to_vec(),
+                    upper: intervals.upper.to_vec(),
+                    level: intervals.level,
+                    method: intervals.method.to_string(),
+                }
+            }),
+            extrapolative: ite.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
+        });
         Ok(())
     }
 
@@ -1381,7 +1379,7 @@ impl StudyResult {
             }
             _ => (None, None),
         };
-        if self.mediation.is_none() && self.counterfactual.is_none() {
+        if self.mediation().is_none() && self.counterfactual().is_none() {
             return Err(compile("static result requires a mediation or counterfactual payload"));
         }
         let effect = self
@@ -1402,15 +1400,13 @@ impl StudyResult {
             support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
             diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
             refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
-            unit_effects: self.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
+            unit_effects: self.counterfactual().map(|c| c.unit_effects.to_vec()),
             unit_extrapolative: self
-                .counterfactual
-                .as_ref()
+                .counterfactual()
                 .and_then(|c| c.unit_extrapolative.as_ref())
                 .map(|flags| flags.to_vec()),
             mediation: self
-                .mediation
-                .as_ref()
+                .mediation()
                 .map(|m| {
                     Ok::<_, CausalError>([
                         m.total.ok_or_else(|| compile("mediation total is unavailable"))?,
@@ -3140,7 +3136,7 @@ fn result_reasoning(
     // here as a Bayesian credible band — there is nothing left for an
     // `inference == "bayesian"` gate to guard.
     {
-        if let Some(response) = &result.response {
+        if let Some(response) = result.response() {
             // The interval's own tag decides the source: a credible interval is posterior
             // parameter uncertainty; a confidence interval (a Wald interval on influence
             // scores, say) is sampling uncertainty even when the fit was Bayesian.
@@ -3219,7 +3215,7 @@ fn result_reasoning(
 }
 
 fn executed_scalar(result: &StudyResult) -> Option<f64> {
-    if result.response.is_some() {
+    if result.response().is_some() {
         return None;
     }
     let scalar = result.effect();
@@ -3270,20 +3266,17 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         identification_variables,
         temporal_identification,
         estimate: executed_estimate,
-        policy_value: result.policy_value.as_ref().map(|v| v.to_wire(support)),
-        continuous_dose_response: result
-            .continuous_dose_response
-            .as_ref()
-            .map(|v| v.to_wire(support)),
-        panel_did: result.panel_did.as_ref().map(|v| v.to_wire(support)),
-        synthetic_control: result.synthetic_control.as_ref().map(Into::into),
-        synthetic_did: result.synthetic_did.as_ref().map(Into::into),
-        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|v| v.to_wire(support)),
-        randomized_effect: result.randomized_effect.as_ref().map(|v| v.to_wire(support)),
-        survival: result.survival.as_ref().map(|v| v.to_wire(support)),
-        longitudinal_regime: result.longitudinal_regime.as_ref().map(Into::into),
-        interference_inference: result.interference_inference.as_ref().map(Into::into),
-        interventional_distribution: result.distribution.as_ref().map(distribution_wire),
+        policy_value: result.policy_value().map(|v| v.to_wire(support)),
+        continuous_dose_response: result.continuous_dose_response().map(|v| v.to_wire(support)),
+        panel_did: result.panel_did().map(|v| v.to_wire(support)),
+        synthetic_control: result.synthetic_control().map(Into::into),
+        synthetic_did: result.synthetic_did().map(Into::into),
+        local_polynomial_ratio: result.local_polynomial_ratio().map(|v| v.to_wire(support)),
+        randomized_effect: result.randomized_effect().map(|v| v.to_wire(support)),
+        survival: result.survival().map(|v| v.to_wire(support)),
+        longitudinal_regime: result.longitudinal_regime().map(Into::into),
+        interference_inference: result.interference_inference().map(Into::into),
+        interventional_distribution: result.distribution().map(distribution_wire),
         // A standard error describes the published scalar; none rides without it.
         standard_error: executed_estimate.and(published.as_ref().and_then(|p| p.standard_error)),
         interval_lower: published.as_ref().and_then(|p| p.lower),

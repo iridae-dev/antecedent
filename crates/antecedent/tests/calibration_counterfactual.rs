@@ -183,7 +183,7 @@ fn keyed(
 /// One replicate's per-unit intervals, read from the result and checked
 /// against the published unit effects.
 fn unit_intervals(result: &StudyResult) -> (Vec<f64>, Vec<(f64, f64)>) {
-    let cf = result.counterfactual.as_ref().expect("counterfactual slot");
+    let cf = result.counterfactual().expect("counterfactual slot");
     let intervals = cf.unit_effect_intervals.as_ref().expect("Bayesian unit_effect_intervals");
     assert_eq!(
         intervals.level, REPORTED_LEVEL,

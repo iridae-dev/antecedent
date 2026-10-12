@@ -437,7 +437,7 @@ fn mediation_coverage_on(
         )
     });
     for (study, result) in &runs {
-        let grid = result.mediation_grid.as_ref().expect("mediation grid");
+        let grid = result.mediation_grid().expect("mediation grid");
         let slice = &grid.slices[0];
         // No mediator-outcome confounder and an empty t -> y back-door set.
         assert!(slice.adjustment.is_empty(), "unexpected adjustment {:?}", slice.adjustment);
@@ -516,7 +516,7 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
         )
     });
     for (study, result) in &runs {
-        let slice = &result.mediation_grid.as_ref().expect("mediation grid").slices[0];
+        let slice = &result.mediation_grid().expect("mediation grid").slices[0];
         let adjustment: Vec<(u32, i32)> =
             slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
         assert_eq!(adjustment, vec![(3, -1), (4, -1)], "S(1) = {{z[t-1], w[t-1]}}");
@@ -933,7 +933,7 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
         result.estimate.as_effect().unwrap().se_analytic.is_nan(),
         "iid Total SE must be withheld by default"
     );
-    let slice = &result.mediation_grid.as_ref().unwrap().slices[0];
+    let slice = &result.mediation_grid().unwrap().slices[0];
     let TemporalMediationUncertainty::FrequentistBlockBootstrap { requested, block } =
         &slice.uncertainty
     else {
@@ -957,7 +957,7 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
     assert!(none.estimate.as_effect().unwrap().se_analytic.is_nan());
     assert!(none.estimate.as_effect().unwrap().se_bootstrap.is_none());
     assert!(matches!(
-        none.mediation_grid.as_ref().unwrap().slices[0].uncertainty,
+        none.mediation_grid().unwrap().slices[0].uncertainty,
         TemporalMediationUncertainty::FrequentistPointwise { standard_error: None }
     ));
 }

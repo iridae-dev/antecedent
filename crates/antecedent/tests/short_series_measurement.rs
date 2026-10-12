@@ -164,7 +164,7 @@ fn headline(result: &StudyResult, truth: f64) -> Rep {
 
 fn mediation_rep(result: &StudyResult) -> Option<Rep> {
     use driven_dgp::{A, B, C};
-    let slice = &result.mediation_grid.as_ref()?.slices[0];
+    let slice = &result.mediation_grid()?.slices[0];
     let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } = &slice.uncertainty
     else {
         return None;

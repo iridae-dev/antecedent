@@ -200,7 +200,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                     "{case}"
                 );
                 assert_eq!(first.refutations.is_empty(), suite == RefuteSuite::None, "{case}");
-                let grid = first.mediation_grid.as_ref().expect("class mediation grid");
+                let grid = first.mediation_grid().expect("class mediation grid");
                 let set = grid.slices[0].identified_set.expect("horizon-1 identified set");
                 assert!(
                     (set.lower - MEDIATED_TRUTH).abs() < tolerance

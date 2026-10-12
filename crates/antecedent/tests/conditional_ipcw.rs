@@ -83,7 +83,7 @@ fn conditional_response_known_truth() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().response.unwrap()
+            study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().into_response().unwrap()
         };
         let response = run(query.clone());
         assert!(matches!(response.uncertainty, ResponseUncertainty::None));

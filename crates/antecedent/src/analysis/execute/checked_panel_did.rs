@@ -205,7 +205,7 @@ impl CheckedPanelDidOperation {
                     ),
                 ]).wall_time_ns(elapsed_ns(started)),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect,
             standard_error: se,
             interval_95,
@@ -284,7 +284,7 @@ impl CheckedPanelDidOperation {
                     "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval",
                 )]),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect: fit.effect,
             // The field is a wire-compatible placeholder, not a standard error.
             standard_error: 0.0,
@@ -429,7 +429,7 @@ impl CheckedPanelDidOperation {
                     pretrend_diagnostic,
                 ]),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect: representative.effect,
             standard_error: representative.standard_error,
             interval_95: representative_interval,
@@ -546,7 +546,7 @@ impl CheckedPanelDidOperation {
                     ),
                 )]),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect,
             standard_error: se,
             interval_95: None,
@@ -654,7 +654,7 @@ impl CheckedPanelDidOperation {
                     ),
                 ]).wall_time_ns(elapsed_ns(started)),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect,
             standard_error: se,
             interval_95,

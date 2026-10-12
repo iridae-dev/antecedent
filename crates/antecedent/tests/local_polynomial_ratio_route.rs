@@ -63,10 +63,10 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(
-        prepared.estimate(&data, &ctx).unwrap().local_polynomial_ratio,
-        result.local_polynomial_ratio
+        prepared.estimate(&data, &ctx).unwrap().local_polynomial_ratio(),
+        result.local_polynomial_ratio()
     );
-    let fit = result.local_polynomial_ratio.as_ref().unwrap();
+    let fit = result.local_polynomial_ratio().unwrap();
     assert!((fit.effect - 3.0).abs() < 1e-8);
     assert_eq!((fit.n_left, fit.n_right), (316, 316));
     let direct = fit_local_polynomial_ratio(
@@ -155,7 +155,7 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.local_polynomial_ratio.as_ref().unwrap();
+    let fit = result.local_polynomial_ratio().unwrap();
     assert!((fit.effect - 3.0).abs() < 1e-7);
     assert!(fit.kink);
     assert_eq!(fit.uncertainty.as_ref(), "rbc_hc0_delta_normal_fixed_bandwidth");

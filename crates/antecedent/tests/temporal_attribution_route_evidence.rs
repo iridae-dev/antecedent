@@ -106,14 +106,14 @@ fn frequentist_body() {
         anomaly_result.interval.as_ref().map(|binding| binding.method),
         Some(IntervalMethod::None)
     );
-    let scores = anomaly_result.anomaly.as_ref().expect("anomaly result");
+    let scores = anomaly_result.anomaly().expect("anomaly result");
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
     let top = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
     let top_row = truth["anomaly"]["top_row"].as_u64().unwrap() as usize;
     assert!(score.scores[top.0] >= truth["anomaly"]["score_min"].as_f64().unwrap());
     assert_eq!(score.rows[top.0], top_row, "the injected outlier is the top anomaly");
     let refreshed = anomaly_prepared.refresh_series(anomaly_series(220.0), &ctx).unwrap();
-    assert!(refreshed.anomaly.as_ref().unwrap()[0].scores.iter().any(|score| score.is_finite()));
+    assert!(refreshed.anomaly().unwrap()[0].scores.iter().any(|score| score.is_finite()));
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-temporal-anomaly-attribution", &ctx)
         .unwrap();
@@ -151,7 +151,7 @@ fn frequentist_body() {
     let initial = change_prepared.estimate_series(&change, &ctx).unwrap();
     let expected = truth["change"]["total_change"].as_f64().unwrap();
     let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
-    let initial_change = initial.change_attribution.as_ref().unwrap().total_change;
+    let initial_change = initial.change_attribution().unwrap().total_change;
     assert!(
         (initial_change - expected).abs() < tolerance,
         "known population mean shift: {initial_change}"
@@ -159,7 +159,7 @@ fn frequentist_body() {
     assert!(initial.posterior.is_none());
     assert_eq!(initial.interval.as_ref().map(|binding| binding.method), Some(IntervalMethod::None));
     let refreshed = change_prepared.refresh_series(change_series(0.5), &ctx).unwrap();
-    let refreshed_change = refreshed.change_attribution.as_ref().unwrap().total_change;
+    let refreshed_change = refreshed.change_attribution().unwrap().total_change;
     assert!(
         (refreshed_change - 5.5).abs() < tolerance,
         "refreshed known population shift: {refreshed_change}"
@@ -266,7 +266,7 @@ fn bayesian_body() {
             .iter()
             .any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only")
     );
-    let scores = anomaly_result.anomaly.as_ref().unwrap();
+    let scores = anomaly_result.anomaly().unwrap();
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
     let top = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
     assert_eq!(score.rows[top.0], truth["anomaly"]["top_row"].as_u64().unwrap() as usize);
@@ -303,7 +303,7 @@ fn bayesian_body() {
     let result = change_prepared.estimate_series(&change, &ctx).unwrap();
     let expected = truth["change"]["total_change"].as_f64().unwrap();
     let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
-    let total = result.change_attribution.as_ref().unwrap().total_change;
+    let total = result.change_attribution().unwrap().total_change;
     assert!((total - expected).abs() < tolerance, "known population mean shift: {total}");
     assert!(result.posterior.is_none());
     assert!(result.effect().is_finite());

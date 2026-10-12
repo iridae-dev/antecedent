@@ -96,8 +96,8 @@ fn staged_derivatives_known_truth() {
             let prepared = study.prepare(&ctx).unwrap();
             let result = prepared.estimate(&data, &ctx).unwrap();
             let fresh = study.run(&ctx).unwrap();
-            let response = result.response.as_ref().unwrap();
-            assert_eq!(response, fresh.response.as_ref().unwrap());
+            let response = result.response().unwrap();
+            assert_eq!(response, fresh.response().unwrap());
             let ResponseIdentification::PointIdentified(value) = &response.estimate else {
                 panic!("unidentified {key}")
             };
@@ -197,7 +197,7 @@ fn confounded_derivatives_are_not_the_observational_slope() {
             .unwrap();
         let result = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
         let ResponseIdentification::PointIdentified(ResponseValue::Scalar(got)) =
-            &result.response.as_ref().unwrap().estimate
+            &result.response().unwrap().estimate
         else {
             panic!("unidentified {key}")
         };

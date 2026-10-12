@@ -51,7 +51,7 @@ fn query() -> ResponseQuery {
 }
 
 fn result_value(result: &antecedent::StudyResult) -> f64 {
-    match &result.response.as_ref().expect("response result").estimate {
+    match &result.response().expect("response result").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         other => panic!("expected scalar response, got {other:?}"),
     }

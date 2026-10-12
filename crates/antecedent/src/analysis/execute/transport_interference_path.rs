@@ -247,7 +247,7 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled()),
         );
-        result.transport = Some(transported);
+        result.payload = crate::result::ResultPayload::Transport(transported);
         result.posterior = posterior;
         Ok(result)
     }
@@ -384,7 +384,7 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled()),
         );
-        result.interference = estimated;
+        result.payload = crate::result::ResultPayload::from_interference(estimated, None);
         result.posterior = posterior;
         Ok(result)
     }

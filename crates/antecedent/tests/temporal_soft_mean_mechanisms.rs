@@ -117,7 +117,7 @@ fn extra_soft_mean_families_pin_single_joint_and_multistep_in_both_inferences() 
                 study.run(&context).unwrap(),
                 study.prepare(&context).unwrap().estimate_series(&data, &context).unwrap(),
             ] {
-                let response = result.response.unwrap();
+                let response = result.response().cloned().unwrap();
                 let ResponseIdentification::PointIdentified(ResponseValue::Surface {
                     mean, ..
                 }) = response.estimate
@@ -190,7 +190,7 @@ fn bounded_mean_policy_preserves_normal_innovations_instead_of_clipping_samples(
         .unwrap()
         .run(&ExecutionContext::for_tests(91))
         .unwrap();
-    let response = result.response.unwrap();
+    let response = result.response().cloned().unwrap();
     assert!(response.assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::ParametricRestriction(p)
             if p.id.as_ref() == "temporal.soft.population_mean_target"

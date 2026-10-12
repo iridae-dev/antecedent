@@ -974,7 +974,7 @@ impl super::Study {
                             estimate.se_bootstrap = None;
                         }
                         result.interval = None;
-                        if let Some(components) = &mut result.mediation {
+                        if let Some(components) = result.payload.mediation_mut() {
                             components.direct = Some(effect_point);
                             if let (Some(total), Some(direct)) =
                                 (components.total, components.direct)

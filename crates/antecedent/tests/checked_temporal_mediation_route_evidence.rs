@@ -173,7 +173,7 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
                     expected_estimator == EstimatorId::BayesianTemporalMediation
                 );
                 assert_eq!(first.refutations.is_empty(), suite == RefuteSuite::None);
-                assert!(!first.mediation_grid.as_ref().unwrap().joint_posterior);
+                assert!(!first.mediation_grid().unwrap().joint_posterior);
 
                 let refreshed = prepared.refresh_series(series(0.4, false), &context).unwrap();
                 assert!(
@@ -267,7 +267,7 @@ fn checked_temporal_mediation_refuses_schema_changes_and_makes_no_joint_horizon_
         ]
     );
     let result = multi.estimate_series(&series(0.0, false), &context).unwrap();
-    let grid = result.mediation_grid.as_ref().expect("horizon-wise results retained");
+    let grid = result.mediation_grid().expect("horizon-wise results retained");
     assert_eq!(grid.slices.len(), 2);
     for slice in grid.slices.iter() {
         // The fixture has only T[t-1] → M[t] → Y[t]. The h=1 product is

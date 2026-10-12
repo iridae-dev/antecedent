@@ -35,7 +35,7 @@ fn exact_synthetic_did_assignment_round_trips_and_rejects_tampering() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_did.as_ref().unwrap();
+    let fit = result.synthetic_did().unwrap();
     assert!((fit.effect - 5.0).abs() < 1e-8);
     assert_eq!(fit.randomization_statistics.len(), 4);
     let observed =
@@ -90,7 +90,7 @@ fn nonzero_synthetic_did_sharp_null_carries_tested_effect() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_did.as_ref().unwrap();
+    let fit = result.synthetic_did().unwrap();
     assert_eq!(fit.randomization_null_effect, Some(5.0));
     assert_eq!(fit.randomization_p_value, Some(1.0));
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);

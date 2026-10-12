@@ -488,7 +488,7 @@ impl StaticResponseSession {
     }
 }
 fn response_means(result: &StudyResult) -> Result<Vec<f64>, RecalcRunError> {
-    match result.response.as_ref().map(|r| &r.estimate) {
+    match result.response().map(|r| &r.estimate) {
         Some(ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }))
             if mean.iter().all(|v| v.is_finite()) =>
         {

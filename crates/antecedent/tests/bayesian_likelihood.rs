@@ -323,7 +323,7 @@ fn non_gaussian_response_levels_run_through_study_on_probability_scale() {
         .unwrap()
         .run(&ExecutionContext::for_tests(42))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {

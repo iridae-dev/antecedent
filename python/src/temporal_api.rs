@@ -1840,7 +1840,7 @@ fn analysis_result_from_run(
     let mut mediation_q975 = Vec::new();
     let mut mediation_identified_lower = Vec::new();
     let mut mediation_identified_upper = Vec::new();
-    if let Some(grid) = result.mediation_grid.as_ref() {
+    if let Some(grid) = result.mediation_grid() {
         for slice in grid.slices.iter() {
             mediation_horizons.push(slice.horizon);
             mediation_effects.push(slice.estimate.effect.ate);
@@ -1929,9 +1929,9 @@ fn analysis_result_from_run(
         posterior_artifact: posterior_section.artifact.clone(),
         posterior_unidentified_mass: posterior_section.unidentified_mass,
         posterior_subsampled_out_mass: posterior_section.subsampled_out_mass,
-        mediation_total: result.mediation.as_ref().and_then(|m| m.total),
-        mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
-        mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        mediation_total: result.mediation().and_then(|m| m.total),
+        mediation_direct: result.mediation().and_then(|m| m.direct),
+        mediation_mediated: result.mediation().and_then(|m| m.mediated),
         mediation_horizons,
         mediation_effects,
         mediation_totals,
@@ -1946,7 +1946,7 @@ fn analysis_result_from_run(
         mediation_q975,
         mediation_identified_lower,
         mediation_identified_upper,
-        mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
+        mediation_joint_posterior: result.mediation_grid().map(|grid| grid.joint_posterior),
         identification,
         estimate,
         posterior: posterior_section,

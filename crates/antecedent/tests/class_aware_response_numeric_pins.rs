@@ -206,7 +206,7 @@ fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
                 .collect();
         }
     }
-    let response = result.response.as_ref().expect("class-aware response payload");
+    let response = result.response().expect("class-aware response payload");
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => match value {

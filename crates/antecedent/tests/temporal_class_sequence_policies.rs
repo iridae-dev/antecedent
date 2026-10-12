@@ -209,7 +209,7 @@ fn inferences() -> [InferenceMode; 2] {
 }
 
 fn class_surface(result: &antecedent::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("class sequence response");
+    let response = result.response().expect("class sequence response");
     match &response.estimate {
         ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(env)) => {
             env.lower.to_vec()

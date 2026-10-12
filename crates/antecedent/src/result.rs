@@ -620,6 +620,493 @@ pub struct InterferenceInference {
     pub to_exposed_clusters: usize,
 }
 
+/// The typed answer of one query family, published beside a result's scalar
+/// estimate.
+///
+/// A query produces one family of answer, so the families are variants rather
+/// than a row of optional fields of which at most one is set. The Bayesian
+/// posterior and the atom-level structural response accompany any family and
+/// live on [`StudyResult`] itself.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a result holds exactly one payload; boxing would change the public result API"
+)]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub enum ResultPayload {
+    /// Only the scalar estimate: an average effect, a conditional effect or a
+    /// path-specific effect.
+    #[default]
+    Scalar,
+    /// Function-valued causal response for
+    /// [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
+    Response(CausalResponse),
+    /// Full interventional distribution for
+    /// [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution).
+    Distribution(InterventionalDistributionEstimate),
+    /// Mediation decomposition and its horizon-indexed grid. The grid is
+    /// present for temporal mediation, including single-horizon results; it
+    /// does not imply a joint posterior.
+    Mediation {
+        /// Temporal / static mediation decomposition.
+        decomposition: Option<TemporalMediationEstimate>,
+        /// Horizon-indexed decomposition.
+        grid: Option<TemporalMediationGrid>,
+    },
+    /// Unit-level ITE for a counterfactual query.
+    Counterfactual(IteResult),
+    /// Anomaly scores for an anomaly-attribution query.
+    Anomaly(Vec<AnomalyScores>),
+    /// Change-attribution result.
+    ChangeAttribution(ChangeAttributionResult),
+    /// Mechanism-change detections.
+    MechanismChange(Vec<MechanismChangeDetection>),
+    /// Unit-change attribution.
+    UnitChange(UnitChangeResult),
+    /// Trial-to-target transport estimate.
+    Transport(TransportEffectEstimate),
+    /// Design-based interference estimate and its pointwise inference.
+    Interference {
+        /// Exposure-contrast estimate.
+        estimate: Option<InterferenceEstimate>,
+        /// Independent-cluster pointwise inference and observed exposure support.
+        inference: Option<InterferenceInference>,
+    },
+    /// Design-based intention-to-treat result for a randomized experiment query.
+    RandomizedEffect(RandomizedEffectEstimate),
+    /// Balanced two-period panel difference-in-differences result.
+    PanelDid(PanelDidEstimate),
+    /// Synthetic-control point result with donor and placebo diagnostics.
+    SyntheticControl(SyntheticControlEstimate),
+    /// Synthetic `DiD` point result and both fitted weight vectors.
+    SyntheticDid(SyntheticDidEstimate),
+    /// Fixed-bandwidth fuzzy RD or regression-kink point result.
+    LocalPolynomialRatio(LocalPolynomialRatioEstimate),
+    /// Held-out doubly robust policy evaluation; never an ATE.
+    PolicyValue(PolicyValueEstimate),
+    /// Conditional continuous-dose response grid; not a policy value.
+    ContinuousDoseResponse(ContinuousDoseResponseEstimate),
+    /// Randomized right-censored survival or competing-risk curve.
+    Survival(SurvivalEstimate),
+    /// Prespecified longitudinal regime value.
+    LongitudinalRegime(LongitudinalRegimeEstimate),
+}
+
+impl ResultPayload {
+    /// A mediation payload, or [`Self::Scalar`] when neither part is present.
+    #[must_use]
+    pub fn from_mediation(
+        decomposition: Option<TemporalMediationEstimate>,
+        grid: Option<TemporalMediationGrid>,
+    ) -> Self {
+        if decomposition.is_none() && grid.is_none() {
+            Self::Scalar
+        } else {
+            Self::Mediation { decomposition, grid }
+        }
+    }
+
+    /// An interference payload, or [`Self::Scalar`] when neither part is present.
+    #[must_use]
+    pub fn from_interference(
+        estimate: Option<InterferenceEstimate>,
+        inference: Option<InterferenceInference>,
+    ) -> Self {
+        if estimate.is_none() && inference.is_none() {
+            Self::Scalar
+        } else {
+            Self::Interference { estimate, inference }
+        }
+    }
+
+    /// The one payload among `candidates` that is present, or [`Self::Scalar`].
+    ///
+    /// A query produces one family of answer; more than one present candidate
+    /// is a producer bug, refused in debug builds.
+    #[must_use]
+    pub(crate) fn one_of<const N: usize>(candidates: [Option<Self>; N]) -> Self {
+        let mut present = candidates.into_iter().flatten();
+        let payload = present.next().unwrap_or(Self::Scalar);
+        debug_assert!(present.next().is_none(), "a result carries one payload family");
+        payload
+    }
+
+    /// Function-valued response.
+    #[must_use]
+    pub const fn response(&self) -> Option<&CausalResponse> {
+        match self {
+            Self::Response(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The function-valued response, consuming the payload.
+    #[must_use]
+    pub fn into_response(self) -> Option<CausalResponse> {
+        match self {
+            Self::Response(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `distribution` payload by value.
+    #[must_use]
+    pub fn into_distribution(self) -> Option<InterventionalDistributionEstimate> {
+        match self {
+            Self::Distribution(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `counterfactual` payload by value.
+    #[must_use]
+    pub fn into_counterfactual(self) -> Option<IteResult> {
+        match self {
+            Self::Counterfactual(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `change_attribution` payload by value.
+    #[must_use]
+    pub fn into_change_attribution(self) -> Option<ChangeAttributionResult> {
+        match self {
+            Self::ChangeAttribution(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `unit_change` payload by value.
+    #[must_use]
+    pub fn into_unit_change(self) -> Option<UnitChangeResult> {
+        match self {
+            Self::UnitChange(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `transport` payload by value.
+    #[must_use]
+    pub fn into_transport(self) -> Option<TransportEffectEstimate> {
+        match self {
+            Self::Transport(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `randomized_effect` payload by value.
+    #[must_use]
+    pub fn into_randomized_effect(self) -> Option<RandomizedEffectEstimate> {
+        match self {
+            Self::RandomizedEffect(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `panel_did` payload by value.
+    #[must_use]
+    pub fn into_panel_did(self) -> Option<PanelDidEstimate> {
+        match self {
+            Self::PanelDid(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `synthetic_control` payload by value.
+    #[must_use]
+    pub fn into_synthetic_control(self) -> Option<SyntheticControlEstimate> {
+        match self {
+            Self::SyntheticControl(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `synthetic_did` payload by value.
+    #[must_use]
+    pub fn into_synthetic_did(self) -> Option<SyntheticDidEstimate> {
+        match self {
+            Self::SyntheticDid(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `local_polynomial_ratio` payload by value.
+    #[must_use]
+    pub fn into_local_polynomial_ratio(self) -> Option<LocalPolynomialRatioEstimate> {
+        match self {
+            Self::LocalPolynomialRatio(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `policy_value` payload by value.
+    #[must_use]
+    pub fn into_policy_value(self) -> Option<PolicyValueEstimate> {
+        match self {
+            Self::PolicyValue(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `continuous_dose_response` payload by value.
+    #[must_use]
+    pub fn into_continuous_dose_response(self) -> Option<ContinuousDoseResponseEstimate> {
+        match self {
+            Self::ContinuousDoseResponse(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `survival` payload by value.
+    #[must_use]
+    pub fn into_survival(self) -> Option<SurvivalEstimate> {
+        match self {
+            Self::Survival(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `longitudinal_regime` payload by value.
+    #[must_use]
+    pub fn into_longitudinal_regime(self) -> Option<LongitudinalRegimeEstimate> {
+        match self {
+            Self::LongitudinalRegime(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The mediation decomposition by value.
+    #[must_use]
+    pub fn into_mediation(self) -> Option<TemporalMediationEstimate> {
+        match self {
+            Self::Mediation { decomposition, .. } => decomposition,
+            _ => None,
+        }
+    }
+
+    /// The mediation grid by value.
+    #[must_use]
+    pub fn into_mediation_grid(self) -> Option<TemporalMediationGrid> {
+        match self {
+            Self::Mediation { grid, .. } => grid,
+            _ => None,
+        }
+    }
+
+    /// Function-valued response, mutably.
+    pub const fn response_mut(&mut self) -> Option<&mut CausalResponse> {
+        match self {
+            Self::Response(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Mediation decomposition, mutably.
+    pub const fn mediation_mut(&mut self) -> Option<&mut TemporalMediationEstimate> {
+        match self {
+            Self::Mediation { decomposition, .. } => decomposition.as_mut(),
+            _ => None,
+        }
+    }
+
+    /// Interventional distribution.
+    #[must_use]
+    pub const fn distribution(&self) -> Option<&InterventionalDistributionEstimate> {
+        match self {
+            Self::Distribution(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Mediation decomposition.
+    #[must_use]
+    pub const fn mediation(&self) -> Option<&TemporalMediationEstimate> {
+        match self {
+            Self::Mediation { decomposition, .. } => decomposition.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Horizon-indexed mediation grid.
+    #[must_use]
+    pub const fn mediation_grid(&self) -> Option<&TemporalMediationGrid> {
+        match self {
+            Self::Mediation { grid, .. } => grid.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Unit-level ITE.
+    #[must_use]
+    pub const fn counterfactual(&self) -> Option<&IteResult> {
+        match self {
+            Self::Counterfactual(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Anomaly scores.
+    #[must_use]
+    pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
+        match self {
+            Self::Anomaly(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Change-attribution result.
+    #[must_use]
+    pub const fn change_attribution(&self) -> Option<&ChangeAttributionResult> {
+        match self {
+            Self::ChangeAttribution(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Mechanism-change detections.
+    #[must_use]
+    pub fn mechanism_change(&self) -> Option<&[MechanismChangeDetection]> {
+        match self {
+            Self::MechanismChange(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Unit-change attribution.
+    #[must_use]
+    pub const fn unit_change(&self) -> Option<&UnitChangeResult> {
+        match self {
+            Self::UnitChange(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Transport estimate.
+    #[must_use]
+    pub const fn transport(&self) -> Option<&TransportEffectEstimate> {
+        match self {
+            Self::Transport(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Interference estimate.
+    #[must_use]
+    pub const fn interference_estimate(&self) -> Option<&InterferenceEstimate> {
+        match self {
+            Self::Interference { estimate, .. } => estimate.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Interference pointwise inference and exposure support.
+    #[must_use]
+    pub const fn interference_inference(&self) -> Option<&InterferenceInference> {
+        match self {
+            Self::Interference { inference, .. } => inference.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Randomized-experiment result.
+    #[must_use]
+    pub const fn randomized_effect(&self) -> Option<&RandomizedEffectEstimate> {
+        match self {
+            Self::RandomizedEffect(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Panel difference-in-differences result.
+    #[must_use]
+    pub const fn panel_did(&self) -> Option<&PanelDidEstimate> {
+        match self {
+            Self::PanelDid(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Synthetic-control result.
+    #[must_use]
+    pub const fn synthetic_control(&self) -> Option<&SyntheticControlEstimate> {
+        match self {
+            Self::SyntheticControl(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Synthetic `DiD` result.
+    #[must_use]
+    pub const fn synthetic_did(&self) -> Option<&SyntheticDidEstimate> {
+        match self {
+            Self::SyntheticDid(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Fuzzy RD or regression-kink result.
+    #[must_use]
+    pub const fn local_polynomial_ratio(&self) -> Option<&LocalPolynomialRatioEstimate> {
+        match self {
+            Self::LocalPolynomialRatio(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Held-out policy value.
+    #[must_use]
+    pub const fn policy_value(&self) -> Option<&PolicyValueEstimate> {
+        match self {
+            Self::PolicyValue(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Continuous-dose response grid.
+    #[must_use]
+    pub const fn continuous_dose_response(&self) -> Option<&ContinuousDoseResponseEstimate> {
+        match self {
+            Self::ContinuousDoseResponse(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Survival or competing-risk curve.
+    #[must_use]
+    pub const fn survival(&self) -> Option<&SurvivalEstimate> {
+        match self {
+            Self::Survival(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Longitudinal regime value.
+    #[must_use]
+    pub const fn longitudinal_regime(&self) -> Option<&LongitudinalRegimeEstimate> {
+        match self {
+            Self::LongitudinalRegime(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Whether the family reports no calibrated scalar effect interval: its
+    /// uncertainty lives in a dedicated result section.
+    #[must_use]
+    pub const fn has_dedicated_uncertainty_section(&self) -> bool {
+        matches!(
+            self,
+            Self::RandomizedEffect(_)
+                | Self::SyntheticControl(_)
+                | Self::SyntheticDid(_)
+                | Self::LocalPolynomialRatio(_)
+                | Self::PolicyValue(_)
+                | Self::ContinuousDoseResponse(_)
+                | Self::Survival(_)
+                | Self::LongitudinalRegime(_)
+        )
+    }
+}
+
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -643,54 +1130,17 @@ pub struct StudyResult {
     /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
     /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
     pub estimate: PrimaryEstimate,
-    /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
-    pub response: Option<CausalResponse>,
     /// Structural atom/mass result for class-aware or graph-posterior responses.
     pub structural_response: Option<StructuralResponseMixture>,
-    /// Full interventional distribution when the query was
-    /// [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution).
-    pub distribution: Option<InterventionalDistributionEstimate>,
+    /// The typed answer the query family published beside the scalar estimate.
+    ///
+    /// Read it through [`Self::response`], [`Self::distribution`] and the other
+    /// accessors, or match on it directly. The Bayesian [`Self::posterior`] and
+    /// the atom [`Self::structural_response`] accompany any family and stay
+    /// outside it.
+    pub payload: ResultPayload,
     /// Bayesian posterior when `InferenceMode::Bayesian` was used.
     pub posterior: Option<CausalPosterior>,
-    /// Temporal / static mediation decomposition when the query was mediation.
-    pub mediation: Option<TemporalMediationEstimate>,
-    /// Horizon-indexed temporal mediation decomposition. Present for temporal
-    /// mediation, including single-horizon results; it does not imply a joint posterior.
-    pub mediation_grid: Option<TemporalMediationGrid>,
-    /// Unit-level ITE when the query was counterfactual.
-    pub counterfactual: Option<IteResult>,
-    /// Anomaly scores when the query was anomaly attribution.
-    pub anomaly: Option<Vec<AnomalyScores>>,
-    /// Change-attribution result.
-    pub change_attribution: Option<ChangeAttributionResult>,
-    /// Mechanism-change detections.
-    pub mechanism_change: Option<Vec<MechanismChangeDetection>>,
-    /// Unit-change attribution.
-    pub unit_change: Option<UnitChangeResult>,
-    /// Trial-to-target transport estimate when the query was transport.
-    pub transport: Option<TransportEffectEstimate>,
-    /// Design-based interference estimate when the query was interference.
-    pub interference: Option<InterferenceEstimate>,
-    /// Independent-cluster pointwise inference and observed exposure support.
-    pub interference_inference: Option<InterferenceInference>,
-    /// Design-based intention-to-treat result for a randomized experiment query.
-    pub randomized_effect: Option<RandomizedEffectEstimate>,
-    /// Balanced two-period panel difference-in-differences result.
-    pub panel_did: Option<PanelDidEstimate>,
-    /// Synthetic-control point result with donor and placebo diagnostics.
-    pub synthetic_control: Option<SyntheticControlEstimate>,
-    /// Synthetic `DiD` point result and both fitted weight vectors.
-    pub synthetic_did: Option<SyntheticDidEstimate>,
-    /// Fixed-bandwidth fuzzy RD or regression-kink point result.
-    pub local_polynomial_ratio: Option<LocalPolynomialRatioEstimate>,
-    /// Held-out doubly robust policy evaluation; never an ATE.
-    pub policy_value: Option<PolicyValueEstimate>,
-    /// Conditional continuous-dose response grid; not a policy value.
-    pub continuous_dose_response: Option<ContinuousDoseResponseEstimate>,
-    /// Randomized right-censored survival or competing-risk curve.
-    pub survival: Option<SurvivalEstimate>,
-    /// Prespecified longitudinal regime value.
-    pub longitudinal_regime: Option<LongitudinalRegimeEstimate>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Prior/posterior predictive check reports (Bayesian path; may be empty).
@@ -730,6 +1180,72 @@ pub struct StudyResult {
     /// Population bindings in force, when the query names a predicate or a
     /// custom target distribution. Encoding the query needs them.
     pub population_registry: Option<antecedent_core::PopulationRegistry>,
+}
+
+macro_rules! payload_accessors {
+    ($($name:ident, $into:ident: $ty:ty),* $(,)?) => {
+        impl StudyResult {
+            $(
+                #[doc = concat!("The `", stringify!($name), "` payload, when the query produced one.")]
+                #[must_use]
+                pub fn $name(&self) -> Option<&$ty> {
+                    self.payload.$name()
+                }
+
+                #[doc = concat!("The `", stringify!($name), "` payload by value, consuming the result.")]
+                #[must_use]
+                pub fn $into(self) -> Option<$ty> {
+                    self.payload.$into()
+                }
+            )*
+        }
+    };
+}
+
+payload_accessors! {
+    response, into_response: CausalResponse,
+    distribution, into_distribution: InterventionalDistributionEstimate,
+    mediation, into_mediation: TemporalMediationEstimate,
+    mediation_grid, into_mediation_grid: TemporalMediationGrid,
+    counterfactual, into_counterfactual: IteResult,
+    change_attribution, into_change_attribution: ChangeAttributionResult,
+    unit_change, into_unit_change: UnitChangeResult,
+    transport, into_transport: TransportEffectEstimate,
+    randomized_effect, into_randomized_effect: RandomizedEffectEstimate,
+    panel_did, into_panel_did: PanelDidEstimate,
+    synthetic_control, into_synthetic_control: SyntheticControlEstimate,
+    synthetic_did, into_synthetic_did: SyntheticDidEstimate,
+    local_polynomial_ratio, into_local_polynomial_ratio: LocalPolynomialRatioEstimate,
+    policy_value, into_policy_value: PolicyValueEstimate,
+    continuous_dose_response, into_continuous_dose_response: ContinuousDoseResponseEstimate,
+    survival, into_survival: SurvivalEstimate,
+    longitudinal_regime, into_longitudinal_regime: LongitudinalRegimeEstimate,
+}
+
+impl StudyResult {
+    /// Anomaly scores when the query was anomaly attribution.
+    #[must_use]
+    pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
+        self.payload.anomaly()
+    }
+
+    /// Mechanism-change detections.
+    #[must_use]
+    pub fn mechanism_change(&self) -> Option<&[MechanismChangeDetection]> {
+        self.payload.mechanism_change()
+    }
+
+    /// Design-based interference estimate when the query was interference.
+    #[must_use]
+    pub fn interference(&self) -> Option<&InterferenceEstimate> {
+        self.payload.interference_estimate()
+    }
+
+    /// Independent-cluster pointwise inference and observed exposure support.
+    #[must_use]
+    pub fn interference_inference(&self) -> Option<&InterferenceInference> {
+        self.payload.interference_inference()
+    }
 }
 
 /// Prepared contract a result was executed under.
@@ -1131,18 +1647,18 @@ impl StudyResult {
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
-        let panel_interval = self.panel_did.as_ref().is_some_and(|did| did.interval_95.is_some());
-        let randomized_cluster_interval = self.randomized_effect.as_ref().is_some_and(|fit| {
+        let panel_interval = self.panel_did().is_some_and(|did| did.interval_95.is_some());
+        let randomized_cluster_interval = self.randomized_effect().is_some_and(|fit| {
             fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster"
         });
         let base = if panel_interval || randomized_cluster_interval {
             "cluster"
-        } else if self.panel_did.is_some() {
+        } else if self.panel_did().is_some() {
             "iid"
         } else {
             self.base_dependence()
         };
-        if let Some(response) = &self.response {
+        if let Some(response) = self.response() {
             // A Bayesian response publishes credible bands; the draws behind a
             // band are in the referenced posterior artifact, not on the result.
             let posterior = bayesian || self.posterior.is_some();
@@ -1174,7 +1690,7 @@ impl StudyResult {
             }
             return binding;
         }
-        if let Some(distribution) = &self.distribution {
+        if let Some(distribution) = self.distribution() {
             if self.posterior.is_none() {
                 match distribution.mean_interval {
                     Some(antecedent_estimate::ProbabilityInterval::Bounded { level, .. }) => {
@@ -1294,7 +1810,7 @@ impl StudyResult {
     /// (`counterfactual.unit_effect_intervals`), when the execution formed them.
     #[must_use]
     pub fn unit_effect_interval_binding(&self) -> Option<IntervalBinding> {
-        let intervals = self.counterfactual.as_ref()?.unit_effect_intervals.as_ref()?;
+        let intervals = self.counterfactual()?.unit_effect_intervals.as_ref()?;
         let mut binding = IntervalBinding::new(
             antecedent_core::IntervalMethod::UnitPosteriorQuantile,
             intervals.level,
@@ -1309,7 +1825,7 @@ impl StudyResult {
     /// accompanies a pointwise band.
     #[must_use]
     pub fn simultaneous_band_binding(&self, bayesian: bool) -> Option<IntervalBinding> {
-        let response = self.response.as_ref()?;
+        let response = self.response()?;
         if matches!(
             response.uncertainty,
             antecedent_core::ResponseUncertainty::SimultaneousBand { .. }
@@ -1366,10 +1882,10 @@ impl StudyResult {
     /// exported artifact carry; the other contrasts are on [`Self::mediation`].
     #[must_use]
     pub fn effect(&self) -> f64 {
-        if let Some(dist) = &self.distribution {
+        if let Some(dist) = self.distribution() {
             return dist.mean;
         }
-        if let Some(cf) = &self.counterfactual {
+        if let Some(cf) = self.counterfactual() {
             return cf.mean_ite;
         }
         self.estimate.as_effect().map_or(f64::NAN, |estimate| estimate.ate)

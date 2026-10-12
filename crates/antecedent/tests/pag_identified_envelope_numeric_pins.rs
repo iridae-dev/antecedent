@@ -626,7 +626,7 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
                     .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| (a.min(v), b.max(v)));
                 assert!(max - min > 0.02, "{label}: the completions must disagree");
                 let ResponseIdentification::GraphDependent(atoms) =
-                    &hi.response.as_ref().unwrap().estimate
+                    &hi.response().unwrap().estimate
                 else {
                     panic!(
                         "{label}: an unidentified completion makes the response graph-dependent"
@@ -761,7 +761,7 @@ fn pag_identified_envelope_response_curve_pins_structural_contrast() {
                 let ResponseIdentification::PointIdentified(ResponseValue::Surface {
                     mean: curve,
                     ..
-                }) = &result.response.as_ref().unwrap().estimate
+                }) = &result.response().unwrap().estimate
                 else {
                     panic!("{label}: agreeing completions publish a point-identified curve");
                 };

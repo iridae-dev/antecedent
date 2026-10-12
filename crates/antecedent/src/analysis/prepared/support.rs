@@ -125,7 +125,7 @@ pub(super) fn overlay_prepared_score_functional(
         )?
     };
     if functional.quantile_level().is_some() {
-        if let Some(response) = &mut result.response {
+        if let Some(response) = result.payload.response_mut() {
             response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
                 antecedent_core::ResponseValue::Scalar(estimate.ate),
             );

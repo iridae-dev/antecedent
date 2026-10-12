@@ -181,19 +181,21 @@ impl CheckedContinuousDoseOperation {
                 )]),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
-        result.continuous_dose_response = Some(crate::ContinuousDoseResponseEstimate {
-            points: points.into(),
-            bandwidth: self.query.bandwidth,
-            density_provenance: self.query.density_provenance.clone(),
-            uncertainty: Arc::from(match &fixed_policy {
-                Some(value) if value.incremental_interval_95.is_some() => {
-                    "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
-                }
-                Some(_) => "fixed_group_kernel_smoothed_paired_variance_no_interval",
-                None => "point_only_no_interval",
-            }),
-            fixed_policy,
-        });
+        result.payload = crate::result::ResultPayload::ContinuousDoseResponse(
+            crate::ContinuousDoseResponseEstimate {
+                points: points.into(),
+                bandwidth: self.query.bandwidth,
+                density_provenance: self.query.density_provenance.clone(),
+                uncertainty: Arc::from(match &fixed_policy {
+                    Some(value) if value.incremental_interval_95.is_some() => {
+                        "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
+                    }
+                    Some(_) => "fixed_group_kernel_smoothed_paired_variance_no_interval",
+                    None => "point_only_no_interval",
+                }),
+                fixed_policy,
+            },
+        );
         if licensed_fixed_policy {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }

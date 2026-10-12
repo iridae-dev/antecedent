@@ -832,7 +832,7 @@ impl super::Study {
                 .identify_cached(identify_cached)
                 .wall_time_ns(elapsed_ns(started)),
             );
-            result.response = Some(response);
+            result.payload = crate::result::ResultPayload::Response(response);
             result.interval = None;
             result.posterior = None;
             result.diagnostics.push(Diagnostic::new(

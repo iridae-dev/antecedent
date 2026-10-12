@@ -55,7 +55,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let response = result.continuous_dose_response.as_ref().unwrap();
+    let response = result.continuous_dose_response().unwrap();
     assert!(response.points.is_empty());
     let value = response.fixed_policy.as_ref().unwrap();
     assert!((value.incremental_value - 0.7).abs() < 0.15);
@@ -190,7 +190,7 @@ fn externally_estimated_density_keeps_fixed_dose_value_point_only() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, None);
-    let value = result.continuous_dose_response.as_ref().unwrap().fixed_policy.as_ref().unwrap();
+    let value = result.continuous_dose_response().unwrap().fixed_policy.as_ref().unwrap();
     assert!(value.incremental_interval_95.is_none());
     assert!(value.policy_interval_95.is_none());
     assert!(value.reference_interval_95.is_none());

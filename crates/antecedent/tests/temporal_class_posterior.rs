@@ -974,7 +974,7 @@ fn temporal_class_graph_posterior_response_mixes() {
                     &format!("{kind:?}/{query_kind}/{draws:?}"),
                     draws,
                 );
-                assert!(result.response.is_some(), "{kind:?}");
+                assert!(result.response().is_some(), "{kind:?}");
                 let mixture = result.structural_response.as_ref().expect("class response mixture");
                 assert_eq!(mixture.weight_basis, StructuralWeightBasis::PosteriorProbability);
                 assert!(

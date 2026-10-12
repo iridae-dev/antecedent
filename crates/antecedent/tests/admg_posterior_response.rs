@@ -114,7 +114,7 @@ fn response_curve(t: VariableId, y: VariableId) -> ResponseQuery {
 }
 
 fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     match &response.estimate {
         antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Surface { mean, .. },

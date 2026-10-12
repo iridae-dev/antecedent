@@ -220,7 +220,7 @@ impl PreparedStudy {
             let graph = self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
                 message: "static mediation refute requires Dag",
             })?;
-            let mediation = prior.mediation.as_ref().ok_or(CausalError::Unsupported {
+            let mediation = prior.mediation().ok_or(CausalError::Unsupported {
                 message: "refute requires prior mediation result",
             })?;
             let mut result = prior.clone();

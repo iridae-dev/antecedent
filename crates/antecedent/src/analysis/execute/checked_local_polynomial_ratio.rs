@@ -124,22 +124,24 @@ impl CheckedLocalPolynomialRatioOperation {
                     ),
                 )]),
         );
-        result.local_polynomial_ratio = Some(crate::LocalPolynomialRatioEstimate {
-            effect: fit.estimate,
-            reduced_form: fit.reduced_form,
-            first_stage: fit.first_stage,
-            cutoff: self.query.cutoff,
-            bandwidth: self.query.bandwidth,
-            kink: self.query.kink,
-            n_left: fit.n_left,
-            n_right: fit.n_right,
-            standard_error: fit.standard_error,
-            ci_lower: interval_available.then_some(fit.ci_lower),
-            ci_upper: interval_available.then_some(fit.ci_upper),
-            reduced_form_standard_error: fit.reduced_form_standard_error,
-            first_stage_standard_error: fit.first_stage_standard_error,
-            uncertainty: Arc::from("rbc_hc0_delta_normal_fixed_bandwidth"),
-        });
+        result.payload = crate::result::ResultPayload::LocalPolynomialRatio(
+            crate::LocalPolynomialRatioEstimate {
+                effect: fit.estimate,
+                reduced_form: fit.reduced_form,
+                first_stage: fit.first_stage,
+                cutoff: self.query.cutoff,
+                bandwidth: self.query.bandwidth,
+                kink: self.query.kink,
+                n_left: fit.n_left,
+                n_right: fit.n_right,
+                standard_error: fit.standard_error,
+                ci_lower: interval_available.then_some(fit.ci_lower),
+                ci_upper: interval_available.then_some(fit.ci_upper),
+                reduced_form_standard_error: fit.reduced_form_standard_error,
+                first_stage_standard_error: fit.first_stage_standard_error,
+                uncertainty: Arc::from("rbc_hc0_delta_normal_fixed_bandwidth"),
+            },
+        );
         // Graphless license handshake: the estimator's own weak-first-stage and
         // bandwidth-support screens already gate `interval_available`; the license
         // only confirms the exact family/design/method and the retained local

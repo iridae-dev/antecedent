@@ -443,7 +443,7 @@ fn temporal_class_response_returns_completion_identified_set() {
                 assert_eq!(envelope.dimension, if kind == "curve" { 2 } else { 1 });
                 assert_eq!(envelope.lower.len(), evals.len() * horizons.len());
                 assert!(matches!(
-                    result.response.as_ref().unwrap().estimate,
+                    result.response().unwrap().estimate,
                     ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
                         | ResponseIdentification::GraphDependent(_)
                 ));

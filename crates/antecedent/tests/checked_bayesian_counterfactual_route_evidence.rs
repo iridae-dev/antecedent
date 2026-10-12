@@ -61,7 +61,7 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         assert_eq!(plan.graph().edges().count(), 1);
 
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let counterfactual = result.counterfactual.as_ref().unwrap();
+        let counterfactual = result.counterfactual().unwrap();
         assert!(
             (counterfactual.mean_ite - 2.0).abs() < 0.12,
             "accepted={accepted}: {counterfactual:?}"
@@ -82,7 +82,7 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
 
         let (refreshed_data, _) = fixture(2.5);
         let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-        let refreshed_mean = refreshed.counterfactual.as_ref().unwrap().mean_ite;
+        let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
         assert!((refreshed_mean - 2.5).abs() < 0.12, "mean_ite={refreshed_mean}");
         assert!(prepared.checked_counterfactual_operation().is_some());
 

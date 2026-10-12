@@ -119,7 +119,7 @@ impl super::Study {
                     });
                 }
                 Some(Ok(result)) => {
-                    let Some(response) = result.response else {
+                    let Some(response) = result.payload.into_response() else {
                         failed_mass += weight;
                         atoms.push(StructuralResponseAtom {
                             posterior: None,

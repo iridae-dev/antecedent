@@ -740,7 +740,7 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
         &fresh,
         StructuralAggregationPolicy::SameEstimandWeightedMean,
     ));
-    let mediation = fresh.mediation.as_ref().expect("mediation envelope");
+    let mediation = fresh.mediation().expect("mediation envelope");
     assert!((mediation.effect.ate - fresh.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     if suite != RefuteSuite::None {
         assert!(!click.refutations.is_empty());
@@ -846,7 +846,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
             .iter()
             .all(|d| d.code.as_ref() != "estimate.dbn_posterior.mediation.uncertainty_withheld")
     );
-    let grid = fresh.mediation_grid.as_ref().expect("mediation grid");
+    let grid = fresh.mediation_grid().expect("mediation grid");
     let slice = &grid.slices[0];
     match &slice.uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
@@ -874,7 +874,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(identified_atoms.len(), 1);
     assert!((identified_atoms[0].weight - identified_truth).abs() < 1e-12);
 
-    let mediation = fresh.mediation.as_ref().expect("Frequentist DBN mediation envelope");
+    let mediation = fresh.mediation().expect("Frequentist DBN mediation envelope");
     assert!((mediation.effect.ate - fresh.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     assert!((mediation.mediated.unwrap() - fresh.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     // OLS product-of-coefficients identity on the shared regressors.
@@ -914,7 +914,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replic
             .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.uncertainty_withheld")
     );
     assert!(matches!(
-        result.mediation_grid.as_ref().unwrap().slices[0].uncertainty,
+        result.mediation_grid().unwrap().slices[0].uncertainty,
         antecedent_estimate::TemporalMediationUncertainty::Unavailable
     ));
 }
@@ -1084,7 +1084,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     let mut unblocked = result.clone();
     unblocked.estimate.as_effect_mut().unwrap().block_family = None;
     assert_eq!(unblocked.primary_interval_binding(false).dependence, "serial_unmodelled");
-    match &result.mediation_grid.as_ref().unwrap().slices[0].uncertainty {
+    match &result.mediation_grid().unwrap().slices[0].uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
             requested,
             block,
@@ -1154,9 +1154,9 @@ fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
         .unwrap()
         .run(&ExecutionContext::for_tests(43))
         .unwrap();
-    assert_eq!(result.mediation_grid.as_ref().unwrap().slices.len(), 2);
+    assert_eq!(result.mediation_grid().unwrap().slices.len(), 2);
     assert!(result.posterior.is_none());
-    assert!(result.mediation.is_none());
+    assert!(result.mediation().is_none());
 }
 
 /// Two atoms, both genuinely identified (no autoregressive / not-certified
@@ -1276,7 +1276,7 @@ fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
             return response_value_points(value);
         }
     }
-    let response = result.response.as_ref().expect("response");
+    let response = result.response().expect("response");
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => response_value_points(value),

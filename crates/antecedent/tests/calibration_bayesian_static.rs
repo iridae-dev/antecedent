@@ -816,7 +816,7 @@ fn distribution_case(
             if rep == 0 {
                 check_estimator(&result, cell);
             }
-            let dist = result.distribution.as_ref()?;
+            let dist = result.distribution()?;
             let posterior = result.posterior.as_ref()?;
             let offset = usize::from(posterior.effect_column().is_some());
             let atom = dist.atoms.iter().position(|a| a.outcomes[0].1.as_f64() == Some(1.0))?;

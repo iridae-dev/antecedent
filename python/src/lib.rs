@@ -1688,7 +1688,7 @@ pub(crate) fn shared_study_sections(
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let (distribution_atoms, mean_interval) =
-        distribution_sections(names, result.distribution.as_ref());
+        distribution_sections(names, result.distribution());
     let overlap_ess = estimate.overlap_report.as_ref().and_then(|r| r.ess);
     let overlap_propensity_min = estimate.overlap_report.as_ref().map(|r| r.propensity_min);
     let estimate = EstimateSection {
@@ -1717,7 +1717,7 @@ pub(crate) fn shared_study_sections(
         exceedance_cdf: estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
         monotone_rearranged: estimate.monotone_rearranged,
         interaction_structurally_zero: result
-            .response
+            .response()
             .as_ref()
             .map(|r| r.interaction_structurally_zero)
             .or(Some(estimate.interaction_structurally_zero)),

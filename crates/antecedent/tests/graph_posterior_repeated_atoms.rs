@@ -258,7 +258,7 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
         );
         assert!((mixed - ref_mixed).abs() < 1e-12);
         if matches!(inference, InferenceMode::Frequentist) {
-            let se = |r: &StudyResult| match r.response.as_ref().unwrap().uncertainty {
+            let se = |r: &StudyResult| match r.response().unwrap().uncertainty {
                 ResponseUncertainty::Scalar { standard_error, .. } => standard_error,
                 ref other => panic!("joint-IF scalar interval expected, got {other:?}"),
             };

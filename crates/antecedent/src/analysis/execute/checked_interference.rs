@@ -608,8 +608,8 @@ impl CheckedInterferenceOperation {
             .extra_diagnostics(vec![diagnostic])
             .wall_time_ns(elapsed_ns(started)),
         );
-        result.interference = estimated;
-        result.interference_inference = interference_inference;
+        result.payload =
+            crate::result::ResultPayload::from_interference(estimated, interference_inference);
         result.posterior = posterior;
         Ok(result)
     }
@@ -1001,7 +1001,7 @@ mod checked_interference_tests {
         let result = operation.execute(&data, &context()).unwrap();
         assert!((result.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
         assert!((result.estimate.as_effect().unwrap().se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
-        let interference = result.interference.as_ref().unwrap();
+        let interference = result.interference().unwrap();
         assert_eq!(interference.minimum_exposure_probability, 0.5);
         let wire = antecedent_io::interference_estimate_to_wire(interference);
         assert_eq!(antecedent_io::interference_estimate_from_wire(&wire), *interference);
@@ -1068,7 +1068,7 @@ mod checked_interference_tests {
         let se = truth["expected"]["conservative_variance"].as_f64().unwrap().sqrt();
         assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-12);
         assert!((result.estimate.as_effect().unwrap().se_analytic - se).abs() < 1e-12);
-        assert!(result.interference.is_some());
+        assert!(result.interference().is_some());
         assert!(result.posterior.is_none());
     }
 
@@ -1123,7 +1123,7 @@ mod checked_interference_tests {
             posterior.summaries.mean[0]
         );
         assert_eq!(operation.procedure().1, EstimatorId::InterferenceBayesianGaussian);
-        assert!(result.interference.is_none());
+        assert!(result.interference().is_none());
     }
 
     #[test]

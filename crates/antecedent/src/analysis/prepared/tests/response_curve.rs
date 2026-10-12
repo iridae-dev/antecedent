@@ -83,8 +83,8 @@ fn prepared_curve_refresh_matches_independent_numeric_estimate() {
         crate::analysis::prepared::PreparedExecution::StaticDagResponse(_)
     ));
     let refreshed = data(0.4);
-    let actual = prepared.refresh(refreshed.clone(), &context).unwrap().response.unwrap();
-    let expected = study(refreshed, &grid).run(&context).unwrap().response.unwrap();
+    let actual = prepared.refresh(refreshed.clone(), &context).unwrap().into_response().unwrap();
+    let expected = study(refreshed, &grid).run(&context).unwrap().into_response().unwrap();
     assert_eq!(actual, expected);
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },

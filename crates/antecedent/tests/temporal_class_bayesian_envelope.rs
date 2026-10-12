@@ -666,7 +666,7 @@ fn temporal_class_observation_does_not_reuse_complete_band() {
         .unwrap()
         .run(&ExecutionContext::for_tests(13))
         .unwrap();
-    let response = result.response.as_ref().expect("class observation response");
+    let response = result.response().expect("class observation response");
     assert!(matches!(response.uncertainty, antecedent_core::ResponseUncertainty::None));
     let carries_claim = |set: &AssumptionSet| {
         set.entries.iter().any(|record| {
@@ -1179,7 +1179,7 @@ fn frequentist_class_curve_replicates_ride_the_atoms() {
         .unwrap()
         .run(&ExecutionContext::for_tests(29))
         .unwrap();
-    let response = result.response.as_ref().expect("class curve");
+    let response = result.response().expect("class curve");
     assert!(matches!(response.uncertainty, ResponseUncertainty::None));
     let structural = result.structural_response.as_ref().unwrap();
     assert_eq!(structural.atoms.len(), 4);
@@ -1788,7 +1788,7 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
         .unwrap()
         .run(&ExecutionContext::for_tests(seed.wrapping_add(2)))
         .unwrap();
-    assert!(curve.response.is_some());
+    assert!(curve.response().is_some());
     assert_ne!(curve.identification.status, IdentificationStatus::NotIdentified);
 
     let mapped = Study::series(series_xyw(n))
@@ -1855,7 +1855,7 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
                 result.certificate.as_ref().expect("certificate").graph_class,
                 antecedent::GraphClass::TemporalCpdag
             );
-            assert!(result.mediation.is_some() || result.mediation_grid.is_some());
+            assert!(result.mediation().is_some() || result.mediation_grid().is_some());
         }
         Err(error) => {
             assert!(

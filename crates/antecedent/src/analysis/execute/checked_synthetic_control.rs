@@ -193,48 +193,51 @@ impl CheckedSyntheticControlOperation {
                     ),
                 )]),
         );
-        result.synthetic_control = Some(crate::SyntheticControlEstimate {
-            effect,
-            pre_treatment_rmse: fit.pre_treatment_rmse,
-            donor_weights: fit
-                .donor_weights
-                .into_iter()
-                .map(|(unit, weight)| (Arc::<str>::from(unit), weight))
-                .collect(),
-            placebo_effects: fit.placebo_effects.into(),
-            placebo_rank: fit.placebo_rank,
-            effective_donors,
-            n_pre_periods: fit.n_pre_periods,
-            n_post_periods: fit.n_post_periods,
-            uncertainty: Arc::from(if augmentation.is_some() {
-                if randomization.is_some() {
-                    "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+        result.payload =
+            crate::result::ResultPayload::SyntheticControl(crate::SyntheticControlEstimate {
+                effect,
+                pre_treatment_rmse: fit.pre_treatment_rmse,
+                donor_weights: fit
+                    .donor_weights
+                    .into_iter()
+                    .map(|(unit, weight)| (Arc::<str>::from(unit), weight))
+                    .collect(),
+                placebo_effects: fit.placebo_effects.into(),
+                placebo_rank: fit.placebo_rank,
+                effective_donors,
+                n_pre_periods: fit.n_pre_periods,
+                n_post_periods: fit.n_post_periods,
+                uncertainty: Arc::from(if augmentation.is_some() {
+                    if randomization.is_some() {
+                        "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+                    } else {
+                        "point_only_augmented_no_interval"
+                    }
+                } else if randomization.is_some() {
+                    "point_only_with_exact_unit_randomization_p_value_no_interval"
                 } else {
-                    "point_only_augmented_no_interval"
-                }
-            } else if randomization.is_some() {
-                "point_only_with_exact_unit_randomization_p_value_no_interval"
-            } else {
-                "point_only_with_unlicensed_placebo_rank"
-            }),
-            randomization_p_value: randomization.as_ref().map(|test| test.p_value),
-            randomization_null_effect: randomization
-                .as_ref()
-                .map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
-            randomization_statistics: randomization.map_or_else(
-                || Arc::from([]),
-                |test| {
-                    test.statistics
-                        .into_iter()
-                        .map(|(unit, statistic)| (Arc::<str>::from(unit), statistic))
-                        .collect::<Vec<_>>()
-                        .into()
-                },
-            ),
-            unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
-            outcome_model_correction: augmentation.as_ref().map(|fit| fit.outcome_model_correction),
-            augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
-        });
+                    "point_only_with_unlicensed_placebo_rank"
+                }),
+                randomization_p_value: randomization.as_ref().map(|test| test.p_value),
+                randomization_null_effect: randomization
+                    .as_ref()
+                    .map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
+                randomization_statistics: randomization.map_or_else(
+                    || Arc::from([]),
+                    |test| {
+                        test.statistics
+                            .into_iter()
+                            .map(|(unit, statistic)| (Arc::<str>::from(unit), statistic))
+                            .collect::<Vec<_>>()
+                            .into()
+                    },
+                ),
+                unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
+                outcome_model_correction: augmentation
+                    .as_ref()
+                    .map(|fit| fit.outcome_model_correction),
+                augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
+            });
         result.treatment = None;
         Ok(result)
     }
@@ -304,7 +307,7 @@ impl CheckedSyntheticControlOperation {
                     ),
                 )]),
         );
-        result.synthetic_did = Some(crate::SyntheticDidEstimate {
+        result.payload = crate::result::ResultPayload::SyntheticDid(crate::SyntheticDidEstimate {
             effect: fit.effect,
             pre_treatment_rmse: fit.pre_treatment_rmse,
             donor_weights: fit

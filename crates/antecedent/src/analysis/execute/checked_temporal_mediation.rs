@@ -509,10 +509,8 @@ mod tests {
                         "accepted={accepted} bayesian={bayesian} validation={validation:?}: {}",
                         result.estimate.as_effect().unwrap().ate
                     );
-                    let grid = result
-                        .mediation_grid
-                        .as_ref()
-                        .expect("pointwise horizon contract retained");
+                    let grid =
+                        result.mediation_grid().expect("pointwise horizon contract retained");
                     assert_eq!(grid.slices.len(), 1);
                     assert!(!grid.joint_posterior);
                     assert_eq!(result.posterior.is_some(), bayesian);

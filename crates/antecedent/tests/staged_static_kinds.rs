@@ -100,7 +100,7 @@ fn static_kinds_known_truth() {
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.03);
     assert_eq!(cf.unit_effects.len(), 500);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
@@ -363,7 +363,7 @@ fn confounded_static_kinds_are_not_the_observational_association() {
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.03);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
     assert!((cf.mean_ite - naive_ite).abs() > pin["tolerance"].as_f64().unwrap());
@@ -427,8 +427,8 @@ fn accepted_counterfactual_matches_explicit() {
     assert_eq!(accepted.structure_source, antecedent::StructureSource::Accepted);
     assert_eq!(explicit.structure_source, antecedent::StructureSource::Explicit);
     assert_eq!(accepted.logical_plan.estimator.as_deref(), Some("gcm.fit"));
-    let explicit_cf = explicit.counterfactual.as_ref().unwrap();
-    let accepted_cf = accepted.counterfactual.as_ref().unwrap();
+    let explicit_cf = explicit.counterfactual().unwrap();
+    let accepted_cf = accepted.counterfactual().unwrap();
     assert!((accepted_cf.mean_ite - explicit_cf.mean_ite).abs() < 1e-12);
     assert_eq!(accepted_cf.unit_effects, explicit_cf.unit_effects);
     assert!(accepted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));

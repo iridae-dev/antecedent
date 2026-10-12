@@ -190,7 +190,7 @@ pub use result::{
     AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract,
     LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,
     PanelDidEstimate, PolicyValueEstimate, PrimaryEstimate, PublishedScalarUncertainty,
-    RandomizedEffectEstimate, RowWeightsBinding, StructuralAggregationPolicy,
+    RandomizedEffectEstimate, ResultPayload, RowWeightsBinding, StructuralAggregationPolicy,
     StructuralWeightBasis, StudyResult, SurvivalEstimate, SyntheticControlEstimate,
     SyntheticDidEstimate,
 };
@@ -310,7 +310,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(3);
         let result = analysis.run(&ctx).unwrap();
         assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-6);
-        assert!(result.distribution.is_none());
+        assert!(result.distribution().is_none());
         assert_eq!(result.refutations.len(), 2);
         assert!(!result.provenance.is_empty());
         assert!(!result.identification.derivation.steps.is_empty());
@@ -563,7 +563,7 @@ mod tests {
         assert_eq!(fx["method"], "general.id");
         assert_eq!(fx["estimator"], "functional.distribution");
         let (mean, tol) = (fx["mean"].as_f64().unwrap(), fx["tolerance"].as_f64().unwrap());
-        let dist = result.distribution.as_ref().expect("distribution payload");
+        let dist = result.distribution().expect("distribution payload");
         assert!((dist.mean - mean).abs() < tol, "mean={}", dist.mean);
         assert!(result.estimate.as_effect().unwrap().ate.is_finite());
         // Every atom probability carries a bounded interval inside [0, 1], and
@@ -595,7 +595,7 @@ mod tests {
             (1.0, 0.0, 1.0, 8),
             (1.0, 1.0, 0.0, 30),
         ]);
-        let dist = result.distribution.as_ref().expect("distribution payload");
+        let dist = result.distribution().expect("distribution payload");
         assert_eq!(dist.atom_uncertainty.len(), dist.atoms.len());
         for u in dist.atom_uncertainty.iter() {
             assert_eq!(

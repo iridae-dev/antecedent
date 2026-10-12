@@ -271,7 +271,7 @@ impl SurfaceTallies {
         let mut tallies: Vec<&mut CoverageTally> =
             self.cells.iter_mut().chain(std::iter::once(&mut self.simultaneous)).collect();
         bind_all(&mut tallies, study, result);
-        self.record(result.response.as_ref().expect("response"), truth);
+        self.record(result.response().expect("response"), truth);
     }
 
     fn record(&mut self, response: &antecedent_core::CausalResponse, truth: &[f64]) {
@@ -571,13 +571,13 @@ fn frequentist_curve_tallies(
         // Zero replicates publish no band: the analytic band would treat
         // lag-aligned rows as independent.
         assert!(
-            pointwise(analytic_result.response.as_ref().expect("surface")).is_none(),
+            pointwise(analytic_result.response().expect("surface")).is_none(),
             "zero replicates must not publish the analytic band"
         );
         run_result
     });
     for (study, result) in &runs {
-        disclosed.record(result.response.as_ref().expect("surface"));
+        disclosed.record(result.response().expect("surface"));
         boot.record_bound(study, result, &truth);
     }
     (boot.all(), disclosed)
@@ -719,8 +719,8 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
         )
     };
     let (iid, persistent) = (fit(0.0, BOOT), fit(0.9, BOOT));
-    let iid = iid.response.as_ref().expect("surface");
-    let persistent = persistent.response.as_ref().expect("surface");
+    let iid = iid.response().expect("surface");
+    let persistent = persistent.response().expect("surface");
     let (short, long) = (block_length_record(iid), block_length_record(persistent));
     assert!(short[0] >= short[1], "the sqrt(n) rule is a floor: {short:?}");
     assert!(long[0] > long[1], "a persistent treatment must lengthen the blocks: {long:?}");
@@ -742,7 +742,7 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
         assert!(!warns_short_series(response));
     }
     let withheld = fit(0.9, 0);
-    let withheld = withheld.response.as_ref().expect("surface");
+    let withheld = withheld.response().expect("surface");
     assert!(pointwise(withheld).is_none());
     assert!(!discloses_persistence_boundary(withheld), "no band, no band disclosure");
     assert!(diagnostic(withheld, "response.temporal.block_length").is_none());
@@ -776,8 +776,8 @@ fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment(
         )
     };
     let (iid, persistent) = (fit(N, 0.0), fit(60, 0.9));
-    let iid = iid.response.as_ref().expect("shift response");
-    let persistent = persistent.response.as_ref().expect("shift response");
+    let iid = iid.response().expect("shift response");
+    let persistent = persistent.response().expect("shift response");
     let factor = |r: &antecedent_core::CausalResponse| {
         diagnostic(r, "response.temporal.kernel_bias_factor").expect("factor")[0]
     };
@@ -877,9 +877,9 @@ fn persistent_treatment_tallies(
         (curve_run, shift_run)
     });
     for ((curve_study, curve_result), (shift_study, shift_result)) in &runs {
-        curve_disclosed.record(curve_result.response.as_ref().expect("surface"));
+        curve_disclosed.record(curve_result.response().expect("surface"));
         curve.record_bound(curve_study, curve_result, &curve_truth);
-        shift_disclosed.record(shift_result.response.as_ref().expect("intervention path"));
+        shift_disclosed.record(shift_result.response().expect("intervention path"));
         intervention.record_bound(shift_study, shift_result, &shift_truth);
     }
     (curve.all(), intervention.all(), curve_disclosed, shift_disclosed)
@@ -1011,7 +1011,7 @@ fn frequentist_intervention_coverage(
         )
     });
     for (study, result) in &runs {
-        assert!(result.response.is_some(), "intervention path");
+        assert!(result.response().is_some(), "intervention path");
         boot.record_bound(study, result, &truth);
     }
     match (measured, at) {
@@ -1109,7 +1109,7 @@ fn frequentist_sequence_coverage(
         )
     });
     for (study, result) in &runs {
-        assert!(result.response.is_some(), "Sequence path");
+        assert!(result.response().is_some(), "Sequence path");
         boot.record_bound(study, result, &SEQUENCE_TRUTH);
     }
     match measured {
@@ -1181,7 +1181,7 @@ fn bayesian_intervention_coverage(
             0,
             seed,
         );
-        let response = result.response.as_ref().expect("Bayesian intervention path");
+        let response = result.response().expect("Bayesian intervention path");
         if s == 0 {
             let per_horizon = response.horizon_identification.as_ref().expect("I(h)");
             assert!(per_horizon.iter().all(|h| h.adjustment.is_empty()), "{per_horizon:?}");
@@ -1267,7 +1267,7 @@ fn observation_coverage(
         )
     });
     for (study, result) in &runs {
-        let response = result.response.as_ref().expect("observation-adjusted surface");
+        let response = result.response().expect("observation-adjusted surface");
         assert_eq!(
             response.provenance_id.as_ref(),
             "estimate.temporal_response.observation_adjusted"
@@ -1384,7 +1384,7 @@ fn observation_sequence_coverage(
         )
     });
     for (study, result) in &runs {
-        let response = result.response.as_ref().expect("observation-adjusted Sequence");
+        let response = result.response().expect("observation-adjusted Sequence");
         assert_eq!(
             response.provenance_id.as_ref(),
             "estimate.temporal_response.observation_adjusted"
@@ -1471,7 +1471,7 @@ fn horizon_dependent_coverage(
                 "the fixture must exercise horizon-dependent identification"
             );
             let per_horizon = result
-                .response
+                .response()
                 .as_ref()
                 .and_then(|r| r.horizon_identification.as_ref())
                 .expect("I(h)");
@@ -1492,13 +1492,13 @@ fn horizon_dependent_coverage(
         // Zero replicates publish no band: the analytic band would treat
         // lag-aligned rows as independent.
         assert!(
-            pointwise(analytic_result.response.as_ref().expect("surface")).is_none(),
+            pointwise(analytic_result.response().expect("surface")).is_none(),
             "zero replicates must not publish the analytic band"
         );
         (study, result)
     });
     for (study, result) in &runs {
-        assert!(result.response.is_some(), "surface");
+        assert!(result.response().is_some(), "surface");
         boot.record_bound(study, result, &truth);
     }
     match measured {
@@ -1593,10 +1593,7 @@ fn class_atom_coverage(
         let z_bar = *z_bar;
         let structural = result.structural_response.as_ref().expect("identified set");
         assert!(
-            matches!(
-                result.response.as_ref().map(|r| &r.uncertainty),
-                Some(ResponseUncertainty::None)
-            ),
+            matches!(result.response().map(|r| &r.uncertainty), Some(ResponseUncertainty::None)),
             "the class response publishes no class-level band"
         );
         let mut seen_this_replicate: Vec<Vec<TemporalNodeKey>> = Vec::new();

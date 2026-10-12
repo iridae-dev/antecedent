@@ -296,7 +296,7 @@ fn same_design_sustained_and_response_curve_ride_staged_path() {
         .unwrap();
     let prepared = analysis.prepare(&ctx).unwrap();
     let clicked = prepared.estimate_series(&curve_series, &ctx).unwrap();
-    assert!(clicked.response.is_some(), "temporal ResponseCurve must estimate under transfer");
+    assert!(clicked.response().is_some(), "temporal ResponseCurve must estimate under transfer");
 }
 
 #[test]

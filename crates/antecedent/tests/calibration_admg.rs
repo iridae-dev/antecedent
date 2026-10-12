@@ -302,7 +302,7 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
         .expect("the Bayesian distribution coordinate runs");
     let posterior = dist.posterior.as_ref().unwrap();
     let col = posterior.effect_column().unwrap();
-    let atoms = &dist.distribution.as_ref().unwrap().atoms;
+    let atoms = &dist.distribution().unwrap().atoms;
     let one = atoms.iter().position(|a| a.outcomes[0].1.as_f64() == Some(1.0)).unwrap();
     assert_eq!(
         posterior.draws.column(col).unwrap(),

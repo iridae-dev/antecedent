@@ -365,15 +365,8 @@ impl PreparedStudy {
                 identification: cache.identification.clone(),
                 estimand: cache.estimand.clone(),
                 estimate,
-                distribution: None,
                 posterior: None,
-                mediation: None,
-                mediation_grid: None,
-                counterfactual: None,
-                anomaly: None,
-                change_attribution: None,
-                mechanism_change: None,
-                unit_change: None,
+                payload: crate::result::ResultPayload::Scalar,
                 refutations: Vec::new(),
                 diagnostics,
                 provenance: antecedent_contract::ProvenanceGraph::new(),
@@ -414,46 +407,53 @@ impl PreparedStudy {
             result.row_weights = Some(binding);
         }
         if let CausalQuery::Response(q) = &self.analysis.query {
-            result.response = Some(antecedent_core::CausalResponse {
-                estimand: q.functional.clone(),
-                identification_status: cache.identification.status,
-                estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                    antecedent_core::ResponseValue::Scalar(
-                        result.estimate.as_effect().map(|effect| effect.ate).unwrap_or(f64::NAN),
+            result.payload =
+                crate::result::ResultPayload::Response(antecedent_core::CausalResponse {
+                    estimand: q.functional.clone(),
+                    identification_status: cache.identification.status,
+                    estimate: antecedent_core::ResponseIdentification::PointIdentified(
+                        antecedent_core::ResponseValue::Scalar(
+                            result
+                                .estimate
+                                .as_effect()
+                                .map(|effect| effect.ate)
+                                .unwrap_or(f64::NAN),
+                        ),
                     ),
-                ),
-                uncertainty: antecedent_core::ResponseUncertainty::Scalar {
-                    standard_error: result
-                        .estimate
-                        .as_effect()
-                        .map(|effect| effect.se_analytic)
-                        .unwrap_or(f64::NAN),
-                    lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
-                        effect.ate - crate::result::reported_se_interval_z() * effect.se_analytic
-                    }),
-                    upper: result.estimate.as_effect().map_or(f64::NAN, |effect| {
-                        effect.ate + crate::result::reported_se_interval_z() * effect.se_analytic
-                    }),
-                    level: 0.95,
-                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                    draws: None,
-                },
-                support: antecedent_core::SupportReport {
-                    status: antecedent_core::SupportStatus::Supported,
-                    query_region: antecedent_core::SupportRegion {
-                        minima: Arc::from([]),
-                        maxima: Arc::from([]),
+                    uncertainty: antecedent_core::ResponseUncertainty::Scalar {
+                        standard_error: result
+                            .estimate
+                            .as_effect()
+                            .map(|effect| effect.se_analytic)
+                            .unwrap_or(f64::NAN),
+                        lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
+                            effect.ate
+                                - crate::result::reported_se_interval_z() * effect.se_analytic
+                        }),
+                        upper: result.estimate.as_effect().map_or(f64::NAN, |effect| {
+                            effect.ate
+                                + crate::result::reported_se_interval_z() * effect.se_analytic
+                        }),
+                        level: 0.95,
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        draws: None,
                     },
-                    diagnostics: Vec::new(),
-                    warnings: Vec::new(),
-                    // Same single-coordinate label as the solo cell route.
-                    point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
-                },
-                assumptions: cache.identification.required_assumptions.clone(),
-                provenance_id: Arc::from("estimate.cell.aipw.retarget"),
-                horizon_identification: None,
-                interaction_structurally_zero: false,
-            });
+                    support: antecedent_core::SupportReport {
+                        status: antecedent_core::SupportStatus::Supported,
+                        query_region: antecedent_core::SupportRegion {
+                            minima: Arc::from([]),
+                            maxima: Arc::from([]),
+                        },
+                        diagnostics: Vec::new(),
+                        warnings: Vec::new(),
+                        // Same single-coordinate label as the solo cell route.
+                        point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
+                    },
+                    assumptions: cache.identification.required_assumptions.clone(),
+                    provenance_id: Arc::from("estimate.cell.aipw.retarget"),
+                    horizon_identification: None,
+                    interaction_structurally_zero: false,
+                });
         }
         result.rebind_interval(matches!(self.analysis.inference, InferenceMode::Bayesian(_)));
         result.support_status = self.analysis.support_status;

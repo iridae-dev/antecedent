@@ -63,7 +63,7 @@ fn fixture() -> (TabularData, Admg, ResponseQuery) {
 }
 
 fn means(result: &antecedent::StudyResult) -> &[f64] {
-    match &result.response.as_ref().expect("response result").estimate {
+    match &result.response().expect("response result").estimate {
         antecedent_core::ResponseIdentification::PointIdentified(ResponseValue::Surface {
             mean,
             ..
@@ -208,7 +208,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         // The frequentist general-ID curve now publishes a pointwise confidence
         // band formed from the front-door plug-in bootstrap SE, reported as
         // `bootstrap_se` (there is no exposed influence function on this route).
-        match &result.response.as_ref().expect("response").uncertainty {
+        match &result.response().expect("response").uncertainty {
             antecedent_core::ResponseUncertainty::PointwiseBand {
                 lower,
                 upper,

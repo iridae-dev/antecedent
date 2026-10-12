@@ -161,7 +161,7 @@ pub fn posterior_pair(result: &StudyResult, col: usize) -> [Option<(f64, f64)>; 
 /// Scalar response interval `(lower, upper)` with its level and SE.
 #[must_use]
 pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
-    match result.response.as_ref()?.uncertainty {
+    match result.response()?.uncertainty {
         ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } => {
             Some((lower, upper, level, standard_error))
         }
@@ -172,7 +172,7 @@ pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
 /// Pointwise band `(lower, upper, level)` of a response surface.
 #[must_use]
 pub fn response_band(result: &StudyResult) -> Option<(Vec<f64>, Vec<f64>, f64)> {
-    match &result.response.as_ref()?.uncertainty {
+    match &result.response()?.uncertainty {
         ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
             Some((lower.to_vec(), upper.to_vec(), *level))
         }
@@ -220,7 +220,7 @@ fn response_quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
 /// the retained vector must be the one the endpoints were taken from.
 #[must_use]
 pub fn response_posterior_pairs(result: &StudyResult) -> Option<Vec<IntervalPair>> {
-    let uncertainty = &result.response.as_ref()?.uncertainty;
+    let uncertainty = &result.response()?.uncertainty;
     let (level, published): (f64, Vec<(f64, f64)>) = match uncertainty {
         ResponseUncertainty::Scalar { level, lower, upper, .. } => (*level, vec![(*lower, *upper)]),
         ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {

@@ -323,7 +323,7 @@ fn distribution_bayesian_known_truth() {
         .estimate(&data, &ctx)
         .unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.distribution"));
-    let dist = result.distribution.as_ref().unwrap();
+    let dist = result.distribution().unwrap();
     assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.08);
     let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
     assert!((mass - 1.0).abs() < 0.05, "bayesian atoms must be a coherent law, mass={mass}");
@@ -367,7 +367,7 @@ fn distribution_bayesian_known_truth() {
                 .unwrap()
                 .estimate(&data, &ctx)
                 .unwrap();
-            let dist = result.distribution.as_ref().unwrap();
+            let dist = result.distribution().unwrap();
             let posterior = result.posterior.as_ref().unwrap();
             assert!(dist.mean.is_nan());
             assert!(posterior.effect_column().is_none());
@@ -457,7 +457,7 @@ fn mediation_and_counterfactual_bayesian_pins() {
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!(result.posterior.is_some());
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.25);
     assert_eq!(cf.unit_effects.len(), 500);
@@ -478,7 +478,7 @@ fn mediation_and_counterfactual_bayesian_pins() {
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    let point = freq.counterfactual.as_ref().unwrap();
+    let point = freq.counterfactual().unwrap();
     let l1 = cf
         .unit_effects
         .iter()
@@ -534,8 +534,8 @@ fn accepted_counterfactual_matches_explicit_bayesian() {
     let accepted = run(AcceptedGraph::from(dag));
     assert_eq!(accepted.structure_source, antecedent::StructureSource::Accepted);
     assert_eq!(explicit.structure_source, antecedent::StructureSource::Explicit);
-    let explicit_cf = explicit.counterfactual.as_ref().unwrap();
-    let accepted_cf = accepted.counterfactual.as_ref().unwrap();
+    let explicit_cf = explicit.counterfactual().unwrap();
+    let accepted_cf = accepted.counterfactual().unwrap();
     assert!((accepted_cf.mean_ite - explicit_cf.mean_ite).abs() < 1e-12);
     assert_eq!(accepted_cf.unit_effects, explicit_cf.unit_effects);
     assert_eq!(accepted.logical_plan.estimator.as_deref(), Some("gcm.fit"));
@@ -643,7 +643,7 @@ fn derivative_bayesian_pins() {
                 Some("response.bayesian"),
                 "{label}"
             );
-            let response = result.response.as_ref().unwrap();
+            let response = result.response().unwrap();
             let ResponseIdentification::PointIdentified(value) = &response.estimate else {
                 panic!("{label}: unidentified")
             };

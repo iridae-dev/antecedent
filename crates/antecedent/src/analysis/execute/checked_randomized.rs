@@ -168,42 +168,43 @@ impl CheckedRandomizedOperation {
             },
         );
         let (control_units, treatment_units) = (fit.control_units, fit.treatment_units);
-        result.randomized_effect = Some(crate::RandomizedEffectEstimate {
-            effect: fit.effect,
-            estimand: Arc::from(method.estimand_label()),
-            intention_to_treat_effect: fit.complier_components.map(|(itt, _)| itt),
-            first_stage_effect: fit.complier_components.map(|(_, stage)| stage),
-            received_treatment: self.query.received_treatment.clone(),
-            randomization_p_value: exact_test.map(|(p, _)| p),
-            randomization_allocations: exact_test.map(|(_, count)| count),
-            second_factor_effect: fit.factorial.map(|f| f.second_factor_effect),
-            factorial_interaction: fit.factorial.map(|f| f.interaction),
-            second_factor_variance: fit.factorial.map(|f| f.second_factor_variance),
-            factorial_interaction_variance: fit.factorial.map(|f| f.interaction_variance),
-            multi_arm_values: std::mem::replace(&mut fit.multi_arm_values, Arc::from([])),
-            variance_upper_bound: fit.variance,
-            standard_error: fit.interval_standard_error,
-            interval_95: fit.interval_95,
-            second_factor_interval_95: fit.second_factor_interval_95,
-            factorial_interaction_interval_95: fit.factorial_interaction_interval_95,
-            multi_arm_intervals_95: std::mem::replace(
-                &mut fit.multi_arm_intervals_95,
-                Arc::from([]),
-            ),
-            minimum_assignment_probability: assignment_probability_floor(
-                &self.query,
-                matches!(method, RandomizedMethod::Switchback),
-            ),
-            assignment_design: Arc::from(method.design_tag()),
-            blocks: fit.blocks,
-            periods: fit.periods,
-            control_units,
-            treatment_units,
-            uncertainty,
-            assignment_units: Arc::clone(&self.query.assignment_units),
-            outcome_units: Arc::clone(&self.query.outcome_units),
-            treatment_arms: self.query.treatment_arms.clone(),
-        });
+        result.payload =
+            crate::result::ResultPayload::RandomizedEffect(crate::RandomizedEffectEstimate {
+                effect: fit.effect,
+                estimand: Arc::from(method.estimand_label()),
+                intention_to_treat_effect: fit.complier_components.map(|(itt, _)| itt),
+                first_stage_effect: fit.complier_components.map(|(_, stage)| stage),
+                received_treatment: self.query.received_treatment.clone(),
+                randomization_p_value: exact_test.map(|(p, _)| p),
+                randomization_allocations: exact_test.map(|(_, count)| count),
+                second_factor_effect: fit.factorial.map(|f| f.second_factor_effect),
+                factorial_interaction: fit.factorial.map(|f| f.interaction),
+                second_factor_variance: fit.factorial.map(|f| f.second_factor_variance),
+                factorial_interaction_variance: fit.factorial.map(|f| f.interaction_variance),
+                multi_arm_values: std::mem::replace(&mut fit.multi_arm_values, Arc::from([])),
+                variance_upper_bound: fit.variance,
+                standard_error: fit.interval_standard_error,
+                interval_95: fit.interval_95,
+                second_factor_interval_95: fit.second_factor_interval_95,
+                factorial_interaction_interval_95: fit.factorial_interaction_interval_95,
+                multi_arm_intervals_95: std::mem::replace(
+                    &mut fit.multi_arm_intervals_95,
+                    Arc::from([]),
+                ),
+                minimum_assignment_probability: assignment_probability_floor(
+                    &self.query,
+                    matches!(method, RandomizedMethod::Switchback),
+                ),
+                assignment_design: Arc::from(method.design_tag()),
+                blocks: fit.blocks,
+                periods: fit.periods,
+                control_units,
+                treatment_units,
+                uncertainty,
+                assignment_units: Arc::clone(&self.query.assignment_units),
+                outcome_units: Arc::clone(&self.query.outcome_units),
+                treatment_arms: self.query.treatment_arms.clone(),
+            });
         if self.graphless_license(&result, method).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
@@ -220,7 +221,7 @@ impl CheckedRandomizedOperation {
         result: &StudyResult,
         method: RandomizedMethod,
     ) -> Option<crate::support::CellStatus> {
-        let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
+        let fit = result.randomized_effect().expect("randomized result was just set");
         let (family, design, method_id, assignment_unit, claim) =
             antecedent_core::randomized_graphless_coordinate(
                 &self.query.design,
@@ -635,7 +636,7 @@ impl CheckedPolicyValueOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        result.policy_value = Some(crate::PolicyValueEstimate {
+        result.payload = crate::result::ResultPayload::PolicyValue(crate::PolicyValueEstimate {
             policy_value: score.policy_value,
             reference_value: score.reference_value,
             incremental_value: score.incremental_value,
@@ -667,7 +668,7 @@ impl CheckedPolicyValueOperation {
             multi_action_cate,
             regret,
         });
-        let policy = result.policy_value.as_ref().expect("policy value was just attached");
+        let policy = result.policy_value().expect("policy value was just attached");
         let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
             multi.is_some(),
             ipw,

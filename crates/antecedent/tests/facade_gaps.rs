@@ -242,7 +242,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    assert!(result.counterfactual.is_some());
+    assert!(result.counterfactual().is_some());
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
     let analysis = Study::tabular(data)
@@ -252,7 +252,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.anomaly.is_some());
+    assert!(result.anomaly().is_some());
 }
 
 #[test]

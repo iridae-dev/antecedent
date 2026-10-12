@@ -106,7 +106,7 @@ fn static_result_wire_carries_the_queried_contrast_and_every_component() {
         .unwrap();
     let result = study.prepare(&context).unwrap().estimate(&base, &context).unwrap();
     let wire = result.static_result_wire(&CausalQuery::Mediation(query), None).unwrap();
-    let mediation = result.mediation.as_ref().unwrap();
+    let mediation = result.mediation().unwrap();
     assert_eq!(wire.estimate.to_bits(), result.estimate.as_effect().unwrap().ate.to_bits());
     assert_eq!(
         wire.mediation,

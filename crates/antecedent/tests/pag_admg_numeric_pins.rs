@@ -281,7 +281,7 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
 /// The point-identified response value; any other response shape is a failure, not a value
 /// to be replaced by the scalar `estimate.ate` (which would compare the wrong quantity).
 fn response_mean(result: &antecedent::StudyResult) -> f64 {
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     let value = match &response.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => *v,
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean[0],
@@ -292,7 +292,7 @@ fn response_mean(result: &antecedent::StudyResult) -> f64 {
 }
 
 fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     match &response.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()
@@ -345,7 +345,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
             .unwrap()
             .run(&ctx)
             .unwrap();
-        let dist_mean = dist.distribution.as_ref().expect("distribution").mean;
+        let dist_mean = dist.distribution().expect("distribution").mean;
         dist_means.push(dist_mean);
 
         let ir = ResponseQuery::new(ResponseFunctional::InterventionResponse {
@@ -546,7 +546,7 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
             .unwrap()
             .run(&ctx)
             .unwrap();
-        let distribution = result.distribution.as_ref().expect("distribution");
+        let distribution = result.distribution().expect("distribution");
         assert!((distribution.mean - expected).abs() < 1e-12, "mean={}", distribution.mean);
         let total: f64 = distribution.atoms.iter().map(|a| a.probability).sum();
         assert!((total - 1.0).abs() < 1e-12, "atoms sum to {total}");

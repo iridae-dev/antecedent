@@ -53,7 +53,7 @@ fn assert_license_round_trips_and_refuses_forgery(
     ctx: &ExecutionContext,
 ) {
     assert_eq!(
-        result.interference_inference.as_ref().unwrap().graphless_support_status,
+        result.interference_inference().unwrap().graphless_support_status,
         Some(CellStatus::Licensed),
         "{label}: a supported interval must be licensed",
     );
@@ -116,7 +116,7 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
     );
     let ctx = ExecutionContext::for_tests(611);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
-    let inference = result.interference_inference.as_ref().unwrap();
+    let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "cluster_total_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [8, 8]);
     assert_license_round_trips_and_refuses_forgery(&prepared, &result, "cluster-total", &ctx);
@@ -156,7 +156,7 @@ fn thin_cluster_total_cannot_forge_a_license() {
     );
     let ctx = ExecutionContext::for_tests(612);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
-    let inference = result.interference_inference.as_ref().unwrap();
+    let inference = result.interference_inference().unwrap();
     assert!(inference.interval.is_none());
     assert_eq!(inference.graphless_support_status, None);
     let bytes = prepared.encode_contracted_result(&result, "thin-cluster", &ctx).unwrap();
@@ -223,7 +223,7 @@ fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
     );
     let ctx = ExecutionContext::for_tests(613);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
-    let inference = result.interference_inference.as_ref().unwrap();
+    let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "saturation_cluster_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [24, 24]);
     assert_license_round_trips_and_refuses_forgery(&prepared, &result, "saturation", &ctx);
@@ -267,7 +267,7 @@ fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
     );
     let ctx = ExecutionContext::for_tests(614);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
-    let inference = result.interference_inference.as_ref().unwrap();
+    let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "observational_known_exposure_cluster_t");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [30, 30]);
     assert_license_round_trips_and_refuses_forgery(&prepared, &result, "observational-known", &ctx);
@@ -312,7 +312,7 @@ fn externally_estimated_observational_stays_point_only() {
     );
     let ctx = ExecutionContext::for_tests(615);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
-    let inference = result.interference_inference.as_ref().unwrap();
+    let inference = result.interference_inference().unwrap();
     assert!(inference.interval.is_none());
     assert_eq!(inference.graphless_support_status, None);
     assert!(inference.interval_unavailable_reason.unwrap().contains("known, fixed"));

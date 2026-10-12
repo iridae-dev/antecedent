@@ -650,7 +650,7 @@ mod bayesian_checked_attribution_tests {
         assert_eq!(posterior.draws.n_draws, 24);
         assert_eq!(posterior.draws.schema.n_quantities(), 1);
         assert!(posterior.summaries.mean[0].is_finite() && posterior.summaries.mean[0] > 0.0);
-        let scores = result.anomaly.as_ref().expect("anomaly scores");
+        let scores = result.anomaly().expect("anomaly scores");
         let target = scores.iter().find(|scores| scores.target == VariableId::from_raw(1)).unwrap();
         let top_row = target.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap().0;
         assert_eq!(target.rows[top_row], 19, "known outlier remains the highest-scoring row");

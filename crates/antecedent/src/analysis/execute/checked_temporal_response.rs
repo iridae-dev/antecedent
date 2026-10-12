@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(result.estimate.as_effect().unwrap().ate.is_nan()); // curves have no scalar contrast
         assert_eq!(result.logical_plan.plan_id.as_ref(), "temporal_response");
-        assert_eq!(result.response.as_ref().unwrap().estimand, query.functional);
+        assert_eq!(result.response().unwrap().estimand, query.functional);
         assert_eq!(
             result.estimate.as_effect().unwrap().n_obs,
             reference.estimate.as_effect().unwrap().n_obs
@@ -413,7 +413,7 @@ mod tests {
         );
         let antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Surface { mean, grid, .. },
-        ) = &result.response.as_ref().unwrap().estimate
+        ) = &result.response().unwrap().estimate
         else {
             panic!("mean-curve result has a point-identified surface");
         };
@@ -422,7 +422,7 @@ mod tests {
             assert!((value - (1.5 + 2.0 * level)).abs() < 0.08);
         }
         assert!(matches!(
-            result.response.as_ref().unwrap().uncertainty,
+            result.response().unwrap().uncertainty,
             antecedent_core::ResponseUncertainty::PointwiseBand {
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
                 ..

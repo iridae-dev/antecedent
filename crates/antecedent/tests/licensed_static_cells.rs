@@ -611,7 +611,7 @@ fn distribution_bayesian_known_truth_all_structures_and_suites() {
                 "{label}"
             );
             assert!(result.posterior.is_some(), "{label}: Bayesian atoms carry draws");
-            let dist = result.distribution.as_ref().unwrap();
+            let dist = result.distribution().unwrap();
             assert!((dist.mean - truth).abs() < 0.08, "{label}: posterior mean {}", dist.mean);
             let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
             assert!((mass - 1.0).abs() < 1e-9, "{label}: atoms must be a law, mass={mass}");
@@ -725,7 +725,7 @@ fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects() {
                 21,
             );
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"), "{label}");
-            let cf = result.counterfactual.as_ref().unwrap();
+            let cf = result.counterfactual().unwrap();
             assert_eq!(cf.unit_effects.len(), 800, "{label}");
 
             let low = subgroup_mean(&cf.unit_effects, &b, 0.0);
@@ -831,7 +831,7 @@ fn counterfactual_dag_additive_outcome_reports_rejected_heterogeneity_not_homoge
     );
     let result =
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "linear family must still be selected");
     assert!(!result.estimate.as_effect().unwrap().unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
@@ -866,7 +866,7 @@ fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity() {
             let label = format!("accepted={accepted} inference={inference:?}");
             let result =
                 staged(&data, &graph, accepted, query.clone(), inference, RefuteSuite::None, 21);
-            let cf = result.counterfactual.as_ref().unwrap();
+            let cf = result.counterfactual().unwrap();
             assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "{label}");
             assert!(result.estimate.as_effect().unwrap().unit_effects_homogeneous, "{label}");
             let disclosure = homogeneity_diagnostic(&result)
@@ -913,7 +913,7 @@ fn counterfactual_dag_exp_modifier_unit_effects_rise_with_the_modifier() {
     );
     let result =
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!(!result.estimate.as_effect().unwrap().unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
     let rank = |values: &[f64]| {
@@ -972,7 +972,7 @@ fn counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support() 
     );
     let result =
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     let flags = cf.unit_extrapolative.as_ref().expect("per-unit support flags");
     let arm_range = |treated: bool| {
         x.iter()
@@ -1054,7 +1054,7 @@ fn counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling() {
         };
         let raw = run(&year, &axis);
         let std = run(&year_std, &axis_std);
-        let (raw_cf, std_cf) = (raw.counterfactual.unwrap(), std.counterfactual.unwrap());
+        let (raw_cf, std_cf) = (raw.counterfactual().unwrap(), std.counterfactual().unwrap());
         assert!((raw_cf.mean_ite - std_cf.mean_ite).abs() < 1e-8, "{label}");
         for (unit, (r, s)) in raw_cf.unit_effects.iter().zip(std_cf.unit_effects.iter()).enumerate()
         {
@@ -1078,7 +1078,7 @@ fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim() {
         RefuteSuite::None,
         21,
     );
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!(
         unit_effect_spread(&cf.unit_effects) > 1e-9,
         "a discrete outcome must not produce one constant contrast"

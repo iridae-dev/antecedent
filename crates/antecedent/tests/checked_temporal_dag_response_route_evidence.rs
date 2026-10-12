@@ -58,7 +58,7 @@ fn intervention_query() -> ResponseQuery {
 }
 
 fn means(result: &antecedent::result::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("temporal response");
+    let response = result.response().expect("temporal response");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {
@@ -155,7 +155,7 @@ fn temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact
 
         let first = prepared.estimate_series(&initial, &context).unwrap();
         assert_eq!(
-            first.response.as_ref().unwrap().provenance_id.as_ref(),
+            first.response().unwrap().provenance_id.as_ref(),
             "estimate.temporal_response.intervention_gcomp"
         );
         let actual = means(&first);

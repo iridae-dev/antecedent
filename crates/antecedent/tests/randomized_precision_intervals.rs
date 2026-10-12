@@ -48,7 +48,7 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let fit = result.randomized_effect.as_ref().unwrap();
+        let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported precision interval");
         assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
         assert!(lower < fit.effect && fit.effect < upper);
@@ -107,7 +107,7 @@ fn sparse_ancova_and_fixed_cuped_remain_point_only() {
             .unwrap()
             .run(&ExecutionContext::for_tests(0xA11C_0A))
             .unwrap();
-        let fit = result.randomized_effect.as_ref().unwrap();
+        let fit = result.randomized_effect().unwrap();
         assert!(fit.interval_95.is_none());
         assert!(fit.standard_error.is_none());
         assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);

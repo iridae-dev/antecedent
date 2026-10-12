@@ -167,7 +167,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
 
             let result = prepared.estimate(&data, &context).unwrap();
             assert!(result.refutations.is_empty(), "{case}");
-            let uncertainty = &result.response.as_ref().expect("response payload").uncertainty;
+            let uncertainty = &result.response().expect("response payload").uncertainty;
             match (expected.len(), uncertainty) {
                 (
                     1,
@@ -218,7 +218,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                     "{case}: expected a confidence scalar or pointwise band for {count} coordinates, got {other:?}"
                 ),
             }
-            let got = match &result.response.as_ref().expect("response payload").estimate {
+            let got = match &result.response().expect("response payload").estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
                     vec![*value]
                 }
@@ -236,7 +236,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             }
 
             let refreshed = prepared.refresh(data.clone(), &context).unwrap();
-            let refreshed_response = refreshed.response.as_ref().expect("refreshed response");
+            let refreshed_response = refreshed.response().expect("refreshed response");
             let refreshed_values = match &refreshed_response.estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
                     vec![*value]
@@ -385,7 +385,7 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             drop(builder);
 
             let result = prepared.estimate(&data, &context).unwrap();
-            let uncertainty = &result.response.as_ref().unwrap().uncertainty;
+            let uncertainty = &result.response().unwrap().uncertainty;
             match (expected.len(), uncertainty) {
                 (
                     1,
@@ -412,7 +412,7 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
                 ),
             }
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(expected_estimator.as_str()));
-            let values = match &result.response.as_ref().unwrap().estimate {
+            let values = match &result.response().unwrap().estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
                     vec![*value]
                 }

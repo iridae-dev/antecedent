@@ -169,7 +169,7 @@ impl ResponseAnalysisResult {
         result: &antecedent::StudyResult,
         context: &antecedent_core::ExecutionContext,
     ) -> Self {
-        if let (Some(response), Some(_)) = (&result.response, &result.executed_contract) {
+        if let (Some(response), Some(_)) = (result.response(), &result.executed_contract) {
             self.authority = Some(Arc::new(NativeResponseAuthority {
                 response: response.clone(),
                 prepared: Arc::new(prepared.clone()),
@@ -1328,7 +1328,7 @@ fn analyze_temporal_response(
         let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
-        let response = result.response.ok_or_else(|| {
+        let response = result.response().cloned().ok_or_else(|| {
             PyValueError::new_err("temporal response run did not produce a response payload")
         })?;
         let adjustment_set = result

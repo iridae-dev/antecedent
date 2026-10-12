@@ -86,7 +86,7 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
     assert!((result.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
     assert!((result.estimate.as_effect().unwrap().se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
     assert!(result.estimate.as_effect().unwrap().simultaneous_interval.is_none());
-    assert_eq!(result.interference.as_ref().unwrap().minimum_exposure_probability, 0.5);
+    assert_eq!(result.interference().unwrap().minimum_exposure_probability, 0.5);
     let artifact =
         prepared.encode_contracted_result(&result, "cluster-total-effect", &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
@@ -218,7 +218,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
 
     let result = prepared.estimate(&data, &context).unwrap();
     assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
-    let estimated = result.interference.as_ref().expect("design-based contrast");
+    let estimated = result.interference().expect("design-based contrast");
     let truth = &fixture["expected"];
     let tolerance = fixture["tolerance"]["atol"].as_f64().unwrap();
     assert!(
@@ -249,7 +249,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     let shifted = shifted_outcomes(&data, 0.5);
     let refreshed = prepared.refresh(shifted, &context).unwrap();
     assert!(
-        (refreshed.interference.as_ref().unwrap().contrast.horvitz_thompson
+        (refreshed.interference().unwrap().contrast.horvitz_thompson
             - estimated.contrast.horvitz_thompson)
             .abs()
             <= tolerance

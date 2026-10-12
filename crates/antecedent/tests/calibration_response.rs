@@ -194,7 +194,7 @@ fn run_class(
 }
 
 fn scalar_value(result: &StudyResult) -> Option<f64> {
-    match &result.response.as_ref()?.estimate {
+    match &result.response()?.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => Some(*v),
         _ => None,
     }

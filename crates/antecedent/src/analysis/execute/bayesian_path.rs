@@ -2292,8 +2292,7 @@ impl super::Study {
                     ctx,
                 )?;
                 let slice = result
-                    .mediation_grid
-                    .as_ref()
+                    .mediation_grid()
                     .and_then(|grid| grid.slices.first())
                     .ok_or_else(|| CausalError::Compile {
                         message: "DBN mediation horizon omitted its grid slice".into(),
