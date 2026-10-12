@@ -286,7 +286,7 @@ class PCMCIPlus:
 class LPCMCI:
     max_lag: int = 1
     alpha: float = 0.05
-    fdr: bool = True
+    fdr: bool = False
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
     kind: Literal["lpcmci"] = "lpcmci"
