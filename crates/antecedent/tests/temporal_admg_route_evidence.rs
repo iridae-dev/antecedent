@@ -692,51 +692,60 @@ fn repeated_variable_temporal_admg_is_refused() {
 
 #[test]
 fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
-    let status = antecedent::support::classify(SupportCell {
-        query: "ResponseCurve",
-        graph_class: "TemporalAdmg",
-        structure: "explicit",
-        inference: "Frequentist",
-        validation: "cheap",
-    });
+    let status = antecedent::support::classify(
+        SupportCell::from_labels(
+            "ResponseCurve",
+            "TemporalAdmg",
+            "explicit",
+            "Frequentist",
+            "cheap",
+        )
+        .expect("support axis"),
+    );
     assert!(
         matches!(status, CellStatus::NotApplicable { .. }),
         "a function-valued curve has no ATE refuter: {status:?}"
     );
-    let static_on_temporal_dag = antecedent::support::classify(SupportCell {
-        query: "AverageEffect",
-        graph_class: "TemporalDag",
-        structure: "explicit",
-        inference: "Frequentist",
-        validation: "none",
-    });
+    let static_on_temporal_dag = antecedent::support::classify(
+        SupportCell::from_labels("AverageEffect", "TemporalDag", "explicit", "Frequentist", "none")
+            .expect("support axis"),
+    );
     assert!(matches!(static_on_temporal_dag, CellStatus::NotApplicable { .. }));
-    let distribution_cheap = antecedent::support::classify(SupportCell {
-        query: "InterventionalDistribution",
-        graph_class: "TemporalAdmg",
-        structure: "explicit",
-        inference: "Frequentist",
-        validation: "cheap",
-    });
+    let distribution_cheap = antecedent::support::classify(
+        SupportCell::from_labels(
+            "InterventionalDistribution",
+            "TemporalAdmg",
+            "explicit",
+            "Frequentist",
+            "cheap",
+        )
+        .expect("support axis"),
+    );
     assert!(
         matches!(distribution_cheap, CellStatus::Refused),
         "distribution cheap/full is not a TemporalAdmg license: {distribution_cheap:?}"
     );
-    let transport_on_temporal_dag = antecedent::support::classify(SupportCell {
-        query: "TransportQuery",
-        graph_class: "TemporalDag",
-        structure: "explicit",
-        inference: "Frequentist",
-        validation: "none",
-    });
+    let transport_on_temporal_dag = antecedent::support::classify(
+        SupportCell::from_labels(
+            "TransportQuery",
+            "TemporalDag",
+            "explicit",
+            "Frequentist",
+            "none",
+        )
+        .expect("support axis"),
+    );
     assert!(matches!(transport_on_temporal_dag, CellStatus::NotApplicable { .. }));
-    let curve_posterior_cheap = antecedent::support::classify(SupportCell {
-        query: "ResponseCurve",
-        graph_class: "TemporalAdmg",
-        structure: "graph_posterior",
-        inference: "Frequentist",
-        validation: "cheap",
-    });
+    let curve_posterior_cheap = antecedent::support::classify(
+        SupportCell::from_labels(
+            "ResponseCurve",
+            "TemporalAdmg",
+            "graph_posterior",
+            "Frequentist",
+            "cheap",
+        )
+        .expect("support axis"),
+    );
     assert!(
         matches!(curve_posterior_cheap, CellStatus::Refused),
         "graph-posterior curve refuters stay closed: {curve_posterior_cheap:?}"

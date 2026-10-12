@@ -16,7 +16,10 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 
 use super::axis::{naming_class, query_axis_name};
-use super::cell::{StructureSource, SupportCell, SupportRefusal};
+use super::cell::{
+    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportQuery,
+    SupportRefusal, SupportValidation,
+};
 
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
 /// studies, which have no geometric cell to license and run only against a supplied static DAG,
@@ -54,18 +57,18 @@ pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError
 const UNDECLARED_OFF_AXIS: &str = "this query kind has no support-matrix cell and is not a \
      declared off-axis kind; it is refused until a cell licenses it.";
 
-fn inference_axis(mode: &InferenceMode) -> &'static str {
+fn inference_axis(mode: &InferenceMode) -> SupportInference {
     match mode {
-        InferenceMode::Frequentist => "Frequentist",
-        InferenceMode::Bayesian(_) => "Bayesian",
+        InferenceMode::Frequentist => SupportInference::Frequentist,
+        InferenceMode::Bayesian(_) => SupportInference::Bayesian,
     }
 }
 
-fn validation_axis(suite: RefuteSuite) -> &'static str {
+fn validation_axis(suite: RefuteSuite) -> SupportValidation {
     match suite {
-        RefuteSuite::None => "none",
-        RefuteSuite::Cheap => "cheap",
-        RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => "full",
+        RefuteSuite::None => SupportValidation::None,
+        RefuteSuite::Cheap => SupportValidation::Cheap,
+        RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => SupportValidation::Full,
     }
 }
 
@@ -92,9 +95,9 @@ pub fn support_cell_named(
     refute: RefuteSuite,
 ) -> Option<SupportCell> {
     Some(SupportCell {
-        query: query_axis_name(query, naming_class(graph_class)?)?,
-        graph_class,
-        structure: structure.as_str(),
+        query: SupportQuery::parse(query_axis_name(query, naming_class(graph_class)?)?)?,
+        graph_class: SupportGraphClass::parse(graph_class)?,
+        structure: structure.into(),
         inference: inference_axis(inference),
         validation: validation_axis(refute),
     })

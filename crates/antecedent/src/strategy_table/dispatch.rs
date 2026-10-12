@@ -253,17 +253,14 @@ pub fn identify_temporal_cpdag_configured(
     query: &TemporalEffectQuery,
     config: GeneralizedAdjustmentConfig,
 ) -> Result<TemporalClassEnvelope, CausalError> {
-    match identifier {
-        IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier { config };
-            id.identify_temporal_cpdag_envelope(cpdag, query).map_err(identify_err)
-        }
-        other => reject_non_generalized_identifier(
-            other,
-            "TemporalCpdag",
-            "unsupported TemporalCpdag identifier",
-        ),
-    }
+    identify_generalized_temporal_class(
+        identifier,
+        "TemporalCpdag",
+        "unsupported TemporalCpdag identifier",
+        config,
+        cpdag,
+        |id, graph| id.identify_temporal_cpdag_envelope(graph, query),
+    )
 }
 
 /// Class-aware identification over a `TemporalPag` (`TemporalDag` completion envelope).
@@ -290,17 +287,14 @@ pub fn identify_temporal_pag_configured(
     query: &TemporalEffectQuery,
     config: GeneralizedAdjustmentConfig,
 ) -> Result<TemporalClassEnvelope, CausalError> {
-    match identifier {
-        IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier { config };
-            id.identify_temporal_pag_envelope(pag, query).map_err(identify_err)
-        }
-        other => reject_non_generalized_identifier(
-            other,
-            "TemporalPag",
-            "unsupported TemporalPag identifier",
-        ),
-    }
+    identify_generalized_temporal_class(
+        identifier,
+        "TemporalPag",
+        "unsupported TemporalPag identifier",
+        config,
+        pag,
+        |id, graph| id.identify_temporal_pag_envelope(graph, query),
+    )
 }
 
 /// General ID over an ADMG for an average-effect query.
@@ -705,6 +699,26 @@ pub struct StaticEstimateWorkspaces {
 
 fn est_err(e: EstimationError) -> CausalError {
     CausalError::from(e)
+}
+
+fn identify_generalized_temporal_class<G>(
+    identifier: IdentifierId,
+    class_name: &'static str,
+    unsupported: &'static str,
+    config: GeneralizedAdjustmentConfig,
+    graph: &G,
+    run: impl FnOnce(
+        &GeneralizedAdjustmentIdentifier,
+        &G,
+    ) -> Result<TemporalClassEnvelope, IdentificationError>,
+) -> Result<TemporalClassEnvelope, CausalError> {
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            let id = GeneralizedAdjustmentIdentifier { config };
+            run(&id, graph).map_err(identify_err)
+        }
+        other => reject_non_generalized_identifier(other, class_name, unsupported),
+    }
 }
 
 fn identify_err(e: IdentificationError) -> CausalError {

@@ -60,7 +60,10 @@ pub(crate) use axis::{effective_graph_class, matrix_graph_class};
 pub use bridge::{
     is_declared_off_axis, refuse_undeclared_off_axis, support_cell, support_cell_named,
 };
-pub use cell::{CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal};
+pub use cell::{
+    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,
+    SupportQuery, SupportRefusal, SupportStructure, SupportValidation,
+};
 pub use matrix::{
     cell_coordinate, classify, classify_estimator, licensed_estimators, licensed_neighbors,
     licensed_route_estimator, licensed_support_cells, refuse_if_not_applicable, refused_message,

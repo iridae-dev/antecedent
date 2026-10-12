@@ -17,7 +17,12 @@
 #[non_exhaustive] pub enum antecedent::ReviewKind
 #[non_exhaustive] pub enum antecedent::StructuralAggregationPolicy
 #[non_exhaustive] pub enum antecedent::StructuralWeightBasis
+#[non_exhaustive] pub enum antecedent::SupportGraphClass
+#[non_exhaustive] pub enum antecedent::SupportInference
+#[non_exhaustive] pub enum antecedent::SupportQuery
 #[non_exhaustive] pub enum antecedent::SupportRefusal
+#[non_exhaustive] pub enum antecedent::SupportStructure
+#[non_exhaustive] pub enum antecedent::SupportValidation
 #[non_exhaustive] pub enum antecedent::analysis::design_ranking::DesignRankingError
 #[non_exhaustive] pub struct antecedent::CausalContract
 #[non_exhaustive] pub struct antecedent::RdConfig
@@ -236,7 +241,12 @@ impl core::clone::Clone for antecedent::StudyBuilder
 impl core::clone::Clone for antecedent::StudyResult
 impl core::clone::Clone for antecedent::SupportBasis
 impl core::clone::Clone for antecedent::SupportCell
+impl core::clone::Clone for antecedent::SupportGraphClass
+impl core::clone::Clone for antecedent::SupportInference
+impl core::clone::Clone for antecedent::SupportQuery
 impl core::clone::Clone for antecedent::SupportRefusal
+impl core::clone::Clone for antecedent::SupportStructure
+impl core::clone::Clone for antecedent::SupportValidation
 impl core::clone::Clone for antecedent::SurvivalEstimate
 impl core::clone::Clone for antecedent::SyntheticControlEstimate
 impl core::clone::Clone for antecedent::SyntheticDidEstimate
@@ -452,7 +462,12 @@ impl core::cmp::Eq for antecedent::StructuralWeightBasis
 impl core::cmp::Eq for antecedent::StructureSource
 impl core::cmp::Eq for antecedent::SupportBasis
 impl core::cmp::Eq for antecedent::SupportCell
+impl core::cmp::Eq for antecedent::SupportGraphClass
+impl core::cmp::Eq for antecedent::SupportInference
+impl core::cmp::Eq for antecedent::SupportQuery
 impl core::cmp::Eq for antecedent::SupportRefusal
+impl core::cmp::Eq for antecedent::SupportStructure
+impl core::cmp::Eq for antecedent::SupportValidation
 impl core::cmp::Eq for antecedent::TargetDirection
 impl core::cmp::Eq for antecedent::TemporalPosition
 impl core::cmp::Eq for antecedent::TidyKind
@@ -490,6 +505,11 @@ impl core::cmp::Eq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::Eq for antecedent::error::PendingEdge
 impl core::cmp::Eq for antecedent::gcm::NestedOutcomeMechanism
 impl core::cmp::Eq for antecedent::strategy_table::UnknownStrategy
+impl core::cmp::Ord for antecedent::SupportGraphClass
+impl core::cmp::Ord for antecedent::SupportInference
+impl core::cmp::Ord for antecedent::SupportQuery
+impl core::cmp::Ord for antecedent::SupportStructure
+impl core::cmp::Ord for antecedent::SupportValidation
 impl core::cmp::PartialEq for antecedent::ActionConstraint
 impl core::cmp::PartialEq for antecedent::ActionOutcome
 impl core::cmp::PartialEq for antecedent::ActionSpec
@@ -598,7 +618,12 @@ impl core::cmp::PartialEq for antecedent::StructuralWeightBasis
 impl core::cmp::PartialEq for antecedent::StructureSource
 impl core::cmp::PartialEq for antecedent::SupportBasis
 impl core::cmp::PartialEq for antecedent::SupportCell
+impl core::cmp::PartialEq for antecedent::SupportGraphClass
+impl core::cmp::PartialEq for antecedent::SupportInference
+impl core::cmp::PartialEq for antecedent::SupportQuery
 impl core::cmp::PartialEq for antecedent::SupportRefusal
+impl core::cmp::PartialEq for antecedent::SupportStructure
+impl core::cmp::PartialEq for antecedent::SupportValidation
 impl core::cmp::PartialEq for antecedent::SurvivalEstimate
 impl core::cmp::PartialEq for antecedent::SyntheticControlEstimate
 impl core::cmp::PartialEq for antecedent::SyntheticDidEstimate
@@ -691,11 +716,17 @@ impl core::cmp::PartialEq for antecedent::result::InterferencePointwiseInterval
 impl core::cmp::PartialEq for antecedent::result::IntervalBinding
 impl core::cmp::PartialEq for antecedent::result::SurvivalDifferenceBand
 impl core::cmp::PartialEq for antecedent::strategy_table::UnknownStrategy
+impl core::cmp::PartialOrd for antecedent::SupportGraphClass
+impl core::cmp::PartialOrd for antecedent::SupportInference
+impl core::cmp::PartialOrd for antecedent::SupportQuery
+impl core::cmp::PartialOrd for antecedent::SupportStructure
+impl core::cmp::PartialOrd for antecedent::SupportValidation
 impl core::convert::From<antecedent::BatchRetargetError> for antecedent::MemberFailure
 impl core::convert::From<antecedent::CausalError> for antecedent::analysis::recalc_design::DesignRunError
 impl core::convert::From<antecedent::CausalError> for antecedent::analysis::recalc_receipt::RecalcRunError
 impl core::convert::From<antecedent::CompileCause> for antecedent::CompileFailure
 impl core::convert::From<antecedent::EstimatorId> for antecedent::EstimatorSpec
+impl core::convert::From<antecedent::StructureSource> for antecedent::SupportStructure
 impl core::convert::From<antecedent::analysis::recalc_receipt::RecalcRunError> for antecedent::analysis::recalc_design::DesignRunError
 impl core::convert::From<antecedent::analysis::recalc_receipt::RecalcRunError> for antecedent::analysis::recalc_temporal::TemporalRunError
 impl core::convert::From<antecedent::analysis::recalc_receipt::ReceiptError> for antecedent::analysis::recalc_receipt::RecalcRunError
@@ -980,7 +1011,12 @@ impl core::fmt::Debug for antecedent::StudyBuilder
 impl core::fmt::Debug for antecedent::StudyResult
 impl core::fmt::Debug for antecedent::SupportBasis
 impl core::fmt::Debug for antecedent::SupportCell
+impl core::fmt::Debug for antecedent::SupportGraphClass
+impl core::fmt::Debug for antecedent::SupportInference
+impl core::fmt::Debug for antecedent::SupportQuery
 impl core::fmt::Debug for antecedent::SupportRefusal
+impl core::fmt::Debug for antecedent::SupportStructure
+impl core::fmt::Debug for antecedent::SupportValidation
 impl core::fmt::Debug for antecedent::SurvivalEstimate
 impl core::fmt::Debug for antecedent::SyntheticControlEstimate
 impl core::fmt::Debug for antecedent::SyntheticDidEstimate
@@ -1174,7 +1210,12 @@ impl core::fmt::Display for antecedent::EstimatorId
 impl core::fmt::Display for antecedent::IdentifierId
 impl core::fmt::Display for antecedent::InverseOutcomeError
 impl core::fmt::Display for antecedent::ReviewKind
+impl core::fmt::Display for antecedent::SupportGraphClass
+impl core::fmt::Display for antecedent::SupportInference
+impl core::fmt::Display for antecedent::SupportQuery
 impl core::fmt::Display for antecedent::SupportRefusal
+impl core::fmt::Display for antecedent::SupportStructure
+impl core::fmt::Display for antecedent::SupportValidation
 impl core::fmt::Display for antecedent::TierDiagnosticsError
 impl core::fmt::Display for antecedent::analysis::design_ranking::DesignRankingError
 impl core::fmt::Display for antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError
@@ -1195,7 +1236,12 @@ impl core::hash::Hash for antecedent::RefuteSuite
 impl core::hash::Hash for antecedent::ReviewKind
 impl core::hash::Hash for antecedent::StructureSource
 impl core::hash::Hash for antecedent::SupportCell
+impl core::hash::Hash for antecedent::SupportGraphClass
+impl core::hash::Hash for antecedent::SupportInference
+impl core::hash::Hash for antecedent::SupportQuery
 impl core::hash::Hash for antecedent::SupportRefusal
+impl core::hash::Hash for antecedent::SupportStructure
+impl core::hash::Hash for antecedent::SupportValidation
 impl core::hash::Hash for antecedent::error::PendingEdge
 impl core::marker::Copy for antecedent::ActionStatus
 impl core::marker::Copy for antecedent::CandidateProcedure
@@ -1227,7 +1273,12 @@ impl core::marker::Copy for antecedent::StructuralWeightBasis
 impl core::marker::Copy for antecedent::StructureSource
 impl core::marker::Copy for antecedent::SupportBasis
 impl core::marker::Copy for antecedent::SupportCell
+impl core::marker::Copy for antecedent::SupportGraphClass
+impl core::marker::Copy for antecedent::SupportInference
+impl core::marker::Copy for antecedent::SupportQuery
 impl core::marker::Copy for antecedent::SupportRefusal
+impl core::marker::Copy for antecedent::SupportStructure
+impl core::marker::Copy for antecedent::SupportValidation
 impl core::marker::Copy for antecedent::TargetDirection
 impl core::marker::Copy for antecedent::TemporalPosition
 impl core::marker::Copy for antecedent::TidyKind
@@ -1418,7 +1469,12 @@ impl core::marker::Freeze for antecedent::Study [auto]
 impl core::marker::Freeze for antecedent::StudyResult [auto]
 impl core::marker::Freeze for antecedent::SupportBasis [auto]
 impl core::marker::Freeze for antecedent::SupportCell [auto]
+impl core::marker::Freeze for antecedent::SupportGraphClass [auto]
+impl core::marker::Freeze for antecedent::SupportInference [auto]
+impl core::marker::Freeze for antecedent::SupportQuery [auto]
 impl core::marker::Freeze for antecedent::SupportRefusal [auto]
+impl core::marker::Freeze for antecedent::SupportStructure [auto]
+impl core::marker::Freeze for antecedent::SupportValidation [auto]
 impl core::marker::Freeze for antecedent::SurvivalEstimate [auto]
 impl core::marker::Freeze for antecedent::SyntheticControlEstimate [auto]
 impl core::marker::Freeze for antecedent::SyntheticDidEstimate [auto]
@@ -1786,7 +1842,12 @@ impl core::marker::Send for antecedent::StudyBuilder [auto]
 impl core::marker::Send for antecedent::StudyResult [auto]
 impl core::marker::Send for antecedent::SupportBasis [auto]
 impl core::marker::Send for antecedent::SupportCell [auto]
+impl core::marker::Send for antecedent::SupportGraphClass [auto]
+impl core::marker::Send for antecedent::SupportInference [auto]
+impl core::marker::Send for antecedent::SupportQuery [auto]
 impl core::marker::Send for antecedent::SupportRefusal [auto]
+impl core::marker::Send for antecedent::SupportStructure [auto]
+impl core::marker::Send for antecedent::SupportValidation [auto]
 impl core::marker::Send for antecedent::SurvivalEstimate [auto]
 impl core::marker::Send for antecedent::SyntheticControlEstimate [auto]
 impl core::marker::Send for antecedent::SyntheticDidEstimate [auto]
@@ -2097,7 +2158,12 @@ impl core::marker::StructuralPartialEq for antecedent::StructuralWeightBasis
 impl core::marker::StructuralPartialEq for antecedent::StructureSource
 impl core::marker::StructuralPartialEq for antecedent::SupportBasis
 impl core::marker::StructuralPartialEq for antecedent::SupportCell
+impl core::marker::StructuralPartialEq for antecedent::SupportGraphClass
+impl core::marker::StructuralPartialEq for antecedent::SupportInference
+impl core::marker::StructuralPartialEq for antecedent::SupportQuery
 impl core::marker::StructuralPartialEq for antecedent::SupportRefusal
+impl core::marker::StructuralPartialEq for antecedent::SupportStructure
+impl core::marker::StructuralPartialEq for antecedent::SupportValidation
 impl core::marker::StructuralPartialEq for antecedent::SurvivalEstimate
 impl core::marker::StructuralPartialEq for antecedent::SyntheticControlEstimate
 impl core::marker::StructuralPartialEq for antecedent::SyntheticDidEstimate
@@ -2356,7 +2422,12 @@ impl core::marker::Sync for antecedent::StudyBuilder [auto]
 impl core::marker::Sync for antecedent::StudyResult [auto]
 impl core::marker::Sync for antecedent::SupportBasis [auto]
 impl core::marker::Sync for antecedent::SupportCell [auto]
+impl core::marker::Sync for antecedent::SupportGraphClass [auto]
+impl core::marker::Sync for antecedent::SupportInference [auto]
+impl core::marker::Sync for antecedent::SupportQuery [auto]
 impl core::marker::Sync for antecedent::SupportRefusal [auto]
+impl core::marker::Sync for antecedent::SupportStructure [auto]
+impl core::marker::Sync for antecedent::SupportValidation [auto]
 impl core::marker::Sync for antecedent::SurvivalEstimate [auto]
 impl core::marker::Sync for antecedent::SyntheticControlEstimate [auto]
 impl core::marker::Sync for antecedent::SyntheticDidEstimate [auto]
@@ -2725,7 +2796,12 @@ impl core::marker::Unpin for antecedent::StudyBuilder [auto]
 impl core::marker::Unpin for antecedent::StudyResult [auto]
 impl core::marker::Unpin for antecedent::SupportBasis [auto]
 impl core::marker::Unpin for antecedent::SupportCell [auto]
+impl core::marker::Unpin for antecedent::SupportGraphClass [auto]
+impl core::marker::Unpin for antecedent::SupportInference [auto]
+impl core::marker::Unpin for antecedent::SupportQuery [auto]
 impl core::marker::Unpin for antecedent::SupportRefusal [auto]
+impl core::marker::Unpin for antecedent::SupportStructure [auto]
+impl core::marker::Unpin for antecedent::SupportValidation [auto]
 impl core::marker::Unpin for antecedent::SurvivalEstimate [auto]
 impl core::marker::Unpin for antecedent::SyntheticControlEstimate [auto]
 impl core::marker::Unpin for antecedent::SyntheticDidEstimate [auto]
@@ -3092,7 +3168,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::StructureSource [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::StudyResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportCell [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportGraphClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportStructure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SupportValidation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SurvivalEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SyntheticControlEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SyntheticDidEstimate [auto]
@@ -3445,7 +3526,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::StructureSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::StudyResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportCell [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportGraphClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportStructure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::SupportValidation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SurvivalEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SyntheticControlEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SyntheticDidEstimate [auto]
@@ -4566,11 +4652,11 @@ pub field antecedent::StudyResult::structural_response: core::option::Option<ant
 pub field antecedent::StudyResult::structure_source: antecedent::StructureSource
 pub field antecedent::StudyResult::support_status: core::option::Option<antecedent::CellStatus>
 pub field antecedent::StudyResult::treatment: core::option::Option<antecedent_core::ids::VariableId>
-pub field antecedent::SupportCell::graph_class: &'static str
-pub field antecedent::SupportCell::inference: &'static str
-pub field antecedent::SupportCell::query: &'static str
-pub field antecedent::SupportCell::structure: &'static str
-pub field antecedent::SupportCell::validation: &'static str
+pub field antecedent::SupportCell::graph_class: antecedent::SupportGraphClass
+pub field antecedent::SupportCell::inference: antecedent::SupportInference
+pub field antecedent::SupportCell::query: antecedent::SupportQuery
+pub field antecedent::SupportCell::structure: antecedent::SupportStructure
+pub field antecedent::SupportCell::validation: antecedent::SupportValidation
 pub field antecedent::SurvivalEstimate::assignment_counts: [usize; 2]
 pub field antecedent::SurvivalEstimate::band_unavailable_reason: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent::SurvivalEstimate::bootstrap_replicates_ok: core::option::Option<u32>
@@ -5958,7 +6044,19 @@ pub fn <antecedent::StudyResult>::fn unit_change(&self) -> core::option::Option<
 pub fn <antecedent::StudyResult>::fn unit_effect_interval_binding(&self) -> core::option::Option<antecedent::result::IntervalBinding>
 pub fn <antecedent::SupportBasis>::const fn as_str(self) -> &'static str
 pub fn <antecedent::SupportBasis>::fn parse(name: &str) -> core::option::Option<Self>
+pub fn <antecedent::SupportCell>::fn from_labels(query: &str, graph_class: &str, structure: &str, inference: &str, validation: &str) -> core::option::Option<Self>
+pub fn <antecedent::SupportGraphClass>::const fn as_str(self) -> &'static str
+pub fn <antecedent::SupportGraphClass>::const fn graph_class(self) -> core::option::Option<antecedent::GraphClass>
+pub fn <antecedent::SupportGraphClass>::fn parse(value: &str) -> core::option::Option<Self>
+pub fn <antecedent::SupportInference>::const fn as_str(self) -> &'static str
+pub fn <antecedent::SupportInference>::fn parse(value: &str) -> core::option::Option<Self>
+pub fn <antecedent::SupportQuery>::const fn as_str(self) -> &'static str
+pub fn <antecedent::SupportQuery>::fn parse(value: &str) -> core::option::Option<Self>
 pub fn <antecedent::SupportRefusal>::const fn as_str(self) -> &'static str
+pub fn <antecedent::SupportStructure>::const fn as_str(self) -> &'static str
+pub fn <antecedent::SupportStructure>::fn parse(value: &str) -> core::option::Option<Self>
+pub fn <antecedent::SupportValidation>::const fn as_str(self) -> &'static str
+pub fn <antecedent::SupportValidation>::fn parse(value: &str) -> core::option::Option<Self>
 pub fn <antecedent::TargetDirection>::const fn as_str(self) -> &'static str
 pub fn <antecedent::TargetDirection>::fn parse(name: &str) -> core::option::Option<Self>
 pub fn <antecedent::TemporalInitialState>::const fn fixed(&self) -> core::option::Option<&antecedent_estimate::temporal_initial_state::FixedStateEffect>
@@ -6312,28 +6410,38 @@ pub fn <antecedent::review::PendingGraphReview>::fn finish(self) -> core::result
 pub fn <antecedent::review::PendingGraphReview>::fn graph(&self) -> &antecedent_graph::temporal::TemporalDag
 pub fn <antecedent::review::PendingGraphReview>::fn new(review: antecedent_graph::unfold::TemporalGraphReview) -> Self
 pub fn <antecedent::review::PendingGraphReview>::fn require_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> core::result::Result<Self, antecedent::CausalError>
-pub fn antecedent::analysis::check_derived_treatment(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::DerivedTreatmentPlan, antecedent::CausalError>
-pub fn antecedent::analysis::classify_inverse_outcome(query: &antecedent::InverseQuery, forward: &antecedent::ForwardEvaluation, actions: &[antecedent::ActionSpec], budget: core::option::Option<f64>, tolerance: f64, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent::InverseOutcomeReport, antecedent::InverseOutcomeError>
+pub fn antecedent::analysis::api::check_derived_treatment(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::DerivedTreatmentPlan, antecedent::CausalError>
+pub fn antecedent::analysis::api::classify_inverse_outcome(query: &antecedent::InverseQuery, forward: &antecedent::ForwardEvaluation, actions: &[antecedent::ActionSpec], budget: core::option::Option<f64>, tolerance: f64, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent::InverseOutcomeReport, antecedent::InverseOutcomeError>
+pub fn antecedent::analysis::api::consume_admg_conditional_obstruction_artifact(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_admg_conditional_transport_artifact(bytes: &[u8], limits: antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::AdmgConditionalResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_cpdag_scenarios_artifact(bytes: &[u8], limits: antecedent_io::cpdag_completion_artifact::CpdagConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_learned_continuous_artifact(bytes: &[u8], limits: antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits) -> core::result::Result<antecedent::LearnedContinuousResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_mixed_source_artifact(bytes: &[u8], limits: antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::MixedSourceResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_mz_transport_artifact(bytes: &[u8], limits: antecedent_io::mz_transport_artifact::MzTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::MzTransportResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_observation_recovery_artifact(bytes: &[u8], limits: antecedent_io::recovery_artifact::RecoveryConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::ObservationRecoveryResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_scenario_covariance_artifact(bytes: &[u8], limits: antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_smoothed_dose_artifact(bytes: &[u8], limits: antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SmoothedDoseResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_temporal_initial_state_artifact(bytes: &[u8], limits: &antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits) -> core::result::Result<(antecedent_io::temporal_initial_state_artifact::TemporalInitialStateArtifactWire, antecedent_io::temporal_initial_state_artifact::InitialStateReplay), antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_temporal_refresh_artifact(bytes: &[u8], limits: &antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits) -> core::result::Result<(antecedent_io::temporal_refresh_artifact::TemporalRefreshArtifactWire, antecedent_io::temporal_refresh_artifact::RefreshReplay), antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_temporal_transport_artifact(bytes: &[u8], limits: antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::TemporalSequenceReport, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_transport_scenarios_artifact(bytes: &[u8], limits: antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::transport_scenarios::ScenarioSetReport, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_z_transport_artifact(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent::ZTransportResult), antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::estimate_derived_joint_cells(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], orderings: &[alloc::vec::Vec<usize>], config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::DerivedTreatmentPlan, antecedent_estimate::joint_cell_factorized::FactorizedJointFit), antecedent::CausalError>
+pub fn antecedent::analysis::api::estimate_joint_cell_cost(config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, components: usize, orderings: &[alloc::vec::Vec<usize>], rows: core::option::Option<usize>) -> core::result::Result<antecedent::JointCellCostEstimate, antecedent::CausalError>
+pub fn antecedent::analysis::api::estimate_with_rank_drop(input: &antecedent::PreflightInput<'_>, policy: &antecedent::RankDropPolicy, estimator: antecedent::EstimatorId, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::RankDropEstimate, antecedent::CausalError>
+pub fn antecedent::analysis::api::export_admg_conditional_obstruction(diagram: &antecedent_graph::selection::SelectionDiagram, proof: &antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof, variable_names: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::export_scenario_covariance(spec: &antecedent_io::scenario_covariance_artifact::CovarianceSpec, covariance: &antecedent_estimate::scenario_covariance::ScenarioCovariance) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::fit_diagnostics_design(input: &antecedent::PreflightInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::NuisanceFitDiagnostics, antecedent::CausalError>
+pub fn antecedent::analysis::api::plan_rank_drop(input: &antecedent::PreflightInput<'_>, policy: &antecedent::RankDropPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::RankDropPlan, antecedent::CausalError>
+pub fn antecedent::analysis::api::preflight_design(input: &antecedent::PreflightInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreflightReport, antecedent::CausalError>
+pub fn antecedent::analysis::api::temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::tier_diagnostics(result: &antecedent::StudyResult, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::TierDiagnostics, antecedent::TierDiagnosticsError>
 pub fn antecedent::analysis::closed_pilots::joint_bayesian_transport_refusal(request: &antecedent::analysis::closed_pilots::JointBayesianRequest<'_>) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
 pub fn antecedent::analysis::closed_pilots::nested_markov_refusal(request: &antecedent::analysis::closed_pilots::NestedMarkovRequest) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
 pub fn antecedent::analysis::closed_pilots::sampled_recovery_refusal(request: &antecedent::analysis::closed_pilots::SampledRecoveryRequest<'_>) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
 pub fn antecedent::analysis::composition::consume(bytes: &[u8], expected_identity: &str, supplied: &antecedent_design::composition_bundle::SuppliedSources) -> core::result::Result<antecedent_design::composition_bundle::ConsumedBundle, antecedent_design::composition_bundle::BundleError>
 pub fn antecedent::analysis::composition::consume_with_limits(bytes: &[u8], limits: &antecedent_design::composition_bundle::BundleLimits, expected_identity: &str, supplied: &antecedent_design::composition_bundle::SuppliedSources) -> core::result::Result<antecedent_design::composition_bundle::ConsumedBundle, antecedent_design::composition_bundle::BundleError>
 pub fn antecedent::analysis::composition::export_bundle(bundle: &antecedent_design::composition_bundle::CompositionBundle, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::composition_bundle::BundleError>
-pub fn antecedent::analysis::consume_admg_conditional_obstruction_artifact(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_admg_conditional_transport_artifact(bytes: &[u8], limits: antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::AdmgConditionalResult, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_cpdag_scenarios_artifact(bytes: &[u8], limits: antecedent_io::cpdag_completion_artifact::CpdagConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_learned_continuous_artifact(bytes: &[u8], limits: antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits) -> core::result::Result<antecedent::LearnedContinuousResult, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_mixed_source_artifact(bytes: &[u8], limits: antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::MixedSourceResult, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_mz_transport_artifact(bytes: &[u8], limits: antecedent_io::mz_transport_artifact::MzTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::MzTransportResult, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_observation_recovery_artifact(bytes: &[u8], limits: antecedent_io::recovery_artifact::RecoveryConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::ObservationRecoveryResult, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_scenario_covariance_artifact(bytes: &[u8], limits: antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_smoothed_dose_artifact(bytes: &[u8], limits: antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SmoothedDoseResult, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_temporal_initial_state_artifact(bytes: &[u8], limits: &antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits) -> core::result::Result<(antecedent_io::temporal_initial_state_artifact::TemporalInitialStateArtifactWire, antecedent_io::temporal_initial_state_artifact::InitialStateReplay), antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_temporal_refresh_artifact(bytes: &[u8], limits: &antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits) -> core::result::Result<(antecedent_io::temporal_refresh_artifact::TemporalRefreshArtifactWire, antecedent_io::temporal_refresh_artifact::RefreshReplay), antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_temporal_transport_artifact(bytes: &[u8], limits: antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::TemporalSequenceReport, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_transport_scenarios_artifact(bytes: &[u8], limits: antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::transport_scenarios::ScenarioSetReport, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::consume_z_transport_artifact(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent::ZTransportResult), antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::decision_claims::atom_leaders(decision: &antecedent_design::decision_adapters::AdaptedDecision) -> alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
 pub fn antecedent::analysis::decision_claims::cpdag_claims(report: &antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, policy: antecedent_design::decision_contract::StructuralPolicy, expected: core::option::Option<&antecedent::analysis::decision_claims::ClaimSource>) -> core::result::Result<antecedent::analysis::decision_claims::ScenarioClaims, antecedent::analysis::decision_claims::ClaimError>
 pub fn antecedent::analysis::decision_claims::envelope_identified_utilities(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, envelope: &antecedent_estimate::transport_scenarios::StructuralEnvelope, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>
@@ -6345,12 +6453,6 @@ pub fn antecedent::analysis::decision_claims::scenario_claims(report: &anteceden
 pub fn antecedent::analysis::decision_claims::weighted_identified_utilities(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, weighted: &antecedent_estimate::transport_scenarios::WeightedScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>
 pub fn antecedent::analysis::design_ranking::evaluate(wire: &antecedent::analysis::design_ranking::DesignRankingRequestWire) -> core::result::Result<antecedent::analysis::design_ranking::DesignRankingEvaluation, antecedent::analysis::design_ranking::DesignRankingError>
 pub fn antecedent::analysis::design_ranking::rank_structural(candidates: &[antecedent::analysis::design_ranking::StructuralCandidateDeclWire]) -> core::result::Result<antecedent_design::ranking::DesignRankingValue, antecedent::analysis::design_ranking::DesignRankingError>
-pub fn antecedent::analysis::estimate_derived_joint_cells(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], orderings: &[alloc::vec::Vec<usize>], config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::DerivedTreatmentPlan, antecedent_estimate::joint_cell_factorized::FactorizedJointFit), antecedent::CausalError>
-pub fn antecedent::analysis::estimate_joint_cell_cost(config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, components: usize, orderings: &[alloc::vec::Vec<usize>], rows: core::option::Option<usize>) -> core::result::Result<antecedent::JointCellCostEstimate, antecedent::CausalError>
-pub fn antecedent::analysis::estimate_with_rank_drop(input: &antecedent::PreflightInput<'_>, policy: &antecedent::RankDropPolicy, estimator: antecedent::EstimatorId, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::RankDropEstimate, antecedent::CausalError>
-pub fn antecedent::analysis::export_admg_conditional_obstruction(diagram: &antecedent_graph::selection::SelectionDiagram, proof: &antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof, variable_names: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::export_scenario_covariance(spec: &antecedent_io::scenario_covariance_artifact::CovarianceSpec, covariance: &antecedent_estimate::scenario_covariance::ScenarioCovariance) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::fit_diagnostics_design(input: &antecedent::PreflightInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::NuisanceFitDiagnostics, antecedent::CausalError>
 pub fn antecedent::analysis::inverse_query::consume(bytes: &[u8], expected: core::option::Option<&antecedent_design::inverse_query_artifact::InverseQueryIdentity>) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::inverse_query::evaluate(query: &antecedent_design::inverse_query::InverseQuery, evidence: &antecedent_design::inverse_query::ForwardEvidence) -> core::result::Result<antecedent_design::inverse_query::InverseResult, antecedent_design::inverse_query::InverseQueryError>
 pub fn antecedent::analysis::inverse_query::export(artifact: &antecedent_design::inverse_query_artifact::InverseQueryArtifact, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -6363,8 +6465,6 @@ pub fn antecedent::analysis::msm_sensitivity::msm_sensitivity(strata: &[antecede
 pub fn antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact_bytes(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::native_claims::native_response_coordinates(response: &antecedent_core::response::CausalResponse, schema: &antecedent_core::schema::CausalSchema, context: &antecedent::analysis::native_claims::NativeResponseContext) -> core::result::Result<alloc::vec::Vec<antecedent_contract::quantity::ScientificQuantity>, antecedent_contract::external_refusal::ExternalRefusal>
-pub fn antecedent::analysis::plan_rank_drop(input: &antecedent::PreflightInput<'_>, policy: &antecedent::RankDropPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::RankDropPlan, antecedent::CausalError>
-pub fn antecedent::analysis::preflight_design(input: &antecedent::PreflightInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreflightReport, antecedent::CausalError>
 pub fn antecedent::analysis::proposal_arrival::execute(r: &antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::proposal_arrival::ArrivalPoint, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::recalc_adjusted::execute_adjusted_with_receipt(session: &mut antecedent::analysis::recalc_adjusted::AdjustedSession, request: &antecedent::analysis::recalc_adjusted::AdjustedRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::recalc_receipt::RecalcOutcome, antecedent::analysis::recalc_receipt::RecalcRunError>
 pub fn antecedent::analysis::recalc_attempt::execute_with_attempt<T, E>(execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
@@ -6393,8 +6493,6 @@ pub fn antecedent::analysis::sensitivity_decision::decide(contract: &antecedent_
 pub fn antecedent::analysis::sensitivity_decision::export(artifact: &antecedent_io_core::sensitivity_artifact::SensitivityArtifact, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::source_projection::source_resolved_consumer(receipts: alloc::vec::Vec<antecedent::analysis::source_evidence::SourceResolution>) -> core::result::Result<antecedent_design::composition_bundle::BundleConsumer, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::temporal_counterfactual::transported_path_specific(prerequisites: &antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites, required_factors: &[antecedent_counterfactual::transported_gate::RegimeFactorKey], supplied: &alloc::collections::btree::map::BTreeMap<antecedent_counterfactual::transported_gate::RegimeFactorKey, alloc::string::String>) -> core::result::Result<core::convert::Infallible, antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal>
-pub fn antecedent::analysis::temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::tier_diagnostics(result: &antecedent::StudyResult, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::TierDiagnostics, antecedent::TierDiagnosticsError>
 pub fn antecedent::analysis::validate_temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn antecedent::callback_plan::mark_python_callback_plan(record: antecedent_contract::plan::PhysicalExecutionPlanRecord, region: &str) -> (antecedent_contract::plan::PhysicalExecutionPlanRecord, antecedent_core::diagnostic::Diagnostic)
 pub fn antecedent::cell_coordinate(cell: antecedent::SupportCell) -> alloc::string::String
@@ -6513,6 +6611,8 @@ pub fn antecedent::support::support_cell_from_coordinate(coordinate: &str) -> co
 pub fn antecedent::support::support_cell_named(query: &antecedent_core::query::CausalQuery, graph_class: &'static str, structure: antecedent::StructureSource, inference: &antecedent::InferenceMode, refute: antecedent::RefuteSuite) -> core::option::Option<antecedent::SupportCell>
 pub mod antecedent::accepted
 pub mod antecedent::analysis
+pub mod antecedent::analysis::api
+pub mod antecedent::analysis::api::tier_diagnostics
 pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::closed_pilots
 pub mod antecedent::analysis::compact_export
@@ -6965,78 +7065,78 @@ pub trait fn fn antecedent::analysis::recalc_external::ExternalMeanProvider::des
 pub trait fn fn antecedent::analysis::recalc_external::ExternalMeanProvider::invoke(&mut self, request: &antecedent::analysis::recalc_external::ExternalCallbackRequest, ctx: &antecedent::analysis::recalc_external::CallbackContext) -> core::result::Result<antecedent_contract::external_binding::ExternalResponse, antecedent::analysis::recalc_external::CallbackFailure>
 pub type antecedent::DecisionFacadeRefusal = antecedent_contract::external_refusal::ExternalRefusal
 pub type antecedent::analysis::CheckedTemporalGraphPosteriorResponseInfo = antecedent::CheckedGraphPosteriorResponseInfo
-pub use antecedent::ActionRobustness = analysis::ActionRobustness
-pub use antecedent::AdaptedClaims = analysis::AdaptedClaims
-pub use antecedent::AdaptedDecision = analysis::AdaptedDecision
-pub use antecedent::AdapterError = analysis::AdapterError
-pub use antecedent::AdmissibilityError = analysis::AdmissibilityError
-pub use antecedent::AdmissibilityRules = analysis::AdmissibilityRules
-pub use antecedent::AdmissibleContractArtifact = analysis::AdmissibleContractArtifact
-pub use antecedent::AdmissibleDecisionContract = analysis::AdmissibleDecisionContract
+pub use antecedent::ActionRobustness = super::ActionRobustness
+pub use antecedent::AdaptedClaims = super::AdaptedClaims
+pub use antecedent::AdaptedDecision = super::AdaptedDecision
+pub use antecedent::AdapterError = super::AdapterError
+pub use antecedent::AdmissibilityError = super::AdmissibilityError
+pub use antecedent::AdmissibilityRules = super::AdmissibilityRules
+pub use antecedent::AdmissibleContractArtifact = super::AdmissibleContractArtifact
+pub use antecedent::AdmissibleDecisionContract = super::AdmissibleDecisionContract
 pub use antecedent::AnomalyAttributionQuery = query::AnomalyAttributionQuery
 pub use antecedent::AssignmentDesign = query::AssignmentDesign
-pub use antecedent::AtomSupport = analysis::AtomSupport
+pub use antecedent::AtomSupport = super::AtomSupport
 pub use antecedent::AverageEffectQuery = query::AverageEffectQuery
-pub use antecedent::BlockedOperation = analysis::BlockedOperation
+pub use antecedent::BlockedOperation = super::BlockedOperation
 pub use antecedent::CausalPosterior = estimate::CausalPosterior
 pub use antecedent::CausalQuery = query::CausalQuery
 pub use antecedent::ChangeAttributionQuery = query::ChangeAttributionQuery
-pub use antecedent::ClaimProbability = analysis::ClaimProbability
-pub use antecedent::ClaimProfile = analysis::ClaimProfile
+pub use antecedent::ClaimProbability = super::ClaimProbability
+pub use antecedent::ClaimProfile = super::ClaimProfile
 pub use antecedent::ConditionalEffectQuery = query::ConditionalEffectQuery
 pub use antecedent::ContinuousDomain = query::ContinuousDomain
 pub use antecedent::CounterfactualQuery = query::CounterfactualQuery
 pub use antecedent::Dag = graph::Dag
-pub use antecedent::DecisionClaimKind = analysis::DecisionClaimKind
-pub use antecedent::DecisionDeclaredExclusion = analysis::DecisionDeclaredExclusion
-pub use antecedent::DecisionSupportRule = analysis::DecisionSupportRule
-pub use antecedent::DecisionUncertaintyKind = analysis::DecisionUncertaintyKind
+pub use antecedent::DecisionClaimKind = super::DecisionClaimKind
+pub use antecedent::DecisionDeclaredExclusion = super::DecisionDeclaredExclusion
+pub use antecedent::DecisionSupportRule = super::DecisionSupportRule
+pub use antecedent::DecisionUncertaintyKind = super::DecisionUncertaintyKind
 pub use antecedent::DenseNodeId = graph::DenseNodeId
 pub use antecedent::DerivativeScale = query::DerivativeScale
 pub use antecedent::DerivativeWeighting = query::DerivativeWeighting
 pub use antecedent::EffectEstimate = estimate::EffectEstimate
 pub use antecedent::ExposureLevel = query::ExposureLevel
 pub use antecedent::ExposureMapping = query::ExposureMapping
-pub use antecedent::ExternalCallbackReceipt = analysis::ExternalCallbackReceipt
-pub use antecedent::ExternalTrustLimit = analysis::ExternalTrustLimit
+pub use antecedent::ExternalCallbackReceipt = super::ExternalCallbackReceipt
+pub use antecedent::ExternalTrustLimit = super::ExternalTrustLimit
 pub use antecedent::GridSpec = query::GridSpec
-pub use antecedent::IdentifiedActionRange = analysis::IdentifiedActionRange
-pub use antecedent::IdentifiedSetDecision = analysis::IdentifiedSetDecision
-pub use antecedent::IdentifiedUtility = analysis::IdentifiedUtility
-pub use antecedent::IdentifiedVerdict = analysis::IdentifiedVerdict
-pub use antecedent::InputSupport = analysis::InputSupport
+pub use antecedent::IdentifiedActionRange = super::IdentifiedActionRange
+pub use antecedent::IdentifiedSetDecision = super::IdentifiedSetDecision
+pub use antecedent::IdentifiedUtility = super::IdentifiedUtility
+pub use antecedent::IdentifiedVerdict = super::IdentifiedVerdict
+pub use antecedent::InputSupport = super::InputSupport
 pub use antecedent::InterferenceFunctional = query::InterferenceFunctional
 pub use antecedent::InterferenceQuery = query::InterferenceQuery
 pub use antecedent::InterventionalDistributionQuery = query::InterventionalDistributionQuery
-pub use antecedent::LicensedNeighbor = analysis::LicensedNeighbor
+pub use antecedent::LicensedNeighbor = super::LicensedNeighbor
 pub use antecedent::LocalPolynomialRatioQuery = query::LocalPolynomialRatioQuery
 pub use antecedent::LongitudinalRegimeQuery = query::LongitudinalRegimeQuery
 pub use antecedent::MechanismChangeQuery = query::MechanismChangeQuery
 pub use antecedent::MediationContrast = query::MediationContrast
 pub use antecedent::MediationQuery = query::MediationQuery
-pub use antecedent::NextAction = analysis::NextAction
-pub use antecedent::OperationKind = analysis::OperationKind
-pub use antecedent::OperationReadiness = analysis::OperationReadiness
-pub use antecedent::OperationReport = analysis::OperationReport
+pub use antecedent::NextAction = super::NextAction
+pub use antecedent::OperationKind = super::OperationKind
+pub use antecedent::OperationReadiness = super::OperationReadiness
+pub use antecedent::OperationReport = super::OperationReport
 pub use antecedent::OutcomeFunctional = query::OutcomeFunctional
 pub use antecedent::PanelDidQuery = query::PanelDidQuery
 pub use antecedent::PathSpecificEffectQuery = query::PathSpecificEffectQuery
-pub use antecedent::PremiseChange = analysis::PremiseChange
+pub use antecedent::PremiseChange = super::PremiseChange
 pub use antecedent::RandomizationDesign = query::RandomizationDesign
 pub use antecedent::RandomizedEffectQuery = query::RandomizedEffectQuery
-pub use antecedent::ReplayReceipt = analysis::ReplayReceipt
+pub use antecedent::ReplayReceipt = super::ReplayReceipt
 pub use antecedent::ResponseFunctional = query::ResponseFunctional
 pub use antecedent::ResponseIdentification = query::ResponseIdentification
 pub use antecedent::ResponseQuery = query::ResponseQuery
 pub use antecedent::ResponseUncertainty = query::ResponseUncertainty
 pub use antecedent::ResponseValue = query::ResponseValue
-pub use antecedent::RobustDecisionResult = analysis::RobustDecisionResult
-pub use antecedent::RobustResultArtifact = analysis::RobustResultArtifact
-pub use antecedent::RobustVerdict = analysis::RobustVerdict
-pub use antecedent::RobustnessError = analysis::RobustnessError
-pub use antecedent::SemanticApplicability = analysis::SemanticApplicability
-pub use antecedent::SuppliedClaim = analysis::SuppliedClaim
-pub use antecedent::SupportShortfall = analysis::SupportShortfall
+pub use antecedent::RobustDecisionResult = super::RobustDecisionResult
+pub use antecedent::RobustResultArtifact = super::RobustResultArtifact
+pub use antecedent::RobustVerdict = super::RobustVerdict
+pub use antecedent::RobustnessError = super::RobustnessError
+pub use antecedent::SemanticApplicability = super::SemanticApplicability
+pub use antecedent::SuppliedClaim = super::SuppliedClaim
+pub use antecedent::SupportShortfall = super::SupportShortfall
 pub use antecedent::SyntheticControlQuery = query::SyntheticControlQuery
 pub use antecedent::SyntheticPanelMethod = query::SyntheticPanelMethod
 pub use antecedent::TemporalDag = graph::TemporalDag
@@ -7044,16 +7144,16 @@ pub use antecedent::TemporalEffectQuery = query::TemporalEffectQuery
 pub use antecedent::TemporalPolicy = query::TemporalPolicy
 pub use antecedent::TemporalResponseSpec = query::TemporalResponseSpec
 pub use antecedent::TransportQuery = query::TransportQuery
-pub use antecedent::UncertaintyRequirement = analysis::UncertaintyRequirement
+pub use antecedent::UncertaintyRequirement = super::UncertaintyRequirement
 pub use antecedent::UnitChangeQuery = query::UnitChangeQuery
 pub use antecedent::accepted::AcceptedGraph = antecedent::AcceptedGraph
 pub use antecedent::accepted::GraphClass = antecedent::GraphClass
 pub use antecedent::accepted::GraphRef = antecedent::GraphRef
 pub use antecedent::accepted::IntoAccepted = antecedent::IntoAccepted
-pub use antecedent::adapt_finite_scenarios = analysis::adapt_finite_scenarios
-pub use antecedent::adapt_graph_dependent_claims = analysis::adapt_graph_dependent_claims
-pub use antecedent::adapt_point_claim = analysis::adapt_point_claim
-pub use antecedent::adapt_weighted_graph_atoms = analysis::adapt_weighted_graph_atoms
+pub use antecedent::adapt_finite_scenarios = super::adapt_finite_scenarios
+pub use antecedent::adapt_graph_dependent_claims = super::adapt_graph_dependent_claims
+pub use antecedent::adapt_point_claim = super::adapt_point_claim
+pub use antecedent::adapt_weighted_graph_atoms = super::adapt_weighted_graph_atoms
 pub use antecedent::analysis::ActionConstraint = antecedent::ActionConstraint
 pub use antecedent::analysis::ActionOutcome = antecedent::ActionOutcome
 pub use antecedent::analysis::ActionRobustness = decision_contract_facade::ActionRobustness
@@ -7261,6 +7361,224 @@ pub use antecedent::analysis::adapt_finite_scenarios = decision_contract_facade:
 pub use antecedent::analysis::adapt_graph_dependent_claims = decision_contract_facade::adapt_graph_dependent_claims
 pub use antecedent::analysis::adapt_point_claim = decision_contract_facade::adapt_point_claim
 pub use antecedent::analysis::adapt_weighted_graph_atoms = decision_contract_facade::adapt_weighted_graph_atoms
+pub use antecedent::analysis::api::ActionConstraint = antecedent::ActionConstraint
+pub use antecedent::analysis::api::ActionOutcome = antecedent::ActionOutcome
+pub use antecedent::analysis::api::ActionRobustness = super::ActionRobustness
+pub use antecedent::analysis::api::ActionSpec = antecedent::ActionSpec
+pub use antecedent::analysis::api::ActionStatus = antecedent::ActionStatus
+pub use antecedent::analysis::api::AdaptedClaims = super::AdaptedClaims
+pub use antecedent::analysis::api::AdaptedDecision = super::AdaptedDecision
+pub use antecedent::analysis::api::AdapterError = super::AdapterError
+pub use antecedent::analysis::api::AdmgConditionalResult = antecedent::AdmgConditionalResult
+pub use antecedent::analysis::api::AdmissibilityError = super::AdmissibilityError
+pub use antecedent::analysis::api::AdmissibilityRules = super::AdmissibilityRules
+pub use antecedent::analysis::api::AdmissibleContractArtifact = super::AdmissibleContractArtifact
+pub use antecedent::analysis::api::AdmissibleDecisionContract = super::AdmissibleDecisionContract
+pub use antecedent::analysis::api::ArmCount = antecedent::ArmCount
+pub use antecedent::analysis::api::ArmSpec = antecedent::ArmSpec
+pub use antecedent::analysis::api::ArmWeightEss = antecedent::ArmWeightEss
+pub use antecedent::analysis::api::AtomSupport = super::AtomSupport
+pub use antecedent::analysis::api::BATCH_RETARGET_SCOPE_NOTE = antecedent::BATCH_RETARGET_SCOPE_NOTE
+pub use antecedent::analysis::api::BandMember = antecedent::BandMember
+pub use antecedent::analysis::api::BatchCostEstimate = antecedent::BatchCostEstimate
+pub use antecedent::analysis::api::BatchPreflightReport = antecedent::BatchPreflightReport
+pub use antecedent::analysis::api::BatchQuery = antecedent::BatchQuery
+pub use antecedent::analysis::api::BatchRetargetError = antecedent::BatchRetargetError
+pub use antecedent::analysis::api::BatchRetargetReport = antecedent::BatchRetargetReport
+pub use antecedent::analysis::api::BatchRetargetRequest = antecedent::BatchRetargetRequest
+pub use antecedent::analysis::api::BatchScores = antecedent::BatchScores
+pub use antecedent::analysis::api::BatchStudy = antecedent::BatchStudy
+pub use antecedent::analysis::api::BlockedOperation = super::BlockedOperation
+pub use antecedent::analysis::api::BoundDecisionContract = antecedent::BoundDecisionContract
+pub use antecedent::analysis::api::CandidateProcedure = antecedent::CandidateProcedure
+pub use antecedent::analysis::api::CandidateScreen = antecedent::CandidateScreen
+pub use antecedent::analysis::api::CandidateSelection = antecedent::CandidateSelection
+pub use antecedent::analysis::api::CausalContract = antecedent::CausalContract
+pub use antecedent::analysis::api::CellFamilyContrast = antecedent::CellFamilyContrast
+pub use antecedent::analysis::api::CheckedAdmgGraphPosteriorResponseInfo = antecedent::CheckedAdmgGraphPosteriorResponseInfo
+pub use antecedent::analysis::api::CheckedBayesianSpecialistInfo = antecedent::CheckedBayesianSpecialistInfo
+pub use antecedent::analysis::api::CheckedGraphPosteriorResponseInfo = antecedent::CheckedGraphPosteriorResponseInfo
+pub use antecedent::analysis::api::CheckedInterferenceInfo = antecedent::CheckedInterferenceInfo
+pub use antecedent::analysis::api::CheckedStaticClassResponseInfo = antecedent::CheckedStaticClassResponseInfo
+pub use antecedent::analysis::api::CheckedTemporalClassMediationInfo = antecedent::CheckedTemporalClassMediationInfo
+pub use antecedent::analysis::api::CheckedTemporalMediationInfo = antecedent::CheckedTemporalMediationInfo
+pub use antecedent::analysis::api::CheckedTransportTrialInfo = antecedent::CheckedTransportTrialInfo
+pub use antecedent::analysis::api::CheckedUnknownTieredAverageInfo = antecedent::CheckedUnknownTieredAverageInfo
+pub use antecedent::analysis::api::ClaimPoint = antecedent::ClaimPoint
+pub use antecedent::analysis::api::ClaimProbability = super::ClaimProbability
+pub use antecedent::analysis::api::ClaimProfile = super::ClaimProfile
+pub use antecedent::analysis::api::ClaimReport = antecedent::ClaimReport
+pub use antecedent::analysis::api::ColumnMissingness = antecedent::ColumnMissingness
+pub use antecedent::analysis::api::ColumnPriority = antecedent::ColumnPriority
+pub use antecedent::analysis::api::ColumnWeight = antecedent::ColumnWeight
+pub use antecedent::analysis::api::ComputeBudget = antecedent::ComputeBudget
+pub use antecedent::analysis::api::ConstituentRole = antecedent::ConstituentRole
+pub use antecedent::analysis::api::ContrastPoint = antecedent::ContrastPoint
+pub use antecedent::analysis::api::ContrastReport = antecedent::ContrastReport
+pub use antecedent::analysis::api::CostEstimate = antecedent::CostEstimate
+pub use antecedent::analysis::api::CpdagEvaluation = antecedent::CpdagEvaluation
+pub use antecedent::analysis::api::DecisionClaimKind = super::DecisionClaimKind
+pub use antecedent::analysis::api::DecisionDeclaredExclusion = super::DecisionDeclaredExclusion
+pub use antecedent::analysis::api::DecisionFacadeRefusal = antecedent::DecisionFacadeRefusal
+pub use antecedent::analysis::api::DecisionSupportRule = super::DecisionSupportRule
+pub use antecedent::analysis::api::DecisionUncertaintyKind = super::DecisionUncertaintyKind
+pub use antecedent::analysis::api::DeclaredExclusion = antecedent::DeclaredExclusion
+pub use antecedent::analysis::api::DependentColumn = antecedent::DependentColumn
+pub use antecedent::analysis::api::DerivedTreatmentDeclaration = antecedent::DerivedTreatmentDeclaration
+pub use antecedent::analysis::api::DerivedTreatmentPlan = antecedent::DerivedTreatmentPlan
+pub use antecedent::analysis::api::DroppedColumn = antecedent::DroppedColumn
+pub use antecedent::analysis::api::DuplicateGroup = antecedent::DuplicateGroup
+pub use antecedent::analysis::api::EmpiricalScenarioInput = antecedent::EmpiricalScenarioInput
+pub use antecedent::analysis::api::EnumeratedStatus = antecedent::EnumeratedStatus
+pub use antecedent::analysis::api::EvidenceSearch = antecedent::EvidenceSearch
+pub use antecedent::analysis::api::ExactFactorRequirement = antecedent::ExactFactorRequirement
+pub use antecedent::analysis::api::ExactPreparedState = antecedent::ExactPreparedState
+pub use antecedent::analysis::api::ExactStudyIdentities = antecedent::ExactStudyIdentities
+pub use antecedent::analysis::api::ExactStudyInspection = antecedent::ExactStudyInspection
+pub use antecedent::analysis::api::ExactStudyResult = antecedent::ExactStudyResult
+pub use antecedent::analysis::api::ExclusionRule = antecedent::ExclusionRule
+pub use antecedent::analysis::api::ExternalCallbackReceipt = super::ExternalCallbackReceipt
+pub use antecedent::analysis::api::ExternalTrustLimit = super::ExternalTrustLimit
+pub use antecedent::analysis::api::FamilyCovariance = antecedent::FamilyCovariance
+pub use antecedent::analysis::api::FindingSeverity = antecedent::FindingSeverity
+pub use antecedent::analysis::api::FittedPropensity = antecedent::FittedPropensity
+pub use antecedent::analysis::api::ForwardEvaluation = antecedent::ForwardEvaluation
+pub use antecedent::analysis::api::ForwardInterval = antecedent::ForwardInterval
+pub use antecedent::analysis::api::INVERSE_SCOPE_NOTE = antecedent::INVERSE_SCOPE_NOTE
+pub use antecedent::analysis::api::IdentifiedActionRange = super::IdentifiedActionRange
+pub use antecedent::analysis::api::IdentifiedSetDecision = super::IdentifiedSetDecision
+pub use antecedent::analysis::api::IdentifiedUtility = super::IdentifiedUtility
+pub use antecedent::analysis::api::IdentifiedVerdict = super::IdentifiedVerdict
+pub use antecedent::analysis::api::InferenceDefault = antecedent::InferenceDefault
+pub use antecedent::analysis::api::InputSupport = super::InputSupport
+pub use antecedent::analysis::api::InterferenceSpec = antecedent::InterferenceSpec
+pub use antecedent::analysis::api::IntervalEstimand = antecedent::IntervalEstimand
+pub use antecedent::analysis::api::IntervalMeta = antecedent::IntervalMeta
+pub use antecedent::analysis::api::IntervalScope = antecedent::IntervalScope
+pub use antecedent::analysis::api::InterventionMeaning = antecedent::InterventionMeaning
+pub use antecedent::analysis::api::InverseOutcomeError = antecedent::InverseOutcomeError
+pub use antecedent::analysis::api::InverseOutcomeReport = antecedent::InverseOutcomeReport
+pub use antecedent::analysis::api::InverseQuery = antecedent::InverseQuery
+pub use antecedent::analysis::api::JOINT_SENSITIVITY_ARTIFACT_VERSION = antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION
+pub use antecedent::analysis::api::JointCellCostEstimate = antecedent::JointCellCostEstimate
+pub use antecedent::analysis::api::JointFactorWire = antecedent::JointFactorWire
+pub use antecedent::analysis::api::JointOutcomeWire = antecedent::JointOutcomeWire
+pub use antecedent::analysis::api::JointPerturbationWire = antecedent::JointPerturbationWire
+pub use antecedent::analysis::api::JointProvenanceWire = antecedent::JointProvenanceWire
+pub use antecedent::analysis::api::JointReceiptWire = antecedent::JointReceiptWire
+pub use antecedent::analysis::api::JointSamplingWire = antecedent::JointSamplingWire
+pub use antecedent::analysis::api::JointSensitivityArtifactWire = antecedent::JointSensitivityArtifactWire
+pub use antecedent::analysis::api::JointSensitivityBodyWire = antecedent::JointSensitivityBodyWire
+pub use antecedent::analysis::api::JointSensitivityConsumeLimits = antecedent::JointSensitivityConsumeLimits
+pub use antecedent::analysis::api::JointTippingWire = antecedent::JointTippingWire
+pub use antecedent::analysis::api::LatencyMode = antecedent::LatencyMode
+pub use antecedent::analysis::api::LearnedContinuousResult = antecedent::LearnedContinuousResult
+pub use antecedent::analysis::api::LearnedTrialResult = antecedent::LearnedTrialResult
+pub use antecedent::analysis::api::LearnedTrialState = antecedent::LearnedTrialState
+pub use antecedent::analysis::api::LicensedNeighbor = super::LicensedNeighbor
+pub use antecedent::analysis::api::MAX_INVERSE_ACTIONS = antecedent::MAX_INVERSE_ACTIONS
+pub use antecedent::analysis::api::MAX_INVERSE_FORWARD_POINTS = antecedent::MAX_INVERSE_FORWARD_POINTS
+pub use antecedent::analysis::api::MAX_T_MAX_DRAWS = antecedent::MAX_T_MAX_DRAWS
+pub use antecedent::analysis::api::MAX_T_MIN_DRAWS = antecedent::MAX_T_MIN_DRAWS
+pub use antecedent::analysis::api::MemberFailure = antecedent::MemberFailure
+pub use antecedent::analysis::api::MixedSourceResult = antecedent::MixedSourceResult
+pub use antecedent::analysis::api::MzTransportResult = antecedent::MzTransportResult
+pub use antecedent::analysis::api::NextAction = super::NextAction
+pub use antecedent::analysis::api::NuisanceFitDiagnostics = antecedent::NuisanceFitDiagnostics
+pub use antecedent::analysis::api::ObservationRecoveryResult = antecedent::ObservationRecoveryResult
+pub use antecedent::analysis::api::OperationKind = super::OperationKind
+pub use antecedent::analysis::api::OperationReadiness = super::OperationReadiness
+pub use antecedent::analysis::api::OperationReport = super::OperationReport
+pub use antecedent::analysis::api::PreflightFinding = antecedent::PreflightFinding
+pub use antecedent::analysis::api::PreflightInput = antecedent::PreflightInput
+pub use antecedent::analysis::api::PreflightReport = antecedent::PreflightReport
+pub use antecedent::analysis::api::PremiseChange = super::PremiseChange
+pub use antecedent::analysis::api::PreparedAdmgConditionalTransport = antecedent::PreparedAdmgConditionalTransport
+pub use antecedent::analysis::api::PreparedBatch = antecedent::PreparedBatch
+pub use antecedent::analysis::api::PreparedCpdagCompletionScenarios = antecedent::PreparedCpdagCompletionScenarios
+pub use antecedent::analysis::api::PreparedLearnedContinuous = antecedent::PreparedLearnedContinuous
+pub use antecedent::analysis::api::PreparedMixedSource = antecedent::PreparedMixedSource
+pub use antecedent::analysis::api::PreparedMzTransport = antecedent::PreparedMzTransport
+pub use antecedent::analysis::api::PreparedObservationRecovery = antecedent::PreparedObservationRecovery
+pub use antecedent::analysis::api::PreparedSmoothedDose = antecedent::PreparedSmoothedDose
+pub use antecedent::analysis::api::PreparedStudy = antecedent::PreparedStudy
+pub use antecedent::analysis::api::PreparedTemporalTransport = antecedent::PreparedTemporalTransport
+pub use antecedent::analysis::api::PreparedTransportScenarios = antecedent::PreparedTransportScenarios
+pub use antecedent::analysis::api::PreparedZTransport = antecedent::PreparedZTransport
+pub use antecedent::analysis::api::PropensityOutcome = antecedent::PropensityOutcome
+pub use antecedent::analysis::api::RankDropEstimate = antecedent::RankDropEstimate
+pub use antecedent::analysis::api::RankDropPlan = antecedent::RankDropPlan
+pub use antecedent::analysis::api::RankDropPolicy = antecedent::RankDropPolicy
+pub use antecedent::analysis::api::RankReport = antecedent::RankReport
+pub use antecedent::analysis::api::RdConfig = antecedent::RdConfig
+pub use antecedent::analysis::api::RecoveryEvaluation = antecedent::RecoveryEvaluation
+pub use antecedent::analysis::api::RefuteSuite = antecedent::RefuteSuite
+pub use antecedent::analysis::api::ReplayReceipt = super::ReplayReceipt
+pub use antecedent::analysis::api::RetargetClaim = antecedent::RetargetClaim
+pub use antecedent::analysis::api::RetargetContrast = antecedent::RetargetContrast
+pub use antecedent::analysis::api::RetargetCostEstimate = antecedent::RetargetCostEstimate
+pub use antecedent::analysis::api::RobustDecisionResult = super::RobustDecisionResult
+pub use antecedent::analysis::api::RobustResultArtifact = super::RobustResultArtifact
+pub use antecedent::analysis::api::RobustVerdict = super::RobustVerdict
+pub use antecedent::analysis::api::RobustnessError = super::RobustnessError
+pub use antecedent::analysis::api::ScoreQuantile = antecedent::ScoreQuantile
+pub use antecedent::analysis::api::ScoreSource = antecedent::ScoreSource
+pub use antecedent::analysis::api::ScreenSplitReceipt = antecedent::ScreenSplitReceipt
+pub use antecedent::analysis::api::ScreenUnits = antecedent::ScreenUnits
+pub use antecedent::analysis::api::SemanticApplicability = super::SemanticApplicability
+pub use antecedent::analysis::api::SequenceEndpoints = antecedent::SequenceEndpoints
+pub use antecedent::analysis::api::SharedBatchDesign = antecedent::SharedBatchDesign
+pub use antecedent::analysis::api::SharedCovariateDesign = antecedent::SharedCovariateDesign
+pub use antecedent::analysis::api::SimultaneousBand = antecedent::SimultaneousBand
+pub use antecedent::analysis::api::SmoothedDoseResult = antecedent::SmoothedDoseResult
+pub use antecedent::analysis::api::SourceColumn = antecedent::SourceColumn
+pub use antecedent::analysis::api::SpanCheck = antecedent::SpanCheck
+pub use antecedent::analysis::api::StageEvent = antecedent::StageEvent
+pub use antecedent::analysis::api::StageResultSink = antecedent::StageResultSink
+pub use antecedent::analysis::api::StatisticalBindingView = antecedent::StatisticalBindingView
+pub use antecedent::analysis::api::StatisticalContrast = antecedent::StatisticalContrast
+pub use antecedent::analysis::api::StatisticalPreparedState = antecedent::StatisticalPreparedState
+pub use antecedent::analysis::api::StatisticalStudyInspection = antecedent::StatisticalStudyInspection
+pub use antecedent::analysis::api::StatisticalStudyResult = antecedent::StatisticalStudyResult
+pub use antecedent::analysis::api::Study = antecedent::Study
+pub use antecedent::analysis::api::StudyBuilder = antecedent::StudyBuilder
+pub use antecedent::analysis::api::SuppliedClaim = super::SuppliedClaim
+pub use antecedent::analysis::api::SupportBasis = antecedent::SupportBasis
+pub use antecedent::analysis::api::SupportShortfall = super::SupportShortfall
+pub use antecedent::analysis::api::TargetDirection = antecedent::TargetDirection
+pub use antecedent::analysis::api::TemporalInitialState = antecedent::TemporalInitialState
+pub use antecedent::analysis::api::TemporalPosition = antecedent::TemporalPosition
+pub use antecedent::analysis::api::TemporalWindow = antecedent::TemporalWindow
+pub use antecedent::analysis::api::TidyKind = antecedent::TidyKind
+pub use antecedent::analysis::api::TidyRow = antecedent::TidyRow
+pub use antecedent::analysis::api::TierDesign = antecedent::TierDesign
+pub use antecedent::analysis::api::TierDiagnostics = antecedent::TierDiagnostics
+pub use antecedent::analysis::api::TierDiagnosticsError = antecedent::TierDiagnosticsError
+pub use antecedent::analysis::api::TierEvalue = antecedent::TierEvalue
+pub use antecedent::analysis::api::TierPointEvalue = antecedent::TierPointEvalue
+pub use antecedent::analysis::api::TierScenario = antecedent::TierScenario
+pub use antecedent::analysis::api::Transformation = antecedent::Transformation
+pub use antecedent::analysis::api::TransportTrialSpec = antecedent::TransportTrialSpec
+pub use antecedent::analysis::api::UncertaintyKind = antecedent::UncertaintyKind
+pub use antecedent::analysis::api::UncertaintyRequirement = super::UncertaintyRequirement
+pub use antecedent::analysis::api::ZTransportResult = antecedent::ZTransportResult
+pub use antecedent::analysis::api::ZTransportSensitivityArtifactWire = antecedent::ZTransportSensitivityArtifactWire
+pub use antecedent::analysis::api::adapt_finite_scenarios = super::adapt_finite_scenarios
+pub use antecedent::analysis::api::adapt_graph_dependent_claims = super::adapt_graph_dependent_claims
+pub use antecedent::analysis::api::adapt_point_claim = super::adapt_point_claim
+pub use antecedent::analysis::api::adapt_weighted_graph_atoms = super::adapt_weighted_graph_atoms
+pub use antecedent::analysis::api::assess_robustness = super::assess_robustness
+pub use antecedent::analysis::api::evaluate_adapted = super::evaluate_adapted
+pub use antecedent::analysis::api::evaluate_identified_sets = super::evaluate_identified_sets
+pub use antecedent::analysis::api::evaluate_robust = super::evaluate_robust
+pub use antecedent::analysis::api::tier_diagnostics::TierDesign = antecedent::TierDesign
+pub use antecedent::analysis::api::tier_diagnostics::TierDiagnostics = antecedent::TierDiagnostics
+pub use antecedent::analysis::api::tier_diagnostics::TierDiagnosticsError = antecedent::TierDiagnosticsError
+pub use antecedent::analysis::api::tier_diagnostics::TierEvalue = antecedent::TierEvalue
+pub use antecedent::analysis::api::tier_diagnostics::TierPointEvalue = antecedent::TierPointEvalue
+pub use antecedent::analysis::api::tier_diagnostics::TierScenario = antecedent::TierScenario
+pub use antecedent::analysis::api::tier_diagnostics::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
+pub use antecedent::analysis::api::utility_interval = super::utility_interval
 pub use antecedent::analysis::assess_robustness = decision_contract_facade::assess_robustness
 pub use antecedent::analysis::categorical_treatment::AdjacentStepWire = antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 pub use antecedent::analysis::categorical_treatment::CATEGORICAL_HC_ROW_CAP = antecedent_io::categorical_treatment_artifact::CATEGORICAL_HC_ROW_CAP
@@ -7283,6 +7601,8 @@ pub use antecedent::analysis::categorical_treatment::MONOTONICITY_NON_INCREASING
 pub use antecedent::analysis::categorical_treatment::MonotonicityDirection = antecedent_estimate::categorical_treatment::MonotonicityDirection
 pub use antecedent::analysis::categorical_treatment::MonotonicityWire = antecedent_io::categorical_treatment_artifact::MonotonicityWire
 pub use antecedent::analysis::categorical_treatment::PairContrastWire = antecedent_io::categorical_treatment_artifact::PairContrastWire
+pub use antecedent::analysis::check_derived_treatment = antecedent::analysis::api::check_derived_treatment
+pub use antecedent::analysis::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
 pub use antecedent::analysis::compact_export::CALIBRATION_STATUS = antecedent_io::compact_export::CALIBRATION_STATUS
 pub use antecedent::analysis::compact_export::COMPACT_EXPORT_ARTIFACT_KIND = antecedent_io::compact_export::COMPACT_EXPORT_ARTIFACT_KIND
 pub use antecedent::analysis::compact_export::COMPACT_EXPORT_VERSION = antecedent_io::compact_export::COMPACT_EXPORT_VERSION
@@ -7350,6 +7670,20 @@ pub use antecedent::analysis::composition::mean_decision_bytes = antecedent_desi
 pub use antecedent::analysis::composition::mean_result_to_bytes = antecedent_design::decision_artifact::mean_result_to_bytes
 pub use antecedent::analysis::composition::mean_source_of = antecedent_design::composition_verifiers::mean_source_of
 pub use antecedent::analysis::composition::standard_consumer = antecedent_design::composition_verifiers::standard_consumer
+pub use antecedent::analysis::consume_admg_conditional_obstruction_artifact = antecedent::analysis::api::consume_admg_conditional_obstruction_artifact
+pub use antecedent::analysis::consume_admg_conditional_transport_artifact = antecedent::analysis::api::consume_admg_conditional_transport_artifact
+pub use antecedent::analysis::consume_cpdag_scenarios_artifact = antecedent::analysis::api::consume_cpdag_scenarios_artifact
+pub use antecedent::analysis::consume_learned_continuous_artifact = antecedent::analysis::api::consume_learned_continuous_artifact
+pub use antecedent::analysis::consume_mixed_source_artifact = antecedent::analysis::api::consume_mixed_source_artifact
+pub use antecedent::analysis::consume_mz_transport_artifact = antecedent::analysis::api::consume_mz_transport_artifact
+pub use antecedent::analysis::consume_observation_recovery_artifact = antecedent::analysis::api::consume_observation_recovery_artifact
+pub use antecedent::analysis::consume_scenario_covariance_artifact = antecedent::analysis::api::consume_scenario_covariance_artifact
+pub use antecedent::analysis::consume_smoothed_dose_artifact = antecedent::analysis::api::consume_smoothed_dose_artifact
+pub use antecedent::analysis::consume_temporal_initial_state_artifact = antecedent::analysis::api::consume_temporal_initial_state_artifact
+pub use antecedent::analysis::consume_temporal_refresh_artifact = antecedent::analysis::api::consume_temporal_refresh_artifact
+pub use antecedent::analysis::consume_temporal_transport_artifact = antecedent::analysis::api::consume_temporal_transport_artifact
+pub use antecedent::analysis::consume_transport_scenarios_artifact = antecedent::analysis::api::consume_transport_scenarios_artifact
+pub use antecedent::analysis::consume_z_transport_artifact = antecedent::analysis::api::consume_z_transport_artifact
 pub use antecedent::analysis::decision_claims::DecisionStructuralPolicy = antecedent_design::decision_contract::StructuralPolicy
 pub use antecedent::analysis::design_ranking::CandidateWire = antecedent_design::design_ranking_artifact::CandidateWire
 pub use antecedent::analysis::design_ranking::ConsumeExpectation = antecedent_design::design_ranking_artifact::ConsumeExpectation
@@ -7413,9 +7747,15 @@ pub use antecedent::analysis::effect_constancy::PartitionReportWire = antecedent
 pub use antecedent::analysis::effect_constancy::PartitionSupport = antecedent_estimate::effect_constancy::PartitionSupport
 pub use antecedent::analysis::effect_constancy::PartitionWire = antecedent_io::effect_constancy_artifact::PartitionWire
 pub use antecedent::analysis::effect_constancy::ResultWire = antecedent_io::effect_constancy_artifact::ResultWire
+pub use antecedent::analysis::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells
+pub use antecedent::analysis::estimate_joint_cell_cost = antecedent::analysis::api::estimate_joint_cell_cost
+pub use antecedent::analysis::estimate_with_rank_drop = antecedent::analysis::api::estimate_with_rank_drop
 pub use antecedent::analysis::evaluate_adapted = decision_contract_facade::evaluate_adapted
 pub use antecedent::analysis::evaluate_identified_sets = decision_contract_facade::evaluate_identified_sets
 pub use antecedent::analysis::evaluate_robust = decision_contract_facade::evaluate_robust
+pub use antecedent::analysis::export_admg_conditional_obstruction = antecedent::analysis::api::export_admg_conditional_obstruction
+pub use antecedent::analysis::export_scenario_covariance = antecedent::analysis::api::export_scenario_covariance
+pub use antecedent::analysis::fit_diagnostics_design = antecedent::analysis::api::fit_diagnostics_design
 pub use antecedent::analysis::inverse_query::ActionReport = antecedent_design::inverse_query::ActionReport
 pub use antecedent::analysis::inverse_query::AtomEvidence = antecedent_design::decision_structural::AtomEvidence
 pub use antecedent::analysis::inverse_query::Comparison = antecedent_design::inverse_query::Comparison
@@ -7554,6 +7894,8 @@ pub use antecedent::analysis::nonlinear_mediation::NonlinearMediationIdentity = 
 pub use antecedent::analysis::nonlinear_mediation::NonlinearMediationMeta = antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 pub use antecedent::analysis::nonlinear_mediation::NonlinearMediationPremises = antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
 pub use antecedent::analysis::nonlinear_mediation::NonlinearMediationRequestWire = antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+pub use antecedent::analysis::plan_rank_drop = antecedent::analysis::api::plan_rank_drop
+pub use antecedent::analysis::preflight_design = antecedent::analysis::api::preflight_design
 pub use antecedent::analysis::recalc_attempt::AttemptReport = antecedent_core::execution_attempt::AttemptReport
 pub use antecedent::analysis::recalc_attempt::ExecutionAttempt = antecedent_core::execution_attempt::ExecutionAttempt
 pub use antecedent::analysis::recalc_attempt::Operation = antecedent_core::execution_attempt::Operation
@@ -7689,6 +8031,8 @@ pub use antecedent::analysis::temporal_counterfactual::TransportedCounterfactual
 pub use antecedent::analysis::temporal_counterfactual::UnitOutcomeWire = temporal_counterfactual_wire::UnitOutcomeWire
 pub use antecedent::analysis::temporal_counterfactual::WitnessWire = temporal_counterfactual_wire::WitnessWire
 pub use antecedent::analysis::temporal_counterfactual::refuse_transported_counterfactual = antecedent_counterfactual::transported_gate::refuse_transported_counterfactual
+pub use antecedent::analysis::temporal_dependent_interval = antecedent::analysis::api::temporal_dependent_interval
+pub use antecedent::analysis::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
 pub use antecedent::analysis::transported_counterfactual::AdditiveLinearScm = antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
 pub use antecedent::analysis::transported_counterfactual::Affine = antecedent_counterfactual::transported_path_specific::Affine
 pub use antecedent::analysis::transported_counterfactual::AffineWire = transported_wire::AffineWire
@@ -7745,24 +8089,24 @@ pub use antecedent::analysis::vector_treatment::VectorTreatmentIdentity = antece
 pub use antecedent::analysis::vector_treatment::VectorTreatmentReportWire = antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire
 pub use antecedent::analysis::vector_treatment::VectorTreatmentRequest = antecedent_io::vector_treatment_artifact::VectorTreatmentRequest
 pub use antecedent::analysis::vector_treatment::WaldWire = antecedent_io::vector_treatment_artifact::WaldWire
-pub use antecedent::assess_robustness = analysis::assess_robustness
-pub use antecedent::check_derived_treatment = antecedent::analysis::check_derived_treatment
+pub use antecedent::assess_robustness = super::assess_robustness
+pub use antecedent::check_derived_treatment = antecedent::analysis::api::check_derived_treatment
 pub use antecedent::class_prior::ClassPrior = antecedent::ClassPrior
-pub use antecedent::classify_inverse_outcome = antecedent::analysis::classify_inverse_outcome
-pub use antecedent::consume_admg_conditional_obstruction_artifact = antecedent::analysis::consume_admg_conditional_obstruction_artifact
-pub use antecedent::consume_admg_conditional_transport_artifact = antecedent::analysis::consume_admg_conditional_transport_artifact
-pub use antecedent::consume_cpdag_scenarios_artifact = antecedent::analysis::consume_cpdag_scenarios_artifact
-pub use antecedent::consume_learned_continuous_artifact = antecedent::analysis::consume_learned_continuous_artifact
-pub use antecedent::consume_mixed_source_artifact = antecedent::analysis::consume_mixed_source_artifact
-pub use antecedent::consume_mz_transport_artifact = antecedent::analysis::consume_mz_transport_artifact
-pub use antecedent::consume_observation_recovery_artifact = antecedent::analysis::consume_observation_recovery_artifact
-pub use antecedent::consume_scenario_covariance_artifact = antecedent::analysis::consume_scenario_covariance_artifact
-pub use antecedent::consume_smoothed_dose_artifact = antecedent::analysis::consume_smoothed_dose_artifact
-pub use antecedent::consume_temporal_initial_state_artifact = antecedent::analysis::consume_temporal_initial_state_artifact
-pub use antecedent::consume_temporal_refresh_artifact = antecedent::analysis::consume_temporal_refresh_artifact
-pub use antecedent::consume_temporal_transport_artifact = antecedent::analysis::consume_temporal_transport_artifact
-pub use antecedent::consume_transport_scenarios_artifact = antecedent::analysis::consume_transport_scenarios_artifact
-pub use antecedent::consume_z_transport_artifact = antecedent::analysis::consume_z_transport_artifact
+pub use antecedent::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
+pub use antecedent::consume_admg_conditional_obstruction_artifact = antecedent::analysis::api::consume_admg_conditional_obstruction_artifact
+pub use antecedent::consume_admg_conditional_transport_artifact = antecedent::analysis::api::consume_admg_conditional_transport_artifact
+pub use antecedent::consume_cpdag_scenarios_artifact = antecedent::analysis::api::consume_cpdag_scenarios_artifact
+pub use antecedent::consume_learned_continuous_artifact = antecedent::analysis::api::consume_learned_continuous_artifact
+pub use antecedent::consume_mixed_source_artifact = antecedent::analysis::api::consume_mixed_source_artifact
+pub use antecedent::consume_mz_transport_artifact = antecedent::analysis::api::consume_mz_transport_artifact
+pub use antecedent::consume_observation_recovery_artifact = antecedent::analysis::api::consume_observation_recovery_artifact
+pub use antecedent::consume_scenario_covariance_artifact = antecedent::analysis::api::consume_scenario_covariance_artifact
+pub use antecedent::consume_smoothed_dose_artifact = antecedent::analysis::api::consume_smoothed_dose_artifact
+pub use antecedent::consume_temporal_initial_state_artifact = antecedent::analysis::api::consume_temporal_initial_state_artifact
+pub use antecedent::consume_temporal_refresh_artifact = antecedent::analysis::api::consume_temporal_refresh_artifact
+pub use antecedent::consume_temporal_transport_artifact = antecedent::analysis::api::consume_temporal_transport_artifact
+pub use antecedent::consume_transport_scenarios_artifact = antecedent::analysis::api::consume_transport_scenarios_artifact
+pub use antecedent::consume_z_transport_artifact = antecedent::analysis::api::consume_z_transport_artifact
 pub use antecedent::coverage_records_data = antecedent_io::coverage_records_data
 pub use antecedent::cross_world::CROSS_WORLD_MAX_ROWS = antecedent_io::cross_world_artifact::CROSS_WORLD_MAX_ROWS
 pub use antecedent::design::AffineUtility = antecedent_design::AffineUtility
@@ -7899,16 +8243,16 @@ pub use antecedent::estimate::evaluate_exact_transport = antecedent_estimate::ev
 pub use antecedent::estimate::own_treatment_level = antecedent_estimate::own_treatment_level
 pub use antecedent::estimate::transport_augmented_response_grid = antecedent_estimate::transport_augmented_response_grid
 pub use antecedent::estimate::trial_to_target_effect = antecedent_estimate::trial_to_target_effect
-pub use antecedent::estimate_derived_joint_cells = antecedent::analysis::estimate_derived_joint_cells
-pub use antecedent::estimate_joint_cell_cost = antecedent::analysis::estimate_joint_cell_cost
-pub use antecedent::estimate_with_rank_drop = antecedent::analysis::estimate_with_rank_drop
+pub use antecedent::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells
+pub use antecedent::estimate_joint_cell_cost = antecedent::analysis::api::estimate_joint_cell_cost
+pub use antecedent::estimate_with_rank_drop = antecedent::analysis::api::estimate_with_rank_drop
 pub use antecedent::estimator_spec::EstimatorSpec = antecedent::EstimatorSpec
-pub use antecedent::evaluate_adapted = analysis::evaluate_adapted
-pub use antecedent::evaluate_identified_sets = analysis::evaluate_identified_sets
-pub use antecedent::evaluate_robust = analysis::evaluate_robust
-pub use antecedent::export_admg_conditional_obstruction = antecedent::analysis::export_admg_conditional_obstruction
-pub use antecedent::export_scenario_covariance = antecedent::analysis::export_scenario_covariance
-pub use antecedent::fit_diagnostics_design = antecedent::analysis::fit_diagnostics_design
+pub use antecedent::evaluate_adapted = super::evaluate_adapted
+pub use antecedent::evaluate_identified_sets = super::evaluate_identified_sets
+pub use antecedent::evaluate_robust = super::evaluate_robust
+pub use antecedent::export_admg_conditional_obstruction = antecedent::analysis::api::export_admg_conditional_obstruction
+pub use antecedent::export_scenario_covariance = antecedent::analysis::api::export_scenario_covariance
+pub use antecedent::fit_diagnostics_design = antecedent::analysis::api::fit_diagnostics_design
 pub use antecedent::gcm::AbductionMissingPolicy = antecedent_counterfactual::AbductionMissingPolicy
 pub use antecedent::gcm::AnomalyScores = antecedent_attribution::AnomalyScores
 pub use antecedent::gcm::ArrowStrength = antecedent_attribution::ArrowStrength
@@ -8127,8 +8471,8 @@ pub use antecedent::io::transport_query_from_wire = antecedent_io::transport_que
 pub use antecedent::io::transport_query_to_wire = antecedent_io::transport_query_to_wire
 pub use antecedent::max_t_critical_value = antecedent::analysis::max_t_critical_value
 pub use antecedent::options::FdrControl = antecedent::FdrControl
-pub use antecedent::plan_rank_drop = antecedent::analysis::plan_rank_drop
-pub use antecedent::preflight_design = antecedent::analysis::preflight_design
+pub use antecedent::plan_rank_drop = antecedent::analysis::api::plan_rank_drop
+pub use antecedent::preflight_design = antecedent::analysis::api::preflight_design
 pub use antecedent::prelude::AcceptedGraph = antecedent::AcceptedGraph
 pub use antecedent::prelude::AverageEffectQuery = antecedent_core::AverageEffectQuery
 pub use antecedent::prelude::BatchQuery = antecedent::BatchQuery
@@ -8317,7 +8661,12 @@ pub use antecedent::support::GraphlessSupportStatus = antecedent_io::graphless_s
 pub use antecedent::support::IntoGraphInput = antecedent::IntoGraphInput
 pub use antecedent::support::StructureSource = antecedent::StructureSource
 pub use antecedent::support::SupportCell = antecedent::SupportCell
+pub use antecedent::support::SupportGraphClass = antecedent::SupportGraphClass
+pub use antecedent::support::SupportInference = antecedent::SupportInference
+pub use antecedent::support::SupportQuery = antecedent::SupportQuery
 pub use antecedent::support::SupportRefusal = antecedent::SupportRefusal
+pub use antecedent::support::SupportStructure = antecedent::SupportStructure
+pub use antecedent::support::SupportValidation = antecedent::SupportValidation
 pub use antecedent::support::cell_coordinate = antecedent::cell_coordinate
 pub use antecedent::support::classify = antecedent::classify
 pub use antecedent::support::classify_graphless = antecedent_io::graphless_support::classify_graphless
@@ -8325,10 +8674,17 @@ pub use antecedent::support::licensed_neighbors = antecedent::licensed_neighbors
 pub use antecedent::support::licensed_support_cells = antecedent::licensed_support_cells
 pub use antecedent::support::refused_message = antecedent::refused_message
 pub use antecedent::support_cell_from_coordinate = antecedent::support::support_cell_from_coordinate
-pub use antecedent::temporal_dependent_interval = antecedent::analysis::temporal_dependent_interval
+pub use antecedent::temporal_dependent_interval = antecedent::analysis::api::temporal_dependent_interval
 pub use antecedent::temporal_dependent_interval_candidate = antecedent::analysis::temporal_dependent_interval_candidate
-pub use antecedent::tier_diagnostics = antecedent::analysis::tier_diagnostics
-pub use antecedent::utility_interval = analysis::utility_interval
+pub use antecedent::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
+pub use antecedent::tier_diagnostics::TierDesign = antecedent::TierDesign
+pub use antecedent::tier_diagnostics::TierDiagnostics = antecedent::TierDiagnostics
+pub use antecedent::tier_diagnostics::TierDiagnosticsError = antecedent::TierDiagnosticsError
+pub use antecedent::tier_diagnostics::TierEvalue = antecedent::TierEvalue
+pub use antecedent::tier_diagnostics::TierPointEvalue = antecedent::TierPointEvalue
+pub use antecedent::tier_diagnostics::TierScenario = antecedent::TierScenario
+pub use antecedent::tier_diagnostics::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
+pub use antecedent::utility_interval = super::utility_interval
 pub use antecedent::validate::PosteriorPredictiveCheck = antecedent_validate::PosteriorPredictiveCheck
 pub use antecedent::validate::PredictiveCheckKind = antecedent_validate::PredictiveCheckKind
 pub use antecedent::validate::PredictiveCheckReport = antecedent_validate::PredictiveCheckReport
@@ -8593,8 +8949,51 @@ pub variant antecedent::StructureSource::GraphPosterior
 pub variant antecedent::StructureSource::RandomizedTrial
 pub variant antecedent::SupportBasis::PerPoint
 pub variant antecedent::SupportBasis::SurfaceWorstCase
+pub variant antecedent::SupportGraphClass::Admg
+pub variant antecedent::SupportGraphClass::CoDetermined
+pub variant antecedent::SupportGraphClass::Cpdag
+pub variant antecedent::SupportGraphClass::Dag
+pub variant antecedent::SupportGraphClass::Pag
+pub variant antecedent::SupportGraphClass::TemporalAdmg
+pub variant antecedent::SupportGraphClass::TemporalCpdag
+pub variant antecedent::SupportGraphClass::TemporalDag
+pub variant antecedent::SupportGraphClass::TemporalPag
+pub variant antecedent::SupportGraphClass::Unknown
+pub variant antecedent::SupportInference::Bayesian
+pub variant antecedent::SupportInference::Frequentist
+pub variant antecedent::SupportQuery::AnomalyAttribution
+pub variant antecedent::SupportQuery::AverageDerivative
+pub variant antecedent::SupportQuery::AverageEffect
+pub variant antecedent::SupportQuery::ChangeAttribution
+pub variant antecedent::SupportQuery::ConditionalEffect
+pub variant antecedent::SupportQuery::Counterfactual
+pub variant antecedent::SupportQuery::DirectionalDerivative
+pub variant antecedent::SupportQuery::Elasticity
+pub variant antecedent::SupportQuery::InterferenceQuery
+pub variant antecedent::SupportQuery::InterventionResponse
+pub variant antecedent::SupportQuery::InterventionalDistribution
+pub variant antecedent::SupportQuery::MediationEffect
+pub variant antecedent::SupportQuery::NestedCounterfactualEffect
+pub variant antecedent::SupportQuery::PathSpecificEffect
+pub variant antecedent::SupportQuery::PointDerivative
+pub variant antecedent::SupportQuery::PulseEffect
+pub variant antecedent::SupportQuery::ResponseCurve
+pub variant antecedent::SupportQuery::ResponseJacobian
+pub variant antecedent::SupportQuery::SemiElasticity
+pub variant antecedent::SupportQuery::SustainedEffect
+pub variant antecedent::SupportQuery::TemporalConditionalPulse
+pub variant antecedent::SupportQuery::TemporalConditionalSustained
+pub variant antecedent::SupportQuery::TemporalMediationEffect
+pub variant antecedent::SupportQuery::TransportQuery
 pub variant antecedent::SupportRefusal::NotApplicable
 pub variant antecedent::SupportRefusal::Refused
+pub variant antecedent::SupportStructure::Accepted
+pub variant antecedent::SupportStructure::Explicit
+pub variant antecedent::SupportStructure::GraphPosterior
+pub variant antecedent::SupportStructure::RandomizedTrial
+pub variant antecedent::SupportValidation::Cheap
+pub variant antecedent::SupportValidation::Full
+pub variant antecedent::SupportValidation::None
 pub variant antecedent::TargetDirection::AtLeast
 pub variant antecedent::TargetDirection::AtMost
 pub variant antecedent::TemporalPosition::AtTreatment

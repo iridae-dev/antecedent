@@ -20,7 +20,9 @@ fn cell(
     inference: &'static str,
     validation: &'static str,
 ) -> SupportCell {
-    SupportCell { query, graph_class: graph, structure, inference, validation }
+    SupportCell::from_labels(query, graph, structure, inference, validation).unwrap_or_else(|| {
+        panic!("support axis {query}:{graph}:{structure}:{inference}:{validation}")
+    })
 }
 
 #[test]

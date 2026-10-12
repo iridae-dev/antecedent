@@ -203,23 +203,25 @@ fn frequentist_body() {
         .build();
     assert!(accepted.unwrap_err().to_string().contains("explicit TemporalDag"));
     refuse(
-        SupportCell {
-            query: "AnomalyAttribution",
-            graph_class: "TemporalCpdag",
-            structure: "explicit",
-            inference: "Frequentist",
-            validation: "none",
-        },
+        SupportCell::from_labels(
+            "AnomalyAttribution",
+            "TemporalCpdag",
+            "explicit",
+            "Frequentist",
+            "none",
+        )
+        .expect("support axis"),
         "explicit TemporalDag",
     );
     refuse(
-        SupportCell {
-            query: "ChangeAttribution",
-            graph_class: "TemporalPag",
-            structure: "explicit",
-            inference: "Bayesian",
-            validation: "none",
-        },
+        SupportCell::from_labels(
+            "ChangeAttribution",
+            "TemporalPag",
+            "explicit",
+            "Bayesian",
+            "none",
+        )
+        .expect("support axis"),
         "explicit TemporalDag",
     );
 }

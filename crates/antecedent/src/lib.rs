@@ -72,111 +72,25 @@ pub mod strategy_table;
 pub mod support;
 pub use antecedent_io::coverage_records_data;
 
+#[path = "analysis/surface/estimate.rs"]
 pub mod estimate;
+#[path = "analysis/surface/graph.rs"]
 pub mod graph;
+#[path = "analysis/surface/identify.rs"]
 pub mod identify;
 pub mod identify_api;
+#[path = "analysis/surface/io.rs"]
 pub mod io;
+#[path = "analysis/surface/query.rs"]
 pub mod query;
+#[path = "analysis/surface/validate.rs"]
 pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted};
+pub use analysis::api::*;
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
-pub use analysis::{
-    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
-    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
-    SupportBasis, TargetDirection, classify_inverse_outcome,
-};
-/// The decision contract beside [`CausalContract`]: admissibility, support and
-/// uncertainty requirements, claim adapters, robustness verdicts and the durable
-/// artifacts with external-callback receipts.
-pub use analysis::{
-    ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
-    AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
-    BoundDecisionContract, ClaimProbability, ClaimProfile, DecisionClaimKind,
-    DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule, DecisionUncertaintyKind,
-    ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange, IdentifiedSetDecision,
-    IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt, RobustDecisionResult,
-    RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim, SupportShortfall,
-    UncertaintyRequirement, adapt_finite_scenarios, adapt_graph_dependent_claims,
-    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, evaluate_adapted,
-    evaluate_identified_sets, evaluate_robust, utility_interval,
-};
-pub use analysis::{
-    AdmgConditionalResult, PreparedAdmgConditionalTransport,
-    consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
-    export_admg_conditional_obstruction,
-};
-pub use analysis::{
-    ArmCount, ArmSpec, ArmWeightEss, BatchCostEstimate, BatchPreflightReport, ColumnMissingness,
-    ColumnPriority, ColumnWeight, CostEstimate, DependentColumn, DroppedColumn, DuplicateGroup,
-    FindingSeverity, FittedPropensity, InferenceDefault, JointCellCostEstimate,
-    NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport, PropensityOutcome,
-    RankDropEstimate, RankDropPlan, RankDropPolicy, RankReport, RetargetCostEstimate,
-    ScoreQuantile, SpanCheck, estimate_joint_cell_cost, estimate_with_rank_drop,
-    fit_diagnostics_design, plan_rank_drop, preflight_design,
-};
-pub use analysis::{
-    BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
-    BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
-    RetargetContrast, ScoreSource, SimultaneousBand, TidyKind, TidyRow, UncertaintyKind,
-};
-pub use analysis::{
-    BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
-    CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
-    CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
-    CheckedStaticClassResponseInfo, CheckedTemporalClassMediationInfo,
-    CheckedTemporalMediationInfo, CheckedTransportTrialInfo, CheckedUnknownTieredAverageInfo,
-    ComputeBudget, ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities,
-    ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode, LearnedTrialResult,
-    LearnedTrialState, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig,
-    RefuteSuite, SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent,
-    StageResultSink, StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
-    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
-    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
-};
-pub use analysis::{
-    ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
-    ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
-    check_derived_treatment, estimate_derived_joint_cells,
-};
-pub use analysis::{CpdagEvaluation, EmpiricalScenarioInput, EvidenceSearch, SequenceEndpoints};
-pub use analysis::{
-    IntervalEstimand, TemporalInitialState, TemporalWindow,
-    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
-    temporal_dependent_interval,
-};
-pub use analysis::{
-    JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
-    JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
-    JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
-};
-pub use analysis::{
-    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
-};
-pub use analysis::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
-pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
-pub use analysis::{
-    ObservationRecoveryResult, PreparedObservationRecovery, RecoveryEvaluation,
-    consume_observation_recovery_artifact,
-};
-pub use analysis::{
-    PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
-    consume_scenario_covariance_artifact, export_scenario_covariance,
-};
-pub use analysis::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
-pub use analysis::{PreparedTemporalTransport, consume_temporal_transport_artifact};
-pub use analysis::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
-pub use analysis::{ScreenSplitReceipt, ScreenUnits};
-pub use analysis::{
-    TierDesign, TierDiagnostics, TierDiagnosticsError, TierEvalue, TierPointEvalue, TierScenario,
-    tier_diagnostics,
-};
 #[doc(hidden)]
 pub use analysis::{max_t_critical_value, simultaneous_band_unpublished};
 pub use class_prior::ClassPrior;
@@ -207,9 +121,9 @@ pub use result::{
     SyntheticDidEstimate,
 };
 pub use support::{
-    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,
-    classify, licensed_neighbors, licensed_support_cells, refused_message,
-    support_cell_from_coordinate,
+    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,
+    SupportQuery, SupportRefusal, SupportStructure, SupportValidation, cell_coordinate, classify,
+    licensed_neighbors, licensed_support_cells, refused_message, support_cell_from_coordinate,
 };
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,

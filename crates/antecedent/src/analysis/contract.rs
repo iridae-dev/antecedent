@@ -2501,7 +2501,11 @@ impl StudyResult {
             Some(cell) => (
                 cell.query.to_string(),
                 cell.graph_class.to_string(),
-                if cell.structure == "graph_posterior" { "graph_posterior" } else { "fixed" },
+                if cell.structure.as_str() == "graph_posterior" {
+                    "graph_posterior"
+                } else {
+                    "fixed"
+                },
                 cell.inference.to_string(),
             ),
             None => (

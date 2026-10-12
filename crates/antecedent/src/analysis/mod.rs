@@ -18,6 +18,8 @@ macro_rules! checked_ref {
 }
 pub(crate) use checked_ref;
 
+pub mod api;
+
 mod admg_conditional_transport;
 mod batch;
 mod batch_export;

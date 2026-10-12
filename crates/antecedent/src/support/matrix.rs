@@ -8,7 +8,10 @@ use antecedent_contract::{LicensedNeighbor, PremiseChange};
 use crate::error::CausalError;
 use crate::strategy_table::EstimatorId;
 
-use super::cell::{CellStatus, SupportCell, SupportRefusal};
+use super::cell::{
+    CellStatus, SupportCell, SupportGraphClass, SupportInference, SupportQuery, SupportRefusal,
+    SupportStructure, SupportValidation,
+};
 use super::matrix_data::{self, Axis, CLOSED_RULES, LICENSED, LicensedCell, NA_RULES};
 
 fn axis_in(allowed: Option<&[&str]>, value: &str) -> bool {
@@ -19,11 +22,11 @@ fn axis_in(allowed: Option<&[&str]>, value: &str) -> bool {
 #[must_use]
 pub fn classify(cell: SupportCell) -> CellStatus {
     for rule in NA_RULES {
-        if axis_in(rule.queries, cell.query)
-            && axis_in(rule.graph_classes, cell.graph_class)
-            && axis_in(rule.structures, cell.structure)
-            && axis_in(rule.inferences, cell.inference)
-            && axis_in(rule.validations, cell.validation)
+        if axis_in(rule.queries, cell.query.as_str())
+            && axis_in(rule.graph_classes, cell.graph_class.as_str())
+            && axis_in(rule.structures, cell.structure.as_str())
+            && axis_in(rule.inferences, cell.inference.as_str())
+            && axis_in(rule.validations, cell.validation.as_str())
         {
             return CellStatus::NotApplicable { reason: rule.reason };
         }
@@ -55,11 +58,11 @@ pub fn licensed_route_estimator(cell: SupportCell) -> Option<EstimatorId> {
 
 fn licensed_row(cell: SupportCell) -> Option<&'static LicensedCell> {
     matrix_data::licensed_cell([
-        cell.query,
-        cell.graph_class,
-        cell.structure,
-        cell.inference,
-        cell.validation,
+        cell.query.as_str(),
+        cell.graph_class.as_str(),
+        cell.structure.as_str(),
+        cell.inference.as_str(),
+        cell.validation.as_str(),
     ])
 }
 
@@ -93,11 +96,11 @@ pub fn refused_message(cell: SupportCell) -> &'static str {
 
 pub(super) fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
     for rule in CLOSED_RULES {
-        if axis_in(rule.queries, cell.query)
-            && axis_in(rule.graph_classes, cell.graph_class)
-            && axis_in(rule.structures, cell.structure)
-            && axis_in(rule.inferences, cell.inference)
-            && axis_in(rule.validations, cell.validation)
+        if axis_in(rule.queries, cell.query.as_str())
+            && axis_in(rule.graph_classes, cell.graph_class.as_str())
+            && axis_in(rule.structures, cell.structure.as_str())
+            && axis_in(rule.inferences, cell.inference.as_str())
+            && axis_in(rule.validations, cell.validation.as_str())
         {
             return Some(rule.reason);
         }
@@ -117,7 +120,11 @@ const UNLICENSED: &str =
 pub fn cell_coordinate(cell: SupportCell) -> String {
     format!(
         "{}:{}:{}:{}:{}",
-        cell.query, cell.graph_class, cell.structure, cell.inference, cell.validation
+        cell.query.as_str(),
+        cell.graph_class.as_str(),
+        cell.structure.as_str(),
+        cell.inference.as_str(),
+        cell.validation.as_str()
     )
 }
 
@@ -125,11 +132,15 @@ pub fn cell_coordinate(cell: SupportCell) -> String {
 #[must_use]
 pub fn support_cell_from_coordinate(coordinate: &str) -> Option<SupportCell> {
     let mut parts = coordinate.split(':');
-    let query = matrix_data::intern_axis(Axis::Query, parts.next()?)?;
-    let graph_class = matrix_data::intern_axis(Axis::GraphClass, parts.next()?)?;
-    let structure = matrix_data::intern_axis(Axis::Structure, parts.next()?)?;
-    let inference = matrix_data::intern_axis(Axis::Inference, parts.next()?)?;
-    let validation = matrix_data::intern_axis(Axis::Validation, parts.next()?)?;
+    let query = SupportQuery::parse(matrix_data::intern_axis(Axis::Query, parts.next()?)?)?;
+    let graph_class =
+        SupportGraphClass::parse(matrix_data::intern_axis(Axis::GraphClass, parts.next()?)?)?;
+    let structure =
+        SupportStructure::parse(matrix_data::intern_axis(Axis::Structure, parts.next()?)?)?;
+    let inference =
+        SupportInference::parse(matrix_data::intern_axis(Axis::Inference, parts.next()?)?)?;
+    let validation =
+        SupportValidation::parse(matrix_data::intern_axis(Axis::Validation, parts.next()?)?)?;
     if parts.next().is_some() {
         return None;
     }
@@ -152,7 +163,7 @@ pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
         .iter()
         .copied()
         .filter_map(|row| {
-            if row.graph_class != cell.graph_class {
+            if row.graph_class != cell.graph_class.as_str() {
                 return None;
             }
             let changed = neighbor_changes(cell, &row);
@@ -195,20 +206,24 @@ pub fn licensed_support_cells() -> impl Iterator<Item = SupportCell> {
 
 fn support_cell_from_licensed(row: &LicensedCell) -> SupportCell {
     SupportCell {
-        query: row.query,
-        graph_class: row.graph_class,
-        structure: row.structure,
-        inference: row.inference,
-        validation: row.validation,
+        query: SupportQuery::parse(row.query).expect("licensed query is a support axis"),
+        graph_class: SupportGraphClass::parse(row.graph_class)
+            .expect("licensed graph class is a support axis"),
+        structure: SupportStructure::parse(row.structure)
+            .expect("licensed structure is a support axis"),
+        inference: SupportInference::parse(row.inference)
+            .expect("licensed inference is a support axis"),
+        validation: SupportValidation::parse(row.validation)
+            .expect("licensed validation is a support axis"),
     }
 }
 
 fn neighbor_changes(cell: SupportCell, row: &LicensedCell) -> Vec<PremiseChange> {
     [
-        ("query", cell.query, row.query),
-        ("structure", cell.structure, row.structure),
-        ("inference", cell.inference, row.inference),
-        ("validation", cell.validation, row.validation),
+        ("query", cell.query.as_str(), row.query),
+        ("structure", cell.structure.as_str(), row.structure),
+        ("inference", cell.inference.as_str(), row.inference),
+        ("validation", cell.validation.as_str(), row.validation),
     ]
     .into_iter()
     .filter(|(_, from, to)| from != to)

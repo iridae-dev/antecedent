@@ -263,7 +263,7 @@ allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualEr
 allow mechanism crates/antecedent/src/lib.rs gcm
 # Model-bundle byte encode / decode API: runs only when a caller saves or loads
 # a fitted model, never inside a Study execution.
-allow mechanism crates/antecedent/src/io.rs ModelBundle ModelBundleEncode decode_model_bundle encode_model_bundle
+allow mechanism crates/antecedent/src/analysis/surface/io.rs ModelBundle ModelBundleEncode decode_model_bundle encode_model_bundle
 allow mechanism crates/antecedent-io/src/lib.rs ModelBundle ModelBundleEncode ModelBundleHeaderWire ParentBasisWire decode_model_bundle encode_model_bundle mechanism_wire model_bundle
 # ArtifactKind::ModelBundle: an enum variant the facet shares by name.
 
@@ -499,14 +499,14 @@ allow design crates/antecedent/src/cross_world.rs antecedent_core antecedent_io 
 allow design crates/antecedent/src/discovery.rs Tail antecedent_core finish
 allow design crates/antecedent/src/discovery_defaults.rs antecedent_core
 allow design crates/antecedent/src/gcm.rs antecedent_core build invalid refused
-allow design crates/antecedent/src/graph.rs antecedent_core
+allow design crates/antecedent/src/analysis/surface/graph.rs antecedent_core
 allow design crates/antecedent/src/identify_api.rs antecedent_core
 allow design crates/antecedent/src/inference.rs DistributionArtifact antecedent_core antecedent_io distribution_artifact names
-allow design crates/antecedent/src/io.rs antecedent_io
+allow design crates/antecedent/src/analysis/surface/io.rs antecedent_io
 allow design crates/antecedent/src/planner/logical.rs antecedent_core
 allow design crates/antecedent/src/planner/plan.rs antecedent_core
 allow design crates/antecedent/src/prelude.rs antecedent_core
-allow design crates/antecedent/src/query.rs antecedent_core
+allow design crates/antecedent/src/analysis/surface/query.rs antecedent_core
 allow design crates/antecedent/src/result.rs antecedent_core antecedent_io
 allow design crates/antecedent/src/review.rs antecedent_core finish
 allow design crates/antecedent/src/state.rs antecedent_core antecedent_io
@@ -648,7 +648,7 @@ allow mechanism crates/antecedent/src/analysis/vector_treatment.rs evaluate
 allow mechanism crates/antecedent/src/analysis/z_transport.rs SelectionDiagram evaluate
 allow mechanism crates/antecedent/src/analysis/z_transport_sensitivity_artifact.rs VersionPeek
 allow mechanism crates/antecedent/src/counterfactual_id.rs check_bounds evaluate
-allow mechanism crates/antecedent/src/graph.rs SelectionDiagram
+allow mechanism crates/antecedent/src/analysis/surface/graph.rs SelectionDiagram
 
 # Adjusted recalculation uses the shared stage planner and decision utility. These
 # names are workflow metadata and counted decision execution, not calibration
