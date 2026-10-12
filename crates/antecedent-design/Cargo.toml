@@ -42,3 +42,7 @@ serde_json = { workspace = true }
 [[bench]]
 name = "design_rank"
 harness = false
+
+[[bench]]
+name = "inverse_evsi"
+harness = false
