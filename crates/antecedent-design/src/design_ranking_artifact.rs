@@ -1314,14 +1314,18 @@ fn prepared_for_seal(declared: &EvsiCandidate, row: &CandidateEvsi) -> Result<Pr
 /// # Errors
 ///
 /// A provider that no longer answers its request identically, a law that cannot be
-/// retained, or an empty report.
+/// retained, a duplicated declared semantic id, or an empty report.
 pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifactWire> {
     let report = inputs.report;
     let ranking = DesignRankingValue::from_evsi(report, inputs.source_digests)?;
     let decision = decision_wire(inputs)?;
     let mut declared_by_id = BTreeMap::new();
     for candidate in &inputs.request.candidates {
-        declared_by_id.entry(candidate.semantic_id.as_str()).or_insert(candidate);
+        // A later declaration with the same id is a different provider. Keeping the
+        // first would seal that provider's law under the shared id.
+        if declared_by_id.insert(candidate.semantic_id.as_str(), candidate).is_some() {
+            return Err(DesignRankingArtifactError::InvalidWire("duplicate candidate"));
+        }
     }
     let mut candidates = Vec::with_capacity(report.candidates.len());
     for row in &report.candidates {

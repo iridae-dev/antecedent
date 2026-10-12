@@ -276,6 +276,27 @@ fn round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
 }
 
 #[test]
+fn seal_refuses_a_later_declaration_with_the_same_id() {
+    let problem = guess_problem();
+    let prior = guess_prior();
+    let unique = frozen_candidates();
+    let req = request(&GUESS, unique, Some(utility_map()));
+    let report = evaluate_evsi(&problem, &prior, &req, &CancellationToken::new()).unwrap();
+    let mut duplicated = frozen_candidates();
+    duplicated.push(guess_candidate("cand-1", 0.9));
+    let bad = request(&GUESS, duplicated, Some(utility_map()));
+    let error = seal(&SealInputs {
+        problem: &problem,
+        prior: &prior,
+        request: &bad,
+        report: &report,
+        source_digests: &digests(),
+    })
+    .unwrap_err();
+    assert!(matches!(error, DesignRankingArtifactError::InvalidWire("duplicate candidate")));
+}
+
+#[test]
 fn reordered_candidates_preserve_identity_and_bytes() {
     let forward = seal_guess(frozen_candidates());
     let mut reversed_input = frozen_candidates();
