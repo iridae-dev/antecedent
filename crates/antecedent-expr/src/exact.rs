@@ -174,12 +174,31 @@ pub struct ExactDiscreteLaw {
     marginals: Arc<MarginalTables>,
 }
 
-/// Most axis subsets whose marginal table one law retains; further subsets are computed
-/// without being kept.
+/// Most axis subsets whose marginal table one law retains. A full shard evicts its
+/// oldest table, so a later subset can still be cached.
 const MAX_MARGINAL_TABLES: usize = 256;
+const MARGINAL_SHARDS: usize = 8;
 
-#[derive(Debug, Default)]
-struct MarginalTables(Mutex<HashMap<Vec<usize>, Arc<[f64]>>>);
+#[derive(Debug)]
+struct MarginalShard {
+    entries: HashMap<u128, (u64, Arc<[f64]>)>,
+    clock: u64,
+}
+
+#[derive(Debug)]
+struct MarginalTables {
+    shards: [Mutex<MarginalShard>; MARGINAL_SHARDS],
+}
+
+impl Default for MarginalTables {
+    fn default() -> Self {
+        Self {
+            shards: std::array::from_fn(|_| {
+                Mutex::new(MarginalShard { entries: HashMap::new(), clock: 0 })
+            }),
+        }
+    }
+}
 
 impl ExactDiscreteLaw {
     /// Validate a complete observational or hard-intervention law.
@@ -469,16 +488,7 @@ impl ExactDiscreteLaw {
             .collect()
     }
     fn mass(&self, constraints: &[(usize, usize)]) -> f64 {
-        if constraints.len() == self.axes.len()
-            && constraints
-                .iter()
-                .map(|(axis, _)| *axis)
-                .collect::<std::collections::BTreeSet<_>>()
-                .len()
-                == self.axes.len()
-        {
-            let index =
-                constraints.iter().map(|(axis, level)| self.strides[*axis] * level).sum::<usize>();
+        if let Some(index) = self.full_joint_index(constraints) {
             return self.probabilities[index];
         }
         let mut by_axis: Vec<(usize, usize)> = constraints.to_vec();
@@ -499,30 +509,94 @@ impl ExactDiscreteLaw {
             .fold(0usize, |index, (axis, level)| index * self.axes[*axis].values.len() + level);
         table[index]
     }
+
+    /// Index of a complete assignment of every axis, without allocating a set.
+    ///
+    /// `None` when an axis is repeated or missing: the caller then scans, which is what
+    /// a repeated constraint (two levels of one axis) requires.
+    fn full_joint_index(&self, constraints: &[(usize, usize)]) -> Option<usize> {
+        let n_axes = self.axes.len();
+        if constraints.len() != n_axes || n_axes > 64 {
+            return None;
+        }
+        let mut seen = 0u64;
+        let mut index = 0usize;
+        for &(axis, level) in constraints {
+            if axis >= n_axes {
+                return None;
+            }
+            let bit = 1u64 << axis;
+            if seen & bit != 0 {
+                return None;
+            }
+            seen |= bit;
+            index += self.strides[axis] * level;
+        }
+        let full = if n_axes == 64 { u64::MAX } else { (1u64 << n_axes) - 1 };
+        (seen == full).then_some(index)
+    }
+
     /// Mass of every level combination of the distinct, ascending `axes`, summed in table order
     /// exactly as a filtered scan would, so a lookup equals the scan it replaces.
     fn marginal_table(&self, axes: &[usize]) -> Arc<[f64]> {
-        if let Some(table) =
-            self.marginals.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(axes)
+        let Some(key) = ascending_axis_mask(axes) else {
+            return compute_marginal(self, axes);
+        };
+        let shard = &self.marginals.shards[key as usize % MARGINAL_SHARDS];
         {
-            return Arc::clone(table);
+            let mut cache = shard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let hit = cache.entries.get(&key).map(|(_, table)| Arc::clone(table));
+            if let Some(table) = hit {
+                let next = cache.clock.wrapping_add(1);
+                cache.clock = next;
+                if let Some((tick, _)) = cache.entries.get_mut(&key) {
+                    *tick = next;
+                }
+                return table;
+            }
         }
-        let cells: usize = axes.iter().map(|a| self.axes[*a].values.len()).product();
-        let mut sums = vec![CompensatedSum::default(); cells];
-        for (i, p) in self.probabilities.iter().enumerate() {
-            let cell = axes.iter().fold(0usize, |cell, a| {
-                let len = self.axes[*a].values.len();
-                cell * len + (i / self.strides[*a]) % len
-            });
-            sums[cell].add(*p);
+        let table = compute_marginal(self, axes);
+        let mut cache = shard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        cache.clock = cache.clock.wrapping_add(1);
+        let tick = cache.clock;
+        let cap = MAX_MARGINAL_TABLES / MARGINAL_SHARDS;
+        if cache.entries.len() >= cap {
+            if let Some(oldest) =
+                cache.entries.iter().min_by_key(|(_, (tick, _))| *tick).map(|(key, _)| *key)
+            {
+                cache.entries.remove(&oldest);
+            }
         }
-        let table: Arc<[f64]> = sums.into_iter().map(CompensatedSum::total).collect();
-        let mut cache = self.marginals.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if cache.len() < MAX_MARGINAL_TABLES {
-            cache.insert(axes.to_vec(), Arc::clone(&table));
-        }
+        cache.entries.insert(key, (tick, Arc::clone(&table)));
         table
     }
+}
+
+fn compute_marginal(law: &ExactDiscreteLaw, axes: &[usize]) -> Arc<[f64]> {
+    let cells: usize = axes.iter().map(|a| law.axes[*a].values.len()).product();
+    let mut sums = vec![CompensatedSum::default(); cells];
+    for (i, p) in law.probabilities.iter().enumerate() {
+        let cell = axes.iter().fold(0usize, |cell, a| {
+            let len = law.axes[*a].values.len();
+            cell * len + (i / law.strides[*a]) % len
+        });
+        sums[cell].add(*p);
+    }
+    sums.into_iter().map(CompensatedSum::total).collect()
+}
+
+/// Bitmask of a strictly ascending axis list, each index below 128.
+fn ascending_axis_mask(axes: &[usize]) -> Option<u128> {
+    let mut key = 0u128;
+    let mut prev = None;
+    for &axis in axes {
+        if axis >= 128 || prev.is_some_and(|previous| axis <= previous) {
+            return None;
+        }
+        prev = Some(axis);
+        key |= 1u128 << axis;
+    }
+    Some(key)
 }
 
 fn finite(v: &Value) -> bool {
@@ -993,18 +1067,16 @@ mod tests {
         let probabilities = [0.1, 0.2, 0.3, 0.400_000_000_001];
         let table = law("source", &probabilities).unwrap();
         assert_eq!(table.probabilities(), &probabilities);
-        assert!(
-            ExactDiscreteLaw::try_new(
-                "p",
-                RegimeId::from_raw(0),
-                [],
-                [axis(0), axis(0)],
-                [0.25; 4],
-                "s",
-                LawTolerance::default()
-            )
-            .is_err()
-        );
+        assert!(ExactDiscreteLaw::try_new(
+            "p",
+            RegimeId::from_raw(0),
+            [],
+            [axis(0), axis(0)],
+            [0.25; 4],
+            "s",
+            LawTolerance::default()
+        )
+        .is_err());
     }
     #[test]
     fn conditions_and_marginalizes_by_axis_coordinate() {
