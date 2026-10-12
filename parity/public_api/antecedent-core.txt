@@ -229,6 +229,7 @@ impl core::clone::Clone for antecedent_core::VariableCoordinate
 impl core::clone::Clone for antecedent_core::VariableDomain
 impl core::clone::Clone for antecedent_core::VariableId
 impl core::clone::Clone for antecedent_core::VariableSchema
+impl core::clone::Clone for antecedent_core::WeakCancellationToken
 impl core::clone::Clone for antecedent_core::WorldId
 impl core::clone::Clone for antecedent_core::WorldObservation
 impl core::clone::Clone for antecedent_core::WorldSpec
@@ -917,6 +918,7 @@ impl core::fmt::Debug for antecedent_core::VariableDomain
 impl core::fmt::Debug for antecedent_core::VariableId
 impl core::fmt::Debug for antecedent_core::VariableInProgress
 impl core::fmt::Debug for antecedent_core::VariableSchema
+impl core::fmt::Debug for antecedent_core::WeakCancellationToken
 impl core::fmt::Debug for antecedent_core::WorldId
 impl core::fmt::Debug for antecedent_core::WorldObservation
 impl core::fmt::Debug for antecedent_core::WorldSpec
@@ -1363,6 +1365,7 @@ impl core::marker::Freeze for antecedent_core::VariableDomain [auto]
 impl core::marker::Freeze for antecedent_core::VariableId [auto]
 impl core::marker::Freeze for antecedent_core::VariableInProgress [auto]
 impl core::marker::Freeze for antecedent_core::VariableSchema [auto]
+impl core::marker::Freeze for antecedent_core::WeakCancellationToken [auto]
 impl core::marker::Freeze for antecedent_core::WorldId [auto]
 impl core::marker::Freeze for antecedent_core::WorldObservation [auto]
 impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
@@ -1583,6 +1586,7 @@ impl core::marker::Send for antecedent_core::VariableDomain [auto]
 impl core::marker::Send for antecedent_core::VariableId [auto]
 impl core::marker::Send for antecedent_core::VariableInProgress [auto]
 impl core::marker::Send for antecedent_core::VariableSchema [auto]
+impl core::marker::Send for antecedent_core::WeakCancellationToken [auto]
 impl core::marker::Send for antecedent_core::WorldId [auto]
 impl core::marker::Send for antecedent_core::WorldObservation [auto]
 impl core::marker::Send for antecedent_core::WorldSpec [auto]
@@ -2012,6 +2016,7 @@ impl core::marker::Sync for antecedent_core::VariableDomain [auto]
 impl core::marker::Sync for antecedent_core::VariableId [auto]
 impl core::marker::Sync for antecedent_core::VariableInProgress [auto]
 impl core::marker::Sync for antecedent_core::VariableSchema [auto]
+impl core::marker::Sync for antecedent_core::WeakCancellationToken [auto]
 impl core::marker::Sync for antecedent_core::WorldId [auto]
 impl core::marker::Sync for antecedent_core::WorldObservation [auto]
 impl core::marker::Sync for antecedent_core::WorldSpec [auto]
@@ -2232,6 +2237,7 @@ impl core::marker::Unpin for antecedent_core::VariableDomain [auto]
 impl core::marker::Unpin for antecedent_core::VariableId [auto]
 impl core::marker::Unpin for antecedent_core::VariableInProgress [auto]
 impl core::marker::Unpin for antecedent_core::VariableSchema [auto]
+impl core::marker::Unpin for antecedent_core::WeakCancellationToken [auto]
 impl core::marker::Unpin for antecedent_core::WorldId [auto]
 impl core::marker::Unpin for antecedent_core::WorldObservation [auto]
 impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
@@ -2452,6 +2458,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableDomain
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableInProgress [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableSchema [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WeakCancellationToken [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [auto]
@@ -2671,6 +2678,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableDomain [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableInProgress [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableSchema [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WeakCancellationToken [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
@@ -3357,6 +3365,7 @@ pub fn <antecedent_core::CachePolicy>::const fn disabled() -> Self
 pub fn <antecedent_core::CachePolicy>::const fn enabled(max_bytes: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::CalibrationBasis>::fn new(key: [alloc::sync::Arc<str>; 11], level: f64, identification: alloc::sync::Arc<str>, row_count: u64, replicates_ok: core::option::Option<u32>, posterior_draws: core::option::Option<u32>, unidentified_mass: f64) -> Self
 pub fn <antecedent_core::CancellationToken>::fn cancel(&self)
+pub fn <antecedent_core::CancellationToken>::fn downgrade(&self) -> antecedent_core::WeakCancellationToken
 pub fn <antecedent_core::CancellationToken>::fn is_cancelled(&self) -> bool
 pub fn <antecedent_core::CancellationToken>::fn new() -> Self
 pub fn <antecedent_core::CanonicalWriter>::fn bytes(&mut self, bytes: &[u8]) -> &mut Self
@@ -3813,6 +3822,8 @@ pub fn <antecedent_core::VariableInProgress>::fn instrument(self) -> antecedent_
 pub fn <antecedent_core::VariableInProgress>::fn outcome(self) -> antecedent_core::CausalSchemaBuilder
 pub fn <antecedent_core::VariableInProgress>::fn treatment(self) -> antecedent_core::CausalSchemaBuilder
 pub fn <antecedent_core::VariableInProgress>::fn unit(self, unit: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_core::WeakCancellationToken>::fn is_alive(&self) -> bool
+pub fn <antecedent_core::WeakCancellationToken>::fn upgrade(&self) -> core::option::Option<antecedent_core::CancellationToken>
 pub fn <antecedent_core::WorldId>::const fn index(self) -> usize
 pub fn <antecedent_core::WorldId>::const fn new(index: u8) -> Self
 pub fn <antecedent_core::WorldSpec>::fn intervention_of(&self, variable: antecedent_core::VariableId) -> core::option::Option<f64>
@@ -4044,6 +4055,8 @@ pub struct antecedent_core::VariableId has private fields
 pub struct antecedent_core::VariableInProgress
 pub struct antecedent_core::VariableInProgress has private fields
 pub struct antecedent_core::VariableSchema
+pub struct antecedent_core::WeakCancellationToken
+pub struct antecedent_core::WeakCancellationToken has private fields
 pub struct antecedent_core::WorldId
 pub struct antecedent_core::WorldId has private fields
 pub struct antecedent_core::WorldObservation
@@ -4107,6 +4120,7 @@ pub use antecedent_core::execution::ProgressSink = antecedent_core::ProgressSink
 pub use antecedent_core::execution::RequestIdentity = antecedent_core::RequestIdentity
 pub use antecedent_core::execution::RngFactory = antecedent_core::RngFactory
 pub use antecedent_core::execution::StreamDomain = antecedent_core::StreamDomain
+pub use antecedent_core::execution::WeakCancellationToken = antecedent_core::WeakCancellationToken
 pub use antecedent_core::execution::default_user_threads = antecedent_core::default_user_threads
 pub use antecedent_core::execution::derive_stream = antecedent_core::derive_stream
 pub use antecedent_core::identification::IdentificationStatus = antecedent_core::IdentificationStatus

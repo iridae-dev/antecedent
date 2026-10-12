@@ -4282,11 +4282,11 @@ pub field antecedent_io::mechanism_discrepancy_artifact::ResultWire::statistic: 
 pub field antecedent_io::mechanism_discrepancy_artifact::ResultWire::target: antecedent_io::mechanism_discrepancy_artifact::FitWire
 pub field antecedent_io::mixed_source_artifact::ConsumedMixedSource::data: antecedent_expr::exact::ExactTransportData
 pub field antecedent_io::mixed_source_artifact::ConsumedMixedSource::distributions: alloc::vec::Vec<antecedent_expr::exact_plan::ExactDistribution>
-pub field antecedent_io::mixed_source_artifact::ConsumedMixedSource::functional: antecedent_identify::sid::mixed_source::BoundMixedSourceFunctional
+pub field antecedent_io::mixed_source_artifact::ConsumedMixedSource::functional: antecedent_identify::sid::mixed_source::search::BoundMixedSourceFunctional
 pub field antecedent_io::mixed_source_artifact::ConsumedMixedSource::requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>
 pub field antecedent_io::mixed_source_artifact::ConsumedMixedSource::wire: antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactInput::data: &'a antecedent_expr::exact::ExactTransportData
-pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactInput::functional: &'a antecedent_identify::sid::mixed_source::BoundMixedSourceFunctional
+pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactInput::functional: &'a antecedent_identify::sid::mixed_source::search::BoundMixedSourceFunctional
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactInput::graph: &'a antecedent_graph::admg::Admg
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactInput::limits: antecedent_expr::exact_plan::ExactEvaluationLimits
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactInput::requests: &'a [antecedent_expr::provider::Assignment]

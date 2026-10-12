@@ -34,6 +34,7 @@ impl core::clone::Clone for antecedent_validate::AxisTipping
 impl core::clone::Clone for antecedent_validate::BlockBootstrapStability
 impl core::clone::Clone for antecedent_validate::BootstrapRefute
 impl core::clone::Clone for antecedent_validate::CiTestSensitivity
+impl core::clone::Clone for antecedent_validate::ConfiguredValidator
 impl core::clone::Clone for antecedent_validate::ConflictPolicy
 impl core::clone::Clone for antecedent_validate::ConflictSignals
 impl core::clone::Clone for antecedent_validate::DataSubsetRefuter
@@ -225,6 +226,7 @@ impl core::fmt::Debug for antecedent_validate::AxisTipping
 impl core::fmt::Debug for antecedent_validate::BlockBootstrapStability
 impl core::fmt::Debug for antecedent_validate::BootstrapRefute
 impl core::fmt::Debug for antecedent_validate::CiTestSensitivity
+impl core::fmt::Debug for antecedent_validate::ConfiguredValidator
 impl core::fmt::Debug for antecedent_validate::ConflictPolicy
 impl core::fmt::Debug for antecedent_validate::ConflictSignals
 impl core::fmt::Debug for antecedent_validate::DataSubsetRefuter
@@ -355,6 +357,7 @@ impl core::marker::Freeze for antecedent_validate::AxisTipping [auto]
 impl core::marker::Freeze for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Freeze for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Freeze for antecedent_validate::CiTestSensitivity [auto]
+impl core::marker::Freeze for antecedent_validate::ConfiguredValidator [auto]
 impl core::marker::Freeze for antecedent_validate::ConflictPolicy [auto]
 impl core::marker::Freeze for antecedent_validate::ConflictSignals [auto]
 impl core::marker::Freeze for antecedent_validate::DataSubsetRefuter [auto]
@@ -444,6 +447,7 @@ impl core::marker::Send for antecedent_validate::AxisTipping [auto]
 impl core::marker::Send for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Send for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Send for antecedent_validate::CiTestSensitivity [auto]
+impl core::marker::Send for antecedent_validate::ConfiguredValidator [auto]
 impl core::marker::Send for antecedent_validate::ConflictPolicy [auto]
 impl core::marker::Send for antecedent_validate::ConflictSignals [auto]
 impl core::marker::Send for antecedent_validate::DataSubsetRefuter [auto]
@@ -578,6 +582,7 @@ impl core::marker::Sync for antecedent_validate::AxisTipping [auto]
 impl core::marker::Sync for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Sync for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Sync for antecedent_validate::CiTestSensitivity [auto]
+impl core::marker::Sync for antecedent_validate::ConfiguredValidator [auto]
 impl core::marker::Sync for antecedent_validate::ConflictPolicy [auto]
 impl core::marker::Sync for antecedent_validate::ConflictSignals [auto]
 impl core::marker::Sync for antecedent_validate::DataSubsetRefuter [auto]
@@ -666,6 +671,7 @@ impl core::marker::Unpin for antecedent_validate::AxisTipping [auto]
 impl core::marker::Unpin for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Unpin for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Unpin for antecedent_validate::CiTestSensitivity [auto]
+impl core::marker::Unpin for antecedent_validate::ConfiguredValidator [auto]
 impl core::marker::Unpin for antecedent_validate::ConflictPolicy [auto]
 impl core::marker::Unpin for antecedent_validate::ConflictSignals [auto]
 impl core::marker::Unpin for antecedent_validate::DataSubsetRefuter [auto]
@@ -752,6 +758,7 @@ impl core::marker::Unpin for antecedent_validate::bayesian_checks::ResidualStati
 impl core::marker::Unpin for antecedent_validate::common::AlignedRefit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::AxisTipping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::BootstrapRefute [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ConfiguredValidator [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ConflictPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ConflictSignals [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::DataSubsetRefuter [auto]
@@ -830,6 +837,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_c
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::AxisTipping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::BootstrapRefute [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ConfiguredValidator [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ConflictPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ConflictSignals [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::DataSubsetRefuter [auto]
@@ -997,6 +1005,7 @@ pub const antecedent_validate::msm_sensitivity::MSM_NORMALIZATION: &str
 pub const antecedent_validate::msm_sensitivity::MSM_PERTURBATION_SCALE: &str
 pub const antecedent_validate::msm_sensitivity::MSM_SAMPLING_STATEMENT: &str
 pub const antecedent_validate::msm_sensitivity::MSM_TARGET: &str
+pub enum antecedent_validate::ConfiguredValidator
 pub enum antecedent_validate::DiscreteKernelSensitivityError
 pub enum antecedent_validate::FixedGraphSensitivityError
 pub enum antecedent_validate::JointFactor
@@ -1508,6 +1517,7 @@ pub fn <antecedent_validate::ValidationSuite>::fn run_bayesian(&self, bayes: &mu
 pub fn <antecedent_validate::ValidationSuite>::fn run_with_propensity(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, propensity: &mut antecedent_stats::propensity::PropensityWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::ValidationOutcome>, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::ValidationSuite>::fn stability_effect() -> Self
 pub fn <antecedent_validate::ValidationSuite>::fn with(self, id: antecedent_validate::ValidatorId) -> Self
+pub fn <antecedent_validate::ValidationSuite>::fn with_configured(self, validator: antecedent_validate::ConfiguredValidator) -> Self
 pub fn <antecedent_validate::ValidationSuite>::fn with_custom(self, validator: alloc::sync::Arc<dyn antecedent_validate::CustomEffectValidator>) -> Self
 pub fn <antecedent_validate::ValidatorId>::fn as_str(self) -> &'static str
 pub fn <antecedent_validate::bayesian_checks::ResidualStatistic>::const fn name(self) -> &'static str
@@ -1746,6 +1756,7 @@ pub use antecedent_validate::stability::SyntheticNullCalibration = antecedent_va
 pub use antecedent_validate::stability::UndirectedLinkStability = antecedent_validate::UndirectedLinkStability
 pub use antecedent_validate::stack_panel_tabular = antecedent_validate::common::stack_panel_tabular
 pub use antecedent_validate::suite::BayesianSuiteContext = antecedent_validate::BayesianSuiteContext
+pub use antecedent_validate::suite::ConfiguredValidator = antecedent_validate::ConfiguredValidator
 pub use antecedent_validate::suite::ValidationOutcome = antecedent_validate::ValidationOutcome
 pub use antecedent_validate::suite::ValidationSuite = antecedent_validate::ValidationSuite
 pub use antecedent_validate::suite::ValidatorId = antecedent_validate::ValidatorId
@@ -1756,6 +1767,23 @@ pub use antecedent_validate::with_conflict_summary = antecedent_validate::confli
 pub use antecedent_validate::with_prior_sensitivity = antecedent_validate::bayesian_checks::with_prior_sensitivity
 pub use antecedent_validate::z_transport_joint_mechanism_sensitivity = antecedent_validate::joint_mechanism_sensitivity::z_transport_joint_mechanism_sensitivity
 pub use antecedent_validate::z_transport_mechanism_sensitivity = antecedent_validate::mechanism_sensitivity::z_transport_mechanism_sensitivity
+pub variant antecedent_validate::ConfiguredValidator::Bootstrap(antecedent_validate::BootstrapRefute)
+pub variant antecedent_validate::ConfiguredValidator::DataSubset(antecedent_validate::DataSubsetRefuter)
+pub variant antecedent_validate::ConfiguredValidator::DummyOutcome(antecedent_validate::DummyOutcome)
+pub variant antecedent_validate::ConfiguredValidator::EValue(antecedent_validate::EValue)
+pub variant antecedent_validate::ConfiguredValidator::Graph(antecedent_validate::GraphRefuter)
+pub variant antecedent_validate::ConfiguredValidator::LinearSensitivity(antecedent_validate::LinearSensitivity)
+pub variant antecedent_validate::ConfiguredValidator::NonparametricSensitivity(antecedent_validate::NonparametricSensitivity)
+pub variant antecedent_validate::ConfiguredValidator::Overlap(antecedent_validate::OverlapRefuter)
+pub variant antecedent_validate::ConfiguredValidator::OverlapRule(antecedent_validate::OverlapRuleRefuter)
+pub variant antecedent_validate::ConfiguredValidator::PartialLinearSensitivity(antecedent_validate::PartialLinearSensitivity)
+pub variant antecedent_validate::ConfiguredValidator::Placebo(antecedent_validate::PlaceboTreatment)
+pub variant antecedent_validate::ConfiguredValidator::PosteriorPredictive(antecedent_validate::PosteriorPredictiveCheck)
+pub variant antecedent_validate::ConfiguredValidator::PriorPredictive(antecedent_validate::PriorPredictiveCheck)
+pub variant antecedent_validate::ConfiguredValidator::PriorSensitivity(antecedent_validate::PriorSensitivity)
+pub variant antecedent_validate::ConfiguredValidator::RandomCommonCause(antecedent_validate::RandomCommonCause)
+pub variant antecedent_validate::ConfiguredValidator::Riesz(antecedent_validate::RieszSensitivity)
+pub variant antecedent_validate::ConfiguredValidator::UnobservedCommonCause(antecedent_validate::UnobservedCommonCause)
 pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidContrast
 pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidDimensions
 pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidFraction

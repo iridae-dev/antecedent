@@ -6173,7 +6173,7 @@ pub variant antecedent_design::StructuralPolicy::BayesOverStructures
 pub variant antecedent_design::StructuralPolicy::Maximin
 pub variant antecedent_design::StructuralPolicy::ReportOnly
 pub variant antecedent_design::StructuralPolicy::RequireInvariantBestAction
-pub variant antecedent_design::StudyArrivalDecision::Mixed(alloc::boxed::Box<antecedent_identify::sid::mixed_source::MixedSourceDecision>)
+pub variant antecedent_design::StudyArrivalDecision::Mixed(alloc::boxed::Box<antecedent_identify::sid::mixed_source::search::MixedSourceDecision>)
 pub variant antecedent_design::StudyArrivalDecision::Mz(alloc::boxed::Box<antecedent_identify::sid::mz_transport::MzTransportDecision>)
 pub variant antecedent_design::StudyKind::Experiment
 pub variant antecedent_design::StudyKind::Observation
