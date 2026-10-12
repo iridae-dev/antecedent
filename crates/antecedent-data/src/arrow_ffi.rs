@@ -147,7 +147,7 @@ pub(crate) fn float64_column_from_array(
         let raw = floats.values();
         // `values()` is the physical buffer. Use it only when it is exactly the
         // logical column; a non-zero offset or a longer buffer goes through `value`.
-        let mut values = if floats.offset() == 0 && raw.len() == n {
+        let values = if floats.offset() == 0 && raw.len() == n {
             let mut values = raw.to_vec();
             for i in 0..n {
                 if floats.is_null(i) {
