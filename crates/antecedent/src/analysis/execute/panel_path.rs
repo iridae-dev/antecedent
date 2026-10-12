@@ -1026,34 +1026,22 @@ impl super::Study {
             temporal.horizons.len(),
             [identified_mass, unidentified_mass, unevaluable_mass],
         );
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(identifier_id, EstimatorId::temporal_response_for(&self.inference)),
-                treatment,
-                outcome,
-            )
-            .identify_cached(identify_cached)
-            .wall_time_ns(elapsed_ns(started))
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope: Arc::unwrap_or_clone(envelope),
-                        strategy: identifier_id,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                response: Some(response),
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            }),
-        ))
+        Ok(self.finish_class_response_tail(super::temporal_path::ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response,
+            structural,
+            diagnostics,
+            identify_cached,
+            bootstrap_replicates: None,
+            started,
+            ctx,
+        }))
     }
 
     /// Whether the prepared class cache covers every requested horizon of the panel response.

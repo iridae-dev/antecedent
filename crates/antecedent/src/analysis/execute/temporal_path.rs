@@ -1819,44 +1819,26 @@ impl super::Study {
             &parts,
             (temporal.horizons.len(), assembly.full_mass_scope, assembly.truncated_atoms),
         );
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                nan_effect(),
-                Strategy::new(
-                    IdentifierId::GeneralizedAdjustment,
-                    EstimatorId::temporal_response_for(&self.inference),
-                ),
-                treatment,
-                outcome,
-            )
-            .identify_cached(self.temporal_class_cache_covers(&temporal.horizons))
-            .wall_time_ns(elapsed_ns(started))
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope: Arc::unwrap_or_clone(envelope),
-                        strategy: IdentifierId::GeneralizedAdjustment,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                response: Some(parts.response),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                // Observation circular-block bands ride the class response when a
-                // single completion identifies; otherwise requested replicates
-                // stay on the atoms and the class band is withheld.
-                bootstrap_replicates_requested: Some(if class_observation_band_applied {
-                    Some(self.bootstrap_replicates)
-                } else {
-                    None
-                }),
-                ..Default::default()
-            }),
-        ))
+        Ok(self.finish_class_response_tail(ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate: nan_effect(),
+            identifier_id: IdentifierId::GeneralizedAdjustment,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response: parts.response,
+            structural,
+            diagnostics,
+            identify_cached: self.temporal_class_cache_covers(&temporal.horizons),
+            // Observation circular-block bands ride the class response when a single
+            // completion identifies; otherwise requested replicates stay on the atoms and
+            // the class band is withheld.
+            bootstrap_replicates: class_observation_band_applied
+                .then_some(self.bootstrap_replicates),
+            started,
+            ctx,
+        }))
     }
 
     /// The observation circular-block band over the class atoms of an observed
@@ -2303,7 +2285,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         started: Instant,
     ) -> Result<StudyResult, CausalError> {
-        let ClassSequenceSweep { query, temporal, bayes, treatment, outcome, ctx, .. } = *sweep;
+        let ClassSequenceSweep { query, temporal, treatment, outcome, ctx, .. } = *sweep;
         let (parts, class_observation_band_applied) =
             self.class_sequence_surface(sweep, &mut run)?;
         let ClassSequenceRun {
@@ -2337,45 +2319,23 @@ impl super::Study {
             &parts,
             (temporal.horizons.len(), full_mass_scope, truncated_atoms),
         );
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                nan_effect(),
-                Strategy::new(
-                    IdentifierId::GeneralizedAdjustment,
-                    if bayes.is_some() {
-                        EstimatorId::TemporalResponseBayesian
-                    } else {
-                        EstimatorId::TemporalResponseGcomp
-                    },
-                ),
-                treatment,
-                outcome,
-            )
-            .identify_cached(self.temporal_class_cache_covers(&temporal.horizons))
-            .wall_time_ns(elapsed_ns(started))
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope: Arc::unwrap_or_clone(envelope),
-                        strategy: IdentifierId::GeneralizedAdjustment,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                response: Some(parts.response),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                bootstrap_replicates_requested: Some(if class_observation_band_applied {
-                    Some(self.bootstrap_replicates)
-                } else {
-                    None
-                }),
-                ..Default::default()
-            }),
-        ))
+        Ok(self.finish_class_response_tail(ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate: nan_effect(),
+            identifier_id: IdentifierId::GeneralizedAdjustment,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response: parts.response,
+            structural,
+            diagnostics,
+            identify_cached: self.temporal_class_cache_covers(&temporal.horizons),
+            bootstrap_replicates: class_observation_band_applied
+                .then_some(self.bootstrap_replicates),
+            started,
+            ctx,
+        }))
     }
 
     pub(super) fn execute_temporal_class(
@@ -3138,6 +3098,77 @@ pub(super) struct ClassResponseParts {
     pub identified_mass: f64,
     pub unidentified_mass: f64,
     pub unevaluable_mass: f64,
+}
+
+/// The identified-execute tail every class response executor (temporal Pulse/Sustained,
+/// Sequence and panel) ends with: the strategy, certificate and extras are the same, only the
+/// fitted pieces differ.
+pub(super) struct ClassResponseTail<'a> {
+    pub physical: &'a PhysicalExecutionPlan,
+    pub identification: IdentificationResult,
+    pub estimand: IdentifiedEstimand,
+    /// Scalar summary of the response, or a NaN effect when the response carries the result.
+    pub estimate: EffectEstimate,
+    pub identifier_id: IdentifierId,
+    pub endpoints: (VariableId, VariableId),
+    /// The completion envelope the certificate retains.
+    pub envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    pub response: CausalResponse,
+    pub structural: crate::result::StructuralResponseMixture,
+    pub diagnostics: Vec<Diagnostic>,
+    pub identify_cached: bool,
+    /// The bootstrap replicate count the result records (`None`: the class band is withheld).
+    pub bootstrap_replicates: Option<u32>,
+    pub started: Instant,
+    pub ctx: &'a ExecutionContext,
+}
+
+impl super::Study {
+    /// Publish a class response through the identified-execute finish.
+    pub(super) fn finish_class_response_tail(&self, tail: ClassResponseTail<'_>) -> StudyResult {
+        let ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            endpoints: (treatment, outcome),
+            envelope,
+            response,
+            structural,
+            diagnostics,
+            identify_cached,
+            bootstrap_replicates,
+            started,
+            ctx,
+        } = tail;
+        self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, EstimatorId::temporal_response_for(&self.inference)),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
+                certificate: envelope.map(|envelope| crate::Identification::TemporalEnvelope {
+                    envelope: Arc::unwrap_or_clone(envelope),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                }),
+                response: Some(response),
+                structural_response: Some(structural),
+                diagnostics: Some(diagnostics),
+                bootstrap_replicates_requested: Some(bootstrap_replicates),
+                ..Default::default()
+            }),
+        )
+    }
 }
 
 impl ClassResponseAssembly {
