@@ -38,6 +38,8 @@ PayloadKind = Literal[
     "transport_estimate",
     "interference_estimate",
     "analysis_result",
+    "provider_result",
+    "external_callback",
 ]
 
 
@@ -83,7 +85,15 @@ def dumps(
 
 
 def loads(data: bytes) -> CausalArtifact:
-    """Decode and migrate a causal query/result artifact to the stable format."""
+    """Decode and migrate a causal query/result artifact to the stable format.
+
+    Also reads the two external-execution frames, as ``provider_result`` (a
+    registry result) and ``external_callback`` (a ``recalc_external`` output),
+    in their shared-container form or the original ``ANTEPROV2`` /
+    ``ANTCALLBACK1`` frame. Their ``payload`` is the *declared* header: the
+    producer's ``trust`` is a claim here, never evidence. A verified result is
+    believed only through the registry that holds its verification receipt.
+    """
 
     decoded = _decode_causal_artifact(data)
     payload = json.loads(decoded.payload_json)

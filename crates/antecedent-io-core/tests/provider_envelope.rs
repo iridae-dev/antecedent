@@ -1,12 +1,9 @@
-//! Compile and exercise the standalone provider envelope before shared lib wiring.
+//! Verified provider results open only against host-held evidence.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-
-#[path = "../src/provider_envelope.rs"]
-mod provider_envelope;
 
 use std::collections::BTreeMap;
 
-use provider_envelope::{
+use antecedent_io_core::provider_envelope::{
     ExternalProviderTrust, ProviderEnvelope, ProviderEnvelopeHeader, open_provider_envelope,
     open_verified_provider_envelope, seal_provider_envelope,
 };

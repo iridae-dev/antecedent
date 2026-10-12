@@ -113,6 +113,30 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     assert!(stale.issued_claim().is_none());
 }
 #[test]
+fn portable_output_is_a_container_and_an_original_frame_still_resumes() {
+    use antecedent_io::external_callback_artifact::ExternalCallbackArtifact;
+
+    let request = request(0, CallbackPolicy::Seeded);
+    let mut provider = Provider::new(&request);
+    let mut session = ExternalCallbackSession::new();
+    let original = execute(&mut session, &request, &mut provider);
+    let bytes = session.export_output().unwrap();
+    assert!(bytes.starts_with(b"CAUSAL\0\0"), "new output uses the shared container");
+    assert!(ExternalCallbackArtifact::recognizes(&bytes));
+    let inspected = ExternalCallbackArtifact::inspect(&bytes).unwrap();
+    let mut legacy = b"ANTCALLBACK1".to_vec();
+    ciborium::into_writer(&inspected, &mut legacy).unwrap();
+    assert!(ExternalCallbackArtifact::recognizes(&legacy));
+    let mut fresh = ExternalCallbackSession::resume(&legacy, &request).unwrap();
+    let replayed = execute(&mut fresh, &request, &mut provider);
+    assert_eq!(replayed.claim.values(), original.claim.values());
+    let mut corrupt = bytes;
+    let last = corrupt.len() - 1;
+    corrupt[last] ^= 1;
+    assert!(ExternalCallbackSession::resume(&corrupt, &request).is_err());
+}
+
+#[test]
 fn failures_preserve_success_and_keep_actual_attempt_evidence() {
     let mut request = request(0, CallbackPolicy::Deterministic);
     let mut provider = Provider::new(&request);

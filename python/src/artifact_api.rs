@@ -144,8 +144,54 @@ fn encode_causal_artifact<'py>(
     Ok(PyBytes::new(py, &bytes))
 }
 
+/// A provider result or external callback output, read structurally.
+///
+/// The payload is the declared header: a `verified_extension` trust here is a
+/// producer's claim, believed only by the registry that holds its evidence.
+fn decode_external_frame(bytes: &[u8]) -> PyResult<Option<DecodedCausalArtifact>> {
+    use antecedent_io::external_callback_artifact::ExternalCallbackArtifact;
+    use antecedent_io::provider_envelope::{inspect_provider_envelope, is_provider_envelope};
+
+    let stable = antecedent_io::STABLE_FORMAT;
+    if is_provider_envelope(bytes) {
+        let envelope = inspect_provider_envelope(bytes).map_err(serialization_error)?;
+        return Ok(Some(DecodedCausalArtifact {
+            artifact_id: envelope.header.artifact_id(),
+            format_major: stable.major,
+            format_minor: stable.minor,
+            payload_kind: "provider_result".into(),
+            variable_names: Vec::new(),
+            payload_json: json(&envelope.header)?,
+            contract_json: None,
+        }));
+    }
+    if ExternalCallbackArtifact::recognizes(bytes) {
+        let callback = ExternalCallbackArtifact::inspect(bytes).map_err(serialization_error)?;
+        let payload = serde_json::json!({
+            "request_digest": antecedent_core::to_hex(&callback.request_digest),
+            "provider_digest": antecedent_core::to_hex(&callback.provider_digest),
+            "policy": callback.policy,
+            "identity": callback.identity,
+            "claim_blake3": antecedent_core::blake3_hex(&callback.artifact),
+        });
+        return Ok(Some(DecodedCausalArtifact {
+            artifact_id: callback.artifact_id(),
+            format_major: stable.major,
+            format_minor: stable.minor,
+            payload_kind: "external_callback".into(),
+            variable_names: Vec::new(),
+            payload_json: json(&payload)?,
+            contract_json: None,
+        }));
+    }
+    Ok(None)
+}
+
 #[pyfunction]
 fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
+    if let Some(external) = decode_external_frame(bytes)? {
+        return Ok(external);
+    }
     let Ok((artifact, header, payload)) = decode_causal_payload_artifact(bytes) else {
         let (artifact, header, payload) =
             decode_analysis_result_artifact(bytes).map_err(serialization_error)?;

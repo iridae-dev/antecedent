@@ -584,6 +584,20 @@ pub fn decode_container(
     Ok(payloads)
 }
 
+/// The `ArtifactKind::Other` label of a container, or `None` for bytes that are
+/// not a readable container or whose kind is a built-in one.
+///
+/// Reads the manifest only: nothing is checksummed or decoded, so a caller
+/// still routes to the kind's own decoder, which refuses a corrupt body.
+#[must_use]
+pub fn container_kind(bytes: &[u8]) -> Option<String> {
+    let reader = ArtifactReader::open_seek(Cursor::new(bytes)).ok()?;
+    match &reader.manifest().artifact_kind {
+        ArtifactKind::Other(kind) => Some(kind.clone()),
+        _ => None,
+    }
+}
+
 /// Read the `version` field of one CBOR item.
 ///
 /// The rest of the item is not interpreted as a payload type. Trailing bytes
