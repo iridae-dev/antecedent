@@ -38,9 +38,10 @@ pub struct ForeignF64Buffer {
 }
 
 /// Type-erased owner that keeps foreign memory valid.
+///
+/// Implement this for the type that owns the allocation. A blanket impl would
+/// accept any `Debug` value, including one that does not keep the bytes alive.
 pub trait ForeignBufferOwner: Send + Sync + std::fmt::Debug {}
-
-impl<T: Send + Sync + std::fmt::Debug + 'static> ForeignBufferOwner for T {}
 
 // SAFETY: `ptr` is valid for `len` elements while `owner` is alive; owner is Send+Sync.
 unsafe impl Send for ForeignF64Buffer {}

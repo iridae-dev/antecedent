@@ -17,7 +17,7 @@ use arrow_array::ffi::{FFI_ArrowArray, from_ffi, to_ffi};
 use arrow_array::{Array, ArrayRef, Float64Array};
 use arrow_schema::ffi::FFI_ArrowSchema;
 
-use crate::buffer::{F64Buffer, ForeignF64Buffer};
+use crate::buffer::{F64Buffer, ForeignBufferOwner, ForeignF64Buffer};
 use crate::column::{Float64Column, OwnedColumn, ValidityBitmap, invalid_rows_are_nan};
 use crate::error::DataError;
 use crate::materialize::{MaterializationReason, materialization_diagnostic};
@@ -31,6 +31,8 @@ struct ArrayOwner(
     )]
     ArrayRef,
 );
+
+impl ForeignBufferOwner for ArrayOwner {}
 
 /// One column imported from the Arrow C Data Interface.
 ///

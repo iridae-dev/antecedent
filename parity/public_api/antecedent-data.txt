@@ -582,7 +582,6 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Categorica
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
-impl<T: core::marker::Send + core::marker::Sync + core::fmt::Debug + 'static> antecedent_data::ForeignBufferOwner for T
 pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
 pub enum antecedent_data::ColumnView<'a>
