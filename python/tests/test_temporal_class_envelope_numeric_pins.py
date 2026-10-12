@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+from _repo_text import REPO_ROOT
 
 import antecedent
 import numpy as np
@@ -10,7 +11,7 @@ import pytest
 
 from _repo_text import load_json
 
-_ROOT = pathlib.REPO_ROOT
+_ROOT = REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json")
 
 

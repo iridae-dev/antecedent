@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+from _repo_text import REPO_ROOT
 from typing import Any
 
 import antecedent
@@ -11,7 +12,7 @@ import pytest
 
 from _repo_text import load_json
 
-_ROOT = pathlib.REPO_ROOT
+_ROOT = REPO_ROOT
 _ATE = load_json(_ROOT / "conformance" / "estimate" / "cpdag_ate_envelope" / "expected.json")
 _CLASS = load_json(_ROOT / "conformance" / "response" / "class_aware_envelope" / "expected.json")
 

@@ -8,6 +8,7 @@ every explicit/accepted and validation variant licensed in ``support_licensed.to
 from __future__ import annotations
 
 import pathlib
+from _repo_text import REPO_ROOT
 from typing import Any
 
 import antecedent
@@ -16,7 +17,7 @@ import pytest
 
 from _repo_text import load_json
 
-_ROOT = pathlib.REPO_ROOT
+_ROOT = REPO_ROOT
 
 
 def _load_pin(name: str) -> dict[str, Any]:
