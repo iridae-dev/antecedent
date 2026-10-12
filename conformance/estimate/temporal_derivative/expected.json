@@ -1,10 +1,23 @@
 {
   "point": 2.0,
-  "elasticity": 0.5714285714285714,
+  "elasticity": 0.5517241379310345,
   "semi_treatment": 4.0,
-  "semi_outcome": 0.2857142857142857,
+  "semi_outcome": 0.27586206896551724,
   "average": 2.0,
-  "jacobian": [2.0, 0.5, 1.0, -1.0],
-  "directional": [3.0, -1.0],
-  "tolerance": 0.05
+  "jacobian": [
+    2.0,
+    0.5,
+    1.0,
+    -1.0
+  ],
+  "directional": [
+    3.0,
+    -1.0
+  ],
+  "tolerance": 0.05,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "The test DGPs in temporal_derivative_effect.rs and temporal_class_point_queries.rs both use Y = 3 + 2 X + 0.5 B and V = 1 + X - B, with B alternating between 0 and 1, so the population mean response is E[Y|do(X=x)] = 3.25 + 2x. At x=2 the mean is 7.25: identity slope 2, log-treatment slope 4, log-outcome slope 2/7.25 = 8/29, and log-log slope 4/7.25 = 16/29. The observed average derivative is 2. The Jacobian with respect to (X,B) is [[2,0.5],[1,-1]] at every point, so at (2,1) the directional derivative along (1,2) is (3,-1). These are population structural values; the deterministic finite temporal series approximates them, and the tests compare within tolerance 0.05 rather than claiming an exact finite-sample fit.",
+    "scope": "The marginal interventional reference gives equal mass to B=0 and B=1. It is not the response conditional on B=0, and not an exact oracle for the finite series's fitted OLS coefficients. Jacobian entries use the declared linear structural equations."
+  }
 }

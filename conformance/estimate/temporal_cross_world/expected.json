@@ -3,5 +3,9 @@
   "path": 2.0,
   "counterfactual": 3.5,
   "distribution": 3.5,
-  "tolerance": 0.05
+  "tolerance": 0.05,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Linear shared-noise SCM: M = 0.5 X + U_M and Y = 1.5 X + 4 M. For the 1-versus-0 treatment contrast, the nested direct effect is 1.5, the mediator path effect is 0.5*4 = 2, and the total effect is 1.5 + 2 = 3.5. The interventional outcome mean contrast is also 3.5. The exogenous terms cancel in these contrasts; values follow directly from the structural equations and do not come from the estimator."
+  }
 }
