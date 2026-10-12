@@ -21,10 +21,7 @@ use antecedent_io::counterfactual_id_artifact::{
 };
 use std::collections::BTreeMap;
 
-use super::{
-    CounterfactualIdEffect, DIRECT_SUM_TOLERANCE, PreparedCounterfactualId, check_names,
-    refusal_error,
-};
+use super::{CounterfactualIdEffect, DIRECT_SUM_TOLERANCE, PreparedCounterfactualId, check_names};
 
 /// The wire form of a law, refusing an origin the cell does not accept.
 pub(super) fn law_wire(

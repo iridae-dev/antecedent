@@ -40,7 +40,8 @@ pub(crate) fn fit_temporal_dag_effect(
 ) -> Result<CheckedBayesianTemporalDagFit, CausalError> {
     let target = operation.target();
     if target.query().is_multi_step_sustained()
-        || target.procedure().estimator != crate::strategy_table::EstimatorId::TemporalLinearAdjustment
+        || target.procedure().estimator
+            != crate::strategy_table::EstimatorId::TemporalLinearAdjustment
     {
         return Err(CausalError::Unsupported {
             message: "standalone Bayesian temporal kernel supports pulse and one-step sustained effects only",

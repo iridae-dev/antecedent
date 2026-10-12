@@ -112,8 +112,8 @@ impl CheckedBayesianBasisCateExecution {
         verify_proof_against_graph(
             &checked_identification,
             &checked_estimand,
-            &identification,
-            &estimand,
+            identification,
+            estimand,
             "Bayesian basis CATE proof is not justified by its retained graph",
         )?;
         Ok(Self {

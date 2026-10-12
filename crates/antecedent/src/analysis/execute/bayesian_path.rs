@@ -19,7 +19,7 @@ use super::{
     PredictiveCheckReport, PreparedBayesianProblem, PriorPredictiveCheck, PriorSet, RefutationRun,
     RefuteSuite, ResponseValue, SUSTAINED_LINEAR_SEM, StaticEstimateInput,
     StaticEstimateWorkspaces, Strategy, StructuralAggregationPolicy, StudyResult, TableView,
-    TabularData, TemporalAtomDesign, TemporalDag, TemporalEffectQuery, TemporalIndexer,
+    TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalIndexer,
     TemporalLinearAdjustment, TemporalMediationEstimate, TemporalRefutation, TimeSeriesData,
     ValidationSink, ValidationSuite, ValidatorId, VariableId, WeightedGraphSamples,
     aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp, effect_from_posterior,

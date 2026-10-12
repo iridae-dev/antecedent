@@ -13,10 +13,11 @@ use super::{
     ExecuteRun, ExecutionContext, IdentificationResult, IdentificationStatus, IdentifiedClaim,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
     InferenceMode, Instant, Intervention, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
-    RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseValue, Strategy, StudyResult, TabularData, VariableId, bayesian_gcomp, elapsed_ns,
-    identify_cached_diagnostic, provenance_ids,
+    RefutationRun, RefuteSuite, ResponseFunctional, ResponseQuery, Strategy, StudyResult,
+    TabularData, bayesian_gcomp, elapsed_ns, identify_cached_diagnostic, provenance_ids,
 };
+#[cfg(test)]
+use super::{ResponseIdentification, ResponseValue, VariableId};
 use crate::analysis::prepared::Inspect;
 
 const MAX_DERIVATIVE_CELLS: usize = 1_000_000;

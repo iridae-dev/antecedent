@@ -3,9 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalQuery;
-use antecedent_graph::{
-    Admg, Cpdag, Dag, DenseNodeId, Pag, TemporalCpdag, TemporalDag, TemporalPag,
-};
+use antecedent_graph::{Admg, Cpdag, DenseNodeId, Pag, TemporalCpdag, TemporalPag};
 
 use super::matrix::refusal_reason;
 use super::*;

@@ -10,7 +10,6 @@ use antecedent_identify::counterfactual_id::{
 };
 
 use super::artifact::{agrees, direct_sum_numerators, law_wire};
-use super::*;
 
 fn frontdoor_law(probabilities: Vec<f64>) -> ExactDiscreteLaw {
     let axes: Vec<DiscreteAxis> = (0..3)

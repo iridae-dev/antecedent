@@ -153,7 +153,7 @@ impl CheckedBayesianConditionalOperation {
             });
         }
         if identification.average_effect() != Some(&query.inner)
-            || !proof_supplies(&identification, &estimand)
+            || !proof_supplies(identification, estimand)
         {
             return Err(CausalError::Compile {
                 message: "Bayesian CATE estimand is not supplied by its retained proof".into(),
@@ -166,8 +166,8 @@ impl CheckedBayesianConditionalOperation {
         verify_proof_against_graph(
             &checked_identification,
             &checked_estimand,
-            &identification,
-            &estimand,
+            identification,
+            estimand,
             "Bayesian CATE proof is not justified by its retained graph",
         )?;
         Ok(Self {

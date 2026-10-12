@@ -357,11 +357,6 @@ impl super::Study {
     }
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
-    pub(super) fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        wire_pair(self.resolve_static_ids())
-    }
-
-    /// [`Self::resolve_static_pair`] as typed ids.
     pub(super) fn resolve_static_ids(&self) -> (IdentifierId, EstimatorId) {
         let identifier = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
         let estimator = if identifier == IdentifierId::GeneralId {
@@ -403,12 +398,7 @@ impl super::Study {
     ///
     /// `CoDetermined` tier-closure is generalized adjustment + AIPW, not `general.id`.
     /// A same-tier bidirected clique must not kick a licensed AIPW study onto the
-    /// functional-effect identifier.
-    pub(super) fn resolve_admg_pair(&self) -> (Arc<str>, Arc<str>) {
-        wire_pair(self.resolve_admg_ids())
-    }
-
-    /// [`Self::resolve_admg_pair`] as typed ids.
+    /// The ADMG static route's identifier/estimator ids, applying defaults.
     pub(super) fn resolve_admg_ids(&self) -> (IdentifierId, EstimatorId) {
         if self
             .tiered

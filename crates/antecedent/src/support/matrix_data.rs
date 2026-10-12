@@ -34,18 +34,6 @@ impl<T: 'static> StaticTable<T> {
     pub fn iter(&self) -> std::slice::Iter<'static, T> {
         (self.load)().iter()
     }
-
-    /// Number of rows.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        (self.load)().len()
-    }
-
-    /// Whether the table has no rows.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        (self.load)().is_empty()
-    }
 }
 
 impl<T: 'static> Deref for StaticTable<T> {

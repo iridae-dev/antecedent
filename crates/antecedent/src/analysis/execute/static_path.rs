@@ -701,7 +701,7 @@ impl<'a> StaticAteExecution<'a> {
         } else {
             self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
         }
-        super::super::stage::emit_uncertainty(self.study.stage_sink.as_ref(), &filled);
+        super::super::stage::emit_uncertainty(self.study.stage_sink.as_ref(), filled);
     }
 
     /// Validation stage: runs the refutation suite unless the estimate was cancelled.

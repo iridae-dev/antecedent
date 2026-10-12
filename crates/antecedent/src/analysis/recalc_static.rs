@@ -113,7 +113,7 @@ fn graph_identity(graph: &Admg, names: &[String]) -> StageIdentity {
         })
         .collect();
     Fields::new()
-        .nodes(&graph.nodes().iter().copied().collect::<Vec<_>>())
+        .nodes(graph.nodes())
         .pairs(&directed)
         .pairs(&bidirected)
         .texts(names)

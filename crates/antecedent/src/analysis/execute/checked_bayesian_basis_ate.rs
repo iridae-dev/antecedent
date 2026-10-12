@@ -121,7 +121,7 @@ impl CheckedBayesianBasisAteExecution {
             });
         }
         if identification.average_effect() != Some(&query)
-            || !proof_supplies(&identification, &estimand)
+            || !proof_supplies(identification, estimand)
         {
             return Err(CausalError::Compile {
                 message: "Bayesian basis estimand is not supplied by its retained proof".into(),
@@ -138,8 +138,8 @@ impl CheckedBayesianBasisAteExecution {
         verify_proof_against_graph(
             &checked_identification,
             &checked_estimand,
-            &identification,
-            &estimand,
+            identification,
+            estimand,
             "Bayesian basis proof is not justified by its retained graph",
         )?;
         Ok(Self {

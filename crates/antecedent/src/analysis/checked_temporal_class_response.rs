@@ -158,7 +158,7 @@ impl CheckedTemporalClassResponseOperation {
                 message: "checked temporal class response supports MeanCurve and single-step InterventionResponse only",
             });
         }
-        if !complete_mean_response(&query) {
+        if !complete_mean_response(query) {
             return Err(CausalError::Unsupported {
                 message: "checked temporal class response requires complete observation, the all-observed population, and the mean outcome functional",
             });

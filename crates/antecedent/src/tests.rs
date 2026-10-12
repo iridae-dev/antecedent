@@ -54,28 +54,16 @@ fn scm() -> (TabularData, Dag, AverageEffectQuery) {
     let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 3.0 * z[i]).collect();
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(t),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(2),
-                Arc::from(z),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -87,8 +75,7 @@ fn scm() -> (TabularData, Dag, AverageEffectQuery) {
     dag.insert_directed(z_id, t_id).unwrap();
     dag.insert_directed(z_id, y_id).unwrap();
     dag.insert_directed(t_id, y_id).unwrap();
-    let query =
-        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     (TabularData::new(storage), dag, query)
 }
 
@@ -144,11 +131,8 @@ fn bayesian_ate_attaches_prior_and_posterior_predictive() {
         result.predictive_checks.iter().find(|c| c.kind == PredictiveCheckKind::Prior).unwrap();
     assert!(prior.p_value.is_finite());
     assert!(prior.predictive_sd.is_finite());
-    let post_ppc = result
-        .predictive_checks
-        .iter()
-        .find(|c| c.kind == PredictiveCheckKind::Posterior)
-        .unwrap();
+    let post_ppc =
+        result.predictive_checks.iter().find(|c| c.kind == PredictiveCheckKind::Posterior).unwrap();
     assert!(post_ppc.p_value.is_finite());
     assert!(post_ppc.predictive_sd.is_finite());
     assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "prior_predictive"));
@@ -314,8 +298,7 @@ fn run_binary_distribution(combos: &[(f64, f64, f64, usize)]) -> StudyResult {
         )
     };
     let cols = vec![column(0, t_vals), column(1, y_vals), column(2, z_vals)];
-    let data =
-        TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
@@ -482,14 +465,12 @@ fn end_to_end_path_specific_natural_effect() {
             .unwrap(),
         ),
     ];
-    let data =
-        TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let query =
-        PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
-            .with_path_nodes([VariableId::from_raw(1)]);
+    let query = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+        .with_path_nodes([VariableId::from_raw(1)]);
     let analysis = Study::tabular(data)
         .graph(dag)
         .query(CausalQuery::PathSpecific(query))
@@ -524,9 +505,7 @@ fn end_to_end_path_specific_natural_effect() {
         .split('_')
         .map(|w| {
             let mut c = w.chars();
-            c.next()
-                .map(|f| f.to_ascii_uppercase().to_string() + c.as_str())
-                .unwrap_or_default()
+            c.next().map(|f| f.to_ascii_uppercase().to_string() + c.as_str()).unwrap_or_default()
         })
         .collect();
     assert_eq!(format!("{:?}", result.identification.status), want_status);
@@ -582,28 +561,16 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     let schema = b.build().unwrap();
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(t),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(2),
-                Arc::from(z),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -614,8 +581,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     dag.insert_directed(z_id, t_id).unwrap();
     dag.insert_directed(z_id, y_id).unwrap();
     dag.insert_directed(t_id, y_id).unwrap();
-    let query =
-        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     (TabularData::new(storage), dag, query)
 }
 
@@ -694,28 +660,16 @@ fn iv_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     let schema = b.build().unwrap();
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(t),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(2),
-                Arc::from(z),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -725,12 +679,8 @@ fn iv_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     let y_id = DenseNodeId::from_raw(1);
     dag.insert_directed(z_id, t_id).unwrap();
     dag.insert_directed(t_id, y_id).unwrap();
-    let query = AverageEffectQuery::with_levels(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-        0.0,
-        1.0,
-    );
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     (TabularData::new(storage), dag, query)
 }
 
@@ -790,20 +740,12 @@ fn end_to_end_temporal_effect() {
     }
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(x),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -819,12 +761,8 @@ fn end_to_end_temporal_effect() {
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
-    let analysis = Study::series(series)
-        .graph(g)
-        .temporal_query(q)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
+    let analysis =
+        Study::series(series).graph(g).temporal_query(q).bootstrap_replicates(0).build().unwrap();
     let ctx = ExecutionContext::for_tests(7);
     let result = analysis.run(&ctx).unwrap();
     assert!(
