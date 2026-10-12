@@ -46,7 +46,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from . import _native
 from ._native import composition_check as _check
@@ -408,14 +408,15 @@ class DecisionInput:
         estimate: Any,
         quantity: ScientificQuantity,
         *,
-        support: SupportLabel = "missing_evidence",
+        support: SupportLabel | None = None,
         requirement: TrustRequirement = "unrestricted",
     ) -> DecisionInput:
         """A scalar input from a caller-attested :class:`~antecedent.handoff.ExternalEstimate`.
 
         Trust is ``externally_attested``. The estimate has no exact-request receipt,
         so ``requirement="exact_request_verified"`` refuses it. Support defaults to
-        ``missing_evidence`` because the receipt did not assess overlap.
+        the label the provider declared on the estimate's bound claim, which is
+        ``missing_evidence`` when the receipt did not assess overlap.
         """
         from .extensibility import ProviderTrust
         from .handoff import ExternalEstimate
@@ -424,6 +425,11 @@ class DecisionInput:
             raise CausalTypeError("estimate must be an ExternalEstimate")
         if estimate.trust is not ProviderTrust.EXTERNALLY_ATTESTED:
             raise CausalValueError("an external estimate is attested, never verified or native")
+        if support is None:
+            declared = estimate.support
+            support = (
+                cast("SupportLabel", declared[0]) if len(declared) == 1 else "missing_evidence"
+            )
         value = estimate.value
         if value is None:
             raise CausalValueError(

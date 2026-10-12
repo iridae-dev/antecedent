@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
@@ -21,6 +21,9 @@ from .estimation import IdentifyResult
 from .identify import Identification
 from .ids import Identifier
 from .results import AnalysisResult, CausalResponseView, IdentificationView
+
+if TYPE_CHECKING:
+    from .external import BoundExternalClaim
 
 _ADJUSTMENT_IDENTIFIERS = frozenset(
     {
@@ -226,12 +229,26 @@ class AdjustmentHandoff:
         label: Literal["ate"] | None = None,
         value_types: Mapping[str, Literal["continuous", "binary", "count"]] | None = None,
         contrast: tuple[float, float] | None = None,
+        learner_version: str | None = None,
+        outcome_units: str | None = None,
+        support: Sequence[str] | None = None,
     ) -> ExternalEstimate:
         """Attach a caller-fitted external estimate as attested, not re-verifiable, evidence.
 
         Antecedent does not import or wrap the learner. The label, config, and
         payload are hashed onto ``claim.attested``; calibration stays
         ``unavailable`` / ``attested_not_reverifiable``.
+
+        A scalar effect labelled ``label="ate"`` is a claim of one value, so it is
+        bound through :meth:`antecedent.external.ExternalSpec.bind` like any foreign
+        response: the identified contract, the learner as a
+        :class:`~antecedent.external.ProviderObject` (``learner_version`` is its
+        version, never inferred), per-coordinate ``support`` labels and the lineage
+        come along as :attr:`ExternalEstimate.claim`, and a mismatch refuses with
+        the same structured refusal. ``outcome_units`` names the units of the
+        outcome; they are never inferred. An unlabelled or array payload (for
+        example a row-level CATE) is not a bounded response grid: it stays an
+        opaque attested payload with no bound claim.
 
         ``value_types`` (name -> ``continuous`` / ``binary`` / ``count``) and ``contrast``
         (``(control, active)`` treatment levels) are recorded in the receipt's target as
@@ -263,10 +280,36 @@ class AdjustmentHandoff:
         from . import artifacts
         from ._native import encode_external_estimate_claim
 
+        config_bytes = _canonical_config(learner_config)
+        payload = _payload_bytes(effect_arr, interval)
+        if scalar is None:
+            if support is not None or learner_version is not None or outcome_units is not None:
+                raise CausalValueError(
+                    "learner_version, outcome_units and support describe a bound claim; "
+                    "they apply only to a scalar effect labelled label='ate'"
+                )
+            claim = None
+        else:
+            claim = _bind_scalar_claim(
+                self,
+                learner=str(learner),
+                config=config_bytes,
+                payload=payload,
+                value=scalar,
+                interval=interval is not None,
+                identification=identification,
+                snapshot=snapshot,
+                snapshot_payload=snapshot_payload,
+                contrast=contrast,
+                learner_version=learner_version,
+                outcome_units=outcome_units,
+                support=support,
+            )
+
         encoded = encode_external_estimate_claim(
             learner=str(learner),
-            config=_canonical_config(learner_config),
-            payload=_payload_bytes(effect_arr, interval),
+            config=config_bytes,
+            payload=payload,
             names=names,
             treatment=self.treatments[0],
             outcome=self.outcome,
@@ -284,7 +327,7 @@ class AdjustmentHandoff:
         decoded = artifacts.loads(encoded)
         if not isinstance(decoded.contract, Mapping):
             raise CausalValueError("external estimate receipt is missing a contract")
-        return ExternalEstimate(encoded, decoded.contract)
+        return ExternalEstimate(encoded, decoded.contract, claim)
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,6 +400,45 @@ class ExternalEstimate:
 
     _bytes: bytes = field(repr=False)
     _contract: Mapping[str, Any] = field(repr=False)
+    _claim: Any | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def claim(self) -> BoundExternalClaim | None:
+        """The bound external claim of a scalar ``label="ate"`` effect, else ``None``.
+
+        The same object ``external.bind`` returns: it carries the learner as a
+        provider (with its declared version), per-coordinate support labels and
+        the lineage back to the identified contract. An opaque array payload
+        asserts no values, so it has no claim.
+        """
+        return cast("BoundExternalClaim | None", self._claim)
+
+    @property
+    def support(self) -> tuple[str, ...]:
+        """Per-coordinate support labels of :attr:`claim` (``missing_evidence`` if undeclared)."""
+        return () if self._claim is None else self._claim.support
+
+    @property
+    def lineage(self):
+        """Derivation chain of :attr:`claim`, parents before children."""
+        return () if self._claim is None else self._claim.lineage
+
+    @property
+    def provider_label(self) -> str | None:
+        """The external execution (learner, version, snapshot) that supplied the value."""
+        return None if self._claim is None else self._claim.provenance_label
+
+    def export_claim(self, *, artifact_id: str = "external-claim") -> bytes:
+        """The bound claim as an ``external_response_claim_v1`` artifact.
+
+        :meth:`export` keeps the attested-estimate receipt. Reload this one with
+        :meth:`antecedent.external.ExternalSpec.load` and ``claim.identity``.
+        """
+        if self._claim is None:
+            raise CausalValueError(
+                "this estimate has no bound claim: only a scalar label='ate' effect is bound"
+            )
+        return cast(bytes, self._claim.export(artifact_id=artifact_id))
 
     @property
     def trust(self):
@@ -613,6 +695,125 @@ def _require_adjustment_parent(
             f"adjustment handoff requires point identification; got status {status!r}"
         )
     return status, method, adjustment_set, identifier, treatment, outcome
+
+
+def _bind_scalar_claim(
+    spec: AdjustmentHandoff,
+    *,
+    learner: str,
+    config: bytes,
+    payload: bytes,
+    value: float,
+    interval: bool,
+    identification: str | None,
+    snapshot: str | None,
+    snapshot_payload: bytes | None,
+    contrast: tuple[float, float] | None,
+    learner_version: str | None,
+    outcome_units: str | None,
+    support: Sequence[str] | None,
+) -> BoundExternalClaim:
+    """Bind a labelled scalar effect through ``external.bind``; every refusal is Rust's."""
+    from dataclasses import replace
+
+    from . import _native
+    from .external import (
+        UNSPECIFIED_UNITS,
+        ExternalSpec,
+        ProviderObject,
+        Response,
+        _status_name,
+    )
+    from .joint_distribution import ScientificQuantity
+
+    if not np.isfinite(value):
+        raise CausalValueError(
+            "a labelled ATE must be finite; refusing to bind a non-finite effect"
+        )
+    treatments = ",".join(spec.treatments)
+    if contrast is not None and len(spec.treatments) == 1:
+        (control, active), name = contrast, spec.treatments[0]
+        regime = f"do({name}={active:g}) - do({name}={control:g})"
+    else:
+        # The caller named no contrast: the placeholder is recorded as such, never assumed.
+        regime = f"do({treatments}) contrast unspecified"
+    transform = "identity"
+    if spec.outcome_functional is not None:
+        from .query import coerce_outcome_functional
+
+        functional = coerce_outcome_functional(spec.outcome_functional)
+        if functional is not None:
+            transform = str(functional["kind"])
+    coordinate = ScientificQuantity(
+        variable_id=spec.outcome,
+        variable_name=spec.outcome,
+        role="outcome",
+        units=(outcome_units or "").strip() or UNSPECIFIED_UNITS,
+        population_id="target",
+        regime_id=regime,
+        horizon=0,
+        functional_id="ate",
+        conditioning=(),
+        transform_id=transform,
+    )
+    snapshot_id = snapshot or _native.blake3_digest_hex(snapshot_payload or b"")
+    contract_name = {
+        "identifier": spec.identifier,
+        "treatments": list(spec.treatments),
+        "outcome": spec.outcome,
+        "adjustment_set": list(spec.confounders),
+        "modifiers": list(spec.modifiers),
+        "offsets": [
+            list(spec.treatment_offsets),
+            spec.outcome_offset,
+            list(spec.confounder_offsets),
+        ],
+    }
+    graph_id = "handoff:" + _native.canonical_json_digest_hex(
+        "antecedent.handoff.adjustment_contract.v1", json.dumps(contract_name)
+    )
+    external_spec = ExternalSpec(
+        contract_id="",
+        graph_id=graph_id,
+        identification=_status_name(spec.status),
+        quantities=(coordinate,),
+        statement=f"Effect of {treatments} on {spec.outcome} under {spec.identifier}",
+    )
+    contract_id = (
+        f"contract:{identification}"
+        if identification
+        else external_spec._content_id(with_coordinates=True)
+    )
+    external_spec = replace(external_spec, contract_id=contract_id)
+    request = _native.canonical_json_digest_hex(
+        "antecedent.handoff.request.v1",
+        json.dumps(
+            {
+                "learner": learner,
+                "config": _native.blake3_digest_hex(config),
+                "payload": _native.blake3_digest_hex(payload),
+            }
+        ),
+    )
+    provider = ProviderObject(
+        provider_id=learner,
+        object_id=f"effect:{spec.outcome}~{treatments}",
+        version=(learner_version or "").strip() or UNSPECIFIED_UNITS,
+        snapshot=snapshot_id,
+        request=request,
+        meaning="interventional_predictive",
+        capabilities=("mean",),
+    )
+    return external_spec.bind(
+        Response(
+            provider=provider,
+            values=(value,),
+            assumptions=(spec.identifier, "point_identified"),
+            attested_by=learner,
+            uncertainty_method="caller_attested_interval" if interval else None,
+            support=None if support is None else tuple(support),
+        )
+    )
 
 
 def _receipt_names(spec: AdjustmentHandoff) -> list[str]:

@@ -1542,7 +1542,13 @@ receipt = providers.verify(
 
 `AdjustmentHandoff.attach` (alias `EconMLSpec.attach`) accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
-identification and data-snapshot identities. It does not rerun the learner or
+identification and data-snapshot identities. A scalar effect labelled
+`label="ate"` is also bound through `external.bind`: the identified contract, the
+learner as a provider with its declared `learner_version`, per-coordinate
+`support` labels, and the lineage are `ExternalEstimate.claim`, and a mismatch
+refuses with the same structured refusal as any foreign response. A row-level
+CATE array is not a bounded response grid and stays an opaque attested payload.
+It does not rerun the learner or
 verify its provenance, fold ownership, or uncertainty calibration. Loaded
 external results start externally attested with calibration unavailable. They
 can become verified extensions only after the host runs independent fixtures;

@@ -452,3 +452,51 @@ def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None
     claim = loaded.artifact.contract["claim"]
     assert claim["kind"] == "point"
     assert claim["attested"][0]["kind"] == "external_estimate"
+
+
+def test_attach_scalar_ate_is_bound_through_external_bind() -> None:
+    from antecedent.extensibility import ProviderTrust
+
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
+    )
+    spec = antecedent.handoff.econml(identified)
+    data = _backdoor_data()
+    attached = spec.attach(
+        learner="econml.dml.LinearDML",
+        learner_config={"cv": 3},
+        effect=2.0,
+        interval=[1.5, 2.5],
+        data=data,
+        label="ate",
+        contrast=(0.0, 1.0),
+        learner_version="0.15.1",
+        outcome_units="mmHg",
+        support=["supported"],
+    )
+    claim = attached.claim
+    assert claim is not None and not claim.native
+    assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert attached.value == 2.0 and list(claim.values) == [2.0]
+    assert attached.support == ("supported",)
+    assert claim.uncertainty_method == "caller_attested_interval"
+    assert "econml.dml.LinearDML/" in attached.provider_label and "@0.15.1#" in attached.provider_label
+    assert {"causal_contract", "external_provider", "claim"} <= claim.stages_behind()
+    (quantity,) = claim.quantities
+    assert quantity.units == "mmHg" and quantity.functional_id == "ate"
+    assert quantity.regime_id == "do(t=1) - do(t=0)"
+    assert attached.export_claim()
+    # The attested-estimate receipt is unchanged.
+    assert antecedent.load(attached.export()).calibration.status == "unavailable"
+
+    bare = spec.attach(learner="x", effect=1.0, data=data, label="ate")
+    assert bare.support == ("missing_evidence",)
+    assert bare.claim.quantities[0].units == "unspecified"
+    assert "@unspecified#" in bare.provider_label
+
+    opaque = spec.attach(learner="x", effect=np.full(len(data["t"]), 2.0), data=data)
+    assert opaque.claim is None and opaque.support == () and opaque.lineage == ()
+    with pytest.raises(antecedent.errors.CausalValueError, match="label='ate'"):
+        spec.attach(learner="x", effect=np.ones(3), data=data, learner_version="1")
+    with pytest.raises(antecedent.errors.CausalValueError):
+        spec.attach(learner="x", effect=float("nan"), data=data, label="ate")

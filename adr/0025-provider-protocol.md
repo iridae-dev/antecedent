@@ -54,6 +54,26 @@ hand off.
 No CausalML (or other package) implementation is implied. A second learner
 uses this handoff and sets `tool`.
 
+## Interop coherence (2.4.0)
+
+The four inbound surfaces (registry and handoff, `external.bind`,
+`recalc_external` callbacks, distribution artifacts) now share three things.
+
+- One verification receipt. `ProviderRegistry.verify` fixtures are sugar for the
+  Rust `ProviderVerificationReceipt` that also verifies a typed scientific
+  object. The receipt exports through the shared container, loads under a
+  retained digest and backs a composition input. Fixture reports are no longer
+  a Python-only evidence record, and the registry's trust ladder is the Rust
+  one.
+- One provider identity. `ProviderRegistry.provider_object` derives the
+  `external.ProviderObject` of a registered provider; a distribution identity
+  derives its provider and snapshot from it. A spec declares `capabilities` and
+  `meaning` once, typed.
+- One inbound estimate path. `attach(label="ate")` binds the scalar through
+  `external.bind`, so it carries lineage, support labels and a provider version.
+  An unlabelled array payload stays opaque attested evidence: it asserts no
+  per-coordinate values, and a row-level grid is not a bounded response grid.
+
 ## Consequences
 
 - Existing EconML callers keep working, including `columns()` with no layout.

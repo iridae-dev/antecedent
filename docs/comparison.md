@@ -345,6 +345,8 @@ status for point-identified backdoor / generalized-adjustment estimands
 including lag-aligned temporal columns when the certificate carries offsets.
 `spec.attach(...)` records a caller-fitted estimate as attested, uncalibrated
 evidence; Antecedent does not wrap the learner or inherit native calibration.
+A scalar `label="ate"` effect is bound through `external.bind`, so the learner,
+its declared version, support labels and lineage come along as `.claim`.
 Front-door, IV, general-ID, partial-identification, and graph-posterior
 results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb an external CATE.
