@@ -294,7 +294,7 @@ impl CheckedTemporalMediationOperation {
                             &qh,
                             &horizon.adjustment,
                             *bootstrap_replicates,
-                            0x4D45_4449_0000_u64.wrapping_add(u64::from(horizon.horizon)),
+                            mediation_block_stream(MediationRoute::Temporal, horizon.horizon),
                             ctx,
                         )
                         .map_err(CausalError::from)?;
@@ -366,7 +366,8 @@ impl CheckedTemporalMediationOperation {
                         .iter()
                         .enumerate()
                         .map(|(i, prep)| {
-                            estimator.seed = config_seed(config, ctx, horizon.horizon, i);
+                            estimator.seed =
+                                mediation_mechanism_seed(ctx.rng.master_seed(), horizon.horizon, i);
                             estimator
                                 .fit(
                                     prep,
@@ -442,8 +443,11 @@ impl CheckedTemporalMediationOperation {
                                 .map(|(i, prep)| {
                                     let mut scaled_estimator = estimator.clone();
                                     scaled_estimator.prior_scale = scale;
-                                    scaled_estimator.seed =
-                                        config_seed(config, ctx, horizon.horizon, i);
+                                    scaled_estimator.seed = mediation_mechanism_seed(
+                                        ctx.rng.master_seed(),
+                                        horizon.horizon,
+                                        i,
+                                    );
                                     scaled_estimator
                                         .fit(
                                             prep,
@@ -630,19 +634,6 @@ fn adjustment_for_horizon(
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Into::into)
-}
-
-fn config_seed(
-    config: &BayesianConfig,
-    ctx: &ExecutionContext,
-    horizon: u32,
-    mechanism: usize,
-) -> u64 {
-    ctx.rng
-        .master_seed()
-        .wrapping_add(config.n_draws as u64)
-        .wrapping_add(u64::from(horizon).wrapping_mul(0x10001))
-        .wrapping_add((mechanism as u64).wrapping_mul(MEDIATION_MECHANISM_SEED_OFFSET))
 }
 
 #[cfg(test)]

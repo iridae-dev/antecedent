@@ -3,9 +3,6 @@
 
 use super::*;
 
-/// Replicate streams of the shared mediation mixture bootstrap.
-const DBN_MEDIATION_BLOCK_STREAM: u64 = 0xDBF0_0001_0000;
-
 /// The first evaluable atom: its estimand and certificate head the result.
 struct PrimaryAtom {
     estimand: IdentifiedEstimand,
@@ -187,7 +184,7 @@ impl super::Study {
             &weights,
             query.contrast,
             self.bootstrap_replicates,
-            DBN_MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
+            mediation_block_stream(MediationRoute::Dbn, horizon),
             ctx,
         );
         let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());

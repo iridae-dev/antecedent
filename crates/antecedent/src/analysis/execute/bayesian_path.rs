@@ -2507,7 +2507,7 @@ impl super::Study {
                     .map(|(i, prep)| {
                         let mut est = estimator.clone();
                         est.prior_scale = scale;
-                        est.seed = mediation_mechanism_seed(est.seed, i);
+                        est.seed = mediation_mechanism_seed(est.seed, click.horizon, i);
                         est.fit(
                             prep,
                             click.identification.status,
@@ -2998,7 +2998,11 @@ fn run_dbn_mediation_bayesian_validation(
                     .map(|(i, prep)| {
                         let mut est = estimator.clone();
                         est.prior_scale = scale;
-                        est.seed = mediation_mechanism_seed(est.seed, i);
+                        est.seed = mediation_mechanism_seed(
+                            est.seed,
+                            atom.query.horizons.first().copied().unwrap_or(0),
+                            i,
+                        );
                         est.fit(
                             prep,
                             atom.composed.identification,

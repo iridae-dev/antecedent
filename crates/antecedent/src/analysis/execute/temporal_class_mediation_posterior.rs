@@ -12,8 +12,6 @@ use crate::analysis::prepared::{
 };
 use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
 
-const TEMPORAL_CLASS_MEDIATION_BLOCK_STREAM: u64 = 0x7C60_0001_0000;
-
 struct TemporalClassMediationAtomEval {
     key: u64,
     status: IdentificationStatus,
@@ -111,7 +109,7 @@ impl super::Study {
             &weights,
             query.contrast,
             self.bootstrap_replicates,
-            TEMPORAL_CLASS_MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
+            mediation_block_stream(MediationRoute::TemporalClass, horizon),
             ctx,
         );
         let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
@@ -565,7 +563,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
             .enumerate()
             .map(|(index, prep)| {
                 let mut mechanism = bayes.clone();
-                mechanism.seed = mediation_mechanism_seed(mechanism.seed, index);
+                mechanism.seed = mediation_mechanism_seed(mechanism.seed, horizon, index);
                 mechanism
                     .fit(prep, case.result.status, &mut BayesianGCompWorkspace::default(), ctx)
                     .map_err(CausalError::from)

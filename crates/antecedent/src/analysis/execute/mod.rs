@@ -346,6 +346,8 @@ pub(super) use compile::compile_logical_admg_response;
 mod route_input;
 pub(crate) use route_input::{RouteInput, StaticMediationSource};
 mod dbn_mediation_frequentist;
+mod mediation_streams;
+use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
 mod dispatch;
 mod identified_set_diagnostics;
 mod pag_path;

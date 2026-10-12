@@ -127,7 +127,8 @@ impl super::Study {
                             .enumerate()
                             .map(|(index, prep)| {
                                 let mut mechanism = bayes.clone();
-                                mechanism.seed = mediation_mechanism_seed(mechanism.seed, index);
+                                mechanism.seed =
+                                    mediation_mechanism_seed(mechanism.seed, horizon, index);
                                 let (prior, conflict) =
                                     resolve_envelope_prior_anchor(cfg, prep, ctx)?;
                                 if let Some(summary) = conflict.as_ref() {
@@ -251,7 +252,7 @@ impl super::Study {
                                     &qh,
                                     shared_adjustment,
                                     self.bootstrap_replicates,
-                                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
+                                    mediation_block_stream(MediationRoute::Temporal, horizon),
                                     ctx,
                                 )
                                 .map_err(CausalError::from)?;
@@ -316,7 +317,7 @@ impl super::Study {
                                 .map(|(index, prep)| {
                                     let mut mechanism = bayes.clone();
                                     mechanism.seed =
-                                        mediation_mechanism_seed(mechanism.seed, index);
+                                        mediation_mechanism_seed(mechanism.seed, horizon, index);
                                     let (prior, conflict) =
                                         resolve_envelope_prior_anchor(cfg, prep, ctx)?;
                                     if let Some(summary) = conflict.as_ref() {
@@ -1086,7 +1087,7 @@ impl super::Study {
                     &qh,
                     &click.adjustment,
                     self.bootstrap_replicates,
-                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(click.horizon) << 32),
+                    mediation_block_stream(MediationRoute::Temporal, click.horizon),
                     ctx,
                 )
                 .map_err(CausalError::from)?;
@@ -1313,7 +1314,7 @@ impl super::Study {
                     .map(|(i, prep)| {
                         let mut est = estimator.clone();
                         est.prior_scale = scale;
-                        est.seed = mediation_mechanism_seed(est.seed, i);
+                        est.seed = mediation_mechanism_seed(est.seed, click.horizon, i);
                         est.fit(
                             prep,
                             click.identification.status,
@@ -5748,9 +5749,6 @@ mod observation_bootstrap_tests {
         assert!(band.upper.is_empty());
     }
 }
-
-/// RNG stream base for the temporal mediation shared circular-block bootstrap.
-const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
 
 /// [`temporal_dependence_se_diagnostics`] for a Frequentist multi-step Sustained
 /// fit on one `TemporalDag`, from the block length, aligned rows and contrast

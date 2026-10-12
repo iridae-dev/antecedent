@@ -924,15 +924,6 @@ pub(super) fn temporal_class_block_span<'a>(
         .max(1)
 }
 
-/// Seed distance between the two mechanism fits (mediator, then outcome) of a
-/// Bayesian temporal mediation.
-const MEDIATION_MECHANISM_SEED_OFFSET: u64 = 0xBA71;
-
-/// The fit seed of mediation mechanism `mechanism`: the first keeps `seed`.
-fn mediation_mechanism_seed(seed: u64, mechanism: usize) -> u64 {
-    seed.wrapping_add(if mechanism == 0 { 0 } else { MEDIATION_MECHANISM_SEED_OFFSET })
-}
-
 /// The declared linear-SEM restriction every sequential g-computation fit
 /// carries; `description` names the SEM family the route fitted.
 pub(super) fn sequential_linear_sem_assumption(
