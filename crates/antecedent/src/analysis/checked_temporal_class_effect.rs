@@ -198,19 +198,13 @@ impl CheckedTemporalClassEffectOperation {
         self.max_completions
     }
 
-    #[must_use]
-    pub(crate) fn query(&self) -> &TemporalEffectQuery {
-        &self.query
-    }
-
-    #[must_use]
-    pub(crate) fn bundle(&self) -> &Arc<CachedTemporalClassIdentification> {
-        &self.bundle
-    }
-
-    #[must_use]
-    pub(crate) fn identification(&self) -> &IdentificationResult {
-        &self.identification
+    crate::analysis::checked_ref! {
+        #[must_use]
+        pub(crate) fn query(&self) -> &TemporalEffectQuery { &self.query }
+        #[must_use]
+        pub(crate) fn bundle(&self) -> &Arc<CachedTemporalClassIdentification> { &self.bundle }
+        #[must_use]
+        pub(crate) fn identification(&self) -> &IdentificationResult { &self.identification }
     }
 
     #[must_use]

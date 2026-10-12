@@ -98,8 +98,8 @@ impl CheckedBayesianGraphPosteriorAte {
         })
     }
 
-    pub(crate) fn posterior(&self) -> &GraphPosterior {
-        &self.posterior
+    crate::analysis::checked_ref! {
+        pub(crate) fn posterior(&self) -> &GraphPosterior { &self.posterior }
     }
     /// The average-effect query every posterior atom was identified for.
     pub(crate) const fn query(&self) -> &AverageEffectQuery {
@@ -109,17 +109,11 @@ impl CheckedBayesianGraphPosteriorAte {
     pub(crate) const fn target(&self) -> &GraphPosteriorEffectTarget {
         &self.target
     }
-    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
-        &self.identification
-    }
-    pub(crate) fn inference(&self) -> &InferenceMode {
-        &self.inference
-    }
-    pub(crate) fn procedure(&self) -> &EstimatorSpec {
-        &self.procedure
-    }
-    pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
-        &self.physical
+    crate::analysis::checked_ref! {
+        pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> { &self.identification }
+        pub(crate) fn inference(&self) -> &InferenceMode { &self.inference }
+        pub(crate) fn procedure(&self) -> &EstimatorSpec { &self.procedure }
+        pub(crate) fn physical(&self) -> &PhysicalExecutionPlan { &self.physical }
     }
     pub(crate) const fn validation(&self) -> RefuteSuite {
         self.validation

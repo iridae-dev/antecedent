@@ -329,10 +329,16 @@ impl CheckedTemporalResponseOperation {
         &self.inference
     }
 
-    /// Exact retained query and ordered dose grid.
-    #[must_use]
-    pub(crate) fn query(&self) -> &ResponseQuery {
-        &self.query
+    crate::analysis::checked_ref! {
+        /// Exact retained query and ordered dose grid.
+        #[must_use]
+        pub(crate) fn query(&self) -> &ResponseQuery { &self.query }
+        /// Ordered requested doses.
+        #[must_use]
+        pub(crate) fn grid(&self) -> &[f64] { &self.grid }
+        /// Ordered horizon-proof members.
+        #[must_use]
+        pub(crate) fn evidence(&self) -> &[TemporalResponseHorizonEvidence] { &self.evidence }
     }
 
     /// The first requested horizon's proof member. `checked` refuses an empty
@@ -351,18 +357,6 @@ impl CheckedTemporalResponseOperation {
     /// Primary horizon target copied into the full result claim.
     pub(crate) fn primary_estimand(&self) -> Result<&IdentifiedEstimand, CausalError> {
         Ok(&self.primary()?.estimand)
-    }
-
-    /// Ordered requested doses.
-    #[must_use]
-    pub(crate) fn grid(&self) -> &[f64] {
-        &self.grid
-    }
-
-    /// Ordered horizon-proof members.
-    #[must_use]
-    pub(crate) fn evidence(&self) -> &[TemporalResponseHorizonEvidence] {
-        &self.evidence
     }
 
     /// Fixed method, backend and uncertainty identity.

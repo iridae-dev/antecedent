@@ -2,6 +2,22 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Reference getters on checked operations. The expansion is the function the
+/// invocation writes: the same visibility, attributes, signature, and
+/// `&self.field` body.
+macro_rules! checked_ref {
+    ($(
+        $(#[$meta:meta])*
+        $vis:vis fn $name:ident(&self) -> &$ty:ty { &self.$field:ident }
+    )+) => {$(
+        $(#[$meta])*
+        $vis fn $name(&self) -> &$ty {
+            &self.$field
+        }
+    )+};
+}
+pub(crate) use checked_ref;
+
 mod admg_conditional_transport;
 mod batch;
 mod batch_export;

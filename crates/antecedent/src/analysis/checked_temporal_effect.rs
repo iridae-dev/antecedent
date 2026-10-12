@@ -104,29 +104,17 @@ impl CheckedTemporalEffectOperation {
         })
     }
 
-    #[must_use]
-    pub(crate) fn query(&self) -> &TemporalEffectQuery {
-        &self.query
-    }
-
-    #[must_use]
-    pub(crate) fn identification(&self) -> &IdentificationResult {
-        &self.identification
-    }
-
-    #[must_use]
-    pub(crate) fn estimand(&self) -> &IdentifiedEstimand {
-        &self.estimand
-    }
-
-    #[must_use]
-    pub(crate) fn indexer(&self) -> &TemporalIndexer {
-        &self.indexer
-    }
-
-    #[must_use]
-    pub(crate) fn graph(&self) -> &TemporalDag {
-        &self.graph
+    crate::analysis::checked_ref! {
+        #[must_use]
+        pub(crate) fn query(&self) -> &TemporalEffectQuery { &self.query }
+        #[must_use]
+        pub(crate) fn identification(&self) -> &IdentificationResult { &self.identification }
+        #[must_use]
+        pub(crate) fn estimand(&self) -> &IdentifiedEstimand { &self.estimand }
+        #[must_use]
+        pub(crate) fn indexer(&self) -> &TemporalIndexer { &self.indexer }
+        #[must_use]
+        pub(crate) fn graph(&self) -> &TemporalDag { &self.graph }
     }
 
     #[must_use]

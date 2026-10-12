@@ -281,17 +281,11 @@ impl CheckedPropensityOperation {
         })
     }
 
-    pub(crate) fn context(&self) -> &CheckedPropensityContext {
-        &self.context
-    }
-    pub(crate) fn query(&self) -> &AverageEffectQuery {
-        &self.query
-    }
-    pub(crate) fn target(&self) -> &IdentifiedEstimand {
-        &self.target
-    }
-    pub(crate) fn lowering(&self) -> &CheckedPropensityLowering {
-        &self.lowering
+    crate::analysis::checked_ref! {
+        pub(crate) fn context(&self) -> &CheckedPropensityContext { &self.context }
+        pub(crate) fn query(&self) -> &AverageEffectQuery { &self.query }
+        pub(crate) fn target(&self) -> &IdentifiedEstimand { &self.target }
+        pub(crate) fn lowering(&self) -> &CheckedPropensityLowering { &self.lowering }
     }
 
     /// Rebuild only the row-bound design; target and procedure selection stay frozen.
