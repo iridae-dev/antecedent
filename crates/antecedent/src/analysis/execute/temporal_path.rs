@@ -5546,7 +5546,7 @@ pub(super) fn temporal_linear_derivative_response(
     spec: DerivativeSpec<'_>,
 ) -> Result<CausalResponse, CausalError> {
     let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
-    use antecedent_core::{DerivativeScale, DerivativeWeighting, ResponseFunctional as F};
+    use antecedent_core::{DerivativeWeighting, ResponseFunctional as F};
     if query.target_population != antecedent_core::TargetPopulation::AllObserved {
         return Err(CausalError::Unsupported {
             message: "temporal derivative requires the all-observed population",
