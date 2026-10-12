@@ -23,9 +23,8 @@ use thiserror::Error;
 
 /// Which review artifact is blocking execution.
 ///
-/// Mirrors the `kind` strings accepted by [`CausalError::ReviewRequired`]. Kept as a
-/// closed enum so callers get exhaustiveness checking; [`Self::as_str`] is the bridge
-/// to the wire-level `String` field (kept as `String` for the Python binding today).
+/// The `kind` carried by [`CausalError::ReviewRequired`]. A closed enum so callers get
+/// exhaustiveness checking; [`Self::as_str`] is the wire-level name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ReviewKind {
@@ -283,9 +282,8 @@ pub enum CausalError {
     /// Graph review incomplete (structured for facade UX).
     #[error("{message}")]
     ReviewRequired {
-        /// Review kind: `static_dag`, `static_cpdag`, `static_pag`, `temporal_dag`,
-        /// `temporal_cpdag`, `temporal_pag`, `generic` (see [`ReviewKind::as_str`]).
-        kind: String,
+        /// Which review artifact is blocking (wire name: [`ReviewKind::as_str`]).
+        kind: ReviewKind,
         /// Discovery / supply algorithm id when known.
         algorithm: Option<String>,
         /// Count of pending / ambiguous marks blocking estimation.
@@ -729,7 +727,7 @@ impl CausalError {
     /// for genuinely edge-free reviews.
     #[must_use]
     pub fn review_required(
-        kind: impl Into<String>,
+        kind: ReviewKind,
         algorithm: Option<impl Into<String>>,
         pending_edge_count: usize,
         pending_edges: impl Into<std::sync::Arc<[PendingEdge]>>,
@@ -737,7 +735,7 @@ impl CausalError {
         hint: impl Into<String>,
     ) -> Self {
         Self::ReviewRequired {
-            kind: kind.into(),
+            kind,
             algorithm: algorithm.map(Into::into),
             pending_edge_count,
             pending_edges: pending_edges.into(),
@@ -779,7 +777,7 @@ impl CausalError {
     pub fn review_required_msg(message: impl Into<String>) -> Self {
         let message = message.into();
         Self::review_required(
-            "generic",
+            ReviewKind::Generic,
             None::<String>,
             0,
             Vec::<PendingEdge>::new(),

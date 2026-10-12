@@ -386,7 +386,7 @@ impl AcceptedGraph {
         if pending > 0 {
             let edges = pending_cpdag_marks(&g);
             return Err(CausalError::review_required(
-                ReviewKind::StaticCpdag.as_str(),
+                ReviewKind::StaticCpdag,
                 None::<String>,
                 pending,
                 edges,
@@ -410,7 +410,7 @@ impl AcceptedGraph {
         if pending > 0 {
             let edges = pending_temporal_cpdag_marks(&g);
             return Err(CausalError::review_required(
-                ReviewKind::TemporalCpdag.as_str(),
+                ReviewKind::TemporalCpdag,
                 None::<String>,
                 pending,
                 edges,
@@ -693,7 +693,7 @@ fn accept_single_guard(
 ) -> Result<AcceptedGraph, CausalError> {
     if !complete {
         return Err(CausalError::review_required(
-            incomplete.kind.as_str(),
+            incomplete.kind,
             Some(algorithm.to_string()),
             pending_count,
             pending_edges,
@@ -727,7 +727,7 @@ impl IntoAccepted for CpdagReview {
             let pending = self.pending_edges.len();
             let edges = pending_directed(&self.pending_edges);
             return Err(CausalError::review_required(
-                ReviewKind::StaticCpdag.as_str(),
+                ReviewKind::StaticCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -740,7 +740,7 @@ impl IntoAccepted for CpdagReview {
             let pending = self.graph.conflict_edge_count();
             let edges = pending_cpdag_marks(&self.graph);
             return Err(CausalError::review_required(
-                ReviewKind::StaticCpdag.as_str(),
+                ReviewKind::StaticCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -794,7 +794,7 @@ impl IntoAccepted for TemporalCpdagReview {
             let pending = self.pending_edges.len();
             let edges = pending_directed_temporal(&self.pending_edges);
             return Err(CausalError::review_required(
-                ReviewKind::TemporalCpdag.as_str(),
+                ReviewKind::TemporalCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -807,7 +807,7 @@ impl IntoAccepted for TemporalCpdagReview {
             let pending = self.graph.conflict_edge_count();
             let edges = pending_temporal_cpdag_marks(&self.graph);
             return Err(CausalError::review_required(
-                ReviewKind::TemporalCpdag.as_str(),
+                ReviewKind::TemporalCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -868,7 +868,7 @@ mod tests {
         let err = AcceptedGraph::accept(review).unwrap_err();
         match err {
             CausalError::ReviewRequired { kind, pending_edge_count, pending_edges, .. } => {
-                assert_eq!(kind, ReviewKind::StaticCpdag.as_str());
+                assert_eq!(kind, ReviewKind::StaticCpdag);
                 assert!(pending_edge_count > 0);
                 assert_eq!(pending_edges.len(), pending_edge_count);
                 let edge = &pending_edges[0];

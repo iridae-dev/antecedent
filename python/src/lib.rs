@@ -777,7 +777,7 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
             message,
             hint,
         } => review_required_py_err(
-            kind,
+            kind.as_str().to_owned(),
             algorithm,
             pending_edge_count,
             pending_edges,
