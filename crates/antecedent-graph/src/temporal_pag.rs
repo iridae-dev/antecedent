@@ -333,21 +333,13 @@ impl TemporalPag {
     /// View as static [`Pag`] for algorithms that only need adjacency/marks.
     ///
     /// Nodes keep their identity as [`NodeRef::Unfolded`] slots (`variable` at `-lag`), never
-    /// as schema variables — only for algorithm reuse. The return type stays [`Pag`] for
-    /// callers that cannot observe [`GraphError`]. A projection the static PAG rejects is
-    /// empty, not a graph that silently dropped the edge. Algorithm paths use
-    /// [`Self::try_as_static_pag_for_alg`].
-    #[must_use]
-    pub fn as_static_pag_for_alg(&self) -> Pag {
-        self.try_as_static_pag_for_alg().unwrap_or_else(|_| Pag::empty())
-    }
-
-    /// Same projection as [`Self::as_static_pag_for_alg`].
+    /// as schema variables — only for algorithm reuse. A projection the static PAG rejects
+    /// is an error, not an empty graph and not a graph that silently dropped the edge.
     ///
     /// # Errors
     ///
     /// A lag that does not fit a signed offset, or a node or edge the static PAG rejects.
-    pub(crate) fn try_as_static_pag_for_alg(&self) -> Result<Pag, GraphError> {
+    pub fn as_static_pag_for_alg(&self) -> Result<Pag, GraphError> {
         let mut p = Pag::empty();
         for node in self.nodes() {
             let slot = match *node {
@@ -448,7 +440,7 @@ impl TemporalPag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<crate::pag::DefiniteStatusPathSearch, GraphError> {
-        self.try_as_static_pag_for_alg()?.definite_status_paths(x, y, max_paths, max_len)
+        self.as_static_pag_for_alg()?.definite_status_paths(x, y, max_paths, max_len)
     }
 }
 

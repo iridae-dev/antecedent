@@ -822,7 +822,7 @@ pub fn <antecedent_graph::TemporalGraphReview>::fn is_complete(&self) -> bool
 pub fn <antecedent_graph::TemporalPag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn apply_middle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, update: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
-pub fn <antecedent_graph::TemporalPag>::fn as_static_pag_for_alg(&self) -> antecedent_graph::Pag
+pub fn <antecedent_graph::TemporalPag>::fn as_static_pag_for_alg(&self) -> core::result::Result<antecedent_graph::Pag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn clear_middle_marks(&mut self)
 pub fn <antecedent_graph::TemporalPag>::fn definite_status_paths(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<antecedent_graph::DefiniteStatusPathSearch, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>

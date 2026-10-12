@@ -143,8 +143,11 @@ pub(crate) fn to_json(
                 }
                 antecedent_identify::TemporalCompletionGraph::Mag(mag) => {
                     let graph: Value = serde_json::from_str(
-                        &antecedent_io::pag_to_json(&mag.as_static_pag_for_alg(), None)
-                            .map_err(error)?,
+                        &antecedent_io::pag_to_json(
+                            &mag.as_static_pag_for_alg().map_err(error)?,
+                            None,
+                        )
+                        .map_err(error)?,
                     )
                     .map_err(error)?;
                     let nodes = mag
