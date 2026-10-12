@@ -214,8 +214,25 @@ pub enum NestedOutcomeMechanism {
     NonSeparableBasis,
 }
 
-/// Evaluate a natural direct effect with one abducted exogenous table shared by
-/// both worlds.
+impl NestedOutcomeMechanism {
+    /// Tag a persisted artifact stores for this mechanism family.
+    pub(crate) const fn wire_tag(self) -> &'static str {
+        match self {
+            Self::LinearGaussian => "linear_gaussian",
+            Self::NonSeparableBasis => "non_separable_basis",
+        }
+    }
+
+    /// Inverse of [`Self::wire_tag`]; `None` for a tag no family carries.
+    pub(crate) fn from_wire_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "linear_gaussian" => Some(Self::LinearGaussian),
+            "non_separable_basis" => Some(Self::NonSeparableBasis),
+            _ => None,
+        }
+    }
+}
+
 /// Complete checked operation for the licensed natural direct effect route.
 ///
 /// The operation fixes the graph, cross-world target roles, treatment levels,
