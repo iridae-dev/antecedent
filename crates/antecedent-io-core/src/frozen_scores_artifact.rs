@@ -49,37 +49,15 @@ const META_SECTION: &str = "frozen_scores_meta";
 const MAX_TEXT_BYTES: usize = 256;
 const MAX_ADJUSTMENT: usize = 1024;
 
-/// Why a frozen score artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-#[non_exhaustive]
-pub enum FrozenScoresArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("frozen scores artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported frozen scores artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker that is not this format's.
-    #[error("unsupported frozen scores semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("frozen scores consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// A stored value is not well formed (shape, finiteness, digest, declaration).
-    #[error("malformed frozen scores artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity differs from the recomputed one.
-    #[error("frozen_scores.identity_mismatch: {field} changed")]
-    IdentityMismatch {
-        /// Which identity differs.
-        field: &'static str,
-    },
-    /// The artifact could not be encoded.
-    #[error("frozen scores artifact does not encode: {0}")]
-    Encode(String),
+crate::sectioned_artifact_enum! {
+    /// Why a frozen score artifact was refused or could not be produced.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    FrozenScoresArtifactError {
+        noun: "frozen scores",
+        identity: "frozen_scores.identity_mismatch",
+        variants {}
+        display(f) {}
+    }
 }
 
 impl FrozenScoresArtifactError {
@@ -100,12 +78,6 @@ impl FrozenScoresArtifactError {
             )),
             _ => None,
         }
-    }
-}
-
-impl From<crate::IoError> for FrozenScoresArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
     }
 }
 
@@ -551,5 +523,40 @@ impl FrozenScoreTable {
             .map_err(|e| malformed(format!("stage declarations: {e}")))?;
         meta.identity = compute_identity(meta, &declared)?.to_hex();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FrozenScoresArtifactError as Error;
+
+    /// The texts the hand-written enum produced before it shared the generator.
+    #[test]
+    fn the_shared_variants_keep_their_historical_texts() {
+        assert_eq!(
+            Error::Decode("x".into()).to_string(),
+            "frozen scores artifact does not decode: x"
+        );
+        assert_eq!(
+            Error::UnsupportedVersion { version: 3 }.to_string(),
+            "unsupported frozen scores artifact version 3"
+        );
+        assert_eq!(
+            Error::UnsupportedSemantics("f").to_string(),
+            "unsupported frozen scores semantics: f"
+        );
+        assert_eq!(
+            Error::LimitsExceeded("rows").to_string(),
+            "frozen scores consumer limit exceeded: rows"
+        );
+        assert_eq!(Error::Malformed("m".into()).to_string(), "malformed frozen scores artifact: m");
+        assert_eq!(
+            Error::IdentityMismatch { field: "identity" }.to_string(),
+            "frozen_scores.identity_mismatch: identity changed"
+        );
+        assert_eq!(
+            Error::Encode("e".into()).to_string(),
+            "frozen scores artifact does not encode: e"
+        );
     }
 }

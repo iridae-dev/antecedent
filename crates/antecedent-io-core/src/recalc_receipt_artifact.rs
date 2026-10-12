@@ -50,64 +50,51 @@ const META_SECTION: &str = "recalc_receipt_meta";
 const MAX_ROUTE_BYTES: usize = 96;
 const MAX_INTERNED_ROUTES: usize = 64;
 
-/// Why a receipt artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-#[non_exhaustive]
-pub enum RecalcReceiptArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("recalc receipt artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported recalc receipt artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker that is not this format's.
-    #[error("unsupported recalc receipt semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("recalc receipt consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// A stored declaration is not well formed (unknown stage, bad digest, duplicate).
-    #[error("malformed recalc receipt artifact: {0}")]
-    Malformed(String),
-    /// A derived stage is stored as reused under a fresh-process boundary.
-    #[error(
-        "recalc_receipt.fresh_process_reuse: stage {stage} cannot be reused by a loaded receipt"
-    )]
-    FreshProcessReuse {
-        /// The stage label.
-        stage: String,
-    },
-    /// The stored table differs from the plan recomputed from the stored declarations.
-    #[error("recalc_receipt.plan_mismatch: stage {stage} {field} differs from the recomputed plan")]
-    PlanMismatch {
-        /// The stage label (`*` when the stage sets differ).
-        stage: String,
-        /// Which field differs.
-        field: &'static str,
-    },
-    /// A stage's counts contradict its status.
-    #[error(
-        "recalc_receipt.counts_inconsistent: stage {stage} counted work its status contradicts"
-    )]
-    CountsInconsistent {
-        /// The stage label.
-        stage: String,
-    },
-    /// The stored totals differ from the sum of the per-stage counts.
-    #[error("recalc_receipt.totals_mismatch: stored totals differ from the per-stage counts")]
-    TotalsMismatch,
-    /// A stored or retained identity differs from the recomputed one.
-    #[error("recalc_receipt.identity_mismatch: {field} changed")]
-    IdentityMismatch {
-        /// Which identity differs.
-        field: &'static str,
-    },
-    /// The artifact could not be encoded.
-    #[error("recalc receipt artifact does not encode: {0}")]
-    Encode(String),
+crate::sectioned_artifact_enum! {
+    /// Why a receipt artifact was refused or could not be produced.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    RecalcReceiptArtifactError {
+        noun: "recalc receipt",
+        identity: "recalc_receipt.identity_mismatch",
+        variants {
+            /// A derived stage is stored as reused under a fresh-process boundary.
+            FreshProcessReuse {
+                /// The stage label.
+                stage: String,
+            },
+            /// The stored table differs from the plan recomputed from the stored declarations.
+            PlanMismatch {
+                /// The stage label (`*` when the stage sets differ).
+                stage: String,
+                /// Which field differs.
+                field: &'static str,
+            },
+            /// A stage's counts contradict its status.
+            CountsInconsistent {
+                /// The stage label.
+                stage: String,
+            },
+            /// The stored totals differ from the sum of the per-stage counts.
+            TotalsMismatch,
+        }
+        display(f) {
+            Self::FreshProcessReuse { stage } => write!(
+                f,
+                "recalc_receipt.fresh_process_reuse: stage {stage} cannot be reused by a loaded receipt"
+            ),
+            Self::PlanMismatch { stage, field } => write!(
+                f,
+                "recalc_receipt.plan_mismatch: stage {stage} {field} differs from the recomputed plan"
+            ),
+            Self::CountsInconsistent { stage } => write!(
+                f,
+                "recalc_receipt.counts_inconsistent: stage {stage} counted work its status contradicts"
+            ),
+            Self::TotalsMismatch => f.write_str(
+                "recalc_receipt.totals_mismatch: stored totals differ from the per-stage counts",
+            ),
+        }
+    }
 }
 
 impl RecalcReceiptArtifactError {
@@ -160,12 +147,6 @@ impl RecalcReceiptArtifactError {
             | Self::CountsInconsistent { stage } => Some(stage),
             _ => None,
         }
-    }
-}
-
-impl From<crate::IoError> for RecalcReceiptArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
     }
 }
 
@@ -1007,5 +988,39 @@ impl RecalcReceiptArtifact {
         expected_identity: Option<&str>,
     ) -> Result<Self, RecalcReceiptArtifactError> {
         check(meta, expected_identity)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RecalcReceiptArtifactError as Error;
+
+    /// The texts the hand-written enum produced before it shared the generator.
+    #[test]
+    fn the_variants_keep_their_historical_texts() {
+        assert_eq!(
+            Error::Decode("x".into()).to_string(),
+            "recalc receipt artifact does not decode: x"
+        );
+        assert_eq!(
+            Error::IdentityMismatch { field: "plan_identity" }.to_string(),
+            "recalc_receipt.identity_mismatch: plan_identity changed"
+        );
+        assert_eq!(
+            Error::FreshProcessReuse { stage: "law".into() }.to_string(),
+            "recalc_receipt.fresh_process_reuse: stage law cannot be reused by a loaded receipt"
+        );
+        assert_eq!(
+            Error::PlanMismatch { stage: "*".into(), field: "status" }.to_string(),
+            "recalc_receipt.plan_mismatch: stage * status differs from the recomputed plan"
+        );
+        assert_eq!(
+            Error::CountsInconsistent { stage: "law".into() }.to_string(),
+            "recalc_receipt.counts_inconsistent: stage law counted work its status contradicts"
+        );
+        assert_eq!(
+            Error::TotalsMismatch.to_string(),
+            "recalc_receipt.totals_mismatch: stored totals differ from the per-stage counts"
+        );
     }
 }

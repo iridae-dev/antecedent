@@ -793,11 +793,12 @@ impl SampledRecoveryArtifactWire {
     ) -> Result<(), SampledRecoveryArtifactError> {
         let exceeded = SampledRecoveryArtifactError::LimitsExceeded;
         let receipt = &self.derivation.receipt;
-        if receipt.operations_limit > limits.decision.search.operations {
-            return Err(exceeded("search operation limit"));
-        }
-        if receipt.depth_limit > limits.decision.search.depth {
-            return Err(exceeded("search depth limit"));
+        if let Some(what) = crate::search_bounds(
+            receipt.operations_limit,
+            receipt.depth_limit,
+            limits.decision.search,
+        ) {
+            return Err(exceeded(what));
         }
         if receipt.memory_bytes > limits.decision.memory_bytes {
             return Err(exceeded("search memory cap"));

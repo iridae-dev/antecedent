@@ -25,7 +25,7 @@ use antecedent_expr::{
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    BoundZTransportFunctional, SidLimits, ZTransportDerivation, ZTransportDerivationRecord,
+    BoundZTransportFunctional, ZTransportDerivation, ZTransportDerivationRecord,
     bind_z_transport_catalog,
 };
 use serde::{Deserialize, Serialize};
@@ -42,36 +42,7 @@ pub use antecedent_io_core::transport_errors::ZTransportArtifactError;
 pub use antecedent_io_core::transport_query_wire::ZTransportQueryWire;
 /// Bounds a consumer imposes on an artifact it replays. Nothing the artifact
 /// stores raises them.
-#[derive(Clone, Copy, Debug)]
-pub struct ZTransportConsumeLimits {
-    /// Exact-evaluation operation and depth limits of the replay.
-    pub evaluation: ExactEvaluationLimits,
-    /// Largest support the replayed laws may materialize.
-    pub max_support_rows: usize,
-    /// Most laws an artifact may carry.
-    pub max_laws: usize,
-    /// Most cells one stored law may carry.
-    pub max_law_cells: usize,
-}
-
-impl Default for ZTransportConsumeLimits {
-    fn default() -> Self {
-        Self {
-            evaluation: ExactEvaluationLimits::default(),
-            max_support_rows: 1_000_000,
-            max_laws: 256,
-            max_law_cells: 1_000_000,
-        }
-    }
-}
-
-impl ZTransportConsumeLimits {
-    /// The identification limits the replay verifies the proof under.
-    #[must_use]
-    pub const fn identification(&self) -> SidLimits {
-        SidLimits { steps: self.evaluation.operations, depth: self.evaluation.depth }
-    }
-}
+pub type ZTransportConsumeLimits = crate::ConsumeLimits;
 
 /// Versioned z-transport point execution, including every premise needed for replay.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -388,14 +359,7 @@ impl ZTransportArtifactWire {
         &self,
         limits: &ZTransportConsumeLimits,
     ) -> Result<(), ZTransportArtifactError> {
-        let replay = crate::ConsumeLimits {
-            operations: limits.evaluation.operations,
-            depth: limits.evaluation.depth,
-            max_support_rows: limits.max_support_rows,
-            max_laws: limits.max_laws,
-            max_law_cells: limits.max_law_cells,
-        };
-        if let Some(what) = replay.budget(
+        if let Some(what) = limits.budget(
             self.operation_limit,
             self.depth_limit,
             self.max_support_rows,
@@ -403,7 +367,7 @@ impl ZTransportArtifactWire {
         ) {
             return Err(ZTransportArtifactError::LimitsExceeded(what));
         }
-        if let Some(what) = replay.law_cells(&self.laws, true) {
+        if let Some(what) = limits.law_cells(&self.laws, true) {
             return Err(ZTransportArtifactError::LimitsExceeded(what));
         }
         Ok(())

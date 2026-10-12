@@ -127,24 +127,39 @@ pub enum ArtifactCheckError {
     UnsupportedSemantics(&'static str),
 }
 
-/// One refusal type for a sectioned checksummed artifact.
+/// The header, digest and limit refusals every sectioned checksummed artifact shares, as one
+/// generated enum.
 ///
-/// String const generics are not available, so each artifact expands this once.
-/// `$noun` is the display name, `$contract` the refusal prefix, `$replay` the
-/// noun in a result mismatch ("result" or "record"), and `$report` whether a
-/// result mismatch is a registered refusal.
+/// The seven shared variants (`Decode`, `UnsupportedVersion`, `UnsupportedSemantics`,
+/// `LimitsExceeded`, `Malformed`, `IdentityMismatch`, `Encode`), their `Display` texts, the
+/// `From<IoError>` decode mapping and the `Error` impl are generated from the artifact's
+/// `noun` and the spelling of its identity-mismatch detail. What differs between artifacts is
+/// declared beside them: extra `variants` and the `display` arms that render them, written as
+/// the arms of a `match self` with the formatter bound to the identifier named in
+/// `display(..)`. `refusal()` is not generated; each artifact keeps the one that matches the
+/// refusals it registers.
+///
+/// Derives are the caller's: put `#[derive(Clone, Debug, PartialEq)]` (and `Eq` where every
+/// field allows it) among the attributes.
 #[macro_export]
-macro_rules! sectioned_artifact_error {
+macro_rules! sectioned_artifact_enum {
     (
         $(#[$meta:meta])*
-        $name:ident,
-        $noun:literal,
-        $contract:literal,
-        $replay:literal,
-        $report:literal
+        $name:ident {
+            noun: $noun:literal,
+            identity: $identity:expr,
+            variants {
+                $(
+                    $(#[$vmeta:meta])*
+                    $variant:ident
+                    $(($($tuple:ty),+ $(,)?))?
+                    $({ $($(#[$fmeta:meta])* $field:ident : $fty:ty),+ $(,)? })?
+                ),* $(,)?
+            }
+            display($f:ident) { $($arms:tt)* }
+        }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, PartialEq)]
         #[non_exhaustive]
         pub enum $name {
             /// The bytes do not decode as this format.
@@ -165,59 +180,101 @@ macro_rules! sectioned_artifact_error {
                 /// Which identity field differs.
                 field: &'static str,
             },
-            /// A stored result differs from the recomputed one.
-            ResultMismatch(&'static str),
             /// The artifact could not be encoded.
             Encode(String),
-            /// The core estimator refused. The message begins with its detail.
-            Refused {
-                /// Registered reason code.
-                code: &'static str,
-                /// `detail: explanation`.
-                message: String,
-            },
+            $(
+                $(#[$vmeta])*
+                $variant
+                $(($($tuple),+))?
+                $({ $($(#[$fmeta])* $field : $fty),+ })?,
+            )*
         }
 
         impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, $f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
                     Self::Decode(message) => {
-                        write!(f, "{noun} artifact does not decode: {message}", noun = $noun)
+                        write!($f, "{noun} artifact does not decode: {message}", noun = $noun)
                     }
                     Self::UnsupportedVersion { version } => {
-                        write!(f, "unsupported {noun} artifact version {version}", noun = $noun)
+                        write!($f, "unsupported {noun} artifact version {version}", noun = $noun)
                     }
                     Self::UnsupportedSemantics(detail) => {
-                        write!(f, "unsupported {noun} semantics: {detail}", noun = $noun)
+                        write!($f, "unsupported {noun} semantics: {detail}", noun = $noun)
                     }
                     Self::LimitsExceeded(what) => {
-                        write!(f, "{noun} consumer limit exceeded: {what}", noun = $noun)
+                        write!($f, "{noun} consumer limit exceeded: {what}", noun = $noun)
                     }
                     Self::Malformed(message) => {
-                        write!(f, "malformed {noun} artifact: {message}", noun = $noun)
+                        write!($f, "malformed {noun} artifact: {message}", noun = $noun)
                     }
                     Self::IdentityMismatch { field } => {
-                        write!(
-                            f,
-                            "{contract}.wrong_contract: {field} changed",
-                            contract = $contract
-                        )
+                        write!($f, "{}: {field} changed", $identity)
                     }
+                    Self::Encode(message) => {
+                        write!($f, "{noun} artifact does not encode: {message}", noun = $noun)
+                    }
+                    $($arms)*
+                }
+            }
+        }
+
+        impl std::error::Error for $name {}
+
+        impl From<$crate::IoError> for $name {
+            fn from(error: $crate::IoError) -> Self {
+                Self::Decode(error.to_string())
+            }
+        }
+    };
+}
+
+/// One refusal type for a sectioned checksummed artifact whose replay is a core estimator
+/// run.
+///
+/// Built on [`sectioned_artifact_enum!`]: it adds the `ResultMismatch` and `Refused`
+/// variants, the registered `refusal()` and the conversion from an estimator refusal.
+/// String const generics are not available, so each artifact expands this once. `$noun` is
+/// the display name, `$contract` the refusal prefix, `$replay` the noun in a result mismatch
+/// ("result" or "record"), and `$report` whether a result mismatch is a registered refusal.
+#[macro_export]
+macro_rules! sectioned_artifact_error {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $noun:literal,
+        $contract:literal,
+        $replay:literal,
+        $report:literal
+    ) => {
+        $crate::sectioned_artifact_enum! {
+            $(#[$meta])*
+            #[derive(Clone, Debug, PartialEq)]
+            $name {
+                noun: $noun,
+                identity: concat!($contract, ".wrong_contract"),
+                variants {
+                    /// A stored result differs from the recomputed one.
+                    ResultMismatch(&'static str),
+                    /// The core estimator refused. The message begins with its detail.
+                    Refused {
+                        /// Registered reason code.
+                        code: &'static str,
+                        /// `detail: explanation`.
+                        message: String,
+                    },
+                }
+                display(f) {
                     Self::ResultMismatch(what) => write!(
                         f,
                         "stored {noun} {replay} does not replay: {what}",
                         noun = $noun,
                         replay = $replay,
                     ),
-                    Self::Encode(message) => {
-                        write!(f, "{noun} artifact does not encode: {message}", noun = $noun)
-                    }
                     Self::Refused { message, .. } => f.write_str(message),
                 }
             }
         }
-
-        impl std::error::Error for $name {}
 
         impl $name {
             /// The registered refusal this error carries: `(code, detail, explanation)`.
@@ -257,12 +314,6 @@ macro_rules! sectioned_artifact_error {
             }
         }
 
-        impl From<$crate::IoError> for $name {
-            fn from(error: $crate::IoError) -> Self {
-                Self::Decode(error.to_string())
-            }
-        }
-
         impl From<antecedent_estimate::EstimationError> for $name {
             fn from(error: antecedent_estimate::EstimationError) -> Self {
                 match error {
@@ -281,16 +332,15 @@ macro_rules! sectioned_artifact_error {
 
 /// Exact-law replay bounds.
 ///
-/// Each artifact's public `*ConsumeLimits` keeps its own defaults and any
-/// extra fields. This is the shared check of the stored evaluation budget,
-/// support, law count and law cells, with the labels those consumers already
-/// return.
+/// The one definition of the bounds a consumer imposes on an exact-law replay: the
+/// evaluation budget, the support the replayed laws may materialize, and the law count
+/// and law size. `ZTransportConsumeLimits` is this type; the artifacts that bound more
+/// (a search budget, a request count) carry these four fields flat and convert with
+/// `From`, so the checks below are the only interpretation of them.
 #[derive(Clone, Copy, Debug)]
 pub struct ConsumeLimits {
-    /// Operation budget of the replay.
-    pub operations: usize,
-    /// Depth budget of the replay.
-    pub depth: usize,
+    /// Exact-evaluation operation and depth limits of the replay.
+    pub evaluation: antecedent_expr::ExactEvaluationLimits,
     /// Largest support the replayed laws may materialize.
     pub max_support_rows: usize,
     /// Most laws an artifact may carry.
@@ -299,7 +349,27 @@ pub struct ConsumeLimits {
     pub max_law_cells: usize,
 }
 
+impl Default for ConsumeLimits {
+    fn default() -> Self {
+        Self {
+            evaluation: antecedent_expr::ExactEvaluationLimits::default(),
+            max_support_rows: 1_000_000,
+            max_laws: 256,
+            max_law_cells: 1_000_000,
+        }
+    }
+}
+
 impl ConsumeLimits {
+    /// The identification limits the replay verifies a proof under.
+    #[must_use]
+    pub const fn identification(&self) -> antecedent_identify::SidLimits {
+        antecedent_identify::SidLimits {
+            steps: self.evaluation.operations,
+            depth: self.evaluation.depth,
+        }
+    }
+
     /// The stored evaluation budget, support or law count that exceeds these
     /// bounds: `operation limit`, `depth limit`, `support rows` or `law count`.
     #[must_use]
@@ -310,9 +380,9 @@ impl ConsumeLimits {
         stored_support_rows: usize,
         law_count: usize,
     ) -> Option<&'static str> {
-        if operation_limit > self.operations {
+        if operation_limit > self.evaluation.operations {
             Some("operation limit")
-        } else if depth_limit > self.depth {
+        } else if depth_limit > self.evaluation.depth {
             Some("depth limit")
         } else {
             stored_law_bounds(stored_support_rows, self.max_support_rows, law_count, self.max_laws)
@@ -355,6 +425,23 @@ pub const fn stored_law_bounds(
         Some("support rows")
     } else if law_count > max_laws {
         Some("law count")
+    } else {
+        None
+    }
+}
+
+/// `search operation limit` or `search depth limit` when the search budget a producer
+/// recorded exceeds the consumer's, operations first.
+#[must_use]
+pub const fn search_bounds(
+    stored_operations: usize,
+    stored_depth: usize,
+    limit: antecedent_core::SearchLimits,
+) -> Option<&'static str> {
+    if stored_operations > limit.operations {
+        Some("search operation limit")
+    } else if stored_depth > limit.depth {
+        Some("search depth limit")
     } else {
         None
     }

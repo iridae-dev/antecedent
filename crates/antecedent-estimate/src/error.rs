@@ -352,8 +352,10 @@ fn stats_refusal_fields(error: &StatsError) -> Option<RefusalFields> {
 /// A coded estimation refusal keeps its code across the artifact boundary;
 /// every other failure is a conversion failure there.
 ///
-/// Implemented here, not in `antecedent-io-core`, because that crate sits below
-/// the estimators and cannot name [`EstimationError`].
+/// The conversion belongs to the crate that owns the source error: the estimators sit
+/// above `antecedent-io-core`, so the core cannot name [`EstimationError`], and a
+/// boxed or stringly source variant on `IoError` would only move the same match into
+/// every caller.
 impl From<EstimationError> for antecedent_io_core::IoError {
     fn from(error: EstimationError) -> Self {
         match error {

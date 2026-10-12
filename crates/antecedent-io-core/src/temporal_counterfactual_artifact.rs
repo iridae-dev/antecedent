@@ -105,46 +105,30 @@ impl WitnessWire {
     }
 }
 
-/// Why a temporal counterfactual artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum TemporalCounterfactualArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("temporal counterfactual artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported temporal counterfactual artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim or mechanism class that is not this format's.
-    #[error("unsupported temporal counterfactual semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("temporal counterfactual consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed temporal counterfactual artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("temporal_counterfactual.artifact_changed: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored outcome, mean or receipt differs from the recomputed one.
-    #[error("stored temporal counterfactual does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("temporal counterfactual artifact does not encode: {0}")]
-    Encode(String),
-    /// Cooperative cancellation was observed.
-    #[error("cancelled during temporal counterfactual evaluation")]
-    Cancelled,
-    /// The core evaluator refused.
-    #[error("temporal counterfactual refused: {}", .0.detail)]
-    Refused(Box<RefusalWire>),
+crate::sectioned_artifact_enum! {
+    /// Why a temporal counterfactual artifact was refused or could not be produced.
+    #[derive(Clone, Debug, PartialEq)]
+    TemporalCounterfactualArtifactError {
+        noun: "temporal counterfactual",
+        identity: "temporal_counterfactual.artifact_changed",
+        variants {
+            /// A stored outcome, mean or receipt differs from the recomputed one.
+            ResultMismatch(&'static str),
+            /// Cooperative cancellation was observed.
+            Cancelled,
+            /// The core evaluator refused.
+            Refused(Box<RefusalWire>),
+        }
+        display(f) {
+            Self::ResultMismatch(what) => {
+                write!(f, "stored temporal counterfactual does not replay: {what}")
+            }
+            Self::Cancelled => f.write_str("cancelled during temporal counterfactual evaluation"),
+            Self::Refused(wire) => {
+                write!(f, "temporal counterfactual refused: {}", wire.detail)
+            }
+        }
+    }
 }
 
 impl TemporalCounterfactualArtifactError {
@@ -167,12 +151,6 @@ impl TemporalCounterfactualArtifactError {
             }),
             _ => None,
         }
-    }
-}
-
-impl From<crate::IoError> for TemporalCounterfactualArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
     }
 }
 
@@ -981,5 +959,27 @@ impl TemporalCounterfactualArtifact {
             }
         }
         Ok(Self { meta, request, result })
+    }
+}
+
+#[cfg(test)]
+mod error_text_tests {
+    use super::TemporalCounterfactualArtifactError as Error;
+
+    /// The texts the hand-written enum produced before it shared the generator.
+    #[test]
+    fn the_variants_keep_their_historical_texts() {
+        assert_eq!(
+            Error::IdentityMismatch { field: "f" }.to_string(),
+            "temporal_counterfactual.artifact_changed: f changed"
+        );
+        assert_eq!(
+            Error::Cancelled.to_string(),
+            "cancelled during temporal counterfactual evaluation"
+        );
+        assert_eq!(
+            Error::ResultMismatch("mean").to_string(),
+            "stored temporal counterfactual does not replay: mean"
+        );
     }
 }

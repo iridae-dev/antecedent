@@ -117,6 +117,19 @@ impl Default for MzTransportConsumeLimits {
     }
 }
 
+impl MzTransportConsumeLimits {
+    /// The exact-law replay bounds, as the shared checks read them.
+    #[must_use]
+    pub const fn replay(&self) -> crate::ConsumeLimits {
+        crate::ConsumeLimits {
+            evaluation: self.evaluation,
+            max_support_rows: self.max_support_rows,
+            max_laws: self.max_laws,
+            max_law_cells: self.max_law_cells,
+        }
+    }
+}
+
 pub use antecedent_io_core::transport_point_wire::MzTransportPointWire;
 
 /// Point contrast of one outcome mean: request `request` minus request 0.
@@ -628,11 +641,10 @@ impl MzTransportArtifactWire {
         ctx: &ExecutionContext,
     ) -> Result<(), MzTransportArtifactError> {
         let exceeded = MzTransportArtifactError::LimitsExceeded;
-        if self.search_operations > limits.search.operations {
-            return Err(exceeded("search operation limit"));
-        }
-        if self.search_depth > limits.search.depth {
-            return Err(exceeded("search depth limit"));
+        if let Some(what) =
+            crate::search_bounds(self.search_operations, self.search_depth, limits.search)
+        {
+            return Err(exceeded(what));
         }
         // The replay runs under the producer's stored memory cap, so the consumer's
         // own limit (its consume limits and the context's hard limit) must cover it.
@@ -645,13 +657,7 @@ impl MzTransportArtifactWire {
         if self.proof.search.memory_limit_bytes > memory_cap {
             return Err(exceeded("search memory limit"));
         }
-        let replay = crate::ConsumeLimits {
-            operations: limits.evaluation.operations,
-            depth: limits.evaluation.depth,
-            max_support_rows: limits.max_support_rows,
-            max_laws: limits.max_laws,
-            max_law_cells: limits.max_law_cells,
-        };
+        let replay = limits.replay();
         if let Some(what) = replay.budget(
             self.operation_limit,
             self.depth_limit,
