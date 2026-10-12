@@ -244,9 +244,7 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
             if cx.binding.names(identifier, estimator) {
                 let temporal = query.temporal.as_ref().expect("guarded temporal response");
                 let (treatment, outcome) =
-                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                        message: "temporal response query has no treatment/outcome pair".into(),
-                    })?;
+                    crate::analysis::proof_support::require_primary_pair(&query.functional)?;
                 let dose = single_step_dose(query)?.unwrap_or(1.0);
                 let evidence = cache
                     .by_horizon

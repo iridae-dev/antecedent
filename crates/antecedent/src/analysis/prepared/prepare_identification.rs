@@ -600,9 +600,7 @@ impl Study {
                     message: "temporal class response prepare requires TemporalResponseSpec".into(),
                 })?;
                 let (treatment, outcome) =
-                    response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                        message: "temporal class response has no treatment/outcome pair".into(),
-                    })?;
+                    crate::analysis::proof_support::require_primary_pair(&response.functional)?;
                 TemporalEffectQuery {
                     treatment,
                     outcome,

@@ -505,9 +505,7 @@ fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::Assumpti
 pub(super) fn transport_primary_pair(
     query: &antecedent_core::TransportQuery,
 ) -> Result<(VariableId, VariableId), CausalError> {
-    query.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-        message: "TransportQuery inner response has no treatment/outcome".into(),
-    })
+    crate::analysis::proof_support::require_primary_pair(&query.response.functional)
 }
 
 /// The Bayesian trial route owns its row-law prior; coefficient and transferred

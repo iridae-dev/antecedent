@@ -1369,8 +1369,7 @@ impl super::Study {
         route: Option<RouteInput<'_>>,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
+        if self.plain_fixed_route()
             && self.structure_source == crate::support::StructureSource::Explicit
             && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
@@ -1378,7 +1377,6 @@ impl super::Study {
                 .identifier
                 .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
                 if mean_all_observed(&query.outcome_functional, &query.target_population) {
@@ -1391,14 +1389,12 @@ impl super::Study {
                 }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
+        if self.plain_fixed_route()
             && self.structure_source == crate::support::StructureSource::Explicit
             && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianRobustAte)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
                 if mean_all_observed(&query.outcome_functional, &query.target_population) {
@@ -1411,14 +1407,12 @@ impl super::Study {
                 }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
+        if self.plain_fixed_route()
             && self.structure_source == crate::support::StructureSource::Explicit
             && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
                 if mean_all_observed(
@@ -1929,10 +1923,9 @@ impl super::Study {
         route: Option<RouteInput<'_>>,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        if self.graph_posterior.is_none()
+        if self.plain_fixed_route()
             && self.structure_source == crate::support::StructureSource::Explicit
             && self.inference.is_frequentist()
-            && self.custom_validators.is_empty()
             && self.shared_batch_design.is_none()
             && self.continuous_cell.is_none()
             && self.estimator == Some(EstimatorId::CellAipw)
