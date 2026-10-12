@@ -33,6 +33,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
 
 use crate::contract_section::CalibrationSlotWire;
@@ -92,7 +95,18 @@ pub const REASON_CODES: [&str; 11] = [
 /// [`RECORD_NOT_ATTESTING`].
 #[must_use]
 pub fn record_attests_current_code(record: &CoverageRecord) -> bool {
-    ATTESTING_RECORD_IDS.contains(&record.id)
+    attesting_ids().binary_search(&record.id).is_ok()
+}
+
+fn attesting_ids() -> &'static [&'static str] {
+    static SORTED: OnceLock<Vec<&'static str>> = OnceLock::new();
+    SORTED
+        .get_or_init(|| {
+            let mut ids: Vec<&str> = ATTESTING_RECORD_IDS.iter().copied().collect();
+            ids.sort_unstable();
+            ids
+        })
+        .as_slice()
 }
 
 /// Tolerance for comparing nominal levels and structural masses.
@@ -233,7 +247,67 @@ fn functional_matches(
 /// [`record_attests_current_code`].
 #[must_use]
 pub fn calibration_slot(basis: &CalibrationBasisWire) -> CalibrationSlotWire {
-    calibration_slot_with(basis, &RECORDS, record_attests_current_code)
+    let candidates = shipped_candidates(&basis.key);
+    calibration_slot_with(basis, &candidates, record_attests_current_code)
+}
+
+/// Records in the shipped table that share every construction axis except the
+/// nominal level and the identification label. Those two are filtered by
+/// [`calibration_slot_with`], so the candidate set is exactly the set that
+/// function used to scan the whole table for.
+fn shipped_candidates(key: &CalibrationKeyWire) -> Vec<CoverageRecord> {
+    construction_index()
+        .get(&construction_axis(key))
+        .map(|indexes| {
+            indexes
+                .iter()
+                .map(|&index| RECORDS[index])
+                .filter(|record| {
+                    functional_matches(record, &key.functional, &FUNCTIONAL_IDENTITY_ALIASES)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn construction_axis(key: &CalibrationKeyWire) -> String {
+    [
+        key.query.as_str(),
+        key.graph_class.as_str(),
+        key.structure.as_str(),
+        key.modality.as_str(),
+        key.inference.as_str(),
+        key.estimator.as_str(),
+        key.interval_method.as_str(),
+        key.se_kind.as_str(),
+        key.dependence.as_str(),
+        key.posterior.as_str(),
+    ]
+    .join("\u{1f}")
+}
+
+fn construction_index() -> &'static HashMap<String, Vec<usize>> {
+    static INDEX: OnceLock<HashMap<String, Vec<usize>>> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut index: HashMap<String, Vec<usize>> = HashMap::new();
+        for (offset, record) in RECORDS.iter().enumerate() {
+            let axis = [
+                record.query,
+                record.graph_class,
+                record.structure,
+                record.modality,
+                record.inference,
+                record.estimator,
+                record.interval_method,
+                record.se_kind,
+                record.dependence,
+                record.posterior,
+            ]
+            .join("\u{1f}");
+            index.entry(axis).or_default().push(offset);
+        }
+        index
+    })
 }
 
 /// Calibration slot of the primary interval, with one secondary slot per
@@ -419,6 +493,71 @@ pub fn rederive_calibration(slot: &CalibrationSlotWire) -> CalibrationSlotWire {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn key_from(record: &CoverageRecord) -> CalibrationKeyWire {
+        CalibrationKeyWire {
+            query: record.query.to_owned(),
+            graph_class: record.graph_class.to_owned(),
+            structure: record.structure.to_owned(),
+            modality: record.modality.to_owned(),
+            inference: record.inference.to_owned(),
+            estimator: record.estimator.to_owned(),
+            interval_method: record.interval_method.to_owned(),
+            se_kind: record.se_kind.to_owned(),
+            dependence: record.dependence.to_owned(),
+            posterior: record.posterior.to_owned(),
+            functional: record.functional.to_owned(),
+            level: record.nominal,
+            identification: record.identification.to_owned(),
+        }
+    }
+
+    fn matching_ids(key: &CalibrationKeyWire) -> Vec<&'static str> {
+        RECORDS
+            .iter()
+            .filter(|record| key.same_construction(record))
+            .map(|record| record.id)
+            .collect()
+    }
+
+    #[test]
+    fn construction_index_matches_a_linear_scan() {
+        for record in RECORDS.iter() {
+            let key = key_from(record);
+            let indexed: Vec<_> = shipped_candidates(&key)
+                .iter()
+                .filter(|candidate| key.same_construction(candidate))
+                .map(|candidate| candidate.id)
+                .collect();
+            assert_eq!(indexed, matching_ids(&key), "{}", record.id);
+        }
+        for alias in FUNCTIONAL_IDENTITY_ALIASES.iter() {
+            let Some(record) = RECORDS.iter().find(|record| record.id == alias.record_id) else {
+                continue;
+            };
+            let mut key = key_from(record);
+            key.functional = alias.canonical_functional.to_owned();
+            let indexed: Vec<_> = shipped_candidates(&key)
+                .iter()
+                .filter(|candidate| key.same_construction(candidate))
+                .map(|candidate| candidate.id)
+                .collect();
+            assert_eq!(indexed, matching_ids(&key), "{}", alias.record_id);
+        }
+    }
+
+    #[test]
+    fn attesting_index_matches_linear_membership() {
+        for record in RECORDS.iter() {
+            assert_eq!(
+                record_attests_current_code(record),
+                ATTESTING_RECORD_IDS.contains(&record.id),
+                "{}",
+                record.id
+            );
+        }
+        assert!(attesting_ids().binary_search(&"not-a-coverage-record").is_err());
+    }
 
     fn record(id: &'static str) -> CoverageRecord {
         CoverageRecord {
