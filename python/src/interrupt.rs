@@ -35,7 +35,8 @@ const POLL: Duration = Duration::from_millis(50);
 /// the 8 MiB a Python main thread has by default, with headroom for the engines' own frames.
 const WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
 
-/// Retained callback failures; older entries are stale (their run already returned).
+/// Retained callback failures. A full map refuses a new id instead of dropping
+/// the oldest, which may still be waiting to be attributed.
 const MAX_STASHED: usize = 256;
 
 /// Tokens the interrupt loop cancels for one run.
@@ -132,13 +133,21 @@ const TAG_OPEN: &str = "[callback failure #";
 /// Record the Python exception behind a callback failure and return the message the domain error
 /// should carry. The message ends in an id tag that [`attribute`] looks the exception up by, so
 /// two runs whose callbacks fail with byte-identical text can never be attributed to each other.
+/// Whether another callback failure can be retained without dropping one already stored.
+fn stash_accepts(len: usize) -> bool {
+    len < MAX_STASHED
+}
+
 pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
+    let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
+    if !stash_accepts(stash.len()) {
+        // The oldest entry may still be waiting for [`attribute`]. Dropping it
+        // would attach this failure's exception to an earlier run. The new
+        // failure stays in the message and is not given an id.
+        return format!("{what}: {err}");
+    }
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     let message = format!("{what}: {err} {TAG_OPEN}{id}]");
-    let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-    while stash.len() >= MAX_STASHED {
-        stash.pop_first();
-    }
     stash.insert(id, err);
     message
 }
@@ -246,6 +255,14 @@ mod tests {
         assert_eq!(tagged_ids(&wrapped).collect::<Vec<_>>(), vec![8]);
         assert_eq!(tagged_ids("no tag here").count(), 0);
         assert_eq!(tagged_ids(&format!("{TAG_OPEN}not a number]")).count(), 0);
+    }
+
+    #[test]
+    fn a_full_callback_stash_does_not_drop_the_oldest_id() {
+        use super::{MAX_STASHED, stash_accepts};
+        assert!(stash_accepts(0));
+        assert!(stash_accepts(MAX_STASHED - 1));
+        assert!(!stash_accepts(MAX_STASHED));
     }
 
     #[test]
