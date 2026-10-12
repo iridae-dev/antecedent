@@ -82,9 +82,7 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
-            if !cx.binding.names(identifier, estimator) {
-                None
-            } else {
+            if cx.binding.names(identifier, estimator) {
                 let member =
                     cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                         message: "prepared temporal effect lacks its horizon proof".into(),
@@ -105,6 +103,8 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
                     plan.clone(),
                 )?)
+            } else {
+                None
             }
         }
         _ => None,
@@ -131,9 +131,7 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_effect_procedure(query, true);
-            if !cx.binding.names(identifier, estimator) {
-                None
-            } else {
+            if cx.binding.names(identifier, estimator) {
                 let member =
                     cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                         message: "prepared Bayesian temporal effect lacks its horizon proof".into(),
@@ -155,6 +153,8 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
                     &analysis.inference,
                     analysis.refute,
                 )?)
+            } else {
+                None
             }
         }
         _ => None,
@@ -178,9 +178,7 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
         {
             let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
-            if !cx.binding.names(identifier, estimator) {
-                None
-            } else {
+            if cx.binding.names(identifier, estimator) {
                 let operation = crate::analysis::CheckedTemporalClassEffectOperation::checked(
                     analysis.graph.clone(),
                     query,
@@ -198,6 +196,8 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
                     plan.clone(),
                 )?)
+            } else {
+                None
             }
         }
         _ => None,
@@ -235,9 +235,7 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_response_for(&analysis.inference);
-            if !cx.binding.names(identifier, estimator) {
-                None
-            } else {
+            if cx.binding.names(identifier, estimator) {
                 let temporal = query.temporal.as_ref().expect("guarded temporal response");
                 let (treatment, outcome) =
                     query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
@@ -278,6 +276,8 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                         plan.clone(),
                     )?;
                 Some(execution)
+            } else {
+                None
             }
         }
         _ => None,

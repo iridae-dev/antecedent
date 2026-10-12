@@ -386,7 +386,7 @@ impl Study {
                 // design itself and is cached at prepare when the design identifies once.
                 if graphless_design(query).is_some_and(|design| design.identified_at_prepare) {
                     analysis.identification_cache =
-                        self.prepare_static_identification(&plan)?.map(Arc::new);
+                        self.prepare_static_identification(plan)?.map(Arc::new);
                 }
             }
             (DataInput::Tabular(_), _, None) => {

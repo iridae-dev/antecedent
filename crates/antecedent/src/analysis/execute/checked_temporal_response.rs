@@ -313,7 +313,11 @@ impl Inspect for CheckedTemporalResponseExecution {
             uncertainty: Arc::from(uncertainty),
             grid_members: Arc::from(operation.grid()),
             // The sealed evidence is one member per requested horizon, in order.
-            horizons: operation.evidence().iter().map(|member| member.horizon()).collect(),
+            horizons: operation
+                .evidence()
+                .iter()
+                .map(crate::analysis::TemporalResponseHorizonEvidence::horizon)
+                .collect(),
         }
     }
 }

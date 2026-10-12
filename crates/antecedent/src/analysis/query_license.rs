@@ -93,6 +93,10 @@ const STATIC_DISTRIBUTION: &[GraphClass] =
     &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
 const RANDOMIZED: &[GraphClass] = &[GraphClass::RandomizedTrial];
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the table slots are options; the helper names a licensed slot"
+)]
 const fn rule(
     classes: &'static [GraphClass],
     refusal: fn() -> CausalError,
@@ -100,6 +104,10 @@ const fn rule(
     Some(PreparedRule { classes, graphless: None, refusal })
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the table slots are options; the helper names a licensed slot"
+)]
 const fn design(identified_at_prepare: bool, refusal: fn() -> CausalError) -> Option<PreparedRule> {
     Some(PreparedRule {
         classes: RANDOMIZED,
