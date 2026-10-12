@@ -232,17 +232,21 @@ fn evaluate_binary_policy(
 ) -> PyResult<(f64, f64, f64, f64, f64, f64)> {
     let fit = antecedent_estimate::policy_value::evaluate_binary_ipw_policy(
         &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &assignment,
-        &actions,
-        &propensity.as_array().iter().copied().collect::<Vec<_>>(),
-        reference.as_deref(),
-        &costs,
-        reference_costs.as_deref(),
-        available.as_deref(),
-        capacity,
-        budget,
-        reference_capacity,
-        reference_budget,
+        &antecedent_estimate::policy_value::BinaryIpwDesign {
+            assignment: &assignment,
+            actions: &actions,
+            propensity: &propensity.as_array().iter().copied().collect::<Vec<_>>(),
+            reference: reference.as_deref(),
+            costs: &costs,
+            reference_costs: reference_costs.as_deref(),
+            available: available.as_deref(),
+        },
+        &antecedent_estimate::policy_value::BinaryPolicyLimits {
+            capacity,
+            budget,
+            reference_capacity,
+            reference_budget,
+        },
     )
     .map_err(crate::value_err)?;
     Ok((
@@ -312,14 +316,16 @@ fn evaluate_binary_policy_doubly_robust(
     }
     let scores = antecedent_estimate::policy_value::evaluate_policy_value_scores(
         &y,
-        &assignment,
-        &actions,
-        p.as_slice().unwrap_or(&[]),
+        &antecedent_estimate::policy_value::BinaryPolicyDesign {
+            assignment: &assignment,
+            actions: &actions,
+            propensity: p.as_slice().unwrap_or(&[]),
+            reference: &reference,
+            costs: &costs,
+            reference_costs: &reference_costs,
+        },
         &mu0.to_vec(),
         &mu1.to_vec(),
-        &reference,
-        &costs,
-        &reference_costs,
     )
     .map_err(crate::value_err)?;
     let policy_value = scores.policy_value;
@@ -385,19 +391,23 @@ fn evaluate_multi_action_policy(
     let probabilities = probabilities.as_array();
     let fit = antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy(
         &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &assigned,
-        &actions,
-        &probabilities.iter().copied().collect::<Vec<_>>(),
-        probabilities.nrows(),
-        probabilities.ncols(),
-        reference.as_deref(),
-        costs.as_deref(),
-        reference_costs.as_deref(),
-        available.as_deref(),
-        capacities.as_deref(),
-        reference_capacities.as_deref(),
-        budget,
-        reference_budget,
+        &antecedent_estimate::policy_value::MultiActionIpwDesign {
+            assigned: &assigned,
+            actions: &actions,
+            probabilities: &probabilities.iter().copied().collect::<Vec<_>>(),
+            probability_rows: probabilities.nrows(),
+            action_count: probabilities.ncols(),
+            reference: reference.as_deref(),
+            costs: costs.as_deref(),
+            reference_costs: reference_costs.as_deref(),
+            available: available.as_deref(),
+        },
+        &antecedent_estimate::policy_value::MultiActionLimits {
+            capacities: capacities.as_deref(),
+            reference_capacities: reference_capacities.as_deref(),
+            budget,
+            reference_budget,
+        },
     )
     .map_err(crate::value_err)?;
     Ok((

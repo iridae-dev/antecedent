@@ -4,6 +4,28 @@
 //! are inputs, not nuisance models fitted or verified by this kernel.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Subject-major longitudinal design shared by the regime-value kernels and the marginal
+/// structural model: the realized treatment and observation history with the supplied
+/// sequential probabilities and the positivity floor they are checked against.
+///
+/// Every per-period slice is flattened subject-major (`n * periods` cells);
+/// `outcome_observed` has one entry per subject.
+#[derive(Clone, Copy, Debug)]
+pub struct SubjectHistories<'a> {
+    /// Realized treatment at each subject-period.
+    pub treatment: &'a [bool],
+    /// Conditional probability of action 1 at each subject-period.
+    pub treatment_probability: &'a [f64],
+    /// Whether each subject's terminal outcome is observed.
+    pub outcome_observed: &'a [bool],
+    /// Conditional probability of remaining observed at each decision.
+    pub censoring_probability: &'a [f64],
+    /// Decision periods per subject.
+    pub periods: usize,
+    /// Positivity floor in `(0, 0.5]` for treatment and censoring probabilities.
+    pub minimum_probability: f64,
+}
+
 /// Point summary for one prescribed longitudinal regime.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RegimeValueSummary {
@@ -51,52 +73,45 @@ pub fn ipw_pointwise_interval_95(
 
 /// Backward-recursive sequential doubly robust score. All histories are
 /// subject-major; a censored subject contributes its last available Q value.
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
 pub fn evaluate_sequential_dr_value(
     outcomes: &[f64],
-    outcome_observed: &[bool],
-    observation_history: &[bool],
-    treatment: &[bool],
-    actions: &[bool],
-    q_predictions: &[f64],
-    treatment_probability: &[f64],
-    censoring_probability: &[f64],
-    periods: usize,
-    minimum_probability: f64,
+    histories: &SubjectHistories<'_>,
+    sequential: &SequentialDrInputs<'_>,
 ) -> Result<RegimeValueSummary, &'static str> {
-    evaluate_sequential_dr_value_with_subject_scores(
-        outcomes,
-        outcome_observed,
-        observation_history,
-        treatment,
-        actions,
-        q_predictions,
-        treatment_probability,
-        censoring_probability,
-        periods,
-        minimum_probability,
-    )
-    .map(|(summary, _)| summary)
+    evaluate_sequential_dr_value_with_subject_scores(outcomes, histories, sequential)
+        .map(|(summary, _)| summary)
+}
+
+/// The prescribed regime and the frozen nuisance predictions a sequential doubly robust
+/// value is formed from, subject-major like [`SubjectHistories`].
+#[derive(Clone, Copy, Debug)]
+pub struct SequentialDrInputs<'a> {
+    /// Prescribed regime action at each subject-period.
+    pub actions: &'a [bool],
+    /// Whether the subject is still observed at each subject-period.
+    pub observation_history: &'a [bool],
+    /// Frozen, subject-excluded Q predictions at each subject-period.
+    pub q_predictions: &'a [f64],
 }
 
 /// Return one full-history augmentation score per subject for calibration.
 /// Scores alone do not establish independent nuisance fitting or an interval
 /// claim; callers must keep the Q ownership contract separate.
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)]
 pub fn evaluate_sequential_dr_value_with_subject_scores(
     outcomes: &[f64],
-    outcome_observed: &[bool],
-    observation_history: &[bool],
-    treatment: &[bool],
-    actions: &[bool],
-    q_predictions: &[f64],
-    treatment_probability: &[f64],
-    censoring_probability: &[f64],
-    periods: usize,
-    minimum_probability: f64,
+    histories: &SubjectHistories<'_>,
+    sequential: &SequentialDrInputs<'_>,
 ) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
+    let SubjectHistories {
+        treatment,
+        treatment_probability,
+        outcome_observed,
+        censoring_probability,
+        periods,
+        minimum_probability,
+    } = *histories;
+    let SequentialDrInputs { actions, observation_history, q_predictions } = *sequential;
     let n = outcomes.len();
     let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
     if n == 0
@@ -365,18 +380,19 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
 /// `censoring_probability` is the conditional probability of remaining observed
 /// at that decision. Values are unconditional Horvitz--Thompson averages, so
 /// unmatched or censored subjects contribute zero to the numerator.
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
 pub fn evaluate_regime_value(
     outcomes: &[f64],
-    treatment: &[bool],
+    histories: &SubjectHistories<'_>,
     actions: &[bool],
-    treatment_probability: &[f64],
-    outcome_observed: &[bool],
-    censoring_probability: &[f64],
-    periods: usize,
-    minimum_probability: f64,
 ) -> Result<RegimeValueSummary, &'static str> {
+    let SubjectHistories {
+        treatment,
+        treatment_probability,
+        outcome_observed,
+        censoring_probability,
+        periods,
+        minimum_probability,
+    } = *histories;
     let n = outcomes.len();
     let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
     if n == 0
@@ -519,7 +535,20 @@ mod tests {
                 );
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
-                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 3, 0.01,
+                &outcomes,
+                &SubjectHistories {
+                    treatment: &treatment,
+                    treatment_probability: &p,
+                    outcome_observed: &observed,
+                    censoring_probability: &c,
+                    periods: 3,
+                    minimum_probability: 0.01,
+                },
+                &SequentialDrInputs {
+                    actions: &actions,
+                    observation_history: &history,
+                    q_predictions: &q,
+                },
             )
             .unwrap();
             if let Some((_, bounds)) =
@@ -581,7 +610,20 @@ mod tests {
                 }
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
-                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 3, 0.01,
+                &outcomes,
+                &SubjectHistories {
+                    treatment: &treatment,
+                    treatment_probability: &p,
+                    outcome_observed: &observed,
+                    censoring_probability: &c,
+                    periods: 3,
+                    minimum_probability: 0.01,
+                },
+                &SequentialDrInputs {
+                    actions: &actions,
+                    observation_history: &history,
+                    q_predictions: &q,
+                },
             )
             .unwrap();
             let matched = (0..n)
@@ -636,7 +678,20 @@ mod tests {
                 outcomes.push(2.0 + f64::from(a0) + f64::from(a1) + 2.0 * (uniform() - 0.5));
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
-                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
+                &outcomes,
+                &SubjectHistories {
+                    treatment: &treatment,
+                    treatment_probability: &p,
+                    outcome_observed: &observed,
+                    censoring_probability: &c,
+                    periods: 2,
+                    minimum_probability: 0.01,
+                },
+                &SequentialDrInputs {
+                    actions: &actions,
+                    observation_history: &history,
+                    q_predictions: &q,
+                },
             )
             .unwrap();
             let matched =
@@ -719,7 +774,20 @@ mod tests {
                 }
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
-                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
+                &outcomes,
+                &SubjectHistories {
+                    treatment: &treatment,
+                    treatment_probability: &p,
+                    outcome_observed: &observed,
+                    censoring_probability: &c,
+                    periods: 2,
+                    minimum_probability: 0.01,
+                },
+                &SequentialDrInputs {
+                    actions: &actions,
+                    observation_history: &history,
+                    q_predictions: &q,
+                },
             )
             .unwrap();
             let matched =
@@ -784,13 +852,15 @@ mod tests {
             }
             let summary = evaluate_regime_value(
                 &outcomes,
-                &treatment,
+                &SubjectHistories {
+                    treatment: &treatment,
+                    treatment_probability: &treatment_probabilities,
+                    outcome_observed: &observed,
+                    censoring_probability: &censoring_probabilities,
+                    periods: 2,
+                    minimum_probability: 0.01,
+                },
                 &actions,
-                &treatment_probabilities,
-                &observed,
-                &censoring_probabilities,
-                2,
-                0.01,
             )
             .unwrap();
             if let Some(interval) = ipw_pointwise_interval_95(&summary, n) {
@@ -863,13 +933,15 @@ mod tests {
     fn known_truth_two_period_bernoulli() {
         let summary = evaluate_regime_value(
             &[4.0, 0.0, 0.0, 0.0],
-            &[true, true, true, false, false, true, false, false],
+            &SubjectHistories {
+                treatment: &[true, true, true, false, false, true, false, false],
+                treatment_probability: &[0.5; 8],
+                outcome_observed: &[true; 4],
+                censoring_probability: &[1.0; 8],
+                periods: 2,
+                minimum_probability: 0.01,
+            },
             &[true, true, true, true, true, true, true, true],
-            &[0.5; 8],
-            &[true; 4],
-            &[1.0; 8],
-            2,
-            0.01,
         )
         .unwrap();
         assert_eq!(summary.value, 4.0);
@@ -883,13 +955,15 @@ mod tests {
         assert!(
             evaluate_regime_value(
                 &[1.0, 2.0],
-                &[false; 4],
-                &[true; 4],
-                &p,
-                &[true; 2],
-                &[1.0; 4],
-                2,
-                0.01
+                &SubjectHistories {
+                    treatment: &[false; 4],
+                    treatment_probability: &p,
+                    outcome_observed: &[true; 2],
+                    censoring_probability: &[1.0; 4],
+                    periods: 2,
+                    minimum_probability: 0.01
+                },
+                &[true; 4]
             )
             .unwrap_err()
             .contains("no observed")
@@ -898,13 +972,15 @@ mod tests {
         assert!(
             evaluate_regime_value(
                 &[1.0, 2.0],
-                &[false; 4],
-                &[true; 4],
-                &p,
-                &[true; 2],
-                &[1.0; 4],
-                2,
-                0.01
+                &SubjectHistories {
+                    treatment: &[false; 4],
+                    treatment_probability: &p,
+                    outcome_observed: &[true; 2],
+                    censoring_probability: &[1.0; 4],
+                    periods: 2,
+                    minimum_probability: 0.01
+                },
+                &[true; 4]
             )
             .unwrap_err()
             .contains("positivity")

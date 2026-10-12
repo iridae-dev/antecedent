@@ -108,13 +108,15 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::Ipw => (
                 evaluate_regime_value(
                     outcome,
-                    &self.query.treatment_history,
+                    &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                        treatment: &self.query.treatment_history,
+                        treatment_probability: &self.query.treatment_probabilities,
+                        outcome_observed: &self.query.outcome_observed,
+                        censoring_probability: &self.query.censoring_probabilities,
+                        periods: self.query.periods,
+                        minimum_probability: self.query.minimum_probability,
+                    },
                     &self.query.regime_actions,
-                    &self.query.treatment_probabilities,
-                    &self.query.outcome_observed,
-                    &self.query.censoring_probabilities,
-                    self.query.periods,
-                    self.query.minimum_probability,
                 ),
                 EstimatorId::LongitudinalIpwRegime,
                 "ipw",
@@ -142,18 +144,27 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::SequentialDoublyRobust => {
                 let result = evaluate_sequential_dr_value_with_subject_scores(
                     outcome,
-                    &self.query.outcome_observed,
-                    self.query
-                        .observation_history
-                        .as_deref()
-                        .expect("validated observation history"),
-                    &self.query.treatment_history,
-                    &self.query.regime_actions,
-                    self.query.q_predictions.as_deref().expect("validated Q predictions"),
-                    &self.query.treatment_probabilities,
-                    &self.query.censoring_probabilities,
-                    self.query.periods,
-                    self.query.minimum_probability,
+                    &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                        treatment: &self.query.treatment_history,
+                        treatment_probability: &self.query.treatment_probabilities,
+                        outcome_observed: &self.query.outcome_observed,
+                        censoring_probability: &self.query.censoring_probabilities,
+                        periods: self.query.periods,
+                        minimum_probability: self.query.minimum_probability,
+                    },
+                    &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
+                        actions: &self.query.regime_actions,
+                        observation_history: self
+                            .query
+                            .observation_history
+                            .as_deref()
+                            .expect("validated observation history"),
+                        q_predictions: self
+                            .query
+                            .q_predictions
+                            .as_deref()
+                            .expect("validated Q predictions"),
+                    },
                 )
                 .map(|(summary, scores)| {
                     dr_scores = Some(scores);
@@ -170,16 +181,18 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::MarginalStructuralModel => {
                 let fit = fit_binary_msm(
                     outcome,
-                    &self.query.treatment_history,
-                    &self.query.treatment_probabilities,
+                    &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                        treatment: &self.query.treatment_history,
+                        treatment_probability: &self.query.treatment_probabilities,
+                        outcome_observed: &self.query.outcome_observed,
+                        censoring_probability: &self.query.censoring_probabilities,
+                        periods: self.query.periods,
+                        minimum_probability: self.query.minimum_probability,
+                    },
                     self.query
                         .stabilizing_numerator_probabilities
                         .as_deref()
                         .expect("validated MSM numerators"),
-                    &self.query.outcome_observed,
-                    &self.query.censoring_probabilities,
-                    self.query.periods,
-                    self.query.minimum_probability,
                 )
                 .map_err(|message| CausalError::Unsupported { message })?;
                 let mut min_action: f64 = 1.0;

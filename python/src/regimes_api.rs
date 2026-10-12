@@ -101,13 +101,15 @@ fn evaluate_longitudinal_regime_value(
     }
     let summary = antecedent_estimate::longitudinal_regime::evaluate_regime_value(
         &y.iter().copied().collect::<Vec<_>>(),
-        &a.iter().copied().collect::<Vec<_>>(),
+        &antecedent_estimate::longitudinal_regime::SubjectHistories {
+            treatment: &a.iter().copied().collect::<Vec<_>>(),
+            treatment_probability: &p.iter().copied().collect::<Vec<_>>(),
+            outcome_observed: &r.iter().copied().collect::<Vec<_>>(),
+            censoring_probability: &g.iter().copied().collect::<Vec<_>>(),
+            periods: periods,
+            minimum_probability: f64::EPSILON,
+        },
         &d.iter().copied().collect::<Vec<_>>(),
-        &p.iter().copied().collect::<Vec<_>>(),
-        &r.iter().copied().collect::<Vec<_>>(),
-        &g.iter().copied().collect::<Vec<_>>(),
-        periods,
-        f64::EPSILON,
     )
     .map_err(|message| {
         PyValueError::new_err(if message.contains("no observed subjects") {
@@ -257,15 +259,19 @@ fn evaluate_sequential_doubly_robust(
 
     let summary = antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
         &y.iter().copied().collect::<Vec<_>>(),
-        &observed_y.iter().copied().collect::<Vec<_>>(),
-        &observed.iter().copied().collect::<Vec<_>>(),
-        &a.iter().copied().collect::<Vec<_>>(),
-        &d.iter().copied().collect::<Vec<_>>(),
-        &q.iter().copied().collect::<Vec<_>>(),
-        &p.iter().copied().collect::<Vec<_>>(),
-        &g.iter().copied().collect::<Vec<_>>(),
-        periods,
-        minimum_probability,
+        &antecedent_estimate::longitudinal_regime::SubjectHistories {
+            treatment: &a.iter().copied().collect::<Vec<_>>(),
+            treatment_probability: &p.iter().copied().collect::<Vec<_>>(),
+            outcome_observed: &observed_y.iter().copied().collect::<Vec<_>>(),
+            censoring_probability: &g.iter().copied().collect::<Vec<_>>(),
+            periods: periods,
+            minimum_probability: minimum_probability,
+        },
+        &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
+            actions: &d.iter().copied().collect::<Vec<_>>(),
+            observation_history: &observed.iter().copied().collect::<Vec<_>>(),
+            q_predictions: &q.iter().copied().collect::<Vec<_>>(),
+        },
     )
     .map_err(PyValueError::new_err)?;
     Ok((

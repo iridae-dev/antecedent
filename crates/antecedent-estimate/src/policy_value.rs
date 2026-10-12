@@ -369,56 +369,45 @@ pub fn evaluate_uplift_bins(
     }).collect()
 }
 
+/// A frozen binary policy, its reference and the known randomization, aligned on the
+/// evaluation rows. `propensity`, `costs` and `reference_costs` are scalar or row-aligned.
+#[derive(Clone, Copy, Debug)]
+pub struct BinaryPolicyDesign<'a> {
+    /// Realized randomized assignment.
+    pub assignment: &'a [bool],
+    /// Fixed policy action per row.
+    pub actions: &'a [bool],
+    /// Known assignment propensity.
+    pub propensity: &'a [f64],
+    /// Fixed reference action per row.
+    pub reference: &'a [bool],
+    /// Policy cost of treating a row.
+    pub costs: &'a [f64],
+    /// Reference-policy cost of treating a row.
+    pub reference_costs: &'a [f64],
+}
+
 /// Evaluate fixed held-out binary policy scores using randomized AIPW.
 ///
 /// Propensities and nuisance predictions are caller-supplied design inputs.
-/// Standard errors assume independent evaluation subjects.
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
+/// Standard errors assume independent evaluation subjects. `mu0` and `mu1` are the
+/// frozen control and treated conditional outcome predictions.
 pub fn evaluate_policy_value_scores(
     outcome: &[f64],
-    assignment: &[bool],
-    actions: &[bool],
-    propensity: &[f64],
+    design: &BinaryPolicyDesign<'_>,
     mu0: &[f64],
     mu1: &[f64],
-    reference: &[bool],
-    costs: &[f64],
-    reference_costs: &[f64],
 ) -> Result<PolicyValueScores, &'static str> {
-    evaluate_scores(
-        outcome,
-        assignment,
-        actions,
-        propensity,
-        Some((mu0, mu1)),
-        reference,
-        costs,
-        reference_costs,
-    )
+    evaluate_scores(outcome, design, Some((mu0, mu1)))
 }
 
 /// Evaluate a fixed binary policy using known randomized probabilities only.
 /// The paired row-score standard error assumes independent evaluation subjects.
 pub fn evaluate_policy_value_ipw_scores(
     outcome: &[f64],
-    assignment: &[bool],
-    actions: &[bool],
-    propensity: &[f64],
-    reference: &[bool],
-    costs: &[f64],
-    reference_costs: &[f64],
+    design: &BinaryPolicyDesign<'_>,
 ) -> Result<PolicyValueScores, &'static str> {
-    evaluate_scores(
-        outcome,
-        assignment,
-        actions,
-        propensity,
-        None,
-        reference,
-        costs,
-        reference_costs,
-    )
+    evaluate_scores(outcome, design, None)
 }
 
 /// Evaluate frozen multi-action recommendations with randomized HT row scores.
@@ -482,18 +471,13 @@ pub fn evaluate_multi_action_policy_value_scores(
     })
 }
 
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
 fn evaluate_scores(
     outcome: &[f64],
-    assignment: &[bool],
-    actions: &[bool],
-    propensity: &[f64],
+    design: &BinaryPolicyDesign<'_>,
     nuisance: Option<(&[f64], &[f64])>,
-    reference: &[bool],
-    costs: &[f64],
-    reference_costs: &[f64],
 ) -> Result<PolicyValueScores, &'static str> {
+    let BinaryPolicyDesign { assignment, actions, propensity, reference, costs, reference_costs } =
+        *design;
     let n = outcome.len();
     if n < 2
         || assignment.len() != n
@@ -643,29 +627,59 @@ fn binary_ipw_value(
     Ok(value / n as f64)
 }
 
+/// A binary policy under known randomization, with the optional reference, reference
+/// costs and per-row availability the point-only evaluator defaults.
+#[derive(Clone, Copy, Debug)]
+pub struct BinaryIpwDesign<'a> {
+    /// Realized randomized assignment.
+    pub assignment: &'a [bool],
+    /// Fixed policy action per row.
+    pub actions: &'a [bool],
+    /// Known assignment propensity, scalar or row-aligned.
+    pub propensity: &'a [f64],
+    /// Reference action per row; all control when `None`.
+    pub reference: Option<&'a [bool]>,
+    /// Policy cost of treating a row, scalar or row-aligned.
+    pub costs: &'a [f64],
+    /// Reference-policy costs; the policy costs when `None`.
+    pub reference_costs: Option<&'a [f64]>,
+    /// Whether the action is available per row; all available when `None`.
+    pub available: Option<&'a [bool]>,
+}
+
+/// Declared treatment capacity and budget of a binary policy and its reference.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BinaryPolicyLimits {
+    /// Most rows the policy may treat.
+    pub capacity: Option<usize>,
+    /// Most total cost the policy may incur.
+    pub budget: Option<f64>,
+    /// Most rows the reference policy may treat.
+    pub reference_capacity: Option<usize>,
+    /// Most total cost the reference policy may incur.
+    pub reference_budget: Option<f64>,
+}
+
 /// Known-propensity binary policy value with the historical constraint checks.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "argument list matches the fixed binary policy entry point"
-)]
 #[allow(
     clippy::too_many_lines,
     reason = "binary IPW keeps the historical refusal order in one function"
 )]
 pub fn evaluate_binary_ipw_policy(
     outcome: &[f64],
-    assignment: &[bool],
-    actions: &[bool],
-    propensity: &[f64],
-    reference: Option<&[bool]>,
-    costs: &[f64],
-    reference_costs: Option<&[f64]>,
-    available: Option<&[bool]>,
-    capacity: Option<usize>,
-    budget: Option<f64>,
-    reference_capacity: Option<usize>,
-    reference_budget: Option<f64>,
+    design: &BinaryIpwDesign<'_>,
+    limits: &BinaryPolicyLimits,
 ) -> Result<BinaryIpwPolicy, &'static str> {
+    let BinaryIpwDesign {
+        assignment,
+        actions,
+        propensity,
+        reference,
+        costs,
+        reference_costs,
+        available,
+    } = *design;
+    let BinaryPolicyLimits { capacity, budget, reference_capacity, reference_budget } = *limits;
     let n = outcome.len();
     if n == 0 || assignment.len() != n || actions.len() != n {
         return Err("outcome, assignment, and policy actions must have equal non-zero length");
@@ -765,33 +779,68 @@ pub fn evaluate_binary_ipw_policy(
     })
 }
 
-/// Known-randomization multi-action policy value with the historical constraint checks.
+/// A multi-action policy under known randomization, with the optional reference, costs
+/// and availability the point-only evaluator defaults.
 ///
 /// `probabilities` is row-major with `probability_rows` by `action_count`.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "argument list matches the fixed multi-action policy entry point"
-)]
+#[derive(Clone, Copy, Debug)]
+pub struct MultiActionIpwDesign<'a> {
+    /// Realized action index per row.
+    pub assigned: &'a [usize],
+    /// Fixed policy action index per row.
+    pub actions: &'a [usize],
+    /// Row-major randomized action probabilities.
+    pub probabilities: &'a [f64],
+    /// Rows of `probabilities`; must equal the evaluation row count.
+    pub probability_rows: usize,
+    /// Columns of `probabilities`: the number of actions.
+    pub action_count: usize,
+    /// Reference action index per row; all first (control) action when `None`.
+    pub reference: Option<&'a [usize]>,
+    /// Per-action policy cost; zero when `None`.
+    pub costs: Option<&'a [f64]>,
+    /// Per-action reference cost; the policy costs when `None`.
+    pub reference_costs: Option<&'a [f64]>,
+    /// Per-row, per-action availability; all available when `None`.
+    pub available: Option<&'a [Vec<bool>]>,
+}
+
+/// Declared per-action capacities and total budgets of a multi-action policy and its
+/// reference. `None` is unconstrained.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MultiActionLimits<'a> {
+    /// Per-action policy capacity.
+    pub capacities: Option<&'a [usize]>,
+    /// Per-action reference capacity.
+    pub reference_capacities: Option<&'a [usize]>,
+    /// Most total policy cost.
+    pub budget: Option<f64>,
+    /// Most total reference cost.
+    pub reference_budget: Option<f64>,
+}
+
+/// Known-randomization multi-action policy value with the historical constraint checks.
 #[allow(
     clippy::too_many_lines,
     reason = "multi-action IPW keeps the historical refusal order in one function"
 )]
 pub fn evaluate_multi_action_ipw_policy(
     outcome: &[f64],
-    assigned: &[usize],
-    actions: &[usize],
-    probabilities: &[f64],
-    probability_rows: usize,
-    action_count: usize,
-    reference: Option<&[usize]>,
-    costs: Option<&[f64]>,
-    reference_costs: Option<&[f64]>,
-    available: Option<&[Vec<bool>]>,
-    capacities: Option<&[usize]>,
-    reference_capacities: Option<&[usize]>,
-    budget: Option<f64>,
-    reference_budget: Option<f64>,
+    design: &MultiActionIpwDesign<'_>,
+    limits: &MultiActionLimits<'_>,
 ) -> Result<MultiActionIpwPolicy, &'static str> {
+    let MultiActionIpwDesign {
+        assigned,
+        actions,
+        probabilities,
+        probability_rows,
+        action_count,
+        reference,
+        costs,
+        reference_costs,
+        available,
+    } = *design;
+    let MultiActionLimits { capacities, reference_capacities, budget, reference_budget } = *limits;
     let n = outcome.len();
     let width = probability_rows.saturating_mul(action_count);
     if n == 0
@@ -1224,14 +1273,16 @@ mod tests {
     fn recovers_known_constant_outcome_values() {
         let result = evaluate_policy_value_scores(
             &[1.0, 3.0, 1.0, 3.0],
-            &[false, true, false, true],
-            &[false, true, true, false],
-            &[0.5],
+            &BinaryPolicyDesign {
+                assignment: &[false, true, false, true],
+                actions: &[false, true, true, false],
+                propensity: &[0.5],
+                reference: &[false; 4],
+                costs: &[0.0],
+                reference_costs: &[0.0],
+            },
             &[1.0; 4],
             &[3.0; 4],
-            &[false; 4],
-            &[0.0],
-            &[0.0],
         )
         .unwrap();
         assert!((result.policy_value - 2.0).abs() < 1e-12);
@@ -1245,14 +1296,16 @@ mod tests {
         assert!(
             evaluate_policy_value_scores(
                 &[1.0, 2.0],
-                &[false, true],
-                &[false, true],
-                &[0.0],
+                &BinaryPolicyDesign {
+                    assignment: &[false, true],
+                    actions: &[false, true],
+                    propensity: &[0.0],
+                    reference: &[false; 2],
+                    costs: &[0.0],
+                    reference_costs: &[0.0]
+                },
                 &[1.0; 2],
-                &[2.0; 2],
-                &[false; 2],
-                &[0.0],
-                &[0.0],
+                &[2.0; 2]
             )
             .is_err()
         );
@@ -1262,12 +1315,14 @@ mod tests {
     fn ipw_uses_known_assignment_probabilities_without_predictions() {
         let result = evaluate_policy_value_ipw_scores(
             &[1.0, 3.0, 1.0, 3.0],
-            &[false, true, false, true],
-            &[false, true, false, true],
-            &[0.5],
-            &[false; 4],
-            &[0.0],
-            &[0.0],
+            &BinaryPolicyDesign {
+                assignment: &[false, true, false, true],
+                actions: &[false, true, false, true],
+                propensity: &[0.5],
+                reference: &[false; 4],
+                costs: &[0.0],
+                reference_costs: &[0.0],
+            },
         )
         .unwrap();
         assert!((result.policy_value - 4.0).abs() < 1e-12);
@@ -1285,12 +1340,14 @@ mod tests {
         let reference = vec![false; n];
         let score = evaluate_policy_value_ipw_scores(
             &outcomes,
-            &assignment,
-            &actions,
-            &[0.5],
-            &reference,
-            &[0.25],
-            &[0.0],
+            &BinaryPolicyDesign {
+                assignment: &assignment,
+                actions: &actions,
+                propensity: &[0.5],
+                reference: &reference,
+                costs: &[0.25],
+                reference_costs: &[0.0],
+            },
         )
         .unwrap();
         let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();
@@ -1337,12 +1394,14 @@ mod tests {
                 .collect::<Vec<_>>();
             let score = evaluate_policy_value_ipw_scores(
                 &outcomes,
-                &assignment,
-                &actions,
-                &[0.5],
-                &reference,
-                &[0.15],
-                &[0.0],
+                &BinaryPolicyDesign {
+                    assignment: &assignment,
+                    actions: &actions,
+                    propensity: &[0.5],
+                    reference: &reference,
+                    costs: &[0.15],
+                    reference_costs: &[0.0],
+                },
             )
             .unwrap();
             let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();
@@ -1407,14 +1466,16 @@ mod tests {
                 .collect::<Vec<_>>();
             let score = evaluate_policy_value_scores(
                 &outcomes,
-                &assignment,
-                &binary_actions,
-                &[0.5],
+                &BinaryPolicyDesign {
+                    assignment: &assignment,
+                    actions: &binary_actions,
+                    propensity: &[0.5],
+                    reference: &binary_reference,
+                    costs: &[0.15],
+                    reference_costs: &[0.0],
+                },
                 &vec![1.0; n],
                 &vec![3.0; n],
-                &binary_reference,
-                &[0.15],
-                &[0.0],
             )
             .unwrap();
             let pm = assignment.iter().zip(&binary_actions).filter(|(a, b)| a == b).count();
@@ -1539,14 +1600,16 @@ mod tests {
             }
             let score = evaluate_policy_value_scores(
                 &outcomes,
-                &assignment,
-                &actions,
-                &[0.5],
+                &BinaryPolicyDesign {
+                    assignment: &assignment,
+                    actions: &actions,
+                    propensity: &[0.5],
+                    reference: &reference,
+                    costs: &[cost],
+                    reference_costs: &[0.0],
+                },
                 &mu0,
                 &mu1,
-                &reference,
-                &[cost],
-                &[0.0],
             )
             .unwrap();
             let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();

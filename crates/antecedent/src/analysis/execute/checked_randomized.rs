@@ -517,24 +517,28 @@ impl CheckedPolicyValueOperation {
         } else if ipw {
             antecedent_estimate::policy_value::evaluate_policy_value_ipw_scores(
                 y,
-                &self.query.assignment,
-                &self.query.actions,
-                &self.query.propensity,
-                &self.query.reference,
-                &self.query.costs,
-                &self.query.reference_costs,
+                &antecedent_estimate::policy_value::BinaryPolicyDesign {
+                    assignment: &self.query.assignment,
+                    actions: &self.query.actions,
+                    propensity: &self.query.propensity,
+                    reference: &self.query.reference,
+                    costs: &self.query.costs,
+                    reference_costs: &self.query.reference_costs,
+                },
             )
         } else {
             antecedent_estimate::policy_value::evaluate_policy_value_scores(
                 y,
-                &self.query.assignment,
-                &self.query.actions,
-                &self.query.propensity,
+                &antecedent_estimate::policy_value::BinaryPolicyDesign {
+                    assignment: &self.query.assignment,
+                    actions: &self.query.actions,
+                    propensity: &self.query.propensity,
+                    reference: &self.query.reference,
+                    costs: &self.query.costs,
+                    reference_costs: &self.query.reference_costs,
+                },
                 &self.query.mu0,
                 &self.query.mu1,
-                &self.query.reference,
-                &self.query.costs,
-                &self.query.reference_costs,
             )
         }
         .map_err(|message| CausalError::Unsupported { message })?;
