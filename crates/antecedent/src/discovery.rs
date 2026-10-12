@@ -74,6 +74,9 @@ impl Default for GraphMcmcSchedule {
     }
 }
 
+/// Debug text for a `ConditionalIndependence` object. The trait has no `Debug` supertrait.
+const DYN_CI_DEBUG: &str = "<dyn ConditionalIndependence>";
+
 /// Parameters shared by PCMCI-family discovery stage calls.
 #[derive(Clone)]
 pub struct DiscoverParams {
@@ -98,7 +101,7 @@ impl std::fmt::Debug for DiscoverParams {
             .field("max_lag", &self.max_lag)
             .field("alpha", &self.alpha)
             .field("fdr", &self.fdr)
-            .field("ci", &"<dyn ConditionalIndependence>")
+            .field("ci", &DYN_CI_DEBUG)
             .field("multi_dataset", &self.multi_dataset)
             .field("max_cond_size", &self.max_cond_size)
             .finish()
@@ -128,7 +131,7 @@ impl std::fmt::Debug for StaticDiscoverParams {
             .field("alpha", &self.alpha)
             .field("max_cond_size", &self.max_cond_size)
             .field("fdr", &self.fdr)
-            .field("ci", &"<dyn ConditionalIndependence>")
+            .field("ci", &DYN_CI_DEBUG)
             .field("screen_pc", &self.screen_pc)
             .field("max_subset", &self.max_subset)
             .finish()
