@@ -9,8 +9,8 @@ use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE, accumulate_marginals, graph_chain_summary,
-    mcmc_graph_diagnostics, publish_graph_posterior,
+    GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE, SamplingSummary, accumulate_marginals,
+    graph_chain_summary, mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
 /// One worker's chain block: `(first chain, traces, sample masks, rejected proposals)`.
@@ -188,7 +188,14 @@ pub(crate) fn aggregate_mask_posterior(
     }
     let ess = kish_ess(&weights);
     let (edge, orient) = accumulate_marginals(n, &weights, &masks);
-    GraphPosterior::new(n, weights, masks, edge, orient, ess, diagnostics, rejected)
+    GraphPosterior::new(
+        n,
+        weights,
+        masks,
+        edge,
+        orient,
+        SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+    )
 }
 
 /// Diagnostics + aggregation for mask-based parallel MCMC.

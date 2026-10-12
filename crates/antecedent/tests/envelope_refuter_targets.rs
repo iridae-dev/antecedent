@@ -19,7 +19,7 @@
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_graph::{Cpdag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -154,9 +154,11 @@ fn known_truth_graph_posterior() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }

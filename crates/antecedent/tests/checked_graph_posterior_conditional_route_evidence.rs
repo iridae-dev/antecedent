@@ -15,7 +15,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
@@ -79,9 +79,11 @@ fn mixture_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -104,9 +106,11 @@ fn visible_pag_posterior() -> GraphPosterior {
         vec![identified, reverse],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("visible_pag_known_truth"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("visible_pag_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)

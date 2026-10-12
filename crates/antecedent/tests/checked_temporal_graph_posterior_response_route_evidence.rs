@@ -15,7 +15,7 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// `defect_t = 0.9 pressure_{t-1}` on uniform white-noise pressure: the law of
@@ -62,9 +62,11 @@ fn dbn_posterior(pin: &serde_json::Value) -> GraphPosterior {
         vec![identified_c, unidentified_c],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged)
@@ -115,9 +117,11 @@ fn class_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         vec![contemporaneous],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("temporal_class_posterior"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal_class_posterior"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)

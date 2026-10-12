@@ -6,7 +6,7 @@ use std::sync::Arc;
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 
 fn data(outcome_shift: f64) -> TabularData {
@@ -50,9 +50,11 @@ fn posterior() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_algorithm("known_truth_fixture")

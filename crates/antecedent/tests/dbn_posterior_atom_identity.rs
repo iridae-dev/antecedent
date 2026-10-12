@@ -13,7 +13,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 
 const TREATMENT: VariableId = VariableId::from_raw(0);
@@ -173,9 +173,11 @@ fn dbn_posterior(lag_masks: &[u64], weights: &[f64]) -> GraphPosterior {
         vec![contemporaneous; weights.len()],
         edge_marginals.clone(),
         edge_marginals,
-        ess,
-        InferenceDiagnostics::analytic("dbn_atom_identity"),
-        0,
+        SamplingSummary {
+            ess,
+            diagnostics: InferenceDiagnostics::analytic("dbn_atom_identity"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged_marginals)

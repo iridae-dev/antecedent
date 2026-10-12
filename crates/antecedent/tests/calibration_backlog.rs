@@ -25,7 +25,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{
     Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalPag,
@@ -787,9 +787,11 @@ fn frontdoor_admg_gp() -> GraphPosterior {
         vec![key],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_graph_posterior_response"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_graph_posterior_response"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg)
@@ -1238,9 +1240,11 @@ fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         vec![contemporaneous],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("temporal_class_posterior_response"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal_class_posterior_response"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)

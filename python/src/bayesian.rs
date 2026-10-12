@@ -4,7 +4,8 @@
 
 use antecedent::discovery::{
     BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
-    StaticDiscoverParams, discover_ci_screened_posterior as facade_discover_ci_screened,
+    SamplingSummary, StaticDiscoverParams,
+    discover_ci_screened_posterior as facade_discover_ci_screened,
     discover_dbn_posterior as facade_discover_dbn,
     discover_dbn_posterior_panel as facade_discover_dbn_panel,
     discover_exact_dag_posterior as facade_discover_exact,
@@ -111,9 +112,7 @@ impl PyGraphPosterior {
             self.adjacency.clone(),
             self.edge_marginals.clone(),
             self.orientation_marginals.clone(),
-            self.ess,
-            diagnostics,
-            self.rejected_invalid,
+            SamplingSummary { ess: self.ess, diagnostics, rejected_invalid: self.rejected_invalid },
         )
         .map_err(py_msg)?;
         if let (Some(lagged), Some(max_lag)) = (&self.lagged_edge_marginals, self.max_lag) {
@@ -284,9 +283,11 @@ impl PyGraphPosterior {
             adjacency,
             edge_marginals,
             orientation_marginals,
-            ess,
-            InferenceDiagnostics::analytic("from_atoms"),
-            0,
+            SamplingSummary {
+                ess,
+                diagnostics: InferenceDiagnostics::analytic("from_atoms"),
+                rejected_invalid: 0,
+            },
         )
         .map_err(py_msg)?;
         match (lagged_edge_marginals, max_lag) {

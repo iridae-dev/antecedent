@@ -19,8 +19,8 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, admg_from_adjacency_mask,
-    dag_from_adjacency_mask, mask_is_dag, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
+    admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -91,9 +91,11 @@ fn admg_posterior(n: usize, weights: &[f64], masks: &[u64]) -> GraphPosterior {
         masks.to_vec(),
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_posterior_response"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_posterior_response"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg)

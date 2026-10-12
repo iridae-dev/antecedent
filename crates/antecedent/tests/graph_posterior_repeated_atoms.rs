@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseFunctional,
@@ -87,9 +87,11 @@ fn posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
         masks.to_vec(),
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("repeated_atoms"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("repeated_atoms"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }

@@ -19,8 +19,8 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, set_edge, temporal_cpdag_from_dbn_masks,
-    temporal_pag_from_dbn_masks,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge,
+    temporal_cpdag_from_dbn_masks, temporal_pag_from_dbn_masks,
 };
 use antecedent_prob::InferenceDiagnostics;
 
@@ -120,9 +120,11 @@ fn class_posterior(
         adjacency.to_vec(),
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("temporal_class_posterior"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal_class_posterior"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -197,9 +199,11 @@ fn fixture_class_posterior(
         vec![identified_c, unidentified_c],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -697,9 +701,11 @@ fn known_truth_cpdag_mediation_posterior(
         vec![identified_c, unidentified_c],
         contemporaneous_marginals.clone(),
         contemporaneous_marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Cpdag)

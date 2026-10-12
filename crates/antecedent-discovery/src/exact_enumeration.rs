@@ -21,8 +21,9 @@ use antecedent_state::GraphScoreFamily;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, edge_bit, n_directed_edges, normalize_log_weights,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, SamplingSummary,
+    accumulate_marginals, analytic_graph_diagnostics, edge_bit, n_directed_edges,
+    normalize_log_weights,
 };
 use crate::graph_score::{DagScorer, tabular_score_data};
 
@@ -179,7 +180,14 @@ impl ExactDagPosterior {
                  (e.g. a deterministic relation)"
             )));
         }
-        GraphPosterior::new(n, weights, kept_masks, edge, orient, ess, diagnostics, rejected)
+        GraphPosterior::new(
+            n,
+            weights,
+            kept_masks,
+            edge,
+            orient,
+            SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+        )
     }
 }
 

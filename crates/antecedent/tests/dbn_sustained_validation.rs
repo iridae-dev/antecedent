@@ -10,7 +10,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TimeSeriesData, GraphPosterior, TemporalEffectQuery) {
@@ -71,9 +71,11 @@ fn fixture() -> (TimeSeriesData, GraphPosterior, TemporalEffectQuery) {
         vec![0; 3],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0 / (0.6 * 0.6 + 0.2 * 0.2 + 0.2 * 0.2),
-        InferenceDiagnostics::analytic("sustained-validation"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / (0.6 * 0.6 + 0.2 * 0.2 + 0.2 * 0.2),
+            diagnostics: InferenceDiagnostics::analytic("sustained-validation"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(2, vec![0.2, 1.0, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0])

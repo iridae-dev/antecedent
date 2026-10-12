@@ -24,7 +24,7 @@ use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, Loc
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
-    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, SamplingSummary, accumulate_marginals,
     analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
     lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights,
     parents_of, set_edge,
@@ -245,9 +245,16 @@ impl DbnPosterior {
         let (edge, orient) = accumulate_marginals(p, &weights, &kept_masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &kept_lag);
         let diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
-        GraphPosterior::new(p, weights, kept_masks, edge, orient, ess, diagnostics, rejected)?
-            .with_lagged_marginals(max_lag, lagged)?
-            .with_lag_masks(kept_lag)
+        GraphPosterior::new(
+            p,
+            weights,
+            kept_masks,
+            edge,
+            orient,
+            SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+        )?
+        .with_lagged_marginals(max_lag, lagged)?
+        .with_lag_masks(kept_lag)
     }
 
     #[allow(
@@ -402,11 +409,18 @@ impl DbnPosterior {
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(p, &weights, &masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &lags);
-        GraphPosterior::new(p, weights, masks, edge, orient, ess, diagnostics, rejected)?
-            .with_lagged_marginals(max_lag, lagged)?
-            .with_lag_masks(lags)?
-            .with_edge_mcse(edge_mcse)?
-            .with_lagged_edge_mcse(lagged_mcse)
+        GraphPosterior::new(
+            p,
+            weights,
+            masks,
+            edge,
+            orient,
+            SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+        )?
+        .with_lagged_marginals(max_lag, lagged)?
+        .with_lag_masks(lags)?
+        .with_edge_mcse(edge_mcse)?
+        .with_lagged_edge_mcse(lagged_mcse)
     }
 }
 

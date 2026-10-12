@@ -10,7 +10,7 @@
 
 use std::time::Instant;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
@@ -201,9 +201,11 @@ fn bench_user_path(c: &mut Criterion) {
         vec![mask_a, mask_b],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("user_path_gp"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("user_path_gp"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     let mixture = Study::tabular(data)

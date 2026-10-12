@@ -516,7 +516,7 @@ mod envelope_se_tests {
 #[cfg(test)]
 mod envelope_refuter_target_tests {
     //! Envelope refuters compare each atom with its own estimate.
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::{SamplingSummary, set_edge};
     use antecedent_prob::InferenceDiagnostics;
 
     use super::*;
@@ -552,9 +552,11 @@ mod envelope_refuter_target_tests {
             vec![direct, adjusted],
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0,
-            InferenceDiagnostics::analytic("r3_refuter_targets"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("r3_refuter_targets"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let query =
@@ -681,9 +683,11 @@ mod envelope_refuter_target_tests {
             vec![direct],
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0,
-            InferenceDiagnostics::analytic("single_atom"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("single_atom"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let query =
@@ -818,6 +822,7 @@ mod identify_only_tests {
         VariableId,
     };
     use antecedent_data::TabularData;
+    use antecedent_discovery::SamplingSummary;
     use antecedent_discovery::{mask_is_dag, set_edge};
     use antecedent_graph::{Admg, DenseNodeId, Pag};
     use antecedent_prob::InferenceDiagnostics;
@@ -934,9 +939,11 @@ mod identify_only_tests {
             vec![0u64],
             vec![0.0; 4],
             vec![0.0; 4],
-            1.0,
-            InferenceDiagnostics::analytic("test"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("test"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let err = Study::tabular(toy_data())
@@ -1018,9 +1025,11 @@ mod identify_only_tests {
                 vec![direct, adjusted, unidentified],
                 marginals.clone(),
                 marginals.clone(),
-                1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-                InferenceDiagnostics::analytic("known_truth_mixtures"),
-                0,
+                SamplingSummary {
+                    ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+                    diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+                    rejected_invalid: 0,
+                },
             )
             .unwrap()
             .with_algorithm("known_truth_fixture");
@@ -1193,9 +1202,11 @@ mod identify_only_tests {
                 vec![direct, adjusted, unidentified],
                 marginals.clone(),
                 marginals.clone(),
-                1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-                InferenceDiagnostics::analytic("known_truth_mixtures"),
-                0,
+                SamplingSummary {
+                    ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+                    diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+                    rejected_invalid: 0,
+                },
             )
             .unwrap()
             .with_algorithm("known_truth_fixture");
@@ -1334,9 +1345,11 @@ mod identify_only_tests {
             vec![direct, adjusted, unidentified],
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0,
-            InferenceDiagnostics::analytic("overlap_mixture"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("overlap_mixture"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let first_only = GraphPosterior::new(
@@ -1345,9 +1358,11 @@ mod identify_only_tests {
             vec![direct],
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0,
-            InferenceDiagnostics::analytic("overlap_first_atom"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("overlap_first_atom"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let mixed = cheap_overlap_comparison(mix, n, false);
@@ -1372,9 +1387,11 @@ mod identify_only_tests {
             vec![direct, adjusted, unidentified],
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0,
-            InferenceDiagnostics::analytic("overlap_mixture"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("overlap_mixture"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let first_only = GraphPosterior::new(
@@ -1383,9 +1400,11 @@ mod identify_only_tests {
             vec![direct],
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0,
-            InferenceDiagnostics::analytic("overlap_first_atom"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("overlap_first_atom"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let mixed = cheap_overlap_comparison(mix, n, true);
@@ -1406,9 +1425,11 @@ mod identify_only_tests {
             vec![direct, adjusted],
             vec![0.0; 9],
             vec![0.0; 9],
-            2.0,
-            InferenceDiagnostics::analytic("cancel_during_identification"),
-            0,
+            SamplingSummary {
+                ess: 2.0,
+                diagnostics: InferenceDiagnostics::analytic("cancel_during_identification"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap();
         let ctx = cancel_on_envelope_identify_ctx(17);

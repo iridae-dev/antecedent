@@ -37,7 +37,7 @@ use antecedent_core::{
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
 };
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
@@ -454,9 +454,11 @@ fn static_gp(n_vars: usize) -> GraphPosterior {
         vec![0],
         contemporaneous,
         vec![0.0; cell],
-        1.0,
-        InferenceDiagnostics::analytic("licensed-compiler-static-gp"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-static-gp"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -473,9 +475,13 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
             vec![8],
             vec![0.0; cell],
             vec![0.0; cell],
-            1.0,
-            InferenceDiagnostics::analytic("licensed-compiler-temporal-mediation-gp"),
-            0,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic(
+                    "licensed-compiler-temporal-mediation-gp",
+                ),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
         .with_lagged_marginals(1, lagged)
@@ -518,9 +524,11 @@ fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
         vec![adjacency],
         vec![0.0; cell],
         vec![0.0; cell],
-        1.0,
-        InferenceDiagnostics::analytic("licensed-compiler-temporal-class-point"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-temporal-class-point"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.0; cell])
@@ -548,9 +556,11 @@ fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
         vec![adjacency],
         vec![0.0; cell],
         vec![0.0; cell],
-        1.0,
-        InferenceDiagnostics::analytic("licensed-compiler-temporal-class-gp"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-temporal-class-gp"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged)

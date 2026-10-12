@@ -20,7 +20,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId, TemporalAdmg};
 use antecedent_io::consume_analysis_result;
@@ -114,9 +114,11 @@ fn posterior(graph: &Admg, unidentified: bool) -> GraphPosterior {
         if unidentified { vec![identified, cyclic] } else { vec![identified, identified] },
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("temporal_admg_graph_posterior"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal_admg_graph_posterior"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg)

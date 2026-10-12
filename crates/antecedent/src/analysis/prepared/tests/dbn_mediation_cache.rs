@@ -12,7 +12,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
 use std::sync::Arc;
 
@@ -93,9 +93,11 @@ fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
         vec![8, 8],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / (weights[0] * weights[0] + weights[1] * weights[1]),
-        InferenceDiagnostics::analytic("horizon-cache-test"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / (weights[0] * weights[0] + weights[1] * weights[1]),
+            diagnostics: InferenceDiagnostics::analytic("horizon-cache-test"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])

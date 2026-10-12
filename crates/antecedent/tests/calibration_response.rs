@@ -34,7 +34,7 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, ResponseFunctional,
@@ -227,9 +227,11 @@ fn graph_posterior() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / GP_WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
-        antecedent_prob::InferenceDiagnostics::analytic("calibration_response"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / GP_WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("calibration_response"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -246,9 +248,11 @@ fn single_atom_response_posterior() -> GraphPosterior {
         vec![direct],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("gp_response_bayes"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gp_response_bayes"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -517,9 +521,11 @@ fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
         adjacency,
         vec![0.0; 16],
         vec![0.0; 16],
-        1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("gp_class_response"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gp_class_response"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(atom_kind);

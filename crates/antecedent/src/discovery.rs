@@ -23,9 +23,10 @@ pub use antecedent_discovery::{
     ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine,
     GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears,
     NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment,
-    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode,
-    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
-    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
+    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink,
+    SpaceDummyCiMode, StaticCpdagDiscoveryResult, StaticDagDiscoveryResult,
+    StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode, adjacency_mask_from_cpdag,
+    adjacency_masks_from_pag, two_regime_half_split,
 };
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};

@@ -6,7 +6,7 @@
 
 use std::time::{Duration, Instant};
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TimeSeriesData;
@@ -32,9 +32,11 @@ fn posterior() -> GraphPosterior {
         vec![0, 0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0 / (0.6 * 0.6 + 0.4 * 0.4),
-        InferenceDiagnostics::analytic("dbn_pulse_bench"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / (0.6 * 0.6 + 0.4 * 0.4),
+            diagnostics: InferenceDiagnostics::analytic("dbn_pulse_bench"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])

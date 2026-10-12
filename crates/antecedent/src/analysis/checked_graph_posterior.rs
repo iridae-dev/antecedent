@@ -538,6 +538,7 @@ impl Inspect for CheckedAdmgGraphPosteriorResponse {
 mod tests {
     use super::*;
     use antecedent_core::VariableId;
+    use antecedent_discovery::SamplingSummary;
     use antecedent_prob::{InferenceDiagnostics, WeightedGraphSamples};
 
     fn posterior() -> GraphPosterior {
@@ -547,9 +548,11 @@ mod tests {
             vec![0, 0],
             vec![0.0; 4],
             vec![0.0; 4],
-            1.6,
-            InferenceDiagnostics::analytic("checked_plan_test"),
-            0,
+            SamplingSummary {
+                ess: 1.6,
+                diagnostics: InferenceDiagnostics::analytic("checked_plan_test"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
     }

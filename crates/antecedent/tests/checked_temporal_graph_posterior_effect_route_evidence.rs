@@ -11,7 +11,7 @@ use antecedent_core::{
     CausalQuery, ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 use common::fixtures::{self, B2, DBN_UNIDENTIFIED_MASS, confounded_series, heterogeneous_dbn};
 
@@ -33,9 +33,11 @@ fn cpdag_posterior() -> GraphPosterior {
         vec![0, 0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -57,9 +59,11 @@ fn pag_posterior() -> GraphPosterior {
         vec![visible, visible],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("visible_pag_known_truth"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("visible_pag_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)

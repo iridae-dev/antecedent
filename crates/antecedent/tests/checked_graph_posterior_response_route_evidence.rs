@@ -18,7 +18,7 @@ use antecedent_core::{
     ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
@@ -53,9 +53,11 @@ fn posterior(kind: GraphPosteriorAtomKind, masks: Vec<u64>, weights: Vec<f64>) -
         masks,
         vec![0.0; 9],
         vec![0.0; 9],
-        ess,
-        InferenceDiagnostics::analytic("graph_posterior_response_known_truth"),
-        0,
+        SamplingSummary {
+            ess,
+            diagnostics: InferenceDiagnostics::analytic("graph_posterior_response_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)

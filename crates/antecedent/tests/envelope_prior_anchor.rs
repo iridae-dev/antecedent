@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, InferenceMode, LatencyMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
@@ -114,9 +114,11 @@ fn graph_posterior(masks: Vec<u64>) -> GraphPosterior {
         masks,
         vec![0.0; 16],
         vec![0.0; 16],
-        n as f64,
-        antecedent_prob::InferenceDiagnostics::analytic("test"),
-        0,
+        SamplingSummary {
+            ess: n as f64,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("test"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }

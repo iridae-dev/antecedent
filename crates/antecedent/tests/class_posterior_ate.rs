@@ -20,8 +20,8 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-    set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_cpdag,
+    adjacency_masks_from_pag, set_edge,
 };
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use antecedent_prob::InferenceDiagnostics;
@@ -134,9 +134,11 @@ fn cpdag_posterior(weights: &[f64], graphs: &[Cpdag]) -> GraphPosterior {
         masks,
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("class_posterior_ate"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_posterior_ate"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
@@ -165,9 +167,11 @@ fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
         masks,
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("class_posterior_ate"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_posterior_ate"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
@@ -957,9 +961,11 @@ fn class_posterior_atom_kind_defaults_to_dag_masks() {
         vec![direct],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("dag_default"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("dag_default"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     assert_eq!(gp.atom_kind, GraphPosteriorAtomKind::Dag);

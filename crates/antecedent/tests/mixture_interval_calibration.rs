@@ -36,7 +36,7 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::validate::PredictiveCheckKind;
 use antecedent::{
     BayesianConfig, CausalPosterior, ClassPrior, InferenceMode, RefuteSuite, StructuralWeightBasis,
@@ -891,9 +891,11 @@ fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
         vec![0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_sustained"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_sustained"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(2, vec![0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0])
@@ -996,9 +998,13 @@ fn single_atom_xy_dbn_posterior() -> GraphPosterior {
         vec![0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_response_curve"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+                "gp_temporal_response_curve",
+            ),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])
@@ -1616,9 +1622,11 @@ fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
         vec![contemporaneous],
         vec![0.0; VARIABLES * VARIABLES],
         vec![0.0; VARIABLES * VARIABLES],
-        1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_mediation"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_mediation"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged_marginals)

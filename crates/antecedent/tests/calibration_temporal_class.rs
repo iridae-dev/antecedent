@@ -27,7 +27,7 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 
 use common::calibration::{
@@ -155,9 +155,11 @@ fn temporal_atom(
         vec![adjacency],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("temporal_class_single_atom"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal_class_single_atom"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)

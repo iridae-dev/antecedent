@@ -38,7 +38,7 @@
 
 mod common;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
@@ -138,9 +138,11 @@ fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         vec![0.0; cells],
         vec![0.0; cells],
-        1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("static_mixture"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("static_mixture"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -159,9 +161,11 @@ fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
         vec![direct, outcome_parent, unidentified],
         vec![0.0; cells],
         vec![0.0; cells],
-        1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("static_mixture_same_estimand"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("static_mixture_same_estimand"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }

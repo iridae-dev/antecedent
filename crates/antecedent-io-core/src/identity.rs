@@ -2594,6 +2594,7 @@ mod tests {
 
     use super::*;
     use crate::{causal_query_to_wire, from_cbor};
+    use antecedent_discovery::SamplingSummary;
 
     fn schema_and_query() -> (CausalSchema, CausalQuery, Dag) {
         let mut builder = CausalSchemaBuilder::new();
@@ -3172,9 +3173,11 @@ mod tests {
             graphs.to_vec(),
             vec![0.0; 9],
             vec![0.0; 9],
-            1.0 / sum_sq,
-            antecedent_prob::InferenceDiagnostics::analytic("static"),
-            0,
+            SamplingSummary {
+                ess: 1.0 / sum_sq,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("static"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
     }
@@ -3222,9 +3225,11 @@ mod tests {
             vec![contemporaneous; 2],
             vec![0.0; 9],
             vec![0.0; 9],
-            2.0,
-            antecedent_prob::InferenceDiagnostics::analytic("dbn_atom"),
-            0,
+            SamplingSummary {
+                ess: 2.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("dbn_atom"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
         .with_lagged_marginals(1, vec![0.0; 9])

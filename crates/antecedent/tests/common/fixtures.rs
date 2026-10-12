@@ -22,7 +22,7 @@
 
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark, TemporalCpdag, TemporalDag, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -181,9 +181,11 @@ fn dbn_posterior(weights: &[f64], lag_masks: &[u64]) -> GraphPosterior {
         vec![cmask; weights.len()],
         edges.clone(),
         edges,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("heterogeneous_dbn"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("heterogeneous_dbn"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(DBN_MAX_LAG, lagged)
@@ -749,9 +751,11 @@ pub fn mixture_graph_posterior() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }

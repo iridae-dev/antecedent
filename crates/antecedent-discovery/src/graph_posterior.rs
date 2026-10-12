@@ -202,6 +202,18 @@ pub struct GraphPosterior {
     pub algorithm: Option<Arc<str>>,
 }
 
+/// How a posterior's atoms were produced: the sampler's effective sample size, its
+/// convergence diagnostics and the count of proposals rejected as invalid.
+#[derive(Clone, Debug)]
+pub struct SamplingSummary {
+    /// Effective sample size of the weighted atoms; finite and positive.
+    pub ess: f64,
+    /// Inference diagnostics of the run that produced the atoms.
+    pub diagnostics: InferenceDiagnostics,
+    /// Proposals rejected as invalid (cyclic or constraint-violating) during sampling.
+    pub rejected_invalid: u64,
+}
+
 impl GraphPosterior {
     /// Fail-closed constructor.
     ///
@@ -217,20 +229,15 @@ impl GraphPosterior {
         clippy::neg_cmp_op_on_partial_ord,
         reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
     )]
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "fail-closed constructor taking each component of the posterior positionally; callers pass arrays they have already built"
-    )]
     pub fn new(
         n_vars: usize,
         weights: impl Into<Arc<[f64]>>,
         adjacency: impl Into<Arc<[u64]>>,
         edge_marginals: impl Into<Arc<[f64]>>,
         orientation_marginals: impl Into<Arc<[f64]>>,
-        ess: f64,
-        diagnostics: InferenceDiagnostics,
-        rejected_invalid: u64,
+        sampling: SamplingSummary,
     ) -> Result<Self, DiscoveryError> {
+        let SamplingSummary { ess, diagnostics, rejected_invalid } = sampling;
         let weights = weights.into();
         let adjacency = adjacency.into();
         let edge_marginals = edge_marginals.into();

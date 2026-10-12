@@ -746,9 +746,11 @@ fn known_truth_mixture_posterior(weights: &[f64]) -> antecedent_discovery::Graph
         vec![direct, adjusted, unidentified],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        antecedent_prob::InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        antecedent_discovery::SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -1047,9 +1049,13 @@ fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPos
         vec![first, second],
         vec![0.0; 16],
         vec![0.0; 16],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        antecedent_prob::InferenceDiagnostics::analytic("two_adjustment_posterior"),
-        0,
+        antecedent_discovery::SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+                "two_adjustment_posterior",
+            ),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -1298,9 +1304,11 @@ fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPost
         masks,
         vec![0.0; n_vars * n_vars],
         vec![0.0; n_vars * n_vars],
-        32.0,
-        antecedent_prob::InferenceDiagnostics::analytic("test"),
-        0,
+        antecedent_discovery::SamplingSummary {
+            ess: 32.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("test"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     (data, gp, n_identified)

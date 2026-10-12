@@ -4,7 +4,7 @@
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
@@ -46,9 +46,11 @@ fn posterior() -> GraphPosterior {
         masks,
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("bayesian_dag_ate_known_truth"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("bayesian_dag_ate_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_algorithm("known_truth_fixture")

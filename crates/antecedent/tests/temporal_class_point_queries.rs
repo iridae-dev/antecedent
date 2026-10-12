@@ -14,7 +14,7 @@ use antecedent_core::{
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -193,9 +193,11 @@ fn class_posterior(n: usize, adjacency: u64, lag_mask: u64, pag: bool) -> GraphP
         vec![adjacency],
         vec![0.0; cell],
         vec![0.0; cell],
-        1.0,
-        InferenceDiagnostics::analytic("temporal-class-point"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal-class-point"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(if pag { GraphPosteriorAtomKind::Pag } else { GraphPosteriorAtomKind::Cpdag })

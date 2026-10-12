@@ -17,7 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
@@ -310,9 +310,11 @@ fn graph_posterior(graph: &Admg, include_unidentified_atom: bool) -> GraphPoster
         },
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_graph_posterior_response_checked"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_graph_posterior_response_checked"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg)

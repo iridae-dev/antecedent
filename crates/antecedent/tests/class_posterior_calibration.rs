@@ -19,7 +19,7 @@
 
 mod common;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{InferenceMode, RefuteSuite, StructuralAggregationPolicy, Study, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -89,9 +89,11 @@ fn class_posterior() -> GraphPosterior {
         masks.to_vec(),
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("class_posterior"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_posterior"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Cpdag)

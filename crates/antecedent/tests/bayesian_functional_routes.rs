@@ -16,7 +16,7 @@ use antecedent_core::{
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -702,9 +702,11 @@ fn mixture_gp() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }

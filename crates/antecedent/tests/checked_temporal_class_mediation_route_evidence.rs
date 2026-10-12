@@ -13,7 +13,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_graph::TemporalCpdag;
 use antecedent_prob::InferenceDiagnostics;
 
@@ -349,9 +349,11 @@ fn posterior_with_weights(
         vec![pin.identified_contemporaneous, pin.unidentified_contemporaneous],
         contemporaneous_marginals.clone(),
         contemporaneous_marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)

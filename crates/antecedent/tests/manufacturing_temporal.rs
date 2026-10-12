@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use antecedent::AcceptedGraph;
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, StructuralAggregationPolicy, Study};
 use antecedent_core::{
@@ -249,9 +249,11 @@ fn known_truth_dbn_posterior(
         vec![valid_contemporaneous, noncertified_contemporaneous],
         contemporaneous_marginals.clone(),
         contemporaneous_marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged_marginals)
@@ -664,9 +666,11 @@ fn known_truth_dbn_mediation_posterior(pin: &serde_json::Value, weights: &[f64])
         vec![identified_c, unidentified_c],
         contemporaneous_marginals.clone(),
         contemporaneous_marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged_marginals)
@@ -1019,9 +1023,11 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
         vec![c, c, c],
         zeros.clone(),
         zeros,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0])
@@ -1194,9 +1200,11 @@ fn manufacturing_dbn_posterior_bayesian_mediation_estimation_failure_is_not_unid
         vec![c, c],
         zeros.clone(),
         zeros,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0])
@@ -1543,9 +1551,11 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
         vec![contemporaneous_a, contemporaneous_b],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        InferenceDiagnostics::analytic("independent_response_mix"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("independent_response_mix"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![1.0, 0.0, 0.0, 0.0])

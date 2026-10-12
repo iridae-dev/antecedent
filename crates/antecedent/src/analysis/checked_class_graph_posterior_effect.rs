@@ -313,6 +313,7 @@ mod tests {
     use super::*;
     use crate::EstimatorId;
     use antecedent_core::VariableId;
+    use antecedent_discovery::SamplingSummary;
     use antecedent_prob::{InferenceDiagnostics, WeightedGraphSamples};
 
     fn posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
@@ -322,9 +323,11 @@ mod tests {
             vec![0, 0],
             vec![0.0; 4],
             vec![0.0; 4],
-            1.923_076_923_076_923_1,
-            InferenceDiagnostics::analytic("checked_class_posterior_test"),
-            0,
+            SamplingSummary {
+                ess: 1.923_076_923_076_923_1,
+                diagnostics: InferenceDiagnostics::analytic("checked_class_posterior_test"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
         .with_atom_kind(kind)

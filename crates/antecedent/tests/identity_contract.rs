@@ -45,7 +45,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TabularData,
     TimeIndex, TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_graph::{
     Admg, Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag,
     TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalPag, ensure_lagged,
@@ -3094,9 +3094,11 @@ fn lag1_gp_posterior() -> GraphPosterior {
         vec![0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        InferenceDiagnostics::analytic("gp_pulse"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("gp_pulse"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])
@@ -6226,9 +6228,11 @@ fn weighted_posterior(weights: [f64; 3]) -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("identity_weights"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("identity_weights"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
