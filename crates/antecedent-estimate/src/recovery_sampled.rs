@@ -527,6 +527,16 @@ pub struct SampledRecoveryResult {
     pub receipt: SampledRecoveryReceipt,
 }
 
+/// A count that fits keeps its value. A count that does not fit saturates.
+fn bounded_u64(value: usize) -> u64 {
+    u64::try_from(value).unwrap_or(u64::MAX)
+}
+
+/// A count that fits keeps its value. A count that does not fit saturates.
+fn bounded_u32(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
 impl SampledRecoveryResult {
     /// Bind the internal whole-row candidate to its actual whole-method receipt.
     /// A checked recovery derivation and the complete executed row/replicate scope
@@ -556,11 +566,8 @@ impl SampledRecoveryResult {
             .map(Arc::from),
             self.interval.level,
             Arc::from("point"),
-            u64::try_from(self.receipt.rows).expect("validated bounded row count"),
-            Some(
-                u32::try_from(self.replicate_effects.len())
-                    .expect("validated bounded replicate count"),
-            ),
+            bounded_u64(self.receipt.rows),
+            Some(bounded_u32(self.replicate_effects.len())),
             None,
             0.,
         )

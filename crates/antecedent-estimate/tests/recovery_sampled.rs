@@ -603,6 +603,9 @@ fn scientific_basis_ignores_source_aliases_but_retains_checked_construction() {
     };
     assert_eq!(literal.calibration_basis(), first.calibration_basis());
     assert_eq!(first.calibration_basis(), second.calibration_basis());
+    let basis = first.calibration_basis();
+    assert_eq!(basis.row_count, u64::try_from(first.receipt.rows).unwrap());
+    assert_eq!(basis.replicates_ok, Some(u32::try_from(first.replicate_effects.len()).unwrap()));
     assert_ne!(first.receipt.derivation_identity, second.receipt.derivation_identity);
     assert_ne!(first.receipt.receipt_digest, second.receipt.receipt_digest);
     assert!(replay_sampled_recovery(&alias, &aliased_data, &first.receipt, &ctx()).is_err());

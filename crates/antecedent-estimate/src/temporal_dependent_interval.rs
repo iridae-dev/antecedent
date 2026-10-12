@@ -572,6 +572,16 @@ pub struct DependentInterval {
     pub calibration: &'static str,
 }
 
+/// A count that fits keeps its value. A count that does not fit saturates.
+fn bounded_u64(value: usize) -> u64 {
+    u64::try_from(value).unwrap_or(u64::MAX)
+}
+
+/// A count that fits keeps its value. A count that does not fit saturates.
+fn bounded_u32(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
 impl DependentInterval {
     /// Actual construction and observed work of this internal measurement candidate.
     /// Units, successful replicates and the nominal level are those of the executed
@@ -601,11 +611,8 @@ impl DependentInterval {
             .map(Arc::from),
             self.level,
             Arc::from("point"),
-            u64::try_from(self.units).expect("validated bounded unit count"),
-            Some(
-                u32::try_from(self.replicates.len() - self.failed)
-                    .expect("validated bounded replicate count"),
-            ),
+            bounded_u64(self.units),
+            Some(bounded_u32(self.replicates.len() - self.failed)),
             None,
             0.,
         )
@@ -1002,5 +1009,34 @@ mod digest_tests {
         let other = DependentIntervalConfig { seed: 8, replicates: 3, ..config };
         let moved = run_replicates(&panel, &MeanOutcome, &other, &ctx).unwrap();
         assert!(moved.iter().zip(&records).all(|(a, b)| a.replicate_id != b.replicate_id));
+    }
+
+    #[test]
+    fn calibration_basis_keeps_counts_that_fit() {
+        let interval = DependentInterval {
+            estimand: "mean",
+            point: 1.0,
+            lower: 0.0,
+            upper: 2.0,
+            level: 0.95,
+            method: IntervalMethod::Percentile,
+            studentization: None,
+            replicates: vec![ReplicateRecord {
+                index: 0,
+                replicate_id: 1,
+                selection_digest: 2,
+                point: Some(1.0),
+            }],
+            failed: 0,
+            units: 3,
+            snapshot_id: "snap".to_owned(),
+            panel_digest: 4,
+            seed: 5,
+            claim: INTERVAL_CLAIM,
+            calibration: INTERVAL_CALIBRATION_STATUS,
+        };
+        let basis = interval.calibration_basis();
+        assert_eq!(basis.row_count, 3);
+        assert_eq!(basis.replicates_ok, Some(1));
     }
 }
