@@ -376,25 +376,14 @@ impl ScaledSolve {
 /// merely in different units (say `1e8` and `1e-3`) is judged by the condition of the
 /// equilibrated system, not by its units.
 fn solve_posterior_mean(a: &[f64], ncols: usize, rhs: &[f64]) -> Result<ScaledSolve, ProbError> {
-    let scales: Vec<f64> = (0..ncols)
-        .map(|j| {
-            let diag = a[j * ncols + j];
-            if diag.is_finite() && diag > 0.0 {
-                // `2^round(log2 sqrt(diag))`, within the normal exponent range.
-                #[allow(clippy::cast_possible_truncation, reason = "exponent of a finite f64")]
-                let e = (0.5 * diag.log2()).round().clamp(-1000.0, 1000.0) as i32;
-                2.0_f64.powi(e)
-            } else {
-                1.0
-            }
-        })
-        .collect();
-    let mut scaled = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            scaled[i * ncols + j] = a[i * ncols + j] / (scales[i] * scales[j]);
-        }
+    let scales = antecedent_kernels::symmetric_scales(a, ncols);
+    if scales.len() != ncols {
+        return Err(ProbError::Shape {
+            message: "posterior precision is shorter than its dimension",
+        });
     }
+    let mut scaled = vec![0.0; ncols * ncols];
+    antecedent_kernels::equilibrate_into(a, &scales, ncols, &mut scaled);
     let scaled_rhs: Vec<f64> = rhs.iter().zip(&scales).map(|(r, d)| r / d).collect();
     let mut mean = vec![0.0; ncols];
     let mut chol = vec![0.0; ncols * ncols];

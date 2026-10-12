@@ -237,61 +237,16 @@ fn centered_dot(col: &[f64], y: &[f64], y_mean: f64) -> f64 {
 /// sees exactly the operations a solve of that vector by itself would apply, and one
 /// elimination serving X and Y returns bit-identical coefficients to two. A Cholesky
 /// factorization would not: it rounds differently and its pivot floor (`64 eps`
-/// relative) refuses a different set of near-collinear designs than this `1e-12` one.
+/// Gauss-Jordan on a unit-scaled Gram.
+///
+/// The diagonal is already 1, so [`crate::gram::symmetric_scales`] would be the
+/// identity. The pivot floor is [`crate::gram::EQUILIBRATED_PIVOT_FLOOR`] times
+/// that diagonal: the same predicate [`crate::gram::invert_square`] applies
+/// after equilibration.
 fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize, nrhs: usize) -> bool {
-    let mut scale = 0.0_f64;
-    for d in 0..ncols {
-        scale = scale.max(gram[d * ncols + d].abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
-        return false;
-    }
-    let tol = 1e-12 * scale;
-    for col in 0..ncols {
-        let mut best_row = col;
-        let mut best = gram[col * ncols + col].abs();
-        for row in (col + 1)..ncols {
-            let v = gram[row * ncols + col].abs();
-            if v > best {
-                best = v;
-                best_row = row;
-            }
-        }
-        if best <= tol {
-            return false;
-        }
-        if best_row != col {
-            for j in 0..ncols {
-                gram.swap(col * ncols + j, best_row * ncols + j);
-            }
-            for k in 0..nrhs {
-                rhs.swap(k * ncols + col, k * ncols + best_row);
-            }
-        }
-        let pivot = gram[col * ncols + col];
-        for j in 0..ncols {
-            gram[col * ncols + j] /= pivot;
-        }
-        for k in 0..nrhs {
-            rhs[k * ncols + col] /= pivot;
-        }
-        for row in 0..ncols {
-            if row == col {
-                continue;
-            }
-            let factor = gram[row * ncols + col];
-            for j in 0..ncols {
-                gram[row * ncols + j] -= factor * gram[col * ncols + j];
-            }
-            for k in 0..nrhs {
-                rhs[k * ncols + row] -= factor * rhs[k * ncols + col];
-            }
-        }
-    }
-    true
+    crate::gram::gauss_jordan_solve(gram, rhs, ncols, nrhs)
 }
 
-/// Residuals of `y` on the design columns, given coefficients `beta`.
 fn residual_from_cols(y: &[f64], cols: &[&[f64]], beta: &[f64], out: &mut [f64]) {
     let n = y.len();
     let y_mean = y.iter().sum::<f64>() / n as f64;
