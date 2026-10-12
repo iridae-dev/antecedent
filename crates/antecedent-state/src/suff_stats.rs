@@ -25,7 +25,7 @@ pub struct LinearOlsSuffStats {
     /// Welford scatter of `[x | y]` for a translation-stable residual scale.
     joint: StreamingCovariance,
     /// Retention declaration.
-    pub retention: RetentionPolicy,
+    pub(crate) retention: RetentionPolicy,
 }
 
 impl LinearOlsSuffStats {
@@ -189,7 +189,7 @@ pub struct StreamingCovariance {
     /// Upper-triangular packed? — store full `dim×dim` unnormalized scatter `M2`.
     pub m2: Vec<f64>,
     /// Retention.
-    pub retention: RetentionPolicy,
+    retention: RetentionPolicy,
 }
 
 impl StreamingCovariance {
@@ -249,22 +249,22 @@ impl StreamingCovariance {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct LagIndexCacheKey {
     /// Data version.
-    pub data_version: u64,
+    data_version: u64,
     /// Max lag.
-    pub max_lag: u32,
+    max_lag: u32,
     /// Variable set fingerprint.
-    pub var_fingerprint: u64,
+    var_fingerprint: u64,
 }
 
 /// Lag-index cache entry metadata (values reconstructed by callers).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LagIndexCacheEntry {
     /// Key.
-    pub key: LagIndexCacheKey,
+    key: LagIndexCacheKey,
     /// Approximate retained bytes.
-    pub bytes: u64,
+    bytes: u64,
     /// Retention.
-    pub retention: RetentionPolicy,
+    retention: RetentionPolicy,
 }
 
 #[cfg(test)]

@@ -48,13 +48,13 @@ pub struct ParticleFilterState {
     /// Observations incorporated so far.
     pub n_obs: u64,
     /// Data catalog version stamp.
-    pub data_version: u64,
+    data_version: u64,
     /// Model parameters.
-    pub params: LgssmParams,
+    params: LgssmParams,
     /// Opaque [`CausalRng`] continuation state.
-    pub rng_state: u64,
+    rng_state: u64,
     /// Retention.
-    pub retention: RetentionPolicy,
+    retention: RetentionPolicy,
     /// Per-step scratch buffers (excluded from equality; see [`StepScratch`]).
     scratch: StepScratch,
 }

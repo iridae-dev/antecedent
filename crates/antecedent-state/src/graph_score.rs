@@ -52,7 +52,7 @@ pub struct GraphScoreData {
     /// Number of variables (columns).
     pub n_vars: usize,
     /// Column-major `n_vars × n_rows` values.
-    pub columns: Arc<[f64]>,
+    columns: Arc<[f64]>,
     /// Content fingerprint (shape and every value's bits), fixed at construction.
     fingerprint: u64,
 }
@@ -111,7 +111,7 @@ fn content_fingerprint(n_rows: usize, n_vars: usize, columns: &[f64]) -> u64 {
 #[derive(Clone, Debug)]
 pub struct LocalScoreCache {
     /// Cache identity.
-    pub key: GraphScoreCacheKey,
+    key: GraphScoreCacheKey,
     /// Node → (parent-set key → local score).
     entries: HashMap<u32, HashMap<Arc<[u32]>, f64>>,
     /// Current parent sets per node (graph state).
@@ -123,9 +123,10 @@ pub struct LocalScoreCache {
     /// Sum of local scores under the current parent sets, maintained incrementally.
     running_total: Option<f64>,
     /// Approximate retained bytes.
-    pub bytes: u64,
+    bytes: u64,
     /// Retention policy.
-    pub retention: RetentionPolicy,
+    #[allow(dead_code, reason = "declared policy with no in-crate reader")]
+    retention: RetentionPolicy,
 }
 
 impl LocalScoreCache {

@@ -408,7 +408,6 @@ pub field antecedent_state::GraphScoreCacheKey::data_version: u64
 pub field antecedent_state::GraphScoreCacheKey::family: antecedent_state::GraphScoreFamily
 pub field antecedent_state::GraphScoreCacheKey::penalty_fingerprint: u64
 pub field antecedent_state::GraphScoreCacheKey::var_fingerprint: u64
-pub field antecedent_state::GraphScoreData::columns: alloc::sync::Arc<[f64]>
 pub field antecedent_state::GraphScoreData::n_rows: usize
 pub field antecedent_state::GraphScoreData::n_vars: usize
 pub field antecedent_state::InterventionRecord::fingerprint: u64
@@ -417,37 +416,23 @@ pub field antecedent_state::InvalidationEntry::at_version: antecedent_core::ids:
 pub field antecedent_state::InvalidationEntry::reason: alloc::sync::Arc<str>
 pub field antecedent_state::InvalidationEntry::target: antecedent_state::InvalidationTarget
 pub field antecedent_state::InvalidationLog::entries: alloc::vec::Vec<antecedent_state::InvalidationEntry>
-pub field antecedent_state::LagIndexCacheEntry::bytes: u64
-pub field antecedent_state::LagIndexCacheEntry::key: antecedent_state::LagIndexCacheKey
-pub field antecedent_state::LagIndexCacheEntry::retention: antecedent_state::RetentionPolicy
-pub field antecedent_state::LagIndexCacheKey::data_version: u64
-pub field antecedent_state::LagIndexCacheKey::max_lag: u32
-pub field antecedent_state::LagIndexCacheKey::var_fingerprint: u64
 pub field antecedent_state::LgssmParams::a: f64
 pub field antecedent_state::LgssmParams::obs_std: f64
 pub field antecedent_state::LgssmParams::process_std: f64
 pub field antecedent_state::LinearOlsSuffStats::n: u64
 pub field antecedent_state::LinearOlsSuffStats::ncols: usize
-pub field antecedent_state::LinearOlsSuffStats::retention: antecedent_state::RetentionPolicy
 pub field antecedent_state::LinearOlsSuffStats::xtx: alloc::vec::Vec<f64>
 pub field antecedent_state::LinearOlsSuffStats::xty: alloc::vec::Vec<f64>
 pub field antecedent_state::LinearOlsSuffStats::yty: f64
-pub field antecedent_state::LocalScoreCache::bytes: u64
-pub field antecedent_state::LocalScoreCache::key: antecedent_state::GraphScoreCacheKey
-pub field antecedent_state::LocalScoreCache::retention: antecedent_state::RetentionPolicy
 pub field antecedent_state::ModelRecord::bytes: u64
 pub field antecedent_state::ModelRecord::fingerprint: u64
 pub field antecedent_state::ModelRecord::id: antecedent_core::ids::ModelId
 pub field antecedent_state::ModelRecord::retention: antecedent_state::RetentionPolicy
 pub field antecedent_state::ModelStore::models: std::collections::hash::map::HashMap<antecedent_core::ids::ModelId, antecedent_state::ModelRecord>
-pub field antecedent_state::ParticleFilterState::data_version: u64
 pub field antecedent_state::ParticleFilterState::log_weights: alloc::vec::Vec<f64>
 pub field antecedent_state::ParticleFilterState::n_obs: u64
 pub field antecedent_state::ParticleFilterState::n_particles: usize
-pub field antecedent_state::ParticleFilterState::params: antecedent_state::LgssmParams
 pub field antecedent_state::ParticleFilterState::particles: alloc::vec::Vec<f64>
-pub field antecedent_state::ParticleFilterState::retention: antecedent_state::RetentionPolicy
-pub field antecedent_state::ParticleFilterState::rng_state: u64
 pub field antecedent_state::PublishedLineage::data_snapshot: antecedent_core::identity::SemanticDigest
 pub field antecedent_state::PublishedLineage::data_version: antecedent_state::DataVersion
 pub field antecedent_state::PublishedLineage::lineage: antecedent_core::identity::SemanticDigest
@@ -477,7 +462,6 @@ pub field antecedent_state::StreamingCovariance::dim: usize
 pub field antecedent_state::StreamingCovariance::m2: alloc::vec::Vec<f64>
 pub field antecedent_state::StreamingCovariance::mean: alloc::vec::Vec<f64>
 pub field antecedent_state::StreamingCovariance::n: u64
-pub field antecedent_state::StreamingCovariance::retention: antecedent_state::RetentionPolicy
 pub field antecedent_state::SuffStatStore::cov: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::StreamingCovariance>
 pub field antecedent_state::SuffStatStore::graph_scores: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::LocalScoreCache>
 pub field antecedent_state::SuffStatStore::lag_indexes: std::collections::hash::map::HashMap<antecedent_state::LagIndexCacheKey, antecedent_state::LagIndexCacheEntry>
@@ -561,7 +545,9 @@ pub struct antecedent_state::InterventionRecord
 pub struct antecedent_state::InvalidationEntry
 pub struct antecedent_state::InvalidationLog
 pub struct antecedent_state::LagIndexCacheEntry
+pub struct antecedent_state::LagIndexCacheEntry has private fields
 pub struct antecedent_state::LagIndexCacheKey
+pub struct antecedent_state::LagIndexCacheKey has private fields
 pub struct antecedent_state::LgssmParams
 pub struct antecedent_state::LinearOlsSuffStats
 pub struct antecedent_state::LinearOlsSuffStats has private fields
@@ -581,6 +567,7 @@ pub struct antecedent_state::ResultStore
 pub struct antecedent_state::RollingMechanismDiagnostics
 pub struct antecedent_state::RollingMechanismDiagnostics has private fields
 pub struct antecedent_state::StreamingCovariance
+pub struct antecedent_state::StreamingCovariance has private fields
 pub struct antecedent_state::SuffStatStore
 pub use antecedent_state::error::StateError = antecedent_state::StateError
 pub use antecedent_state::event::StateEvent = antecedent_state::StateEvent
