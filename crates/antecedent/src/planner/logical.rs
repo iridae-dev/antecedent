@@ -28,22 +28,45 @@ use crate::strategy_table::{
 
 use super::LogicalAnalysisPlan;
 
-/// Inputs needed to compile a logical plan for the static ATE path.
+/// Inputs shared by the static tabular compiles.
+///
+/// Each route alias parses `identifier` and `estimator` once inside its compile
+/// and keeps that route's refusal text. The structure field is `graph` for a
+/// DAG, a PAG, and a CPDAG.
 #[derive(Clone, Debug)]
-pub(crate) struct StaticAteCompileInput<'a> {
+pub(crate) struct StaticCompileInput<'a, G, Q> {
     /// Tabular data (classification + row count).
     pub data: &'a TabularData,
-    /// Graph.
-    pub graph: &'a Dag,
-    /// Query.
-    pub query: &'a AverageEffectQuery,
+    /// Accepted structure for this route.
+    pub graph: &'a G,
+    /// Query the plan records.
+    pub query: &'a Q,
     /// Validation suite id.
     pub validation_suite: Option<Arc<str>>,
-    /// Identifier id selected by the builder (defaults to `backdoor.adjustment`).
+    /// Identifier id selected by the builder, still a string until this compile parses it.
     pub identifier: Arc<str>,
-    /// Estimator id selected by the builder (defaults to `linear.adjustment.ate`).
+    /// Estimator id selected by the builder, still a string until this compile parses it.
     pub estimator: Arc<str>,
 }
+
+/// Static DAG average-effect compile input.
+pub(crate) type StaticAteCompileInput<'a> = StaticCompileInput<'a, Dag, AverageEffectQuery>;
+/// Static DAG response compile input.
+pub(crate) type StaticResponseCompileInput<'a> = StaticCompileInput<'a, Dag, ResponseQuery>;
+/// Static PAG average-effect compile input.
+pub(crate) type StaticPagAteCompileInput<'a> = StaticCompileInput<'a, Pag, AverageEffectQuery>;
+/// Static CPDAG average-effect compile input.
+pub(crate) type StaticCpdagAteCompileInput<'a> = StaticCompileInput<'a, Cpdag, AverageEffectQuery>;
+/// Static PAG response compile input.
+pub(crate) type StaticPagResponseCompileInput<'a> = StaticCompileInput<'a, Pag, ResponseQuery>;
+/// Static CPDAG response compile input.
+pub(crate) type StaticCpdagResponseCompileInput<'a> = StaticCompileInput<'a, Cpdag, ResponseQuery>;
+/// Interventional-distribution compile input.
+pub(crate) type StaticDistributionCompileInput<'a> =
+    StaticCompileInput<'a, Dag, antecedent_core::InterventionalDistributionQuery>;
+/// Path-specific natural-effect compile input.
+pub(crate) type StaticPathSpecificCompileInput<'a> =
+    StaticCompileInput<'a, Dag, antecedent_core::PathSpecificEffectQuery>;
 
 /// `linear.adjustment.ate` reports the treatment coefficient, the effect in the
 /// `AllObserved` population. On every graph class it refuses another target
@@ -141,23 +164,6 @@ fn finish_static_ate(
     finish_plan(record, CausalQuery::AverageEffect(query.clone()), None, data.row_count() as u64)
 }
 
-/// Inputs for a static-DAG continuous-response plan.
-#[derive(Clone, Debug)]
-pub(crate) struct StaticResponseCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// Accepted causal DAG.
-    pub graph: &'a Dag,
-    /// Response query.
-    pub query: &'a ResponseQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier selected by the builder.
-    pub identifier: Arc<str>,
-    /// Estimator selected by the builder.
-    pub estimator: Arc<str>,
-}
-
 /// Compile a continuous-response query over tabular data and a static DAG.
 ///
 /// # Errors
@@ -224,23 +230,6 @@ fn response_query_variables(functional: &ResponseFunctional) -> (Vec<VariableId>
     (functional.treatment_ids(), functional.outcome_ids())
 }
 
-/// Inputs for PAG ATE compile (class-aware identification).
-#[derive(Clone, Debug)]
-pub(crate) struct StaticPagAteCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// PAG.
-    pub pag: &'a Pag,
-    /// Query.
-    pub query: &'a AverageEffectQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
-}
-
 /// Compile logical plan for static ATE on a PAG.
 ///
 /// # Errors
@@ -250,7 +239,7 @@ pub(crate) fn compile_logical_static_pag_ate(
     input: StaticPagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
-    validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
+    validate_query_vars_in_pag(input.graph, input.query.treatment, input.query.outcome)?;
     compile_logical_static_class_ate(
         input.data,
         input.query,
@@ -262,23 +251,6 @@ pub(crate) fn compile_logical_static_pag_ate(
     )
 }
 
-/// Inputs for CPDAG ATE compile (class-aware MEC envelope).
-#[derive(Clone, Debug)]
-pub(crate) struct StaticCpdagAteCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// CPDAG.
-    pub cpdag: &'a Cpdag,
-    /// Query.
-    pub query: &'a AverageEffectQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
-}
-
 /// Compile logical plan for static ATE on a CPDAG.
 ///
 /// # Errors
@@ -288,7 +260,7 @@ pub(crate) fn compile_logical_static_cpdag_ate(
     input: StaticCpdagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
-    validate_query_vars_in_cpdag(input.cpdag, input.query.treatment, input.query.outcome)?;
+    validate_query_vars_in_cpdag(input.graph, input.query.treatment, input.query.outcome)?;
     compile_logical_static_class_ate(
         input.data,
         input.query,
@@ -327,23 +299,6 @@ fn compile_logical_static_class_ate(
     finish_static_ate(data, query, validation_suite, identifier, estimator, plan_id)
 }
 
-/// Inputs for PAG response compile (same generalized-adjustment envelope as ATE).
-#[derive(Clone, Debug)]
-pub(crate) struct StaticPagResponseCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// PAG.
-    pub pag: &'a Pag,
-    /// Response query.
-    pub query: &'a ResponseQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
-}
-
 /// Compile a `MeanCurve` / `InterventionResponse` query over a supplied PAG.
 ///
 /// # Errors
@@ -356,7 +311,7 @@ pub(crate) fn compile_logical_static_pag_response(
     let (treatments, outcomes) = response_query_variables(&input.query.functional);
     for &treatment in &treatments {
         for &outcome in &outcomes {
-            validate_query_vars_in_pag(input.pag, treatment, outcome)?;
+            validate_query_vars_in_pag(input.graph, treatment, outcome)?;
         }
     }
     compile_logical_class_response(
@@ -373,23 +328,6 @@ pub(crate) fn compile_logical_static_pag_response(
     )
 }
 
-/// Inputs for CPDAG response compile (same MEC envelope as ATE).
-#[derive(Clone, Debug)]
-pub(crate) struct StaticCpdagResponseCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// CPDAG.
-    pub cpdag: &'a Cpdag,
-    /// Response query.
-    pub query: &'a ResponseQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
-}
-
 /// Compile a `MeanCurve` / `InterventionResponse` query over a supplied CPDAG.
 ///
 /// # Errors
@@ -402,7 +340,7 @@ pub(crate) fn compile_logical_static_cpdag_response(
     let (treatments, outcomes) = response_query_variables(&input.query.functional);
     for &treatment in &treatments {
         for &outcome in &outcomes {
-            validate_query_vars_in_cpdag(input.cpdag, treatment, outcome)?;
+            validate_query_vars_in_cpdag(input.graph, treatment, outcome)?;
         }
     }
     compile_logical_class_response(
@@ -498,23 +436,6 @@ fn compile_logical_class_response(
     )
 }
 
-/// Compile logical plan for interventional-distribution queries.
-#[derive(Clone, Debug)]
-pub(crate) struct StaticDistributionCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// Graph.
-    pub graph: &'a Dag,
-    /// Distribution query.
-    pub query: &'a antecedent_core::InterventionalDistributionQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (`general.id` / `auto`).
-    pub identifier: Arc<str>,
-    /// Estimator (`functional.distribution`).
-    pub estimator: Arc<str>,
-}
-
 /// Compile logical plan for an interventional distribution.
 ///
 /// # Errors
@@ -563,23 +484,6 @@ pub(crate) fn compile_logical_distribution(
         None,
         input.data.row_count() as u64,
     )
-}
-
-/// Compile input for path-specific natural-effect queries.
-#[derive(Clone, Debug)]
-pub(crate) struct StaticPathSpecificCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// Graph.
-    pub graph: &'a Dag,
-    /// Path-specific query.
-    pub query: &'a antecedent_core::PathSpecificEffectQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier.
-    pub identifier: Arc<str>,
-    /// Estimator.
-    pub estimator: Arc<str>,
 }
 
 /// Compile logical plan for path-specific natural effects.

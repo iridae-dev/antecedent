@@ -102,7 +102,7 @@ impl super::Study {
                 let (identifier, estimator) = self.resolve_class_response_pair(q);
                 compile_logical_static_cpdag_response(StaticCpdagResponseCompileInput {
                     data,
-                    cpdag: &cpdag,
+                    graph: &cpdag,
                     query: q,
                     validation_suite: self.validation_suite_id(),
                     identifier,
@@ -113,7 +113,7 @@ impl super::Study {
                 let (identifier, estimator) = self.resolve_class_response_pair(q);
                 compile_logical_static_pag_response(StaticPagResponseCompileInput {
                     data,
-                    pag: &pag,
+                    graph: &pag,
                     query: q,
                     validation_suite: self.validation_suite_id(),
                     identifier,

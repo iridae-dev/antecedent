@@ -261,7 +261,7 @@ impl super::Study {
         let (identifier, estimator) = self.resolve_class_response_pair(q);
         compile_logical_static_pag_response(StaticPagResponseCompileInput {
             data,
-            pag,
+            graph: pag,
             query: q,
             validation_suite: self.validation_suite_id(),
             identifier,
@@ -278,7 +278,7 @@ impl super::Study {
         let (identifier, estimator) = self.resolve_class_response_pair(q);
         compile_logical_static_cpdag_response(StaticCpdagResponseCompileInput {
             data,
-            cpdag,
+            graph: cpdag,
             query: q,
             validation_suite: self.validation_suite_id(),
             identifier,
@@ -525,7 +525,7 @@ impl super::Study {
         let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
         compile_logical_static_pag_ate(StaticPagAteCompileInput {
             data,
-            pag,
+            graph: pag,
             query: q,
             validation_suite: self.validation_suite_id(),
             identifier,
@@ -542,7 +542,7 @@ impl super::Study {
         let (identifier, estimator) = self.resolve_pag_pair();
         compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
             data,
-            cpdag,
+            graph: cpdag,
             query: q,
             validation_suite: self.validation_suite_id(),
             identifier,
@@ -581,7 +581,7 @@ impl super::Study {
         let mut plan =
             compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
                 data,
-                cpdag,
+                graph: cpdag,
                 query: &q.inner,
                 validation_suite: self.validation_suite_id(),
                 identifier,
@@ -601,7 +601,7 @@ impl super::Study {
         let (identifier, estimator) = self.resolve_class_conditional_pair();
         let mut plan = compile_logical_static_pag_ate(StaticPagAteCompileInput {
             data,
-            pag,
+            graph: pag,
             query: &q.inner,
             validation_suite: self.validation_suite_id(),
             identifier,
