@@ -25,6 +25,7 @@ use antecedent_io::joint_bayesian_transport_artifact::{DataIdentityWire, PriorPr
 use antecedent_io::learned_joint_transport_artifact::{
     LearnedJointArtifactWire, LearnedJointConsumeLimits, LearnedJointExpectation,
 };
+use antecedent_io::model_codes::{GraphClassCode, SourceDependenceCode, SourceSharingCode};
 use std::sync::Arc;
 
 const DRAWS: usize = 3000;
@@ -351,7 +352,7 @@ fn learned_joint_artifact_refuses_resealed_semantic_mutations() {
         ("target covariate", |w| w.target.covariates[0][0] += 0.01),
         ("draw count", |w| w.options.draws += 1),
         ("seed", |w| w.options.seed += 1),
-        ("sharing", |w| w.model.sharing = "shared_varying_block".into()),
+        ("sharing", |w| w.model.sharing = SourceSharingCode::SharedVaryingBlock),
         ("rng id", |w| w.result.draws.rng_id = "splitmix64_box_muller_v1:seed=1:stream=0".into()),
         ("stored posterior", |w| w.result.posterior_mean[0] += 1e-9),
         ("provider basis", |w| w.result.provider.basis_id = "polynomial_degree_3".into()),
@@ -372,10 +373,10 @@ fn learned_joint_artifact_refuses_resealed_semantic_mutations() {
     let message = refusal(&resealed(&wire, |w| w.model.features = vec![8]));
     assert!(message.contains("learned_joint_transport.feature_mismatch"), "{message}");
     // A changed graph class is refused as unsupported before any fit.
-    let message = refusal(&resealed(&wire, |w| w.model.graph = "admg".into()));
+    let message = refusal(&resealed(&wire, |w| w.model.graph = GraphClassCode::Admg));
     assert!(message.contains("learned_joint_transport.unsupported_graph"), "{message}");
     // Undeclared source dependence is refused.
-    let message = refusal(&resealed(&wire, |w| w.model.dependence = "unknown".into()));
+    let message = refusal(&resealed(&wire, |w| w.model.dependence = SourceDependenceCode::Unknown));
     assert!(message.contains("learned_joint_transport.source_dependence"), "{message}");
     // Without resealing, an edited observation breaks the data identity digest.
     let mut edited = wire.clone();

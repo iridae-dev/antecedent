@@ -4,6 +4,9 @@ use crate::IoError;
 use crate::joint_bayesian_transport_artifact::{
     GaussianPriorWire, JointSourceWire, JointTargetWire, PriorProvenanceWire,
 };
+use crate::model_codes::{
+    GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,
+};
 
 const PROTOCOL_LEVEL_BITS: u64 = 0.95f64.to_bits();
 const PROTOCOL_MIN_DRAWS: usize = 4096;
@@ -11,11 +14,11 @@ const PROTOCOL_PRIOR_VARIANCE_BITS: u64 = 1000.0f64.to_bits();
 const PROTOCOL_CONFLICT_BITS: u64 = 3.0f64.to_bits();
 
 pub(crate) struct Model<'a> {
-    pub(crate) graph: &'a str,
+    pub(crate) graph: GraphClassCode,
     pub(crate) features: &'a [u32],
-    pub(crate) varying: &'a str,
-    pub(crate) sharing: &'a str,
-    pub(crate) dependence: &'a str,
+    pub(crate) varying: VaryingBlockCode,
+    pub(crate) sharing: SourceSharingCode,
+    pub(crate) dependence: SourceDependenceCode,
     pub(crate) invariant: &'a GaussianPriorWire,
     pub(crate) varying_prior: &'a GaussianPriorWire,
     pub(crate) unsupported: f64,
@@ -51,9 +54,9 @@ pub(crate) fn protocol(
 ) -> Result<serde_json::Value, IoError> {
     if level.to_bits() != PROTOCOL_LEVEL_BITS
         || draws < PROTOCOL_MIN_DRAWS
-        || model.graph != "fixed_dag"
+        || model.graph != GraphClassCode::FixedDag
         || model.features != [1]
-        || model.dependence != "independent_samples"
+        || model.dependence != SourceDependenceCode::IndependentSamples
         || model.unsupported.to_bits() != 0.0f64.to_bits()
         || model.conflict.to_bits() != PROTOCOL_CONFLICT_BITS
         || sources.is_empty()
@@ -65,16 +68,22 @@ pub(crate) fn protocol(
         ));
     }
     let varying_covariates = match model.varying {
-        "intercept" => false,
-        "intercept_and_covariates" => true,
-        _ => return Err(refused("varying block is not measured")),
+        VaryingBlockCode::Intercept => false,
+        VaryingBlockCode::InterceptAndCovariates => true,
     };
     let sharing = model.sharing;
-    if !((sources.len() == 1 && !varying_covariates && sharing == "independent_varying_blocks")
+    if !((sources.len() == 1
+        && !varying_covariates
+        && sharing == SourceSharingCode::IndependentVaryingBlocks)
         || (sources.len() == 2
             && !varying_covariates
-            && matches!(sharing, "independent_varying_blocks" | "shared_varying_block"))
-        || (sources.len() == 2 && varying_covariates && sharing == "independent_varying_blocks"))
+            && matches!(
+                sharing,
+                SourceSharingCode::IndependentVaryingBlocks | SourceSharingCode::SharedVaryingBlock
+            ))
+        || (sources.len() == 2
+            && varying_covariates
+            && sharing == SourceSharingCode::IndependentVaryingBlocks))
     {
         return Err(refused("varying-block/sharing configuration is not measured"));
     }
@@ -124,7 +133,7 @@ pub(crate) fn protocol(
         "source_rows":sources.iter().map(|s|s.outcome.len()).collect::<Vec<_>>(),
         "source_ids":sources.iter().map(|s|&s.id).collect::<Vec<_>>(),"source_noise_variances":sources.iter().map(|s|s.noise_variance).collect::<Vec<_>>(),
         "target_covariates":target.covariates,"features":model.features,"basis_degree":model.degree,
-        "varying":model.varying,"sharing":model.sharing,"prior_mean":0.0,"prior_variance":f64::from_bits(PROTOCOL_PRIOR_VARIANCE_BITS),"prior_provenance":"declared",
+        "varying":model.varying.as_str(),"sharing":model.sharing.as_str(),"prior_mean":0.0,"prior_variance":f64::from_bits(PROTOCOL_PRIOR_VARIANCE_BITS),"prior_provenance":"declared",
         "posterior_draws":draws,"posterior_draws_min":PROTOCOL_MIN_DRAWS,"level":level,"reported_scalar":"target_effect"
     }))
 }
@@ -133,6 +142,9 @@ pub(crate) fn protocol(
 mod tests {
     use super::*;
     use crate::joint_bayesian_transport_artifact::DataIdentityWire;
+    use crate::model_codes::{
+        GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,
+    };
 
     fn prior(width: usize) -> GaussianPriorWire {
         GaussianPriorWire {
@@ -162,11 +174,11 @@ mod tests {
         let invariant = prior(3);
         let varying_prior = prior(1);
         let mut model = Model {
-            graph: "fixed_dag",
+            graph: GraphClassCode::FixedDag,
             features: &[1],
-            varying: "intercept",
-            sharing: "independent_varying_blocks",
-            dependence: "independent_samples",
+            varying: VaryingBlockCode::Intercept,
+            sharing: SourceSharingCode::IndependentVaryingBlocks,
+            dependence: SourceDependenceCode::IndependentSamples,
             invariant: &invariant,
             varying_prior: &varying_prior,
             unsupported: 0.0,
@@ -176,6 +188,8 @@ mod tests {
         let (mut sources, mut target) = inputs();
         let report = protocol(&model, &sources, &target, 4096, 0.95).unwrap();
         assert_eq!(report["sampling_assumptions_authenticated_from_rows"], false);
+        assert_eq!(report["varying"], "intercept");
+        assert_eq!(report["sharing"], "independent_varying_blocks");
         assert!(protocol(&model, &sources, &target, 4095, 0.95).is_err());
         assert!(protocol(&model, &sources, &target, 4096, 0.90).is_err());
         sources[0].noise_variance = 1.1;

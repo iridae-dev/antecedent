@@ -38,7 +38,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::contract_section::CalibrationSlotWire;
+use crate::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use crate::coverage_records_data::{
     ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, FUNCTIONAL_IDENTITY_ALIASES,
     FunctionalIdentityAlias, RECORDS,
@@ -388,16 +388,17 @@ pub fn calibration_slot_with(
                 (lo.saturating_sub(scope.row_count)).max(scope.row_count.saturating_sub(hi))
             })
             .expect("measured is non-empty");
-        return CalibrationSlotWire::from_record(nearest, "scope_not_assessed")
+        return CalibrationSlotWire::from_record(nearest, CalibrationStatus::ScopeNotAssessed)
             .with_reason(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE)
             .with_basis(basis);
     };
     let boundaries: Vec<&CoverageRecord> =
         covering.iter().copied().filter(|record| is_boundary(record)).collect();
     if let Some(boundary) = worst(&boundaries) {
-        let mut slot = CalibrationSlotWire::from_record(boundary, "scope_not_assessed")
-            .with_reason(BOUNDARY_RECORD)
-            .with_basis(basis);
+        let mut slot =
+            CalibrationSlotWire::from_record(boundary, CalibrationStatus::ScopeNotAssessed)
+                .with_reason(BOUNDARY_RECORD)
+                .with_basis(basis);
         // The coverage that makes it a boundary: the worst failing grid point.
         if let Some(point) = boundary
             .grid
@@ -429,10 +430,13 @@ pub fn calibration_slot_with(
         None
     };
     match outside {
-        Some(reason) => CalibrationSlotWire::from_record(governing, "scope_not_assessed")
-            .with_reason(reason)
+        Some(reason) => {
+            CalibrationSlotWire::from_record(governing, CalibrationStatus::ScopeNotAssessed)
+                .with_reason(reason)
+                .with_basis(basis)
+        }
+        None => CalibrationSlotWire::from_record(governing, CalibrationStatus::Calibrated)
             .with_basis(basis),
-        None => CalibrationSlotWire::from_record(governing, "calibrated").with_basis(basis),
     }
 }
 
@@ -493,6 +497,17 @@ pub fn rederive_calibration(slot: &CalibrationSlotWire) -> CalibrationSlotWire {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn calibration_status_keeps_historical_cbor_text() {
+        for status in [
+            CalibrationStatus::Calibrated,
+            CalibrationStatus::ScopeNotAssessed,
+            CalibrationStatus::Unavailable,
+        ] {
+            crate::convert::assert_cbor_text_code(status.as_str(), &status);
+        }
+    }
 
     fn key_from(record: &CoverageRecord) -> CalibrationKeyWire {
         CalibrationKeyWire {

@@ -37,6 +37,9 @@ use crate::joint_bayesian_transport_artifact::{
     DataIdentityWire, GaussianPriorWire, JointDrawsWire, JointOptionsWire, JointSourceWire,
     JointTargetWire, PriorProvenanceWire,
 };
+use crate::model_codes::{
+    GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,
+};
 use crate::transport_interference_wire::{
     TransportIdentificationWire, transport_identification_from_wire,
     transport_identification_to_wire,
@@ -45,8 +48,7 @@ use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
     JointPriors, JointTransportCalibration, JointTransportOptions, JointTransportRefusal,
-    PriorProvenance, SourceData, SourceDependence, SourceSharing, TargetData, TransportGraphClass,
-    VaryingBlock,
+    PriorProvenance, SourceData, TargetData,
 };
 use antecedent_estimate::learned_joint_transport::{
     LearnedJointFit, LearnedJointModel, fit_learned_joint_transport,
@@ -120,17 +122,17 @@ pub struct LearnedJointExpectation {
 #[serde(deny_unknown_fields)]
 pub struct LearnedModelWire {
     /// `fixed_dag`, `admg` or `graph_posterior`.
-    pub graph: String,
+    pub graph: GraphClassCode,
     /// Raw covariate variable ids.
     pub features: Vec<u32>,
     /// Polynomial degree of the basis in every covariate.
     pub basis_degree: usize,
     /// `intercept` or `intercept_and_covariates`.
-    pub varying: String,
+    pub varying: VaryingBlockCode,
     /// `independent_varying_blocks` or `shared_varying_block`.
-    pub sharing: String,
+    pub sharing: SourceSharingCode,
     /// `independent_samples`, `overlapping_units` or `unknown`.
-    pub dependence: String,
+    pub dependence: SourceDependenceCode,
     /// Prior of the invariant block.
     pub invariant_prior: GaussianPriorWire,
     /// Prior of every varying block.
@@ -205,45 +207,15 @@ fn source_from_wire(wire: &JointSourceWire) -> SourceData {
     }
 }
 
-fn graph_name(graph: TransportGraphClass) -> &'static str {
-    match graph {
-        TransportGraphClass::FixedDag => "fixed_dag",
-        TransportGraphClass::Admg => "admg",
-        TransportGraphClass::GraphPosterior => "graph_posterior",
-    }
-}
-
-fn varying_name(varying: VaryingBlock) -> &'static str {
-    match varying {
-        VaryingBlock::Intercept => "intercept",
-        VaryingBlock::InterceptAndCovariates => "intercept_and_covariates",
-    }
-}
-
-fn sharing_name(sharing: SourceSharing) -> &'static str {
-    match sharing {
-        SourceSharing::IndependentVaryingBlocks => "independent_varying_blocks",
-        SourceSharing::SharedVaryingBlock => "shared_varying_block",
-    }
-}
-
-fn dependence_name(dependence: SourceDependence) -> &'static str {
-    match dependence {
-        SourceDependence::IndependentSamples => "independent_samples",
-        SourceDependence::OverlappingUnits => "overlapping_units",
-        SourceDependence::Unknown => "unknown",
-    }
-}
-
 impl LearnedModelWire {
     fn from_model(model: &LearnedJointModel) -> Self {
         Self {
-            graph: graph_name(model.graph).into(),
+            graph: GraphClassCode::from_class(model.graph),
             features: model.features.clone(),
             basis_degree: model.basis_degree,
-            varying: varying_name(model.varying).into(),
-            sharing: sharing_name(model.sharing).into(),
-            dependence: dependence_name(model.dependence).into(),
+            varying: VaryingBlockCode::from_block(model.varying),
+            sharing: SourceSharingCode::from_sharing(model.sharing),
+            dependence: SourceDependenceCode::from_dependence(model.dependence),
             invariant_prior: prior_to_wire(&model.priors.invariant),
             varying_prior: prior_to_wire(&model.priors.varying),
             max_unsupported_mass: model.max_unsupported_mass,
@@ -252,36 +224,13 @@ impl LearnedModelWire {
     }
 
     fn to_model(&self) -> Result<LearnedJointModel, LearnedJointArtifactError> {
-        let unsupported = LearnedJointArtifactError::UnsupportedSemantics;
-        let graph = match self.graph.as_str() {
-            "fixed_dag" => TransportGraphClass::FixedDag,
-            "admg" => TransportGraphClass::Admg,
-            "graph_posterior" => TransportGraphClass::GraphPosterior,
-            _ => return Err(unsupported("graph class")),
-        };
-        let varying = match self.varying.as_str() {
-            "intercept" => VaryingBlock::Intercept,
-            "intercept_and_covariates" => VaryingBlock::InterceptAndCovariates,
-            _ => return Err(unsupported("varying block")),
-        };
-        let sharing = match self.sharing.as_str() {
-            "independent_varying_blocks" => SourceSharing::IndependentVaryingBlocks,
-            "shared_varying_block" => SourceSharing::SharedVaryingBlock,
-            _ => return Err(unsupported("source sharing")),
-        };
-        let dependence = match self.dependence.as_str() {
-            "independent_samples" => SourceDependence::IndependentSamples,
-            "overlapping_units" => SourceDependence::OverlappingUnits,
-            "unknown" => SourceDependence::Unknown,
-            _ => return Err(unsupported("source dependence")),
-        };
         Ok(LearnedJointModel {
-            graph,
+            graph: self.graph.to_class(),
             features: self.features.clone(),
             basis_degree: self.basis_degree,
-            varying,
-            sharing,
-            dependence,
+            varying: self.varying.to_block(),
+            sharing: self.sharing.to_sharing(),
+            dependence: self.dependence.to_dependence(),
             priors: JointPriors {
                 invariant: prior_from_wire(&self.invariant_prior),
                 varying: prior_from_wire(&self.varying_prior),
@@ -745,11 +694,11 @@ impl LearnedJointArtifactWire {
         };
         crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &declaration.graph,
+                graph: declaration.graph,
                 features: &declaration.features,
-                varying: &declaration.varying,
-                sharing: &declaration.sharing,
-                dependence: &declaration.dependence,
+                varying: declaration.varying,
+                sharing: declaration.sharing,
+                dependence: declaration.dependence,
                 invariant: &declaration.invariant_prior,
                 varying_prior: &declaration.varying_prior,
                 unsupported: declaration.max_unsupported_mass,
@@ -805,11 +754,11 @@ impl LearnedJointArtifactWire {
     ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
         let scope = crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &self.model.graph,
+                graph: self.model.graph,
                 features: &self.model.features,
-                varying: &self.model.varying,
-                sharing: &self.model.sharing,
-                dependence: &self.model.dependence,
+                varying: self.model.varying,
+                sharing: self.model.sharing,
+                dependence: self.model.dependence,
                 invariant: &self.model.invariant_prior,
                 varying_prior: &self.model.varying_prior,
                 unsupported: self.model.max_unsupported_mass,
@@ -872,11 +821,11 @@ impl LearnedJointArtifactWire {
         preliminary.check_limits(&limits)?;
         crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &preliminary.model.graph,
+                graph: preliminary.model.graph,
                 features: &preliminary.model.features,
-                varying: &preliminary.model.varying,
-                sharing: &preliminary.model.sharing,
-                dependence: &preliminary.model.dependence,
+                varying: preliminary.model.varying,
+                sharing: preliminary.model.sharing,
+                dependence: preliminary.model.dependence,
                 invariant: &preliminary.model.invariant_prior,
                 varying_prior: &preliminary.model.varying_prior,
                 unsupported: preliminary.model.max_unsupported_mass,

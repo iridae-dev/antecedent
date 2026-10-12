@@ -18,6 +18,7 @@ use antecedent_core::{
 };
 
 use super::*;
+
 use crate::expr_wire::ExprArenaWire;
 use crate::query_wire::causal_query_to_wire;
 use crate::{
@@ -33,6 +34,21 @@ fn cbor_eq_follows_encoded_bits_not_partial_eq() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0001);
     assert_ne!(nan, nan);
     assert!(super::consume::cbor_eq(&nan, &nan));
+}
+
+#[test]
+fn acceptance_ops_keep_historical_cbor_text() {
+    for op in [
+        super::consume::AcceptanceOp::Store,
+        super::consume::AcceptanceOp::Forward,
+        super::consume::AcceptanceOp::ReadBody,
+        super::consume::AcceptanceOp::VerifyContract,
+        super::consume::AcceptanceOp::InspectClaim,
+        super::consume::AcceptanceOp::Bytes,
+        super::consume::AcceptanceOp::AcceptAsClaim,
+    ] {
+        crate::convert::assert_cbor_text_code(op.as_str(), &op);
+    }
 }
 
 #[test]

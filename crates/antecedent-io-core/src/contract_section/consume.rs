@@ -24,6 +24,47 @@ use crate::{
     StructuralWeightBasisWire, to_cbor,
 };
 
+/// Acceptance and handoff operation stored as the historical snake_case text.
+///
+/// [`AcceptanceReport`] keeps `Arc<str>` because that type lives in
+/// `antecedent-contract`. These variants are the only texts this crate writes.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AcceptanceOp {
+    /// Store the artifact bytes.
+    Store,
+    /// Forward the artifact bytes.
+    Forward,
+    /// Read the result body.
+    ReadBody,
+    /// Verify the contract section.
+    VerifyContract,
+    /// Inspect the bound claim.
+    InspectClaim,
+    /// Retain the artifact bytes on a restricted handoff.
+    Bytes,
+    /// Operation dropped when a claim is not accepted.
+    AcceptAsClaim,
+}
+
+impl AcceptanceOp {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Store => "store",
+            Self::Forward => "forward",
+            Self::ReadBody => "read_body",
+            Self::VerifyContract => "verify_contract",
+            Self::InspectClaim => "inspect_claim",
+            Self::Bytes => "bytes",
+            Self::AcceptAsClaim => "accept_as_claim",
+        }
+    }
+
+    fn label(self) -> Arc<str> {
+        Arc::from(self.as_str())
+    }
+}
+
 #[derive(Serialize)]
 pub(in crate::contract_section) struct SealWire<'a> {
     format: u16,
@@ -399,17 +440,17 @@ pub(in crate::contract_section) fn accept_contract(
     let claim_present = contract.claim.is_some();
     let operations: Arc<[Arc<str>]> = match (verified, claim_present) {
         (true, true) => Arc::from([
-            Arc::from("store"),
-            Arc::from("forward"),
-            Arc::from("read_body"),
-            Arc::from("verify_contract"),
-            Arc::from("inspect_claim"),
+            AcceptanceOp::Store.label(),
+            AcceptanceOp::Forward.label(),
+            AcceptanceOp::ReadBody.label(),
+            AcceptanceOp::VerifyContract.label(),
+            AcceptanceOp::InspectClaim.label(),
         ]),
         (true, false) => Arc::from([
-            Arc::from("store"),
-            Arc::from("forward"),
-            Arc::from("read_body"),
-            Arc::from("verify_contract"),
+            AcceptanceOp::Store.label(),
+            AcceptanceOp::Forward.label(),
+            AcceptanceOp::ReadBody.label(),
+            AcceptanceOp::VerifyContract.label(),
         ]),
         (false, _) => storage_ops(),
     };
@@ -440,7 +481,11 @@ pub(in crate::contract_section) fn validate_slot<T>(
 }
 
 pub(in crate::contract_section) fn storage_ops() -> Arc<[Arc<str>]> {
-    Arc::from([Arc::from("store"), Arc::from("forward"), Arc::from("read_body")])
+    Arc::from([
+        AcceptanceOp::Store.label(),
+        AcceptanceOp::Forward.label(),
+        AcceptanceOp::ReadBody.label(),
+    ])
 }
 
 /// Accept / verify a claim from bytes under a consumer profile.
@@ -457,7 +502,9 @@ pub fn accept_claim(
 ) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
     let mut consumed = consume_analysis_result(bytes)?;
     let claim_id = receipt_input(&consumed);
-    if !profile.understands("verify_contract") || !profile.understands("inspect_claim") {
+    if !profile.understands(AcceptanceOp::VerifyContract.as_str())
+        || !profile.understands(AcceptanceOp::InspectClaim.as_str())
+    {
         consumed.acceptance = AcceptanceReport::opaque_storage();
         return Ok((consumed, HandoffReceipt::opaque_forward(claim_id, profile.id.clone())));
     }
@@ -489,10 +536,10 @@ pub fn accept_claim(
             None,
             profile.id.clone(),
             "restricted_accept",
-            [Arc::from("bytes"), Arc::from("read_body")],
+            [AcceptanceOp::Bytes.label(), AcceptanceOp::ReadBody.label()],
             omitted,
             consumed.acceptance.unresolved.clone(),
-            [Arc::from("accept_as_claim")],
+            [AcceptanceOp::AcceptAsClaim.label()],
         )
     };
     let allowed: Vec<Arc<str>> = consumed

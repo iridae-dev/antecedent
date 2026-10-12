@@ -136,6 +136,62 @@ pub struct ClaimSectionWire {
     pub attested: Vec<AttestedEvidenceWire>,
 }
 
+/// Calibration status of a reported interval.
+///
+/// CBOR is the historical text: `calibrated`, `scope_not_assessed`, or
+/// `unavailable`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CalibrationStatus {
+    /// The governing record attests the reported interval.
+    Calibrated,
+    /// A record matches the construction but not the measured scope.
+    ScopeNotAssessed,
+    /// No attesting record covers this interval.
+    Unavailable,
+}
+
+impl CalibrationStatus {
+    /// Historical wire text.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Calibrated => "calibrated",
+            Self::ScopeNotAssessed => "scope_not_assessed",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+impl std::fmt::Display for CalibrationStatus {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<&str> for CalibrationStatus {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<CalibrationStatus> for &str {
+    fn eq(&self, other: &CalibrationStatus) -> bool {
+        *self == other.as_str()
+    }
+}
+
+impl From<&str> for CalibrationStatus {
+    fn from(value: &str) -> Self {
+        match value {
+            "calibrated" => Self::Calibrated,
+            "scope_not_assessed" => Self::ScopeNotAssessed,
+            "unavailable" => Self::Unavailable,
+            other => panic!("calibration status `{other}` is not a historical code"),
+        }
+    }
+}
+
 /// Calibration status of a reported interval, bound into the claim.
 ///
 /// Computed by [`crate::calibration::calibration_slot`] from [`Self::basis`];
@@ -144,7 +200,7 @@ pub struct ClaimSectionWire {
 #[serde(deny_unknown_fields)]
 pub struct CalibrationSlotWire {
     /// `calibrated` | `scope_not_assessed` | `unavailable`.
-    pub status: String,
+    pub status: CalibrationStatus,
     /// Governing coverage record id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub record_id: Option<String>,
@@ -215,7 +271,7 @@ impl CalibrationSlotWire {
     #[must_use]
     pub fn unavailable(reason: impl Into<String>) -> Self {
         Self {
-            status: "unavailable".into(),
+            status: CalibrationStatus::Unavailable,
             record_id: None,
             reason: Some(reason.into()),
             scope_n: None,
@@ -233,11 +289,11 @@ impl CalibrationSlotWire {
     #[must_use]
     pub fn from_record(
         record: &crate::coverage_records_data::CoverageRecord,
-        status: &str,
+        status: CalibrationStatus,
     ) -> Self {
         let (n_min, n_max) = crate::calibration::measured_range(record);
         Self {
-            status: status.into(),
+            status,
             record_id: Some(record.id.into()),
             reason: None,
             scope_n: Some(n_min),

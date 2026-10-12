@@ -17,8 +17,8 @@ pub use antecedent_io_core::{
     ArtifactManifest, ArtifactReader, AssignmentDesignWire, AssumptionRecordWire,
     AssumptionSlotWire, AssumptionTagWire, AttestedEvidenceWire, BayesianBindingWire,
     COMPRESSION_ZSTD, CONTAINER_VERSION, CONTENT_BYTES, CONTENT_CBOR, CONTRACT_SECTION,
-    CONTRACT_SECTION_FORMAT, CalibrationSlotWire, CausalPayloadHeader, CausalPayloadKind,
-    CausalPayloadWire, CausalPosteriorWire, CausalQueryWire, CausalResponseWire,
+    CONTRACT_SECTION_FORMAT, CalibrationSlotWire, CalibrationStatus, CausalPayloadHeader,
+    CausalPayloadKind, CausalPayloadWire, CausalPosteriorWire, CausalQueryWire, CausalResponseWire,
     CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedFrontDoorLoweringWire,
     CheckedFunctionalResponseGridWire, CheckedFunctionalResponseMemberWire, CheckedIvLoweringWire,
     CheckedLinearAdjustmentLoweringWire, CheckedNestedCounterfactualWire, ClaimDomainsWire,
@@ -156,6 +156,7 @@ pub mod learned_joint_transport_artifact;
 pub mod measured_inference;
 pub mod mixed_source_artifact;
 pub mod model_bundle;
+pub mod model_codes;
 pub mod mz_transport_artifact;
 pub mod nested_markov_artifact;
 pub mod nested_markov_bayesian_artifact;
