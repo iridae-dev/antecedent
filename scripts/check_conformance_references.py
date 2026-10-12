@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run conformance reference generators in ``--check`` mode.
 
-Exact float documents are compared with ``numpy.isclose`` inside the
-generators (not ``dict !=``). ``generate_frontdoor.py`` checks a deterministic
-CSV rendering. None of these rerun a Monte Carlo study.
+Exact float documents are compared with ``numpy.isclose(..., rtol=0)`` inside
+the generators (not ``dict !=``). ``generate_frontdoor.py`` compares the
+committed CSV columns the same way. None of these rerun a Monte Carlo study.
 
     python3 scripts/check_conformance_references.py
 """
