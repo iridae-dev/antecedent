@@ -232,6 +232,9 @@ fn neighbor_action(changed: &[PremiseChange]) -> &'static str {
 
 /// Refuse n/a cells and every unlicensed meaningful cell. Licensed cells pass.
 ///
+/// Historical [`CellStatus::Allowlisted`] is refused the same way as
+/// [`CellStatus::Refused`]. [`classify`] does not produce it.
+///
 /// # Errors
 ///
 /// [`CausalError::Support`] when the cell is n/a or refused. A refusal uses the
@@ -242,15 +245,12 @@ pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalE
         CellStatus::NotApplicable { reason } => {
             Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
         }
-        CellStatus::Refused => {
+        CellStatus::Refused | CellStatus::Allowlisted { .. } => {
             if let Some(reason) = refusal_reason(cell) {
                 return Err(CausalError::Support { id: SupportRefusal::Refused, message: reason });
             }
             Err(CausalError::Support { id: SupportRefusal::Refused, message: UNLICENSED })
         }
         CellStatus::Licensed => Ok(CellStatus::Licensed),
-        CellStatus::Allowlisted { .. } => {
-            unreachable!("classify never returns Allowlisted")
-        }
     }
 }

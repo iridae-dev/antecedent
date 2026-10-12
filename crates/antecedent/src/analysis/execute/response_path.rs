@@ -1311,9 +1311,7 @@ pub(super) fn response_scalar_summary(response: &antecedent_core::CausalResponse
 pub(super) fn response_primary_pair(
     functional: &ResponseFunctional,
 ) -> Result<(VariableId, VariableId), CausalError> {
-    functional.primary_pair().ok_or_else(|| CausalError::Compile {
-        message: "response query has no treatment/outcome pair".into(),
-    })
+    crate::analysis::proof_support::require_primary_pair(functional)
 }
 
 pub(super) fn response_prior_targets(
@@ -2032,13 +2030,17 @@ impl ClassResponseAtoms {
     }
 }
 
-/// Whether `err` says the discrete plug-in cannot evaluate this completion: a variable
-/// past the level cap, or a continuous column the plug-in cannot encode. The estimate crate
-/// reports both as untyped refusals, so the classification reads the rendered message in
-/// this one place; every other error propagates.
+/// Whether `err` is the discrete plug-in refusing a variable past its level cap.
+///
+/// A high-cardinality or continuous column fails closed as that same
+/// `EstimationError::Unsupported` message. Any other refusal, including one
+/// whose text merely contains "continuous", propagates.
 fn is_discrete_plug_in_limit(err: &CausalError) -> bool {
-    let message = err.to_string();
-    message.contains("discrete level cap") || message.contains("continuous")
+    matches!(
+        err.peeled(),
+        CausalError::Estimate(antecedent_estimate::EstimationError::Unsupported { message })
+            if *message == "variable exceeds discrete level cap for functional.distribution"
+    )
 }
 
 /// The class-aware response mixed over completions, with the values its disclosures read.

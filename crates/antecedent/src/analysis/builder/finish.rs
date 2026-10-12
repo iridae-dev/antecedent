@@ -1066,7 +1066,9 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             // matching / IV / RD / forest / two-stage front-door cannot inherit
             // a license whose evidence never ran them.
             match crate::support::classify(cell) {
-                CellStatus::NotApplicable { .. } | CellStatus::Refused => {
+                CellStatus::NotApplicable { .. }
+                | CellStatus::Refused
+                | CellStatus::Allowlisted { .. } => {
                     if carry.inspect_only {
                         Some(crate::support::classify(cell))
                     } else {
@@ -1089,9 +1091,6 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                         Some(est) => Some(crate::support::classify_estimator(cell, est)),
                         None => Some(CellStatus::Refused),
                     }
-                }
-                CellStatus::Allowlisted { .. } => {
-                    unreachable!("classify never returns Allowlisted")
                 }
             }
         } else {

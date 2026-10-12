@@ -1076,12 +1076,14 @@ fn cross_world_point(
     let delta = active - control;
     match query {
         CausalQuery::NestedCounterfactual(_) => {
-            let mediator = mediator.expect("nested mediator");
+            let mediator =
+                mediator.ok_or_else(super::temporal_path::missing_cross_world_mediator)?;
             let (_, slopes) = fit(outcome, &[treatment, mediator], &[mediator])?;
             Ok(slopes[0] * delta)
         }
         CausalQuery::PathSpecific(_) => {
-            let mediator = mediator.expect("path mediator");
+            let mediator =
+                mediator.ok_or_else(super::temporal_path::missing_cross_world_mediator)?;
             let (_, through) = fit(mediator, &[treatment], &[])?;
             let (_, onward) = fit(outcome, &[treatment, mediator], &[mediator])?;
             Ok(through[0] * onward[1] * delta)

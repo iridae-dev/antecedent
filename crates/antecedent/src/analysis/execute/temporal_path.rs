@@ -5227,7 +5227,7 @@ fn cross_world_point(
 }
 
 /// A mediated cross-world contrast whose contrast record carries no mediator.
-fn missing_cross_world_mediator() -> CausalError {
+pub(super) fn missing_cross_world_mediator() -> CausalError {
     CausalError::Compile { message: "cross-world mediated contrast needs a mediator".into() }
 }
 
