@@ -67,9 +67,9 @@ impl TabularData {
                 None,
                 MeasurementSpec::default(),
             )
-            .map_err(|e| DataError::Schema(e.to_string()))?;
+            .map_err(DataError::from)?;
         }
-        let schema = b.build().map_err(|e| DataError::Schema(e.to_string()))?;
+        let schema = b.build().map_err(DataError::from)?;
         Self::try_from_schema_f64(
             schema,
             collected.iter().map(|(name, values)| (name.as_ref(), *values)),

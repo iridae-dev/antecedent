@@ -70,7 +70,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
                     None,
                     MeasurementSpec::default(),
                 )
-                .map_err(|e| DataError::Schema(e.to_string()))?;
+                .map_err(DataError::from)?;
             let (col, copied) = float64_owned_from_array(id, floats, n_rows)?;
             bytes_copied += copied;
             diagnostics.push(materialization_diagnostic(
@@ -105,7 +105,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
                     None,
                     MeasurementSpec::default(),
                 )
-                .map_err(|e| DataError::Schema(e.to_string()))?;
+                .map_err(DataError::from)?;
             let (col, copied) = fixed_vector_from_list(id, list, n_rows, dim)?;
             bytes_copied += copied;
             diagnostics.push(materialization_diagnostic(
@@ -119,7 +119,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
         return Err(DataError::TypeMismatch { id, expected: "float64 or FixedSizeList<float64>" });
     }
 
-    let schema: CausalSchema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
+    let schema: CausalSchema = builder.build().map_err(DataError::from)?;
     let storage = OwnedColumnarStorage::try_new(schema, columns, None, None)?;
     Ok(ArrowLoadResult {
         data: TabularData::new(storage),
@@ -187,7 +187,16 @@ fn fixed_vector_from_list(
             continue;
         }
         validity_bytes[row / 8] |= 1 << (row % 8);
-        flat.extend((start..start + dim).map(|idx| floats.value(idx)));
+        // `value` is logical; the buffer is addressed from the array offset.
+        let raw = floats.values();
+        let phys = floats.offset() + start;
+        let end = phys + dim;
+        if end > raw.len() {
+            return Err(DataError::InvalidArgument {
+                message: "FixedSizeList value buffer is shorter than its row width".into(),
+            });
+        }
+        flat.extend_from_slice(&raw[phys..end]);
     }
     let copied = (flat.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
     let col = FixedVectorColumn::new(
@@ -236,7 +245,7 @@ pub fn tabular_from_arrow_c_columns(
                 None,
                 MeasurementSpec::default(),
             )
-            .map_err(|e| DataError::Schema(e.to_string()))?;
+            .map_err(DataError::from)?;
 
         let array = col.into_array()?;
         if let Some(n) = n_rows {
@@ -263,7 +272,7 @@ pub fn tabular_from_arrow_c_columns(
         owned_cols.push(owned);
     }
 
-    let schema: CausalSchema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
+    let schema: CausalSchema = builder.build().map_err(DataError::from)?;
     let storage = OwnedColumnarStorage::try_new(schema, owned_cols, None, None)?;
     Ok(ArrowLoadResult {
         data: TabularData::new(storage),

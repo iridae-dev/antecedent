@@ -4,7 +4,7 @@
 
 use core::fmt;
 
-use antecedent_core::VariableId;
+use antecedent_core::{SchemaError, VariableId};
 
 /// Errors from data construction, lookup, or materialization.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -94,3 +94,9 @@ impl fmt::Display for DataError {
 }
 
 impl std::error::Error for DataError {}
+
+impl From<SchemaError> for DataError {
+    fn from(err: SchemaError) -> Self {
+        Self::Schema(err.to_string())
+    }
+}

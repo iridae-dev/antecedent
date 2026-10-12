@@ -219,7 +219,7 @@ impl TabularData {
                     v.category_domain,
                     v.measurement.clone(),
                 )
-                .map_err(|e| DataError::Schema(e.to_string()))?;
+                .map_err(DataError::from)?;
         }
         builder
             .add_variable(
@@ -230,8 +230,8 @@ impl TabularData {
                 None,
                 MeasurementSpec::default(),
             )
-            .map_err(|e| DataError::Schema(e.to_string()))?;
-        let schema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
+            .map_err(DataError::from)?;
+        let schema = builder.build().map_err(DataError::from)?;
         let new_id = VariableId::from_raw(u32::try_from(schema.len() - 1).map_err(|_| {
             DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }
         })?);

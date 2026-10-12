@@ -144,10 +144,24 @@ pub(crate) fn float64_column_from_array(
         });
         Ok((OwnedColumn::Float64(col), borrowed, validity_copied, diag))
     } else {
-        let mut values = Vec::with_capacity(n);
-        for i in 0..n {
-            values.push(if floats.is_null(i) { f64::NAN } else { floats.value(i) });
-        }
+        let raw = floats.values();
+        // `values()` is the physical buffer. Use it only when it is exactly the
+        // logical column; a non-zero offset or a longer buffer goes through `value`.
+        let mut values = if floats.offset() == 0 && raw.len() == n {
+            let mut values = raw.to_vec();
+            for i in 0..n {
+                if floats.is_null(i) {
+                    values[i] = f64::NAN;
+                }
+            }
+            values
+        } else {
+            let mut values = Vec::with_capacity(n);
+            for i in 0..n {
+                values.push(if floats.is_null(i) { f64::NAN } else { floats.value(i) });
+            }
+            values
+        };
         let value_bytes = (values.len() * core::mem::size_of::<f64>()) as u64;
         let copied = value_bytes + validity_copied;
         let col = Float64Column::new(id, F64Buffer::owned(Arc::from(values)), validity)?;
