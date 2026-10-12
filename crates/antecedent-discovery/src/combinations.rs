@@ -20,11 +20,13 @@ pub fn combinations(items: &[(VariableId, Lag)], k: usize) -> Vec<Vec<(VariableI
 /// Invoke `visit` for each lexicographic `k`-combination, writing into `scratch`.
 ///
 /// `visit` returns `false` to stop early. `scratch` is resized to `k` and reused.
-pub(crate) fn for_each_combination(
-    items: &[(VariableId, Lag)],
+/// Combination order is the same for every `T: Copy`: index tuples `(0,1,…,k-1)`,
+/// then the rightmost index that can advance.
+pub(crate) fn for_each_combination<T: Copy>(
+    items: &[T],
     k: usize,
-    scratch: &mut Vec<(VariableId, Lag)>,
-    mut visit: impl FnMut(&[(VariableId, Lag)]) -> bool,
+    scratch: &mut Vec<T>,
+    mut visit: impl FnMut(&[T]) -> bool,
 ) {
     if k == 0 {
         scratch.clear();
@@ -34,30 +36,37 @@ pub(crate) fn for_each_combination(
     if k > items.len() {
         return;
     }
-    scratch.resize(k, (VariableId::from_raw(0), Lag::CONTEMPORANEOUS));
+    scratch.clear();
+    scratch.extend(items[..k].iter().copied());
     let mut idx: Vec<usize> = (0..k).collect();
     loop {
-        for (slot, &i) in idx.iter().enumerate() {
-            scratch[slot] = items[i];
-        }
         if !visit(scratch) {
             return;
         }
-        let mut i = k;
-        loop {
-            if i == 0 {
-                return;
-            }
-            i -= 1;
-            if idx[i] != i + items.len() - k {
-                idx[i] += 1;
-                for j in i + 1..k {
-                    idx[j] = idx[j - 1] + 1;
-                }
-                break;
-            }
+        if !advance_combination(&mut idx, items.len()) {
+            return;
+        }
+        for (slot, &i) in idx.iter().enumerate() {
+            scratch[slot] = items[i];
         }
     }
+}
+
+/// Advance a lexicographic combination index. `false` when `idx` was the last one.
+fn advance_combination(idx: &mut [usize], n: usize) -> bool {
+    let k = idx.len();
+    let mut i = k;
+    while i > 0 {
+        i -= 1;
+        if idx[i] != i + n - k {
+            idx[i] += 1;
+            for j in i + 1..k {
+                idx[j] = idx[j - 1] + 1;
+            }
+            return true;
+        }
+    }
+    false
 }
 
 /// Lazily generated lexicographic `k`-combinations of `items` (positions ascending), each
@@ -82,25 +91,11 @@ impl<T: Copy> Iterator for Combinations<'_, T> {
         if self.done {
             return None;
         }
-        let k = self.idx.len();
         if self.first {
             self.first = false;
-        } else {
-            let mut i = k;
-            loop {
-                if i == 0 {
-                    self.done = true;
-                    return None;
-                }
-                i -= 1;
-                if self.idx[i] != i + self.items.len() - k {
-                    self.idx[i] += 1;
-                    for j in i + 1..k {
-                        self.idx[j] = self.idx[j - 1] + 1;
-                    }
-                    break;
-                }
-            }
+        } else if !advance_combination(&mut self.idx, self.items.len()) {
+            self.done = true;
+            return None;
         }
         Some(self.idx.iter().map(|&i| self.items[i]).collect())
     }
@@ -123,40 +118,9 @@ pub(crate) fn for_each_combination_vars(
     items: &[VariableId],
     k: usize,
     scratch: &mut Vec<VariableId>,
-    mut visit: impl FnMut(&[VariableId]) -> bool,
+    visit: impl FnMut(&[VariableId]) -> bool,
 ) {
-    if k == 0 {
-        scratch.clear();
-        let _ = visit(scratch);
-        return;
-    }
-    if k > items.len() {
-        return;
-    }
-    scratch.resize(k, VariableId::from_raw(0));
-    let mut idx: Vec<usize> = (0..k).collect();
-    loop {
-        for (slot, &i) in idx.iter().enumerate() {
-            scratch[slot] = items[i];
-        }
-        if !visit(scratch) {
-            return;
-        }
-        let mut i = k;
-        loop {
-            if i == 0 {
-                return;
-            }
-            i -= 1;
-            if idx[i] != i + items.len() - k {
-                idx[i] += 1;
-                for j in i + 1..k {
-                    idx[j] = idx[j - 1] + 1;
-                }
-                break;
-            }
-        }
-    }
+    for_each_combination(items, k, scratch, visit);
 }
 
 #[cfg(test)]
