@@ -63,6 +63,49 @@ pub struct InferenceDiagnostics {
 }
 
 impl InferenceDiagnostics {
+    /// Laplace (Cholesky) diagnostics. MCMC fields stay unset.
+    #[must_use]
+    pub fn laplace(
+        backend_id: impl Into<Arc<str>>,
+        converged: bool,
+        iterations: u32,
+        grad_inf_norm: f64,
+        hessian_condition: f64,
+        separation_warning: bool,
+        notes: Vec<Arc<str>>,
+    ) -> Self {
+        Self {
+            converged,
+            iterations,
+            grad_inf_norm,
+            hessian_condition,
+            factorization: HessianFactorization::Cholesky,
+            separation_warning,
+            notes,
+            backend_id: backend_id.into(),
+            n_chains: None,
+            n_warmup: None,
+            ess_bulk_min: None,
+            ess_tail_min: None,
+            rhat_max: None,
+            n_divergences: None,
+            mean_accept_prob: None,
+            n_warmup_divergences: None,
+            n_postwarmup_divergences: None,
+            max_abs_delta_h: None,
+            all_chains_moved: None,
+        }
+    }
+
+    /// Write the post-warmup divergence count and its legacy alias together.
+    ///
+    /// `n_divergences` is the historical name of `n_postwarmup_divergences`. Publication
+    /// reads the post-warmup field; both are set so older readers see the same count.
+    pub fn record_postwarmup_divergences(&mut self, n: u32) {
+        self.n_postwarmup_divergences = Some(n);
+        self.n_divergences = Some(n);
+    }
+
     /// Analytic conjugate path (always "converged").
     #[must_use]
     pub fn analytic(backend_id: impl Into<Arc<str>>) -> Self {
@@ -297,27 +340,8 @@ mod tests {
 
     #[test]
     fn laplace_requires_convergence() {
-        let mut d = InferenceDiagnostics {
-            converged: false,
-            iterations: 10,
-            grad_inf_norm: 1.0,
-            hessian_condition: 10.0,
-            factorization: HessianFactorization::Cholesky,
-            separation_warning: false,
-            notes: Vec::new(),
-            backend_id: Arc::from("laplace"),
-            n_chains: None,
-            n_warmup: None,
-            ess_bulk_min: None,
-            ess_tail_min: None,
-            rhat_max: None,
-            n_divergences: None,
-            mean_accept_prob: None,
-            n_warmup_divergences: None,
-            n_postwarmup_divergences: None,
-            max_abs_delta_h: None,
-            all_chains_moved: None,
-        };
+        let mut d =
+            InferenceDiagnostics::laplace("laplace", false, 10, 1.0, 10.0, false, Vec::new());
         assert!(!d.allows_posterior());
         d.converged = true;
         assert!(d.allows_posterior());

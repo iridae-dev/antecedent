@@ -14,7 +14,7 @@ use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
     LaplaceWorkspace,
 };
-use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
+use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
 use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_precision};
 use crate::likelihood_terms::{
@@ -239,34 +239,14 @@ pub fn fit_laplace_glm(
     // Reuse the factor just computed instead of refactorizing inside
     // invert_spd (two O(p³/3) Choleskys of the same matrix).
     let cov = crate::linalg::invert_spd_from_chol(&chol, ncols);
-    let factorization = HessianFactorization::Cholesky;
-
     let mut notes = Vec::new();
     if sep_map {
         notes.push(Arc::from("possible separation in Bernoulli model"));
     }
 
-    let diagnostics = InferenceDiagnostics {
-        converged,
-        iterations,
-        grad_inf_norm: grad_inf,
-        hessian_condition: condition,
-        factorization,
-        separation_warning: sep_map,
-        notes,
-        backend_id: Arc::from("laplace"),
-        n_chains: None,
-        n_warmup: None,
-        ess_bulk_min: None,
-        ess_tail_min: None,
-        rhat_max: None,
-        n_divergences: None,
-        mean_accept_prob: None,
-        n_warmup_divergences: None,
-        n_postwarmup_divergences: None,
-        max_abs_delta_h: None,
-        all_chains_moved: None,
-    };
+    let diagnostics = InferenceDiagnostics::laplace(
+        "laplace", converged, iterations, grad_inf, condition, sep_map, notes,
+    );
 
     if let Some(message) = diagnostics.curvature_refusal() {
         return Err(ProbError::MissingDiagnostics { message });
@@ -411,27 +391,15 @@ fn fit_gaussian_laplace_known(
     }
     let chol = cholesky_spd(&a_beta, ncols)?;
     let condition = condition_from_chol(&chol, ncols);
-    let diagnostics = InferenceDiagnostics {
-        converged: grad_inf < options.grad_tol.max(1e-8),
-        iterations: 1,
-        grad_inf_norm: grad_inf,
-        hessian_condition: condition,
-        factorization: HessianFactorization::Cholesky,
-        separation_warning: false,
-        notes: vec![Arc::from("gaussian_laplace_known_sigma2")],
-        backend_id: Arc::from("laplace"),
-        n_chains: None,
-        n_warmup: None,
-        ess_bulk_min: None,
-        ess_tail_min: None,
-        rhat_max: None,
-        n_divergences: None,
-        mean_accept_prob: None,
-        n_warmup_divergences: None,
-        n_postwarmup_divergences: None,
-        max_abs_delta_h: None,
-        all_chains_moved: None,
-    };
+    let diagnostics = InferenceDiagnostics::laplace(
+        "laplace",
+        grad_inf < options.grad_tol.max(1e-8),
+        1,
+        grad_inf,
+        condition,
+        false,
+        vec![Arc::from("gaussian_laplace_known_sigma2")],
+    );
     if let Some(message) = diagnostics.curvature_refusal() {
         return Err(ProbError::MissingDiagnostics { message });
     }
@@ -1263,27 +1231,7 @@ mod tests {
 
     #[test]
     fn refuses_without_diagnostics() {
-        let d = InferenceDiagnostics {
-            converged: false,
-            iterations: 1,
-            grad_inf_norm: 10.0,
-            hessian_condition: 1.0,
-            factorization: HessianFactorization::Cholesky,
-            separation_warning: false,
-            notes: Vec::new(),
-            backend_id: Arc::from("laplace"),
-            n_chains: None,
-            n_warmup: None,
-            ess_bulk_min: None,
-            ess_tail_min: None,
-            rhat_max: None,
-            n_divergences: None,
-            mean_accept_prob: None,
-            n_warmup_divergences: None,
-            n_postwarmup_divergences: None,
-            max_abs_delta_h: None,
-            all_chains_moved: None,
-        };
+        let d = InferenceDiagnostics::laplace("laplace", false, 1, 10.0, 1.0, false, Vec::new());
         assert!(!d.allows_posterior());
     }
 }
