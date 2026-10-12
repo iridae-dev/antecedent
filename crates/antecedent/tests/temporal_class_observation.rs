@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::type_complexity)]
-
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, IntoGraphInput, RefuteSuite, Study};
@@ -30,9 +28,10 @@ fn class_pin() -> serde_json::Value {
     .unwrap()
 }
 
-fn generate(
-    pin: &serde_json::Value,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+/// The six simulated columns of one pinned fixture.
+type Columns = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
+
+fn generate(pin: &serde_json::Value) -> Columns {
     let n = usize::try_from(pin["rows"].as_u64().unwrap()).unwrap();
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
@@ -385,6 +384,10 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for frequentist incomplete class uses outer block or withholds"
+)]
 fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
     let pin = pin();
     let (t, latent, selected, _, _, _) = generate(&pin);

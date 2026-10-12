@@ -1,7 +1,6 @@
 //! Fail-closed prior transfer onto licensed Bayesian temporal cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 

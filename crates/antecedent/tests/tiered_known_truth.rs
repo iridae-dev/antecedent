@@ -8,8 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown)]
-
 mod common;
 
 use antecedent::{CausalError, EstimatorId, RefuteSuite, Study};
@@ -115,7 +113,7 @@ fn assert_graph_conflict(result: Result<impl std::fmt::Debug, CausalError>) {
 }
 
 /// A caller ADMG and a tier background are two sources of truth. The
-/// AverageEffect route keys off the background, so the ADMG (here with a
+/// `AverageEffect` route keys off the background, so the ADMG (here with a
 /// drawn `t ↔ y` edge that defeats adjustment) must be refused, not ignored.
 #[test]
 fn caller_graph_and_tiered_background_conflict_in_either_order() {

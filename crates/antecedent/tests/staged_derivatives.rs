@@ -1,6 +1,5 @@
 //! Known-truth licensing evidence for staged derivatives.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, ResponseFunctional as F,
@@ -12,6 +11,10 @@ use antecedent_graph::{Dag, DenseNodeId};
 use std::sync::Arc;
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for staged derivatives known truth"
+)]
 fn staged_derivatives_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/staged_derivatives/expected.json"

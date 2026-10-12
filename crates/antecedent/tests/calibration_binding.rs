@@ -9,7 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -143,6 +142,10 @@ fn continuous_query() -> AverageEffectQuery {
 }
 
 /// Run the facade with the configuration of estimator-level test `test`.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per calibrated facade route builds that route's study and result"
+)]
 fn facade_result(test: &str) -> (Study, StudyResult) {
     let ctx = ExecutionContext::for_tests(11);
     let (data, clusters) = backdoor_data(7);

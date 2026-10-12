@@ -64,7 +64,10 @@ fn options() -> EmpiricalTableOptions {
     EmpiricalTableOptions::default()
 }
 
-#[allow(clippy::cast_possible_truncation)] // This SCM helper emits binary 0/1 intervention codes.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "intervention levels are small integral literals carried as f64"
+)]
 fn sample(
     population: &str,
     regime: RegimeId,
@@ -114,7 +117,10 @@ fn binding(regime: RegimeId, snapshot: &str) -> RegimeBinding {
     }
 }
 
-#[allow(clippy::too_many_arguments)] // Keep the recorded construction, truth and scope explicit.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one interval check per call: functional, input, request, outcome, seed, sample size, tally and truth are the replicate's coordinates"
+)]
 fn mean_interval(
     functional: &antecedent_identify::BoundTransportFunctional,
     input: &StatisticalTransportInput,

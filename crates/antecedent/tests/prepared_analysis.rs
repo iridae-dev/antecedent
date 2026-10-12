@@ -1013,7 +1013,10 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prepared temporal mediation reuses identification"
+)]
 fn prepared_temporal_mediation_reuses_identification() {
     // Known-truth pin: statsmodels oracle for the exact DGP below (three
     // independently fitted OLS models + Sobel product), n=320. Reproducing
@@ -1204,6 +1207,10 @@ fn prepared_temporal_mediation_reuses_identification() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prepared pag ate reuses identification envelope"
+)]
 fn prepared_pag_ate_reuses_identification_envelope() {
     // Visibility witness R -> T is required in the MAG interpretation.
     let pin = include_str!("../../../conformance/identify/generalized_adjustment/expected.json");
@@ -1326,7 +1333,10 @@ fn prepared_pag_ate_reuses_identification_envelope() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prepared admg ate reuses general id result"
+)]
 fn prepared_admg_ate_reuses_general_id_result() {
     // Frozen pinned-baseline identify() oracle for the frontdoor case (t -> m -> y with
     // U -> t, U -> y, i.e. t <-> y in the ADMG projection below). The oracle
@@ -1752,7 +1762,10 @@ fn admg_distribution_nonidentified_bidirected_pair_refuses() {
 /// fixture tolerance of the truth, with a finite credible interval bracketing
 /// it. Explicit and accepted ADMGs, fresh and prepared.
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for admg frontdoor distribution known truth"
+)]
 fn admg_frontdoor_distribution_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_distribution/expected.json"

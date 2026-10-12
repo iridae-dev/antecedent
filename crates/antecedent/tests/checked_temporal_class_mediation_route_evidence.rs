@@ -364,7 +364,10 @@ fn posterior_with_weights(
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for checked temporal class mediation lifecycle covers all graph posterior coordinates"
+)]
 fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates() {
     let pin = mediation_pin();
     let initial = posterior_series(0.0, false);

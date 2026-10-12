@@ -40,7 +40,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -226,7 +225,10 @@ type Measured = [[Option<f64>; 3]; 4];
 
 /// Score one design: per-unit intervals on two designated units and the
 /// mean-ITE interval at the reported and gate levels.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration design per call: the DGP, graph, treatment, outcome, truth and designated-unit callbacks and the measured coverage are its coordinates"
+)]
 fn design(
     test: &'static str,
     dgp: &'static str,

@@ -1,7 +1,6 @@
 //! Temporal observation pairs on `ResponseCurve` / `InterventionResponse`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -127,6 +126,10 @@ fn curve_query(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal observation pairs match fixture and beat complete proxy"
+)]
 fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     let pin = fixture();
     let ctx = ExecutionContext::for_tests(pin["seed"].as_u64().unwrap());

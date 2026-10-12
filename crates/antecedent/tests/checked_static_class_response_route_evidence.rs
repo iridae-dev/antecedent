@@ -7,8 +7,6 @@
 //! the PAG fixture has one visible completion and publishes a point.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent::{
@@ -174,6 +172,10 @@ fn static_class_responses_are_sealed_for_both_classes_and_inferences() {
     run_on_large_stack(static_class_responses_body);
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the route-evidence body: builds, seals, executes and re-executes every static class response family"
+)]
 fn static_class_responses_body() {
     let seed = 4_021;
     let n = 600;

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -1256,6 +1255,10 @@ fn prepared_batch_reuses_plans_and_records_screen() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for tiered 200 node certified set is valid and evalue attaches"
+)]
 fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
     let n_nodes = 200u32;
     let n = 800;
@@ -3102,6 +3105,10 @@ fn same_tier_joint_dgp(n: usize, seed: u64) -> (TabularData, TieredBackground, R
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for codetermined same tier joint cell aipw matches closure admg"
+)]
 fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     let (data, background, query) = same_tier_joint_dgp(2_400, 17);
     let schema = data.schema().clone();

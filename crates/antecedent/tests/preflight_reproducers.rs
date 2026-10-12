@@ -8,7 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact counts and exact copies of columns"

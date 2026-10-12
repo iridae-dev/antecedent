@@ -1,7 +1,7 @@
-//! TemporalCpdag and TemporalPag conditional, derivative, and cross-world points.
+//! `TemporalCpdag` and `TemporalPag` conditional, derivative, and cross-world points.
 //!
 //! The class result is the completion-weighted mean of the existing temporal
-//! linear producer. A single directed completion matches the TemporalDag pin.
+//! linear producer. A single directed completion matches the `TemporalDag` pin.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -18,7 +18,7 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use antecedent_prob::InferenceDiagnostics;
 
-fn series_from(columns: Vec<(&'static str, Vec<f64>)>) -> TimeSeriesData {
+fn series_from(columns: &[(&'static str, Vec<f64>)]) -> TimeSeriesData {
     let refs: Vec<(&str, &[f64])> =
         columns.iter().map(|(name, values)| (*name, values.as_slice())).collect();
     TimeSeriesData::from_f64_columns(refs, 1).unwrap()
@@ -28,7 +28,7 @@ fn with_witness(series_columns: Vec<(&'static str, Vec<f64>)>) -> TimeSeriesData
     let n = series_columns[0].1.len();
     let mut columns = series_columns;
     columns.push(("r", (0..n).map(|t| ((t as f64) * 0.17).cos()).collect()));
-    series_from(columns)
+    series_from(&columns)
 }
 
 fn conditional_columns() -> Vec<(&'static str, Vec<f64>)> {
@@ -256,11 +256,8 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         continue;
                     }
                     for bayesian in [false, true] {
-                        let data = if pag {
-                            with_witness(columns.clone())
-                        } else {
-                            series_from(columns.clone())
-                        };
+                        let data =
+                            if pag { with_witness(columns.clone()) } else { series_from(&columns) };
                         let (n, conditional_adj, conditional_lag) =
                             posterior_masks(3, &[(0, 1)], &[(2, 1)], pag);
                         let builder = if posterior {
@@ -313,7 +310,7 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
             }
         }
     }
-    let data = series_from(columns);
+    let data = series_from(&columns);
     let refused = Study::series(data.clone())
         .query(CausalQuery::TemporalEffect(
             conditional_query(false)
@@ -347,8 +344,7 @@ fn attach(functional: ResponseFunctional) -> ResponseQuery {
         .with_temporal(TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap())
 }
 
-fn derivative_values(functional: ResponseFunctional) -> Vec<(&'static str, ResponseFunctional)> {
-    let _ = functional;
+fn derivative_values() -> Vec<(&'static str, ResponseFunctional)> {
     let point = |scale| ResponseFunctional::PointDerivative {
         outcome: VariableId::from_raw(2),
         treatment: VariableId::from_raw(0),
@@ -399,11 +395,7 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
     let tolerance = pin["tolerance"].as_f64().unwrap();
     let columns = derivative_columns();
     let dag = derivative_dag();
-    for (key, functional) in derivative_values(ResponseFunctional::AverageDerivative {
-        outcome: VariableId::from_raw(2),
-        treatment: VariableId::from_raw(0),
-        weighting: DerivativeWeighting::Observed,
-    }) {
+    for (key, functional) in derivative_values() {
         for pag in [false, true] {
             for posterior in [false, true] {
                 for accepted in [false, true] {
@@ -411,11 +403,8 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
                         continue;
                     }
                     for bayesian in [false, true] {
-                        let data = if pag {
-                            with_witness(columns.clone())
-                        } else {
-                            series_from(columns.clone())
-                        };
+                        let data =
+                            if pag { with_witness(columns.clone()) } else { series_from(&columns) };
                         let (n, derivative_adj, derivative_lag) =
                             posterior_masks(4, &[(0, 2), (1, 2), (0, 3), (1, 3)], &[], pag);
                         let builder = if posterior {
@@ -521,7 +510,7 @@ fn temporal_class_nested_contract_encodes() {
     let (_, query) = cross_queries().into_iter().find(|(key, _)| *key == "nested").unwrap();
     let ctx = ExecutionContext::for_tests(11);
     let study = bind(
-        Study::series(series_from(cross_columns())).query(query).refute(RefuteSuite::None),
+        Study::series(series_from(&cross_columns())).query(query).refute(RefuteSuite::None),
         &dag,
         false,
         false,
@@ -552,11 +541,8 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
                         continue;
                     }
                     for bayesian in [false, true] {
-                        let data = if pag {
-                            with_witness(columns.clone())
-                        } else {
-                            series_from(columns.clone())
-                        };
+                        let data =
+                            if pag { with_witness(columns.clone()) } else { series_from(&columns) };
                         let (n, cross_adj, cross_lag) =
                             posterior_masks(3, &[(0, 1), (0, 2)], &[(1, 2)], pag);
                         let builder = if posterior {

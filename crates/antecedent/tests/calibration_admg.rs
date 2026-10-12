@@ -26,7 +26,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown, clippy::too_many_arguments)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -154,6 +153,10 @@ type Extract = fn(&StudyResult) -> [Option<(f64, f64)>; 2];
 
 /// Score `extract(result)` against `truth`; replicate 0 checks the licensed
 /// structure × validation coordinates report the same interval.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: test, cell, query, inference, suites, extractor, truth and seed family are the cell coordinates, written out at the call so the table of cells reads literally"
+)]
 fn coverage(
     test: &'static str,
     cell: Cell,

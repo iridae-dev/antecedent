@@ -1289,7 +1289,10 @@ fn assert_block_band_diagnostics(
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for bayesian temporal response and sustained window known truth"
+)]
 fn bayesian_temporal_response_and_sustained_window_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/response_surfaces/expected.json"

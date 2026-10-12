@@ -1,6 +1,5 @@
 //! Frozen structural truth through the licensed staged handle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 use antecedent::estimate::validate_static_pair;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{

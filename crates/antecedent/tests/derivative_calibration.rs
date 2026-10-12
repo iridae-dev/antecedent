@@ -40,7 +40,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -333,8 +332,10 @@ fn response_interval(bayesian: bool) -> &'static str {
 }
 
 /// Record key of a gated scalar cell on [`point_data`].
-// The callers take `Option<RecordKey>`; this coordinate always has one.
-#[allow(clippy::unnecessary_wraps)]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the callers take Option<RecordKey>; this coordinate always has one"
+)]
 fn point_record(test: &'static str, bayesian: bool) -> Option<RecordKey> {
     Some(RecordKey { test, dgp: "point_data", interval: response_interval(bayesian) })
 }

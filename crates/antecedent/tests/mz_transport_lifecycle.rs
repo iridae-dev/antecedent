@@ -162,7 +162,10 @@ fn refused(bytes: &[u8]) -> MzTransportArtifactError {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One artifact, every mutation of it.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for a mutated artifact fails independent consumption"
+)]
 fn a_mutated_artifact_fails_independent_consumption() {
     let (catalog, data) = evidence();
     let prepared = prepare(&catalog, data, false);

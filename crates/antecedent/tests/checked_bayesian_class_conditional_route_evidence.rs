@@ -3,8 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -133,6 +131,10 @@ fn assert_validation(result: &antecedent::StudyResult, suite: RefuteSuite, label
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for bayesian class conditional effect is sealed across lifecycle"
+)]
 fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
     run_on_large_stack(|| {
         let original = class_data(0.0);

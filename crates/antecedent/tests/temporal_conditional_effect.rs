@@ -115,6 +115,10 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
 }
 
 #[test]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "each step reads t[i - 1] and w[i] alongside the index-dependent signal term"
+)]
 fn multi_step_sustained_effect_uses_a_named_modifier() {
     let n = 250;
     let mut t = vec![0.0; n];

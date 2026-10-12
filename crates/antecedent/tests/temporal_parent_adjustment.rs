@@ -11,8 +11,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown)]
-
 mod common;
 
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};

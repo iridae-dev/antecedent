@@ -32,7 +32,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 #![allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -645,6 +644,10 @@ fn conditional_pag_data(n: usize, seed: u64) -> TabularData {
     table(&[("t", &t), ("y", &y), ("z", &z), ("m", &m), ("v", &w), ("x", &x)])
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: test, graph class, DGP, seed family, modifier, truth, sampler and graph are the cell coordinates, written out at the call"
+)]
 fn conditional_case(
     test: &'static str,
     graph_class: &'static str,
@@ -679,6 +682,10 @@ fn conditional_case(
     );
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: the cell coordinates of conditional_case plus the measured coverage it is pinned against"
+)]
 fn conditional_case_at(
     test: &'static str,
     graph_class: &'static str,
@@ -1276,6 +1283,10 @@ const DIRECTION: [f64; 2] = [1.0, 2.0];
 const DIRECTIONAL_TRUTH: [f64; 2] = [1.0, 3.25];
 
 /// Score a derivative functional; `truth` per coordinate.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: query, estimator, DGP, design, family, functional, bandwidth, truth and measured grid are the cell coordinates"
+)]
 fn derivative_case(
     test: &'static str,
     query: &'static str,

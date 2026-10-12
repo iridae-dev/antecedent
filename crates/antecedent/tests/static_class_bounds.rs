@@ -4,7 +4,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // `t`, `y`, `z`, `x`, `g` are the variable names of the laws below.
-#![allow(clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -253,7 +252,7 @@ fn bayesian_partially_identified_cpdag_ate_carries_the_identified_set() {
     round_trip(&prepared, &result, &ctx, "cpdag-ate-partial-bayes");
 }
 
-/// `x` (a modifier of `t`'s effect on `y`) makes this a ConditionalEffect on the
+/// `x` (a modifier of `t`'s effect on `y`) makes this a `ConditionalEffect` on the
 /// same two-completion class.
 fn conditional_data(n: usize, seed: u64) -> TabularData {
     let mut g = gaussian(seed);

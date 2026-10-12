@@ -44,7 +44,10 @@ fn fixture(provenance: &str, rows: usize) -> (TabularData, ContinuousDoseRespons
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // one end-to-end route fixture; splitting would fragment the flow
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for retained fixed dose policy intervals round trip and refuse tampering"
+)]
 fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     let (data, query) = fixture("known", 800);
     let ctx = ExecutionContext::for_tests(0xD05E);

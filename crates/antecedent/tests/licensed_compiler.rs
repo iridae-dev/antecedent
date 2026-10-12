@@ -4,12 +4,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_lossless,
-    clippy::match_same_arms,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
-)]
-#![allow(
     clippy::cast_possible_truncation,
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -106,7 +100,7 @@ fn discrete_joint_table(names: &[&str]) -> TabularData {
         let count = 8 + (bits % 5);
         for _ in 0..count {
             for (j, column) in columns.iter_mut().enumerate() {
-                column.push(((bits >> j) & 1) as f64);
+                column.push(f64::from((bits >> j) & 1));
             }
         }
     }
@@ -152,6 +146,10 @@ fn series_from(names: &[&str]) -> TimeSeriesData {
     .unwrap()
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "each step reads t[i - 1] and m[i] alongside the index-dependent signal term"
+)]
 fn temporal_mediation_series() -> TimeSeriesData {
     let n = 320usize;
     let mut t = vec![0.0; n];
@@ -502,7 +500,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
 /// treatment so the unfolded `t_{t-1} → y_t` edge is visible. `2→0` and `2→1`
 /// plus lag `0→1` is that backdoor template.
 /// Masks of [`temporal_dag`], plus a contemporaneous witness into treatment
-/// for a TemporalPag atom. That witness is what makes the lagged treatment
+/// for a `TemporalPag` atom. That witness is what makes the lagged treatment
 /// edge visible without putting a confounder on the outcome.
 fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
     let cell = n_vars * n_vars;
@@ -595,6 +593,10 @@ fn intervention_response(treatments: &[u32], outcome: u32, temporal: bool) -> Ca
     CausalQuery::Response(if temporal { q.with_temporal(temporal_spec()) } else { q })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per support-matrix cell maps the cell to its literal query"
+)]
 fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
     let temporal_graph =
         matches!(cell.graph_class, "TemporalDag" | "TemporalCpdag" | "TemporalPag");
@@ -788,6 +790,10 @@ fn point_family_query(cell: &antecedent::SupportCell) -> bool {
     )
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "one arm per support-matrix query kind, in matrix order, so each reads against the row it mirrors"
+)]
 fn n_vars(cell: &antecedent::SupportCell) -> u32 {
     if cell.graph_class == "TemporalPag"
         && cell.structure == "graph_posterior"
@@ -831,6 +837,10 @@ struct CellSetup {
     data: CellData,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per support-matrix cell maps the cell to its builder setup"
+)]
 fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
     let expected = cell_coordinate(*cell);
     let query = query_for(cell);
@@ -864,7 +874,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         (Study::series(series.clone()), CellData::Series(series))
     } else {
         let table = if cell.query == "NestedCounterfactualEffect" {
-            let x: Vec<f64> = (0..300).map(|i| (i as f64 * 0.37).sin()).collect();
+            let x: Vec<f64> = (0..300).map(|i| (f64::from(i) * 0.37).sin()).collect();
             let m: Vec<f64> =
                 x.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
             let y: Vec<f64> = x
@@ -1130,6 +1140,11 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
 /// Optional estimators often need a different, but still same-coordinate,
 /// design than the shared support fixture. Keep the registry cell unchanged
 /// while supplying the data and identifier the named estimator expects.
+#[allow(
+    clippy::too_many_lines,
+    clippy::match_same_arms,
+    reason = "one arm per optional-estimator cell maps the cell to its builder setup, in matrix order"
+)]
 fn optional_estimator_setup(
     cell: &antecedent::SupportCell,
     estimator: EstimatorId,
@@ -1241,7 +1256,8 @@ fn optional_estimator_setup(
         "glm" => {
             let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
             let z: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
-            let y: Vec<f64> = (0..n).map(|i| ((i % 5 < 2) ^ (t[i] > 0.5)) as u8 as f64).collect();
+            let y: Vec<f64> =
+                (0..n).map(|i| f64::from(u8::from((i % 5 < 2) ^ (t[i] > 0.5)))).collect();
             let data = TabularData::from_f64_columns([
                 ("t", t.as_slice()),
                 ("y", y.as_slice()),
@@ -1487,6 +1503,10 @@ fn every_licensed_cell_completes_the_compiler_path() {
 /// dropped. This stays opt-in because the full 669-cell execution is expensive.
 #[test]
 #[ignore = "opt-in registry closure diagnostic; run with --ignored --exact"]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for diagnostic registry closure after builder and study drop"
+)]
 fn diagnostic_registry_closure_after_builder_and_study_drop() {
     let mut count = 0usize;
     let mut plan_gaps = Vec::new();
@@ -1605,6 +1625,10 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
 /// plan inspection separately from execution and artifact acceptance.
 #[test]
 #[ignore = "opt-in 60-route optional-estimator closure diagnostic"]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for diagnostic optional estimator closure after builder and study drop"
+)]
 fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
     let mut routes = Vec::new();
     for cell in licensed_support_cells() {

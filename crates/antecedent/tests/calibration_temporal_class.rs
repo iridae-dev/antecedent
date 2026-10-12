@@ -1,4 +1,4 @@
-//! Coverage tests for single-atom TemporalCpdag / TemporalPag *class* graph
+//! Coverage tests for single-atom `TemporalCpdag` / `TemporalPag` *class* graph
 //! posteriors: Pulse, Sustained and (temporal) Mediation effects.
 //!
 //! Each construction is a genuine `.graph_posterior(class_posterior(..))` with a
@@ -13,7 +13,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -288,7 +287,10 @@ fn effect_col(result: &StudyResult) -> usize {
 /// the single identified atom is not `NotIdentified`, and that the interval is
 /// actually published (a hollow, withheld interval fails here instead of
 /// silently recording a miss).
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: DGP, interval, estimator, truth, run and pair callbacks and the measured coverage are its coordinates"
+)]
 fn coverage(
     test: &'static str,
     dgp: &'static str,

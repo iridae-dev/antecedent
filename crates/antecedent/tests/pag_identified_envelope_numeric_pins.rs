@@ -11,7 +11,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -525,6 +524,10 @@ fn atom_scalars(result: &antecedent::StudyResult) -> Vec<Option<f64>> {
 /// and the response is graph-dependent over the identified completions, never a
 /// weighted mean.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for pag identified envelope intervention response matches completion effects"
+)]
 fn pag_identified_envelope_intervention_response_matches_completion_effects() {
     use antecedent_core::{
         Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue,
@@ -660,6 +663,10 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
 /// whose contrast matches both the structural slope and the `AverageEffect`
 /// cell on the same PAG and table.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for pag identified envelope response curve pins structural contrast"
+)]
 fn pag_identified_envelope_response_curve_pins_structural_contrast() {
     use antecedent_core::{
         ContinuousDomain, GridSpec, ResponseFunctional, ResponseIdentification, ResponseQuery,

@@ -2,7 +2,7 @@
 //!
 //! Workloads stay inside the licensed classical/catalog subset. Absolute times
 //! live in `benches/baselines/transport.md`.
-#![allow(missing_docs, clippy::too_many_lines)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

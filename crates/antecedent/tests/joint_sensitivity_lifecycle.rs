@@ -131,15 +131,20 @@ fn probabilities(shift: f64) -> Vec<f64> {
     out
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a probability in [0, 1] scaled by n = 80 and rounded is a small non-negative count"
+)]
 fn empirical_counts() -> ExactTransportData {
     let n = 80u64;
     let mut counts: Vec<u64> =
         probabilities(0.0).iter().map(|p| (*p * n as f64).round() as u64).collect();
     let sum: u64 = counts.iter().sum();
-    if sum < n {
-        *counts.last_mut().unwrap() += n - sum;
-    } else if sum > n {
-        counts[0] -= sum - n;
+    match sum.cmp(&n) {
+        std::cmp::Ordering::Less => *counts.last_mut().unwrap() += n - sum,
+        std::cmp::Ordering::Greater => counts[0] -= sum - n,
+        std::cmp::Ordering::Equal => {}
     }
     let total = counts.iter().sum::<u64>() as f64;
     let binary = |variable| DiscreteAxis {

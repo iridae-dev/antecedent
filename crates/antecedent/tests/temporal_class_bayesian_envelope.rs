@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -343,6 +342,10 @@ fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64)
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal class bayesian response is identified set"
+)]
 fn temporal_class_bayesian_response_is_identified_set() {
     // Deterministic law with aperiodic wiggles: r → {z, t}, z → t, {t, z}@-1 → y.
     let n = 300;
@@ -1681,6 +1684,10 @@ fn fit_oriented_pulse(n: usize, n_draws: usize, seed: u64) -> (antecedent::Study
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for mapped transfer onto temporal cpdag cells"
+)]
 fn mapped_transfer_onto_temporal_cpdag_cells() {
     let pin = transfer_pin();
     assert_eq!(

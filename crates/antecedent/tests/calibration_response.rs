@@ -1,7 +1,7 @@
 //! Repeated-sampling coverage of the static response coordinates that had
 //! no coverage evidence: the Frequentist graph-posterior intervention level,
 //! the Bayesian class-aware (CPDAG / PAG) intervention level and response
-//! curve, and the CoDetermined same-tier joint intervention level.
+//! curve, and the `CoDetermined` same-tier joint intervention level.
 //!
 //! Every test scores exactly the interval the study reports by default (no
 //! response options, no bootstrap or draw overrides, the facade's default
@@ -23,7 +23,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -598,7 +597,7 @@ fn intervention_response_pag_graph_posterior_bayesian_nominal_coverage() {
 /// Frequentist branch scores each atom with the influence-function SE
 /// (`evaluate_class_atom_response_frequentist`); with one atom the reported
 /// uncertainty is that atom's own uncertainty — a Scalar `analytic_se`
-/// interval for an intervention level, a PointwiseBand `analytic_se` for a
+/// interval for an intervention level, a `PointwiseBand` `analytic_se` for a
 /// curve. (A multi-atom Frequentist curve withholds the band, so this stays
 /// single-atom.)
 fn run_freq_class_graph_posterior(
@@ -1088,7 +1087,7 @@ fn run_codetermined(data: TabularData, seed: u64) -> Option<(Study, StudyResult)
     Some((study, result))
 }
 
-/// `cell.aipw` joint cell mean on the CoDetermined closure, the study default
+/// `cell.aipw` joint cell mean on the `CoDetermined` closure, the study default
 /// for a same-tier joint intervention.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]

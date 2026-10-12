@@ -9,8 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -193,6 +191,10 @@ fn assert_validation(result: &antecedent::StudyResult, suite: RefuteSuite, label
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for bayesian static class effect executes from retained plan after builder is dropped"
+)]
 fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped() {
     run_on_large_stack(|| {
         for fixture in fixtures() {

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 
 use std::time::{Duration, Instant};
 

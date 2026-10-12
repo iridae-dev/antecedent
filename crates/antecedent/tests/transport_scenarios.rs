@@ -389,7 +389,10 @@ fn inference_across_scenarios_is_refused() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One artifact round trip, then each mutation it must refuse.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for artifact keeps every scenario and fails on mutation"
+)]
 fn artifact_keeps_every_scenario_and_fails_on_mutation() {
     let prepared = prepare(three(Some([0.3, 0.2, 0.4])), catalog(true), laws(SOURCE, true), BUDGET);
     let ctx = ExecutionContext::for_tests(1);

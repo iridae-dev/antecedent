@@ -1,6 +1,6 @@
-//! Coverage of dependence-honest Frequentist TemporalDag intervals.
+//! Coverage of dependence-honest Frequentist `TemporalDag` intervals.
 //!
-//! Plain TemporalDag Pulse / single-step Sustained and temporal mediation
+//! Plain `TemporalDag` Pulse / single-step Sustained and temporal mediation
 //! (Total, Direct, Mediated) are calibrated under iid noise and under AR(1)
 //! outcome residuals on the driven-treatment DGPs of `common::driven_dgp`
 //! (MA(3) treatment through an observed driver, so the regression scores are
@@ -17,7 +17,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown, clippy::needless_pass_by_value, clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -118,7 +117,7 @@ fn record_warned(warned: &mut CoverageTally, fired: bool) {
 
 /// The gated 90% tally and the unasserted reported-level tally of the headline
 /// circular-block interval `ate ± z·se_bootstrap` (the primary interval the
-/// runtime reports for a Frequentist TemporalDag scalar).
+/// runtime reports for a Frequentist `TemporalDag` scalar).
 fn headline_tallies(test: &'static str, dgp: &'static str) -> (CoverageTally, CoverageTally) {
     let key = RecordKey { test, dgp, interval: "circular_block_se" };
     (
@@ -193,7 +192,7 @@ fn effect_coverage(
 
 /// In-assumption gate: nominal coverage must hold (the short-series warning may
 /// or may not fire; its rate is reported).
-fn gate(coverage: Coverage) {
+fn gate(coverage: &Coverage) {
     eprintln!(
         "short_series warnings: {}/{}",
         coverage.warned.covered(),
@@ -208,7 +207,7 @@ fn gate(coverage: Coverage) {
 /// As [`gate_at`], but for a `Coverage` with more than one tally (e.g.
 /// `mediation_coverage`'s Total / Direct / Mediated), each asserted against
 /// its own per-grid-point measured band instead of sharing one.
-fn gate_at_each(coverage: Coverage, measured: [[Option<f64>; GRID_POINTS]; 3]) {
+fn gate_at_each(coverage: &Coverage, measured: [[Option<f64>; GRID_POINTS]; 3]) {
     eprintln!(
         "short_series warnings: {}/{}",
         coverage.warned.covered(),
@@ -222,7 +221,7 @@ fn gate_at_each(coverage: Coverage, measured: [[Option<f64>; GRID_POINTS]; 3]) {
     }
 }
 
-fn gate_at(coverage: Coverage, measured: [Option<f64>; 3]) {
+fn gate_at(coverage: &Coverage, measured: [Option<f64>; 3]) {
     eprintln!(
         "short_series warnings: {}/{}",
         coverage.warned.covered(),
@@ -240,7 +239,7 @@ fn gate_at(coverage: Coverage, measured: [Option<f64>; 3]) {
 /// precision floor at 2000 replicates (the mechanism is named at the test);
 /// every contrast is asserted against the band around `measured` (one value per
 /// grid point), and the short-series warning rate is reported.
-fn boundary_gate(coverage: Coverage, measured: [f64; GRID_POINTS]) {
+fn boundary_gate(coverage: &Coverage, measured: [f64; GRID_POINTS]) {
     eprintln!(
         "short_series warnings: {}/{}",
         coverage.warned.covered(),
@@ -261,7 +260,7 @@ fn boundary_gate(coverage: Coverage, measured: [f64; GRID_POINTS]) {
 /// measured and reported, not gated. The warning is a property of the base
 /// sample size the design names; at the other grid points its rate is
 /// reported, and coverage is recorded as the same named boundary.
-fn boundary(coverage: Coverage) {
+fn boundary(coverage: &Coverage) {
     let warned = &coverage.warned;
     let warned_covered = warned.covered();
     let warned_attempts = warned.attempts();
@@ -293,7 +292,10 @@ fn boundary(coverage: Coverage) {
 /// Coverage of the headline interval of a design given by its data and graph
 /// (`data(seed)` draws one series), plus the short-series warning count.
 /// `test` / `dgp` key the coverage records (`dgp` names the function `data` calls).
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one headline coverage run per call: DGP, labels, seed, data and graph callbacks, query and truth are its coordinates"
+)]
 fn headline_coverage(
     test: &'static str,
     dgp: &'static str,
@@ -572,7 +574,7 @@ macro_rules! effect_gate {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
-            gate(effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset));
+            gate(&effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset));
         }
     };
 }
@@ -583,7 +585,7 @@ macro_rules! effect_boundary_gate {
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
             boundary_gate(
-                effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset),
+                &effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset),
                 $measured,
             );
         }
@@ -599,10 +601,10 @@ macro_rules! mediation_gate {
         }
     };
     (@run $name:expr, $scenario:expr, $measured:expr) => {
-        gate_at_each(mediation_coverage($name, $scenario), $measured);
+        gate_at_each(&mediation_coverage($name, $scenario), $measured);
     };
     (@run $name:expr, $scenario:expr) => {
-        gate(mediation_coverage($name, $scenario));
+        gate(&mediation_coverage($name, $scenario));
     };
 }
 
@@ -618,7 +620,7 @@ effect_gate!(
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_pulse_ar05_n160_nominal_90_coverage() {
     gate_at(
-        effect_coverage(
+        &effect_coverage(
             "temporal_dag_pulse_ar05_n160_nominal_90_coverage",
             AR05_160,
             "TemporalDag Pulse h=1",
@@ -799,7 +801,7 @@ fn sequential_coverage(test: &'static str, label: &str, rho: f64, n: usize, seed
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
-    gate(sequential_coverage(
+    gate(&sequential_coverage(
         "temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
         "AR(1) rho=0.5 n=160",
         0.5,
@@ -811,7 +813,7 @@ fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
-    gate(sequential_coverage(
+    gate(&sequential_coverage(
         "temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
         "AR(1) rho=0.9 n=400",
         0.9,
@@ -831,7 +833,7 @@ fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
-    boundary(headline_coverage(
+    boundary(&headline_coverage(
         "temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
         "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         "TemporalDag Pulse h=1, AR(1) treatment",
@@ -848,7 +850,7 @@ fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
     const SEED: u64 = 810_000;
-    boundary(mediation_coverage_on(
+    boundary(&mediation_coverage_on(
         "temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary",
         "crates/antecedent/tests/common/persistent_dgp.rs::mediation_series",
         "AR(1) treatment, AR(1) rho=0.9 n=60 (boundary)",
@@ -861,7 +863,7 @@ fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary() {
-    boundary(headline_coverage(
+    boundary(&headline_coverage(
         "temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
         "crates/antecedent/tests/common/persistent_dgp.rs::sequential_series",
         "TemporalDag multi-step Sustained, AR(1) treatment",

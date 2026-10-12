@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::uninlined_format_args)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -472,8 +471,7 @@ fn panel_response_curve_uses_unit_cluster_bands() {
     assert!(mean.iter().all(|value| value.is_finite()));
     assert!(
         (mean[1] - mean[0] - 0.8).abs() < 0.15,
-        "unit-average pulse contrast should stay near 0.8, got {:?}",
-        mean
+        "unit-average pulse contrast should stay near 0.8, got {mean:?}"
     );
     match &response.uncertainty {
         antecedent_core::ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
@@ -519,8 +517,7 @@ fn bayesian_panel_response_uses_unit_cluster_bands() {
     assert!(mean.iter().all(|value| value.is_finite()));
     assert!(
         (mean[1] - mean[0] - 0.8).abs() < 0.25,
-        "Bayesian unit-average pulse contrast should stay near 0.8, got {:?}",
-        mean
+        "Bayesian unit-average pulse contrast should stay near 0.8, got {mean:?}"
     );
 }
 

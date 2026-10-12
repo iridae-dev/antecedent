@@ -6,7 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::too_many_lines)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 
 use std::time::Instant;
 
@@ -86,6 +86,10 @@ fn report(name: &str, ctx: &ExecutionContext, result: &antecedent::StudyResult) 
     );
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "registers every measured user-path group against one shared fixture"
+)]
 fn bench_user_path(c: &mut Criterion) {
     let n = job_n();
     let data = tabular(n);

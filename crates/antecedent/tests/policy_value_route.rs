@@ -429,7 +429,10 @@ fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // one end-to-end route fixture; splitting would fragment the flow
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for retained multi action value matches known randomized truth and round trips"
+)]
 fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() {
     let y = [1.0, 2.0, 4.0, 1.0, 2.0, 4.0, 1.0, 2.0, 4.0];
     let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();

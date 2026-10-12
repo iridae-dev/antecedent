@@ -263,7 +263,10 @@ fn known_truth_dbn_posterior(
     .with_algorithm("known_truth_fixture")
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "asserts the manufacturing DBN known-truth mixture across the frequentist and Bayesian arms for one policy"
+)]
 fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: RefuteSuite) {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -774,6 +777,10 @@ fn manufacturing_dbn_posterior_bayesian_mediation_envelope() {
 /// structured field, not only in a diagnostic. The shared circular-block
 /// bootstrap supplies Total/Direct/Mediated SEs from the same replicates.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for manufacturing dbn posterior frequentist mediation envelope"
+)]
 fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -1001,6 +1008,10 @@ fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_ref
 /// published contrasts are the fixed-weight means of the atom fits, and one
 /// shared circular-block replicate refits both atoms for all three SEs.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for manufacturing dbn posterior frequentist mediation mixes atoms in one replicate"
+)]
 fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"

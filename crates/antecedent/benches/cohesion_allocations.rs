@@ -1,5 +1,5 @@
 //! Fixed release workloads with native allocator accounting. No speedup claim.
-#![allow(missing_docs, clippy::too_many_lines)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 use antecedent::analysis::{TransportGridData, TransportGridQuery, TransportGridState};
 use antecedent::{PreparedStudy, StudyBuilder};
 use antecedent_core::{
@@ -160,6 +160,10 @@ fn grid_fixture(ctx: &ExecutionContext) -> (TransportGridQuery, TransportGridDat
 #[allow(
     clippy::float_cmp,
     reason = "the same estimator on the same prepared problem must reproduce the ate bit for bit, so exact equality is the assertion"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one binary that builds each fixed workload, measures it under the allocator meter and prints the table"
 )]
 fn main() {
     let ctx = ExecutionContext::production(9, 1);

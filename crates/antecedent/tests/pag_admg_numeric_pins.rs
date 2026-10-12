@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -305,6 +304,10 @@ fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
 /// do(T=0) and do(T=1) match the licensed `InterventionalDistribution` / ATE
 /// functional on the same graph.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for admg frontdoor response pins against distribution"
+)]
 fn admg_frontdoor_response_pins_against_distribution() {
     let pin = admg_pin();
     let data = expand_contingency(&pin);

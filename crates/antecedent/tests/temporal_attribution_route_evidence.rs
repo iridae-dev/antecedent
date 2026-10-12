@@ -1,4 +1,4 @@
-//! Lag-aligned TemporalDag attribution: known truth, checked execution, typed refusals.
+//! Lag-aligned `TemporalDag` attribution: known truth, checked execution, typed refusals.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -68,6 +68,10 @@ fn temporal_attribution_frequentist_known_truth() {
         .expect("evidence body panicked");
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the route-evidence body: builds, seals, executes and re-executes each frequentist temporal attribution"
+)]
 fn frequentist_body() {
     let ctx = ExecutionContext::for_tests(13);
     let truth = staged_attribution();
@@ -109,7 +113,7 @@ fn frequentist_body() {
     let scores = anomaly_result.anomaly().expect("anomaly result");
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
     let top = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
-    let top_row = truth["anomaly"]["top_row"].as_u64().unwrap() as usize;
+    let top_row = usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap();
     assert!(score.scores[top.0] >= truth["anomaly"]["score_min"].as_f64().unwrap());
     assert_eq!(score.rows[top.0], top_row, "the injected outlier is the top anomaly");
     let refreshed = anomaly_prepared.refresh_series(anomaly_series(220.0), &ctx).unwrap();
@@ -231,6 +235,10 @@ fn temporal_attribution_bayesian_known_truth() {
         .expect("evidence body panicked");
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the route-evidence body: builds, seals, executes and re-executes each Bayesian temporal attribution"
+)]
 fn bayesian_body() {
     let ctx = ExecutionContext::for_tests(13);
     let truth = staged_attribution();
@@ -269,7 +277,10 @@ fn bayesian_body() {
     let scores = anomaly_result.anomaly().unwrap();
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
     let top = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
-    assert_eq!(score.rows[top.0], truth["anomaly"]["top_row"].as_u64().unwrap() as usize);
+    assert_eq!(
+        score.rows[top.0],
+        usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap()
+    );
     let artifact = anomaly_prepared
         .encode_contracted_result(&anomaly_result, "checked-temporal-bayesian-anomaly", &ctx)
         .unwrap();

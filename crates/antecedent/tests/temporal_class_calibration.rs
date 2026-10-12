@@ -11,7 +11,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
     clippy::float_cmp,

@@ -14,13 +14,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::single_match_else,
-    clippy::type_complexity
-)]
-#![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
@@ -49,7 +42,7 @@ const DRAWS: usize = 400;
 // Shared linear coefficients: t = ALPHA z + e_t, y = B t + ... ; Var(z) = Var(e_t) = 1.
 const ALPHA: f64 = 0.8;
 const B: f64 = 1.0;
-/// Interaction of treatment and modifier in the ConditionalEffect DGPs.
+/// Interaction of treatment and modifier in the `ConditionalEffect` DGPs.
 const G: f64 = 0.8;
 /// Population slope of `z` on `t`: Cov(z, t) / Var(t).
 const KAPPA: f64 = ALPHA / (ALPHA * ALPHA + 1.0);
@@ -86,11 +79,11 @@ fn bayes_interval_at(result: &antecedent::StudyResult, level: f64) -> Option<(f6
     quantile_interval(draws, level)
 }
 
+/// A published `(lower, upper)` interval, when the replicate produced one.
+type Interval = Option<(f64, f64)>;
+
 /// Gated 90% interval and the runtime's reported 95% interval of the same replicate.
-fn intervals(
-    result: &antecedent::StudyResult,
-    bayesian: bool,
-) -> (Option<(f64, f64)>, Option<(f64, f64)>) {
+fn intervals(result: &antecedent::StudyResult, bayesian: bool) -> (Interval, Interval) {
     if bayesian {
         (bayes_interval(result), bayes_interval_at(result, REPORTED_LEVEL))
     } else {
@@ -186,6 +179,10 @@ fn ate_query() -> CausalQuery {
 
 /// Gated at 90%; the runtime's reported 95% interval is scored on the same
 /// replicates and recorded.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: DGP, graph, generator, n, inference, truth, seed and measured coverage are its coordinates"
+)]
 fn run_ate_coverage(
     test: &'static str,
     dgp: &'static str,
@@ -312,7 +309,7 @@ fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
 
 /// Frequentist PAG ATE envelope keyed under the `average_effect` query slug so
 /// the readiness classifier credits the `AverageEffect / Pag / graph_posterior
-/// / Frequentist` coordinate (the classifier tolerates crediting graph_posterior
+/// / Frequentist` coordinate (the classifier tolerates crediting `graph_posterior`
 /// with an explicit-structure test, matching the Bayesian
 /// `average_effect_pag_bayesian_default_nominal_coverage` twin). Same
 /// construction as `static_pag_ate_envelope_frequentist_nominal_90_coverage`:
@@ -360,7 +357,7 @@ fn static_pag_ate_envelope_bayesian_nominal_90_coverage() {
 
 // ------------------------------------------------------- ConditionalEffect
 
-/// ConditionalEffect DGPs add a binary modifier `x ~ Bern(p)` that affects
+/// `ConditionalEffect` DGPs add a binary modifier `x ~ Bern(p)` that affects
 /// only `y`, with interaction `G·t·x`. The reported functional is
 /// `β_t + β_tx·E[x]` from `y ~ 1 + t + x + t·x + Z_g`. With `x` independent of
 /// `(t, z, m)`, the within-stratum projection of an omitted confounder on `t`
@@ -448,7 +445,10 @@ fn conditional_pag_data(n: usize, seed: u64, p: f64) -> TabularData {
 
 /// Gated at 90%; the runtime's reported 95% interval is scored on the same
 /// replicates and recorded.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: DGP, graph, generator, modifier, n, truth, seed and measured coverage are its coordinates"
+)]
 fn run_conditional_coverage(
     test: &'static str,
     dgp: &'static str,
@@ -672,17 +672,14 @@ fn codetermined_aipw_closure_nominal_90_coverage() {
         Some((study, result))
     });
     for scored in &runs {
-        match scored {
-            Some((study, result)) => {
-                let (interval, interval_95) = intervals(result, false);
-                bind_all(&mut [&mut tally, &mut reported], study, result);
-                tally.record(interval, 2.0);
-                reported.record(interval_95, 2.0);
-            }
-            None => {
-                tally.skip();
-                reported.skip();
-            }
+        if let Some((study, result)) = scored {
+            let (interval, interval_95) = intervals(result, false);
+            bind_all(&mut [&mut tally, &mut reported], study, result);
+            tally.record(interval, 2.0);
+            reported.record(interval_95, 2.0);
+        } else {
+            tally.skip();
+            reported.skip();
         }
     }
     tally.assert();

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -1162,6 +1161,10 @@ fn distribution_fixture() -> (TabularData, Dag, InterventionalDistributionQuery)
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for licensed family distribution frequentist consumes"
+)]
 fn licensed_family_distribution_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = distribution_fixture();
@@ -1938,6 +1941,10 @@ fn composition_artifact_reload_in_separate_process() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for composition prior transfer keeps identification and refuses mismatch"
+)]
 fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
     use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
@@ -4319,7 +4326,10 @@ fn failed_series_refresh_then_estimate_on_old_data() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal state events keep lineage and refuse stale publish"
+)]
 fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     let ctx = ExecutionContext::for_tests(1);
     let pulse_series = xy_series_len(60);

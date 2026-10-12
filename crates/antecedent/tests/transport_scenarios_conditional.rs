@@ -563,7 +563,6 @@ fn typed(result: Result<ScenarioSetReport, IoError>) -> TransportScenarioArtifac
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One round trip, then each mutation it must refuse.
 fn a_conditional_artifact_is_version_two_replays_and_fails_on_mutation() {
     let prepared = prepare(&ALL, "chain");
     let ctx = ExecutionContext::for_tests(1);

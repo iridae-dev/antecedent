@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -165,6 +164,10 @@ fn build(data: &TimeSeriesData, graph: &ClassGraph, accepted: bool, query: Causa
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal class pulse pins and reuses envelope"
+)]
 fn temporal_class_pulse_pins_and_reuses_envelope() {
     let pin = pin();
     let data = series(&pin);
@@ -407,6 +410,10 @@ fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64)
 /// z-adjusting completion, the omitted-variable-bias association for the other), which
 /// does not share the estimator's lag convention.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal class response returns completion identified set"
+)]
 fn temporal_class_response_returns_completion_identified_set() {
     let columns = class_response_columns(300);
     let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
@@ -668,6 +675,10 @@ fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
 /// reference. With replicates the mixture SE is the shared circular-block SE
 /// (every completion refit on the same resample), finite and positive.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal pag identified multi completion pulse and sustained"
+)]
 fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
     let pin = identified_pag_pin();
     let data = identified_pag_series(&pin);

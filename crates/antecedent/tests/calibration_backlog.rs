@@ -1,5 +1,5 @@
 //! Coverage tests for constructions whose interval is the one the facade
-//! reports: agreeing TemporalCpdag mediation, Bayesian ADMG intervention and
+//! reports: agreeing `TemporalCpdag` mediation, Bayesian ADMG intervention and
 //! curve, and the frequentist joint influence-function band of an agreeing Pag.
 //!
 //! Ignored tests run via `scripts/gate_calibration.sh`. The non-ignored tests
@@ -7,7 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -1225,7 +1224,7 @@ fn lag_bit4(from: usize, to: usize) -> u64 {
 /// `Pag` atom kind). The g-computation adjusts `{Z@-1}` and identifies
 /// `E[Y@0 | do(T@-1 = a)]` to the same level the explicit graph does. This is a
 /// genuine `.graph_posterior` construction (atom kind decides the reported
-/// TemporalCpdag / TemporalPag class), not the classifier's name tolerance.
+/// `TemporalCpdag` / `TemporalPag` class), not the classifier's name tolerance.
 fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     let n = 4;
     let lag_mask = lag_bit4(0, 1) | lag_bit4(2, 1);

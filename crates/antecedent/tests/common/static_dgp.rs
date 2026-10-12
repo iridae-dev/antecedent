@@ -18,7 +18,10 @@
 
 // `t`, `y`, `z`, `m`, `c`, `u` are the variable names of the laws themselves,
 // the same ones the suites that used to carry these bodies allowed.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag};

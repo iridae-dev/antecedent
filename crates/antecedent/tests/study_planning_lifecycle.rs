@@ -218,6 +218,9 @@ fn request(x: bool) -> Assignment {
     Assignment::from_pairs([(vid(X), Value::Bool(x))])
 }
 
+/// A named mutation of a sealed study-plan artifact's wire form.
+type Edit<'a> = (&'a str, &'a dyn Fn(&mut StudyPlanArtifactWire));
+
 #[test]
 fn the_sufficient_pair_s_arriving_data_identify_and_match_the_enumerated_truth() {
     let plan = mz_plan();
@@ -498,7 +501,7 @@ fn a_sealed_plan_is_replayed_and_a_tampered_one_refused() {
     assert_eq!(detail(consume(&unsealed)), invalid);
     let other_ranking = STUDY_PLAN_RANKING.replace(".v1", ".v0");
     let other_rule_set = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
-    let sealed_edits: [(&str, &dyn Fn(&mut StudyPlanArtifactWire)); 4] = [
+    let sealed_edits: [Edit<'_>; 4] = [
         ("ranking version", &|w| w.premises.ranking = other_ranking.clone()),
         ("rule-set version", &|w| w.premises.rule_set = other_rule_set.clone()),
         ("proposal rule set", &|w| {

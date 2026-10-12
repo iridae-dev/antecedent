@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
@@ -470,6 +468,10 @@ fn confounded_pulse_and_sustained_match_structural_contrast() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for confounded multi horizon identifies per horizon not at max"
+)]
 fn confounded_multi_horizon_identifies_per_horizon_not_at_max() {
     let fixture = confounded_fixture();
     let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();

@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -939,6 +937,10 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prior bank catalog"
+)]
 fn prior_bank_catalog() {
     use antecedent_io::{
         CausalPosteriorWire, CompatibilityRejectReason, CompatibilityReport, DesignVariableRole,
@@ -1075,6 +1077,10 @@ fn prior_bank_catalog() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prior bank effect map"
+)]
 fn prior_bank_effect_map() {
     use std::sync::Arc;
 
@@ -1321,6 +1327,10 @@ fn prior_bank_power_mixture() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prior bank ess accounting"
+)]
 fn prior_bank_ess_accounting() {
     use std::sync::Arc;
 
@@ -1449,6 +1459,10 @@ fn prior_bank_ess_accounting() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prior conjugate moment match"
+)]
 fn prior_conjugate_moment_match() {
     use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
 
@@ -1770,6 +1784,10 @@ fn prior_bank_transport() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for prior bank alpha sensitivity"
+)]
 fn prior_bank_alpha_sensitivity() {
     use std::sync::Arc;
 
@@ -1914,6 +1932,10 @@ fn prior_bank_alpha_sensitivity() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal composed prior conflict and alpha grid"
+)]
 fn temporal_composed_prior_conflict_and_alpha_grid() {
     use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
     use antecedent_data::{

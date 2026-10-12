@@ -1,7 +1,6 @@
 //! Visibility-certified MAG estimation against y = 1 + 2t.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
@@ -14,6 +13,10 @@ use std::sync::Arc;
 
 #[test]
 #[allow(clippy::cast_sign_loss, reason = "the row index i runs over 0..800, so it is non-negative")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for visible mag scalar and response cells reuse certified envelopes"
+)]
 fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
     // `r -> t`, a measured confounder `z -> t, z -> y`, and `y = 1 + 2t + 1.5z`. The
     // sample mean of `z` is exactly 0, so every certified functional equals the

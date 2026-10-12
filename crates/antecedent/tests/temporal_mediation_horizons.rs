@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -200,6 +199,10 @@ fn prepare_click(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal mediation i1 not equal i2 on confounded pulse"
+)]
 fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
     let (data, graph) = confounded_mediation_series();
     let q = query(&[1, 2]);

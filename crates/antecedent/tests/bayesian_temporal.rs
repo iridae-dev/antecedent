@@ -16,8 +16,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 mod common;
 
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study, StudyResult};
@@ -670,6 +668,10 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
 /// `conformance/bayesian/posterior_moments`: the tempered mediation posteriors
 /// match the independent NIG reference (moments and each mechanism's `κ̂`).
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for posterior mediation moments and tempering match the reference"
+)]
 fn posterior_mediation_moments_and_tempering_match_the_reference() {
     let fixture: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(concat!(

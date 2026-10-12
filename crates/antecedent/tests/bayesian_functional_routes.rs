@@ -1,6 +1,5 @@
 //! Bayesian functional, mediation, counterfactual, derivative and CATE-mixture routes.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -271,6 +270,10 @@ fn admg_frontdoor_bayesian_all_structures_and_validation() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for distribution bayesian known truth"
+)]
 fn distribution_bayesian_known_truth() {
     let _ = include_str!("../../../conformance/estimate/interventional_distribution/expected.json");
     let _ = include_str!("../../../conformance/context/path_specific_natural/expected.json");
@@ -545,6 +548,10 @@ fn accepted_counterfactual_matches_explicit_bayesian() {
 /// accepted DAGs (`conformance/response/staged_derivatives`): each asserts the
 /// point value and that the published credible interval brackets the truth.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for derivative bayesian pins"
+)]
 fn derivative_bayesian_pins() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/staged_derivatives/expected.json"
@@ -871,6 +878,10 @@ fn transfer_without_mapping_fails_closed() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for static mediation named prior hydrates only the outcome treatment slope"
+)]
 fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/static_mediation_prior_transfer/expected.json"
@@ -1050,6 +1061,10 @@ fn bayesian_does_not_rewrite_functional_estimators() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for static effect and response prior transfer"
+)]
 fn static_effect_and_response_prior_transfer() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/static_effect_prior_transfer/expected.json"

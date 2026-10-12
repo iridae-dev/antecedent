@@ -14,7 +14,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -41,12 +40,12 @@ const B: f64 = 2.0;
 const SIGMA: f64 = 0.7;
 const ANOMALY_N: usize = 1000;
 
-/// The target's true marginal scale σ_Y = sqrt(B² + SIGMA²) = sqrt(4.49).
+/// The target's true marginal scale `σ_Y` = sqrt(B² + SIGMA²) = sqrt(4.49).
 fn fixed_scale() -> f64 {
     (B * B + SIGMA * SIGMA).sqrt()
 }
 
-/// Population mean anomaly score μ_A against the fixed reference `(A, σ_Y)`.
+/// Population mean anomaly score `μ_A` against the fixed reference `(A, σ_Y)`.
 ///
 /// With the injected reference equal to the target's true `(μ_Y, σ_Y)`, the
 /// standardized deviation `z = (Y − A)/σ_Y` is exactly standard normal, so the

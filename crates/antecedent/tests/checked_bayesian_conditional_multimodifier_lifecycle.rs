@@ -66,6 +66,10 @@ fn fixture() -> (TabularData, Dag, ConditionalEffectQuery) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for three modifier bayesian cate is sealed refreshable and refuses unavailable artifact replay"
+)]
 fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay() {
     let (data, graph, query) = fixture();
     let context = ExecutionContext::for_tests(4221);

@@ -311,7 +311,10 @@ fn intervention_response_conforms_to_known_truth_fixture() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for two point curve contrast conforms to average effect under shared linear contract"
+)]
 fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/two_point_curve_average_effect/expected.json"
@@ -769,7 +772,10 @@ fn response_values(value: &ResponseValue) -> Vec<f64> {
 /// aggregate carries a joint-IF SE; curves and Bayesian aggregates withhold
 /// their multi-atom interval, so these cells carry numeric pins, not coverage.
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for graph posterior response known truth conditional on identified"
+)]
 fn graph_posterior_response_known_truth_conditional_on_identified() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -1063,7 +1069,6 @@ fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPos
 /// `z2` late, equal counts) are mixed on the shared data rows by their row
 /// indices, not by position; the interval honours `confidence_level`.
 #[test]
-#[allow(clippy::too_many_lines)]
 fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
     let n = 160;
     let data = two_covariate_response_data(n, [&|i| i >= 12, &|i| i < n - 12]);

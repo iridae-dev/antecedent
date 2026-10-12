@@ -1,4 +1,4 @@
-//! TemporalAdmg twins of the licensed static ADMG analyses.
+//! `TemporalAdmg` twins of the licensed static ADMG analyses.
 //!
 //! Each variable appears once, at lag 0. Identification is general.id on that
 //! contemporaneous projection, so the functional is the static ADMG functional.
@@ -556,8 +556,7 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                 };
                 let ctx = ExecutionContext::for_tests(11_017);
                 let study = builder.clone().build().unwrap_or_else(|e| panic!("{coordinate}: {e}"));
-                let mut prepared =
-                    study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+                let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                 drop(builder);
                 drop(study);
                 assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
@@ -637,7 +636,7 @@ fn temporal_admg_transport_explicit() {
             .refute(RefuteSuite::None);
         let builder = study.build().unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         let ctx = ExecutionContext::for_tests(11_018);
-        let mut prepared = builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
+        let prepared = builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         drop(builder);
         let plan = prepared.checked_transport_trial_info().expect("transport plan");
         assert_eq!(plan.identifier, IdentifierId::TransportSid);
