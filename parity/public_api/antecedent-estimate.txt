@@ -8191,7 +8191,6 @@ pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn 
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn scope<R>(self: &alloc::sync::Arc<Self>, work: impl core::ops::function::FnOnce() -> R) -> R
 pub fn <antecedent_estimate::gcomp::GcompContrast<'_>>::fn diffs(&self, coefficients: &[f64]) -> alloc::vec::Vec<f64>
 pub fn <antecedent_estimate::gcomp::GcompContrast<'_>>::fn mean_contrast(&self, beta: &[f64]) -> f64
-pub fn <antecedent_estimate::gcomp::GcompContrast<'_>>::fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64
 pub fn <antecedent_estimate::joint_bayesian_transport::GaussianPrior>::fn isotropic(dim: usize, mean: f64, variance: f64, provenance: antecedent_estimate::joint_bayesian_transport::PriorProvenance) -> Self
 pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn column(&self, name: &str) -> core::option::Option<usize>
 pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn coordinate(&self, column: usize) -> alloc::vec::Vec<f64>

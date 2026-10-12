@@ -6134,6 +6134,7 @@ pub variant antecedent_design::DecisionFunctional::Variance
 pub variant antecedent_design::DecisionPrior::Draws(alloc::vec::Vec<O>)
 pub variant antecedent_design::DecisionPrior::Normal { mean: f64, variance: f64 }
 pub variant antecedent_design::DesignError::Callback { name: alloc::string::String, message: alloc::string::String }
+pub variant antecedent_design::DesignError::Cancelled
 pub variant antecedent_design::DesignError::Config(alloc::string::String)
 pub variant antecedent_design::DesignError::EmptyCandidates
 pub variant antecedent_design::DesignError::EmptyPosterior

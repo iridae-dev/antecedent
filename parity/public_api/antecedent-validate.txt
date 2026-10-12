@@ -4,7 +4,6 @@
 #[doc(hidden)] pub fn antecedent_validate::joint_mechanism_sensitivity::joint_sensitivity_bootstrap_interval_internal(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, spec: &antecedent_validate::JointDeviationSpec, replicates: u32, level: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<core::result::Result<antecedent_validate::JointSensitivityInterval, &'static str>, antecedent_validate::JointSensitivityError>
 #[doc(hidden)] pub struct antecedent_validate::JointSensitivityInterval
 #[non_exhaustive] pub enum antecedent_validate::ValidationError
-#[non_exhaustive] pub fn <antecedent_validate::RefutationReport>::fn new(refuter: impl core::convert::Into<alloc::sync::Arc<str>>, original_ate: f64, refuted_ate: f64, comparison: f64, informative: bool, passed: bool, failure_condition: core::option::Option<alloc::sync::Arc<str>>, replicates: u32) -> Self
 #[non_exhaustive] pub struct antecedent_validate::RefutationReport
 impl !core::marker::Send for antecedent_validate::common::AlignedRefit [auto]
 impl !core::marker::Sync for antecedent_validate::common::AlignedRefit [auto]
@@ -1447,6 +1446,7 @@ pub fn <antecedent_validate::PlaceboTreatment>::fn refute(&self, problem: &antec
 pub fn <antecedent_validate::PosteriorPredictiveCheck>::const fn with_n_sims(self, n_sims: u32) -> Self
 pub fn <antecedent_validate::PosteriorPredictiveCheck>::fn check(&self, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, posterior: &antecedent_estimate::bayesian::CausalPosterior) -> core::result::Result<antecedent_validate::PredictiveCheckReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::PosteriorPredictiveCheck>::fn check_temporal(&self, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, posterior: &antecedent_estimate::bayesian::CausalPosterior, seed: u64) -> core::result::Result<antecedent_validate::PredictiveCheckReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::PosteriorPredictiveCheck>::fn check_with_context(&self, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, posterior: &antecedent_estimate::bayesian::CausalPosterior, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::PredictiveCheckReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::PosteriorPredictiveCheck>::fn for_estimator(estimator: &antecedent_estimate::bayesian::gcomp::BayesianGComputationAte, ctx: &antecedent_core::execution::ExecutionContext) -> Self
 pub fn <antecedent_validate::PosteriorPredictiveCheck>::fn new() -> Self
 pub fn <antecedent_validate::PredictiveCheckReport>::fn mixture_weighted(items: &[(f64, &Self)]) -> core::option::Option<Self>
@@ -1476,6 +1476,7 @@ pub fn <antecedent_validate::RefutationProblem<'_>>::fn treatment(&self) -> ante
 pub fn <antecedent_validate::RefutationProblem<'a>>::fn new(data: &'a antecedent_data::dataset::TabularData, estimand: &'a antecedent_expr::estimand::IdentifiedEstimand, query: &'a antecedent_core::query::average::AverageEffectQuery, original: &'a antecedent_estimate::effect_estimate::EffectEstimate, estimator: core::option::Option<&'a str>, temporal: core::option::Option<antecedent_validate::TemporalRefitContext<'a>>) -> Self
 pub fn <antecedent_validate::RefutationProblem<'a>>::fn with_effect_refit(self, refit: &'a dyn antecedent_validate::common::EffectRefit) -> Self
 pub fn <antecedent_validate::RefutationReport>::fn mixture_weighted(items: &[(f64, &Self)]) -> core::option::Option<Self>
+pub fn <antecedent_validate::RefutationReport>::fn new(refuter: impl core::convert::Into<alloc::sync::Arc<str>>, original_ate: f64, refuted_ate: f64, comparison: f64, informative: bool, passed: bool, failure_condition: core::option::Option<alloc::sync::Arc<str>>, replicates: u32) -> Self
 pub fn <antecedent_validate::RegimeStability>::fn new(rpcmci: antecedent_discovery::rpcmci::Rpcmci, assignment: antecedent_discovery::rpcmci::RegimeAssignment) -> Self
 pub fn <antecedent_validate::RegimeStability>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RegimeStabilityReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::RieszSensitivity>::fn new() -> Self
@@ -1795,6 +1796,7 @@ pub variant antecedent_validate::ValidationError::Discovery(antecedent_discovery
 pub variant antecedent_validate::ValidationError::Estimation(antecedent_estimate::error::EstimationError)
 pub variant antecedent_validate::ValidationError::NotApplicable { message: &'static str }
 pub variant antecedent_validate::ValidationError::Prob(antecedent_prob::error::ProbError)
+pub variant antecedent_validate::ValidationError::Refused { message: alloc::string::String }
 pub variant antecedent_validate::ValidationError::Stats(antecedent_stats::error::StatsError)
 pub variant antecedent_validate::ValidationOutcome::CustomNotApplicable { name: alloc::sync::Arc<str>, reason: alloc::sync::Arc<str> }
 pub variant antecedent_validate::ValidationOutcome::Failed { validator: alloc::sync::Arc<str>, reason: alloc::sync::Arc<str> }

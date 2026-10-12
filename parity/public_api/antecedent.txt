@@ -4558,7 +4558,7 @@ pub field antecedent::StudyResult::performance: antecedent_contract::plan::Execu
 pub field antecedent::StudyResult::physical_plan: antecedent_contract::plan::PhysicalExecutionPlanRecord
 pub field antecedent::StudyResult::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
 pub field antecedent::StudyResult::posterior: core::option::Option<antecedent_estimate::bayesian::CausalPosterior>
-pub field antecedent::StudyResult::predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::PredictiveCheckReport>
+pub field antecedent::StudyResult::predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::predictive::PredictiveCheckReport>
 pub field antecedent::StudyResult::provenance: antecedent_contract::provenance::ProvenanceGraph
 pub field antecedent::StudyResult::refutations: alloc::vec::Vec<antecedent_validate::common::RefutationReport>
 pub field antecedent::StudyResult::row_weights: core::option::Option<antecedent::RowWeightsBinding>
@@ -8580,7 +8580,7 @@ pub variant antecedent::ScreenUnits::Entity(&'a [u32])
 pub variant antecedent::StageEvent::Identify { identification: antecedent_identify::result::IdentificationResult, estimand: antecedent_expr::estimand::IdentifiedEstimand }
 pub variant antecedent::StageEvent::Point { estimate: antecedent_estimate::effect_estimate::EffectEstimate }
 pub variant antecedent::StageEvent::Uncertainty { estimate: antecedent_estimate::effect_estimate::EffectEstimate }
-pub variant antecedent::StageEvent::Validate { refutations: alloc::vec::Vec<antecedent_validate::common::RefutationReport>, predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::PredictiveCheckReport> }
+pub variant antecedent::StageEvent::Validate { refutations: alloc::vec::Vec<antecedent_validate::common::RefutationReport>, predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::predictive::PredictiveCheckReport> }
 pub variant antecedent::StructuralAggregationPolicy::GraphDependentAtoms
 pub variant antecedent::StructuralAggregationPolicy::IdentifiedSetEnvelope
 pub variant antecedent::StructuralAggregationPolicy::SameEstimandWeightedMean

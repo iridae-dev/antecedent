@@ -99,7 +99,7 @@ impl core::clone::Clone for antecedent_stats::StatsError
 impl core::clone::Clone for antecedent_stats::SymbolicCmi
 impl core::clone::Clone for antecedent_stats::TwoSlsFit
 impl core::clone::Clone for antecedent_stats::WeightedPartialCorrelation
-impl core::clone::Clone for antecedent_stats::Welford
+impl core::clone::Clone for antecedent_stats::ci::AttainableP
 impl core::clone::Clone for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::cmp::Eq for antecedent_stats::BasisKind
 impl core::cmp::Eq for antecedent_stats::CiQuery
@@ -116,6 +116,7 @@ impl core::cmp::Eq for antecedent_stats::MultipleTestingMethod
 impl core::cmp::Eq for antecedent_stats::QuantileRule
 impl core::cmp::Eq for antecedent_stats::SignificanceMethod
 impl core::cmp::Eq for antecedent_stats::StatsError
+impl core::cmp::Eq for antecedent_stats::ci::AttainableP
 impl core::cmp::PartialEq for antecedent_stats::BasisKind
 impl core::cmp::PartialEq for antecedent_stats::CalibrationReport
 impl core::cmp::PartialEq for antecedent_stats::CiQuery
@@ -159,7 +160,7 @@ impl core::cmp::PartialEq for antecedent_stats::SmoothSpec
 impl core::cmp::PartialEq for antecedent_stats::StandardizationRecord
 impl core::cmp::PartialEq for antecedent_stats::StandardizedColumn
 impl core::cmp::PartialEq for antecedent_stats::StatsError
-impl core::cmp::PartialEq for antecedent_stats::Welford
+impl core::cmp::PartialEq for antecedent_stats::ci::AttainableP
 impl core::cmp::PartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::convert::From<alloc::sync::Arc<[antecedent_stats::DesignColumn]>> for antecedent_stats::DesignColumnMap
 impl core::convert::From<alloc::vec::Vec<antecedent_stats::DesignColumn>> for antecedent_stats::DesignColumnMap
@@ -196,7 +197,6 @@ impl core::default::Default for antecedent_stats::RegressionCi
 impl core::default::Default for antecedent_stats::RobustPartialCorrelation
 impl core::default::Default for antecedent_stats::StandardizationRecord
 impl core::default::Default for antecedent_stats::SymbolicCmi
-impl core::default::Default for antecedent_stats::Welford
 impl core::error::Error for antecedent_stats::StatsError
 impl core::fmt::Debug for antecedent_stats::AdditiveDesign
 impl core::fmt::Debug for antecedent_stats::BasisKind
@@ -278,7 +278,7 @@ impl core::fmt::Debug for antecedent_stats::StatsError
 impl core::fmt::Debug for antecedent_stats::SymbolicCmi
 impl core::fmt::Debug for antecedent_stats::TwoSlsFit
 impl core::fmt::Debug for antecedent_stats::WeightedPartialCorrelation
-impl core::fmt::Debug for antecedent_stats::Welford
+impl core::fmt::Debug for antecedent_stats::ci::AttainableP
 impl core::fmt::Debug for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::fmt::Display for antecedent_stats::StatsError
 impl core::hash::Hash for antecedent_stats::BasisKind
@@ -291,6 +291,7 @@ impl core::hash::Hash for antecedent_stats::GlmFamily
 impl core::hash::Hash for antecedent_stats::MatchingDistance
 impl core::hash::Hash for antecedent_stats::MultipleTestingMethod
 impl core::hash::Hash for antecedent_stats::SignificanceMethod
+impl core::hash::Hash for antecedent_stats::ci::AttainableP
 impl core::marker::Copy for antecedent_stats::BasisKind
 impl core::marker::Copy for antecedent_stats::BayesFactorCi
 impl core::marker::Copy for antecedent_stats::CalibrationReport
@@ -324,7 +325,7 @@ impl core::marker::Copy for antecedent_stats::RandomizationContrast
 impl core::marker::Copy for antecedent_stats::RandomizationMean
 impl core::marker::Copy for antecedent_stats::SignificanceMethod
 impl core::marker::Copy for antecedent_stats::StandardizedColumn
-impl core::marker::Copy for antecedent_stats::Welford
+impl core::marker::Copy for antecedent_stats::ci::AttainableP
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::Freeze for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Freeze for antecedent_stats::BasisKind [auto]
@@ -406,7 +407,7 @@ impl core::marker::Freeze for antecedent_stats::StatsError [auto]
 impl core::marker::Freeze for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Freeze for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Freeze for antecedent_stats::WeightedPartialCorrelation [auto]
-impl core::marker::Freeze for antecedent_stats::Welford [auto]
+impl core::marker::Freeze for antecedent_stats::ci::AttainableP [auto]
 impl core::marker::Freeze for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Send for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Send for antecedent_stats::BasisKind [auto]
@@ -488,7 +489,7 @@ impl core::marker::Send for antecedent_stats::StatsError [auto]
 impl core::marker::Send for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Send for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Send for antecedent_stats::WeightedPartialCorrelation [auto]
-impl core::marker::Send for antecedent_stats::Welford [auto]
+impl core::marker::Send for antecedent_stats::ci::AttainableP [auto]
 impl core::marker::Send for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::StructuralPartialEq for antecedent_stats::BasisKind
 impl core::marker::StructuralPartialEq for antecedent_stats::CalibrationReport
@@ -533,7 +534,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::SmoothSpec
 impl core::marker::StructuralPartialEq for antecedent_stats::StandardizationRecord
 impl core::marker::StructuralPartialEq for antecedent_stats::StandardizedColumn
 impl core::marker::StructuralPartialEq for antecedent_stats::StatsError
-impl core::marker::StructuralPartialEq for antecedent_stats::Welford
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::AttainableP
 impl core::marker::StructuralPartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::Sync for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Sync for antecedent_stats::BasisKind [auto]
@@ -615,7 +616,7 @@ impl core::marker::Sync for antecedent_stats::StatsError [auto]
 impl core::marker::Sync for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Sync for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Sync for antecedent_stats::WeightedPartialCorrelation [auto]
-impl core::marker::Sync for antecedent_stats::Welford [auto]
+impl core::marker::Sync for antecedent_stats::ci::AttainableP [auto]
 impl core::marker::Sync for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Unpin for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Unpin for antecedent_stats::BasisKind [auto]
@@ -697,7 +698,7 @@ impl core::marker::Unpin for antecedent_stats::StatsError [auto]
 impl core::marker::Unpin for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Unpin for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Unpin for antecedent_stats::WeightedPartialCorrelation [auto]
-impl core::marker::Unpin for antecedent_stats::Welford [auto]
+impl core::marker::Unpin for antecedent_stats::ci::AttainableP [auto]
 impl core::marker::Unpin for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::AdditiveDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BasisKind [auto]
@@ -779,7 +780,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StatsError [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SymbolicCmi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TwoSlsFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::WeightedPartialCorrelation [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Welford [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::AttainableP [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::AdditiveDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BasisKind [auto]
@@ -861,7 +862,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StatsError [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SymbolicCmi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TwoSlsFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::WeightedPartialCorrelation [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Welford [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::AttainableP [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl<'a> core::clone::Clone for antecedent_stats::BlockTest<'a>
 impl<'a> core::clone::Clone for antecedent_stats::CiBatchRequest<'a>
@@ -962,6 +963,7 @@ pub enum antecedent_stats::NbAlphaPolicy
 pub enum antecedent_stats::QuantileRule
 pub enum antecedent_stats::SandwichKind<'a>
 pub enum antecedent_stats::SignificanceMethod
+pub enum antecedent_stats::ci::AttainableP
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::z_flat: &'a [usize]
@@ -1313,15 +1315,6 @@ pub fn <antecedent_stats::StatsError>::fn glm_boundary_margin(&self) -> core::op
 pub fn <antecedent_stats::SymbolicCmi>::fn new() -> Self
 pub fn <antecedent_stats::WeightedPartialCorrelation>::fn aligned_to_series_end(weights: alloc::vec::Vec<f64>) -> Self
 pub fn <antecedent_stats::WeightedPartialCorrelation>::fn new(weights: alloc::vec::Vec<f64>) -> Self
-pub fn <antecedent_stats::Welford>::const fn count(&self) -> u64
-pub fn <antecedent_stats::Welford>::const fn m2(&self) -> f64
-pub fn <antecedent_stats::Welford>::const fn mass(&self) -> f64
-pub fn <antecedent_stats::Welford>::const fn mean(&self) -> f64
-pub fn <antecedent_stats::Welford>::const fn new() -> Self
-pub fn <antecedent_stats::Welford>::fn push(&mut self, x: f64)
-pub fn <antecedent_stats::Welford>::fn push_weighted(&mut self, weight: f64, x: f64)
-pub fn <antecedent_stats::Welford>::fn sample_variance(&self) -> core::option::Option<f64>
-pub fn <antecedent_stats::Welford>::fn stderr_of_mean(&self) -> f64
 pub fn antecedent_stats::accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64])
 pub fn antecedent_stats::adjust_pvalues(p_values: &[f64], method: antecedent_stats::MultipleTestingMethod) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::anderson_rubin_confidence_set(blocks: &antecedent_stats::IvBlocks<'_>, y: &[f64], t: &[f64], level: f64, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<(core::option::Option<(f64, f64, f64)>, core::option::Option<&'static str>), antecedent_stats::StatsError>
@@ -1540,13 +1533,12 @@ pub struct antecedent_stats::StandardizedColumn
 pub struct antecedent_stats::SymbolicCmi
 pub struct antecedent_stats::TwoSlsFit
 pub struct antecedent_stats::WeightedPartialCorrelation
-pub struct antecedent_stats::Welford
-pub struct antecedent_stats::Welford has private fields
 pub struct antecedent_stats::longitudinal_regime::RegimeValueSummary
 pub struct antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 pub struct antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 pub trait antecedent_stats::ConditionalIndependence
 pub trait antecedent_stats::DenseLinearAlgebra: core::marker::Send + core::marker::Sync
+pub trait fn fn antecedent_stats::ConditionalIndependence::attainable_p(&self) -> antecedent_stats::ci::AttainableP {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::min_attainable_p(&self, significance: antecedent_stats::SignificanceMethod) -> f64 {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::p_value_is_frequentist(&self) -> bool {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::prepare(&self, columns: &[&[f64]], plan: &antecedent_stats::CiPreparationPlan, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_stats::PreparedCiTest, antecedent_stats::StatsError> {default}
@@ -1557,6 +1549,7 @@ pub trait fn fn antecedent_stats::ConditionalIndependence::test_batch_adhoc(&sel
 pub trait fn fn antecedent_stats::DenseLinearAlgebra::least_squares(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
 pub use antecedent_stats::ConditionalIndependenceTest = antecedent_stats::ConditionalIndependence
 pub use antecedent_stats::NORMAL_Q975 = special::NORMAL_Q975
+pub use antecedent_stats::Welford = welford::Welford
 pub use antecedent_stats::ci::BayesFactorCi = antecedent_stats::BayesFactorCi
 pub use antecedent_stats::ci::BlockTest = antecedent_stats::BlockTest
 pub use antecedent_stats::ci::CalibrationReport = antecedent_stats::CalibrationReport
@@ -1814,3 +1807,6 @@ pub variant antecedent_stats::StatsError::RankDeficient { rank: usize, ncols: us
 pub variant antecedent_stats::StatsError::Shape { message: &'static str }
 pub variant antecedent_stats::StatsError::SingularLocalDesign { order: usize }
 pub variant antecedent_stats::StatsError::Unsupported { message: &'static str }
+pub variant antecedent_stats::ci::AttainableP::AnalyticOrBlockShuffle
+pub variant antecedent_stats::ci::AttainableP::NonparametricPermutation
+pub variant antecedent_stats::ci::AttainableP::Zero

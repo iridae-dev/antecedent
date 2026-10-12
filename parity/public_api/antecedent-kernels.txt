@@ -10,6 +10,7 @@ impl core::clone::Clone for antecedent_kernels::ParCorrQuery
 impl core::clone::Clone for antecedent_kernels::ParCorrWorkspace
 impl core::clone::Clone for antecedent_kernels::PosteriorReduceOp
 impl core::clone::Clone for antecedent_kernels::ViewError
+impl core::clone::Clone for antecedent_kernels::Welford
 impl core::clone::Clone for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::cmp::Eq for antecedent_kernels::CholeskyError
 impl core::cmp::Eq for antecedent_kernels::KernelImpl
@@ -25,9 +26,11 @@ impl core::cmp::PartialEq for antecedent_kernels::ParCorrMode
 impl core::cmp::PartialEq for antecedent_kernels::ParCorrQuery
 impl core::cmp::PartialEq for antecedent_kernels::PosteriorReduceOp
 impl core::cmp::PartialEq for antecedent_kernels::ViewError
+impl core::cmp::PartialEq for antecedent_kernels::Welford
 impl core::cmp::PartialEq for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::convert::From<bool> for antecedent_kernels::ParCorrMode
 impl core::default::Default for antecedent_kernels::ParCorrWorkspace
+impl core::default::Default for antecedent_kernels::Welford
 impl core::error::Error for antecedent_kernels::LogWeightError
 impl core::error::Error for antecedent_kernels::ViewError
 impl core::fmt::Debug for antecedent_kernels::CholeskyError
@@ -38,6 +41,7 @@ impl core::fmt::Debug for antecedent_kernels::ParCorrQuery
 impl core::fmt::Debug for antecedent_kernels::ParCorrWorkspace
 impl core::fmt::Debug for antecedent_kernels::PosteriorReduceOp
 impl core::fmt::Debug for antecedent_kernels::ViewError
+impl core::fmt::Debug for antecedent_kernels::Welford
 impl core::fmt::Debug for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::fmt::Display for antecedent_kernels::LogWeightError
 impl core::fmt::Display for antecedent_kernels::ViewError
@@ -51,6 +55,7 @@ impl core::marker::Copy for antecedent_kernels::LogWeightError
 impl core::marker::Copy for antecedent_kernels::ParCorrMode
 impl core::marker::Copy for antecedent_kernels::ParCorrQuery
 impl core::marker::Copy for antecedent_kernels::PosteriorReduceOp
+impl core::marker::Copy for antecedent_kernels::Welford
 impl core::marker::Copy for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::marker::Freeze for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Freeze for antecedent_kernels::KernelImpl [auto]
@@ -60,6 +65,7 @@ impl core::marker::Freeze for antecedent_kernels::ParCorrQuery [auto]
 impl core::marker::Freeze for antecedent_kernels::ParCorrWorkspace [auto]
 impl core::marker::Freeze for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Freeze for antecedent_kernels::ViewError [auto]
+impl core::marker::Freeze for antecedent_kernels::Welford [auto]
 impl core::marker::Freeze for antecedent_kernels::cholesky::CholeskyRefusal [auto]
 impl core::marker::Send for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Send for antecedent_kernels::KernelImpl [auto]
@@ -69,6 +75,7 @@ impl core::marker::Send for antecedent_kernels::ParCorrQuery [auto]
 impl core::marker::Send for antecedent_kernels::ParCorrWorkspace [auto]
 impl core::marker::Send for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Send for antecedent_kernels::ViewError [auto]
+impl core::marker::Send for antecedent_kernels::Welford [auto]
 impl core::marker::Send for antecedent_kernels::cholesky::CholeskyRefusal [auto]
 impl core::marker::StructuralPartialEq for antecedent_kernels::CholeskyError
 impl core::marker::StructuralPartialEq for antecedent_kernels::KernelImpl
@@ -77,6 +84,7 @@ impl core::marker::StructuralPartialEq for antecedent_kernels::ParCorrMode
 impl core::marker::StructuralPartialEq for antecedent_kernels::ParCorrQuery
 impl core::marker::StructuralPartialEq for antecedent_kernels::PosteriorReduceOp
 impl core::marker::StructuralPartialEq for antecedent_kernels::ViewError
+impl core::marker::StructuralPartialEq for antecedent_kernels::Welford
 impl core::marker::StructuralPartialEq for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::marker::Sync for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Sync for antecedent_kernels::KernelImpl [auto]
@@ -86,6 +94,7 @@ impl core::marker::Sync for antecedent_kernels::ParCorrQuery [auto]
 impl core::marker::Sync for antecedent_kernels::ParCorrWorkspace [auto]
 impl core::marker::Sync for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Sync for antecedent_kernels::ViewError [auto]
+impl core::marker::Sync for antecedent_kernels::Welford [auto]
 impl core::marker::Sync for antecedent_kernels::cholesky::CholeskyRefusal [auto]
 impl core::marker::Unpin for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Unpin for antecedent_kernels::KernelImpl [auto]
@@ -95,6 +104,7 @@ impl core::marker::Unpin for antecedent_kernels::ParCorrQuery [auto]
 impl core::marker::Unpin for antecedent_kernels::ParCorrWorkspace [auto]
 impl core::marker::Unpin for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Unpin for antecedent_kernels::ViewError [auto]
+impl core::marker::Unpin for antecedent_kernels::Welford [auto]
 impl core::marker::Unpin for antecedent_kernels::cholesky::CholeskyRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::CholeskyError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::KernelImpl [auto]
@@ -104,6 +114,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::ParCorrQuer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::ParCorrWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::ViewError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::CholeskyError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::KernelImpl [auto]
@@ -113,6 +124,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ParCorrQuery [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ParCorrWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ViewError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
 impl<'a> core::clone::Clone for antecedent_kernels::BitMaskView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::F64MatrixView<'a>
@@ -141,6 +153,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::F64Vect
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::F64VectorView<'a> [auto]
+pub const antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR: f64
 pub const antecedent_kernels::NORMAL_Q975: f64
 pub enum antecedent_kernels::CholeskyError
 pub enum antecedent_kernels::KernelImpl
@@ -181,6 +194,15 @@ pub fn <antecedent_kernels::ParCorrMode>::const fn is_portable(self) -> bool
 pub fn <antecedent_kernels::ParCorrWorkspace>::const fn capacity_n(&self) -> usize
 pub fn <antecedent_kernels::ParCorrWorkspace>::const fn capacity_p(&self) -> usize
 pub fn <antecedent_kernels::ParCorrWorkspace>::fn prepare(&mut self, n: usize, p: usize)
+pub fn <antecedent_kernels::Welford>::const fn count(&self) -> u64
+pub fn <antecedent_kernels::Welford>::const fn m2(&self) -> f64
+pub fn <antecedent_kernels::Welford>::const fn mass(&self) -> f64
+pub fn <antecedent_kernels::Welford>::const fn mean(&self) -> f64
+pub fn <antecedent_kernels::Welford>::const fn new() -> Self
+pub fn <antecedent_kernels::Welford>::fn push(&mut self, x: f64)
+pub fn <antecedent_kernels::Welford>::fn push_weighted(&mut self, weight: f64, x: f64)
+pub fn <antecedent_kernels::Welford>::fn sample_variance(&self) -> core::option::Option<f64>
+pub fn <antecedent_kernels::Welford>::fn stderr_of_mean(&self) -> f64
 pub fn antecedent_kernels::accumulate_contingency(policy: &antecedent_core::execution::KernelPolicy, x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize)
 pub fn antecedent_kernels::back_solve_into(chol: &[f64], n: usize, y: &[f64], x: &mut [f64])
 pub fn antecedent_kernels::bayesian_bootstrap_weights(rng: &mut antecedent_core::execution::CausalRng, n: usize, normalize: bool) -> alloc::vec::Vec<f64>
@@ -192,14 +214,18 @@ pub fn antecedent_kernels::cholesky::cholesky_psd_into(a: &[f64], n: usize, tole
 pub fn antecedent_kernels::cholesky::cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> core::result::Result<(), antecedent_kernels::CholeskyError>
 pub fn antecedent_kernels::cholesky::cholesky_spd_pivots_into(a: &[f64], n: usize, l: &mut [f64]) -> core::result::Result<f64, antecedent_kernels::cholesky::CholeskyRefusal>
 pub fn antecedent_kernels::cholesky::forward_solve_into(chol: &[f64], n: usize, b: &[f64], y: &mut [f64])
-pub fn antecedent_kernels::dispatch::gather(policy: &antecedent_core::execution::KernelPolicy, src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64])
+pub fn antecedent_kernels::dispatch::gather(policy: &antecedent_core::execution::KernelPolicy, src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::dispatch::select_impl(policy: &antecedent_core::execution::KernelPolicy) -> antecedent_kernels::KernelImpl
 pub fn antecedent_kernels::dispatch::standardize_inplace(policy: &antecedent_core::execution::KernelPolicy, x: &mut [f64], eps: f64) -> (f64, f64)
 pub fn antecedent_kernels::dispatch::weighted_mean(policy: &antecedent_core::execution::KernelPolicy, x: &[f64], weights: &[f64]) -> core::option::Option<f64>
 pub fn antecedent_kernels::dot(a: &[f64], b: &[f64]) -> f64
+pub fn antecedent_kernels::equilibrate_into(a: &[f64], scales: &[f64], n: usize, out: &mut [f64])
 pub fn antecedent_kernels::erf(x: f64) -> f64
 pub fn antecedent_kernels::erfc(x: f64) -> f64
 pub fn antecedent_kernels::fill_standard_normal(rng: &mut antecedent_core::execution::CausalRng, out: &mut [f64])
+pub fn antecedent_kernels::gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize) -> bool
+pub fn antecedent_kernels::gram::invert_square(a_in: &[f64], n: usize) -> core::option::Option<alloc::vec::Vec<f64>>
+pub fn antecedent_kernels::gram::symmetric_scales(a: &[f64], n: usize) -> alloc::vec::Vec<f64>
 pub fn antecedent_kernels::kish_ess(weights: &[f64]) -> f64
 pub fn antecedent_kernels::log_norm_cdf(x: f64) -> f64
 pub fn antecedent_kernels::log_norm_pdf(x: f64) -> f64
@@ -218,9 +244,9 @@ pub fn antecedent_kernels::numeric::sample_std(values: &[f64]) -> f64
 pub fn antecedent_kernels::numeric::sigmoid(x: f64) -> f64
 pub fn antecedent_kernels::numeric::softmax_in_place(values: &mut [f64])
 pub fn antecedent_kernels::numeric::softplus(x: f64) -> f64
-pub fn antecedent_kernels::parcorr::partial_correlation_batch(columns: &[&[f64]], queries: &[antecedent_kernels::ParCorrQuery], z_flat: &[usize], out: &mut [core::option::Option<f64>], workspace: &mut antecedent_kernels::ParCorrWorkspace, mode: antecedent_kernels::ParCorrMode)
+pub fn antecedent_kernels::parcorr::partial_correlation_batch(columns: &[&[f64]], queries: &[antecedent_kernels::ParCorrQuery], z_flat: &[usize], out: &mut [core::option::Option<f64>], workspace: &mut antecedent_kernels::ParCorrWorkspace, mode: antecedent_kernels::ParCorrMode) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::portable::accumulate_contingency(x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize)
-pub fn antecedent_kernels::portable::gather(src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64])
+pub fn antecedent_kernels::portable::gather(src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::portable::masked_covariance(x: antecedent_kernels::F64VectorView<'_>, y: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
 pub fn antecedent_kernels::portable::masked_mean(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
 pub fn antecedent_kernels::portable::masked_sum(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> f64
@@ -240,7 +266,7 @@ pub fn antecedent_kernels::rng::standard_normal(rng: &mut antecedent_core::execu
 pub fn antecedent_kernels::rng::unbiased_index(rng: &mut antecedent_core::execution::CausalRng, n: usize) -> usize
 pub fn antecedent_kernels::sanitize_weight(w: f64) -> f64
 pub fn antecedent_kernels::scalar::accumulate_contingency(x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize)
-pub fn antecedent_kernels::scalar::gather(src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64])
+pub fn antecedent_kernels::scalar::gather(src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::scalar::masked_covariance(x: antecedent_kernels::F64VectorView<'_>, y: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
 pub fn antecedent_kernels::scalar::masked_mean(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
 pub fn antecedent_kernels::scalar::masked_sum(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> f64
@@ -249,8 +275,10 @@ pub fn antecedent_kernels::scalar::pairwise_l1_fill(x: &[f64], out: &mut [f64])
 pub fn antecedent_kernels::scalar::standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64)
 pub fn antecedent_kernels::scalar::weighted_mean(x: &[f64], weights: &[f64]) -> core::option::Option<f64>
 pub fn antecedent_kernels::scalar::weighted_sum(x: &[f64], weights: &[f64]) -> f64
+pub fn antecedent_kernels::update_scatter(mean: &mut [f64], m2: &mut [f64], n_before: u64, x: &[f64])
 pub mod antecedent_kernels::cholesky
 pub mod antecedent_kernels::dispatch
+pub mod antecedent_kernels::gram
 pub mod antecedent_kernels::numeric
 pub mod antecedent_kernels::parcorr
 pub mod antecedent_kernels::portable
@@ -259,6 +287,7 @@ pub mod antecedent_kernels::rng
 pub mod antecedent_kernels::scalar
 pub mod antecedent_kernels::special
 pub mod antecedent_kernels::view
+pub mod antecedent_kernels::welford
 pub struct antecedent_kernels::BitMaskView has private fields
 pub struct antecedent_kernels::BitMaskView<'a>
 pub struct antecedent_kernels::F64MatrixView has private fields
@@ -268,6 +297,8 @@ pub struct antecedent_kernels::F64VectorView<'a>
 pub struct antecedent_kernels::ParCorrQuery
 pub struct antecedent_kernels::ParCorrWorkspace
 pub struct antecedent_kernels::ParCorrWorkspace has private fields
+pub struct antecedent_kernels::Welford
+pub struct antecedent_kernels::Welford has private fields
 pub struct antecedent_kernels::cholesky::CholeskyRefusal
 pub use antecedent_kernels::cholesky::CholeskyError = antecedent_kernels::CholeskyError
 pub use antecedent_kernels::cholesky::back_solve_into = antecedent_kernels::back_solve_into
@@ -279,6 +310,10 @@ pub use antecedent_kernels::dispatch::KernelImpl = antecedent_kernels::KernelImp
 pub use antecedent_kernels::dispatch::accumulate_contingency = antecedent_kernels::accumulate_contingency
 pub use antecedent_kernels::forward_solve_into = antecedent_kernels::cholesky::forward_solve_into
 pub use antecedent_kernels::gather = antecedent_kernels::dispatch::gather
+pub use antecedent_kernels::gram::EQUILIBRATED_PIVOT_FLOOR = antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR
+pub use antecedent_kernels::gram::equilibrate_into = antecedent_kernels::equilibrate_into
+pub use antecedent_kernels::gram::gauss_jordan_solve = antecedent_kernels::gauss_jordan_solve
+pub use antecedent_kernels::invert_square = antecedent_kernels::gram::invert_square
 pub use antecedent_kernels::numeric::LogWeightError = antecedent_kernels::LogWeightError
 pub use antecedent_kernels::numeric::dot = antecedent_kernels::dot
 pub use antecedent_kernels::numeric::mean = antecedent_kernels::mean
@@ -321,12 +356,15 @@ pub use antecedent_kernels::special::norm_pdf = antecedent_kernels::norm_pdf
 pub use antecedent_kernels::special::norm_sf = antecedent_kernels::norm_sf
 pub use antecedent_kernels::standard_normal = antecedent_kernels::rng::standard_normal
 pub use antecedent_kernels::standardize_inplace = antecedent_kernels::dispatch::standardize_inplace
+pub use antecedent_kernels::symmetric_scales = antecedent_kernels::gram::symmetric_scales
 pub use antecedent_kernels::unbiased_index = antecedent_kernels::rng::unbiased_index
 pub use antecedent_kernels::view::BitMaskView = antecedent_kernels::BitMaskView
 pub use antecedent_kernels::view::F64MatrixView = antecedent_kernels::F64MatrixView
 pub use antecedent_kernels::view::F64VectorView = antecedent_kernels::F64VectorView
 pub use antecedent_kernels::view::ViewError = antecedent_kernels::ViewError
 pub use antecedent_kernels::weighted_mean = antecedent_kernels::dispatch::weighted_mean
+pub use antecedent_kernels::welford::Welford = antecedent_kernels::Welford
+pub use antecedent_kernels::welford::update_scatter = antecedent_kernels::update_scatter
 pub variant antecedent_kernels::CholeskyError::BufferTooShort
 pub variant antecedent_kernels::CholeskyError::NotPositiveDefinite { index: usize }
 pub variant antecedent_kernels::KernelImpl::PortableOptimized

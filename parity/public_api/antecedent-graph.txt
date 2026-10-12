@@ -565,6 +565,7 @@ pub fn <antecedent_graph::Admg>::fn insert_directed(&mut self, from: antecedent_
 pub fn <antecedent_graph::Admg>::fn insert_marked(&mut self, edge: antecedent_graph::MarkedEdge) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn is_empty(&self) -> bool
 pub fn <antecedent_graph::Admg>::fn is_m_separated(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn is_m_separated_sets(&self, sources: &[antecedent_graph::DenseNodeId], targets: &[antecedent_graph::DenseNodeId], z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn m_separation(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<antecedent_graph::SeparationResult, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn node_count(&self) -> usize
 pub fn <antecedent_graph::Admg>::fn node_ids(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = antecedent_graph::DenseNodeId> + core::iter::traits::exact_size::ExactSizeIterator
@@ -595,6 +596,7 @@ pub fn <antecedent_graph::BitSet>::fn iter(&self) -> impl core::iter::traits::it
 pub fn <antecedent_graph::BitSet>::fn remove(&mut self, id: antecedent_graph::DenseNodeId)
 pub fn <antecedent_graph::BitSet>::fn resize(&mut self, len: usize)
 pub fn <antecedent_graph::BitSet>::fn to_dense_ids(&self) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::BitSet>::fn try_insert(&mut self, id: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::BitSet>::fn union_with(&mut self, other: &Self)
 pub fn <antecedent_graph::BitSet>::fn with_len(len: usize) -> Self
 pub fn <antecedent_graph::BitSet>::fn words(&self) -> &[u64]

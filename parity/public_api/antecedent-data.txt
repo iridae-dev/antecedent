@@ -152,6 +152,7 @@ impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
 impl core::cmp::PartialOrd for antecedent_data::CategoryCode
 impl core::convert::From<alloc::sync::Arc<[f64]>> for antecedent_data::F64Buffer
 impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_data::F64Buffer
+impl core::convert::From<antecedent_core::error::SchemaError> for antecedent_data::DataError
 impl core::default::Default for antecedent_data::DropSummary
 impl core::default::Default for antecedent_data::DummyOptions
 impl core::default::Default for antecedent_data::LaggedFrameOptions
@@ -476,7 +477,6 @@ impl core::marker::Unpin for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
-impl core::ops::drop::Drop for antecedent_data::ForeignF64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalColumn [auto]
@@ -683,6 +683,7 @@ pub fn <antecedent_data::CategoricalColumn>::fn as_view(&self) -> antecedent_dat
 pub fn <antecedent_data::CategoricalColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::CategoricalColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::CategoricalColumn>::fn try_new(id: antecedent_core::ids::VariableId, codes: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::CategoryCode]>>, validity: antecedent_data::ValidityBitmap, domain: alloc::sync::Arc<antecedent_data::CategoryDomain>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::CategoryCode>::const fn as_usize(self) -> usize
 pub fn <antecedent_data::CategoryCode>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_data::CategoryCode>::const fn raw(self) -> u32
 pub fn <antecedent_data::CategoryDomain>::fn is_empty(&self) -> bool

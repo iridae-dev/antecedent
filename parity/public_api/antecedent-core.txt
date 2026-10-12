@@ -3377,6 +3377,7 @@ pub fn <antecedent_core::CatalogDistribution>::const fn is_joint(&self) -> bool
 pub fn <antecedent_core::CatalogDistribution>::fn canonical_identity(&self) -> alloc::string::String
 pub fn <antecedent_core::CatalogDistribution>::fn project(&self, projection: antecedent_core::EvidenceProjection) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::CatalogDistribution>::fn study_or_population(&self) -> &str
+pub fn <antecedent_core::CategoryDomainId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::CategoryDomainId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::CategoryDomainId>::const fn raw(self) -> u32
 pub fn <antecedent_core::CausalQuery>::const fn kind(&self) -> antecedent_core::CausalQueryKind
@@ -3480,11 +3481,14 @@ pub fn <antecedent_core::DiagnosticSet>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::DiagnosticSet>::fn len(&self) -> usize
 pub fn <antecedent_core::DiagnosticSet>::fn new() -> Self
 pub fn <antecedent_core::DiagnosticSet>::fn push(&mut self, diagnostic: antecedent_core::Diagnostic)
+pub fn <antecedent_core::DistributionRef>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DistributionRef>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DistributionRef>::const fn raw(self) -> u32
+pub fn <antecedent_core::DynamicRuleId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DynamicRuleId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DynamicRuleId>::const fn raw(self) -> u32
 pub fn <antecedent_core::Environment>::fn try_new(identity: impl core::convert::Into<alloc::sync::Arc<str>>, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableCoordinate]>>, selection_targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> core::result::Result<Self, antecedent_core::QueryError>
+pub fn <antecedent_core::EnvironmentId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::EnvironmentId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::EnvironmentId>::const fn raw(self) -> u32
 pub fn <antecedent_core::EvidenceCatalog>::fn canonicalized(&self) -> core::result::Result<Self, antecedent_core::QueryError>
@@ -3560,6 +3564,7 @@ pub fn <antecedent_core::InterventionalDistributionQuery>::fn with_target_popula
 pub fn <antecedent_core::KernelPolicy>::const fn arch_simd_effective(&self) -> bool
 pub fn <antecedent_core::KernelPolicy>::const fn default_policy() -> Self
 pub fn <antecedent_core::KernelPolicy>::const fn scalar_only() -> Self
+pub fn <antecedent_core::Lag>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::Lag>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::Lag>::const fn historical(steps: core::num::nonzero::NonZeroU32) -> Self
 pub fn <antecedent_core::Lag>::const fn is_contemporaneous(self) -> bool
@@ -3642,6 +3647,7 @@ pub fn <antecedent_core::RandomizedEffectQuery>::fn with_exact_randomization_tes
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_fixed_cuped(self, covariate: antecedent_core::VariableId, coefficient: f64) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_received_treatment(self, received: impl core::convert::Into<alloc::sync::Arc<[bool]>>) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_treatment_on_treated(self, received: impl core::convert::Into<alloc::sync::Arc<[bool]>>) -> Self
+pub fn <antecedent_core::RegimeId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::RegimeId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::RegimeId>::const fn raw(self) -> u32
 pub fn <antecedent_core::RegimeKind>::const fn as_str(self) -> &'static str
