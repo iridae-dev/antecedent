@@ -231,6 +231,52 @@ impl Dag {
         Ok(())
     }
 
+    /// Nodes that reach `to` (itself excluded), as a membership mask.
+    fn ancestors_mask(&self, to: DenseNodeId) -> Vec<bool> {
+        let mut seen = vec![false; self.node_count()];
+        let mut queue = vec![to];
+        while let Some(v) = queue.pop() {
+            for &p in self.parents(v) {
+                if !seen[p.as_usize()] {
+                    seen[p.as_usize()] = true;
+                    queue.push(p);
+                }
+            }
+        }
+        seen
+    }
+
+    /// Node count of the longest simple directed path starting at `from` that never
+    /// enters `avoid`.
+    fn longest_path_nodes_avoiding(&self, from: DenseNodeId, avoid: DenseNodeId) -> usize {
+        // 0 = unvisited, 1 = on the DFS stack, 2 = finished.
+        let mut state = vec![0u8; self.node_count()];
+        let mut best = vec![0usize; self.node_count()];
+        let mut stack = vec![(from, 0usize)];
+        state[from.as_usize()] = 1;
+        while let Some(&(v, next)) = stack.last() {
+            let kids = self.children(v);
+            if let Some(&c) = kids.get(next) {
+                stack.last_mut().expect("nonempty").1 += 1;
+                if c != avoid && state[c.as_usize()] == 0 {
+                    state[c.as_usize()] = 1;
+                    stack.push((c, 0));
+                }
+            } else {
+                let deepest = kids
+                    .iter()
+                    .filter(|&&c| c != avoid && state[c.as_usize()] == 2)
+                    .map(|c| best[c.as_usize()])
+                    .max()
+                    .unwrap_or(0);
+                best[v.as_usize()] = deepest + 1;
+                state[v.as_usize()] = 2;
+                stack.pop();
+            }
+        }
+        best[from.as_usize()]
+    }
+
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
         if id.as_usize() >= self.node_count() {
             Err(GraphError::UnknownNode { id: id.raw() })
@@ -311,35 +357,66 @@ impl Dag {
             // A zero budget cannot certify that no path exists.
             return Ok((out, true));
         }
-        let mut truncated = false;
-        let mut stack = vec![vec![from]];
-        while let Some(path) = stack.pop() {
+        if from == to {
+            out.push(vec![from]);
+            return Ok((out, false));
+        }
+        if max_len == 1 {
+            // The start node alone already fills the length budget.
+            return Ok((out, true));
+        }
+        // Only `An(to)` can complete a path; branches outside it are never entered. The
+        // search order, the `max_paths` flag and the `max_len` flag are those of the
+        // unpruned depth-first enumeration: a skipped branch still counts as a pending
+        // sibling, and `max_len` is flagged when any simple path of `max_len` nodes avoids
+        // `to`, which one longest-path pass over the nodes reachable from `from` decides.
+        let live = self.ancestors_mask(to);
+        let mut truncated = self.longest_path_nodes_avoiding(from, to) >= max_len;
+        // Every live partial path extends to a completed one unless `max_len` cuts it, so a
+        // search that finishes without any cut visits at most `paths * max_len` nodes.
+        let visit_budget = max_paths.saturating_mul(max_len).saturating_mul(16);
+        let mut visits = 0usize;
+        let mut path = vec![from];
+        let mut on_path = vec![false; self.node_count()];
+        on_path[from.as_usize()] = true;
+        // Remaining children of each path node, consumed from the back (the unpruned
+        // search pops its stack last-pushed first).
+        let mut cursor = vec![self.children(from).len()];
+        'dfs: while let Some(&last) = path.last() {
+            let kids = self.children(last);
+            let top = cursor.len() - 1;
+            if cursor[top] == 0 {
+                on_path[last.as_usize()] = false;
+                path.pop();
+                cursor.pop();
+                continue;
+            }
+            cursor[top] -= 1;
+            let c = kids[cursor[top]];
             if out.len() >= max_paths {
                 truncated = true;
-                break;
+                break 'dfs;
             }
-            let last = *path.last().expect("nonempty");
-            if path.len() > 1 && last == to {
-                out.push(path);
+            if on_path[c.as_usize()] {
                 continue;
             }
-            if last == to && path.len() == 1 {
-                out.push(path);
+            if c == to {
+                let mut done = path.clone();
+                done.push(c);
+                out.push(done);
                 continue;
             }
-            if path.len() >= max_len {
-                // Pruned before reaching `to`; a longer completion may exist.
+            if !live[c.as_usize()] || path.len() + 1 >= max_len {
+                continue;
+            }
+            visits += 1;
+            if visits > visit_budget {
                 truncated = true;
-                continue;
+                break 'dfs;
             }
-            for &c in self.children(last) {
-                if path.contains(&c) {
-                    continue;
-                }
-                let mut next = path.clone();
-                next.push(c);
-                stack.push(next);
-            }
+            on_path[c.as_usize()] = true;
+            path.push(c);
+            cursor.push(self.children(c).len());
         }
         Ok((out, truncated))
     }
@@ -394,6 +471,79 @@ mod tests {
         let (paths, truncated) = g.directed_paths_with_budget(t, y, 64, 4).unwrap();
         assert_eq!(paths.len(), 1);
         assert!(!truncated);
+    }
+
+    /// The unpruned enumeration this method replaced, kept as an oracle.
+    fn reference_paths(
+        g: &Dag,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        max_paths: usize,
+        max_len: usize,
+    ) -> (Vec<Vec<DenseNodeId>>, bool) {
+        let mut out = Vec::new();
+        if max_paths == 0 || max_len == 0 {
+            return (out, true);
+        }
+        let mut truncated = false;
+        let mut stack = vec![vec![from]];
+        while let Some(path) = stack.pop() {
+            if out.len() >= max_paths {
+                truncated = true;
+                break;
+            }
+            let last = *path.last().unwrap();
+            if last == to {
+                out.push(path);
+                continue;
+            }
+            if path.len() >= max_len {
+                truncated = true;
+                continue;
+            }
+            for &c in g.children(last) {
+                if !path.contains(&c) {
+                    let mut next = path.clone();
+                    next.push(c);
+                    stack.push(next);
+                }
+            }
+        }
+        (out, truncated)
+    }
+
+    #[test]
+    fn directed_paths_match_the_unpruned_enumeration() {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..300 {
+            let n = 3 + (next() % 7) as u32;
+            let mut g = Dag::with_variables(n);
+            for u in 0..n {
+                for v in (u + 1)..n {
+                    if next() % 100 < 40 {
+                        g.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v))
+                            .unwrap();
+                    }
+                }
+            }
+            for _ in 0..6 {
+                let from = DenseNodeId::from_raw((next() % u64::from(n)) as u32);
+                let to = DenseNodeId::from_raw((next() % u64::from(n)) as u32);
+                let max_paths = (next() % 6) as usize;
+                let max_len = (next() % 8) as usize;
+                assert_eq!(
+                    g.directed_paths_with_budget(from, to, max_paths, max_len).unwrap(),
+                    reference_paths(&g, from, to, max_paths, max_len),
+                    "n={n} from={from:?} to={to:?} max_paths={max_paths} max_len={max_len}"
+                );
+            }
+        }
     }
 
     #[test]
