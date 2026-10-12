@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use antecedent::design::{
     CandidateDesign, DesignCost, DesignEvaluationContext, DesignObjective, DesignRankConfig,
-    DesignRanker, MeasurementPlan, SamplingPlan, rank_designs,
+    DesignRanker, MeasurementPlan, SamplingPlan, ScoreEvaluation, rank_designs,
 };
 use antecedent::state::{
     CausalState, DataVersion, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LgssmParams,
@@ -81,7 +81,13 @@ fn rank_candidates_eig_conformance() {
         rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
             .unwrap();
     assert_eq!(ranking.ranked.len(), 2);
-    assert!(ranking.budget.samples >= expected["min_mc_samples"].as_u64().unwrap());
+    // Exactly scored objectives return the same value on every draw, so the ranker
+    // takes one and reports one sample; only Monte Carlo rankings owe the minimum.
+    if ranking.ranked.iter().all(|r| r.evaluation == ScoreEvaluation::Exact) {
+        assert_eq!(ranking.budget.samples, 1);
+    } else {
+        assert!(ranking.budget.samples >= expected["min_mc_samples"].as_u64().unwrap());
+    }
     let best_kind = match &ranking.ranked[0].candidate {
         CandidateDesign::Measure(_) => "measure",
         CandidateDesign::IncreaseSamplingRate(_) => "sampling",
