@@ -69,6 +69,10 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 - Typed provider and handoff refusals. The refusals of `ProviderRegistry` and of the adjustment handoff are `ProviderRefusal`s (a `StructuredRefusal`, so `reason_code`, `detail`, `offending`, `remedy`) with `provider.*` and `handoff.*` details. The classes callers caught keep working: a refusal of a malformed argument is also a `ValueError`/`CausalValueError`, an identification refusal is a `CausalUnsupportedError`, and an unregistered or uninstalled provider (`UnknownProviderError`) is also a `KeyError`. Argument-type errors (`TypeError`) are unchanged. Messages gained a `detail: ` prefix.
 - Provider-trust vocabulary repairs. `ProviderTrust.UNVERIFIED` joins the Python enum (it was missing, so every default `JointDistributionArtifact` failed to construct, which broke the composition, multi-source and coordinate-lifecycle suites); the members are now exactly Rust's `ProviderTrust`. The Rust `DistributionTrust` reads the shared spelling `externally_attested` as the stored `external_attested` level (it still writes `external_attested`), so a rollout declaration built from a canonical trust no longer refuses. The `support.coordinate` promotion fixture points at the moved `support_labels` test.
 
+### Removed
+
+- `antecedent_identify::RankedAdjustmentSet`, `antecedent_estimate::temporal_refresh::refresh_prepared_sequence`, `Dag::markov_blanket(_nodes)` and `Admg::markov_blanket(_nodes)` (no callers outside their own tests), the `antecedent_expr::{pretty, latex}` wrapper modules (`Arena::pretty` and `Arena::latex` are unchanged), and `LazyUnfoldedTemporalGraph::has_edge` outside tests.
+
 ## 2.3.0
 
 Changes since 2.2.0. The [release notes](docs/release-notes/v2.3.0.md) describe the new workflows, validated method scopes and refusals.
