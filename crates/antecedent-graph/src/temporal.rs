@@ -169,22 +169,13 @@ impl TemporalDag {
 
     /// Iterate directed edges as marked edges.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
-        self.directed.child_adj().iter().enumerate().flat_map(|(i, kids)| {
-            let from = DenseNodeId::from_index(i);
-            kids.iter().map(move |&to| MarkedEdge::directed(from, to))
-        })
+        self.directed.marked_edges()
     }
 
     /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
     #[must_use]
     pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        let mut pairs: Vec<(u32, u32)> = self
-            .edges()
-            .filter_map(MarkedEdge::parent_child)
-            .map(|(from, to)| (from.raw(), to.raw()))
-            .collect();
-        pairs.sort_unstable();
-        pairs
+        self.directed.edge_pairs_sorted()
     }
 
     /// Reachability.

@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::algo::{bfs_reaches, kahn_order};
 use crate::error::GraphError;
-use crate::types::DenseNodeId;
+use crate::types::{DenseNodeId, MarkedEdge};
 use crate::workspace::GraphWorkspace;
 
 /// Outgoing and incoming directed adjacency, plus scratch for the insert-time cycle check.
@@ -66,9 +66,31 @@ impl DirectedCore {
     }
 
     /// Whether `from` reaches `to`, including the case `from == to`.
+    ///
+    /// An unknown node reaches only itself. [`Admg`](crate::Admg) and
+    /// [`TemporalDag`](crate::TemporalDag) both use this predicate.
     pub(crate) fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
         let mut ws = GraphWorkspace::default();
         self.reaches_with(from, to, &mut ws)
+    }
+
+    /// Directed edges as marked edges, parent then child, in node order.
+    pub(crate) fn marked_edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
+        self.children.iter().enumerate().flat_map(|(i, kids)| {
+            let from = DenseNodeId::from_index(i);
+            kids.iter().copied().map(move |to| MarkedEdge::directed(from, to))
+        })
+    }
+
+    /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
+    pub(crate) fn edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
+        let mut pairs = Vec::new();
+        for (i, kids) in self.children.iter().enumerate() {
+            let from = u32::try_from(i).expect("node fit");
+            pairs.extend(kids.iter().map(|to| (from, to.raw())));
+        }
+        pairs.sort_unstable();
+        pairs
     }
 
     /// Reachability using a reusable workspace.

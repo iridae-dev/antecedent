@@ -322,11 +322,7 @@ impl Admg {
     /// Whether `from` reaches `to` via directed edges.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        if from == to {
-            return true;
-        }
-        let mut ws = GraphWorkspace::default();
-        self.reaches_with(from, to, &mut ws)
+        self.directed.reaches(from, to)
     }
 
     /// Directed reachability with reusable workspace.
@@ -392,13 +388,7 @@ impl Admg {
     /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
     #[must_use]
     pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        let mut pairs = Vec::new();
-        for (i, kids) in self.directed.child_adj().iter().enumerate() {
-            let from = u32::try_from(i).expect("node fit");
-            pairs.extend(kids.iter().map(|to| (from, to.raw())));
-        }
-        pairs.sort_unstable();
-        pairs
+        self.directed.edge_pairs_sorted()
     }
 
     /// Bidirected edges as raw `(lower, higher)` dense-id pairs in ascending order.
@@ -711,6 +701,51 @@ mod tests {
         }
         g.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
         assert_eq!(g.directed_edge_pairs_sorted(), vec![(0, 1), (0, 3), (1, 2), (2, 3)]);
+    }
+
+    #[test]
+    fn directed_edges_and_shared_errors_match_temporal_dag() {
+        use crate::temporal::TemporalDag;
+        use antecedent_core::{Lag, VariableId};
+
+        let edges = [(0, 1), (1, 2), (0, 2)];
+        let mut mixed = Admg::with_variables(3);
+        let mut temporal = TemporalDag::empty();
+        for i in 0..3 {
+            temporal.add_lagged(VariableId::from_raw(i), Lag::from_raw(1)).unwrap();
+        }
+        for (from, to) in edges {
+            let (from, to) = (DenseNodeId::from_raw(from), DenseNodeId::from_raw(to));
+            mixed.insert_directed(from, to).unwrap();
+            temporal.insert_directed(from, to).unwrap();
+        }
+        assert_eq!(mixed.directed_edge_pairs_sorted(), temporal.directed_edge_pairs_sorted());
+        assert_eq!(mixed.directed_edge_pairs_sorted(), vec![(0, 1), (0, 2), (1, 2)]);
+        assert!(mixed.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(0)));
+        assert!(temporal.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(0)));
+        assert_eq!(
+            mixed.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)),
+            temporal.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2))
+        );
+
+        let unknown = DenseNodeId::from_raw(9);
+        assert_eq!(
+            mixed.insert_directed(unknown, DenseNodeId::from_raw(0)),
+            temporal.insert_directed(unknown, DenseNodeId::from_raw(0))
+        );
+        let dup = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+        assert_eq!(mixed.insert_directed(dup.0, dup.1), temporal.insert_directed(dup.0, dup.1));
+        let cycle = (DenseNodeId::from_raw(2), DenseNodeId::from_raw(0));
+        assert_eq!(
+            mixed.insert_directed(cycle.0, cycle.1),
+            temporal.insert_directed(cycle.0, cycle.1)
+        );
+        // A self-loop is a different error on each type and stays that way.
+        let self_loop = DenseNodeId::from_raw(0);
+        assert_ne!(
+            mixed.insert_directed(self_loop, self_loop),
+            temporal.insert_directed(self_loop, self_loop)
+        );
     }
 
     #[test]
