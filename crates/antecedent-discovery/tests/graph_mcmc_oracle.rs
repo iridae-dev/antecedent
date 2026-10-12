@@ -7,24 +7,19 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    VariableId,
-};
-use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-};
+use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_data::TabularData;
 use antecedent_discovery::{
     CiScreenedPosterior, DiscoveryConstraints, DiscoveryWorkspace, GraphPosterior, GraphPrior,
     OrderMcmc, StructureMcmc,
 };
 use antecedent_state::GraphScoreFamily;
 use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
+
+mod common;
 
 fn fixture() -> JsonValue {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -41,36 +36,12 @@ fn case_data(case: &JsonValue) -> (TabularData, Vec<VariableId>, Vec<String>) {
         .map(|v| v.as_str().unwrap().to_owned())
         .collect();
     let rows = case["data"].as_array().unwrap();
-    let n = rows.len();
-    let mut builder = CausalSchemaBuilder::new();
-    for name in &names {
-        builder
-            .add_variable(
-                name.as_str(),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-    }
-    let schema = builder.build().unwrap();
-    let columns: Vec<OwnedColumn> = (0..names.len())
+    let columns: Vec<Vec<f64>> = (0..names.len())
         .map(|column| {
-            let values: Vec<f64> =
-                rows.iter().map(|row| row.as_array().unwrap()[column].as_f64().unwrap()).collect();
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(column as u32),
-                    Arc::from(values),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            )
+            rows.iter().map(|row| row.as_array().unwrap()[column].as_f64().unwrap()).collect()
         })
         .collect();
-    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let storage = common::continuous_storage(&names, columns);
     let variables = (0..names.len()).map(|i| VariableId::from_raw(i as u32)).collect();
     (TabularData::new(storage), variables, names)
 }
@@ -102,38 +73,13 @@ fn case_data_permuted(
         .collect();
     let names: Vec<String> = perm.iter().map(|&i| names[i].clone()).collect();
     let rows = case["data"].as_array().unwrap();
-    let n = rows.len();
-    let mut builder = CausalSchemaBuilder::new();
-    for name in &names {
-        builder
-            .add_variable(
-                name.as_str(),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-    }
-    let schema = builder.build().unwrap();
-    let columns: Vec<OwnedColumn> = perm
+    let columns: Vec<Vec<f64>> = perm
         .iter()
-        .enumerate()
-        .map(|(out_col, &src_col)| {
-            let values: Vec<f64> =
-                rows.iter().map(|row| row.as_array().unwrap()[src_col].as_f64().unwrap()).collect();
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(out_col as u32),
-                    Arc::from(values),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            )
+        .map(|&src_col| {
+            rows.iter().map(|row| row.as_array().unwrap()[src_col].as_f64().unwrap()).collect()
         })
         .collect();
-    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let storage = common::continuous_storage(&names, columns);
     let variables = (0..names.len()).map(|i| VariableId::from_raw(i as u32)).collect();
     (TabularData::new(storage), variables, names)
 }

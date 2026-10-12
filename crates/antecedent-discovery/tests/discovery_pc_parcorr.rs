@@ -2,33 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-
-use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    VariableId,
-};
-use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-};
+use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_data::TabularData;
 use antecedent_discovery::{DiscoveryWorkspace, Pc};
 use antecedent_graph::DenseNodeId;
 
+mod common;
+
 fn gaussian_chain(n: usize, seed: u64, middle_offset: f64) -> TabularData {
     // X0 → X1 → X2 linear Gaussian.
-    let mut b = CausalSchemaBuilder::new();
-    for name in ["x0", "x1", "x2"] {
-        b.add_variable(
-            name,
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-    }
-    let schema = b.build().unwrap();
     let mut x0 = vec![0.0; n];
     let mut x1 = vec![0.0; n];
     let mut x2 = vec![0.0; n];
@@ -42,34 +24,7 @@ fn gaussian_chain(n: usize, seed: u64, middle_offset: f64) -> TabularData {
     for value in &mut x1 {
         *value += middle_offset;
     }
-    let cols = vec![
-        OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(x0),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
-        ),
-        OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(x1),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
-        ),
-        OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(2),
-                Arc::from(x2),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
-        ),
-    ];
-    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-    TabularData::new(storage)
+    TabularData::new(common::continuous_storage(&["x0", "x1", "x2"], vec![x0, x1, x2]))
 }
 
 #[test]

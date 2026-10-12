@@ -393,9 +393,7 @@ mod tests {
         Assumption, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
         SmallRoleSet, ValueType, VariableId,
     };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
     use antecedent_stats::{
         CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, OracleCi, PreparedCiTest, StatsError,
     };
@@ -610,36 +608,13 @@ mod tests {
     }
 
     fn independent_gaussians(ncols: usize, nrows: usize, seed: u64) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         let mut next_gauss = || antecedent_kernels::standard_normal(&mut rng);
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                let vals: Vec<f64> = (0..nrows).map(|_| next_gauss()).collect();
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vals),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
+        let columns: Vec<Vec<f64>> =
+            (0..ncols).map(|_| (0..nrows).map(|_| next_gauss()).collect()).collect();
+        let names: Vec<String> = (0..ncols).map(|i| format!("v{i}")).collect();
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        crate::test_tables::continuous_table(&refs, columns)
     }
 
     /// Under independent Gaussian noise, PC skeleton edge retention should track α.

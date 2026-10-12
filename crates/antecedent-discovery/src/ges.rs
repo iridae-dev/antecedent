@@ -1032,28 +1032,11 @@ impl DagEdgeHelpers for Dag {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
-    };
+    use antecedent_core::VariableId;
+    use antecedent_data::{TableView, TabularData};
 
     fn gaussian_chain_data(n: usize) -> (TabularData, Vec<VariableId>) {
         // X0 → X1 → X2 linear Gaussian.
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..3 {
-            b.add_variable(
-                format!("x{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
         let mut x0 = vec![0.0; n];
         let mut x1 = vec![0.0; n];
         let mut x2 = vec![0.0; n];
@@ -1065,34 +1048,7 @@ mod tests {
             x1[i] = 0.8 * x0[i] + e1;
             x2[i] = 0.8 * x1[i] + e2;
         }
-        let owned = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(x0),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(x1),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(2),
-                    Arc::from(x2),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        let data = TabularData::new(storage);
+        let data = crate::test_tables::continuous_table(&["x0", "x1", "x2"], vec![x0, x1, x2]);
         let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
         (data, vars)
     }
@@ -1219,40 +1175,8 @@ mod tests {
     #[test]
     fn ges_scores_a_degenerate_parent_as_negative_infinity() {
         let n = 80;
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..2 {
-            b.add_variable(
-                format!("d{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let x: Vec<f64> = (0..n).map(|i| (i as f64) * 0.1).collect();
-        let owned = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(x.clone()),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(x),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        let data = TabularData::new(storage);
+        let x: Vec<f64> = (0..n).map(|i| f64::from(i) * 0.1).collect();
+        let data = crate::test_tables::continuous_table(&["d0", "d1"], vec![x.clone(), x]);
         let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
         let result = Ges::new().run(
             &data,

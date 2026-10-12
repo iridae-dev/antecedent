@@ -260,20 +260,6 @@ mod tests {
     use crate::graph_posterior::{GraphPrior, edge_bit, has_edge, set_edge};
 
     fn chain_tabular(n_rows: usize, seed: u64) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["a", "b", "c"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         let mut a = vec![0.0; n_rows];
         let mut bb = vec![0.0; n_rows];
@@ -283,22 +269,9 @@ mod tests {
             bb[i] = 1.5 * a[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
             c[i] = 1.2 * bb[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(a), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(bb), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(c), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["a", "b", "c"], vec![a, bb, c]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]

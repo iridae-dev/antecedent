@@ -7,21 +7,16 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    VariableId,
-};
-use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-};
+use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_data::TabularData;
 use antecedent_discovery::{DirectLingam, DiscoveryConstraints, DiscoveryWorkspace, Fci, Ges};
 use antecedent_graph::{DenseNodeId, Endpoint};
 use serde_json::Value as JsonValue;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::PathBuf;
+
+mod common;
 
 type MarkedKey = (String, String, String, String);
 
@@ -74,41 +69,13 @@ fn case_data(
         case["var_names"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
     let names: Vec<String> = permutation.iter().map(|&i| base_names[i].to_owned()).collect();
     let rows = case["data"].as_array().unwrap();
-    let n = rows.len();
-    let mut builder = CausalSchemaBuilder::new();
-    for name in &names {
-        builder
-            .add_variable(
-                name.as_str(),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-    }
-    let schema = builder.build().unwrap();
-    let columns: Vec<OwnedColumn> = permutation
+    let columns: Vec<Vec<f64>> = permutation
         .iter()
-        .enumerate()
-        .map(|(new_index, &old_index)| {
-            let values: Vec<f64> = rows
-                .iter()
-                .map(|row| row.as_array().unwrap()[old_index].as_f64().unwrap())
-                .collect();
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(new_index as u32),
-                    Arc::from(values),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            )
+        .map(|&old_index| {
+            rows.iter().map(|row| row.as_array().unwrap()[old_index].as_f64().unwrap()).collect()
         })
         .collect();
-    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
-    let data = TabularData::new(storage);
+    let data = TabularData::new(common::continuous_storage(&names, columns));
     let variables = (0..names.len()).map(|i| VariableId::from_raw(i as u32)).collect();
     (data, variables, names)
 }
