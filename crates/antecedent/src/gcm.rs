@@ -169,9 +169,7 @@ impl CheckedCounterfactualOperation {
 
     pub(crate) fn matches(&self, graph: &Dag, query: &CounterfactualQuery) -> bool {
         self.query == *query
-            && graph.node_count() == self.graph.node_count()
-            && graph.nodes() == self.graph.nodes()
-            && graph.edges().eq(self.graph.edges())
+            && crate::graph_identity::same_dag_structure(graph, &self.graph)
     }
 
     /// Fit mechanisms under the frozen graph, then abduct once for both worlds.
@@ -306,9 +304,7 @@ impl NestedCounterfactualOperation {
 
     pub(crate) fn matches(&self, graph: &Dag, query: &NestedCounterfactualQuery) -> bool {
         self.query == *query
-            && graph.node_count() == self.graph.node_count()
-            && graph.nodes() == self.graph.nodes()
-            && graph.directed_edge_pairs_sorted() == self.graph.directed_edge_pairs_sorted()
+            && crate::graph_identity::same_dag_structure(graph, &self.graph)
     }
 
     pub(crate) fn mediation_query(&self) -> &antecedent_core::MediationQuery {

@@ -60,6 +60,7 @@ pub mod discovery_defaults;
 pub mod error;
 pub mod estimator_spec;
 pub mod gcm;
+mod graph_identity;
 pub mod inference;
 pub mod options;
 pub mod planner;

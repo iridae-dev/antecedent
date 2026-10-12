@@ -190,7 +190,7 @@ impl CheckedTemporalMediationOperation {
     }
 
     pub(crate) fn matches_graph(&self, graph: &TemporalDag) -> bool {
-        self.graph.nodes() == graph.nodes() && self.graph.edges().eq(graph.edges())
+        crate::graph_identity::same_temporal_dag_structure(&self.graph, graph)
     }
 
     pub(crate) fn estimator(&self) -> EstimatorId {
