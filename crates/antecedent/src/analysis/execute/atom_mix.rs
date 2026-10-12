@@ -12,8 +12,8 @@ use super::{
     CausalError, CausalPosterior, Diagnostic, EffectEstimate, GraphIdentFlag, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand, IdentifiedKeyWeights, OverlapPolicy,
     QueryRefutationPlan, StructuralAggregationPolicy, WeightedGraphSamples,
-    mix_atom_refutation_reports, mix_static_envelope_se, mix_weighted_analytic_se,
-    mixed_static_influence, resolve_structural_aggregation, scalar_identified_set,
+    mix_atom_refutation_reports, mix_weighted_analytic_se, mixed_static_influence, mixture_se,
+    resolve_structural_aggregation, scalar_identified_set,
 };
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture};
 
@@ -211,7 +211,7 @@ where
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut atom_posteriors = Vec::new();
     let mut outer_se_items = Vec::new();
-    let mut outer_atom_ifs: Vec<Vec<f64>> = Vec::new();
+    let mut outer_atom_ifs: Vec<&[f64]> = Vec::new();
     let mut outer_atom_weights = Vec::new();
 
     let key_weights = IdentifiedKeyWeights::new(input.graphs);
@@ -260,7 +260,7 @@ where
                 outer_se_items.push((w, se));
             }
             if let Some(influence) = eval.influence() {
-                outer_atom_ifs.push(influence.to_vec());
+                outer_atom_ifs.push(influence);
                 outer_atom_weights.push(w);
             }
             mixable += w;
@@ -295,9 +295,14 @@ where
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
     let n_contributing = outer_se_items.len();
     let joint = mixable_scalar && n_contributing > 1 && outer_atom_ifs.len() == n_contributing;
+    let mixed_influence = if joint && mixable_scalar {
+        mixed_static_influence(&outer_atom_ifs, &outer_atom_weights)
+    } else {
+        None
+    };
     let se = if mixable_scalar {
         if joint {
-            mix_static_envelope_se(&outer_atom_ifs, &outer_atom_weights)
+            mixed_influence.as_deref().map_or(f64::NAN, mixture_se)
         } else {
             mix_weighted_analytic_se(outer_se_items)
         }
@@ -329,7 +334,7 @@ where
     let estimand = estimand.ok_or_else(|| CausalError::Compile { message: missing_estimand() })?;
     let mut estimate = EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride);
     if joint {
-        if let Some(influence) = mixed_static_influence(&outer_atom_ifs, &outer_atom_weights) {
+        if let Some(influence) = mixed_influence {
             estimate.scores.influence = Some(influence);
         }
     }
@@ -499,4 +504,176 @@ where
         Some(summary(&inner_keys, mix_scalar)),
         false,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::strategy_table::{
+        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
+    };
+    use antecedent_core::{AverageEffectQuery, VariableId};
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    struct Eval {
+        key: u64,
+        estimand: IdentifiedEstimand,
+        influence: Vec<f64>,
+    }
+
+    impl AtomEvalView for Eval {
+        fn key(&self) -> u64 {
+            self.key
+        }
+        fn status(&self) -> IdentificationStatus {
+            IdentificationStatus::NonparametricallyIdentified
+        }
+        fn estimand(&self) -> Option<&IdentifiedEstimand> {
+            Some(&self.estimand)
+        }
+        fn scalar(&self) -> Option<f64> {
+            Some(0.5)
+        }
+        fn posterior(&self) -> Option<&CausalPosterior> {
+            None
+        }
+        fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
+            None
+        }
+        fn identified_bounds(&self) -> Option<(f64, f64)> {
+            None
+        }
+        fn partial(&self) -> bool {
+            false
+        }
+        fn analytic_se(&self) -> Option<f64> {
+            Some(0.1)
+        }
+        fn influence(&self) -> Option<&[f64]> {
+            Some(&self.influence)
+        }
+    }
+
+    struct Proof(u64, IdentificationResult);
+
+    impl AtomProof for Proof {
+        fn proof_key(&self) -> u64 {
+            self.0
+        }
+        fn identification(&self) -> &IdentificationResult {
+            &self.1
+        }
+    }
+
+    /// The mixer's joint SE and influence are the helpers' results on the same columns,
+    /// computed from one mixture instead of two.
+    #[test]
+    fn joint_mixture_matches_the_standalone_helpers() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identification = identify_static(DEFAULT_IDENTIFIER_ID, &dag, &query).unwrap();
+        let estimand = select_estimand(&identification, EstimatorId::LinearAdjustmentAte).unwrap();
+        let keys = [3_u64, 5, 9];
+        let weights = vec![0.5, 0.3, 0.2];
+        let graphs = WeightedGraphSamples::new(
+            weights.clone(),
+            vec![GraphIdentFlag::Identified; 3],
+            keys.to_vec(),
+        )
+        .unwrap();
+        let evals: Vec<Eval> = keys
+            .iter()
+            .map(|&key| Eval {
+                key,
+                estimand: estimand.clone(),
+                influence: (0..40).map(|r| ((r * 7 + key as usize) % 11) as f64 - 5.0).collect(),
+            })
+            .collect();
+        let proofs: Vec<Proof> =
+            keys.iter().map(|&key| Proof(key, identification.clone())).collect();
+        let mixed = mix_atom_evals(
+            &evals,
+            AtomMixInput {
+                graphs: &graphs,
+                proofs: &proofs,
+                unidentified_mass: 0.0,
+                full_mass_scope: true,
+                truncated_atoms: 0,
+                bounds: AtomBoundRule::Point,
+                estimand_fallback: true,
+            },
+            |_, _| String::new(),
+            String::new,
+        )
+        .unwrap();
+        let columns: Vec<&[f64]> = evals.iter().map(|eval| eval.influence.as_slice()).collect();
+        assert_eq!(
+            mixed.estimate.se_analytic().to_bits(),
+            super::super::mix_static_envelope_se(&columns, &weights).to_bits()
+        );
+        assert_eq!(
+            mixed.estimate.scores.influence.as_deref(),
+            super::super::mixed_static_influence(&columns, &weights).as_deref()
+        );
+    }
+
+    /// Timing harness for the shared atom mixer over long influence columns
+    /// (`cargo test -p antecedent --lib atom_mix::tests::mixer_scales -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "timing harness"]
+    fn mixer_scales_with_atoms_and_rows() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identification = identify_static(DEFAULT_IDENTIFIER_ID, &dag, &query).unwrap();
+        let estimand = select_estimand(&identification, EstimatorId::LinearAdjustmentAte).unwrap();
+        for (atoms, rows) in [(8_usize, 100_000_usize), (32, 100_000), (32, 400_000)] {
+            let weights = vec![1.0 / atoms as f64; atoms];
+            let keys: Vec<u64> = (0..atoms as u64).collect();
+            let graphs = WeightedGraphSamples::new(
+                weights,
+                vec![GraphIdentFlag::Identified; atoms],
+                keys.clone(),
+            )
+            .unwrap();
+            let evals: Vec<Eval> = keys
+                .iter()
+                .map(|&key| Eval {
+                    key,
+                    estimand: estimand.clone(),
+                    influence: (0..rows)
+                        .map(|r| ((r as u64 * 31 + key) % 97) as f64 - 48.0)
+                        .collect(),
+                })
+                .collect();
+            let proofs: Vec<Proof> =
+                keys.iter().map(|&key| Proof(key, identification.clone())).collect();
+            let started = std::time::Instant::now();
+            for _ in 0..3 {
+                let mixed = mix_atom_evals(
+                    &evals,
+                    AtomMixInput {
+                        graphs: &graphs,
+                        proofs: &proofs,
+                        unidentified_mass: 0.0,
+                        full_mass_scope: true,
+                        truncated_atoms: 0,
+                        bounds: AtomBoundRule::Point,
+                        estimand_fallback: true,
+                    },
+                    |_, _| String::new(),
+                    String::new,
+                )
+                .unwrap();
+                std::hint::black_box(&mixed);
+            }
+            eprintln!(
+                "atoms={atoms:>3} rows={rows:>7} mix={:.1} ms",
+                started.elapsed().as_secs_f64() * 1e3 / 3.0
+            );
+        }
+    }
 }

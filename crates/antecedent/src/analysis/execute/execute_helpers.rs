@@ -1376,28 +1376,33 @@ pub(super) fn attach_class_conditional_functional_grid(
 /// Frozen-weight mixture SE from per-atom IFs that share rows.
 ///
 /// Graph weights are modeling choices. Unidentified mass is not mixed in.
-pub(super) fn mix_static_envelope_se(atom_ifs: &[Vec<f64>], atom_weights: &[f64]) -> f64 {
+pub(super) fn mix_static_envelope_se<T: AsRef<[f64]>>(atom_ifs: &[T], atom_weights: &[f64]) -> f64 {
     if atom_ifs.is_empty() || atom_ifs.len() != atom_weights.len() {
         return f64::NAN;
     }
-    let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
+    let refs: Vec<&[f64]> = atom_ifs.iter().map(AsRef::as_ref).collect();
     let Ok(mixed) = antecedent_estimate::frozen_weight_mixture_scores(&refs, atom_weights) else {
         return f64::NAN;
     };
-    antecedent_estimate::joint_influence_covariance(&[&mixed], None)
+    mixture_se(&mixed)
+}
+
+/// Standard error of an already-mixed influence column.
+pub(super) fn mixture_se(mixed: &[f64]) -> f64 {
+    antecedent_estimate::joint_influence_covariance(&[mixed], None)
         .map(|c| c.se(0))
         .unwrap_or(f64::NAN)
 }
 
 /// Frozen-weight mixture IF, or `None` when atoms do not share a row universe.
-pub(super) fn mixed_static_influence(
-    atom_ifs: &[Vec<f64>],
+pub(super) fn mixed_static_influence<T: AsRef<[f64]>>(
+    atom_ifs: &[T],
     atom_weights: &[f64],
 ) -> Option<std::sync::Arc<[f64]>> {
     if atom_ifs.is_empty() || atom_ifs.len() != atom_weights.len() {
         return None;
     }
-    let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
+    let refs: Vec<&[f64]> = atom_ifs.iter().map(AsRef::as_ref).collect();
     antecedent_estimate::frozen_weight_mixture_scores(&refs, atom_weights)
         .ok()
         .map(std::sync::Arc::from)
@@ -1511,6 +1516,8 @@ pub(super) fn mix_graph_posterior_identified_atoms(
             response: None,
         });
     }
+    let mut present: std::collections::HashSet<u64> =
+        structural_atoms.iter().map(|atom| atom.graph_key).collect();
     for (key, weight, flag) in graphs
         .graph_keys
         .iter()
@@ -1521,7 +1528,7 @@ pub(super) fn mix_graph_posterior_identified_atoms(
         if flag != GraphIdentFlag::Unidentified {
             continue;
         }
-        if structural_atoms.iter().any(|atom| atom.graph_key == key) {
+        if !present.insert(key) {
             continue;
         }
         structural_atoms.push(StructuralResponseAtom {
@@ -3311,5 +3318,33 @@ mod posterior_status_ladder_tests {
         assert_ne!(SUSTAINED_LINEAR_SEM, UNFOLDED_LINEAR_SEM);
         assert_ne!(SUSTAINED_LINEAR_SEM, SEQUENCE_LINEAR_SEM);
         assert_ne!(UNFOLDED_LINEAR_SEM, DBN_LINEAR_SEM);
+    }
+}
+
+#[cfg(test)]
+mod graph_mixture_timing {
+    use super::*;
+
+    /// Timing harness for appending unidentified samples to a mixture
+    /// (`cargo test -p antecedent --lib graph_mixture_timing -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "timing harness"]
+    fn unidentified_samples_scale_linearly() {
+        for samples in [2_000_usize, 8_000, 32_000] {
+            let keys: Vec<u64> = (0..samples as u64).collect();
+            let graphs = WeightedGraphSamples::new(
+                vec![1.0 / samples as f64; samples],
+                vec![GraphIdentFlag::Unidentified; samples],
+                keys,
+            )
+            .unwrap();
+            let started = std::time::Instant::now();
+            let mixed = mix_graph_posterior_identified_atoms(&graphs, &[], 1.0, 0.0, 0.0, 0);
+            eprintln!(
+                "samples={samples:>6} atoms={} append={:.1} ms",
+                mixed.mixture.atoms.len(),
+                started.elapsed().as_secs_f64() * 1e3
+            );
+        }
     }
 }
