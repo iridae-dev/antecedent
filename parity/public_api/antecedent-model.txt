@@ -1,0 +1,665 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_model::ModelError
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledCausalModel [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledMechanismStore [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismAssignment [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismSlot [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelCollection [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::StructuralCausalModel [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::CompiledCausalModel [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::CompiledMechanismStore [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismAssignment [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismSlot [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelCollection [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::StructuralCausalModel [auto]
+impl core::clone::Clone for antecedent_model::BasisTerm
+impl core::clone::Clone for antecedent_model::CompiledCausalModel
+impl core::clone::Clone for antecedent_model::CompiledMechanismStore
+impl core::clone::Clone for antecedent_model::DoSampleResult
+impl core::clone::Clone for antecedent_model::InterventionOverlay
+impl core::clone::Clone for antecedent_model::InvertibleStructuralCausalModel
+impl core::clone::Clone for antecedent_model::KdeDoSampler
+impl core::clone::Clone for antecedent_model::McmcDoSampler
+impl core::clone::Clone for antecedent_model::MechanismAssignment
+impl core::clone::Clone for antecedent_model::MechanismCandidate
+impl core::clone::Clone for antecedent_model::MechanismFamily
+impl core::clone::Clone for antecedent_model::MechanismRegistry
+impl core::clone::Clone for antecedent_model::MechanismSlot
+impl core::clone::Clone for antecedent_model::MechanismTyping
+impl core::clone::Clone for antecedent_model::MechanismWorkspace
+impl core::clone::Clone for antecedent_model::ModelCollection
+impl core::clone::Clone for antecedent_model::ModelError
+impl core::clone::Clone for antecedent_model::ModelEvaluationReport
+impl core::clone::Clone for antecedent_model::ModelEvaluator
+impl core::clone::Clone for antecedent_model::ModelOutputLayout
+impl core::clone::Clone for antecedent_model::NoiseBatch
+impl core::clone::Clone for antecedent_model::NoiseInferenceMode
+impl core::clone::Clone for antecedent_model::ParentBasis
+impl core::clone::Clone for antecedent_model::ParentGatherPlan
+impl core::clone::Clone for antecedent_model::PredictiveDraws
+impl core::clone::Clone for antecedent_model::ProbabilisticCausalModel
+impl core::clone::Clone for antecedent_model::SelectionPolicy
+impl core::clone::Clone for antecedent_model::StructuralCausalModel
+impl core::clone::Clone for antecedent_model::ValueBatch
+impl core::clone::Clone for antecedent_model::WeightingDoSampler
+impl core::cmp::Eq for antecedent_model::BasisTerm
+impl core::cmp::Eq for antecedent_model::MechanismFamily
+impl core::cmp::Eq for antecedent_model::MechanismTyping
+impl core::cmp::Eq for antecedent_model::ModelError
+impl core::cmp::Eq for antecedent_model::NoiseInferenceMode
+impl core::cmp::Eq for antecedent_model::SelectionPolicy
+impl core::cmp::PartialEq for antecedent_model::BasisTerm
+impl core::cmp::PartialEq for antecedent_model::MechanismFamily
+impl core::cmp::PartialEq for antecedent_model::MechanismTyping
+impl core::cmp::PartialEq for antecedent_model::ModelError
+impl core::cmp::PartialEq for antecedent_model::NoiseInferenceMode
+impl core::cmp::PartialEq for antecedent_model::SelectionPolicy
+impl core::convert::From<antecedent_data::error::DataError> for antecedent_model::ModelError
+impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_model::ModelError
+impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_model::ModelError
+impl core::default::Default for antecedent_model::InterventionOverlay
+impl core::default::Default for antecedent_model::McmcDoSampler
+impl core::default::Default for antecedent_model::MechanismRegistry
+impl core::default::Default for antecedent_model::MechanismSlot
+impl core::default::Default for antecedent_model::MechanismWorkspace
+impl core::default::Default for antecedent_model::ModelEvaluator
+impl core::default::Default for antecedent_model::NoiseBatch
+impl core::default::Default for antecedent_model::ValueBatch
+impl core::error::Error for antecedent_model::ModelError
+impl core::fmt::Debug for antecedent_model::BasisTerm
+impl core::fmt::Debug for antecedent_model::CompiledCausalModel
+impl core::fmt::Debug for antecedent_model::CompiledMechanismStore
+impl core::fmt::Debug for antecedent_model::DoSampleResult
+impl core::fmt::Debug for antecedent_model::InterventionOverlay
+impl core::fmt::Debug for antecedent_model::InvertibleStructuralCausalModel
+impl core::fmt::Debug for antecedent_model::KdeDoSampler
+impl core::fmt::Debug for antecedent_model::McmcDoSampler
+impl core::fmt::Debug for antecedent_model::MechanismAssignment
+impl core::fmt::Debug for antecedent_model::MechanismCandidate
+impl core::fmt::Debug for antecedent_model::MechanismFamily
+impl core::fmt::Debug for antecedent_model::MechanismRegistry
+impl core::fmt::Debug for antecedent_model::MechanismSlot
+impl core::fmt::Debug for antecedent_model::MechanismTyping
+impl core::fmt::Debug for antecedent_model::MechanismWorkspace
+impl core::fmt::Debug for antecedent_model::ModelCollection
+impl core::fmt::Debug for antecedent_model::ModelError
+impl core::fmt::Debug for antecedent_model::ModelEvaluationReport
+impl core::fmt::Debug for antecedent_model::ModelEvaluator
+impl core::fmt::Debug for antecedent_model::ModelOutputLayout
+impl core::fmt::Debug for antecedent_model::NoiseBatch
+impl core::fmt::Debug for antecedent_model::NoiseInferenceMode
+impl core::fmt::Debug for antecedent_model::ParentBasis
+impl core::fmt::Debug for antecedent_model::ParentGatherPlan
+impl core::fmt::Debug for antecedent_model::PredictiveDraws
+impl core::fmt::Debug for antecedent_model::ProbabilisticCausalModel
+impl core::fmt::Debug for antecedent_model::SelectionPolicy
+impl core::fmt::Debug for antecedent_model::StructuralCausalModel
+impl core::fmt::Debug for antecedent_model::ValueBatch
+impl core::fmt::Debug for antecedent_model::WeightingDoSampler
+impl core::fmt::Display for antecedent_model::ModelError
+impl core::hash::Hash for antecedent_model::BasisTerm
+impl core::hash::Hash for antecedent_model::MechanismFamily
+impl core::hash::Hash for antecedent_model::MechanismTyping
+impl core::hash::Hash for antecedent_model::NoiseInferenceMode
+impl core::hash::Hash for antecedent_model::SelectionPolicy
+impl core::marker::Copy for antecedent_model::BasisTerm
+impl core::marker::Copy for antecedent_model::MechanismFamily
+impl core::marker::Copy for antecedent_model::MechanismTyping
+impl core::marker::Copy for antecedent_model::NoiseInferenceMode
+impl core::marker::Copy for antecedent_model::PredictiveDraws
+impl core::marker::Copy for antecedent_model::SelectionPolicy
+impl core::marker::Freeze for antecedent_model::BasisTerm [auto]
+impl core::marker::Freeze for antecedent_model::CompiledCausalModel [auto]
+impl core::marker::Freeze for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Freeze for antecedent_model::DoSampleResult [auto]
+impl core::marker::Freeze for antecedent_model::InterventionOverlay [auto]
+impl core::marker::Freeze for antecedent_model::InvertibleStructuralCausalModel [auto]
+impl core::marker::Freeze for antecedent_model::KdeDoSampler [auto]
+impl core::marker::Freeze for antecedent_model::McmcDoSampler [auto]
+impl core::marker::Freeze for antecedent_model::MechanismAssignment [auto]
+impl core::marker::Freeze for antecedent_model::MechanismCandidate [auto]
+impl core::marker::Freeze for antecedent_model::MechanismFamily [auto]
+impl core::marker::Freeze for antecedent_model::MechanismRegistry [auto]
+impl core::marker::Freeze for antecedent_model::MechanismSlot [auto]
+impl core::marker::Freeze for antecedent_model::MechanismTyping [auto]
+impl core::marker::Freeze for antecedent_model::MechanismWorkspace [auto]
+impl core::marker::Freeze for antecedent_model::ModelCollection [auto]
+impl core::marker::Freeze for antecedent_model::ModelError [auto]
+impl core::marker::Freeze for antecedent_model::ModelEvaluationReport [auto]
+impl core::marker::Freeze for antecedent_model::ModelEvaluator [auto]
+impl core::marker::Freeze for antecedent_model::ModelOutputLayout [auto]
+impl core::marker::Freeze for antecedent_model::NoiseBatch [auto]
+impl core::marker::Freeze for antecedent_model::NoiseInferenceMode [auto]
+impl core::marker::Freeze for antecedent_model::ParentBasis [auto]
+impl core::marker::Freeze for antecedent_model::ParentGatherPlan [auto]
+impl core::marker::Freeze for antecedent_model::PredictiveDraws [auto]
+impl core::marker::Freeze for antecedent_model::ProbabilisticCausalModel [auto]
+impl core::marker::Freeze for antecedent_model::SelectionPolicy [auto]
+impl core::marker::Freeze for antecedent_model::StructuralCausalModel [auto]
+impl core::marker::Freeze for antecedent_model::ValueBatch [auto]
+impl core::marker::Freeze for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Send for antecedent_model::BasisTerm [auto]
+impl core::marker::Send for antecedent_model::CompiledCausalModel [auto]
+impl core::marker::Send for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Send for antecedent_model::DoSampleResult [auto]
+impl core::marker::Send for antecedent_model::InterventionOverlay [auto]
+impl core::marker::Send for antecedent_model::InvertibleStructuralCausalModel [auto]
+impl core::marker::Send for antecedent_model::KdeDoSampler [auto]
+impl core::marker::Send for antecedent_model::McmcDoSampler [auto]
+impl core::marker::Send for antecedent_model::MechanismAssignment [auto]
+impl core::marker::Send for antecedent_model::MechanismCandidate [auto]
+impl core::marker::Send for antecedent_model::MechanismFamily [auto]
+impl core::marker::Send for antecedent_model::MechanismRegistry [auto]
+impl core::marker::Send for antecedent_model::MechanismSlot [auto]
+impl core::marker::Send for antecedent_model::MechanismTyping [auto]
+impl core::marker::Send for antecedent_model::MechanismWorkspace [auto]
+impl core::marker::Send for antecedent_model::ModelCollection [auto]
+impl core::marker::Send for antecedent_model::ModelError [auto]
+impl core::marker::Send for antecedent_model::ModelEvaluationReport [auto]
+impl core::marker::Send for antecedent_model::ModelEvaluator [auto]
+impl core::marker::Send for antecedent_model::ModelOutputLayout [auto]
+impl core::marker::Send for antecedent_model::NoiseBatch [auto]
+impl core::marker::Send for antecedent_model::NoiseInferenceMode [auto]
+impl core::marker::Send for antecedent_model::ParentBasis [auto]
+impl core::marker::Send for antecedent_model::ParentGatherPlan [auto]
+impl core::marker::Send for antecedent_model::PredictiveDraws [auto]
+impl core::marker::Send for antecedent_model::ProbabilisticCausalModel [auto]
+impl core::marker::Send for antecedent_model::SelectionPolicy [auto]
+impl core::marker::Send for antecedent_model::StructuralCausalModel [auto]
+impl core::marker::Send for antecedent_model::ValueBatch [auto]
+impl core::marker::Send for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::StructuralPartialEq for antecedent_model::BasisTerm
+impl core::marker::StructuralPartialEq for antecedent_model::MechanismFamily
+impl core::marker::StructuralPartialEq for antecedent_model::MechanismTyping
+impl core::marker::StructuralPartialEq for antecedent_model::ModelError
+impl core::marker::StructuralPartialEq for antecedent_model::NoiseInferenceMode
+impl core::marker::StructuralPartialEq for antecedent_model::SelectionPolicy
+impl core::marker::Sync for antecedent_model::BasisTerm [auto]
+impl core::marker::Sync for antecedent_model::CompiledCausalModel [auto]
+impl core::marker::Sync for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Sync for antecedent_model::DoSampleResult [auto]
+impl core::marker::Sync for antecedent_model::InterventionOverlay [auto]
+impl core::marker::Sync for antecedent_model::InvertibleStructuralCausalModel [auto]
+impl core::marker::Sync for antecedent_model::KdeDoSampler [auto]
+impl core::marker::Sync for antecedent_model::McmcDoSampler [auto]
+impl core::marker::Sync for antecedent_model::MechanismAssignment [auto]
+impl core::marker::Sync for antecedent_model::MechanismCandidate [auto]
+impl core::marker::Sync for antecedent_model::MechanismFamily [auto]
+impl core::marker::Sync for antecedent_model::MechanismRegistry [auto]
+impl core::marker::Sync for antecedent_model::MechanismSlot [auto]
+impl core::marker::Sync for antecedent_model::MechanismTyping [auto]
+impl core::marker::Sync for antecedent_model::MechanismWorkspace [auto]
+impl core::marker::Sync for antecedent_model::ModelCollection [auto]
+impl core::marker::Sync for antecedent_model::ModelError [auto]
+impl core::marker::Sync for antecedent_model::ModelEvaluationReport [auto]
+impl core::marker::Sync for antecedent_model::ModelEvaluator [auto]
+impl core::marker::Sync for antecedent_model::ModelOutputLayout [auto]
+impl core::marker::Sync for antecedent_model::NoiseBatch [auto]
+impl core::marker::Sync for antecedent_model::NoiseInferenceMode [auto]
+impl core::marker::Sync for antecedent_model::ParentBasis [auto]
+impl core::marker::Sync for antecedent_model::ParentGatherPlan [auto]
+impl core::marker::Sync for antecedent_model::PredictiveDraws [auto]
+impl core::marker::Sync for antecedent_model::ProbabilisticCausalModel [auto]
+impl core::marker::Sync for antecedent_model::SelectionPolicy [auto]
+impl core::marker::Sync for antecedent_model::StructuralCausalModel [auto]
+impl core::marker::Sync for antecedent_model::ValueBatch [auto]
+impl core::marker::Sync for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Unpin for antecedent_model::BasisTerm [auto]
+impl core::marker::Unpin for antecedent_model::CompiledCausalModel [auto]
+impl core::marker::Unpin for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Unpin for antecedent_model::DoSampleResult [auto]
+impl core::marker::Unpin for antecedent_model::InterventionOverlay [auto]
+impl core::marker::Unpin for antecedent_model::InvertibleStructuralCausalModel [auto]
+impl core::marker::Unpin for antecedent_model::KdeDoSampler [auto]
+impl core::marker::Unpin for antecedent_model::McmcDoSampler [auto]
+impl core::marker::Unpin for antecedent_model::MechanismAssignment [auto]
+impl core::marker::Unpin for antecedent_model::MechanismCandidate [auto]
+impl core::marker::Unpin for antecedent_model::MechanismFamily [auto]
+impl core::marker::Unpin for antecedent_model::MechanismRegistry [auto]
+impl core::marker::Unpin for antecedent_model::MechanismSlot [auto]
+impl core::marker::Unpin for antecedent_model::MechanismTyping [auto]
+impl core::marker::Unpin for antecedent_model::MechanismWorkspace [auto]
+impl core::marker::Unpin for antecedent_model::ModelCollection [auto]
+impl core::marker::Unpin for antecedent_model::ModelError [auto]
+impl core::marker::Unpin for antecedent_model::ModelEvaluationReport [auto]
+impl core::marker::Unpin for antecedent_model::ModelEvaluator [auto]
+impl core::marker::Unpin for antecedent_model::ModelOutputLayout [auto]
+impl core::marker::Unpin for antecedent_model::NoiseBatch [auto]
+impl core::marker::Unpin for antecedent_model::NoiseInferenceMode [auto]
+impl core::marker::Unpin for antecedent_model::ParentBasis [auto]
+impl core::marker::Unpin for antecedent_model::ParentGatherPlan [auto]
+impl core::marker::Unpin for antecedent_model::PredictiveDraws [auto]
+impl core::marker::Unpin for antecedent_model::ProbabilisticCausalModel [auto]
+impl core::marker::Unpin for antecedent_model::SelectionPolicy [auto]
+impl core::marker::Unpin for antecedent_model::StructuralCausalModel [auto]
+impl core::marker::Unpin for antecedent_model::ValueBatch [auto]
+impl core::marker::Unpin for antecedent_model::WeightingDoSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::BasisTerm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::DoSampleResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InterventionOverlay [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::KdeDoSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::McmcDoSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismCandidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismRegistry [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismTyping [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelEvaluationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelEvaluator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelOutputLayout [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NoiseBatch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NoiseInferenceMode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ParentBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ParentGatherPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::PredictiveDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SelectionPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ValueBatch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::WeightingDoSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::BasisTerm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::DoSampleResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::InterventionOverlay [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::KdeDoSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::McmcDoSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismCandidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismRegistry [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismTyping [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelEvaluationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelEvaluator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelOutputLayout [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::NoiseBatch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::NoiseInferenceMode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ParentBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ParentGatherPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::PredictiveDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SelectionPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ValueBatch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::WeightingDoSampler [auto]
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::NoiseBatchMut<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::clone::Clone for antecedent_model::ConditionEvidence<'a>
+impl<'a> core::clone::Clone for antecedent_model::ModelView<'a>
+impl<'a> core::clone::Clone for antecedent_model::ParentBatch<'a>
+impl<'a> core::fmt::Debug for antecedent_model::ConditionEvidence<'a>
+impl<'a> core::fmt::Debug for antecedent_model::ModelView<'a>
+impl<'a> core::fmt::Debug for antecedent_model::NoiseBatchMut<'a>
+impl<'a> core::fmt::Debug for antecedent_model::ParentBatch<'a>
+impl<'a> core::fmt::Debug for antecedent_model::ValueBatchMut<'a>
+impl<'a> core::marker::Copy for antecedent_model::ConditionEvidence<'a>
+impl<'a> core::marker::Copy for antecedent_model::ParentBatch<'a>
+impl<'a> core::marker::Freeze for antecedent_model::ConditionEvidence<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_model::ModelView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_model::NoiseBatchMut<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_model::ParentBatch<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Send for antecedent_model::ConditionEvidence<'a> [auto]
+impl<'a> core::marker::Send for antecedent_model::ModelView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_model::NoiseBatchMut<'a> [auto]
+impl<'a> core::marker::Send for antecedent_model::ParentBatch<'a> [auto]
+impl<'a> core::marker::Send for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_model::ConditionEvidence<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_model::ModelView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_model::NoiseBatchMut<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_model::ParentBatch<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_model::ConditionEvidence<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_model::ModelView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_model::NoiseBatchMut<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_model::ParentBatch<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ConditionEvidence<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NoiseBatchMut<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ParentBatch<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ConditionEvidence<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ParentBatch<'a> [auto]
+pub const antecedent_model::VERSION: &str
+pub const antecedent_model::basis::SPLINE_KNOT_QUANTILES: [f64; 3]
+pub const antecedent_model::basis::SPLINE_MIN_DISTINCT: usize
+pub const fn antecedent_model::mechanism::reference_noise(slot: &antecedent_model::MechanismSlot) -> f64
+pub enum antecedent_model::BasisTerm
+pub enum antecedent_model::MechanismFamily
+pub enum antecedent_model::MechanismSlot
+pub enum antecedent_model::MechanismTyping
+pub enum antecedent_model::NoiseInferenceMode
+pub enum antecedent_model::SelectionPolicy
+pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
+pub field antecedent_model::CompiledCausalModel::mechanisms: antecedent_model::CompiledMechanismStore
+pub field antecedent_model::CompiledCausalModel::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
+pub field antecedent_model::CompiledCausalModel::output_layout: antecedent_model::ModelOutputLayout
+pub field antecedent_model::CompiledCausalModel::parent_gathers: alloc::sync::Arc<[antecedent_model::ParentGatherPlan]>
+pub field antecedent_model::CompiledMechanismStore::slots: alloc::sync::Arc<[antecedent_model::MechanismSlot]>
+pub field antecedent_model::ConditionEvidence::nodes: &'a [antecedent_graph::types::DenseNodeId]
+pub field antecedent_model::ConditionEvidence::values: &'a [f64]
+pub field antecedent_model::DoSampleResult::accept_rate: core::option::Option<f64>
+pub field antecedent_model::DoSampleResult::bandwidth: core::option::Option<f64>
+pub field antecedent_model::DoSampleResult::ess: core::option::Option<f64>
+pub field antecedent_model::DoSampleResult::method: alloc::sync::Arc<str>
+pub field antecedent_model::DoSampleResult::notes: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_model::DoSampleResult::values: alloc::sync::Arc<[f64]>
+pub field antecedent_model::DoSampleResult::weights: alloc::sync::Arc<[f64]>
+pub field antecedent_model::InterventionOverlay::active: alloc::vec::Vec<bool>
+pub field antecedent_model::InterventionOverlay::hard_set: alloc::vec::Vec<core::option::Option<f64>>
+pub field antecedent_model::InterventionOverlay::shifts: alloc::vec::Vec<f64>
+pub field antecedent_model::InterventionOverlay::soft: alloc::vec::Vec<core::option::Option<antecedent_core::intervention::MechanismOverride>>
+pub field antecedent_model::InterventionOverlay::stochastic: alloc::vec::Vec<core::option::Option<antecedent_core::intervention::StochasticPolicy>>
+pub field antecedent_model::InvertibleStructuralCausalModel::compiled: antecedent_model::CompiledCausalModel
+pub field antecedent_model::KdeDoSampler::bandwidth: core::option::Option<f64>
+pub field antecedent_model::KdeDoSampler::outcome: antecedent_core::ids::VariableId
+pub field antecedent_model::McmcDoSampler::burn_in: usize
+pub field antecedent_model::McmcDoSampler::outcome: antecedent_core::ids::VariableId
+pub field antecedent_model::McmcDoSampler::proposal_sd: f64
+pub field antecedent_model::McmcDoSampler::thin: usize
+pub field antecedent_model::MechanismAssignment::candidates: alloc::sync::Arc<[antecedent_model::MechanismCandidate]>
+pub field antecedent_model::MechanismAssignment::failed_families: alloc::sync::Arc<[(antecedent_model::MechanismFamily, alloc::string::String)]>
+pub field antecedent_model::MechanismAssignment::fitted: antecedent_model::MechanismSlot
+pub field antecedent_model::MechanismAssignment::node: antecedent_graph::types::DenseNodeId
+pub field antecedent_model::MechanismAssignment::selected: antecedent_model::MechanismFamily
+pub field antecedent_model::MechanismAssignment::typing: antecedent_model::MechanismTyping
+pub field antecedent_model::MechanismAssignment::variable: antecedent_core::ids::VariableId
+pub field antecedent_model::MechanismCandidate::eval_cost: f64
+pub field antecedent_model::MechanismCandidate::family: antecedent_model::MechanismFamily
+pub field antecedent_model::MechanismCandidate::fit_cost: f64
+pub field antecedent_model::MechanismCandidate::score: f64
+pub field antecedent_model::MechanismRegistry::continuous: alloc::sync::Arc<[antecedent_model::MechanismFamily]>
+pub field antecedent_model::MechanismRegistry::discrete: alloc::sync::Arc<[antecedent_model::MechanismFamily]>
+pub field antecedent_model::MechanismWorkspace::grow_count: u32
+pub field antecedent_model::MechanismWorkspace::parents: alloc::vec::Vec<f64>
+pub field antecedent_model::MechanismWorkspace::scratch: alloc::vec::Vec<f64>
+pub field antecedent_model::ModelCollection::graph_keys: alloc::sync::Arc<[u64]>
+pub field antecedent_model::ModelCollection::models: alloc::sync::Arc<[antecedent_model::CompiledCausalModel]>
+pub field antecedent_model::ModelCollection::weights: alloc::sync::Arc<[f64]>
+pub field antecedent_model::ModelEvaluationReport::alpha: f64
+pub field antecedent_model::ModelEvaluationReport::falsified: bool
+pub field antecedent_model::ModelEvaluationReport::in_sample_loglik: f64
+pub field antecedent_model::ModelEvaluationReport::local_markov_p: alloc::sync::Arc<[f64]>
+pub field antecedent_model::ModelEvaluationReport::mean_abs_residual: f64
+pub field antecedent_model::ModelEvaluationReport::notes: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_model::ModelEvaluationReport::permutation_loglik: f64
+pub field antecedent_model::ModelEvaluationReport::residual_independence_p: alloc::sync::Arc<[f64]>
+pub field antecedent_model::ModelEvaluationReport::zero_probability_rows: usize
+pub field antecedent_model::ModelEvaluator::alpha: f64
+pub field antecedent_model::ModelEvaluator::n_permutations: usize
+pub field antecedent_model::ModelEvaluator::seed: u64
+pub field antecedent_model::ModelOutputLayout::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
+pub field antecedent_model::ModelOutputLayout::variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_model::ModelView::model: &'a antecedent_model::CompiledCausalModel
+pub field antecedent_model::ModelView::overlay: alloc::sync::Arc<antecedent_model::InterventionOverlay>
+pub field antecedent_model::NoiseBatch::n_nodes: usize
+pub field antecedent_model::NoiseBatch::n_rows: usize
+pub field antecedent_model::NoiseBatch::values: alloc::sync::Arc<[f64]>
+pub field antecedent_model::NoiseBatchMut::n_nodes: usize
+pub field antecedent_model::NoiseBatchMut::n_rows: usize
+pub field antecedent_model::NoiseBatchMut::values: &'a mut [f64]
+pub field antecedent_model::ParentBatch::n_parents: usize
+pub field antecedent_model::ParentBatch::n_rows: usize
+pub field antecedent_model::ParentBatch::values: &'a [f64]
+pub field antecedent_model::ParentGatherPlan::child: antecedent_graph::types::DenseNodeId
+pub field antecedent_model::ParentGatherPlan::parents: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
+pub field antecedent_model::PredictiveDraws::n_draws: usize
+pub field antecedent_model::PredictiveDraws::rows_per_draw: usize
+pub field antecedent_model::ProbabilisticCausalModel::compiled: antecedent_model::CompiledCausalModel
+pub field antecedent_model::StructuralCausalModel::compiled: antecedent_model::CompiledCausalModel
+pub field antecedent_model::ValueBatch::n_nodes: usize
+pub field antecedent_model::ValueBatch::n_rows: usize
+pub field antecedent_model::ValueBatch::values: alloc::sync::Arc<[f64]>
+pub field antecedent_model::ValueBatchMut::n_nodes: usize
+pub field antecedent_model::ValueBatchMut::n_rows: usize
+pub field antecedent_model::ValueBatchMut::values: &'a mut [f64]
+pub field antecedent_model::WeightingDoSampler::outcome: antecedent_core::ids::VariableId
+pub field antecedent_model::WeightingDoSampler::treatment: antecedent_core::ids::VariableId
+pub fn <antecedent_model::CompiledCausalModel>::fn compile(graph: antecedent_graph::dag::Dag) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::CompiledCausalModel>::fn dense_of(&self, var: antecedent_core::ids::VariableId) -> core::option::Option<antecedent_graph::types::DenseNodeId>
+pub fn <antecedent_model::CompiledCausalModel>::fn gather_for(&self, child: antecedent_graph::types::DenseNodeId) -> core::option::Option<&antecedent_model::ParentGatherPlan>
+pub fn <antecedent_model::CompiledCausalModel>::fn n_nodes(&self) -> usize
+pub fn <antecedent_model::CompiledCausalModel>::fn with_mechanisms(self, mechanisms: antecedent_model::CompiledMechanismStore) -> Self
+pub fn <antecedent_model::CompiledMechanismStore>::fn get(&self, id: antecedent_graph::types::DenseNodeId) -> &antecedent_model::MechanismSlot
+pub fn <antecedent_model::CompiledMechanismStore>::fn vacant(n: usize) -> Self
+pub fn <antecedent_model::CompiledMechanismStore>::fn with_replaced(&self, id: antecedent_graph::types::DenseNodeId, slot: antecedent_model::MechanismSlot) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::InterventionOverlay>::fn from_interventions(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention]) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::InterventionOverlay>::fn from_sequence_at(model: &antecedent_model::CompiledCausalModel, seq: &antecedent_core::intervention::InterventionSequence, t: i32) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::InterventionOverlay>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::InterventionOverlay>::fn observational(n_nodes: usize) -> Self
+pub fn <antecedent_model::InterventionOverlay>::fn validate(&self) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn <antecedent_model::InvertibleStructuralCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
+pub fn <antecedent_model::KdeDoSampler>::fn density(result: &antecedent_model::DoSampleResult, x: f64) -> f64
+pub fn <antecedent_model::KdeDoSampler>::fn new(outcome: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_model::KdeDoSampler>::fn sample(&self, model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n_draws: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::DoSampleResult, antecedent_model::ModelError>
+pub fn <antecedent_model::McmcDoSampler>::fn new(outcome: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_model::McmcDoSampler>::fn sample(&self, model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n_samples: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::DoSampleResult, antecedent_model::ModelError>
+pub fn <antecedent_model::MechanismFamily>::const fn can_modify_effects(self) -> bool
+pub fn <antecedent_model::MechanismFamily>::const fn has_additive_disturbance(self) -> bool
+pub fn <antecedent_model::MechanismFamily>::const fn id(self) -> &'static str
+pub fn <antecedent_model::MechanismRegistry>::fn assign_and_fit(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, policy: antecedent_model::SelectionPolicy) -> core::result::Result<(antecedent_model::CompiledMechanismStore, alloc::vec::Vec<antecedent_model::MechanismAssignment>), antecedent_model::ModelError>
+pub fn <antecedent_model::MechanismRegistry>::fn assign_and_fit_polled(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, policy: antecedent_model::SelectionPolicy, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<(antecedent_model::CompiledMechanismStore, alloc::vec::Vec<antecedent_model::MechanismAssignment>), antecedent_model::ModelError>
+pub fn <antecedent_model::MechanismRegistry>::fn refit_weighted(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, assignments: &[antecedent_model::MechanismAssignment], weights: &[f64]) -> core::result::Result<antecedent_model::CompiledMechanismStore, antecedent_model::ModelError>
+pub fn <antecedent_model::MechanismRegistry>::fn refit_weighted_polled(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, assignments: &[antecedent_model::MechanismAssignment], weights: &[f64], cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_model::CompiledMechanismStore, antecedent_model::ModelError>
+pub fn <antecedent_model::MechanismRegistry>::fn standard() -> Self
+pub fn <antecedent_model::MechanismRegistry>::fn with_bayesian_families() -> Self
+pub fn <antecedent_model::MechanismRegistry>::fn with_heterogeneity_families() -> Self
+pub fn <antecedent_model::MechanismSlot>::fn admits_no_effect_modification(&self) -> bool
+pub fn <antecedent_model::MechanismWorkspace>::fn prepare(&mut self, n_rows: usize, n_parents: usize)
+pub fn <antecedent_model::ModelCollection>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::ModelCollection>::fn len(&self) -> usize
+pub fn <antecedent_model::ModelCollection>::fn new(models: impl core::convert::Into<alloc::sync::Arc<[antecedent_model::CompiledCausalModel]>>, graph_keys: impl core::convert::Into<alloc::sync::Arc<[u64]>>, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ModelEvaluator>::fn evaluate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ModelEvaluationReport, antecedent_model::ModelError>
+pub fn <antecedent_model::ModelView<'a>>::fn observational(model: &'a antecedent_model::CompiledCausalModel) -> Self
+pub fn <antecedent_model::ModelView<'a>>::fn with_overlay(model: &'a antecedent_model::CompiledCausalModel, overlay: antecedent_model::InterventionOverlay) -> Self
+pub fn <antecedent_model::NoiseBatch>::fn column(&self, node: usize) -> core::result::Result<&[f64], antecedent_model::ModelError>
+pub fn <antecedent_model::NoiseBatch>::fn zeros(n_rows: usize, n_nodes: usize) -> Self
+pub fn <antecedent_model::NoiseBatchMut<'a>>::fn column(&self, node: usize) -> core::result::Result<&[f64], antecedent_model::ModelError>
+pub fn <antecedent_model::NoiseBatchMut<'a>>::fn column_mut(&mut self, node: usize) -> core::result::Result<&mut [f64], antecedent_model::ModelError>
+pub fn <antecedent_model::NoiseBatchMut<'a>>::fn into_batch(self) -> antecedent_model::NoiseBatch
+pub fn <antecedent_model::NoiseBatchMut<'a>>::fn new(n_rows: usize, n_nodes: usize, values: &'a mut [f64]) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ParentBasis>::fn centers(&self) -> &[f64]
+pub fn <antecedent_model::ParentBasis>::fn expand_row(&self, raw: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn <antecedent_model::ParentBasis>::fn expand_standardized(&self, standardized: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn <antecedent_model::ParentBasis>::fn has_cross_parent_product(&self) -> bool
+pub fn <antecedent_model::ParentBasis>::fn interactions(n_parents: usize, centers: alloc::sync::Arc<[f64]>, scales: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ParentBasis>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::ParentBasis>::fn knots(&self) -> &[alloc::sync::Arc<[f64]>]
+pub fn <antecedent_model::ParentBasis>::fn n_parents(&self) -> usize
+pub fn <antecedent_model::ParentBasis>::fn n_terms(&self) -> usize
+pub fn <antecedent_model::ParentBasis>::fn new(n_parents: usize, centers: alloc::sync::Arc<[f64]>, scales: alloc::sync::Arc<[f64]>, knots: alloc::sync::Arc<[alloc::sync::Arc<[f64]>]>, terms: alloc::sync::Arc<[antecedent_model::BasisTerm]>) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ParentBasis>::fn scales(&self) -> &[f64]
+pub fn <antecedent_model::ParentBasis>::fn spline_interactions(n_parents: usize, centers: alloc::sync::Arc<[f64]>, scales: alloc::sync::Arc<[f64]>, knots: alloc::sync::Arc<[alloc::sync::Arc<[f64]>]>) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ParentBasis>::fn standardize(&self, parent: usize, value: f64) -> f64
+pub fn <antecedent_model::ParentBasis>::fn terms(&self) -> &[antecedent_model::BasisTerm]
+pub fn <antecedent_model::ParentBatch<'a>>::const fn empty(n_rows: usize) -> Self
+pub fn <antecedent_model::ParentBatch<'a>>::fn column(&self, p: usize) -> core::result::Result<&'a [f64], antecedent_model::ModelError>
+pub fn <antecedent_model::ParentGatherPlan>::fn gather(&self, values: &[f64], n_rows: usize, out: &mut [f64])
+pub fn <antecedent_model::ParentGatherPlan>::fn n_parents(&self) -> usize
+pub fn <antecedent_model::ProbabilisticCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
+pub fn <antecedent_model::SelectionPolicy>::fn select(self, candidates: &[antecedent_model::MechanismCandidate]) -> core::option::Option<antecedent_model::MechanismFamily>
+pub fn <antecedent_model::StructuralCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
+pub fn <antecedent_model::ValueBatch>::fn column(&self, node: usize) -> core::result::Result<&[f64], antecedent_model::ModelError>
+pub fn <antecedent_model::ValueBatch>::fn get(&self, row: usize, node: usize) -> core::result::Result<f64, antecedent_model::ModelError>
+pub fn <antecedent_model::ValueBatch>::fn zeros(n_rows: usize, n_nodes: usize) -> Self
+pub fn <antecedent_model::ValueBatchMut<'a>>::fn column_mut(&mut self, node: usize) -> core::result::Result<&mut [f64], antecedent_model::ModelError>
+pub fn <antecedent_model::ValueBatchMut<'a>>::fn into_batch(self) -> antecedent_model::ValueBatch
+pub fn <antecedent_model::ValueBatchMut<'a>>::fn new(n_rows: usize, n_nodes: usize, values: &'a mut [f64]) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ValueBatchMut<'a>>::fn set(&mut self, row: usize, node: usize, v: f64) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn <antecedent_model::WeightingDoSampler>::fn estimate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, treatment_value: f64, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::DoSampleResult, antecedent_model::ModelError>
+pub fn <antecedent_model::WeightingDoSampler>::fn new(treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_model::WeightingDoSampler>::fn weighted_mean(result: &antecedent_model::DoSampleResult) -> f64
+pub fn antecedent_model::basis::column_moments(columns: &[&[f64]], n_rows: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
+pub fn antecedent_model::basis::spline_knots(columns: &[&[f64]], n_rows: usize, centers: &[f64], scales: &[f64]) -> alloc::vec::Vec<alloc::sync::Arc<[f64]>>
+pub fn antecedent_model::do_sampler::interventional_mean(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], outcome: antecedent_core::ids::VariableId, n_draws: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_model::ModelError>
+pub fn antecedent_model::evaluate_batch_topo(order: &[antecedent_graph::types::DenseNodeId], gathers: &[antecedent_model::ParentGatherPlan], slots: &[antecedent_model::MechanismSlot], noise: &antecedent_model::NoiseBatchMut<'_>, values: &mut antecedent_model::ValueBatchMut<'_>, ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::evaluate_column(slot: &antecedent_model::MechanismSlot, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::infer_noise_column(slot: &antecedent_model::MechanismSlot, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::infer_noise_column_rng(slot: &antecedent_model::MechanismSlot, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64], rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_model::NoiseInferenceMode, antecedent_model::ModelError>
+pub fn antecedent_model::kalman_filter(y: &[f64], a: f64, process_var: f64, obs_var: f64, x0: f64, p0: f64) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
+pub fn antecedent_model::lgssm::rts_smooth(a: f64, x_f: &[f64], p_f: &[f64], x_pred: &[f64], p_pred: &[f64]) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
+pub fn antecedent_model::log_prob_column(slot: &antecedent_model::MechanismSlot, values: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::mechanism::sample_noise_column(slot: &antecedent_model::MechanismSlot, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::refuse_cross_family_soft(existing: &antecedent_model::MechanismSlot, soft: &antecedent_core::intervention::MechanismOverride) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_conditional_interventional(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], evidence: &antecedent_model::ConditionEvidence<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_interventional(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_observational(model: &antecedent_model::CompiledCausalModel, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_observational_into(model: &antecedent_model::CompiledCausalModel, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, values: &mut [f64], _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_posterior_predictive<F>(model: &mut antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], draws: antecedent_model::PredictiveDraws, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, draw_updater: F, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError> where F: core::ops::function::FnMut(usize, &mut antecedent_model::CompiledCausalModel) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_stochastic(policy: &antecedent_core::intervention::StochasticPolicy, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_with_overlay(view: &antecedent_model::ModelView<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_with_overlay_into(view: &antecedent_model::ModelView<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, values: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::sample::soft_to_slot(soft: &antecedent_core::intervention::MechanismOverride, n_parents: usize) -> core::result::Result<antecedent_model::MechanismSlot, antecedent_model::ModelError>
+pub mod antecedent_model::basis
+pub mod antecedent_model::batch
+pub mod antecedent_model::compile
+pub mod antecedent_model::do_sampler
+pub mod antecedent_model::error
+pub mod antecedent_model::evaluate
+pub mod antecedent_model::lgssm
+pub mod antecedent_model::mechanism
+pub mod antecedent_model::model_collection
+pub mod antecedent_model::overlay
+pub mod antecedent_model::registry
+pub mod antecedent_model::sample
+pub struct antecedent_model::CompiledCausalModel
+pub struct antecedent_model::CompiledCausalModel has private fields
+pub struct antecedent_model::CompiledMechanismStore
+pub struct antecedent_model::ConditionEvidence<'a>
+pub struct antecedent_model::DoSampleResult
+pub struct antecedent_model::InterventionOverlay
+pub struct antecedent_model::InvertibleStructuralCausalModel
+pub struct antecedent_model::KdeDoSampler
+pub struct antecedent_model::McmcDoSampler
+pub struct antecedent_model::MechanismAssignment
+pub struct antecedent_model::MechanismCandidate
+pub struct antecedent_model::MechanismRegistry
+pub struct antecedent_model::MechanismWorkspace
+pub struct antecedent_model::ModelCollection
+pub struct antecedent_model::ModelEvaluationReport
+pub struct antecedent_model::ModelEvaluator
+pub struct antecedent_model::ModelOutputLayout
+pub struct antecedent_model::ModelView<'a>
+pub struct antecedent_model::NoiseBatch
+pub struct antecedent_model::NoiseBatchMut<'a>
+pub struct antecedent_model::ParentBasis
+pub struct antecedent_model::ParentBasis has private fields
+pub struct antecedent_model::ParentBatch<'a>
+pub struct antecedent_model::ParentGatherPlan
+pub struct antecedent_model::PredictiveDraws
+pub struct antecedent_model::ProbabilisticCausalModel
+pub struct antecedent_model::StructuralCausalModel
+pub struct antecedent_model::ValueBatch
+pub struct antecedent_model::ValueBatchMut<'a>
+pub struct antecedent_model::WeightingDoSampler
+pub trait antecedent_model::DynamicMechanism: core::marker::Send + core::marker::Sync
+pub trait fn fn antecedent_model::DynamicMechanism::evaluate_column(&self, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], workspace: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
+pub trait fn fn antecedent_model::DynamicMechanism::infer_noise_column(&self, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError> {default}
+pub trait fn fn antecedent_model::DynamicMechanism::log_prob_column(&self, values: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError> {default}
+pub trait fn fn antecedent_model::DynamicMechanism::noise_inference_mode(&self) -> antecedent_model::NoiseInferenceMode {default}
+pub trait fn fn antecedent_model::DynamicMechanism::sample_noise_column(&self, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub use antecedent_model::basis::BasisTerm = antecedent_model::BasisTerm
+pub use antecedent_model::basis::ParentBasis = antecedent_model::ParentBasis
+pub use antecedent_model::batch::MechanismWorkspace = antecedent_model::MechanismWorkspace
+pub use antecedent_model::batch::NoiseBatch = antecedent_model::NoiseBatch
+pub use antecedent_model::batch::NoiseBatchMut = antecedent_model::NoiseBatchMut
+pub use antecedent_model::batch::ParentBatch = antecedent_model::ParentBatch
+pub use antecedent_model::batch::ValueBatch = antecedent_model::ValueBatch
+pub use antecedent_model::batch::ValueBatchMut = antecedent_model::ValueBatchMut
+pub use antecedent_model::compile::CompiledCausalModel = antecedent_model::CompiledCausalModel
+pub use antecedent_model::compile::CompiledMechanismStore = antecedent_model::CompiledMechanismStore
+pub use antecedent_model::compile::DynamicMechanism = antecedent_model::DynamicMechanism
+pub use antecedent_model::compile::InvertibleStructuralCausalModel = antecedent_model::InvertibleStructuralCausalModel
+pub use antecedent_model::compile::MechanismSlot = antecedent_model::MechanismSlot
+pub use antecedent_model::compile::ModelOutputLayout = antecedent_model::ModelOutputLayout
+pub use antecedent_model::compile::ParentGatherPlan = antecedent_model::ParentGatherPlan
+pub use antecedent_model::compile::ProbabilisticCausalModel = antecedent_model::ProbabilisticCausalModel
+pub use antecedent_model::compile::StructuralCausalModel = antecedent_model::StructuralCausalModel
+pub use antecedent_model::do_sampler::DoSampleResult = antecedent_model::DoSampleResult
+pub use antecedent_model::do_sampler::KdeDoSampler = antecedent_model::KdeDoSampler
+pub use antecedent_model::do_sampler::McmcDoSampler = antecedent_model::McmcDoSampler
+pub use antecedent_model::do_sampler::WeightingDoSampler = antecedent_model::WeightingDoSampler
+pub use antecedent_model::error::ModelError = antecedent_model::ModelError
+pub use antecedent_model::evaluate::ModelEvaluationReport = antecedent_model::ModelEvaluationReport
+pub use antecedent_model::evaluate::ModelEvaluator = antecedent_model::ModelEvaluator
+pub use antecedent_model::interventional_mean = antecedent_model::do_sampler::interventional_mean
+pub use antecedent_model::lgssm::kalman_filter = antecedent_model::kalman_filter
+pub use antecedent_model::mechanism::NoiseInferenceMode = antecedent_model::NoiseInferenceMode
+pub use antecedent_model::mechanism::evaluate_batch_topo = antecedent_model::evaluate_batch_topo
+pub use antecedent_model::mechanism::evaluate_column = antecedent_model::evaluate_column
+pub use antecedent_model::mechanism::infer_noise_column = antecedent_model::infer_noise_column
+pub use antecedent_model::mechanism::infer_noise_column_rng = antecedent_model::infer_noise_column_rng
+pub use antecedent_model::mechanism::log_prob_column = antecedent_model::log_prob_column
+pub use antecedent_model::model_collection::ModelCollection = antecedent_model::ModelCollection
+pub use antecedent_model::overlay::InterventionOverlay = antecedent_model::InterventionOverlay
+pub use antecedent_model::overlay::ModelView = antecedent_model::ModelView
+pub use antecedent_model::reference_noise = antecedent_model::mechanism::reference_noise
+pub use antecedent_model::registry::MechanismAssignment = antecedent_model::MechanismAssignment
+pub use antecedent_model::registry::MechanismCandidate = antecedent_model::MechanismCandidate
+pub use antecedent_model::registry::MechanismFamily = antecedent_model::MechanismFamily
+pub use antecedent_model::registry::MechanismRegistry = antecedent_model::MechanismRegistry
+pub use antecedent_model::registry::MechanismTyping = antecedent_model::MechanismTyping
+pub use antecedent_model::registry::SelectionPolicy = antecedent_model::SelectionPolicy
+pub use antecedent_model::rts_smooth = antecedent_model::lgssm::rts_smooth
+pub use antecedent_model::sample::ConditionEvidence = antecedent_model::ConditionEvidence
+pub use antecedent_model::sample::PredictiveDraws = antecedent_model::PredictiveDraws
+pub use antecedent_model::sample::refuse_cross_family_soft = antecedent_model::refuse_cross_family_soft
+pub use antecedent_model::sample_conditional_interventional = antecedent_model::sample::sample_conditional_interventional
+pub use antecedent_model::sample_interventional = antecedent_model::sample::sample_interventional
+pub use antecedent_model::sample_noise_column = antecedent_model::mechanism::sample_noise_column
+pub use antecedent_model::sample_observational = antecedent_model::sample::sample_observational
+pub use antecedent_model::sample_observational_into = antecedent_model::sample::sample_observational_into
+pub use antecedent_model::sample_posterior_predictive = antecedent_model::sample::sample_posterior_predictive
+pub use antecedent_model::sample_stochastic = antecedent_model::sample::sample_stochastic
+pub use antecedent_model::sample_with_overlay = antecedent_model::sample::sample_with_overlay
+pub use antecedent_model::sample_with_overlay_into = antecedent_model::sample::sample_with_overlay_into
+pub use antecedent_model::soft_to_slot = antecedent_model::sample::soft_to_slot
+pub variant antecedent_model::BasisTerm::Power { parent: u32, degree: u8 }
+pub variant antecedent_model::BasisTerm::Product { left: u32, right: u32 }
+pub variant antecedent_model::BasisTerm::Truncated { parent: u32, knot: u32 }
+pub variant antecedent_model::MechanismFamily::Bvar
+pub variant antecedent_model::MechanismFamily::Constant
+pub variant antecedent_model::MechanismFamily::Discrete
+pub variant antecedent_model::MechanismFamily::DiscreteInteractions
+pub variant antecedent_model::MechanismFamily::DiscreteSpline
+pub variant antecedent_model::MechanismFamily::GaussianProcess
+pub variant antecedent_model::MechanismFamily::HierarchicalGlm
+pub variant antecedent_model::MechanismFamily::HierarchicalLinear
+pub variant antecedent_model::MechanismFamily::LinearGaussian
+pub variant antecedent_model::MechanismFamily::LinearGaussianStateSpace
+pub variant antecedent_model::MechanismFamily::LinearInteractions
+pub variant antecedent_model::MechanismFamily::LinearSpline
+pub variant antecedent_model::MechanismSlot::Bvar { intercept: f64, coeffs: alloc::sync::Arc<[f64]>, sigma: f64 }
+pub variant antecedent_model::MechanismSlot::ConditionalLinearGaussianStateSpace { intercept: f64, coeffs: alloc::sync::Arc<[f64]>, a: f64, process_std: f64, obs_std: f64, initial_mean: f64 }
+pub variant antecedent_model::MechanismSlot::Constant { value: f64 }
+pub variant antecedent_model::MechanismSlot::Discrete { support: alloc::sync::Arc<[f64]>, probs: alloc::sync::Arc<[f64]>, logit_coeffs: core::option::Option<alloc::sync::Arc<[f64]>> }
+pub variant antecedent_model::MechanismSlot::DiscreteBasis { support: alloc::sync::Arc<[f64]>, probs: alloc::sync::Arc<[f64]>, basis: antecedent_model::ParentBasis, logit_coeffs: alloc::sync::Arc<[f64]> }
+pub variant antecedent_model::MechanismSlot::Dynamic { id: alloc::sync::Arc<str>, mechanism: alloc::sync::Arc<dyn antecedent_model::DynamicMechanism> }
+pub variant antecedent_model::MechanismSlot::GaussianProcess { length_scale: f64, variance: f64, noise_std: f64, mean: f64, x_train: alloc::sync::Arc<[f64]>, n_train: usize, n_parents: usize, alpha: alloc::sync::Arc<[f64]> }
+pub variant antecedent_model::MechanismSlot::HierarchicalLinear { intercept: f64, coeffs: alloc::sync::Arc<[f64]>, sigma: f64, shrinkage: f64 }
+pub variant antecedent_model::MechanismSlot::LinearBasis { intercept: f64, basis: antecedent_model::ParentBasis, coeffs: alloc::sync::Arc<[f64]>, sigma: f64 }
+pub variant antecedent_model::MechanismSlot::LinearGaussian { intercept: f64, coeffs: alloc::sync::Arc<[f64]>, sigma: f64 }
+pub variant antecedent_model::MechanismSlot::LinearGaussianStateSpace { a: f64, process_std: f64, obs_std: f64, initial_mean: f64 }
+pub variant antecedent_model::MechanismSlot::Pending { family_id: alloc::sync::Arc<str> }
+pub variant antecedent_model::MechanismSlot::Vacant
+pub variant antecedent_model::MechanismTyping::Continuous
+pub variant antecedent_model::MechanismTyping::DeclaredDiscrete
+pub variant antecedent_model::MechanismTyping::LowCardinality
+pub variant antecedent_model::ModelError::Cancelled
+pub variant antecedent_model::ModelError::Data(antecedent_data::error::DataError)
+pub variant antecedent_model::ModelError::Graph(antecedent_graph::error::GraphError)
+pub variant antecedent_model::ModelError::MissingMechanism { node: u32 }
+pub variant antecedent_model::ModelError::NotConverged { message: alloc::string::String }
+pub variant antecedent_model::ModelError::NotDag { message: alloc::string::String }
+pub variant antecedent_model::ModelError::Numerical { message: alloc::string::String }
+pub variant antecedent_model::ModelError::Shape { message: alloc::string::String }
+pub variant antecedent_model::ModelError::Stats(antecedent_stats::error::StatsError)
+pub variant antecedent_model::ModelError::Unsupported { message: alloc::string::String }
+pub variant antecedent_model::NoiseInferenceMode::Invertible
+pub variant antecedent_model::NoiseInferenceMode::Posterior
+pub variant antecedent_model::SelectionPolicy::BestScore
+pub variant antecedent_model::SelectionPolicy::RequireFamily(antecedent_model::MechanismFamily)

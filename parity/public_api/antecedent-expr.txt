@@ -1,0 +1,1013 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_expr::EvalError
+#[non_exhaustive] pub enum antecedent_expr::ExprError
+#[non_exhaustive] pub enum antecedent_expr::SimplifyError
+#[non_exhaustive] pub enum antecedent_expr::provider::ProviderSnapshotError
+#[non_exhaustive] pub struct antecedent_expr::IdentifiedEstimand
+#[non_exhaustive] pub struct antecedent_expr::RdDesignParams
+impl !core::marker::Freeze for antecedent_expr::EmpiricalTableProvider [auto]
+impl antecedent_expr::DistributionProvider for antecedent_expr::EmpiricalTableProvider
+impl antecedent_expr::DistributionProvider for antecedent_expr::ExactTransportData
+impl core::clone::Clone for antecedent_expr::Assignment
+impl core::clone::Clone for antecedent_expr::CausalExprArena
+impl core::clone::Clone for antecedent_expr::CompiledEvaluator
+impl core::clone::Clone for antecedent_expr::ContrastOp
+impl core::clone::Clone for antecedent_expr::DerivationMeta
+impl core::clone::Clone for antecedent_expr::DiscreteAxis
+impl core::clone::Clone for antecedent_expr::DistributionLeaf
+impl core::clone::Clone for antecedent_expr::DomainRef
+impl core::clone::Clone for antecedent_expr::EmpiricalTableProvider
+impl core::clone::Clone for antecedent_expr::EstimandMethod
+impl core::clone::Clone for antecedent_expr::EvalContext
+impl core::clone::Clone for antecedent_expr::EvalError
+impl core::clone::Clone for antecedent_expr::ExactDiscreteLaw
+impl core::clone::Clone for antecedent_expr::ExactDistribution
+impl core::clone::Clone for antecedent_expr::ExactEvaluationLimits
+impl core::clone::Clone for antecedent_expr::ExactEvaluationPlan
+impl core::clone::Clone for antecedent_expr::ExactLawError
+impl core::clone::Clone for antecedent_expr::ExactSupportRecord
+impl core::clone::Clone for antecedent_expr::ExactTransportData
+impl core::clone::Clone for antecedent_expr::ExprError
+impl core::clone::Clone for antecedent_expr::ExprId
+impl core::clone::Clone for antecedent_expr::ExprListId
+impl core::clone::Clone for antecedent_expr::ExprNode
+impl core::clone::Clone for antecedent_expr::FactorRequirement
+impl core::clone::Clone for antecedent_expr::FunctionalProgram
+impl core::clone::Clone for antecedent_expr::IdentifiedEstimand
+impl core::clone::Clone for antecedent_expr::InterventionAssignment
+impl core::clone::Clone for antecedent_expr::InterventionSetId
+impl core::clone::Clone for antecedent_expr::LawOrigin
+impl core::clone::Clone for antecedent_expr::LawTolerance
+impl core::clone::Clone for antecedent_expr::LeafBinding
+impl core::clone::Clone for antecedent_expr::LeafSignature
+impl core::clone::Clone for antecedent_expr::OutcomeExprId
+impl core::clone::Clone for antecedent_expr::PopulationKeyId
+impl core::clone::Clone for antecedent_expr::ProgramError
+impl core::clone::Clone for antecedent_expr::ProgramEvaluator
+impl core::clone::Clone for antecedent_expr::ProgramLimits
+impl core::clone::Clone for antecedent_expr::ProgramMapping
+impl core::clone::Clone for antecedent_expr::ProgramSchema
+impl core::clone::Clone for antecedent_expr::ProgramVariable
+impl core::clone::Clone for antecedent_expr::RdDesignParams
+impl core::clone::Clone for antecedent_expr::SimplifyError
+impl core::clone::Clone for antecedent_expr::VarSetId
+impl core::clone::Clone for antecedent_expr::execution_counts::StaticWork
+impl core::clone::Clone for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::clone::Clone for antecedent_expr::provider::DiscreteDomainSnapshot
+impl core::clone::Clone for antecedent_expr::provider::EmpiricalFactorRow
+impl core::clone::Clone for antecedent_expr::provider::EmpiricalFactorTableSnapshot
+impl core::clone::Clone for antecedent_expr::provider::EmpiricalProviderSnapshot
+impl core::clone::Clone for antecedent_expr::provider::ProviderSnapshotError
+impl core::cmp::Eq for antecedent_expr::ContrastOp
+impl core::cmp::Eq for antecedent_expr::DerivationMeta
+impl core::cmp::Eq for antecedent_expr::DistributionLeaf
+impl core::cmp::Eq for antecedent_expr::DomainRef
+impl core::cmp::Eq for antecedent_expr::EstimandMethod
+impl core::cmp::Eq for antecedent_expr::EvalContext
+impl core::cmp::Eq for antecedent_expr::EvalError
+impl core::cmp::Eq for antecedent_expr::ExactLawError
+impl core::cmp::Eq for antecedent_expr::ExprError
+impl core::cmp::Eq for antecedent_expr::ExprId
+impl core::cmp::Eq for antecedent_expr::ExprListId
+impl core::cmp::Eq for antecedent_expr::ExprNode
+impl core::cmp::Eq for antecedent_expr::FactorRequirement
+impl core::cmp::Eq for antecedent_expr::InterventionAssignment
+impl core::cmp::Eq for antecedent_expr::InterventionSetId
+impl core::cmp::Eq for antecedent_expr::LawOrigin
+impl core::cmp::Eq for antecedent_expr::LeafBinding
+impl core::cmp::Eq for antecedent_expr::LeafSignature
+impl core::cmp::Eq for antecedent_expr::OutcomeExprId
+impl core::cmp::Eq for antecedent_expr::PopulationKeyId
+impl core::cmp::Eq for antecedent_expr::ProgramError
+impl core::cmp::Eq for antecedent_expr::ProgramLimits
+impl core::cmp::Eq for antecedent_expr::ProgramMapping
+impl core::cmp::Eq for antecedent_expr::ProgramSchema
+impl core::cmp::Eq for antecedent_expr::ProgramVariable
+impl core::cmp::Eq for antecedent_expr::SimplifyError
+impl core::cmp::Eq for antecedent_expr::VarSetId
+impl core::cmp::Eq for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::cmp::Eq for antecedent_expr::provider::DiscreteDomainSnapshot
+impl core::cmp::Eq for antecedent_expr::provider::ProviderSnapshotError
+impl core::cmp::Ord for antecedent_expr::ExprId
+impl core::cmp::Ord for antecedent_expr::InterventionSetId
+impl core::cmp::Ord for antecedent_expr::PopulationKeyId
+impl core::cmp::Ord for antecedent_expr::VarSetId
+impl core::cmp::PartialEq for antecedent_expr::CausalExprArena
+impl core::cmp::PartialEq for antecedent_expr::ContrastOp
+impl core::cmp::PartialEq for antecedent_expr::DerivationMeta
+impl core::cmp::PartialEq for antecedent_expr::DiscreteAxis
+impl core::cmp::PartialEq for antecedent_expr::DistributionLeaf
+impl core::cmp::PartialEq for antecedent_expr::DomainRef
+impl core::cmp::PartialEq for antecedent_expr::EstimandMethod
+impl core::cmp::PartialEq for antecedent_expr::EvalContext
+impl core::cmp::PartialEq for antecedent_expr::EvalError
+impl core::cmp::PartialEq for antecedent_expr::ExactLawError
+impl core::cmp::PartialEq for antecedent_expr::ExactSupportRecord
+impl core::cmp::PartialEq for antecedent_expr::ExprError
+impl core::cmp::PartialEq for antecedent_expr::ExprId
+impl core::cmp::PartialEq for antecedent_expr::ExprListId
+impl core::cmp::PartialEq for antecedent_expr::ExprNode
+impl core::cmp::PartialEq for antecedent_expr::FactorRequirement
+impl core::cmp::PartialEq for antecedent_expr::IdentifiedEstimand
+impl core::cmp::PartialEq for antecedent_expr::InterventionAssignment
+impl core::cmp::PartialEq for antecedent_expr::InterventionSetId
+impl core::cmp::PartialEq for antecedent_expr::LawOrigin
+impl core::cmp::PartialEq for antecedent_expr::LawTolerance
+impl core::cmp::PartialEq for antecedent_expr::LeafBinding
+impl core::cmp::PartialEq for antecedent_expr::LeafSignature
+impl core::cmp::PartialEq for antecedent_expr::OutcomeExprId
+impl core::cmp::PartialEq for antecedent_expr::PopulationKeyId
+impl core::cmp::PartialEq for antecedent_expr::ProgramError
+impl core::cmp::PartialEq for antecedent_expr::ProgramLimits
+impl core::cmp::PartialEq for antecedent_expr::ProgramMapping
+impl core::cmp::PartialEq for antecedent_expr::ProgramSchema
+impl core::cmp::PartialEq for antecedent_expr::ProgramVariable
+impl core::cmp::PartialEq for antecedent_expr::RdDesignParams
+impl core::cmp::PartialEq for antecedent_expr::SimplifyError
+impl core::cmp::PartialEq for antecedent_expr::VarSetId
+impl core::cmp::PartialEq for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::cmp::PartialEq for antecedent_expr::provider::DiscreteDomainSnapshot
+impl core::cmp::PartialEq for antecedent_expr::provider::EmpiricalFactorRow
+impl core::cmp::PartialEq for antecedent_expr::provider::EmpiricalFactorTableSnapshot
+impl core::cmp::PartialEq for antecedent_expr::provider::EmpiricalProviderSnapshot
+impl core::cmp::PartialEq for antecedent_expr::provider::ProviderSnapshotError
+impl core::cmp::PartialOrd for antecedent_expr::ExprId
+impl core::cmp::PartialOrd for antecedent_expr::InterventionSetId
+impl core::cmp::PartialOrd for antecedent_expr::PopulationKeyId
+impl core::cmp::PartialOrd for antecedent_expr::VarSetId
+impl core::default::Default for antecedent_expr::Assignment
+impl core::default::Default for antecedent_expr::CausalExprArena
+impl core::default::Default for antecedent_expr::DerivationMeta
+impl core::default::Default for antecedent_expr::EmpiricalTableProvider
+impl core::default::Default for antecedent_expr::EvalContext
+impl core::default::Default for antecedent_expr::ExactEvaluationLimits
+impl core::default::Default for antecedent_expr::LawTolerance
+impl core::default::Default for antecedent_expr::ProgramLimits
+impl core::default::Default for antecedent_expr::ProgramSchema
+impl core::default::Default for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::default::Default for antecedent_expr::provider::EmpiricalProviderSnapshot
+impl core::error::Error for antecedent_expr::EvalError
+impl core::error::Error for antecedent_expr::ExactLawError
+impl core::error::Error for antecedent_expr::ExprError
+impl core::error::Error for antecedent_expr::ProgramError
+impl core::error::Error for antecedent_expr::SimplifyError
+impl core::error::Error for antecedent_expr::provider::ProviderSnapshotError
+impl core::fmt::Debug for antecedent_expr::Assignment
+impl core::fmt::Debug for antecedent_expr::CausalExprArena
+impl core::fmt::Debug for antecedent_expr::CompiledEvaluator
+impl core::fmt::Debug for antecedent_expr::ContrastOp
+impl core::fmt::Debug for antecedent_expr::DerivationMeta
+impl core::fmt::Debug for antecedent_expr::DiscreteAxis
+impl core::fmt::Debug for antecedent_expr::DistributionLeaf
+impl core::fmt::Debug for antecedent_expr::DomainRef
+impl core::fmt::Debug for antecedent_expr::EmpiricalTableProvider
+impl core::fmt::Debug for antecedent_expr::EstimandMethod
+impl core::fmt::Debug for antecedent_expr::EvalContext
+impl core::fmt::Debug for antecedent_expr::EvalError
+impl core::fmt::Debug for antecedent_expr::ExactDiscreteLaw
+impl core::fmt::Debug for antecedent_expr::ExactDistribution
+impl core::fmt::Debug for antecedent_expr::ExactEvaluationLimits
+impl core::fmt::Debug for antecedent_expr::ExactEvaluationPlan
+impl core::fmt::Debug for antecedent_expr::ExactLawError
+impl core::fmt::Debug for antecedent_expr::ExactSupportRecord
+impl core::fmt::Debug for antecedent_expr::ExactTransportData
+impl core::fmt::Debug for antecedent_expr::ExprError
+impl core::fmt::Debug for antecedent_expr::ExprId
+impl core::fmt::Debug for antecedent_expr::ExprListId
+impl core::fmt::Debug for antecedent_expr::ExprNode
+impl core::fmt::Debug for antecedent_expr::FactorRequirement
+impl core::fmt::Debug for antecedent_expr::FunctionalProgram
+impl core::fmt::Debug for antecedent_expr::IdentifiedEstimand
+impl core::fmt::Debug for antecedent_expr::InterventionAssignment
+impl core::fmt::Debug for antecedent_expr::InterventionSetId
+impl core::fmt::Debug for antecedent_expr::LawOrigin
+impl core::fmt::Debug for antecedent_expr::LawTolerance
+impl core::fmt::Debug for antecedent_expr::LeafBinding
+impl core::fmt::Debug for antecedent_expr::LeafSignature
+impl core::fmt::Debug for antecedent_expr::OutcomeExprId
+impl core::fmt::Debug for antecedent_expr::PopulationKeyId
+impl core::fmt::Debug for antecedent_expr::ProgramError
+impl core::fmt::Debug for antecedent_expr::ProgramEvaluator
+impl core::fmt::Debug for antecedent_expr::ProgramLimits
+impl core::fmt::Debug for antecedent_expr::ProgramMapping
+impl core::fmt::Debug for antecedent_expr::ProgramSchema
+impl core::fmt::Debug for antecedent_expr::ProgramVariable
+impl core::fmt::Debug for antecedent_expr::RdDesignParams
+impl core::fmt::Debug for antecedent_expr::SimplifyError
+impl core::fmt::Debug for antecedent_expr::VarSetId
+impl core::fmt::Debug for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::fmt::Debug for antecedent_expr::provider::DiscreteDomainSnapshot
+impl core::fmt::Debug for antecedent_expr::provider::EmpiricalFactorRow
+impl core::fmt::Debug for antecedent_expr::provider::EmpiricalFactorTableSnapshot
+impl core::fmt::Debug for antecedent_expr::provider::EmpiricalProviderSnapshot
+impl core::fmt::Debug for antecedent_expr::provider::ProviderSnapshotError
+impl core::fmt::Display for antecedent_expr::EstimandMethod
+impl core::fmt::Display for antecedent_expr::EvalError
+impl core::fmt::Display for antecedent_expr::ExactLawError
+impl core::fmt::Display for antecedent_expr::ExprError
+impl core::fmt::Display for antecedent_expr::ExprId
+impl core::fmt::Display for antecedent_expr::ProgramError
+impl core::fmt::Display for antecedent_expr::SimplifyError
+impl core::fmt::Display for antecedent_expr::provider::ProviderSnapshotError
+impl core::hash::Hash for antecedent_expr::ContrastOp
+impl core::hash::Hash for antecedent_expr::DistributionLeaf
+impl core::hash::Hash for antecedent_expr::DomainRef
+impl core::hash::Hash for antecedent_expr::EstimandMethod
+impl core::hash::Hash for antecedent_expr::ExprId
+impl core::hash::Hash for antecedent_expr::ExprListId
+impl core::hash::Hash for antecedent_expr::ExprNode
+impl core::hash::Hash for antecedent_expr::InterventionAssignment
+impl core::hash::Hash for antecedent_expr::InterventionSetId
+impl core::hash::Hash for antecedent_expr::LeafBinding
+impl core::hash::Hash for antecedent_expr::LeafSignature
+impl core::hash::Hash for antecedent_expr::OutcomeExprId
+impl core::hash::Hash for antecedent_expr::PopulationKeyId
+impl core::hash::Hash for antecedent_expr::VarSetId
+impl core::marker::Copy for antecedent_expr::ContrastOp
+impl core::marker::Copy for antecedent_expr::DistributionLeaf
+impl core::marker::Copy for antecedent_expr::DomainRef
+impl core::marker::Copy for antecedent_expr::EstimandMethod
+impl core::marker::Copy for antecedent_expr::EvalContext
+impl core::marker::Copy for antecedent_expr::ExactEvaluationLimits
+impl core::marker::Copy for antecedent_expr::ExprError
+impl core::marker::Copy for antecedent_expr::ExprId
+impl core::marker::Copy for antecedent_expr::ExprListId
+impl core::marker::Copy for antecedent_expr::InterventionSetId
+impl core::marker::Copy for antecedent_expr::LawOrigin
+impl core::marker::Copy for antecedent_expr::LawTolerance
+impl core::marker::Copy for antecedent_expr::OutcomeExprId
+impl core::marker::Copy for antecedent_expr::PopulationKeyId
+impl core::marker::Copy for antecedent_expr::ProgramLimits
+impl core::marker::Copy for antecedent_expr::ProgramMapping
+impl core::marker::Copy for antecedent_expr::RdDesignParams
+impl core::marker::Copy for antecedent_expr::VarSetId
+impl core::marker::Copy for antecedent_expr::execution_counts::StaticWork
+impl core::marker::Copy for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::marker::Freeze for antecedent_expr::Assignment [auto]
+impl core::marker::Freeze for antecedent_expr::CausalExprArena [auto]
+impl core::marker::Freeze for antecedent_expr::CompiledEvaluator [auto]
+impl core::marker::Freeze for antecedent_expr::ContrastOp [auto]
+impl core::marker::Freeze for antecedent_expr::DerivationMeta [auto]
+impl core::marker::Freeze for antecedent_expr::DiscreteAxis [auto]
+impl core::marker::Freeze for antecedent_expr::DistributionLeaf [auto]
+impl core::marker::Freeze for antecedent_expr::DomainRef [auto]
+impl core::marker::Freeze for antecedent_expr::EstimandMethod [auto]
+impl core::marker::Freeze for antecedent_expr::EvalContext [auto]
+impl core::marker::Freeze for antecedent_expr::EvalError [auto]
+impl core::marker::Freeze for antecedent_expr::ExactDiscreteLaw [auto]
+impl core::marker::Freeze for antecedent_expr::ExactDistribution [auto]
+impl core::marker::Freeze for antecedent_expr::ExactEvaluationLimits [auto]
+impl core::marker::Freeze for antecedent_expr::ExactEvaluationPlan [auto]
+impl core::marker::Freeze for antecedent_expr::ExactLawError [auto]
+impl core::marker::Freeze for antecedent_expr::ExactSupportRecord [auto]
+impl core::marker::Freeze for antecedent_expr::ExactTransportData [auto]
+impl core::marker::Freeze for antecedent_expr::ExprError [auto]
+impl core::marker::Freeze for antecedent_expr::ExprId [auto]
+impl core::marker::Freeze for antecedent_expr::ExprListId [auto]
+impl core::marker::Freeze for antecedent_expr::ExprNode [auto]
+impl core::marker::Freeze for antecedent_expr::FactorRequirement [auto]
+impl core::marker::Freeze for antecedent_expr::FunctionalProgram [auto]
+impl core::marker::Freeze for antecedent_expr::IdentifiedEstimand [auto]
+impl core::marker::Freeze for antecedent_expr::InterventionAssignment [auto]
+impl core::marker::Freeze for antecedent_expr::InterventionSetId [auto]
+impl core::marker::Freeze for antecedent_expr::LawOrigin [auto]
+impl core::marker::Freeze for antecedent_expr::LawTolerance [auto]
+impl core::marker::Freeze for antecedent_expr::LeafBinding [auto]
+impl core::marker::Freeze for antecedent_expr::LeafSignature [auto]
+impl core::marker::Freeze for antecedent_expr::OutcomeExprId [auto]
+impl core::marker::Freeze for antecedent_expr::PopulationKeyId [auto]
+impl core::marker::Freeze for antecedent_expr::ProgramError [auto]
+impl core::marker::Freeze for antecedent_expr::ProgramEvaluator [auto]
+impl core::marker::Freeze for antecedent_expr::ProgramLimits [auto]
+impl core::marker::Freeze for antecedent_expr::ProgramMapping [auto]
+impl core::marker::Freeze for antecedent_expr::ProgramSchema [auto]
+impl core::marker::Freeze for antecedent_expr::ProgramVariable [auto]
+impl core::marker::Freeze for antecedent_expr::RdDesignParams [auto]
+impl core::marker::Freeze for antecedent_expr::SimplifyError [auto]
+impl core::marker::Freeze for antecedent_expr::VarSetId [auto]
+impl core::marker::Freeze for antecedent_expr::execution_counts::StaticWork [auto]
+impl core::marker::Freeze for antecedent_expr::execution_counts::StaticWorkCounts [auto]
+impl core::marker::Freeze for antecedent_expr::provider::DiscreteDomainSnapshot [auto]
+impl core::marker::Freeze for antecedent_expr::provider::EmpiricalFactorRow [auto]
+impl core::marker::Freeze for antecedent_expr::provider::EmpiricalFactorTableSnapshot [auto]
+impl core::marker::Freeze for antecedent_expr::provider::EmpiricalProviderSnapshot [auto]
+impl core::marker::Freeze for antecedent_expr::provider::ProviderSnapshotError [auto]
+impl core::marker::Send for antecedent_expr::Assignment [auto]
+impl core::marker::Send for antecedent_expr::CausalExprArena [auto]
+impl core::marker::Send for antecedent_expr::CompiledEvaluator [auto]
+impl core::marker::Send for antecedent_expr::ContrastOp [auto]
+impl core::marker::Send for antecedent_expr::DerivationMeta [auto]
+impl core::marker::Send for antecedent_expr::DiscreteAxis [auto]
+impl core::marker::Send for antecedent_expr::DistributionLeaf [auto]
+impl core::marker::Send for antecedent_expr::DomainRef [auto]
+impl core::marker::Send for antecedent_expr::EmpiricalTableProvider [auto]
+impl core::marker::Send for antecedent_expr::EstimandMethod [auto]
+impl core::marker::Send for antecedent_expr::EvalContext [auto]
+impl core::marker::Send for antecedent_expr::EvalError [auto]
+impl core::marker::Send for antecedent_expr::ExactDiscreteLaw [auto]
+impl core::marker::Send for antecedent_expr::ExactDistribution [auto]
+impl core::marker::Send for antecedent_expr::ExactEvaluationLimits [auto]
+impl core::marker::Send for antecedent_expr::ExactEvaluationPlan [auto]
+impl core::marker::Send for antecedent_expr::ExactLawError [auto]
+impl core::marker::Send for antecedent_expr::ExactSupportRecord [auto]
+impl core::marker::Send for antecedent_expr::ExactTransportData [auto]
+impl core::marker::Send for antecedent_expr::ExprError [auto]
+impl core::marker::Send for antecedent_expr::ExprId [auto]
+impl core::marker::Send for antecedent_expr::ExprListId [auto]
+impl core::marker::Send for antecedent_expr::ExprNode [auto]
+impl core::marker::Send for antecedent_expr::FactorRequirement [auto]
+impl core::marker::Send for antecedent_expr::FunctionalProgram [auto]
+impl core::marker::Send for antecedent_expr::IdentifiedEstimand [auto]
+impl core::marker::Send for antecedent_expr::InterventionAssignment [auto]
+impl core::marker::Send for antecedent_expr::InterventionSetId [auto]
+impl core::marker::Send for antecedent_expr::LawOrigin [auto]
+impl core::marker::Send for antecedent_expr::LawTolerance [auto]
+impl core::marker::Send for antecedent_expr::LeafBinding [auto]
+impl core::marker::Send for antecedent_expr::LeafSignature [auto]
+impl core::marker::Send for antecedent_expr::OutcomeExprId [auto]
+impl core::marker::Send for antecedent_expr::PopulationKeyId [auto]
+impl core::marker::Send for antecedent_expr::ProgramError [auto]
+impl core::marker::Send for antecedent_expr::ProgramEvaluator [auto]
+impl core::marker::Send for antecedent_expr::ProgramLimits [auto]
+impl core::marker::Send for antecedent_expr::ProgramMapping [auto]
+impl core::marker::Send for antecedent_expr::ProgramSchema [auto]
+impl core::marker::Send for antecedent_expr::ProgramVariable [auto]
+impl core::marker::Send for antecedent_expr::RdDesignParams [auto]
+impl core::marker::Send for antecedent_expr::SimplifyError [auto]
+impl core::marker::Send for antecedent_expr::VarSetId [auto]
+impl core::marker::Send for antecedent_expr::execution_counts::StaticWork [auto]
+impl core::marker::Send for antecedent_expr::execution_counts::StaticWorkCounts [auto]
+impl core::marker::Send for antecedent_expr::provider::DiscreteDomainSnapshot [auto]
+impl core::marker::Send for antecedent_expr::provider::EmpiricalFactorRow [auto]
+impl core::marker::Send for antecedent_expr::provider::EmpiricalFactorTableSnapshot [auto]
+impl core::marker::Send for antecedent_expr::provider::EmpiricalProviderSnapshot [auto]
+impl core::marker::Send for antecedent_expr::provider::ProviderSnapshotError [auto]
+impl core::marker::StructuralPartialEq for antecedent_expr::ContrastOp
+impl core::marker::StructuralPartialEq for antecedent_expr::DerivationMeta
+impl core::marker::StructuralPartialEq for antecedent_expr::DiscreteAxis
+impl core::marker::StructuralPartialEq for antecedent_expr::DistributionLeaf
+impl core::marker::StructuralPartialEq for antecedent_expr::DomainRef
+impl core::marker::StructuralPartialEq for antecedent_expr::EstimandMethod
+impl core::marker::StructuralPartialEq for antecedent_expr::EvalContext
+impl core::marker::StructuralPartialEq for antecedent_expr::EvalError
+impl core::marker::StructuralPartialEq for antecedent_expr::ExactLawError
+impl core::marker::StructuralPartialEq for antecedent_expr::ExactSupportRecord
+impl core::marker::StructuralPartialEq for antecedent_expr::ExprError
+impl core::marker::StructuralPartialEq for antecedent_expr::ExprId
+impl core::marker::StructuralPartialEq for antecedent_expr::ExprListId
+impl core::marker::StructuralPartialEq for antecedent_expr::ExprNode
+impl core::marker::StructuralPartialEq for antecedent_expr::FactorRequirement
+impl core::marker::StructuralPartialEq for antecedent_expr::IdentifiedEstimand
+impl core::marker::StructuralPartialEq for antecedent_expr::InterventionAssignment
+impl core::marker::StructuralPartialEq for antecedent_expr::InterventionSetId
+impl core::marker::StructuralPartialEq for antecedent_expr::LawOrigin
+impl core::marker::StructuralPartialEq for antecedent_expr::LawTolerance
+impl core::marker::StructuralPartialEq for antecedent_expr::LeafBinding
+impl core::marker::StructuralPartialEq for antecedent_expr::LeafSignature
+impl core::marker::StructuralPartialEq for antecedent_expr::OutcomeExprId
+impl core::marker::StructuralPartialEq for antecedent_expr::PopulationKeyId
+impl core::marker::StructuralPartialEq for antecedent_expr::ProgramError
+impl core::marker::StructuralPartialEq for antecedent_expr::ProgramLimits
+impl core::marker::StructuralPartialEq for antecedent_expr::ProgramMapping
+impl core::marker::StructuralPartialEq for antecedent_expr::ProgramSchema
+impl core::marker::StructuralPartialEq for antecedent_expr::ProgramVariable
+impl core::marker::StructuralPartialEq for antecedent_expr::RdDesignParams
+impl core::marker::StructuralPartialEq for antecedent_expr::SimplifyError
+impl core::marker::StructuralPartialEq for antecedent_expr::VarSetId
+impl core::marker::StructuralPartialEq for antecedent_expr::execution_counts::StaticWorkCounts
+impl core::marker::StructuralPartialEq for antecedent_expr::provider::DiscreteDomainSnapshot
+impl core::marker::StructuralPartialEq for antecedent_expr::provider::EmpiricalFactorRow
+impl core::marker::StructuralPartialEq for antecedent_expr::provider::EmpiricalFactorTableSnapshot
+impl core::marker::StructuralPartialEq for antecedent_expr::provider::EmpiricalProviderSnapshot
+impl core::marker::StructuralPartialEq for antecedent_expr::provider::ProviderSnapshotError
+impl core::marker::Sync for antecedent_expr::Assignment [auto]
+impl core::marker::Sync for antecedent_expr::CausalExprArena [auto]
+impl core::marker::Sync for antecedent_expr::CompiledEvaluator [auto]
+impl core::marker::Sync for antecedent_expr::ContrastOp [auto]
+impl core::marker::Sync for antecedent_expr::DerivationMeta [auto]
+impl core::marker::Sync for antecedent_expr::DiscreteAxis [auto]
+impl core::marker::Sync for antecedent_expr::DistributionLeaf [auto]
+impl core::marker::Sync for antecedent_expr::DomainRef [auto]
+impl core::marker::Sync for antecedent_expr::EmpiricalTableProvider [auto]
+impl core::marker::Sync for antecedent_expr::EstimandMethod [auto]
+impl core::marker::Sync for antecedent_expr::EvalContext [auto]
+impl core::marker::Sync for antecedent_expr::EvalError [auto]
+impl core::marker::Sync for antecedent_expr::ExactDiscreteLaw [auto]
+impl core::marker::Sync for antecedent_expr::ExactDistribution [auto]
+impl core::marker::Sync for antecedent_expr::ExactEvaluationLimits [auto]
+impl core::marker::Sync for antecedent_expr::ExactEvaluationPlan [auto]
+impl core::marker::Sync for antecedent_expr::ExactLawError [auto]
+impl core::marker::Sync for antecedent_expr::ExactSupportRecord [auto]
+impl core::marker::Sync for antecedent_expr::ExactTransportData [auto]
+impl core::marker::Sync for antecedent_expr::ExprError [auto]
+impl core::marker::Sync for antecedent_expr::ExprId [auto]
+impl core::marker::Sync for antecedent_expr::ExprListId [auto]
+impl core::marker::Sync for antecedent_expr::ExprNode [auto]
+impl core::marker::Sync for antecedent_expr::FactorRequirement [auto]
+impl core::marker::Sync for antecedent_expr::FunctionalProgram [auto]
+impl core::marker::Sync for antecedent_expr::IdentifiedEstimand [auto]
+impl core::marker::Sync for antecedent_expr::InterventionAssignment [auto]
+impl core::marker::Sync for antecedent_expr::InterventionSetId [auto]
+impl core::marker::Sync for antecedent_expr::LawOrigin [auto]
+impl core::marker::Sync for antecedent_expr::LawTolerance [auto]
+impl core::marker::Sync for antecedent_expr::LeafBinding [auto]
+impl core::marker::Sync for antecedent_expr::LeafSignature [auto]
+impl core::marker::Sync for antecedent_expr::OutcomeExprId [auto]
+impl core::marker::Sync for antecedent_expr::PopulationKeyId [auto]
+impl core::marker::Sync for antecedent_expr::ProgramError [auto]
+impl core::marker::Sync for antecedent_expr::ProgramEvaluator [auto]
+impl core::marker::Sync for antecedent_expr::ProgramLimits [auto]
+impl core::marker::Sync for antecedent_expr::ProgramMapping [auto]
+impl core::marker::Sync for antecedent_expr::ProgramSchema [auto]
+impl core::marker::Sync for antecedent_expr::ProgramVariable [auto]
+impl core::marker::Sync for antecedent_expr::RdDesignParams [auto]
+impl core::marker::Sync for antecedent_expr::SimplifyError [auto]
+impl core::marker::Sync for antecedent_expr::VarSetId [auto]
+impl core::marker::Sync for antecedent_expr::execution_counts::StaticWork [auto]
+impl core::marker::Sync for antecedent_expr::execution_counts::StaticWorkCounts [auto]
+impl core::marker::Sync for antecedent_expr::provider::DiscreteDomainSnapshot [auto]
+impl core::marker::Sync for antecedent_expr::provider::EmpiricalFactorRow [auto]
+impl core::marker::Sync for antecedent_expr::provider::EmpiricalFactorTableSnapshot [auto]
+impl core::marker::Sync for antecedent_expr::provider::EmpiricalProviderSnapshot [auto]
+impl core::marker::Sync for antecedent_expr::provider::ProviderSnapshotError [auto]
+impl core::marker::Unpin for antecedent_expr::Assignment [auto]
+impl core::marker::Unpin for antecedent_expr::CausalExprArena [auto]
+impl core::marker::Unpin for antecedent_expr::CompiledEvaluator [auto]
+impl core::marker::Unpin for antecedent_expr::ContrastOp [auto]
+impl core::marker::Unpin for antecedent_expr::DerivationMeta [auto]
+impl core::marker::Unpin for antecedent_expr::DiscreteAxis [auto]
+impl core::marker::Unpin for antecedent_expr::DistributionLeaf [auto]
+impl core::marker::Unpin for antecedent_expr::DomainRef [auto]
+impl core::marker::Unpin for antecedent_expr::EmpiricalTableProvider [auto]
+impl core::marker::Unpin for antecedent_expr::EstimandMethod [auto]
+impl core::marker::Unpin for antecedent_expr::EvalContext [auto]
+impl core::marker::Unpin for antecedent_expr::EvalError [auto]
+impl core::marker::Unpin for antecedent_expr::ExactDiscreteLaw [auto]
+impl core::marker::Unpin for antecedent_expr::ExactDistribution [auto]
+impl core::marker::Unpin for antecedent_expr::ExactEvaluationLimits [auto]
+impl core::marker::Unpin for antecedent_expr::ExactEvaluationPlan [auto]
+impl core::marker::Unpin for antecedent_expr::ExactLawError [auto]
+impl core::marker::Unpin for antecedent_expr::ExactSupportRecord [auto]
+impl core::marker::Unpin for antecedent_expr::ExactTransportData [auto]
+impl core::marker::Unpin for antecedent_expr::ExprError [auto]
+impl core::marker::Unpin for antecedent_expr::ExprId [auto]
+impl core::marker::Unpin for antecedent_expr::ExprListId [auto]
+impl core::marker::Unpin for antecedent_expr::ExprNode [auto]
+impl core::marker::Unpin for antecedent_expr::FactorRequirement [auto]
+impl core::marker::Unpin for antecedent_expr::FunctionalProgram [auto]
+impl core::marker::Unpin for antecedent_expr::IdentifiedEstimand [auto]
+impl core::marker::Unpin for antecedent_expr::InterventionAssignment [auto]
+impl core::marker::Unpin for antecedent_expr::InterventionSetId [auto]
+impl core::marker::Unpin for antecedent_expr::LawOrigin [auto]
+impl core::marker::Unpin for antecedent_expr::LawTolerance [auto]
+impl core::marker::Unpin for antecedent_expr::LeafBinding [auto]
+impl core::marker::Unpin for antecedent_expr::LeafSignature [auto]
+impl core::marker::Unpin for antecedent_expr::OutcomeExprId [auto]
+impl core::marker::Unpin for antecedent_expr::PopulationKeyId [auto]
+impl core::marker::Unpin for antecedent_expr::ProgramError [auto]
+impl core::marker::Unpin for antecedent_expr::ProgramEvaluator [auto]
+impl core::marker::Unpin for antecedent_expr::ProgramLimits [auto]
+impl core::marker::Unpin for antecedent_expr::ProgramMapping [auto]
+impl core::marker::Unpin for antecedent_expr::ProgramSchema [auto]
+impl core::marker::Unpin for antecedent_expr::ProgramVariable [auto]
+impl core::marker::Unpin for antecedent_expr::RdDesignParams [auto]
+impl core::marker::Unpin for antecedent_expr::SimplifyError [auto]
+impl core::marker::Unpin for antecedent_expr::VarSetId [auto]
+impl core::marker::Unpin for antecedent_expr::execution_counts::StaticWork [auto]
+impl core::marker::Unpin for antecedent_expr::execution_counts::StaticWorkCounts [auto]
+impl core::marker::Unpin for antecedent_expr::provider::DiscreteDomainSnapshot [auto]
+impl core::marker::Unpin for antecedent_expr::provider::EmpiricalFactorRow [auto]
+impl core::marker::Unpin for antecedent_expr::provider::EmpiricalFactorTableSnapshot [auto]
+impl core::marker::Unpin for antecedent_expr::provider::EmpiricalProviderSnapshot [auto]
+impl core::marker::Unpin for antecedent_expr::provider::ProviderSnapshotError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::Assignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::CausalExprArena [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::CompiledEvaluator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ContrastOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::DerivationMeta [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::DiscreteAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::DistributionLeaf [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::DomainRef [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::EmpiricalTableProvider [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::EstimandMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::EvalContext [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::EvalError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactDiscreteLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactDistribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactEvaluationLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactEvaluationPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactLawError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactSupportRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactTransportData [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExprError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExprId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExprListId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExprNode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::FactorRequirement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::FunctionalProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::IdentifiedEstimand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::InterventionAssignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::InterventionSetId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::LawOrigin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::LawTolerance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::LeafBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::LeafSignature [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::OutcomeExprId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::PopulationKeyId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ProgramError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ProgramEvaluator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ProgramLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ProgramMapping [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ProgramSchema [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ProgramVariable [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::RdDesignParams [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::SimplifyError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::VarSetId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::execution_counts::StaticWork [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::execution_counts::StaticWorkCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::provider::DiscreteDomainSnapshot [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::provider::EmpiricalFactorRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::provider::EmpiricalFactorTableSnapshot [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::provider::EmpiricalProviderSnapshot [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::provider::ProviderSnapshotError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::Assignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::CausalExprArena [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::CompiledEvaluator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ContrastOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::DerivationMeta [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::DiscreteAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::DistributionLeaf [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::DomainRef [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::EmpiricalTableProvider [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::EstimandMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::EvalContext [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::EvalError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactDiscreteLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactDistribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactEvaluationLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactEvaluationPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactLawError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactSupportRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactTransportData [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExprError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExprId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExprListId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExprNode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::FactorRequirement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::FunctionalProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::IdentifiedEstimand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::InterventionAssignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::InterventionSetId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::LawOrigin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::LawTolerance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::LeafBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::LeafSignature [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::OutcomeExprId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::PopulationKeyId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ProgramError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ProgramEvaluator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ProgramLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ProgramMapping [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ProgramSchema [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::ProgramVariable [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::RdDesignParams [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::SimplifyError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::VarSetId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::execution_counts::StaticWork [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::execution_counts::StaticWorkCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::provider::DiscreteDomainSnapshot [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::provider::EmpiricalFactorRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::provider::EmpiricalFactorTableSnapshot [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::provider::EmpiricalProviderSnapshot [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_expr::provider::ProviderSnapshotError [auto]
+impl core::str::traits::FromStr for antecedent_expr::EstimandMethod
+impl<'a> core::clone::Clone for antecedent_expr::ExactEvaluationSpec<'a>
+impl<'a> core::clone::Clone for antecedent_expr::FactorSpec<'a>
+impl<'a> core::fmt::Debug for antecedent_expr::ExactEvaluationSpec<'a>
+impl<'a> core::fmt::Debug for antecedent_expr::FactorSpec<'a>
+impl<'a> core::marker::Freeze for antecedent_expr::ExactEvaluationSpec<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_expr::FactorSpec<'a> [auto]
+impl<'a> core::marker::Send for antecedent_expr::ExactEvaluationSpec<'a> [auto]
+impl<'a> core::marker::Send for antecedent_expr::FactorSpec<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_expr::ExactEvaluationSpec<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_expr::FactorSpec<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_expr::ExactEvaluationSpec<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_expr::FactorSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::ExactEvaluationSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_expr::FactorSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_expr::ExactEvaluationSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_expr::FactorSpec<'a> [auto]
+pub enum antecedent_expr::ContrastOp
+pub enum antecedent_expr::DomainRef
+pub enum antecedent_expr::EstimandMethod
+pub enum antecedent_expr::ExprNode
+pub enum antecedent_expr::LawOrigin
+pub enum antecedent_expr::ProgramError
+pub enum antecedent_expr::execution_counts::StaticWork
+pub field antecedent_expr::DerivationMeta::evidence: alloc::sync::Arc<[antecedent_core::ids::RegimeId]>
+pub field antecedent_expr::DerivationMeta::graph_operation: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_expr::DerivationMeta::input: core::option::Option<antecedent_expr::ExprId>
+pub field antecedent_expr::DerivationMeta::note: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_expr::DerivationMeta::output: core::option::Option<antecedent_expr::ExprId>
+pub field antecedent_expr::DerivationMeta::parents: alloc::sync::Arc<[antecedent_expr::ExprId]>
+pub field antecedent_expr::DerivationMeta::premises: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_expr::DerivationMeta::rule: alloc::sync::Arc<str>
+pub field antecedent_expr::DiscreteAxis::values: alloc::sync::Arc<[antecedent_core::value::Value]>
+pub field antecedent_expr::DiscreteAxis::variable: antecedent_core::ids::VariableId
+pub field antecedent_expr::DistributionLeaf::conditioned_on: antecedent_expr::VarSetId
+pub field antecedent_expr::DistributionLeaf::domain: antecedent_expr::DomainRef
+pub field antecedent_expr::DistributionLeaf::intervention: antecedent_expr::InterventionSetId
+pub field antecedent_expr::DistributionLeaf::variables: antecedent_expr::VarSetId
+pub field antecedent_expr::EvalContext::draw: core::option::Option<usize>
+pub field antecedent_expr::ExactDistribution::atoms: alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::value::Value]>]>
+pub field antecedent_expr::ExactDistribution::outcomes: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::ExactDistribution::probabilities: alloc::sync::Arc<[f64]>
+pub field antecedent_expr::ExactDistribution::support: alloc::sync::Arc<[antecedent_expr::ExactSupportRecord]>
+pub field antecedent_expr::ExactEvaluationLimits::depth: usize
+pub field antecedent_expr::ExactEvaluationLimits::operations: usize
+pub field antecedent_expr::ExactEvaluationSpec::arena: &'a antecedent_expr::CausalExprArena
+pub field antecedent_expr::ExactEvaluationSpec::limits: antecedent_expr::ExactEvaluationLimits
+pub field antecedent_expr::ExactEvaluationSpec::outcomes: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::ExactEvaluationSpec::request: antecedent_expr::Assignment
+pub field antecedent_expr::ExactEvaluationSpec::root: antecedent_expr::ExprId
+pub field antecedent_expr::ExactEvaluationSpec::tolerance: antecedent_expr::LawTolerance
+pub field antecedent_expr::ExactLawError::conditioning: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::value::Value)]>
+pub field antecedent_expr::ExactLawError::interventions: alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>
+pub field antecedent_expr::ExactLawError::kind: &'static str
+pub field antecedent_expr::ExactLawError::population: alloc::sync::Arc<str>
+pub field antecedent_expr::ExactLawError::regime: core::option::Option<antecedent_core::ids::RegimeId>
+pub field antecedent_expr::ExactLawError::variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::ExactSupportRecord::assignment: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::value::Value)]>
+pub field antecedent_expr::ExactSupportRecord::denominator: core::option::Option<f64>
+pub field antecedent_expr::ExactSupportRecord::expression: antecedent_expr::ExprId
+pub field antecedent_expr::ExactSupportRecord::status: &'static str
+pub field antecedent_expr::FactorRequirement::conditioned_on: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::FactorRequirement::domain: antecedent_expr::DomainRef
+pub field antecedent_expr::FactorRequirement::intervention: alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>
+pub field antecedent_expr::FactorRequirement::population: alloc::sync::Arc<str>
+pub field antecedent_expr::FactorRequirement::regime: core::option::Option<antecedent_core::ids::RegimeId>
+pub field antecedent_expr::FactorRequirement::variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::FactorSpec::conditioned_on: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_expr::FactorSpec::domain: antecedent_expr::DomainRef
+pub field antecedent_expr::FactorSpec::intervention: &'a [antecedent_expr::InterventionAssignment]
+pub field antecedent_expr::FactorSpec::population: &'a str
+pub field antecedent_expr::FactorSpec::regime: core::option::Option<antecedent_core::ids::RegimeId>
+pub field antecedent_expr::FactorSpec::variables: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_expr::IdentifiedEstimand::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::IdentifiedEstimand::functional: antecedent_expr::ExprId
+pub field antecedent_expr::IdentifiedEstimand::instruments: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::IdentifiedEstimand::mediators: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::IdentifiedEstimand::method: alloc::sync::Arc<str>
+pub field antecedent_expr::IdentifiedEstimand::rd_design: core::option::Option<antecedent_expr::RdDesignParams>
+pub field antecedent_expr::InterventionAssignment::value: antecedent_core::value::Value
+pub field antecedent_expr::InterventionAssignment::variable: antecedent_core::ids::VariableId
+pub field antecedent_expr::LawTolerance::absolute: f64
+pub field antecedent_expr::LawTolerance::relative: f64
+pub field antecedent_expr::LeafBinding::population: alloc::sync::Arc<str>
+pub field antecedent_expr::LeafBinding::regime: core::option::Option<antecedent_core::ids::RegimeId>
+pub field antecedent_expr::LeafSignature::binding: antecedent_expr::LeafBinding
+pub field antecedent_expr::LeafSignature::conditioned_on: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::LeafSignature::domain: antecedent_expr::DomainRef
+pub field antecedent_expr::LeafSignature::intervention: alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>
+pub field antecedent_expr::LeafSignature::variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::ProgramLimits::max_depth: usize
+pub field antecedent_expr::ProgramLimits::max_nodes: usize
+pub field antecedent_expr::ProgramLimits::max_table_entries: usize
+pub field antecedent_expr::ProgramMapping::executable: antecedent_expr::ExprId
+pub field antecedent_expr::ProgramMapping::source: antecedent_expr::ExprId
+pub field antecedent_expr::ProgramVariable::name: alloc::sync::Arc<str>
+pub field antecedent_expr::RdDesignParams::bandwidth: f64
+pub field antecedent_expr::RdDesignParams::cutoff: f64
+pub field antecedent_expr::RdDesignParams::running_variable: antecedent_core::ids::VariableId
+pub field antecedent_expr::execution_counts::StaticWorkCounts::factor_builds: u64
+pub field antecedent_expr::execution_counts::StaticWorkCounts::factor_evaluations: u64
+pub field antecedent_expr::execution_counts::StaticWorkCounts::integrations: u64
+pub field antecedent_expr::execution_counts::StaticWorkCounts::law_summaries: u64
+pub field antecedent_expr::execution_counts::StaticWorkCounts::program_compilations: u64
+pub field antecedent_expr::execution_counts::StaticWorkCounts::provider_bindings: u64
+pub field antecedent_expr::execution_counts::StaticWorkCounts::provider_calls: u64
+pub field antecedent_expr::provider::DiscreteDomainSnapshot::values: alloc::sync::Arc<[antecedent_core::value::Value]>
+pub field antecedent_expr::provider::DiscreteDomainSnapshot::variable: antecedent_core::ids::VariableId
+pub field antecedent_expr::provider::EmpiricalFactorRow::probability: f64
+pub field antecedent_expr::provider::EmpiricalFactorRow::values: alloc::sync::Arc<[antecedent_core::value::Value]>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::conditioned_on: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::domain: antecedent_expr::DomainRef
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::intervention: alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::population: alloc::sync::Arc<str>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::regime: core::option::Option<antecedent_core::ids::RegimeId>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::requirement_indices: alloc::sync::Arc<[usize]>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::rows: alloc::sync::Arc<[antecedent_expr::provider::EmpiricalFactorRow]>
+pub field antecedent_expr::provider::EmpiricalFactorTableSnapshot::variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_expr::provider::EmpiricalProviderSnapshot::domains: alloc::sync::Arc<[antecedent_expr::provider::DiscreteDomainSnapshot]>
+pub field antecedent_expr::provider::EmpiricalProviderSnapshot::factors: alloc::sync::Arc<[antecedent_expr::provider::EmpiricalFactorTableSnapshot]>
+pub fn <antecedent_expr::Assignment>::fn entries(&self) -> &[(antecedent_core::ids::VariableId, antecedent_core::value::Value)]
+pub fn <antecedent_expr::Assignment>::fn from_pairs(pairs: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::ids::VariableId, antecedent_core::value::Value)>) -> Self
+pub fn <antecedent_expr::Assignment>::fn get(&self, var: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent_core::value::Value>
+pub fn <antecedent_expr::Assignment>::fn new() -> Self
+pub fn <antecedent_expr::Assignment>::fn remove(&mut self, var: antecedent_core::ids::VariableId) -> core::option::Option<antecedent_core::value::Value>
+pub fn <antecedent_expr::Assignment>::fn set(&mut self, var: antecedent_core::ids::VariableId, value: antecedent_core::value::Value)
+pub fn <antecedent_expr::CausalExprArena>::fn backdoor_ate(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId], active: antecedent_core::value::Value, control: antecedent_core::value::Value) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn backdoor_mean(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId], level: antecedent_core::value::Value) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn bind_certificate(&self, id: antecedent_expr::ExprId, expected: &[antecedent_expr::LeafBinding]) -> core::result::Result<(), antecedent_expr::ExprError>
+pub fn <antecedent_expr::CausalExprArena>::fn bind_leaf_certificate(&self, id: antecedent_expr::ExprId, expected: &[antecedent_expr::LeafSignature]) -> core::result::Result<(), antecedent_expr::ExprError>
+pub fn <antecedent_expr::CausalExprArena>::fn compile(&self, root: antecedent_expr::ExprId) -> core::result::Result<antecedent_expr::CompiledEvaluator, antecedent_expr::EvalError>
+pub fn <antecedent_expr::CausalExprArena>::fn derivation(&self, id: antecedent_expr::ExprId) -> core::option::Option<&antecedent_expr::DerivationMeta>
+pub fn <antecedent_expr::CausalExprArena>::fn distribution_leaves(&self, id: antecedent_expr::ExprId) -> alloc::vec::Vec<antecedent_expr::ExprId>
+pub fn <antecedent_expr::CausalExprArena>::fn empty_intervention_set(&mut self) -> antecedent_expr::InterventionSetId
+pub fn <antecedent_expr::CausalExprArena>::fn empty_population(&mut self) -> antecedent_expr::PopulationKeyId
+pub fn <antecedent_expr::CausalExprArena>::fn empty_var_set(&mut self) -> antecedent_expr::VarSetId
+pub fn <antecedent_expr::CausalExprArena>::fn free_variables(&self, id: antecedent_expr::ExprId) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_expr::CausalExprArena>::fn frontdoor_ate(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, mediators: &[antecedent_core::ids::VariableId], active: antecedent_core::value::Value, control: antecedent_core::value::Value) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn import(&mut self, source: &antecedent_expr::CausalExprArena, root: antecedent_expr::ExprId) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn intern(&mut self, node: antecedent_expr::ExprNode) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_distribution(&mut self, variables: antecedent_expr::VarSetId, conditioned_on: antecedent_expr::VarSetId, intervention: antecedent_expr::InterventionSetId, domain: antecedent_expr::DomainRef) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_distribution_tagged(&mut self, leaf: antecedent_expr::DistributionLeaf, population: impl core::convert::Into<alloc::sync::Arc<str>>, regime: core::option::Option<antecedent_core::ids::RegimeId>, regime_kind: core::option::Option<antecedent_expr::DomainRef>) -> core::result::Result<antecedent_expr::ExprId, antecedent_expr::ExprError>
+pub fn <antecedent_expr::CausalExprArena>::fn intern_intervention_assignments(&mut self, assignments: impl core::iter::traits::collect::IntoIterator<Item = antecedent_expr::InterventionAssignment>) -> antecedent_expr::InterventionSetId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_intervention_set(&mut self, vars: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> antecedent_expr::InterventionSetId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_kernel(&mut self, body: antecedent_expr::ExprId, bound: antecedent_expr::VarSetId, population: impl core::convert::Into<alloc::sync::Arc<str>>, regime: core::option::Option<antecedent_core::ids::RegimeId>) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_list(&mut self, exprs: impl core::iter::traits::collect::IntoIterator<Item = antecedent_expr::ExprId>) -> antecedent_expr::ExprListId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_population(&mut self, key: impl core::convert::Into<alloc::sync::Arc<str>>) -> antecedent_expr::PopulationKeyId
+pub fn <antecedent_expr::CausalExprArena>::fn intern_var_set(&mut self, vars: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> antecedent_expr::VarSetId
+pub fn <antecedent_expr::CausalExprArena>::fn intervention_assignments(&self, id: antecedent_expr::InterventionSetId) -> &[antecedent_expr::InterventionAssignment]
+pub fn <antecedent_expr::CausalExprArena>::fn intervention_set(&self, id: antecedent_expr::InterventionSetId) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_expr::CausalExprArena>::fn intervention_set_count(&self) -> usize
+pub fn <antecedent_expr::CausalExprArena>::fn is_empty(&self) -> bool
+pub fn <antecedent_expr::CausalExprArena>::fn iv_wald(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, instruments: &[antecedent_core::ids::VariableId], active: &antecedent_core::value::Value, control: &antecedent_core::value::Value) -> core::result::Result<antecedent_expr::ExprId, antecedent_expr::ExprError>
+pub fn <antecedent_expr::CausalExprArena>::fn latex(&self, id: antecedent_expr::ExprId) -> alloc::string::String
+pub fn <antecedent_expr::CausalExprArena>::fn leaf_bindings(&self, id: antecedent_expr::ExprId) -> alloc::vec::Vec<antecedent_expr::LeafBinding>
+pub fn <antecedent_expr::CausalExprArena>::fn leaf_signatures(&self, id: antecedent_expr::ExprId) -> alloc::vec::Vec<antecedent_expr::LeafSignature>
+pub fn <antecedent_expr::CausalExprArena>::fn len(&self) -> usize
+pub fn <antecedent_expr::CausalExprArena>::fn list(&self, id: antecedent_expr::ExprListId) -> &[antecedent_expr::ExprId]
+pub fn <antecedent_expr::CausalExprArena>::fn list_count(&self) -> usize
+pub fn <antecedent_expr::CausalExprArena>::fn new() -> Self
+pub fn <antecedent_expr::CausalExprArena>::fn node(&self, id: antecedent_expr::ExprId) -> &antecedent_expr::ExprNode
+pub fn <antecedent_expr::CausalExprArena>::fn population(&self, id: antecedent_expr::PopulationKeyId) -> &str
+pub fn <antecedent_expr::CausalExprArena>::fn population_count(&self) -> usize
+pub fn <antecedent_expr::CausalExprArena>::fn pretty(&self, id: antecedent_expr::ExprId) -> alloc::string::String
+pub fn <antecedent_expr::CausalExprArena>::fn rd_sharp_local_effect(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, running: antecedent_core::ids::VariableId, cutoff: f64, active: antecedent_core::value::Value, control: antecedent_core::value::Value) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn set_derivation(&mut self, id: antecedent_expr::ExprId, meta: antecedent_expr::DerivationMeta)
+pub fn <antecedent_expr::CausalExprArena>::fn set_derivation_if_absent(&mut self, id: antecedent_expr::ExprId, meta: antecedent_expr::DerivationMeta)
+pub fn <antecedent_expr::CausalExprArena>::fn simplify(&mut self, root: antecedent_expr::ExprId) -> core::result::Result<antecedent_expr::ExprId, antecedent_expr::SimplifyError>
+pub fn <antecedent_expr::CausalExprArena>::fn substitute(&mut self, id: antecedent_expr::ExprId, replacements: &[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]) -> core::result::Result<antecedent_expr::ExprId, antecedent_expr::ExprError>
+pub fn <antecedent_expr::CausalExprArena>::fn table_entry_count(&self) -> usize
+pub fn <antecedent_expr::CausalExprArena>::fn temporal_mediation_ate(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, mediators: &[antecedent_core::ids::VariableId], active: antecedent_core::value::Value, control: antecedent_core::value::Value) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn try_intern_intervention_assignments(&mut self, assignments: impl core::iter::traits::collect::IntoIterator<Item = antecedent_expr::InterventionAssignment>) -> core::result::Result<antecedent_expr::InterventionSetId, antecedent_expr::ExprError>
+pub fn <antecedent_expr::CausalExprArena>::fn var_set(&self, id: antecedent_expr::VarSetId) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_expr::CausalExprArena>::fn var_set_count(&self) -> usize
+pub fn <antecedent_expr::CompiledEvaluator>::fn compile(arena: &antecedent_expr::CausalExprArena, root: antecedent_expr::ExprId) -> core::result::Result<Self, antecedent_expr::EvalError>
+pub fn <antecedent_expr::CompiledEvaluator>::fn evaluate(&self, arena: &antecedent_expr::CausalExprArena, provider: &dyn antecedent_expr::DistributionProvider, ctx: &antecedent_expr::EvalContext) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub fn <antecedent_expr::CompiledEvaluator>::fn evaluate_batch(&self, arena: &antecedent_expr::CausalExprArena, provider: &dyn antecedent_expr::DistributionProvider) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_expr::EvalError>
+pub fn <antecedent_expr::CompiledEvaluator>::fn evaluate_with(&self, arena: &antecedent_expr::CausalExprArena, provider: &dyn antecedent_expr::DistributionProvider, ctx: &antecedent_expr::EvalContext, env: &antecedent_expr::Assignment) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub fn <antecedent_expr::DerivationMeta>::fn pretty(&self) -> alloc::string::String
+pub fn <antecedent_expr::DerivationMeta>::fn rule(rule: impl core::convert::Into<alloc::sync::Arc<str>>, note: core::option::Option<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_expr::EmpiricalTableProvider>::fn insert_probability(&mut self, spec: &antecedent_expr::FactorSpec<'_>, assignment: &antecedent_expr::Assignment, probability: f64) -> core::result::Result<(), antecedent_expr::EvalError>
+pub fn <antecedent_expr::EmpiricalTableProvider>::fn new() -> Self
+pub fn <antecedent_expr::EmpiricalTableProvider>::fn set_domain(&mut self, var: antecedent_core::ids::VariableId, values: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::value::Value>)
+pub fn <antecedent_expr::EmpiricalTableProvider>::fn snapshot_factors(&self, requirements: &[antecedent_expr::FactorRequirement]) -> core::result::Result<antecedent_expr::provider::EmpiricalProviderSnapshot, antecedent_expr::provider::ProviderSnapshotError>
+pub fn <antecedent_expr::EmpiricalTableProvider>::fn snapshot_factors_with_limit(&self, requirements: &[antecedent_expr::FactorRequirement], cell_limit: usize) -> core::result::Result<antecedent_expr::provider::EmpiricalProviderSnapshot, antecedent_expr::provider::ProviderSnapshotError>
+pub fn <antecedent_expr::EstimandMethod>::const fn as_str(self) -> &'static str
+pub fn <antecedent_expr::EstimandMethod>::const fn is_backdoor_family(self) -> bool
+pub fn <antecedent_expr::EstimandMethod>::const fn is_temporal_mediation(self) -> bool
+pub fn <antecedent_expr::ExactDiscreteLaw>::const fn origin(&self) -> antecedent_expr::LawOrigin
+pub fn <antecedent_expr::ExactDiscreteLaw>::const fn regime(&self) -> antecedent_core::ids::RegimeId
+pub fn <antecedent_expr::ExactDiscreteLaw>::const fn tolerance(&self) -> antecedent_expr::LawTolerance
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn axes(&self) -> &[antecedent_expr::DiscreteAxis]
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn content_identity(&self) -> antecedent_core::recalc::StageIdentity
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn empirical_counts(&self) -> core::option::Option<&[u64]>
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn interventions(&self) -> &[antecedent_expr::InterventionAssignment]
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn population(&self) -> &str
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn probabilities(&self) -> &[f64]
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn snapshot_identity(&self) -> &str
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn try_bayesian_posterior(population: impl core::convert::Into<alloc::sync::Arc<str>>, regime: antecedent_core::ids::RegimeId, interventions: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>>, axes: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::DiscreteAxis]>>, probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, snapshot_identity: impl core::convert::Into<alloc::sync::Arc<str>>, tolerance: antecedent_expr::LawTolerance) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn try_empirical(population: impl core::convert::Into<alloc::sync::Arc<str>>, regime: antecedent_core::ids::RegimeId, interventions: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>>, axes: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::DiscreteAxis]>>, probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, snapshot_identity: impl core::convert::Into<alloc::sync::Arc<str>>, tolerance: antecedent_expr::LawTolerance) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn try_new(population: impl core::convert::Into<alloc::sync::Arc<str>>, regime: antecedent_core::ids::RegimeId, interventions: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::InterventionAssignment]>>, axes: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::DiscreteAxis]>>, probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, snapshot_identity: impl core::convert::Into<alloc::sync::Arc<str>>, tolerance: antecedent_expr::LawTolerance) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn with_empirical_counts(self, counts: alloc::vec::Vec<u64>) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn with_learned_support(self, counts: alloc::vec::Vec<u64>) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactDistribution>::fn mean(&self, outcome: antecedent_core::ids::VariableId) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactDistribution>::fn mean_difference(&self, reference: &Self, outcome: antecedent_core::ids::VariableId) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactEvaluationPlan>::const fn arena(&self) -> &antecedent_expr::CausalExprArena
+pub fn <antecedent_expr::ExactEvaluationPlan>::const fn root(&self) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::ExactEvaluationPlan>::fn compile(spec: antecedent_expr::ExactEvaluationSpec<'_>, data: antecedent_expr::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactEvaluationPlan>::fn evaluate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactLawError>::const fn is_missing_provider(&self) -> bool
+pub fn <antecedent_expr::ExactLawError>::fn is_null_conditioning_event(&self) -> bool
+pub fn <antecedent_expr::ExactTransportData>::const fn max_support_rows(&self) -> usize
+pub fn <antecedent_expr::ExactTransportData>::fn domain(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<&[antecedent_core::value::Value]>
+pub fn <antecedent_expr::ExactTransportData>::fn law_identities(&self) -> &[antecedent_core::recalc::StageIdentity]
+pub fn <antecedent_expr::ExactTransportData>::fn laws(&self) -> &[antecedent_expr::ExactDiscreteLaw]
+pub fn <antecedent_expr::ExactTransportData>::fn probability_checked(&self, spec: &antecedent_expr::FactorSpec<'_>, assignment: &antecedent_expr::Assignment) -> core::result::Result<f64, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactTransportData>::fn rebind_reusing_factor_cache(&self, previous: core::option::Option<&Self>, capacity: usize) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactTransportData>::fn require_factor(&self, spec: &antecedent_expr::FactorSpec<'_>) -> core::result::Result<&antecedent_expr::ExactDiscreteLaw, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactTransportData>::fn try_new(laws: impl core::convert::Into<alloc::sync::Arc<[antecedent_expr::ExactDiscreteLaw]>>, max_support_rows: usize) -> core::result::Result<Self, antecedent_expr::ExactLawError>
+pub fn <antecedent_expr::ExactTransportData>::fn with_shared_factor_cache(self, capacity: usize) -> Self
+pub fn <antecedent_expr::ExactTransportData>::fn with_world_bound_leaves(self, cited: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::RegimeId]>>) -> Self
+pub fn <antecedent_expr::ExprId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_expr::ExprId>::const fn raw(self) -> u32
+pub fn <antecedent_expr::ExprListId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_expr::ExprListId>::const fn raw(self) -> u32
+pub fn <antecedent_expr::FactorSpec<'a>>::const fn new(variables: &'a [antecedent_core::ids::VariableId], conditioned_on: &'a [antecedent_core::ids::VariableId], intervention: &'a [antecedent_expr::InterventionAssignment], domain: antecedent_expr::DomainRef) -> Self
+pub fn <antecedent_expr::FunctionalProgram>::fn arena(&self) -> &antecedent_expr::CausalExprArena
+pub fn <antecedent_expr::FunctionalProgram>::fn compile(&self) -> core::result::Result<antecedent_expr::ProgramEvaluator, antecedent_expr::EvalError>
+pub fn <antecedent_expr::FunctionalProgram>::fn factor_requirements(&self) -> &[antecedent_expr::FactorRequirement]
+pub fn <antecedent_expr::FunctionalProgram>::fn free_variables(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_expr::FunctionalProgram>::fn mapping(&self) -> antecedent_expr::ProgramMapping
+pub fn <antecedent_expr::FunctionalProgram>::fn new(arena: antecedent_expr::CausalExprArena, schema: antecedent_expr::ProgramSchema, source: antecedent_expr::ExprId, executable: antecedent_expr::ExprId, limits: antecedent_expr::ProgramLimits) -> core::result::Result<Self, antecedent_expr::ProgramError>
+pub fn <antecedent_expr::FunctionalProgram>::fn schema(&self) -> &antecedent_expr::ProgramSchema
+pub fn <antecedent_expr::IdentifiedEstimand>::fn backdoor(method: impl core::convert::Into<alloc::sync::Arc<str>>, adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, functional: antecedent_expr::ExprId) -> Self
+pub fn <antecedent_expr::IdentifiedEstimand>::fn frontdoor(method: impl core::convert::Into<alloc::sync::Arc<str>>, mediators: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, functional: antecedent_expr::ExprId) -> Self
+pub fn <antecedent_expr::IdentifiedEstimand>::fn instrumental(method: impl core::convert::Into<alloc::sync::Arc<str>>, instruments: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, functional: antecedent_expr::ExprId) -> Self
+pub fn <antecedent_expr::IdentifiedEstimand>::fn is_adjustment_shaped(&self) -> bool
+pub fn <antecedent_expr::IdentifiedEstimand>::fn method_kind(&self) -> core::result::Result<antecedent_expr::EstimandMethod, alloc::string::String>
+pub fn <antecedent_expr::IdentifiedEstimand>::fn new(method: impl core::convert::Into<alloc::sync::Arc<str>>, adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, instruments: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, mediators: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, functional: antecedent_expr::ExprId, rd_design: core::option::Option<antecedent_expr::RdDesignParams>) -> Self
+pub fn <antecedent_expr::IdentifiedEstimand>::fn rd_sharp(functional: antecedent_expr::ExprId, design: antecedent_expr::RdDesignParams) -> Self
+pub fn <antecedent_expr::IdentifiedEstimand>::fn temporal_mediation(method: impl core::convert::Into<alloc::sync::Arc<str>>, mediators: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, functional: antecedent_expr::ExprId) -> Self
+pub fn <antecedent_expr::InterventionAssignment>::const fn concrete(variable: antecedent_core::ids::VariableId, value: antecedent_core::value::Value) -> Self
+pub fn <antecedent_expr::InterventionAssignment>::fn is_symbolic(&self) -> bool
+pub fn <antecedent_expr::InterventionAssignment>::fn symbolic(variable: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_expr::InterventionSetId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_expr::InterventionSetId>::const fn raw(self) -> u32
+pub fn <antecedent_expr::LawOrigin>::const fn as_str(self) -> &'static str
+pub fn <antecedent_expr::LawOrigin>::fn parse(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_expr::OutcomeExprId>::const fn identity(variable: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_expr::OutcomeExprId>::const fn variable(self) -> antecedent_core::ids::VariableId
+pub fn <antecedent_expr::PopulationKeyId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_expr::PopulationKeyId>::const fn raw(self) -> u32
+pub fn <antecedent_expr::ProgramEvaluator>::fn evaluate(&self, provider: &dyn antecedent_expr::DistributionProvider, ctx: &antecedent_expr::EvalContext) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ProgramEvaluator>::fn evaluate_with(&self, provider: &dyn antecedent_expr::DistributionProvider, ctx: &antecedent_expr::EvalContext, env: &antecedent_expr::Assignment) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ProgramSchema>::fn new(variables: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::ids::VariableId, antecedent_expr::ProgramVariable)>) -> Self
+pub fn <antecedent_expr::ProgramSchema>::fn variable(&self, id: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent_expr::ProgramVariable>
+pub fn <antecedent_expr::ProgramSchema>::fn variables(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::ids::VariableId, &antecedent_expr::ProgramVariable)>
+pub fn <antecedent_expr::RdDesignParams>::const fn new(running_variable: antecedent_core::ids::VariableId, cutoff: f64, bandwidth: f64) -> Self
+pub fn <antecedent_expr::VarSetId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_expr::VarSetId>::const fn raw(self) -> u32
+pub fn antecedent_expr::execution_counts::count_static_work<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, antecedent_expr::execution_counts::StaticWorkCounts)
+pub fn antecedent_expr::execution_counts::note_static_work(work: antecedent_expr::execution_counts::StaticWork)
+pub mod antecedent_expr::estimand
+pub mod antecedent_expr::eval
+pub mod antecedent_expr::exact
+pub mod antecedent_expr::exact_plan
+pub mod antecedent_expr::execution_counts
+pub mod antecedent_expr::program
+pub mod antecedent_expr::provider
+pub mod antecedent_expr::simplify
+pub struct antecedent_expr::Assignment
+pub struct antecedent_expr::Assignment has private fields
+pub struct antecedent_expr::CausalExprArena
+pub struct antecedent_expr::CausalExprArena has private fields
+pub struct antecedent_expr::CompiledEvaluator
+pub struct antecedent_expr::CompiledEvaluator has private fields
+pub struct antecedent_expr::DerivationMeta
+pub struct antecedent_expr::DiscreteAxis
+pub struct antecedent_expr::DistributionLeaf
+pub struct antecedent_expr::EmpiricalTableProvider
+pub struct antecedent_expr::EmpiricalTableProvider has private fields
+pub struct antecedent_expr::EvalContext
+pub struct antecedent_expr::ExactDiscreteLaw
+pub struct antecedent_expr::ExactDiscreteLaw has private fields
+pub struct antecedent_expr::ExactDistribution
+pub struct antecedent_expr::ExactEvaluationLimits
+pub struct antecedent_expr::ExactEvaluationPlan
+pub struct antecedent_expr::ExactEvaluationPlan has private fields
+pub struct antecedent_expr::ExactEvaluationSpec<'a>
+pub struct antecedent_expr::ExactLawError
+pub struct antecedent_expr::ExactSupportRecord
+pub struct antecedent_expr::ExactTransportData
+pub struct antecedent_expr::ExactTransportData has private fields
+pub struct antecedent_expr::ExprId
+pub struct antecedent_expr::ExprId has private fields
+pub struct antecedent_expr::ExprListId
+pub struct antecedent_expr::ExprListId has private fields
+pub struct antecedent_expr::FactorRequirement
+pub struct antecedent_expr::FactorSpec<'a>
+pub struct antecedent_expr::FunctionalProgram
+pub struct antecedent_expr::FunctionalProgram has private fields
+pub struct antecedent_expr::InterventionAssignment
+pub struct antecedent_expr::InterventionSetId
+pub struct antecedent_expr::InterventionSetId has private fields
+pub struct antecedent_expr::LawTolerance
+pub struct antecedent_expr::LeafBinding
+pub struct antecedent_expr::LeafSignature
+pub struct antecedent_expr::OutcomeExprId
+pub struct antecedent_expr::OutcomeExprId has private fields
+pub struct antecedent_expr::PopulationKeyId
+pub struct antecedent_expr::PopulationKeyId has private fields
+pub struct antecedent_expr::ProgramEvaluator
+pub struct antecedent_expr::ProgramEvaluator has private fields
+pub struct antecedent_expr::ProgramLimits
+pub struct antecedent_expr::ProgramMapping
+pub struct antecedent_expr::ProgramSchema
+pub struct antecedent_expr::ProgramSchema has private fields
+pub struct antecedent_expr::ProgramVariable
+pub struct antecedent_expr::VarSetId
+pub struct antecedent_expr::VarSetId has private fields
+pub struct antecedent_expr::execution_counts::StaticWorkCounts
+pub struct antecedent_expr::provider::DiscreteDomainSnapshot
+pub struct antecedent_expr::provider::EmpiricalFactorRow
+pub struct antecedent_expr::provider::EmpiricalFactorTableSnapshot
+pub struct antecedent_expr::provider::EmpiricalProviderSnapshot
+pub trait antecedent_expr::DistributionProvider
+pub trait fn fn antecedent_expr::DistributionProvider::n_draws(&self) -> core::option::Option<usize>
+pub trait fn fn antecedent_expr::DistributionProvider::outcome(&self, var: antecedent_core::ids::VariableId, assignment: &antecedent_expr::Assignment, ctx: &antecedent_expr::EvalContext) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub trait fn fn antecedent_expr::DistributionProvider::probability(&self, spec: &antecedent_expr::FactorSpec<'_>, assignment: &antecedent_expr::Assignment, ctx: &antecedent_expr::EvalContext) -> core::result::Result<f64, antecedent_expr::EvalError>
+pub trait fn fn antecedent_expr::DistributionProvider::quadrature(&self, _vars: &[antecedent_core::ids::VariableId], _ctx: &antecedent_expr::EvalContext) -> core::result::Result<core::option::Option<alloc::sync::Arc<[(alloc::sync::Arc<[antecedent_core::value::Value]>, f64)]>>, antecedent_expr::EvalError> {default}
+pub trait fn fn antecedent_expr::DistributionProvider::support(&self, vars: &[antecedent_core::ids::VariableId], ctx: &antecedent_expr::EvalContext) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::value::Value]>]>, antecedent_expr::EvalError>
+pub trait fn fn antecedent_expr::DistributionProvider::zero_denominator(&self, _arena: &antecedent_expr::CausalExprArena, _expression: antecedent_expr::ExprId, _assignment: &antecedent_expr::Assignment) -> antecedent_expr::EvalError {default}
+pub use antecedent_expr::estimand::EstimandMethod = antecedent_expr::EstimandMethod
+pub use antecedent_expr::estimand::IdentifiedEstimand = antecedent_expr::IdentifiedEstimand
+pub use antecedent_expr::estimand::RdDesignParams = antecedent_expr::RdDesignParams
+pub use antecedent_expr::eval::CompiledEvaluator = antecedent_expr::CompiledEvaluator
+pub use antecedent_expr::exact::DiscreteAxis = antecedent_expr::DiscreteAxis
+pub use antecedent_expr::exact::ExactDiscreteLaw = antecedent_expr::ExactDiscreteLaw
+pub use antecedent_expr::exact::ExactLawError = antecedent_expr::ExactLawError
+pub use antecedent_expr::exact::ExactTransportData = antecedent_expr::ExactTransportData
+pub use antecedent_expr::exact::LawOrigin = antecedent_expr::LawOrigin
+pub use antecedent_expr::exact::LawTolerance = antecedent_expr::LawTolerance
+pub use antecedent_expr::exact_plan::ExactDistribution = antecedent_expr::ExactDistribution
+pub use antecedent_expr::exact_plan::ExactEvaluationLimits = antecedent_expr::ExactEvaluationLimits
+pub use antecedent_expr::exact_plan::ExactEvaluationPlan = antecedent_expr::ExactEvaluationPlan
+pub use antecedent_expr::exact_plan::ExactEvaluationSpec = antecedent_expr::ExactEvaluationSpec
+pub use antecedent_expr::exact_plan::ExactSupportRecord = antecedent_expr::ExactSupportRecord
+pub use antecedent_expr::program::FactorRequirement = antecedent_expr::FactorRequirement
+pub use antecedent_expr::program::FunctionalProgram = antecedent_expr::FunctionalProgram
+pub use antecedent_expr::program::ProgramError = antecedent_expr::ProgramError
+pub use antecedent_expr::program::ProgramEvaluator = antecedent_expr::ProgramEvaluator
+pub use antecedent_expr::program::ProgramLimits = antecedent_expr::ProgramLimits
+pub use antecedent_expr::program::ProgramMapping = antecedent_expr::ProgramMapping
+pub use antecedent_expr::program::ProgramSchema = antecedent_expr::ProgramSchema
+pub use antecedent_expr::program::ProgramVariable = antecedent_expr::ProgramVariable
+pub use antecedent_expr::provider::Assignment = antecedent_expr::Assignment
+pub use antecedent_expr::provider::DistributionProvider = antecedent_expr::DistributionProvider
+pub use antecedent_expr::provider::EmpiricalTableProvider = antecedent_expr::EmpiricalTableProvider
+pub use antecedent_expr::provider::EvalContext = antecedent_expr::EvalContext
+pub use antecedent_expr::provider::EvalError = antecedent_expr::EvalError
+pub use antecedent_expr::provider::FactorSpec = antecedent_expr::FactorSpec
+pub use antecedent_expr::simplify::SimplifyError = antecedent_expr::SimplifyError
+pub variant antecedent_expr::ContrastOp::Difference
+pub variant antecedent_expr::DomainRef::Interventional
+pub variant antecedent_expr::DomainRef::Observational
+pub variant antecedent_expr::EstimandMethod::BackdoorAdjustment
+pub variant antecedent_expr::EstimandMethod::BackdoorEfficient
+pub variant antecedent_expr::EstimandMethod::FrontDoor
+pub variant antecedent_expr::EstimandMethod::GeneralId
+pub variant antecedent_expr::EstimandMethod::Iv
+pub variant antecedent_expr::EstimandMethod::PathSpecificNatural
+pub variant antecedent_expr::EstimandMethod::RandomizedItt
+pub variant antecedent_expr::EstimandMethod::RandomizedPolicyValue
+pub variant antecedent_expr::EstimandMethod::RdSharp
+pub variant antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded
+pub variant antecedent_expr::EstimandMethod::TemporalMediationDirect
+pub variant antecedent_expr::EstimandMethod::TemporalMediationMediated
+pub variant antecedent_expr::EstimandMethod::TemporalMediationTotal
+pub variant antecedent_expr::EvalError::DivisionByZero
+pub variant antecedent_expr::EvalError::DrawOutOfRange { draw: usize, n_draws: usize }
+pub variant antecedent_expr::EvalError::EmptySupport(antecedent_core::ids::VariableId)
+pub variant antecedent_expr::EvalError::ExactLaw(alloc::boxed::Box<antecedent_expr::ExactLawError>)
+pub variant antecedent_expr::EvalError::ExactRatioSupport { expression: antecedent_expr::ExprId, assignment: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::value::Value)]>, bindings: alloc::sync::Arc<[antecedent_expr::LeafBinding]> }
+pub variant antecedent_expr::EvalError::InvalidParameter(&'static str)
+pub variant antecedent_expr::EvalError::MissingBinding(antecedent_core::ids::VariableId)
+pub variant antecedent_expr::EvalError::MissingTableEntry
+pub variant antecedent_expr::EvalError::NonFiniteRatio
+pub variant antecedent_expr::EvalError::ProviderKind(&'static str)
+pub variant antecedent_expr::EvalError::SupportShape { expected: usize, actual: usize }
+pub variant antecedent_expr::EvalError::UnsupportedConditioning(&'static str)
+pub variant antecedent_expr::EvalError::UnsupportedIntegralOut
+pub variant antecedent_expr::ExprError::CaptureOrConflict
+pub variant antecedent_expr::ExprError::CertificateBindFailed
+pub variant antecedent_expr::ExprError::FreeVariableMismatch
+pub variant antecedent_expr::ExprError::InvalidInstrumentSet
+pub variant antecedent_expr::ExprError::MissingBinding
+pub variant antecedent_expr::ExprError::RegimeDomainMismatch
+pub variant antecedent_expr::ExprNode::Contrast { left: antecedent_expr::ExprId, right: antecedent_expr::ExprId, op: antecedent_expr::ContrastOp }
+pub variant antecedent_expr::ExprNode::Distribution { variables: antecedent_expr::VarSetId, conditioned_on: antecedent_expr::VarSetId, intervention: antecedent_expr::InterventionSetId, domain: antecedent_expr::DomainRef, population: antecedent_expr::PopulationKeyId, regime: core::option::Option<antecedent_core::ids::RegimeId> }
+pub variant antecedent_expr::ExprNode::Expectation { function: antecedent_expr::OutcomeExprId, distribution: antecedent_expr::ExprId }
+pub variant antecedent_expr::ExprNode::IntegralOut { variables: antecedent_expr::VarSetId, expr: antecedent_expr::ExprId }
+pub variant antecedent_expr::ExprNode::Kernel { body: antecedent_expr::ExprId, bound: antecedent_expr::VarSetId, population: antecedent_expr::PopulationKeyId, regime: core::option::Option<antecedent_core::ids::RegimeId> }
+pub variant antecedent_expr::ExprNode::Product(antecedent_expr::ExprListId)
+pub variant antecedent_expr::ExprNode::Ratio { numerator: antecedent_expr::ExprId, denominator: antecedent_expr::ExprId }
+pub variant antecedent_expr::ExprNode::SumOut { variables: antecedent_expr::VarSetId, expr: antecedent_expr::ExprId }
+pub variant antecedent_expr::LawOrigin::BayesianPosterior
+pub variant antecedent_expr::LawOrigin::EmpiricalPlugin
+pub variant antecedent_expr::LawOrigin::LearnedPlugin
+pub variant antecedent_expr::LawOrigin::SuppliedExact
+pub variant antecedent_expr::ProgramError::DuplicateSchemaVariable
+pub variant antecedent_expr::ProgramError::InvalidReference(&'static str)
+pub variant antecedent_expr::ProgramError::Limit(&'static str)
+pub variant antecedent_expr::ProgramError::MappingMismatch
+pub variant antecedent_expr::ProgramError::MissingSchemaVariable(antecedent_core::ids::VariableId)
+pub variant antecedent_expr::SimplifyError::DeadIntegralOut { variables: alloc::vec::Vec<antecedent_core::ids::VariableId> }
+pub variant antecedent_expr::SimplifyError::DeadSumOut { variables: alloc::vec::Vec<antecedent_core::ids::VariableId> }
+pub variant antecedent_expr::execution_counts::StaticWork::FactorBuild
+pub variant antecedent_expr::execution_counts::StaticWork::FactorEvaluation
+pub variant antecedent_expr::execution_counts::StaticWork::Integration
+pub variant antecedent_expr::execution_counts::StaticWork::LawSummary
+pub variant antecedent_expr::execution_counts::StaticWork::ProgramCompilation
+pub variant antecedent_expr::execution_counts::StaticWork::ProviderBinding
+pub variant antecedent_expr::execution_counts::StaticWork::ProviderCall
+pub variant antecedent_expr::provider::ProviderSnapshotError::CellLimit { requested: usize, limit: usize }
+pub variant antecedent_expr::provider::ProviderSnapshotError::InvalidProbability { factor: usize }
+pub variant antecedent_expr::provider::ProviderSnapshotError::InvalidSnapshot(&'static str)
+pub variant antecedent_expr::provider::ProviderSnapshotError::MissingCell { factor: usize }
+pub variant antecedent_expr::provider::ProviderSnapshotError::MissingDomain(antecedent_core::ids::VariableId)
+pub variant antecedent_expr::provider::ProviderSnapshotError::NotNormalized { factor: usize }

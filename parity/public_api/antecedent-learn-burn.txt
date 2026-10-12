@@ -1,0 +1,30 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+impl core::clone::Clone for antecedent_learn_burn::MlpSpec
+impl core::clone::Clone for antecedent_learn_burn::TrainedMlp
+impl core::fmt::Debug for antecedent_learn_burn::MlpSpec
+impl core::fmt::Debug for antecedent_learn_burn::TrainedMlp
+impl core::marker::Copy for antecedent_learn_burn::MlpSpec
+impl core::marker::Freeze for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Freeze for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Send for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Send for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Sync for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Sync for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Unpin for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Unpin for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::MlpSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::MlpSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+pub field antecedent_learn_burn::MlpSpec::binary: bool
+pub field antecedent_learn_burn::MlpSpec::epochs: usize
+pub field antecedent_learn_burn::MlpSpec::hidden: usize
+pub field antecedent_learn_burn::MlpSpec::learning_rate: f64
+pub field antecedent_learn_burn::MlpSpec::seed: u64
+pub fn <antecedent_learn_burn::TrainedMlp>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), alloc::string::String>
+pub fn antecedent_learn_burn::train(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec) -> core::result::Result<antecedent_learn_burn::TrainedMlp, alloc::string::String>
+pub struct antecedent_learn_burn::MlpSpec
+pub struct antecedent_learn_burn::TrainedMlp
+pub struct antecedent_learn_burn::TrainedMlp has private fields
