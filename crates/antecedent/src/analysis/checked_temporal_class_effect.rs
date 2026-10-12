@@ -76,7 +76,7 @@ impl CheckedTemporalClassEffectOperation {
         refute: RefuteSuite,
         custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let wrong_class = || CausalError::Compile {
             message: "temporal class effect requires a TemporalCpdag or TemporalPag proof".into(),
         };

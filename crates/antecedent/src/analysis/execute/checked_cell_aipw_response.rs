@@ -77,7 +77,7 @@ impl CheckedCellAipwResponseOperation {
         origin: DagResponseOrigin,
     ) -> Result<Self, CausalError> {
         let (identification, estimand) = (&cache.identification, &cache.estimand);
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
         else {
             return Err(CausalError::Unsupported {

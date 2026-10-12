@@ -3471,7 +3471,7 @@ impl PyPreparedAnalysis {
             }
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::RandomizedEffect(query));
             req.finish_applied(builder, false)
@@ -3524,7 +3524,7 @@ impl PyPreparedAnalysis {
             };
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3571,7 +3571,7 @@ impl PyPreparedAnalysis {
             );
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3619,7 +3619,7 @@ impl PyPreparedAnalysis {
             );
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3662,7 +3662,7 @@ impl PyPreparedAnalysis {
                 cohorts,
             );
             query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+                py_err(antecedent::CausalError::rejected(error))
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
@@ -3726,7 +3726,7 @@ impl PyPreparedAnalysis {
                 query
             };
             query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+                py_err(antecedent::CausalError::rejected(error))
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
@@ -3801,7 +3801,7 @@ impl PyPreparedAnalysis {
                 fixed_policy,
             };
             query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+                py_err(antecedent::CausalError::rejected(error))
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query));
@@ -3842,7 +3842,7 @@ impl PyPreparedAnalysis {
                 kink,
             };
             query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+                py_err(antecedent::CausalError::rejected(error))
             })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LocalPolynomialRatio(query));
@@ -3960,7 +3960,7 @@ impl PyPreparedAnalysis {
             };
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LongitudinalRegime(query));
             req.finish_applied(builder, false)
@@ -4024,7 +4024,7 @@ impl PyPreparedAnalysis {
             };
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::Survival(query));
             req.finish_applied(builder, false)
@@ -4124,7 +4124,7 @@ impl PyPreparedAnalysis {
             };
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             req.finish_applied(builder, false)
@@ -4217,7 +4217,7 @@ impl PyPreparedAnalysis {
             };
             query
                 .validate()
-                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             req.finish_applied(builder, false)
@@ -4551,6 +4551,9 @@ impl PyPreparedAnalysis {
                 .map_err(|e| match e {
                     // An incomplete payload stays the ValueError it always was.
                     antecedent::CausalError::Compile { message } => PyValueError::new_err(message),
+                    antecedent::CausalError::Rejected(failure) => {
+                        PyValueError::new_err(failure.message().to_owned())
+                    }
                     other => py_err(other),
                 })?;
             let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));

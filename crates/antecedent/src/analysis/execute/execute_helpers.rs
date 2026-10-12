@@ -467,7 +467,7 @@ pub(super) fn interactive_subsample_graphs_accounted(
     let mut rng = ctx.rng.stream_for(StreamDomain::Execute, 0xE11E_u64);
     let sub = graphs
         .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        ?;
     let keys: Vec<u64> = graphs
         .identified
         .iter()
@@ -2482,7 +2482,7 @@ pub(crate) fn temporal_admg_projection(
 ) -> Result<Admg, CausalError> {
     graph
         .project_preserving_functional()
-        .map_err(|error| CausalError::Compile { message: error.to_string() })
+        .map_err(CausalError::rejected)
 }
 
 /// The directed part of an ADMG as a DAG.
@@ -2504,7 +2504,7 @@ pub(super) fn admg_without_latents_to_dag(admg: &Admg) -> Result<Dag, CausalErro
         let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
         for &to in admg.children(from) {
             dag.insert_directed(from, to)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                .map_err(CausalError::rejected)?;
         }
     }
     Ok(dag)

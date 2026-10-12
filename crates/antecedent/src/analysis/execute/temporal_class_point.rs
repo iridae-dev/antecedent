@@ -221,9 +221,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "class-aware temporal derivative requires TemporalResponseSpec".into(),
         })?;
@@ -265,9 +263,7 @@ impl super::Study {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
             };
-        let treatment_offset = probe
-            .try_treatment_offset()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let treatment_offset = probe.try_treatment_offset()?;
         let outcome_offset = probe.outcome_offset();
         let envelope = &bundle.envelope;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
@@ -396,9 +392,7 @@ impl super::Study {
             report_identify_compute(ctx);
             (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
         };
-        let treatment_offset = probe
-            .try_treatment_offset()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let treatment_offset = probe.try_treatment_offset()?;
         let outcome_offset = probe.outcome_offset();
         let query = &self.query;
         let fitted = collect_weighted_points(&bundle, |case, indexer| {
@@ -585,9 +579,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let CausalQuery::Response(query) = &self.query else { unreachable!() };
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "class-aware temporal derivative requires TemporalResponseSpec".into(),
         })?;
@@ -606,9 +598,7 @@ impl super::Study {
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
         let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let treatment_offset = probe
-            .try_treatment_offset()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let treatment_offset = probe.try_treatment_offset()?;
         let outcome_offset = probe.outcome_offset();
         let mut pairs = Vec::new();
         let mut responses = Vec::new();
@@ -689,9 +679,7 @@ impl super::Study {
             .with_max_history_lag(Some(1));
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
         let prior_scale = isotropic_prior_scale(&self.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
-        let treatment_offset = probe
-            .try_treatment_offset()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let treatment_offset = probe.try_treatment_offset()?;
         let outcome_offset = probe.outcome_offset();
         let mut pairs = Vec::new();
         let mut chosen = None;

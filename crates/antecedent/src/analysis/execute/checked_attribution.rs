@@ -72,11 +72,11 @@ impl CheckedAttributionOperation {
         };
         let target = match &study.query {
             CausalQuery::AnomalyAttribution(query) => {
-                query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                query.validate()?;
                 AttributionTarget::Anomaly(query.clone())
             }
             CausalQuery::ChangeAttribution(query) => {
-                query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                query.validate()?;
                 AttributionTarget::Change(query.clone())
             }
             _ => {
@@ -366,7 +366,7 @@ impl CheckedAttributionOperation {
                 super::attribution_path::dirichlet_row_weights(data.row_count(), &mut rng);
             let store = registry
                 .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                .map_err(CausalError::rejected)?;
             let draw_scores = anomaly_attribution_query_with(
                 &fitted.model.clone().with_mechanisms(store),
                 data,
@@ -415,10 +415,10 @@ impl CheckedAttributionOperation {
             return Ok(None);
         };
         let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?
+            .map_err(CausalError::rejected)?
             .len();
         let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?
+            .map_err(CausalError::rejected)?
             .len();
         let options = antecedent_attribution::DistributionChangeOptions::default();
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xC4A6_7A7E);
@@ -443,7 +443,7 @@ impl CheckedAttributionOperation {
                 &comparison_weights,
                 ctx,
             )
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            .map_err(CausalError::rejected)?;
             totals.push(draw.total_change);
             let columns = components.get_or_insert_with(|| {
                 draw.contributions

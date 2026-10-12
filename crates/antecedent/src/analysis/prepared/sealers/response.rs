@@ -213,12 +213,7 @@ pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
             };
             Some(CheckedStaticResponseCurve {
                 query: query.clone(),
-                grid: Arc::from(
-                    treatment
-                        .grid
-                        .values()
-                        .map_err(|e| CausalError::Compile { message: e.to_string() })?,
-                ),
+                grid: Arc::from(treatment.grid.values()?),
                 cache: Arc::clone(cache),
                 identifier: RouteDefaults::RESPONSE.identifier,
                 estimator: RouteDefaults::RESPONSE.estimator,

@@ -71,7 +71,7 @@ impl CheckedTemporalClassResponseOperation {
         validation: RefuteSuite,
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if !matches!(source_graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Err(CausalError::Compile {
                 message: "temporal class response requires a TemporalCpdag or TemporalPag proof"
@@ -149,12 +149,8 @@ impl CheckedTemporalClassResponseOperation {
                 .with_horizon_steps(horizon)
                 .with_max_history_lag(spec.max_history_lag)
                 .with_target_population(query.target_population.clone());
-            let treatment_key = TemporalNodeKey {
-                variable: treatment,
-                offset: witness
-                    .try_treatment_offset()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?,
-            };
+            let treatment_key =
+                TemporalNodeKey { variable: treatment, offset: witness.try_treatment_offset()? };
             let outcome_key =
                 TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
             let witness_binds =

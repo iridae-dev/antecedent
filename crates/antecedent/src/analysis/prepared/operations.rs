@@ -527,13 +527,7 @@ impl CheckedAdmgResponseCurveOperation {
                         message: "response curve member posterior omitted its effect quantity"
                             .into(),
                     })?;
-                columns.push(
-                    member_posterior
-                        .draws
-                        .column(quantity)
-                        .map_err(|error| CausalError::Compile { message: error.to_string() })?
-                        .to_vec(),
-                );
+                columns.push(member_posterior.draws.column(quantity)?.to_vec());
             }
             let schema = antecedent_prob::PosteriorSchema {
                 quantities: Arc::from(
@@ -549,8 +543,7 @@ impl CheckedAdmgResponseCurveOperation {
                 schema,
                 n,
                 columns.into_iter().flatten().collect::<Vec<_>>(),
-            )
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            )?;
             let summaries = draws.summarize();
             let mut joint = member_posteriors.remove(0);
             joint.draws = draws;
@@ -741,10 +734,9 @@ impl CheckedStaticResponseCurve {
         query: &ResponseQuery,
     ) -> Result<(&IdentificationResult, &IdentifiedEstimand), CausalError> {
         let values = match &query.functional {
-            antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+            antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } => {
+                treatment.grid.values()?
+            }
             _ => Vec::new(),
         };
         if query != &self.query || values.as_slice() != self.grid.as_ref() {

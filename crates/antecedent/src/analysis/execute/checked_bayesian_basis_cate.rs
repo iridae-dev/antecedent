@@ -183,23 +183,21 @@ impl CheckedBayesianBasisCateExecution {
             })
             .collect::<Result<_, _>>()?;
         let model = BayesianBasisGComputation;
-        let fit = model
-            .fit(
-                &t,
-                &y,
-                &x,
-                covariates.len(),
-                Some(&row_ids),
-                None,
-                BasisTargetPopulation::AllObserved,
-                BayesianBasisSpec {
-                    prior_sd: self.config.prior_scale,
-                    n_draws: bayesian_draw_count(&InferenceMode::Bayesian(self.config.clone()))?,
-                    seed: ctx.rng.master_seed(),
-                },
-                ctx,
-            )
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let fit = model.fit(
+            &t,
+            &y,
+            &x,
+            covariates.len(),
+            Some(&row_ids),
+            None,
+            BasisTargetPopulation::AllObserved,
+            BayesianBasisSpec {
+                prior_sd: self.config.prior_scale,
+                n_draws: bayesian_draw_count(&InferenceMode::Bayesian(self.config.clone()))?,
+                seed: ctx.rng.master_seed(),
+            },
+            ctx,
+        )?;
         let n_draws = fit.ate_draws.len();
         let mut quantities = Vec::with_capacity(rows.len() + 1);
         quantities.push(antecedent_prob::PosteriorQuantityKind::Effect { name: Arc::from("ate") });
@@ -219,8 +217,7 @@ impl CheckedBayesianBasisCateExecution {
             antecedent_prob::PosteriorSchema { quantities: Arc::from(quantities) },
             n_draws,
             Arc::<[f64]>::from(columns),
-        )
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        )?;
         let summaries = draws.summarize();
         let mut assumptions = self.cache.identification.required_assumptions.clone();
         assumptions.push(AssumptionRecord { assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.basis_gcomp.quadratic_outcome"), description: Arc::from("Gaussian identity-link outcome regression with quadratic covariate terms and treatment-by-covariate interactions.") }), source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(model.estimator_id()) }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared });

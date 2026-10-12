@@ -50,7 +50,7 @@ impl CheckedBayesianStaticMediationOperation {
         let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
             message: "checked Bayesian static mediation requires a supplied DAG",
         })?;
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let InferenceMode::Bayesian(config) = &study.inference else {
             return Err(CausalError::Compile {
                 message: "checked Bayesian mediation requires a Bayesian configuration".into(),
@@ -67,10 +67,8 @@ impl CheckedBayesianStaticMediationOperation {
             });
         }
         if config.prior_artifact.is_some() {
-            let treatment_name = data
-                .schema()
-                .get(query.treatment)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let treatment_name =
+                data.schema().get(query.treatment).map_err(CausalError::rejected)?;
             let outcome_treatment_slope = format!("coef_{}", treatment_name.name);
             match config.prior_mapping.as_ref() {
                 Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace) => {

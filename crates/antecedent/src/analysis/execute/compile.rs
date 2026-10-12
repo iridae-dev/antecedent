@@ -334,7 +334,7 @@ impl super::Study {
                 Ok(plan)
             }
             RouteInput::TemporalMediationDag { data, query: q, graph } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 let mut plan = compile_logical_temporal_effect(
                     data,
                     graph,
@@ -361,9 +361,7 @@ impl super::Study {
                               mechanism product on completions cannot license it",
             }),
             RouteInput::TemporalMediationCpdag { data, query } => {
-                query
-                    .validate()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                query.validate()?;
                 let mut plan = compile_logical_temporal_effect_classified(
                     data,
                     &TemporalDag::empty(),
@@ -401,7 +399,7 @@ impl super::Study {
                     StaticMediationSource::Mediation(query) => (*query).clone(),
                     StaticMediationSource::Nested(query) => query.as_mediation_query(),
                 };
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 let path = antecedent_core::PathSpecificEffectQuery {
                     control: q.control.clone(),
                     active: q.active.clone(),
@@ -428,7 +426,7 @@ impl super::Study {
                 Ok(plan)
             }
             RouteInput::TransportMixed { data, query: q, .. } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 if self.selection_diagram.is_none() || self.transport_trial.is_none() {
                     return Err(CausalError::Unsupported {
                         message: "TransportQuery requires a selection diagram and transport_trial columns",
@@ -461,7 +459,7 @@ impl super::Study {
                 })
             }
             RouteInput::InterferenceDag { data, query: q, .. } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 if self.interference.is_none() {
                     return Err(CausalError::Unsupported {
                         message: "InterferenceQuery requires StudyBuilder::interference",
@@ -507,7 +505,7 @@ impl super::Study {
                 })
             }
             RouteInput::RandomizedEffect { data, query: q } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 if q.realized_assignment.len() != data.row_count() {
                     return Err(CausalError::Compile {
                         message: "randomized assignment metadata must align with the table rows"
@@ -555,7 +553,7 @@ impl super::Study {
                 })
             }
             RouteInput::PolicyValue { data, query: q } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 if q.multi_action
                     .as_ref()
                     .map_or(q.assignment.len(), |multi| multi.assignment.len())
@@ -594,7 +592,7 @@ impl super::Study {
                 })
             }
             RouteInput::PanelDid { data, query: q } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 if q.treated.len() != data.row_count() {
                     return Err(CausalError::Compile {
                         message: "panel DiD metadata must align with table rows".into(),
@@ -619,8 +617,7 @@ impl super::Study {
                 })
             }
             RouteInput::SyntheticControl { data, query: q } => {
-                q.validate()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                q.validate()?;
                 if q.units.len() != data.row_count() {
                     return Err(CausalError::Compile {
                         message: "synthetic-control metadata must align with table rows".into(),
@@ -645,8 +642,7 @@ impl super::Study {
                 })
             }
             RouteInput::ContinuousDoseResponse { data, query: q } => {
-                q.validate()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                q.validate()?;
                 if q.baseline_groups.len() != data.row_count() {
                     return Err(CausalError::Compile {
                         message: "continuous-dose baseline groups must align with table rows"
@@ -672,12 +668,9 @@ impl super::Study {
                 })
             }
             RouteInput::LocalPolynomialRatio { data, query: q } => {
-                q.validate()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                q.validate()?;
                 for variable in [q.outcome, q.treatment, q.running] {
-                    data.schema()
-                        .get(variable)
-                        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    data.schema().get(variable).map_err(CausalError::rejected)?;
                 }
                 let (plan_id, identifier, estimator) =
                     super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink);
@@ -698,14 +691,12 @@ impl super::Study {
                 })
             }
             RouteInput::Survival { data, query: q } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
                     .into_iter()
                     .flatten()
                 {
-                    data.schema()
-                        .get(id)
-                        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    data.schema().get(id).map_err(CausalError::rejected)?;
                 }
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_contract::LogicalAnalysisPlanRecord {
@@ -724,16 +715,14 @@ impl super::Study {
                 })
             }
             RouteInput::LongitudinalRegime { data, query: q } => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 if q.subject_ids.len() != data.row_count() {
                     return Err(CausalError::Compile {
                         message: "longitudinal subject histories must align with outcome rows"
                             .into(),
                     });
                 }
-                data.schema()
-                    .get(q.outcome)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                data.schema().get(q.outcome).map_err(CausalError::rejected)?;
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(match q.method {
@@ -779,9 +768,7 @@ impl super::Study {
             RouteInput::GcmDag { data, .. } => {
                 // Parametric SCM paths use a query- and inference-specific estimator identity.
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
-                self.query
-                    .validate()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                self.query.validate()?;
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("gcm_query"),
@@ -808,9 +795,7 @@ impl super::Study {
             }
             RouteInput::GcmTemporal { data } => {
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
-                self.query
-                    .validate()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                self.query.validate()?;
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("gcm_temporal_query"),
@@ -921,7 +906,7 @@ impl super::Study {
                         identifier.parse::<IdentifierId>()?,
                         estimator.parse::<EstimatorId>()?,
                     )?;
-                    q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    q.validate()?;
                     let record = antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("static_admg_ate"),
                         data_classification: antecedent_contract::DataClassification::Tabular,
@@ -1142,7 +1127,7 @@ pub(crate) fn compile_logical_admg_response(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     let (identifier, estimator) = study.resolve_admg_pair();
     validate_static_pair(identifier.parse::<IdentifierId>()?, estimator.parse::<EstimatorId>()?)?;
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
         CausalError::Compile { message: "response query has no treatment/outcome pair".into() }
     })?;

@@ -222,8 +222,7 @@ fn evaluate_effect_probed(
     let data_digest = cross_world_data_digest(&names, &columns)?;
     poll(ctx)?;
     // Stage two: fit the structural model, then abduct/act/predict as one operation.
-    let compiled = CompiledCausalModel::compile(dag.clone())
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let compiled = CompiledCausalModel::compile(dag.clone()).map_err(CausalError::rejected)?;
     let outcome = VariableId::from_raw(witness.outcome);
     // The fit polls the token before every node, candidate family and
     // cross-validation fold of the model crate's fitting loops.
@@ -275,7 +274,7 @@ fn evaluation_error(error: CounterfactualError) -> CausalError {
             "cross_world.invalid_query: abduction is not exact inversion: {message}"
         ),
         CounterfactualError::Cancelled => CausalError::Cancelled { stage: STAGE_CROSS_WORLD },
-        other => CausalError::Compile { message: other.to_string() },
+        other => CausalError::rejected(other),
     }
 }
 

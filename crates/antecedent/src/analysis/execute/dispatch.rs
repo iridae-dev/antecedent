@@ -47,7 +47,7 @@ impl super::Study {
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
         if let CausalQuery::NestedCounterfactual(q) = &self.query {
-            q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            q.validate()?;
             if matches!(
                 self.graph.class(),
                 GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag

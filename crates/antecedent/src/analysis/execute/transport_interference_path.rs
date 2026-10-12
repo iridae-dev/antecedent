@@ -40,7 +40,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires a selection diagram",
         })?;
@@ -98,21 +98,13 @@ impl super::Study {
             identify_cached,
         } = inputs;
         let (treatment, outcome) = transport_primary_pair(query)?;
-        let outcomes = data
-            .float64_values(outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let treatment_col = data
-            .float64_values(treatment)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let trial_col = data
-            .float64_values(trial_spec.trial)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let selection = data
-            .float64_values(trial_spec.selection_probability)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let propensity = data
-            .float64_values(trial_spec.treatment_probability)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let outcomes = data.float64_values(outcome).map_err(CausalError::rejected)?;
+        let treatment_col = data.float64_values(treatment).map_err(CausalError::rejected)?;
+        let trial_col = data.float64_values(trial_spec.trial).map_err(CausalError::rejected)?;
+        let selection =
+            data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
+        let propensity =
+            data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
         let mut transported = trial_to_target_effect(
@@ -179,8 +171,7 @@ impl super::Study {
                     schema,
                     draws.len(),
                     Arc::<[f64]>::from(draws),
-                )
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                )?;
                 let posterior = CausalPosterior {
                     summaries: draws.summarize(),
                     draws,
@@ -269,7 +260,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         // The executed outcomes are `data`, under the frozen network and assignment.
         let spec = self
             .interference
@@ -349,8 +340,7 @@ impl super::Study {
                     schema,
                     model.contrast_draws.len(),
                     Arc::<[f64]>::from(model.contrast_draws),
-                )
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                )?;
                 let posterior = CausalPosterior {
                     summaries: draws.summarize(),
                     draws,
@@ -481,9 +471,8 @@ pub(crate) fn live_transport_identification(
     diagram: &antecedent_graph::SelectionDiagram,
     query: &antecedent_core::TransportQuery,
 ) -> Result<TransportIdentification, CausalError> {
-    let identified = TransportIdentifier::new()
-        .identify(diagram, query)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let identified =
+        TransportIdentifier::new().identify(diagram, query).map_err(CausalError::rejected)?;
     refuse_unestimable_transport(&identified)?;
     Ok(identified)
 }

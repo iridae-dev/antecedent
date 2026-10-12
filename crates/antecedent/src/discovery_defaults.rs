@@ -105,5 +105,5 @@ pub fn resolve_ci(
             message: "observation weights are only supported when ci='weighted_parcorr'".into(),
         });
     }
-    ci_from_name(name).map_err(|e| CausalError::Compile { message: e.to_string() })
+    ci_from_name(name).map_err(CausalError::from)
 }

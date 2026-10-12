@@ -193,7 +193,7 @@ fn execute_checked_counterfactual_plan(
                     .refit_weighted(&base_model, data, &mechanism_assignments, &weights)
                     .map_err(|e| match e {
                         crate::gcm::ModelError::NotConverged { .. } => map_mechanism_fit(e),
-                        other => CausalError::Compile { message: other.to_string() },
+                        other => CausalError::rejected(other),
                     })?;
                 let draw_model = base_model.clone().with_mechanisms(store);
                 let draw_ite =
@@ -433,7 +433,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
         let (_, _, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
@@ -484,7 +484,7 @@ impl super::Study {
                 let weights = dirichlet_row_weights(data.row_count(), &mut rng);
                 let store = registry
                     .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    .map_err(CausalError::rejected)?;
                 let draw_scores = anomaly_attribution_query_with(
                     &fitted.model.clone().with_mechanisms(store),
                     data,
@@ -547,7 +547,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let (_, _, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 Ok(parametric_scm_identification(
@@ -584,10 +584,10 @@ impl super::Study {
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
             let n_draws = bayesian_draw_count(&self.inference)?;
             let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+                .map_err(CausalError::rejected)?
                 .len();
             let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+                .map_err(CausalError::rejected)?
                 .len();
             let options = antecedent_attribution::DistributionChangeOptions::default();
             let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0xC4A6_7A7E);
@@ -610,7 +610,7 @@ impl super::Study {
                     &comparison_weights,
                     ctx,
                 )
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                .map_err(CausalError::rejected)?;
                 total.push(draw.total_change);
                 let columns = components.get_or_insert_with(|| {
                     draw.contributions
@@ -670,7 +670,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let detections = mechanism_change_detection(
             &fitted.model,
@@ -702,7 +702,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let result = attribute_unit_change(&fitted.model, data, query, ctx)?;
         Ok(self.finish_gcm(
@@ -829,8 +829,7 @@ pub(super) fn attribution_posterior(
         schema,
         n_draws,
         Arc::<[f64]>::from(values),
-    )
-    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    )?;
     let summaries = draws.summarize();
     Ok(CausalPosterior {
         draws,
@@ -1176,8 +1175,7 @@ fn unit_effect_posterior_summary(
         schema,
         n_draws,
         std::sync::Arc::<[f64]>::from(unit_draws),
-    )
-    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    )?;
     Ok(draws.summarize())
 }
 
@@ -1205,8 +1203,7 @@ fn counterfactual_posterior(
         schema,
         n,
         std::sync::Arc::<[f64]>::from(values),
-    )
-    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    )?;
     let summaries = draws.summarize();
     Ok(CausalPosterior {
         subsampled_out_mass: 0.0,

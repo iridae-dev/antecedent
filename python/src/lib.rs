@@ -773,6 +773,9 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Schema(e) => CausalDataError::new_err(e.to_string()),
         RustCausalError::SchemaMismatch { detail } => CausalDataError::new_err(detail),
         RustCausalError::Compile { message } => CausalCompileError::new_err(message),
+        RustCausalError::Rejected(failure) => {
+            CausalCompileError::new_err(failure.message().to_owned())
+        }
         RustCausalError::NotIdentified { status, search_capped, message } => {
             not_identified_py_err(status.as_str(), search_capped, message)
         }

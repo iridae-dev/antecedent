@@ -454,8 +454,7 @@ pub(super) fn fit_class_sequential(
             && envelope.truncated_completions == 0
             && seq_atoms.iter().any(|atom| atom.weight > 0.0)
         {
-            let graphs = WeightedGraphSamples::new(weights, flags, keys)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
             let mut mixed = aggregate_effect_envelope(
                 &graphs,
                 &per_graph,

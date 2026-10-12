@@ -91,7 +91,7 @@ impl CheckedTemporalGraphPosteriorEffect {
         validation: RefuteSuite,
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if !query.policy.is_pulse_or_sustained() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect supports pulse and sustained schedules",

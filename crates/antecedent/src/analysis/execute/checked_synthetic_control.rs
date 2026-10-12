@@ -49,7 +49,7 @@ impl CheckedSyntheticControlOperation {
                 message: "synthetic-control operation requires SyntheticControlQuery".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -64,9 +64,7 @@ impl CheckedSyntheticControlOperation {
                 message: "synthetic control requires a graphless balanced panel, one treated unit, and point-only frequentist execution",
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         let (plan_id, identifier, estimator) = synthetic_panel_plan_ids(query.method);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id

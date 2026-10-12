@@ -1440,7 +1440,7 @@ fn response_interval_component(
 }
 
 fn io_err(err: &antecedent_io::IoError) -> CausalError {
-    CausalError::Compile { message: err.to_string() }
+    CausalError::rejected(err.clone())
 }
 
 /// Data-independent layers of a contract: target through observation.
@@ -1571,15 +1571,9 @@ fn nested_counterfactual_fit_wire(
     operation: &crate::gcm::NestedCounterfactualOperation,
 ) -> Result<antecedent_io::NestedCounterfactualFitWire, CausalError> {
     let query = operation.query();
-    let x = data
-        .float64_values(query.treatment)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    let m = data
-        .float64_values(query.mediator)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    let y = data
-        .float64_values(query.outcome)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let x = data.float64_values(query.treatment).map_err(CausalError::rejected)?;
+    let m = data.float64_values(query.mediator).map_err(CausalError::rejected)?;
+    let y = data.float64_values(query.outcome).map_err(CausalError::rejected)?;
     let mut gram = [0.0_f64; 9];
     let mut outcome_cross = [0.0_f64; 3];
     let mut complete_case_rows = 0_u64;
@@ -3336,12 +3330,9 @@ fn temporal_identification_wires(
         .map(|entry| {
             let variables = (0..entry.indexer.dense_len())
                 .map(|dense| -> Result<HorizonAdjustmentNodeWire, CausalError> {
-                    let key = entry
-                        .indexer
-                        .key_of(u32::try_from(dense).map_err(|_| CausalError::Compile {
-                            message: "temporal dense id exceeds u32".into(),
-                        })?)
-                        .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+                    let key = entry.indexer.key_of(u32::try_from(dense).map_err(|_| {
+                        CausalError::Compile { message: "temporal dense id exceeds u32".into() }
+                    })?)?;
                     Ok(HorizonAdjustmentNodeWire {
                         variable: key.variable.raw(),
                         offset: key.offset,

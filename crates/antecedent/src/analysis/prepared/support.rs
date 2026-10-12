@@ -20,12 +20,8 @@ use antecedent_estimate::ScoreTable;
 pub(super) fn multi_env_regularity(
     multi: &antecedent_data::MultiEnvironmentData,
 ) -> Result<antecedent_data::SamplingRegularity, CausalError> {
-    let first = multi
-        .environment(0)
-        .map_err(|err| CausalError::Compile { message: err.to_string() })?
-        .time_index()
-        .regularity
-        .clone();
+    let first =
+        multi.environment(0).map_err(CausalError::rejected)?.time_index().regularity.clone();
     if multi.environments().iter().any(|env| env.time_index().regularity != first) {
         return Err(CausalError::Compile {
             message: "PreparedStudy requires every multi-env series to share one time-index \

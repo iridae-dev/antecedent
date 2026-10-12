@@ -57,18 +57,14 @@ impl super::Study {
             })?;
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let n = data_est.row_count();
-        let t_raw = data_est
-            .float64_values(query_est.treatment)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let t_raw = data_est.float64_values(query_est.treatment).map_err(CausalError::rejected)?;
         let treatment = t_raw.iter().map(|t| *t == 1.0).collect::<Vec<_>>();
         if t_raw.iter().any(|t| *t != 0.0 && *t != 1.0) {
             return Err(CausalError::Unsupported {
                 message: "bayesian.robust_ate requires treatment values coded exactly 0/1",
             });
         }
-        let outcome = data_est
-            .float64_values(query_est.outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let outcome = data_est.float64_values(query_est.outcome).map_err(CausalError::rejected)?;
         let covariate_ids = (0..data_est.schema().len())
             .map(|i| {
                 u32::try_from(i).map(antecedent_core::VariableId::from_raw).map_err(|_| {
@@ -81,11 +77,7 @@ impl super::Study {
         let covariates = covariate_ids
             .into_iter()
             .filter(|id| *id != query_est.treatment && *id != query_est.outcome)
-            .map(|id| {
-                data_est
-                    .float64_values(id)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })
-            })
+            .map(|id| data_est.float64_values(id).map_err(CausalError::rejected))
             .collect::<Result<Vec<_>, _>>()?;
         let InferenceMode::Bayesian(cfg) = &self.inference else {
             return Err(CausalError::Compile {
@@ -128,8 +120,7 @@ impl super::Study {
             schema,
             kernel.draws.len(),
             Arc::<[f64]>::from(kernel.draws.clone()),
-        )
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        )?;
         let posterior = CausalPosterior {
             summaries: draws.summarize(),
             draws,

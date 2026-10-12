@@ -70,8 +70,7 @@ impl LagAlignedScm {
                 message: "temporal attribution needs at least one row after the longest lag".into(),
             });
         }
-        let indexer = TemporalIndexer::new(variable_count, history, 1)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let indexer = TemporalIndexer::new(variable_count, history, 1)?;
         let unfolded = graph.unfold(indexer.clone())?;
         let mut contemporaneous = Vec::new();
         let mut lagged = Vec::new();
@@ -79,9 +78,7 @@ impl LagAlignedScm {
             let dense_id = u32::try_from(dense).map_err(|_| CausalError::Compile {
                 message: "unfolded window exceeds u32 nodes".into(),
             })?;
-            let key = indexer
-                .key_of(dense_id)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let key = indexer.key_of(dense_id)?;
             if key.offset == 0 {
                 contemporaneous.push(dense_id);
             } else if key.offset < 0 {
@@ -105,9 +102,7 @@ impl LagAlignedScm {
                 CausalError::Compile { message: "unfolded window exceeds usize".into() }
             })?;
             to_static[unfolded_index] = static_id;
-            let key = indexer
-                .key_of(unfolded_id)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let key = indexer.key_of(unfolded_id)?;
             let lag = u32::try_from(-i64::from(key.offset)).map_err(|_| CausalError::Compile {
                 message: "lag-aligned attribution found a forward offset".into(),
             })?;

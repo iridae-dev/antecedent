@@ -657,9 +657,9 @@ impl super::Study {
         let prepared = if let Some(operation) = distribution_operation {
             let checked_arena =
                 antecedent_io::expr_arena_to_wire(operation.prepared().program().arena())
-                    .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+                    .map_err(CausalError::rejected)?;
             let claim_arena = antecedent_io::expr_arena_to_wire(&identification.arena)
-                .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+                .map_err(CausalError::rejected)?;
             if operation.query() != query
                 || operation.prepared().estimand.functional != estimand.functional
                 || checked_arena != claim_arena

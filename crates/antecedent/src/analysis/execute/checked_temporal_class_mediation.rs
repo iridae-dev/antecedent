@@ -144,7 +144,7 @@ impl CheckedTemporalClassMediationOperation {
                         .into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if !Self::admits(study) || physical.logical.query != study.query {
             return Err(CausalError::Compile {
                 message: "temporal class mediation structure, target, validation, or plan changed after preparation".into(),

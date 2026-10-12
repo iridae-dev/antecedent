@@ -245,8 +245,7 @@ fn evaluate_class_atom_frequentist(
             continue;
         };
         let estimate = if conditional {
-            let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
             ConditionalLinearAdjustment::new()
                 .estimate(data, estimand, &q, ctx)
                 .map_err(CausalError::from)?
@@ -362,8 +361,7 @@ fn evaluate_class_atom_bayesian(
             continue;
         };
         let prep = if conditional {
-            let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
             est.prepare_conditional(data, estimand, &q)
         } else {
             est.prepare(data, estimand, query)

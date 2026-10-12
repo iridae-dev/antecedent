@@ -41,7 +41,7 @@ impl CheckedDerivativeResponseOperation {
         options: antecedent_estimate::ContinuousResponseOptions,
     ) -> Result<Self, CausalError> {
         let (identification, estimand) = (&cache.identification, &cache.estimand);
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let expected_estimator = match &query.functional {
             ResponseFunctional::PointDerivative { .. } => EstimatorId::ResponseKennedyDr,
             ResponseFunctional::AverageDerivative { .. } => EstimatorId::ResponseRieszAde,
@@ -219,13 +219,9 @@ impl CheckedStaticDagResponseOperation {
         refute: RefuteSuite,
     ) -> Result<Self, CausalError> {
         let (identification, estimand) = (&cache.identification, &cache.estimand);
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let curve_grid = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?
-                .into(),
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?.into(),
             ResponseFunctional::InterventionResponse { interventions, .. } => {
                 if interventions.is_empty()
                     || interventions.iter().any(|intervention| {
@@ -417,10 +413,7 @@ impl CheckedStaticDagResponseOperation {
             });
         }
         if let ResponseFunctional::MeanCurve { treatment, .. } = &self.query.functional {
-            let current = treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let current = treatment.grid.values()?;
             if current.as_slice() != self.curve_grid.as_ref() {
                 return Err(CausalError::Compile {
                     message: "retained response grid no longer matches the checked curve members"

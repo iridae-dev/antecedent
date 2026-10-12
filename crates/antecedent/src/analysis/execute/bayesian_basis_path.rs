@@ -98,23 +98,21 @@ impl Study {
             })
             .collect::<Result<_, _>>()?;
         let model = BayesianBasisGComputation;
-        let fit = model
-            .fit(
-                &treatment,
-                &outcome,
-                &covariates_colmajor,
-                covariates.len(),
-                Some(&row_ids),
-                None,
-                BasisTargetPopulation::AllObserved,
-                BayesianBasisSpec {
-                    prior_sd: cfg.prior_scale,
-                    n_draws: bayesian_draw_count(&self.inference)?,
-                    seed: ctx.rng.master_seed(),
-                },
-                ctx,
-            )
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let fit = model.fit(
+            &treatment,
+            &outcome,
+            &covariates_colmajor,
+            covariates.len(),
+            Some(&row_ids),
+            None,
+            BasisTargetPopulation::AllObserved,
+            BayesianBasisSpec {
+                prior_sd: cfg.prior_scale,
+                n_draws: bayesian_draw_count(&self.inference)?,
+                seed: ctx.rng.master_seed(),
+            },
+            ctx,
+        )?;
 
         let n_draws = fit.ate_draws.len();
         let mut quantities = Vec::with_capacity(rows.len() + 1);
@@ -136,8 +134,7 @@ impl Study {
             PosteriorSchema { quantities: Arc::from(quantities) },
             n_draws,
             Arc::<[f64]>::from(columns),
-        )
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        )?;
         let summaries = draws.summarize();
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(AssumptionRecord {

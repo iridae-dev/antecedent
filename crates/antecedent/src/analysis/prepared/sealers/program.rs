@@ -167,14 +167,9 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                 ) =>
         {
             let (treatment, outcome, grid) = match &query.functional {
-                antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => (
-                    treatment.variable,
-                    *outcome,
-                    treatment
-                        .grid
-                        .values()
-                        .map_err(|error| CausalError::Compile { message: error.to_string() })?,
-                ),
+                antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+                    (treatment.variable, *outcome, treatment.grid.values()?)
+                }
                 antecedent_core::ResponseFunctional::InterventionResponse {
                     outcome,
                     interventions,

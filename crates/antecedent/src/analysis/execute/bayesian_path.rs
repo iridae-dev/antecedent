@@ -68,8 +68,7 @@ impl super::Study {
         let mut est = bayesian_gcomp(&cfg, ctx);
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
         let prep = if conditional {
-            let q = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            let q = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
             est.prepare_conditional(&data_est, &estimand_est, &q)
         } else {
             est.prepare(&data_est, &estimand_est, &query_est)
@@ -277,8 +276,7 @@ impl super::Study {
         let preps = ctx.map_indexed(fit_atoms.len(), |i, inner| {
             let (key, estimand, _) = &fit_atoms[i];
             let prep = if conditional {
-                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 est.prepare_conditional(data, estimand, &q)
             } else {
                 est.prepare(data, estimand, query)
@@ -297,8 +295,7 @@ impl super::Study {
             atom_priors.insert(key, resolved);
             prepared.entry(key).or_insert(prep);
         }
-        let full_graphs = WeightedGraphSamples::new(weights, flags, keys)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let full_graphs = WeightedGraphSamples::new(weights, flags, keys)?;
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
@@ -749,7 +746,7 @@ impl super::Study {
                 logical.compile_physical(ctx)
             }
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                q.validate()?;
                 let class = match &self.data {
                     DataInput::Event(_) => DataClassification::Event,
                     _ => DataClassification::Temporal,
@@ -899,8 +896,7 @@ impl super::Study {
         let preps = ctx.map_indexed(fit_atoms.len(), |i, _inner| {
             let (key, estimand, _) = &fit_atoms[i];
             let prep = if conditional {
-                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 est.prepare_conditional(data, estimand, &q)
             } else {
                 est.prepare(data, estimand, query)
@@ -1297,8 +1293,7 @@ impl super::Study {
                 |operation| operation.procedure().clone(),
             );
             let estimate = if conditional {
-                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 ConditionalLinearAdjustment::new()
                     .estimate(data, &atom.estimand, &q, inner)
                     .map_err(CausalError::from)
@@ -2021,8 +2016,7 @@ impl super::Study {
             Arc::clone(&identified.graphs.weights),
             flags,
             Arc::clone(&identified.graphs.graph_keys),
-        )
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        )?;
         let mut subsample_notes = Vec::new();
         let (graphs, per_graph, subsample_drop) = maybe_interactive_envelope_subsample(
             self.latency_mode,
@@ -2576,8 +2570,7 @@ impl super::Study {
             Arc::clone(&identified.graphs.weights),
             flags,
             Arc::clone(&identified.graphs.graph_keys),
-        )
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        )?;
         let mut subsample_notes = Vec::new();
         let (graphs, per_graph, subsample_drop) = maybe_interactive_envelope_subsample(
             self.latency_mode,
@@ -2818,11 +2811,7 @@ fn dbn_mediation_component_summary(
     let per_graph = atoms
         .iter()
         .map(|atom| {
-            let draws = atom
-                .composed
-                .draws
-                .column(quantity)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let draws = atom.composed.draws.column(quantity)?;
             Ok(GraphEffectDraws { graph_key: atom.key, effect_draws: Arc::from(draws.to_vec()) })
         })
         .collect::<Result<Vec<_>, CausalError>>()?;
@@ -3103,8 +3092,7 @@ pub(super) fn envelope_draws_from_posterior(
     let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
         message: "Bayesian posterior missing effect column".into(),
     })?;
-    let draws =
-        posterior.draws.column(col).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let draws = posterior.draws.column(col)?;
     Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
 }
 

@@ -110,10 +110,7 @@ impl super::Study {
                 false,
             ),
             ResponseFunctional::MeanCurve { outcome, treatment } => {
-                let levels = treatment
-                    .grid
-                    .values()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let levels = treatment.grid.values()?;
                 let level_queries = levels
                     .iter()
                     .map(|level| {

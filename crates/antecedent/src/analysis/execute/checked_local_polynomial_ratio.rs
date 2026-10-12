@@ -34,7 +34,7 @@ impl CheckedLocalPolynomialRatioOperation {
                 message: "local ratio operation requires LocalPolynomialRatioQuery".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -49,9 +49,7 @@ impl CheckedLocalPolynomialRatioOperation {
             });
         }
         for variable in [query.outcome, query.treatment, query.running] {
-            data.schema()
-                .get(variable)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            data.schema().get(variable).map_err(CausalError::rejected)?;
             if !matches!(
                 data.column(variable).map_err(CausalError::from)?,
                 antecedent_data::ColumnView::Float64(_)

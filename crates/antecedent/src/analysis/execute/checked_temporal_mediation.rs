@@ -59,7 +59,7 @@ impl CheckedTemporalMediationOperation {
         let graph = study.graph.as_temporal_dag().ok_or(CausalError::Unsupported {
             message: "checked temporal mediation requires a fixed TemporalDag",
         })?;
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if !matches!(
             study.structure_source,
             crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
@@ -259,10 +259,7 @@ fn adjustment_for_horizon(
         .adjustment_set
         .iter()
         .map(|&dense| {
-            let key = entry
-                .indexer
-                .key_of(dense.raw())
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let key = entry.indexer.key_of(dense.raw())?;
             let lag =
                 outcome_offset.checked_sub(key.offset).ok_or_else(|| CausalError::Compile {
                     message: "temporal mediation adjustment lag overflowed".into(),

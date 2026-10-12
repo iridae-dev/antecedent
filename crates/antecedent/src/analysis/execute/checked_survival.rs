@@ -32,7 +32,7 @@ impl CheckedSurvivalOperation {
                 message: "survival operation requires SurvivalQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -50,13 +50,11 @@ impl CheckedSurvivalOperation {
                 .into_iter()
                 .flatten()
         {
-            data.schema().get(id).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            data.schema().get(id).map_err(CausalError::rejected)?;
         }
         if let Some(known) = &query.known_censoring {
             for id in known.columns.iter().copied() {
-                data.schema()
-                    .get(id)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                data.schema().get(id).map_err(CausalError::rejected)?;
             }
         }
         if physical.logical.query != study.query

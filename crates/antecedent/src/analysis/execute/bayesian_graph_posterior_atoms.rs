@@ -149,10 +149,7 @@ fn graph_effect_draws(
     let column = posterior.effect_column().ok_or_else(|| CausalError::Compile {
         message: "Bayesian posterior missing its effect column".into(),
     })?;
-    let draws = posterior
-        .draws
-        .column(column)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let draws = posterior.draws.column(column)?;
     Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
 }
 

@@ -136,7 +136,7 @@ pub fn identify_static_query_with_rd(
                     message: "gcm.parametric requires Counterfactual",
                 });
             };
-            q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            q.validate()?;
             if q.allow_nested || q.outcomes.len() != 1 || q.interventions.len() != 1 {
                 return Err(CausalError::Unsupported {
                     message: "staged Counterfactual requires one outcome and one hard intervention; nested forms are refused",

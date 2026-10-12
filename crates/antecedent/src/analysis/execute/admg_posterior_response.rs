@@ -437,8 +437,7 @@ fn estimate_admg_posterior_atom_response(
         }
         ResponseFunctional::MeanCurve { outcome, treatment: tx } => {
             let admg = antecedent_discovery::admg_from_adjacency_mask(mask, n_vars)?;
-            let levels =
-                tx.grid.values().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            let levels = tx.grid.values()?;
             let mut means = Vec::with_capacity(levels.len());
             let mut grid = Vec::with_capacity(levels.len());
             let mut freq_curve_bounds: Vec<(f64, f64)> = Vec::new();

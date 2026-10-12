@@ -73,7 +73,7 @@ fn refuse_linear_adjustment_population(
 pub fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
     let identifier: IdentifierId = input.identifier.parse()?;
     let estimator: EstimatorId = input.estimator.parse()?;
@@ -124,7 +124,7 @@ pub struct StaticResponseCompileInput<'a> {
 pub fn compile_logical_static_response(
     input: StaticResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     let identifier: IdentifierId = input.identifier.parse()?;
     let estimator: EstimatorId = input.estimator.parse()?;
     validate_response_pair(identifier, estimator)?;
@@ -212,7 +212,7 @@ pub struct StaticPagAteCompileInput<'a> {
 pub fn compile_logical_static_pag_ate(
     input: StaticPagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
     compile_logical_static_class_ate(
         input.data,
@@ -250,7 +250,7 @@ pub struct StaticCpdagAteCompileInput<'a> {
 pub fn compile_logical_static_cpdag_ate(
     input: StaticCpdagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     validate_query_vars_in_cpdag(input.cpdag, input.query.treatment, input.query.outcome)?;
     compile_logical_static_class_ate(
         input.data,
@@ -396,7 +396,7 @@ pub fn compile_logical_static_cpdag_response(
 }
 
 fn require_class_aware_response(query: &ResponseQuery, class_tag: &str) -> Result<(), CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     if query.temporal.is_some() {
         return Err(CausalError::Compile {
             message: format!("{class_tag} response does not accept a temporal attachment"),
@@ -505,7 +505,7 @@ pub struct StaticDistributionCompileInput<'a> {
 pub fn compile_logical_distribution(
     input: StaticDistributionCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     if input.query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: "functional.distribution only supports TargetPopulation::AllObserved".into(),
@@ -577,7 +577,7 @@ pub struct StaticPathSpecificCompileInput<'a> {
 pub fn compile_logical_path_specific(
     input: StaticPathSpecificCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     if input.query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: "functional.effect only supports TargetPopulation::AllObserved".into(),
@@ -625,7 +625,7 @@ pub fn compile_logical_codetermined_joint(
     identifier: Arc<str>,
     estimator: Arc<str>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     let identifier_id: IdentifierId = identifier.parse()?;
     let estimator_id: EstimatorId = estimator.parse()?;
     if identifier_id != IdentifierId::GeneralizedAdjustment || estimator_id != EstimatorId::CellAipw
@@ -808,10 +808,8 @@ pub fn compile_logical_temporal_response(
     query: &ResponseQuery,
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    query
-        .require_licensed_temporal_observation()
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
+    query.require_licensed_temporal_observation()?;
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "temporal response compile requires ResponseQuery.temporal".into(),
     })?;
@@ -869,7 +867,7 @@ pub fn compile_logical_temporal_effect_classified(
     review_required: bool,
     data_classification: DataClassification,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     validate_query_vars_in_temporal_dag(graph, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
@@ -918,7 +916,7 @@ pub fn compile_logical_temporal_class_effect(
     identifier: Arc<str>,
     estimator: Arc<str>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     validate_query_vars_in_temporal_nodes(nodes, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {

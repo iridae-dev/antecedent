@@ -229,12 +229,7 @@ pub(crate) fn refuse_unlicensed_panel_route(
 pub(crate) fn panel_shared_regularity(
     panel: &PanelData,
 ) -> Result<antecedent_data::SamplingRegularity, CausalError> {
-    let first = &panel
-        .unit(0)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?
-        .series
-        .time_index()
-        .regularity;
+    let first = &panel.unit(0).map_err(CausalError::rejected)?.series.time_index().regularity;
     if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
         return Err(CausalError::Compile {
             message: "panel analysis requires every panel unit to share one time-index \
@@ -381,7 +376,7 @@ pub(super) fn stub_accepted_graph_for(
                     let mut admg = Admg::with_variables(n);
                     if n >= 2 {
                         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-                            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                            .map_err(CausalError::rejected)?;
                     }
                     Ok(AcceptedGraph::admg(admg))
                 }
@@ -389,11 +384,11 @@ pub(super) fn stub_accepted_graph_for(
                     let mut admg = Admg::with_variables(n);
                     if n >= 2 {
                         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-                            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                            .map_err(CausalError::rejected)?;
                     }
                     let temporal =
                         antecedent_graph::TemporalAdmg::from_static_contemporaneous(&admg)
-                            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                            .map_err(CausalError::rejected)?;
                     Ok(AcceptedGraph::temporal_admg(temporal))
                 }
                 _ => Err(CausalError::Unsupported {

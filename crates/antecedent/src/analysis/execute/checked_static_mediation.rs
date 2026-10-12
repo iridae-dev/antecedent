@@ -50,7 +50,7 @@ impl CheckedStaticMediationOperation {
         let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
             message: "checked static mediation requires a supplied DAG",
         })?;
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if !matches!(study.inference, InferenceMode::Frequentist)
             || !matches!(
                 study.structure_source,

@@ -92,7 +92,7 @@ impl CheckedTransportTrialOperation {
         {
             return Ok(None);
         }
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         refuse_unestimable_transport(transport)?;
         let (procedure, estimator) = match &study.inference {
             InferenceMode::Frequentist => {

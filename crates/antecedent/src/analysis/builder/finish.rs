@@ -1122,7 +1122,7 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
                 })?;
             let targets = carry.selection_targets.clone().unwrap_or_default();
             let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                .map_err(CausalError::rejected)?;
             let trial = carry.transport_trial.clone().ok_or(CausalError::Unsupported {
                 message: "TransportQuery requires StudyBuilder::transport_trial",
             })?;

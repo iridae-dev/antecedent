@@ -26,7 +26,7 @@ impl CheckedContinuousDoseOperation {
                 message: "continuous-dose operation requires ContinuousDoseResponseQuery".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -42,9 +42,7 @@ impl CheckedContinuousDoseOperation {
             });
         }
         for id in [query.outcome, query.dose, query.dose_density] {
-            data.schema()
-                .get(id)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            data.schema().get(id).map_err(CausalError::rejected)?;
         }
         if physical.logical.query != study.query
             || !physical.binding().names(

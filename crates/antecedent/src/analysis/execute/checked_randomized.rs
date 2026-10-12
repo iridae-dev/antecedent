@@ -30,7 +30,7 @@ impl CheckedRandomizedOperation {
                 message: "randomized execution requires RandomizedEffectQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -49,18 +49,12 @@ impl CheckedRandomizedOperation {
                 message: "randomized assignment metadata must align with the table rows".into(),
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         if let Some((covariate, _)) = query.fixed_cuped {
-            data.schema()
-                .get(covariate)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
         for &covariate in query.ancova_covariates.iter() {
-            data.schema()
-                .get(covariate)
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
         if physical.logical.query != study.query
             || !physical
@@ -81,7 +75,7 @@ impl CheckedRandomizedOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
-        self.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        self.query.validate()?;
         let outcomes = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
             _ => {
@@ -362,7 +356,7 @@ impl CheckedPolicyValueOperation {
                 message: "policy-value execution requires PolicyValueQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if query
             .multi_action
             .as_ref()
@@ -378,9 +372,7 @@ impl CheckedPolicyValueOperation {
                 message: "policy value requires aligned graphless randomized rows and does not accept refuters, bootstrap, or Bayesian inference",
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         let n = data.row_count();
         let (binary_assignment, binary_propensity) = if let Some(multi) = &query.multi_action {
             let k = multi.action_labels.len();

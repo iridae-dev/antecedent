@@ -210,8 +210,7 @@ impl CachedDbnPosteriorIdentification {
             Arc::clone(&self.graphs.weights),
             flags,
             Arc::clone(&self.graphs.graph_keys),
-        )
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        )?;
         let horizon_demotions = Arc::from([(horizon, identify_demotion.clone())]);
         Ok(Self { graphs, atoms: atoms.into(), identify_demotion, horizon_demotions })
     }
@@ -395,8 +394,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedGraphPosteriorIdentification {
         graphs,
         atoms: Arc::from(atoms),
@@ -438,15 +436,11 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     // exactly what `select_estimand` can disambiguate.
     let causal_query = match &query.functional {
         antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
-            let first_level = treatment
-                .grid
-                .values()
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?
-                .into_iter()
-                .next()
-                .ok_or_else(|| CausalError::Compile {
+            let first_level = treatment.grid.values()?.into_iter().next().ok_or_else(|| {
+                CausalError::Compile {
                     message: "MeanCurve response requires a non-empty evaluation grid".into(),
-                })?;
+                }
+            })?;
             let mut level_query = query.clone();
             level_query.functional = antecedent_core::ResponseFunctional::InterventionResponse {
                 outcome: *outcome,
@@ -526,8 +520,7 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedGraphPosteriorIdentification {
         graphs,
         atoms: Arc::from(atoms),
@@ -617,8 +610,7 @@ fn build_admg_graph_posterior_identification_cache(
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedGraphPosteriorIdentification {
         graphs,
         atoms: Arc::from(atoms),
@@ -715,8 +707,7 @@ fn build_class_graph_posterior_identification_cache(
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedGraphPosteriorIdentification {
         graphs,
         atoms: Arc::from([]),
@@ -863,8 +854,7 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedDbnPosteriorIdentification {
         graphs,
         atoms: Arc::from(atoms),
@@ -990,8 +980,7 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedTemporalClassPosteriorIdentification { graphs, class_atoms: Arc::from(class_atoms) })
 }
 
@@ -1127,8 +1116,7 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedDbnPosteriorIdentification {
         graphs,
         atoms: Arc::from(atoms),
@@ -1186,7 +1174,7 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    query.validate()?;
     let mut horizon_demotions: Vec<_> =
         query.horizons.iter().map(|h| (*h, DbnIdentifyDemotion::default())).collect();
 
@@ -1254,8 +1242,7 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedDbnPosteriorIdentification {
         graphs,
         atoms: atoms.into(),
@@ -1295,7 +1282,7 @@ pub(crate) fn temporal_dag_from_dbn_atom(
         max_lag,
         variables,
     )
-    .map_err(|error| CausalError::Compile { message: error.to_string() })
+    .map_err(CausalError::rejected)
 }
 
 fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {

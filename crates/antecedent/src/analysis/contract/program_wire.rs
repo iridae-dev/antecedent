@@ -375,8 +375,7 @@ pub(super) fn functional_program(
                         estimand.functional,
                         estimand.functional,
                         antecedent_expr::ProgramLimits::default(),
-                    )
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    )?;
                     wire(&program)
                 })
                 .transpose(),

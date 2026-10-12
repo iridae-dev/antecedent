@@ -802,9 +802,7 @@ impl super::Study {
                 &estimand,
                 &first.indexer,
                 &identification,
-                probe
-                    .try_treatment_offset()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                probe.try_treatment_offset()?,
                 probe.outcome_offset(),
                 &ctx.kernel_policy,
                 prior_scale,
@@ -848,9 +846,7 @@ impl super::Study {
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
 
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         let mut working_query = query.clone();
         let mut observation_adjusted = None;
         let series_owned = if query.observation == ObservationSpec::Complete {
@@ -1384,9 +1380,7 @@ impl super::Study {
             return self.execute_temporal_class_derivative(data, query, physical, ctx);
         }
         let started = Instant::now();
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         if matches!(
             query.observation,
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. }
@@ -2831,11 +2825,7 @@ impl ClassResponseAssembly {
         temporal: &antecedent_core::TemporalResponseSpec,
     ) -> Result<Self, CausalError> {
         let cells_per_horizon = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?
-                .len(),
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?.len(),
             ResponseFunctional::InterventionResponse { .. } => 1,
             _ => {
                 return Err(CausalError::Unsupported {
@@ -2999,10 +2989,7 @@ impl ClassResponseAssembly {
     ) -> Result<ClassResponseParts, CausalError> {
         let (grid, dimension) = match &query.functional {
             ResponseFunctional::MeanCurve { treatment, .. } => {
-                let doses = treatment
-                    .grid
-                    .values()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                let doses = treatment.grid.values()?;
                 let grid: Vec<f64> = doses
                     .iter()
                     .flat_map(|dose| {
@@ -3256,8 +3243,7 @@ pub(super) fn mix_class_effect_posteriors<'a>(
         ));
         return Ok((nan_effect(), None, basis));
     }
-    let graphs = WeightedGraphSamples::new(mix.weights, mix.flags, mix.keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(mix.weights, mix.flags, mix.keys)?;
     let mut mixed = aggregate_effect_envelope(
         &graphs,
         mix.per_graph,
@@ -4725,9 +4711,7 @@ impl super::Study {
                     &antecedent_estimate::TemporalSlopeSpec {
                         outcome: outcome,
                         treatments: treatments,
-                        treatment_offset: probe
-                            .try_treatment_offset()
-                            .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                        treatment_offset: probe.try_treatment_offset()?,
                         outcome_offset: probe.outcome_offset(),
                         contemporaneous: contemporaneous,
                     },

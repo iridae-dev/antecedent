@@ -55,7 +55,7 @@ impl CheckedInterferenceOperation {
                 message: "checked interference requires an exposure contrast target".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
             message: "checked interference requires a supplied DAG schema",
         })?;
@@ -256,9 +256,7 @@ impl CheckedInterferenceOperation {
                     .into(),
             });
         }
-        self.query
-            .validate()
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        self.query.validate()?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled {
                 stage: super::super::stage::STAGE_ESTIMATE_POINT,
@@ -563,8 +561,7 @@ impl CheckedInterferenceOperation {
                     schema,
                     estimated.contrast_draws.len(),
                     Arc::<[f64]>::from(estimated.contrast_draws),
-                )
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                )?;
                 let posterior = CausalPosterior {
                     summaries: posterior_draws.summarize(),
                     draws: posterior_draws,

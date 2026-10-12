@@ -119,10 +119,7 @@ impl CheckedTemporalResponseExecution {
                 first.estimand(),
                 first.indexer(),
                 first.identification(),
-                first
-                    .effect_query()
-                    .try_treatment_offset()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                first.effect_query().try_treatment_offset()?,
                 first.effect_query().outcome_offset(),
                 &ctx.kernel_policy,
                 prior_scale,

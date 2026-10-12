@@ -129,8 +129,8 @@ impl CheckedBayesianRobustAteExecution {
         }
         let options = BayesianRobustAteOptions { draws: config.n_draws, ..Default::default() };
         let input = make_input(data, &query, estimand)?;
-        let fold_ids = plan_bayesian_robust_ate_folds(&input, options.folds)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let fold_ids =
+            plan_bayesian_robust_ate_folds(&input, options.folds).map_err(CausalError::rejected)?;
         Ok(Self {
             graph: graph.clone(),
             query,
@@ -188,7 +188,7 @@ impl CheckedBayesianRobustAteExecution {
             });
         }
         let rebound_folds = plan_bayesian_robust_ate_folds(&input, self.options.folds)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            .map_err(CausalError::rejected)?;
         if rebound_folds.as_slice() != self.fold_ids.as_ref() {
             return Err(CausalError::Compile {
                 message: "Bayesian robust ATE refresh changed its fixed fold assignment".into(),
@@ -219,8 +219,7 @@ impl CheckedBayesianRobustAteExecution {
             },
             kernel.draws.len(),
             Arc::<[f64]>::from(kernel.draws.clone()),
-        )
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        )?;
         let posterior = CausalPosterior {
             summaries: draws.summarize(),
             draws,

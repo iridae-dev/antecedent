@@ -46,7 +46,7 @@ impl CheckedTemporalEffectOperation {
         bootstrap_replicates: u32,
         refute: RefuteSuite,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if identifier != IdentifierId::TemporalBackdoorUnfolded {
             return Err(CausalError::Compile {
                 message: "temporal effect requires the retained unfolded backdoor proof".into(),
@@ -212,20 +212,14 @@ pub(crate) fn temporal_proof_binds_query(
     // The identifier's query is an average-effect query over the unfolded
     // graph. Check the semantic variables and both intervention levels after
     // mapping them into that graph's dense ID space.
-    let expected_treatment = indexer
-        .dense_id(antecedent_core::TemporalNodeKey {
-            variable: query.treatment,
-            offset: query
-                .try_treatment_offset()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
-        })
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    let expected_outcome = indexer
-        .dense_id(antecedent_core::TemporalNodeKey {
-            variable: query.outcome,
-            offset: query.outcome_offset(),
-        })
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let expected_treatment = indexer.dense_id(antecedent_core::TemporalNodeKey {
+        variable: query.treatment,
+        offset: query.try_treatment_offset()?,
+    })?;
+    let expected_outcome = indexer.dense_id(antecedent_core::TemporalNodeKey {
+        variable: query.outcome,
+        offset: query.outcome_offset(),
+    })?;
     if query.is_multi_step_sustained() {
         // The schedule identifier retains the complete temporal query and
         // its joint contrast. A scalar average-effect projection would lose

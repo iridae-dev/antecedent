@@ -72,8 +72,7 @@ pub(crate) fn identify_temporal_response_horizons(
             message: "temporal response requires at least one horizon".into(),
         });
     }
-    let origin =
-        temporal.treatment_offset().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let origin = temporal.treatment_offset()?;
     let sequential = schedule
         .is_some_and(|nodes| nodes.len() != 1 || (nodes[0].0, nodes[0].1) != (treatment, origin));
     let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
@@ -123,7 +122,7 @@ pub(crate) fn identify_temporal_mediation_horizons(
     estimator_id: crate::strategy_table::EstimatorId,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     if query.horizons.is_empty() {
         return Err(CausalError::Compile {
             message: "temporal mediation requires at least one horizon".into(),
@@ -317,16 +316,14 @@ impl Study {
                     // what `select_estimand` can disambiguate.
                     let causal_query = match &query.functional {
                         antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
-                            let first_level = treatment
-                                .grid
-                                .values()
-                                .map_err(|e| CausalError::Compile { message: e.to_string() })?
-                                .into_iter()
-                                .next()
-                                .ok_or_else(|| CausalError::Compile {
-                                    message: "MeanCurve response requires a non-empty evaluation \
+                            let first_level =
+                                treatment.grid.values()?.into_iter().next().ok_or_else(|| {
+                                    CausalError::Compile {
+                                        message:
+                                            "MeanCurve response requires a non-empty evaluation \
                                               grid"
-                                        .into(),
+                                                .into(),
+                                    }
                                 })?;
                             let mut level_query = query.clone();
                             level_query.functional =

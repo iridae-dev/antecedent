@@ -112,7 +112,7 @@ pub struct CheckedCounterfactualOperation {
 impl CheckedCounterfactualOperation {
     /// Check and freeze the currently licensed one-outcome, one-hard-set ITE.
     pub(crate) fn compile(graph: Dag, query: CounterfactualQuery) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
             return Err(CausalError::Unsupported {
                 message: "Study counterfactual path currently supports a single hard intervention for ITE (use gcm helpers for multi-world predict)",
@@ -253,7 +253,7 @@ impl NestedCounterfactualOperation {
         graph: Dag,
         query: NestedCounterfactualQuery,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let observed = graph.directed_edge_pairs_sorted();
         let mut expected = vec![
             (query.treatment.raw(), query.mediator.raw()),
@@ -328,7 +328,7 @@ impl NestedCounterfactualOperation {
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
         let exo = engine
             .abduct(data, AbductionMissingPolicy::Error, ctx)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            .map_err(CausalError::rejected)?;
         let control_outer = [self.outer_world.clone()];
         let active_inner = [self.active_inner_world.clone()];
         let control_inner = [self.control_inner_world.clone()];
@@ -343,7 +343,7 @@ impl NestedCounterfactualOperation {
             &mut workspace,
             ctx,
         )
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        .map_err(CausalError::rejected)?;
         let control = nested_counterfactual_with_exo(
             &engine,
             &exo,
@@ -354,7 +354,7 @@ impl NestedCounterfactualOperation {
             &mut workspace,
             ctx,
         )
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        .map_err(CausalError::rejected)?;
         Ok(active - control)
     }
 }
@@ -736,7 +736,7 @@ pub fn sample_interventional_distribution(
     rng: &mut CausalRng,
     ctx: &ExecutionContext,
 ) -> Result<ValueBatch, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(crate::unsupported_reason!(
             "population_not_estimable",
@@ -759,7 +759,7 @@ pub fn attribute_path_specific(
     query: &PathSpecificEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(crate::unsupported_reason!(
             "population_not_estimable",

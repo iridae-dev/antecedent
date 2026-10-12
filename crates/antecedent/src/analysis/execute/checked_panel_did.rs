@@ -24,7 +24,7 @@ impl CheckedPanelDidOperation {
                 message: "panel DiD operation requires PanelDidQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -39,16 +39,12 @@ impl CheckedPanelDidOperation {
                 message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error",
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         if let Some(nuisance) = &query.augmented {
             for variable in
                 [nuisance.outcome_pre, nuisance.propensity, nuisance.untreated_change_prediction]
             {
-                data.schema()
-                    .get(variable)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                data.schema().get(variable).map_err(CausalError::rejected)?;
             }
         }
         let (plan_id, identifier, estimator) = panel_did_plan_ids(query.design);

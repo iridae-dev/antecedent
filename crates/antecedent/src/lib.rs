@@ -178,7 +178,7 @@ pub use analysis::{
 #[doc(hidden)]
 pub use analysis::{max_t_critical_value, simultaneous_band_unpublished};
 pub use class_prior::ClassPrior;
-pub use error::{CausalError, ReviewKind};
+pub use error::{CausalError, CompileCause, CompileFailure, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};

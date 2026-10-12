@@ -250,10 +250,9 @@ impl GraphRef<'_> {
     pub fn projected_admg(&self) -> Result<Option<Admg>, CausalError> {
         match self {
             Self::Admg(graph) => Ok(Some((*graph).clone())),
-            Self::TemporalAdmg(graph) => graph
-                .project_preserving_functional()
-                .map(Some)
-                .map_err(|error| CausalError::Compile { message: error.to_string() }),
+            Self::TemporalAdmg(graph) => {
+                graph.project_preserving_functional().map(Some).map_err(CausalError::rejected)
+            }
             _ => Ok(None),
         }
     }

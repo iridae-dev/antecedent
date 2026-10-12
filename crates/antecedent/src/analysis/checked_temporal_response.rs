@@ -70,9 +70,7 @@ impl TemporalResponseHorizonEvidence {
         let expected_offset = effect_query.outcome_offset();
         let treatment_key = TemporalNodeKey {
             variable: effect_query.treatment,
-            offset: effect_query
-                .try_treatment_offset()
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+            offset: effect_query.try_treatment_offset()?,
         };
         let outcome_key =
             TemporalNodeKey { variable: effect_query.outcome, offset: expected_offset };
@@ -205,7 +203,7 @@ impl CheckedTemporalResponseOperation {
         bootstrap_replicates: u32,
         inference: &InferenceMode,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let spec = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "checked temporal response requires a temporal response specification".into(),
         })?;
@@ -219,10 +217,7 @@ impl CheckedTemporalResponseOperation {
                 message: "temporal response query has no treatment/outcome pair".into(),
             })?;
         let grid = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
             _ => match antecedent_estimate::plan_from_response_query(query) {
                 Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
                     level: Some(level),

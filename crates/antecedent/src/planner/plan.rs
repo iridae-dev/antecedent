@@ -77,7 +77,7 @@ impl LogicalAnalysisPlan {
                 message: "static PC discovery requires tabular data metadata".into(),
             });
         }
-        self.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        self.query.validate()?;
         Ok(())
     }
 

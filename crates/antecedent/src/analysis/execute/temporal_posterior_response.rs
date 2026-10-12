@@ -104,9 +104,7 @@ impl super::Study {
             });
         }
         dbn_posterior_response_supported(query)?;
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "DBN-posterior response requires TemporalResponseSpec".into(),
         })?;
@@ -615,10 +613,7 @@ impl super::Study {
                     let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
                         message: "Bayesian Pulse witness posterior missing effect column".into(),
                     })?;
-                    let effect = posterior
-                        .draws
-                        .column(col)
-                        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    let effect = posterior.draws.column(col)?;
                     draws.push(GraphEffectDraws {
                         graph_key: *key,
                         effect_draws: Arc::from(effect.to_vec()),
@@ -656,8 +651,7 @@ impl super::Study {
                     weighted.iter().map(|(_, weight, _)| *weight).collect::<Vec<_>>(),
                     flags.iter().map(|(_, flag)| *flag).collect::<Vec<_>>(),
                     weighted.iter().map(|(key, _, _)| *key).collect::<Vec<_>>(),
-                )
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                )?;
                 let mut posterior = aggregate_effect_envelope(
                     &graphs,
                     &draws,

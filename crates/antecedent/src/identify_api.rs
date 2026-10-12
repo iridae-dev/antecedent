@@ -275,9 +275,7 @@ fn identify_with_source(
             })
         }
         GraphRef::TemporalAdmg(temporal) => {
-            let admg = temporal
-                .project_preserving_functional()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let admg = temporal.project_preserving_functional().map_err(CausalError::rejected)?;
             let CausalQuery::AverageEffect(average_effect) = query else {
                 return Err(CausalError::Unsupported {
                     message: "TemporalAdmg identification supports only CausalQuery::AverageEffect \

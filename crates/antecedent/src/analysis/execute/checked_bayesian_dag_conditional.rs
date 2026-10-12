@@ -191,9 +191,7 @@ impl CheckedBayesianConditionalOperation {
         let (projected, query_est, estimand_est) =
             project_for_ate_estimate(data, &self.query.inner, &estimand)?;
         let projected_cols = projected.schema().len();
-        let conditional_est =
-            antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let conditional_est = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
         let mut fitter = bayesian_gcomp(config, ctx);
         let prepared = fitter
             .prepare_conditional(&projected, &estimand_est, &conditional_est)

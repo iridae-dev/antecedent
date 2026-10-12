@@ -23,9 +23,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         dbn_posterior_response_supported(query)?;
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         let class_tag = match gp.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => "temporal_cpdag",
             antecedent_discovery::GraphPosteriorAtomKind::Pag => "temporal_pag",
@@ -613,13 +611,13 @@ fn reconstruct_temporal_class_atom(
         antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
             let cpdag =
                 temporal_cpdag_from_dbn_masks(adjacency, lag_mask, n_vars, max_lag, variables)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    .map_err(CausalError::rejected)?;
             Ok(AcceptedGraph::from(cpdag))
         }
         antecedent_discovery::GraphPosteriorAtomKind::Pag => {
             let pag =
                 temporal_pag_from_dbn_masks(adjacency, lag_mask, mark, n_vars, max_lag, variables)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    .map_err(CausalError::rejected)?;
             Ok(AcceptedGraph::from(pag))
         }
         _ => Err(CausalError::Compile {

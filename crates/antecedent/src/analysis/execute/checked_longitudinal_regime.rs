@@ -38,7 +38,7 @@ impl CheckedLongitudinalRegimeOperation {
                 message: "longitudinal regime operation requires LongitudinalRegimeQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if query.subject_ids.len() != data.row_count()
             || !query.probabilities_known_by_design
             || study.graph.class() != GraphClass::RandomizedTrial
@@ -54,9 +54,7 @@ impl CheckedLongitudinalRegimeOperation {
                 message: "retained longitudinal regime value requires known sequential randomization, one outcome row per subject, graphless trial, and point-only frequentist execution",
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         let estimator_id = match query.method {
             LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
             LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
