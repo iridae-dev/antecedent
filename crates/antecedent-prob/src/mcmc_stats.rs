@@ -254,7 +254,7 @@ fn has_variation(x: &[f64]) -> bool {
 
 fn fold_about_median(x: &[f64]) -> Vec<f64> {
     let mut sorted = x.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(f64::total_cmp);
     let med = median_sorted(&sorted);
     x.iter().map(|&v| (v - med).abs()).collect()
 }

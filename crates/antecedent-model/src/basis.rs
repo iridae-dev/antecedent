@@ -432,7 +432,7 @@ pub fn spline_knots(
             .filter(|v| v.is_finite())
             .map(|v| (v - centers[p]) / scales[p])
             .collect();
-        values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        values.sort_by(f64::total_cmp);
         let mut distinct = values.clone();
         distinct.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
         if distinct.len() < SPLINE_MIN_DISTINCT {

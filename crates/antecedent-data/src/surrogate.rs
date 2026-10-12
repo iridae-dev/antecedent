@@ -201,8 +201,8 @@ mod tests {
             };
             let mut sa = a.values.to_vec();
             let mut sb = b.values.to_vec();
-            sa.sort_by(|x, y| x.partial_cmp(y).unwrap());
-            sb.sort_by(|x, y| x.partial_cmp(y).unwrap());
+            sa.sort_by(f64::total_cmp);
+            sb.sort_by(f64::total_cmp);
             assert_eq!(sa, sb);
         }
     }

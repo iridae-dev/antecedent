@@ -88,7 +88,10 @@ pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, Stat
     Ok(0.5 * (variance_term + standardized_shift * standardized_shift))
 }
 
-/// Mean and variance of a slice.
+/// Population mean and variance of a slice (`Σ(x − mean)² / n`, with `n` at least 1).
+///
+/// This is the second-moment pair the divergence statistics below consume. It is
+/// not the Bessel-corrected sample variance in [`crate::describe`].
 #[must_use]
 pub fn mean_var(xs: &[f64]) -> (f64, f64) {
     let n = xs.len().max(1) as f64;
@@ -492,7 +495,7 @@ fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> 
             diffs.push((pooled[i] - pooled[j]).abs());
         }
     }
-    diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+    diffs.sort_by(f64::total_cmp);
     let median = diffs[diffs.len() / 2];
     if median > 0.0 { median } else { diffs.into_iter().find(|d| *d > 0.0).unwrap_or(1.0) }
 }
@@ -1003,7 +1006,7 @@ mod tests {
                 exact_diffs.push((pooled[i] - pooled[j]).abs());
             }
         }
-        exact_diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+        exact_diffs.sort_by(f64::total_cmp);
         let true_median = exact_diffs[exact_diffs.len() / 2];
         let expected_bandwidth = true_median;
 
