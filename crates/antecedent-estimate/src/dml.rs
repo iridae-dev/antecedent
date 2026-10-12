@@ -211,39 +211,17 @@ impl DmlAte {
     ) -> Result<EffectEstimate, EstimationError> {
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
-        let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
-        let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
-        let phi =
-            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
-        let yhat: Vec<f64> = problem
-            .treatment
-            .iter()
-            .zip(mu0)
-            .zip(mu1)
-            .map(|((&ti, &m0), &m1)| if ti > 0.5 { m1 } else { m0 })
-            .collect();
-        let outcome_diag = diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
-        let mut effect = finish_dml(
-            &phi,
+        let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+        attach_crossfit_aipw_table(
+            marginal.effect,
             problem,
-            assumptions,
-            treat.validation.logloss,
-            outcome_diag.r2,
-            raw_e,
-        )?;
-        if scores_retargetable(problem) {
-            effect = effect.with_score_table(Some(aipw_score_table(
-                problem,
-                &nuisance,
-                self.folds,
-                [self.outcome, self.treatment],
-                "dml",
-            )?));
-        }
-        effect.crossfit.folds = Some(self.folds);
-        effect.crossfit.seed = Some(ctx.rng.master_seed());
-        effect.crossfit.learner_provenance.clone_from(&treat.model_provenance);
-        Ok(effect)
+            &nuisance,
+            self.folds,
+            [self.outcome, self.treatment],
+            "dml",
+            ctx.rng.master_seed(),
+            &marginal.ehat,
+        )
     }
 
     fn fit_plr(
@@ -362,17 +340,37 @@ pub(crate) fn aipw_score_table(
     learners: [LearnerSpec; 2],
     route: &str,
 ) -> Result<ScoreTable, EstimationError> {
+    aipw_score_table_clipped(problem, nuisance, folds, learners, route, None)
+}
+
+fn aipw_score_table_clipped(
+    problem: &PreparedPropensityProblem,
+    nuisance: &AipwPredictions,
+    folds: usize,
+    learners: [LearnerSpec; 2],
+    route: &str,
+    clipped: Option<&[f64]>,
+) -> Result<ScoreTable, EstimationError> {
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::ScoreConstruction,
         || {
             let (mu0, mu1, raw_e, treat) = nuisance;
             let n = problem.nrows;
             let clip = clip_of(problem.overlap);
-            let ehat = guarded_propensity(raw_e, clip)?;
+            // A fit that already clipped `ê` passes that vector. Guarding again would
+            // copy the raw scores and apply the same clip; the table formulas are unchanged.
+            let guarded;
+            let ehat_rows: &[f64] = match clipped {
+                Some(rows) => rows,
+                None => {
+                    guarded = guarded_propensity(raw_e, clip)?;
+                    guarded.as_slice()
+                }
+            };
             let mut scores = vec![0.0; 2 * n];
             let mut propensities = vec![0.0; 2 * n];
             for i in 0..n {
-                let (t, y, e) = (problem.treatment[i], problem.outcome[i], ehat[i]);
+                let (t, y, e) = (problem.treatment[i], problem.outcome[i], ehat_rows[i]);
                 scores[i] = mu0[i] + ((1.0 - t) / (1.0 - e)) * (y - mu0[i]);
                 scores[n + i] = mu1[i] + (t / e) * (y - mu1[i]);
                 propensities[i] = 1.0 - raw_e[i];
@@ -407,6 +405,72 @@ pub(crate) fn aipw_score_table(
             })
         },
     )
+}
+
+/// AIPW scores and the marginal-mean effect of one cross-fitted nuisance bundle.
+///
+/// DML and the DR-Learner both identify their reported ATE as the mean of these scores.
+/// The DR-Learner then regresses the same `phi` in its final stage; nothing here fits that
+/// stage or writes the score table.
+pub(crate) struct AipwMarginal {
+    /// Orthogonal scores `φ = μ¹ − μ⁰ + T(Y − μ¹)/ê − (1 − T)(Y − μ⁰)/(1 − ê)`.
+    pub phi: Vec<f64>,
+    /// Propensity scores after the overlap clip. The score table reuses this vector.
+    pub ehat: Vec<f64>,
+    /// Marginal mean of `phi` on the retained rows.
+    pub effect: EffectEstimate,
+}
+
+pub(crate) fn aipw_marginal_from_nuisance(
+    problem: &PreparedPropensityProblem,
+    nuisance: &AipwPredictions,
+    assumptions: AssumptionSet,
+) -> Result<AipwMarginal, EstimationError> {
+    let (mu0, mu1, raw_e, treat) = nuisance;
+    let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
+    let phi = aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
+    let yhat: Vec<f64> = problem
+        .treatment
+        .iter()
+        .zip(mu0)
+        .zip(mu1)
+        .map(|((&ti, &m0), &m1)| if ti > 0.5 { m1 } else { m0 })
+        .collect();
+    let outcome_diag = diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
+    let effect =
+        finish_dml(&phi, problem, assumptions, treat.validation.logloss, outcome_diag.r2, raw_e)?;
+    Ok(AipwMarginal { phi, ehat, effect })
+}
+
+/// Attach the untrimmed AIPW score table and the cross-fit record of `nuisance`.
+///
+/// A trimmed problem keeps no table. The treatment-nuisance provenance is copied as-is;
+/// a caller that fits a further stage appends that stage after this returns.
+pub(crate) fn attach_crossfit_aipw_table(
+    mut effect: EffectEstimate,
+    problem: &PreparedPropensityProblem,
+    nuisance: &AipwPredictions,
+    folds: usize,
+    learners: [LearnerSpec; 2],
+    route: &str,
+    seed: u64,
+    clipped: &[f64],
+) -> Result<EffectEstimate, EstimationError> {
+    if scores_retargetable(problem) {
+        effect = effect.with_score_table(Some(aipw_score_table_clipped(
+            problem,
+            nuisance,
+            folds,
+            learners,
+            route,
+            Some(clipped),
+        )?));
+    }
+    let (_, _, _, treat) = nuisance;
+    effect.crossfit.folds = Some(folds);
+    effect.crossfit.seed = Some(seed);
+    effect.crossfit.learner_provenance.clone_from(&treat.model_provenance);
+    Ok(effect)
 }
 
 fn require_binary_treatment(problem: &PreparedPropensityProblem) -> Result<(), EstimationError> {

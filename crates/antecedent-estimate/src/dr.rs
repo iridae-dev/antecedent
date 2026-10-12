@@ -12,10 +12,7 @@ use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::learn_nuisance::{
-    aipw_scores, cached_aipw_nuisances, design_for_spec, guarded_propensity, learn_err,
-    resolve_nuisance,
-};
+use crate::learn_nuisance::{cached_aipw_nuisances, design_for_spec, learn_err, resolve_nuisance};
 use crate::overlap::OverlapPolicy;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
@@ -248,10 +245,9 @@ impl DrLearner {
         }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
-        let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
-        let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
-        let phi =
-            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
+        let crate::dml::AipwMarginal { phi, ehat, effect } =
+            crate::dml::aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+        let raw_e = &nuisance.2;
         let (factory, _) = resolve_nuisance(
             self.final_learner,
             PredictionTask::Regression,
@@ -295,43 +291,22 @@ impl DrLearner {
         FINAL_EFFECT_FITS.with(|count| count.set(count.get().saturating_add(1)));
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
-        let yhat = problem
-            .treatment
-            .iter()
-            .zip(mu0)
-            .zip(mu1)
-            .map(|((&t, &m0), &m1)| if t > 0.5 { m1 } else { m0 })
-            .collect::<Vec<_>>();
-        let outcome_diag =
-            antecedent_learn::diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
-        let mut effect = crate::dml::finish_dml(
-            &phi,
+        let mut effect = crate::dml::attach_crossfit_aipw_table(
+            effect.with_cate(Some(Arc::from(cate.clone()))).with_cate_se(linear_cate_pointwise_se(
+                self.final_learner,
+                view,
+                &phi,
+                &cate,
+                retained.as_deref(),
+            )),
             problem,
-            assumptions,
-            treat.validation.logloss,
-            outcome_diag.r2,
-            raw_e,
-        )?
-        .with_cate(Some(Arc::from(cate.clone())))
-        .with_cate_se(linear_cate_pointwise_se(
-            self.final_learner,
-            view,
-            &phi,
-            &cate,
-            retained.as_deref(),
-        ));
-        effect.crossfit.folds = Some(self.folds);
-        effect.crossfit.seed = Some(ctx.rng.master_seed());
-        if crate::dml::scores_retargetable(problem) {
-            effect = effect.with_score_table(Some(crate::dml::aipw_score_table(
-                problem,
-                &nuisance,
-                self.folds,
-                [self.outcome, self.treatment],
-                "dr_learner",
-            )?));
-        }
-        effect.crossfit.learner_provenance.clone_from(&treat.model_provenance);
+            &nuisance,
+            self.folds,
+            [self.outcome, self.treatment],
+            "dr_learner",
+            ctx.rng.master_seed(),
+            &ehat,
+        )?;
         effect.crossfit.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
             Ok(predictor) => {
