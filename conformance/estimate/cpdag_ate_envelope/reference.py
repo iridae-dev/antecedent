@@ -77,8 +77,15 @@ def main() -> int:
     ate, se, effects = envelope(pin, freq["reference_atoms"])
     print(json.dumps({"ate": ate, "se": se, "completion_effects": effects}, indent=2))
     if "--check" in sys.argv:
-        assert abs(ate - freq["expected_ate"]) <= 1e-12, (ate, freq["expected_ate"])
-        assert abs(se - freq["expected_se"]) <= 1e-12, (se, freq["expected_se"])
+        # atol matches the previous absolute bound. Finite pins are unchanged.
+        assert np.isclose(ate, freq["expected_ate"], rtol=0.0, atol=1e-12), (
+            ate,
+            freq["expected_ate"],
+        )
+        assert np.isclose(se, freq["expected_se"], rtol=0.0, atol=1e-12), (
+            se,
+            freq["expected_se"],
+        )
         print("reference matches expected.json")
     return 0
 

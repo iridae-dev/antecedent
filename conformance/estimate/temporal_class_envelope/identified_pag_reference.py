@@ -57,7 +57,7 @@ def main() -> int:
     print(json.dumps({"ate": ate, "completion_effects": effects}, indent=2))
     if "--check" in sys.argv:
         tol = pin["absolute_tolerance"]
-        assert abs(ate - pin["pulse_ate"]) <= tol, (ate, pin["pulse_ate"])
+        assert np.isclose(ate, pin["pulse_ate"], rtol=0.0, atol=tol), (ate, pin["pulse_ate"])
         print("reference matches identified_pag.json")
     return 0
 

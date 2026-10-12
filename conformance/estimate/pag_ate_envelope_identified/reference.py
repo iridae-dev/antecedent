@@ -138,10 +138,14 @@ def main() -> int:
         freq = pin["frequentist"]
         cond = pin["conditional"]["frequentist"]
         tol = freq["absolute_tolerance"]
-        assert abs(ate - freq["expected_ate"]) <= tol, (ate, freq["expected_ate"])
-        assert abs(ate_se - freq["expected_se"]) <= tol, (ate_se, freq["expected_se"])
-        assert abs(cate - cond["expected_ate"]) <= tol, (cate, cond["expected_ate"])
-        assert abs(cate_se - cond["expected_se"]) <= tol, (cate_se, cond["expected_se"])
+
+        def close(left: float, right: float) -> bool:
+            return bool(np.isclose(left, right, rtol=0.0, atol=tol))
+
+        assert close(ate, freq["expected_ate"]), (ate, freq["expected_ate"])
+        assert close(ate_se, freq["expected_se"]), (ate_se, freq["expected_se"])
+        assert close(cate, cond["expected_ate"]), (cate, cond["expected_ate"])
+        assert close(cate_se, cond["expected_se"]), (cate_se, cond["expected_se"])
         print("reference matches expected.json")
     return 0
 
