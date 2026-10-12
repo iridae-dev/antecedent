@@ -1,4 +1,5 @@
-//! Support-matrix tables loaded from `data/support_matrix.json`.
+//! Support-matrix tables loaded from `data/support_matrix.json`, with the
+//! coordinate index the lookups use.
 //!
 //! `parity/support_*.toml` is the source of truth. `scripts/generate_support_matrix_docs.py`
 //! resolves rules and licensed cells into that snapshot. The public statics stay
@@ -8,12 +9,13 @@
 
 #![allow(missing_docs)]
 
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-const SNAPSHOT: &str = include_str!("../data/support_matrix.json");
+const SNAPSHOT: &str = include_str!("../../data/support_matrix.json");
 
 /// Copy handle for a leaked slice. The static itself is const; the slice is built
 /// on first use.
@@ -106,20 +108,62 @@ fn licensed() -> &'static [LicensedCell] {
     matrix().licensed
 }
 
+/// One of the five axes of a matrix coordinate, in coordinate order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Axis {
+    Query,
+    GraphClass,
+    Structure,
+    Inference,
+    Validation,
+}
+
 struct Matrix {
     na_rules: &'static [NaRule],
     closed_rules: &'static [NaRule],
     licensed: &'static [LicensedCell],
+    /// Licensed rows by full five-axis coordinate (coordinate order), so a
+    /// lookup is one hash instead of a scan of every row.
+    by_coordinate: HashMap<[&'static str; 5], &'static LicensedCell>,
+    /// Distinct licensed values of each axis, for interning a parsed coordinate.
+    axis_values: [HashSet<&'static str>; 5],
+}
+
+/// The licensed row at exactly this `[query, graph_class, structure, inference,
+/// validation]` coordinate.
+pub(super) fn licensed_cell(coordinate: [&str; 5]) -> Option<&'static LicensedCell> {
+    matrix().by_coordinate.get(&coordinate).copied()
+}
+
+/// The `'static` axis value equal to `value`, when some licensed row carries it
+/// on `axis`.
+pub(super) fn intern_axis(axis: Axis, value: &str) -> Option<&'static str> {
+    matrix().axis_values[axis as usize].get(value).copied()
 }
 
 fn matrix() -> &'static Matrix {
     static CELL: OnceLock<Matrix> = OnceLock::new();
     CELL.get_or_init(|| {
         let raw: RawMatrix = serde_json::from_str(SNAPSHOT).expect("support matrix snapshot");
+        let licensed: &'static [LicensedCell] =
+            leak_slice(raw.licensed.into_iter().map(LicensedCell::from_raw).collect());
+        let mut by_coordinate = HashMap::with_capacity(licensed.len());
+        let mut axis_values: [HashSet<&'static str>; 5] = Default::default();
+        for row in licensed {
+            let coordinate =
+                [row.query, row.graph_class, row.structure, row.inference, row.validation];
+            // The first row at a coordinate wins, as the linear scan it replaces did.
+            by_coordinate.entry(coordinate).or_insert(row);
+            for (values, value) in axis_values.iter_mut().zip(coordinate) {
+                values.insert(value);
+            }
+        }
         Matrix {
             na_rules: leak_slice(raw.na_rules.into_iter().map(NaRule::from_raw).collect()),
             closed_rules: leak_slice(raw.closed_rules.into_iter().map(NaRule::from_raw).collect()),
-            licensed: leak_slice(raw.licensed.into_iter().map(LicensedCell::from_raw).collect()),
+            licensed,
+            by_coordinate,
+            axis_values,
         }
     })
 }

@@ -71,7 +71,6 @@ pub mod state;
 pub mod strategy_table;
 pub mod support;
 pub use antecedent_io::coverage_records_data;
-pub mod support_matrix_data;
 
 pub mod estimate;
 pub mod graph;
