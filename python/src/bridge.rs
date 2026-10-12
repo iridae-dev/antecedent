@@ -97,10 +97,11 @@ impl RefusalJson {
     }
 
     /// Set or add one named field.
-    pub(crate) fn field(mut self, key: &str, value: impl serde::Serialize) -> Self {
-        let value = serde_json::to_value(value)
-            .expect("a refusal field of strings, numbers and options always serialises");
-        self.0.insert(key.to_owned(), value);
+    ///
+    /// The value is strings, options, or a plan of those. Builders stay on
+    /// `String`, so a fallible `Serialize` is not threaded out as `PyResult`.
+    pub(crate) fn field(mut self, key: &str, value: impl RefusalField) -> Self {
+        self.0.insert(key.to_owned(), value.into_refusal_value());
         self
     }
 
@@ -140,14 +141,102 @@ pub(crate) fn artifact_refusal_json(
     RefusalJson::new(code, stage, detail.as_ref(), message.as_ref()).offending(offending).json()
 }
 
+/// A refusal field whose JSON is strings, nulls, bools, or a plan of those.
+///
+/// `serde_json::to_value` returns `Result` because some `Serialize` impls fail
+/// (non-finite numbers, maps with non-string keys). These fields do not, so
+/// the conversion stays inside the builder and the JSON text is unchanged.
+pub(crate) trait RefusalField {
+    fn into_refusal_value(self) -> serde_json::Value;
+}
+
+impl RefusalField for serde_json::Value {
+    fn into_refusal_value(self) -> serde_json::Value {
+        self
+    }
+}
+
+impl RefusalField for &str {
+    fn into_refusal_value(self) -> serde_json::Value {
+        serde_json::Value::String(self.to_owned())
+    }
+}
+
+impl RefusalField for &String {
+    fn into_refusal_value(self) -> serde_json::Value {
+        serde_json::Value::String(self.clone())
+    }
+}
+
+impl RefusalField for Option<&str> {
+    fn into_refusal_value(self) -> serde_json::Value {
+        self.map_or(serde_json::Value::Null, |text| serde_json::Value::String(text.to_owned()))
+    }
+}
+
+impl RefusalField for Option<antecedent_io::recalc_receipt_artifact::PlanWire> {
+    fn into_refusal_value(self) -> serde_json::Value {
+        match self {
+            None => serde_json::Value::Null,
+            Some(plan) => plan_wire_value(&plan),
+        }
+    }
+}
+
+fn plan_wire_value(plan: &antecedent_io::recalc_receipt_artifact::PlanWire) -> serde_json::Value {
+    let entries = plan
+        .entries
+        .iter()
+        .map(|entry| {
+            serde_json::json!({
+                "stage": entry.stage,
+                "tag": entry.tag,
+                "detail": entry.detail,
+                "status": entry.status,
+                "identity": entry.identity,
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "entries": entries,
+        "identity": plan.identity,
+        "executable": plan.executable,
+    })
+}
+
 /// The wire JSON of one structured external refusal.
 ///
 /// Every `ExternalRefusal` a binding returns to Python is spelled here once,
 /// through the same `RefusalWire` the external-binding bridge uses, so the
 /// missing operation of a capability refusal (`capability`) reaches Python.
+/// Key order matches `serde_json::to_string` on that wire.
 pub(crate) fn external_refusal_json(value: &antecedent_contract::ExternalRefusal) -> String {
-    serde_json::to_string(&antecedent_io::external_binding_wire::RefusalWire::from(value.clone()))
-        .expect("a refusal of strings and options always serialises")
+    wire_json(&antecedent_io::external_binding_wire::RefusalWire::from(value.clone()))
+}
+
+fn json_string(text: &str) -> String {
+    serde_json::Value::String(text.to_owned()).to_string()
+}
+
+fn json_opt(text: &Option<String>) -> String {
+    match text {
+        Some(text) => json_string(text),
+        None => "null".to_owned(),
+    }
+}
+
+fn wire_json(wire: &antecedent_io::external_binding_wire::RefusalWire) -> String {
+    format!(
+        "{{\"code\":{},\"stage\":{},\"detail\":{},\"offending\":{},\"expected\":{},\"supplied\":{},\"capability\":{},\"remedy\":{}}}",
+        json_string(&wire.code),
+        json_string(&wire.stage),
+        json_string(&wire.detail),
+        json_opt(&wire.offending),
+        json_opt(&wire.expected),
+        json_opt(&wire.supplied),
+        json_opt(&wire.capability),
+        json_opt(&wire.remedy),
+    )
 }
 
 #[cfg(test)]
@@ -181,5 +270,47 @@ mod tests {
         let json = external_refusal_json(&refusal(None));
         let value: serde_json::Value = serde_json::from_str(&json).expect("json");
         assert!(value.get("capability").is_some_and(serde_json::Value::is_null));
+    }
+
+    #[test]
+    fn external_refusal_json_matches_the_wire_serializer() {
+        use antecedent_io::external_binding_wire::RefusalWire;
+        for capability in [Some(ExternalCapability::Cdf), None] {
+            let value = refusal(capability);
+            let json = external_refusal_json(&value);
+            let via_serde = serde_json::to_string(&RefusalWire::from(value)).expect("wire");
+            assert_eq!(json, via_serde);
+        }
+        let quoted = ExternalRefusal {
+            detail: "family.slot \"quoted\" \\ tail".to_owned(),
+            offending: Some("line\nbreak".to_owned()),
+            ..refusal(None)
+        };
+        let json = external_refusal_json(&quoted);
+        let via_serde = serde_json::to_string(&RefusalWire::from(quoted)).expect("wire");
+        assert_eq!(json, via_serde);
+    }
+
+    #[test]
+    fn a_plan_field_matches_serde_of_the_wire() {
+        use super::RefusalJson;
+        use antecedent_io::recalc_receipt_artifact::{PlanEntryWire, PlanWire};
+        let plan = PlanWire {
+            entries: vec![PlanEntryWire {
+                stage: "estimate".to_owned(),
+                tag: "recomputed".to_owned(),
+                detail: "own:utility".to_owned(),
+                status: "recomputed(own:utility)".to_owned(),
+                identity: "ab".to_owned(),
+            }],
+            identity: "cd".to_owned(),
+            executable: true,
+        };
+        let json = RefusalJson::new("c", "s", "d", "m").field("plan", Some(plan.clone())).json();
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        let via_serde = serde_json::to_value(plan).expect("plan");
+        assert_eq!(value["plan"], via_serde);
+        assert_eq!(value["message"], "m");
+        assert!(value["offending"].is_null());
     }
 }
