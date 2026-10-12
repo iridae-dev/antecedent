@@ -510,6 +510,68 @@ mod tests {
         }
     }
 
+    fn mixed_storage(n: usize, mask: bool, weights: bool) -> crate::OwnedColumnarStorage {
+        use antecedent_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
+        let (columns, validity, w) = mixed_columns(n);
+        let mut builder = CausalSchemaBuilder::new();
+        for i in 0..columns.len() {
+            builder
+                .add_variable(
+                    format!("v{i}"),
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        crate::OwnedColumnarStorage::try_new(
+            builder.build().unwrap(),
+            columns,
+            mask.then_some(validity),
+            weights.then(|| Arc::from(w)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn lazy_digest_equals_eager_and_is_not_computed_until_read() {
+        for n in [0, 9, 8_193] {
+            for (mask, weights) in [(false, false), (true, false), (false, true), (true, true)] {
+                let storage = mixed_storage(n, mask, weights);
+                assert!(!storage.digest_is_computed(), "construction must not hash");
+                let clone = storage.clone();
+                assert!(!clone.digest_is_computed());
+                let eager = storage_digest(
+                    storage.columns(),
+                    n,
+                    storage.analysis_mask(),
+                    storage.weights(),
+                );
+                assert_eq!(storage.content_digest(), eager, "n={n}");
+                assert!(storage.digest_is_computed());
+                assert!(clone.digest_is_computed(), "clones share the memo");
+                assert_eq!(clone.content_digest(), eager);
+            }
+        }
+    }
+
+    #[test]
+    fn concurrent_first_reads_agree() {
+        let storage = mixed_storage(20_001, true, true);
+        let eager =
+            storage_digest(storage.columns(), 20_001, storage.analysis_mask(), storage.weights());
+        let digests: Vec<[u8; 32]> = std::thread::scope(|scope| {
+            let handles: Vec<_> =
+                (0..8).map(|_| scope.spawn(|| storage.clone().content_digest())).collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        assert!(digests.iter().all(|d| *d == eager));
+    }
+
     #[test]
     fn large_columns_hash_in_bulk_not_per_value() {
         let n = 200_000;
