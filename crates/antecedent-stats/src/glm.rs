@@ -1110,7 +1110,7 @@ fn weighted_gram_is_full_rank(
 
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "Fisher scoring loop over classes; the iteration state is read by every step"
 )]
 #[allow(
     clippy::needless_range_loop,

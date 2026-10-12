@@ -328,7 +328,7 @@ impl IdIdentifier {
     /// Identify the requested intervention mean, retaining the actual Set levels.
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+        reason = "one arm per response functional, each assembling its own estimand from the shared prepared graph"
     )]
     pub(crate) fn identify_response(
         &self,

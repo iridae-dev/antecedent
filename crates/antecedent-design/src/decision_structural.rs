@@ -216,7 +216,7 @@ fn validate_atoms(atoms: &[StructuralAtom]) -> Result<bool, StructuralError> {
 /// weighting without genuine probabilities.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one contract evaluated in order: bind, score each action under each structure, aggregate"
 )]
 pub fn evaluate_structural(
     contract: &DecisionContract,

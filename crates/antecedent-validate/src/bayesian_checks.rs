@@ -329,7 +329,7 @@ impl PredictiveCheckReport {
     )]
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+        reason = "mixture-weights every field of the per-atom check summary, one statement each"
     )]
     pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
         if items.iter().any(|(weight, _)| !weight.is_finite()) {
@@ -3281,7 +3281,7 @@ impl SimulationBasedCalibration {
     )]
     #[allow(
         clippy::too_many_lines,
-        reason = "one fixture exercised end to end; later assertions read locals built above them"
+        reason = "one arm per posterior check kind over the same draws"
     )]
     pub fn check(
         &self,

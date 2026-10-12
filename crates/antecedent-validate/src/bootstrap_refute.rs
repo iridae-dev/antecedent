@@ -257,7 +257,7 @@ impl BootstrapRefute {
     /// Data or estimation failures.
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+        reason = "resample, refit and compare in one pass; the stages share the replicate buffers"
     )]
     pub fn refute(
         &self,

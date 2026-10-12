@@ -282,7 +282,7 @@ fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
 #[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
 )]
 pub fn evaluate_contract(
     contract: &DecisionContract,
@@ -678,7 +678,7 @@ fn mean_insufficient(needed: Vec<SourceRepresentation>) -> DecisionEvalError {
 /// outcome law), and a non-finite utility.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
 )]
 pub fn evaluate_contract_on_means(
     contract: &DecisionContract,

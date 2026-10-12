@@ -1677,7 +1677,7 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
 /// Unsupported nested fields or missing registry entries.
 #[allow(
     clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+    reason = "one arm per query kind, each converting that kind fields"
 )]
 pub fn causal_query_to_wire_with_registry(
     q: &CausalQuery,
@@ -2092,7 +2092,7 @@ pub fn causal_query_to_wire_with_registry(
 /// Unknown tags or size overflows.
 #[allow(
     clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+    reason = "one arm per query kind, each converting that kind fields"
 )]
 pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoError> {
     Ok(match w {

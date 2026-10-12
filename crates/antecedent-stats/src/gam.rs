@@ -448,7 +448,7 @@ impl AdditiveDesign {
 /// Invalid weights or response, or a singular penalized Gram.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "backfitting loop with per-smooth GCV; the sweep state is read by every step"
 )]
 pub fn fit_gam_weighted_design(
     design: &AdditiveDesign,

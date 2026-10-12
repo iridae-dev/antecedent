@@ -172,7 +172,7 @@ impl PcmciEngine {
     /// Data or CI failures.
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+        reason = "PC1 levels in one loop: batch or sequential test, record outcomes, prune, re-rank; every step reads the surviving parents"
     )]
     pub fn select_parents(
         &self,
@@ -890,7 +890,7 @@ impl PcmciEngine {
     /// CI test of `link.source ⊥ link.target | cond` on `frame`.
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+        reason = "fast unmasked path, then the masked complete-case path; both share the column indexes and workspace"
     )]
     pub(crate) fn ci_statistic(
         &self,

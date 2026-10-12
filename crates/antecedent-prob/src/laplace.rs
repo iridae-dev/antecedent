@@ -52,7 +52,7 @@ impl InferenceBackend for LaplaceGlmBackend {
 /// Shape, prior, non-convergence, or singular curvature.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "Newton iteration with line search and diagnostics; the loop state is read by every step"
 )]
 pub fn fit_laplace_glm(
     likelihood: BayesLikelihood,

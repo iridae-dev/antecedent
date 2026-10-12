@@ -310,7 +310,7 @@ impl ExternalBindingError {
     #[must_use]
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+        reason = "one arm per refusal code, each mapping that code detail fields"
     )]
     pub fn to_refusal(
         &self,

@@ -135,7 +135,7 @@ pub fn sample_noise_column(
 /// Shape / vacant.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one arm per mechanism family, each a self-contained column evaluation"
 )]
 pub fn evaluate_column(
     slot: &MechanismSlot,
@@ -443,7 +443,7 @@ pub fn infer_noise_column(
 /// Unsupported family or shape.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one arm per mechanism family, each inverting its own noise model"
 )]
 pub fn infer_noise_column_rng(
     slot: &MechanismSlot,
@@ -684,7 +684,7 @@ fn categorical_inverse_cdf_draw(
 /// Shape / vacant.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one arm per mechanism family, each a self-contained log-density column"
 )]
 pub fn log_prob_column(
     slot: &MechanismSlot,

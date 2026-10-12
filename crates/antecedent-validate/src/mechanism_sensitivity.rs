@@ -427,7 +427,7 @@ pub(crate) fn z_surrogate_kernels(
 // result is built only after the complete proof/provider contract passes.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "metered evaluation of every surrogate kernel; the stages share the meter and the formula"
 )]
 pub(crate) fn z_surrogate_kernels_metered<E>(
     diagram: &SelectionDiagram,

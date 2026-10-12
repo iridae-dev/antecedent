@@ -99,7 +99,7 @@ pub struct SequentialDrInputs<'a> {
 /// claim; callers must keep the Q ownership contract separate.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "backward sequential regression over time points, then the value and subject scores; the stages share the fitted nuisances"
 )]
 pub fn evaluate_sequential_dr_value_with_subject_scores(
     outcomes: &[f64],

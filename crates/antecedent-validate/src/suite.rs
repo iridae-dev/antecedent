@@ -427,7 +427,7 @@ impl ValidationSuite {
 
     #[allow(
         clippy::too_many_lines,
-        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+        reason = "flat dispatch over validator ids, each arm building and running that validator"
     )]
     fn run_one(
         id: ValidatorId,

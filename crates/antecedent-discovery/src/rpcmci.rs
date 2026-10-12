@@ -449,7 +449,7 @@ struct RegimeEquation {
 /// returns `None` when fewer than two regimes qualify.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one reassignment sweep: residualize, score every regime, then move; the steps share the residual matrices"
 )]
 fn reassign_by_lagged_residual(
     data: &TimeSeriesData,

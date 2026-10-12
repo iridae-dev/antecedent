@@ -108,7 +108,7 @@ pub fn detect_mechanism_changes(
 /// Query / fit / stats failures.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "fit both sides, test every mechanism, then correct the whole family together; the stages share the per-mechanism results"
 )]
 pub fn detect_mechanism_changes_with_correction(
     graph_model: &CompiledCausalModel,

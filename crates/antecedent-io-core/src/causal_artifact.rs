@@ -434,7 +434,7 @@ fn validate_response_query_ids(
 #[doc(hidden)]
 #[allow(
     clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+    reason = "one arm per query kind, each checking that kind variable ids"
 )]
 pub fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<(), IoError> {
     use CausalQueryWire as Q;

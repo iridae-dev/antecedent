@@ -401,7 +401,7 @@ fn replace_coef_moments(
 /// length mismatches, or invalid adjustment weights.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one arm per transport kind over the same posterior draws"
 )]
 pub fn apply_transport(
     sources: &[ExternalPriorSource],

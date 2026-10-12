@@ -324,7 +324,7 @@ pub fn identification_to_wire_with_registry(
 /// Unknown status / query / arena.
 #[allow(
     clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+    reason = "one conversion per wire field of the identification result, in declaration order"
 )]
 pub fn identification_from_wire(
     w: &IdentificationResultWire,

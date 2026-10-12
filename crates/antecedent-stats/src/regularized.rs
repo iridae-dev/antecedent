@@ -168,7 +168,7 @@ pub fn fit_ridge(
 /// centering (e.g. a constant predictor when `fit_intercept` and `standardize` are set).
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "coordinate descent with standardization and path bookkeeping sharing one set of buffers"
 )]
 pub fn fit_lasso(
     x_colmajor: &[f64],

@@ -575,7 +575,7 @@ fn atom_digests(body: &Value) -> Result<Vec<(String, Option<String>)>, NodeFailu
 // One arm per stored result kind: splitting them would only scatter the shared tail.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one decode-and-check per field of the stored result, in wire order"
 )]
 fn inspect_result(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let kind = NodeKind::DecisionResult;

@@ -979,7 +979,7 @@ const LINE_BYTES: u64 = std::mem::size_of::<FrontierPoint>() as u64;
 /// Never: one bracketing outcome is recorded per stage before stages are read back.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "one sensitivity grid evaluated in order; the stages share the bound transport formula"
 )]
 pub fn z_transport_joint_mechanism_sensitivity(
     diagram: &SelectionDiagram,

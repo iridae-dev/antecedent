@@ -29,7 +29,7 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 /// Size limits, out-of-range `unit_rows`, abduction, or Shapley failures.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "abduct the unit noise, evaluate both worlds, then allocate; the stages share the abducted state"
 )]
 pub fn unit_change(
     model: &CompiledCausalModel,

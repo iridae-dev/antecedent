@@ -215,7 +215,7 @@ pub fn compose_external_priors(
 /// Length mismatch, invalid weights, missing Gaussians, or dimension mismatch.
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "power and mixture composition share the validated prior set and weights"
 )]
 pub fn compose_external_priors_with_alphas(
     sources: &[ExternalPriorSource],

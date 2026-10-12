@@ -220,7 +220,7 @@ fn evaluate_coalition<P: CoalitionPayoff>(
 )]
 #[allow(
     clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    reason = "exact, sampled and antithetic estimators are selected by one match; each arm is a self-contained estimator over the same payoff"
 )]
 pub fn estimate_shapley<P: CoalitionPayoff>(
     players: &[ComponentId],
