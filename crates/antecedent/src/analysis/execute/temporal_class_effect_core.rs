@@ -10,7 +10,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sequential_validation::SequentialValidation;
+use super::sequential_validation::{SequentialValidation, SequentialValidationAtom};
 use super::temporal_effect_core::FitFinishMeta;
 use super::temporal_path::{temporal_class_envelope_diagnostic, temporal_class_structural_mixture};
 use super::{
@@ -20,17 +20,19 @@ use super::{
     GraphIdentFlag, IDENTIFIED_SET_INTERVAL_LEVEL, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
     InferenceDiagnostics, InferenceMode, PhysicalExecutionPlan, PredictiveCheckReport, RefuteSuite,
-    SequentialAtomBlock, Strategy, TableView, TabularData, TemporalEffectQuery, TemporalRefutation,
-    TimeSeriesData, UNFOLDED_LINEAR_SEM, WeightedGraphSamples, aggregate_effect_envelope,
-    bayesian_gcomp, class_mixture_estimate, completion_fit_seed, effect_from_posterior,
-    envelope_se_omits_between_atom_variance, envelope_shared_block_diagnostics,
-    fit_class_linear_atoms, identification_status_ok_for_case, identified_set_interval_diagnostics,
-    mag_sequential_unevaluable_diagnostic, mix_weighted_analytic_se, nan_effect,
-    posterior_identified_set_interval, provenance_ids, same_fitted_mechanisms, select_estimand,
-    sequential_atom_block, sequential_linear_sem_assumption, shared_circular_block_mixture_se,
-    temporal_class_block_span, temporal_refuter_average,
+    SequentialAtomBlock, Strategy, TableView, TabularData, TemporalDag, TemporalEffectQuery,
+    TemporalRefutation, TimeSeriesData, UNFOLDED_LINEAR_SEM, WeightedGraphSamples,
+    aggregate_effect_envelope, bayesian_gcomp, class_mixture_estimate, completion_fit_seed,
+    effect_from_posterior, envelope_se_omits_between_atom_variance,
+    envelope_shared_block_diagnostics, fit_class_linear_atoms, identification_status_ok_for_case,
+    identified_set_interval_diagnostics, mag_sequential_unevaluable_diagnostic,
+    mix_weighted_analytic_se, nan_effect, posterior_identified_set_interval, provenance_ids,
+    same_fitted_mechanisms, select_estimand, sequential_atom_block,
+    sequential_linear_sem_assumption, shared_circular_block_mixture_se, temporal_class_block_span,
+    temporal_refuter_average,
 };
 use crate::analysis::prepared::CachedTemporalClassIdentification;
+use antecedent_estimate::temporal_sequential::SequentialBayesianMechanism;
 
 /// Everything one class-effect fit reads, resolved by the caller.
 pub(super) struct TemporalClassEffectInputs<'a> {
@@ -283,6 +285,55 @@ pub(super) fn fit_class_linear(
     })
 }
 
+/// The completion sites a sequential class fit visits.
+struct SequentialClassSite<'a> {
+    index: usize,
+    case: &'a antecedent_identify::GraphIdentificationCase<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    indexer: &'a antecedent_core::TemporalIndexer,
+    weight: f64,
+}
+
+/// Accumulators of a sequential class fit across its completions.
+struct SequentialClassRun {
+    weights: Vec<f64>,
+    flags: Vec<GraphIdentFlag>,
+    keys: Vec<u64>,
+    atom_values: Vec<Option<f64>>,
+    per_graph: Vec<GraphEffectDraws>,
+    seq_atoms: Vec<SequentialValidationAtom>,
+    seq_atom_keys: Vec<u64>,
+    seq_atom_seeds: Vec<u64>,
+    atom_posteriors: std::collections::HashMap<u64, CausalPosterior>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    unevaluable_weight: f64,
+    weighted_ate: f64,
+    total_w: f64,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl SequentialClassRun {
+    fn new(case_count: usize, diagnostics: Vec<Diagnostic>) -> Self {
+        Self {
+            weights: Vec::new(),
+            flags: Vec::new(),
+            keys: Vec::new(),
+            atom_values: vec![None; case_count],
+            per_graph: Vec::new(),
+            seq_atoms: Vec::new(),
+            seq_atom_keys: Vec::new(),
+            seq_atom_seeds: Vec::new(),
+            atom_posteriors: std::collections::HashMap::new(),
+            primary_estimand: None,
+            unevaluable_weight: 0.0,
+            weighted_ate: 0.0,
+            total_w: 0.0,
+            diagnostics,
+        }
+    }
+}
+
 /// Multi-step sustained fit of a class envelope: a sequential g-computation per
 /// directed completion, mixed by the completion enumeration (frequentist) or by
 /// the caller's class prior (Bayesian).
@@ -317,130 +368,26 @@ pub(super) fn fit_class_sequential(
         "the contrast propagates through all intervened times on each directed completion; \
          no last-step collapse; bidirected MAG completions stay unevaluable",
     ));
-    let mut weights = Vec::new();
-    let mut flags = Vec::new();
-    let mut keys = Vec::new();
-    let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-    let mut per_graph = Vec::new();
-    let mut seq_atoms: Vec<super::sequential_validation::SequentialValidationAtom> = Vec::new();
-    let mut seq_atom_keys = Vec::new();
-    let mut seq_atom_seeds: Vec<u64> = Vec::new();
-    let mut atom_posteriors = std::collections::HashMap::new();
-    let mut primary_estimand = None;
-    let mut unevaluable_weight = 0.0;
-    let mut weighted_ate = 0.0;
-    let mut total_w = 0.0;
+    let mut run = SequentialClassRun::new(envelope.cases.len(), diagnostics);
     for (i, (case, indexer)) in
         envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
     {
-        let key = case.graph.fingerprint();
-        keys.push(key);
         let weight = class_masses.as_ref().map_or(case.weight.0, |masses| masses[i]);
-        weights.push(weight);
-        if !identification_status_ok_for_case(case.result.status)
-            || case.result.estimands.is_empty()
-        {
-            flags.push(GraphIdentFlag::Unidentified);
-            continue;
-        }
-        let Some(dag) = case.graph.sequential_dag() else {
-            flags.push(GraphIdentFlag::Unidentified);
-            unevaluable_weight += weight;
-            diagnostics.push(mag_sequential_unevaluable_diagnostic(key));
-            continue;
-        };
-        let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
-            .or_else(|_| select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment))?;
-        if primary_estimand.is_none() {
-            primary_estimand = Some(estimand.clone());
-        }
-        flags.push(GraphIdentFlag::Identified);
-        let mut assumptions = case.result.required_assumptions.clone();
-        assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
-        // Each completion's posterior draws from its own seed stream; a completion
-        // whose fitted mechanisms coincide with an earlier one's is refit on that
-        // completion's seed, so one model carries one posterior.
-        let mut seed = completion_fit_seed(ctx, key);
-        let (estimate, posterior, mechanisms) = loop {
-            let mut mechanisms = Vec::new();
-            let completion_bayes =
-                bayes.as_ref().map(|est| BayesianGComputationAte { seed, ..est.clone() });
-            let (estimate, posterior) =
-                antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                    &antecedent_estimate::SequentialProblem {
-                        data,
-                        graph: &dag,
-                        indexer,
-                        estimand: &estimand,
-                    },
-                    query,
-                    antecedent_estimate::SequentialInference {
-                        status: case.result.status,
-                        assumptions: assumptions.clone(),
-                        // The published frequentist interval bootstraps the atoms jointly
-                        // below. An atom's own replicates only fix the dependence-aware
-                        // block length its refuters resample on, so they are drawn only
-                        // when a refuter will read it.
-                        bootstrap_replicates: if bayes.is_some()
-                            || inputs.refute != RefuteSuite::None
-                        {
-                            bootstrap_replicates
-                        } else {
-                            0
-                        },
-                        bayesian: completion_bayes.as_ref(),
-                    },
-                    ctx,
-                    Some(&mut mechanisms),
-                )
-                .map_err(CausalError::from)?;
-            let shared_seed = seq_atoms
-                .iter()
-                .zip(&seq_atom_seeds)
-                .find(|(atom, atom_seed)| {
-                    bayes.is_some()
-                        && **atom_seed != seed
-                        && same_fitted_mechanisms(&atom.mechanisms, &mechanisms)
-                })
-                .map(|(_, atom_seed)| *atom_seed);
-            match shared_seed {
-                Some(shared) => seed = shared,
-                None => break (estimate, posterior, mechanisms),
-            }
-        };
-        seq_atom_seeds.push(seed);
-        atom_values[i] = Some(estimate.ate);
-        weighted_ate += weight * estimate.ate;
-        total_w += weight;
-        if let Some(posterior) = posterior.as_ref() {
-            atom_posteriors.insert(key, posterior.clone());
-            if let Some(col) = posterior.effect_column() {
-                if let Ok(draws) = posterior.draws.column(col) {
-                    per_graph.push(GraphEffectDraws {
-                        graph_key: key,
-                        effect_draws: Arc::from(draws.to_vec()),
-                    });
-                }
-            }
-        }
-        seq_atom_keys.push(key);
-        seq_atoms.push(super::sequential_validation::SequentialValidationAtom {
-            weight,
-            graph: dag,
-            indexer: indexer.clone(),
-            estimand,
-            status: case.result.status,
-            estimate,
-            mechanisms,
-        });
+        fit_sequential_completion(
+            inputs,
+            bayes.as_ref(),
+            &mut run,
+            SequentialClassSite { index: i, case, indexer, weight },
+            ctx,
+        )?;
     }
-    if seq_atoms.is_empty() {
+    if run.seq_atoms.is_empty() {
         return Err(CausalError::Compile {
             message: "temporal class sequential envelope has no evaluable directed completions"
                 .into(),
         });
     }
-    let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+    let estimand = run.primary_estimand.take().ok_or_else(|| CausalError::Compile {
         message: "temporal class sequential envelope has no primary estimand".into(),
     })?;
     let weight_basis = if class_masses.is_some() {
@@ -448,138 +395,29 @@ pub(super) fn fit_class_sequential(
     } else {
         crate::result::StructuralWeightBasis::CompletionEnumeration
     };
-    let mut identified_set_interval = None;
-    if bayes.is_some() {
-        identified_set_interval = posterior_identified_set_interval(
-            seq_atom_keys.iter().filter_map(|key| atom_posteriors.get(key)),
-            data.row_count(),
-            envelope.truncated_completions > 0,
-        );
-    }
-    // Unevaluable (bidirected) completions are flagged unidentified for the
-    // mixture, which never draws from them; their share is reported as
-    // `unevaluable_mass`, not as unidentified mass.
-    let unevaluable_share = unevaluable_weight / weights.iter().sum::<f64>();
-    let (estimate, mut posterior) = if bayes.is_some() {
-        if class_masses.is_some()
-            && envelope.truncated_completions == 0
-            && seq_atoms.iter().any(|atom| atom.weight > 0.0)
-        {
-            let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
-            let mut mixed = aggregate_effect_envelope(
-                &graphs,
-                &per_graph,
-                InferenceDiagnostics::analytic("temporal_class_sequential"),
-                EnvelopeOptions::default(),
-            )
-            .map_err(CausalError::from)?;
-            mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
-            (effect_from_posterior(&mixed)?, Some(mixed))
-        } else {
-            diagnostics.push(Diagnostic::new(
-                "estimate.envelope.response_posterior_not_mixed",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "completion posteriors are retained as atoms; mixing requires caller-supplied \
-                 class mass, positive evaluable mass, and uncapped class scope",
-            ));
-            (nan_effect(), None)
-        }
-    } else if total_w > 0.0 {
-        let SequentialAtomBlock { block, identified_set_interval: interval, se_analytic } =
-            sequential_atom_block(
-                data,
-                query,
-                &seq_atoms,
-                bootstrap_replicates,
-                envelope.truncated_completions > 0,
-                ctx,
-            )?;
-        identified_set_interval = interval;
-        if block.se.is_finite() {
-            diagnostics.extend(envelope_shared_block_diagnostics(
-                total_w,
-                envelope.unidentified_weight.0,
-                &block,
-            ));
-        } else if seq_atoms.len() > 1 {
-            diagnostics.push(envelope_se_omits_between_atom_variance());
-        }
-        (
-            class_mixture_estimate(
-                weighted_ate / total_w,
-                se_analytic,
-                &block,
-                bootstrap_replicates,
-                seq_atoms[0].estimate.provenance.assumptions.clone(),
-                ctx,
-            ),
-            None,
-        )
-    } else {
-        (nan_effect(), None)
-    };
-    diagnostics.extend(
-        identified_set_interval.as_ref().into_iter().flat_map(identified_set_interval_diagnostics),
-    );
-    let sims = crate::analysis::latency::predictive_check_sims(inputs.latency_mode);
-    let (refutations, extra_diagnostics, predictive_checks) = if estimate.ate.is_finite() {
-        super::sequential_validation::validate_sequential(
-            SequentialValidation {
-                data,
-                query,
-                suite: inputs.refute,
-                custom: inputs.custom_validators,
-                predictive_sims: sims,
-            },
-            &seq_atoms,
-            bayes.as_ref(),
-            posterior.as_mut(),
-            estimate.ate,
-            ctx,
-        )?
-    } else {
-        let mut reports = Vec::new();
-        let mut extra = Vec::new();
-        let mut checks = Vec::new();
-        for (atom, key) in seq_atoms.iter().zip(&seq_atom_keys) {
-            let (mut local_reports, local_extra, local_checks) =
-                super::sequential_validation::validate_sequential(
-                    SequentialValidation {
-                        data,
-                        query,
-                        suite: inputs.refute,
-                        custom: inputs.custom_validators,
-                        predictive_sims: sims,
-                    },
-                    std::slice::from_ref(atom),
-                    bayes.as_ref(),
-                    atom_posteriors.get_mut(key),
-                    atom.estimate.ate,
-                    ctx,
-                )?;
-            for report in &mut local_reports {
-                report.refuter = Arc::from(format!("completion.{key}.{}", report.refuter));
-            }
-            reports.extend(local_reports);
-            extra.extend(local_extra);
-            checks.extend(local_checks);
-        }
-        (reports, extra, checks)
-    };
-    diagnostics.extend(extra_diagnostics);
+    let (estimate, mut posterior, identified_set_interval) =
+        mix_sequential_class_atoms(inputs, bayes.as_ref(), class_masses.is_some(), &mut run, ctx)?;
+    let (refutations, extra_diagnostics, predictive_checks) = validate_sequential_class_atoms(
+        inputs,
+        bayes.as_ref(),
+        &estimate,
+        &mut run,
+        &mut posterior,
+        ctx,
+    )?;
+    run.diagnostics.extend(extra_diagnostics);
     let mut structural = temporal_class_structural_mixture(
         envelope,
         weight_basis,
         class_masses.as_deref(),
-        &atom_values,
+        &run.atom_values,
     );
     structural.identified_set_interval = identified_set_interval;
     for atom in &mut structural.atoms {
-        atom.posterior = atom_posteriors.remove(&atom.graph_key);
+        atom.posterior = run.atom_posteriors.remove(&atom.graph_key);
     }
     let total: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
-    structural.unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
+    structural.unevaluable_mass = if total > 0.0 { run.unevaluable_weight / total } else { 0.0 };
     structural.unidentified_mass =
         (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
     Ok(TemporalClassEffectFit {
@@ -589,10 +427,298 @@ pub(super) fn fit_class_sequential(
         cancelled: ctx.cancellation.is_cancelled(),
         estimate,
         refutations,
-        diagnostics,
+        diagnostics: run.diagnostics,
         posterior,
         structural,
         predictive_checks,
         point_only: false,
     })
+}
+
+/// Fits one directed completion's sequential g-computation and records its
+/// value, posterior draws and validation atom; a completion that is not
+/// identified or has no sequential DAG is flagged and skipped.
+fn fit_sequential_completion(
+    inputs: &TemporalClassEffectInputs<'_>,
+    bayes: Option<&BayesianGComputationAte>,
+    run: &mut SequentialClassRun,
+    site: SequentialClassSite<'_>,
+    ctx: &ExecutionContext,
+) -> Result<(), CausalError> {
+    let SequentialClassSite { index: i, case, indexer, weight } = site;
+    let key = case.graph.fingerprint();
+    run.keys.push(key);
+    run.weights.push(weight);
+    if !identification_status_ok_for_case(case.result.status) || case.result.estimands.is_empty() {
+        run.flags.push(GraphIdentFlag::Unidentified);
+        return Ok(());
+    }
+    let Some(dag) = case.graph.sequential_dag() else {
+        run.flags.push(GraphIdentFlag::Unidentified);
+        run.unevaluable_weight += weight;
+        run.diagnostics.push(mag_sequential_unevaluable_diagnostic(key));
+        return Ok(());
+    };
+    let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
+        .or_else(|_| select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment))?;
+    if run.primary_estimand.is_none() {
+        run.primary_estimand = Some(estimand.clone());
+    }
+    run.flags.push(GraphIdentFlag::Identified);
+    let mut assumptions = case.result.required_assumptions.clone();
+    assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
+    let (estimate, posterior, mechanisms, seed) = fit_completion_mechanisms(
+        inputs,
+        bayes,
+        (&run.seq_atoms, &run.seq_atom_seeds),
+        (&dag, indexer, &estimand, case.result.status),
+        (assumptions, key),
+        ctx,
+    )?;
+    run.seq_atom_seeds.push(seed);
+    run.atom_values[i] = Some(estimate.ate);
+    run.weighted_ate += weight * estimate.ate;
+    run.total_w += weight;
+    if let Some(posterior) = posterior.as_ref() {
+        run.atom_posteriors.insert(key, posterior.clone());
+        if let Some(col) = posterior.effect_column() {
+            if let Ok(draws) = posterior.draws.column(col) {
+                run.per_graph.push(GraphEffectDraws {
+                    graph_key: key,
+                    effect_draws: Arc::from(draws.to_vec()),
+                });
+            }
+        }
+    }
+    run.seq_atom_keys.push(key);
+    run.seq_atoms.push(SequentialValidationAtom {
+        weight,
+        graph: dag,
+        indexer: indexer.clone(),
+        estimand,
+        status: case.result.status,
+        estimate,
+        mechanisms,
+    });
+    Ok(())
+}
+
+/// One completion's sustained-window fit and posterior. Each completion's
+/// posterior draws from its own seed stream; a completion whose fitted
+/// mechanisms coincide with an earlier one's is refit on that completion's
+/// seed, so one model carries one posterior.
+fn fit_completion_mechanisms(
+    inputs: &TemporalClassEffectInputs<'_>,
+    bayes: Option<&BayesianGComputationAte>,
+    (seq_atoms, seq_atom_seeds): (&[SequentialValidationAtom], &[u64]),
+    (dag, indexer, estimand, status): (
+        &TemporalDag,
+        &antecedent_core::TemporalIndexer,
+        &IdentifiedEstimand,
+        IdentificationStatus,
+    ),
+    (assumptions, key): (antecedent_core::AssumptionSet, u64),
+    ctx: &ExecutionContext,
+) -> Result<
+    (EffectEstimate, Option<CausalPosterior>, Vec<SequentialBayesianMechanism>, u64),
+    CausalError,
+> {
+    let TemporalClassEffectInputs { data, query, bootstrap_replicates, .. } = *inputs;
+    let mut seed = completion_fit_seed(ctx, key);
+    loop {
+        let mut mechanisms = Vec::new();
+        let completion_bayes = bayes.map(|est| BayesianGComputationAte { seed, ..est.clone() });
+        let (estimate, posterior) =
+            antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
+                &antecedent_estimate::SequentialProblem { data, graph: dag, indexer, estimand },
+                query,
+                antecedent_estimate::SequentialInference {
+                    status,
+                    assumptions: assumptions.clone(),
+                    // The published frequentist interval bootstraps the atoms jointly
+                    // below. An atom's own replicates only fix the dependence-aware
+                    // block length its refuters resample on, so they are drawn only
+                    // when a refuter will read it.
+                    bootstrap_replicates: if bayes.is_some() || inputs.refute != RefuteSuite::None {
+                        bootstrap_replicates
+                    } else {
+                        0
+                    },
+                    bayesian: completion_bayes.as_ref(),
+                },
+                ctx,
+                Some(&mut mechanisms),
+            )
+            .map_err(CausalError::from)?;
+        let shared_seed = seq_atoms
+            .iter()
+            .zip(seq_atom_seeds)
+            .find(|(atom, atom_seed)| {
+                bayes.is_some()
+                    && **atom_seed != seed
+                    && same_fitted_mechanisms(&atom.mechanisms, &mechanisms)
+            })
+            .map(|(_, atom_seed)| *atom_seed);
+        match shared_seed {
+            Some(shared) => seed = shared,
+            None => return Ok((estimate, posterior, mechanisms, seed)),
+        }
+    }
+}
+
+/// The class estimate of the evaluated completions: the class-prior posterior
+/// mixture (Bayesian), or the frozen-weight mean with the joint block
+/// bootstrap (frequentist), with the identified-set interval it carries.
+fn mix_sequential_class_atoms(
+    inputs: &TemporalClassEffectInputs<'_>,
+    bayes: Option<&BayesianGComputationAte>,
+    class_prior_supplied: bool,
+    run: &mut SequentialClassRun,
+    ctx: &ExecutionContext,
+) -> Result<
+    (EffectEstimate, Option<CausalPosterior>, Option<antecedent_estimate::IdentifiedSetInterval>),
+    CausalError,
+> {
+    let TemporalClassEffectInputs { data, query, bundle, bootstrap_replicates, .. } = *inputs;
+    let envelope = &bundle.envelope.envelope;
+    let mut identified_set_interval = None;
+    if bayes.is_some() {
+        identified_set_interval = posterior_identified_set_interval(
+            run.seq_atom_keys.iter().filter_map(|key| run.atom_posteriors.get(key)),
+            data.row_count(),
+            envelope.truncated_completions > 0,
+        );
+    }
+    // Unevaluable (bidirected) completions are flagged unidentified for the
+    // mixture, which never draws from them; their share is reported as
+    // `unevaluable_mass`, not as unidentified mass.
+    let unevaluable_share = run.unevaluable_weight / run.weights.iter().sum::<f64>();
+    let (estimate, posterior) = if bayes.is_some() {
+        if class_prior_supplied
+            && envelope.truncated_completions == 0
+            && run.seq_atoms.iter().any(|atom| atom.weight > 0.0)
+        {
+            let graphs = WeightedGraphSamples::new(
+                std::mem::take(&mut run.weights),
+                std::mem::take(&mut run.flags),
+                std::mem::take(&mut run.keys),
+            )?;
+            let mut mixed = aggregate_effect_envelope(
+                &graphs,
+                &run.per_graph,
+                InferenceDiagnostics::analytic("temporal_class_sequential"),
+                EnvelopeOptions::default(),
+            )
+            .map_err(CausalError::from)?;
+            mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
+            (effect_from_posterior(&mixed)?, Some(mixed))
+        } else {
+            run.diagnostics.push(Diagnostic::new(
+                "estimate.envelope.response_posterior_not_mixed",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completion posteriors are retained as atoms; mixing requires caller-supplied \
+                 class mass, positive evaluable mass, and uncapped class scope",
+            ));
+            (nan_effect(), None)
+        }
+    } else if run.total_w > 0.0 {
+        let SequentialAtomBlock { block, identified_set_interval: interval, se_analytic } =
+            sequential_atom_block(
+                data,
+                query,
+                &run.seq_atoms,
+                bootstrap_replicates,
+                envelope.truncated_completions > 0,
+                ctx,
+            )?;
+        identified_set_interval = interval;
+        if block.se.is_finite() {
+            run.diagnostics.extend(envelope_shared_block_diagnostics(
+                run.total_w,
+                envelope.unidentified_weight.0,
+                &block,
+            ));
+        } else if run.seq_atoms.len() > 1 {
+            run.diagnostics.push(envelope_se_omits_between_atom_variance());
+        }
+        (
+            class_mixture_estimate(
+                run.weighted_ate / run.total_w,
+                se_analytic,
+                &block,
+                bootstrap_replicates,
+                run.seq_atoms[0].estimate.provenance.assumptions.clone(),
+                ctx,
+            ),
+            None,
+        )
+    } else {
+        (nan_effect(), None)
+    };
+    run.diagnostics.extend(
+        identified_set_interval.as_ref().into_iter().flat_map(identified_set_interval_diagnostics),
+    );
+    Ok((estimate, posterior, identified_set_interval))
+}
+
+/// The refutation and predictive-check results of the evaluated completions:
+/// on the class posterior when the estimate is finite, otherwise on each
+/// completion with its report labelled by completion.
+fn validate_sequential_class_atoms(
+    inputs: &TemporalClassEffectInputs<'_>,
+    bayes: Option<&BayesianGComputationAte>,
+    estimate: &EffectEstimate,
+    run: &mut SequentialClassRun,
+    posterior: &mut Option<CausalPosterior>,
+    ctx: &ExecutionContext,
+) -> Result<
+    (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>, Vec<PredictiveCheckReport>),
+    CausalError,
+> {
+    let TemporalClassEffectInputs { data, query, .. } = *inputs;
+    let sims = crate::analysis::latency::predictive_check_sims(inputs.latency_mode);
+    if estimate.ate.is_finite() {
+        return super::sequential_validation::validate_sequential(
+            SequentialValidation {
+                data,
+                query,
+                suite: inputs.refute,
+                custom: inputs.custom_validators,
+                predictive_sims: sims,
+            },
+            &run.seq_atoms,
+            bayes,
+            posterior.as_mut(),
+            estimate.ate,
+            ctx,
+        );
+    }
+    let mut reports = Vec::new();
+    let mut extra = Vec::new();
+    let mut checks = Vec::new();
+    for (atom, key) in run.seq_atoms.iter().zip(&run.seq_atom_keys) {
+        let (mut local_reports, local_extra, local_checks) =
+            super::sequential_validation::validate_sequential(
+                SequentialValidation {
+                    data,
+                    query,
+                    suite: inputs.refute,
+                    custom: inputs.custom_validators,
+                    predictive_sims: sims,
+                },
+                std::slice::from_ref(atom),
+                bayes,
+                run.atom_posteriors.get_mut(key),
+                atom.estimate.ate,
+                ctx,
+            )?;
+        for report in &mut local_reports {
+            report.refuter = Arc::from(format!("completion.{key}.{}", report.refuter));
+        }
+        reports.extend(local_reports);
+        extra.extend(local_extra);
+        checks.extend(local_checks);
+    }
+    Ok((reports, extra, checks))
 }
