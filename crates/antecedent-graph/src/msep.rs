@@ -9,7 +9,6 @@ use crate::dsep::{
 use crate::error::GraphError;
 use crate::pag::{ClassMembers, Pag};
 use crate::types::DenseNodeId;
-use crate::workspace::BitSet;
 
 // --- ADMG m-separation (ancestral moralization) ---
 
@@ -136,18 +135,6 @@ impl Admg {
         self.moralize_ancestral_set(ws);
     }
 
-    /// Moralize the full ADMG (ancestral set = all nodes) for Markov blankets.
-    fn build_moral_full(&self, ws: &mut DSeparationWorkspace) {
-        let n = self.node_count();
-        ws.prepare(n);
-        ws.ancestral.clear();
-        ws.conditioning.clear();
-        for i in 0..n {
-            ws.ancestral.insert(DenseNodeId::from_index(i));
-        }
-        self.moralize_ancestral_set(ws);
-    }
-
     /// Richardson (2003) moralization on `ws.ancestral`: directed + bidirected undirected
     /// edges, then clique each bidirected district `C ∪ pa(C)`.
     fn moralize_ancestral_set(&self, ws: &mut DSeparationWorkspace) {
@@ -209,42 +196,6 @@ impl Admg {
         }
         ws.clique = clique;
         ws.district_groups = groups;
-    }
-
-    /// m-separation Markov blanket of `node`: neighbors in the Richardson-moralized
-    /// undirected graph of the full ADMG (inducing-path / district closure).
-    /// Does not include `node` itself.
-    ///
-    /// # Errors
-    ///
-    /// Unknown node id.
-    pub fn markov_blanket(&self, node: DenseNodeId, out: &mut BitSet) -> Result<(), GraphError> {
-        self.validate_node_pub(node)?;
-        let n = self.node_count();
-        out.resize(n);
-        out.clear();
-        let mut ws = DSeparationWorkspace::default();
-        self.build_moral_full(&mut ws);
-        for &nbr in &ws.undirected[node.as_usize()] {
-            if nbr != node {
-                out.insert(nbr);
-            }
-        }
-        Ok(())
-    }
-
-    /// Sorted m-separation Markov blanket of `node` (excluding `node`).
-    ///
-    /// # Errors
-    ///
-    /// Unknown node id.
-    pub fn markov_blanket_nodes(&self, node: DenseNodeId) -> Result<Vec<DenseNodeId>, GraphError> {
-        let mut bits = BitSet::with_len(self.node_count());
-        self.markov_blanket(node, &mut bits)?;
-        Ok((0..self.node_count())
-            .map(DenseNodeId::from_index)
-            .filter(|&id| bits.contains(id))
-            .collect())
     }
 }
 
@@ -323,80 +274,6 @@ mod tests {
         );
         // Without conditioning the colliders are closed → separated.
         assert!(g.is_m_separated(x, y, &[], &mut ws).unwrap());
-    }
-
-    #[test]
-    fn markov_blanket_includes_bidirected_neighbors() {
-        // A → T ↔ U ← B  ⇒  MB(T) = {A, U, B}
-        let mut g = Admg::with_variables(4);
-        let a = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let u = DenseNodeId::from_raw(2);
-        let b = DenseNodeId::from_raw(3);
-        g.insert_directed(a, t).unwrap();
-        g.insert_bidirected(t, u).unwrap();
-        g.insert_directed(b, u).unwrap();
-        assert_eq!(g.markov_blanket_nodes(t).unwrap(), vec![a, u, b]);
-    }
-
-    #[test]
-    fn markov_blanket_inducing_path_closure() {
-        // X → A ↔ B ← Y  ⇒  MB(X) = {A, B, Y} (not merely {A}).
-        let mut g = Admg::with_variables(4);
-        let x = DenseNodeId::from_raw(0);
-        let a = DenseNodeId::from_raw(1);
-        let b = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        g.insert_directed(x, a).unwrap();
-        g.insert_bidirected(a, b).unwrap();
-        g.insert_directed(y, b).unwrap();
-        assert_eq!(g.markov_blanket_nodes(x).unwrap(), vec![a, b, y]);
-    }
-
-    #[test]
-    fn markov_blanket_matches_dag_without_bidirected() {
-        // A → T ← B, T → Y ← C  ⇒  MB(T) = {A, B, Y, C}
-        let mut admg = Admg::with_variables(5);
-        let mut dag = crate::dag::Dag::with_variables(5);
-        let a = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let b = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        let c = DenseNodeId::from_raw(4);
-        for (from, to) in [(a, t), (b, t), (t, y), (c, y)] {
-            admg.insert_directed(from, to).unwrap();
-            dag.insert_directed(from, to).unwrap();
-        }
-        assert_eq!(admg.markov_blanket_nodes(t).unwrap(), dag.markov_blanket_nodes(t).unwrap());
-    }
-
-    #[test]
-    fn markov_blanket_m_separates_outsiders() {
-        // X → A ↔ B ← Y; MB(X) = {A,B,Y} must m-separate X from every outsider
-        // (here there are none outside MB∪{X}, so also check MB(A)).
-        let mut g = Admg::with_variables(4);
-        let x = DenseNodeId::from_raw(0);
-        let a = DenseNodeId::from_raw(1);
-        let b = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        g.insert_directed(x, a).unwrap();
-        g.insert_bidirected(a, b).unwrap();
-        g.insert_directed(y, b).unwrap();
-
-        let mut ws = DSeparationWorkspace::default();
-        for node in [x, a, b, y] {
-            let mb = g.markov_blanket_nodes(node).unwrap();
-            for i in 0..g.node_count() {
-                let w = DenseNodeId::from_index(i);
-                if w == node || mb.contains(&w) {
-                    continue;
-                }
-                assert!(
-                    g.is_m_separated(node, w, &mb, &mut ws).unwrap(),
-                    "MB({node:?}) must m-separate from outsider {w:?}"
-                );
-            }
-        }
     }
 }
 

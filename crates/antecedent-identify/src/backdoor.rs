@@ -96,17 +96,6 @@ impl AdjustmentSearchConfig {
     }
 }
 
-/// Ranked adjustment set with optional measurement cost.
-#[derive(Clone, Debug)]
-pub struct RankedAdjustmentSet {
-    /// Adjustment variables.
-    pub variables: Arc<[VariableId]>,
-    /// Total measurement cost (sum of per-variable costs).
-    pub measurement_cost: f64,
-    /// Optional positivity / overlap score after a data check (`None` if not ranked).
-    pub positivity_score: Option<f64>,
-}
-
 /// Prepared DAG for identification (cached ancestry helpers via workspaces).
 #[derive(Clone, Debug)]
 pub struct PreparedIdentificationGraph {
@@ -574,8 +563,6 @@ fn total_cost(z: &[DenseNodeId], dag: &Dag, costs: &[(VariableId, f64)]) -> f64 
         })
         .sum()
 }
-
-impl BackdoorIdentifier {}
 
 pub(crate) fn is_backdoor_adjustment(
     mutilated: &Dag,

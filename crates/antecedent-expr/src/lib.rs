@@ -25,8 +25,6 @@ pub use exact_plan::{
     ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactEvaluationSpec,
     ExactSupportRecord,
 };
-pub mod latex;
-pub mod pretty;
 pub mod program;
 pub mod provider;
 mod render;
@@ -46,9 +44,6 @@ pub use simplify::SimplifyError;
 
 mod scope;
 pub use scope::{LeafBinding, LeafSignature};
-
-use latex::latex_expr;
-use pretty::pretty_expr;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -1178,13 +1173,13 @@ impl CausalExprArena {
     /// Pretty-print an expression (diagnostics only; not an equality key).
     #[must_use]
     pub fn pretty(&self, id: ExprId) -> String {
-        pretty_expr(self, id)
+        render::render_expr(self, id, &render::PRETTY)
     }
 
     /// Render an expression as LaTeX (diagnostics only; not an equality key).
     #[must_use]
     pub fn latex(&self, id: ExprId) -> String {
-        latex_expr(self, id)
+        render::render_expr(self, id, &render::LATEX)
     }
 }
 

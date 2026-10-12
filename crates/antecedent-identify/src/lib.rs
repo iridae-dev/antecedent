@@ -143,7 +143,7 @@ pub mod oracle_dot;
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{
     AdjustmentSearchConfig, BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, BackdoorIdentifier,
-    PreparedIdentificationGraph, RankedAdjustmentSet,
+    PreparedIdentificationGraph,
 };
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use efficient::EfficientBackdoorIdentifier;

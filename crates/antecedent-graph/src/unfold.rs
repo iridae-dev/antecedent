@@ -1,7 +1,10 @@
 //! Lazy finite unfolding of temporal DAGs and graph-review artifacts.
 //!
-//! Stationary algorithms query edges on demand via [`LazyUnfoldedTemporalGraph`].
-//! Full materialisation is available when a static [`Dag`] is required.
+//! [`LazyUnfoldedTemporalGraph`] holds the template and window indexer; [`materialize`] replicates
+//! the in-window edges into a static [`Dag`]. Per-edge queries exist only as the test oracle for
+//! that replication.
+//!
+//! [`materialize`]: LazyUnfoldedTemporalGraph::materialize
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -77,11 +80,13 @@ impl TemporalDag {
 }
 
 impl LazyUnfoldedTemporalGraph {
-    /// Whether a concrete directed edge exists under the template replication.
+    /// Whether a concrete directed edge exists under the template replication. Test oracle
+    /// for [`Self::materialize`].
     ///
     /// # Errors
     ///
     /// Endpoints outside the indexer window.
+    #[cfg(test)]
     pub fn has_edge(&self, from: TemporalNodeKey, to: TemporalNodeKey) -> Result<bool, GraphError> {
         let _ = self.indexer.dense_id(from).map_err(|_| GraphError::InvalidEndpoints {
             message: "unfold endpoint outside window",
@@ -133,6 +138,7 @@ impl LazyUnfoldedTemporalGraph {
     }
 }
 
+#[cfg(test)]
 fn edge_matches(
     template_from: TemporalNodeKey,
     template_to: TemporalNodeKey,
