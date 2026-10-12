@@ -390,68 +390,23 @@ pub fn bind_response_to_program(
     artifact_of(bound.claim(), causal_contract_id)
 }
 
-/// Original native scientific contract identity, shared with producer-issued Python claims.
+/// Domain of a contract identity over its premises (everything but the coordinates).
+///
+/// Version 1 was SHA-256 over Python's `json.dumps(sort_keys=True)`; version 2 is
+/// the canonical BLAKE3 digest every host computes through
+/// [`crate::canonical_json::canonical_json_digest`], so no host language owns the
+/// encoding.
+pub const CONTRACT_PREMISES_DOMAIN: &str = "antecedent.external.contract_premises.v2";
+
+/// Native scientific contract identity, shared with producer-issued Python claims.
 /// This does not establish native execution authority.
 /// # Errors
 /// Malformed or oversized premise declarations.
-// Match the existing external scientific-contract canonical JSON (sorted keys,
-// Python's default comma/colon spaces and UTF-16 escapes for non-ASCII strings).
-struct ContractFormatter;
-impl serde_json::ser::Formatter for ContractFormatter {
-    fn write_string_fragment<W: ?Sized + std::io::Write>(
-        &mut self,
-        writer: &mut W,
-        fragment: &str,
-    ) -> std::io::Result<()> {
-        for ch in fragment.chars() {
-            if ch.is_ascii() {
-                writer.write_all(&[u8::try_from(u32::from(ch)).expect("ASCII character")])?;
-            } else {
-                let mut units = [0u16; 2];
-                for unit in ch.encode_utf16(&mut units) {
-                    write!(writer, "\\u{unit:04x}")?;
-                }
-            }
-        }
-        Ok(())
-    }
-    fn begin_array_value<W: ?Sized + std::io::Write>(
-        &mut self,
-        writer: &mut W,
-        first: bool,
-    ) -> std::io::Result<()> {
-        if !first {
-            writer.write_all(b", ")?;
-        }
-        Ok(())
-    }
-    fn begin_object_key<W: ?Sized + std::io::Write>(
-        &mut self,
-        writer: &mut W,
-        first: bool,
-    ) -> std::io::Result<()> {
-        if !first {
-            writer.write_all(b", ")?;
-        }
-        Ok(())
-    }
-    fn begin_object_value<W: ?Sized + std::io::Write>(
-        &mut self,
-        writer: &mut W,
-    ) -> std::io::Result<()> {
-        writer.write_all(b": ")
-    }
-}
-/// Match the original native scientific contract canonical JSON identity.
-/// # Errors
-/// Oversized or malformed premise declarations.
 pub fn native_contract_identity(
     graph: &str,
     status: &str,
     premises: Option<&str>,
 ) -> Result<String, RefusalWire> {
-    use serde::Serialize;
-    use sha2::{Digest, Sha256};
     let default = std::collections::BTreeMap::from([
         ("graph_id", serde_json::json!(graph)),
         ("identification", serde_json::json!(status)),
@@ -482,8 +437,8 @@ pub fn native_contract_identity(
     if wire.as_object().is_none_or(|object| object.len() != 6) {
         return Ok("invalid:premise_fields".into());
     }
-    let mut bytes = Vec::new();
-    wire.serialize(&mut serde_json::Serializer::with_formatter(&mut bytes, ContractFormatter))
-        .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?;
-    Ok(format!("contract:{:x}", Sha256::digest(bytes)))
+    let digest =
+        crate::canonical_json::canonical_json_value_digest(CONTRACT_PREMISES_DOMAIN, &wire)
+            .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?;
+    Ok(format!("contract:{digest}"))
 }

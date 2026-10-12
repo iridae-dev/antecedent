@@ -29,13 +29,13 @@ values.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, NoReturn
 
+from ._digest import canonical_digest
 from ._native import CancellationToken
 from ._native import attribute_gap_to_columns as _attribute_gap_to_columns
 from ._native import raw_vs_adjusted as _raw_vs_adjusted
@@ -222,8 +222,7 @@ def _floats(name: str, values: Iterable[Any]) -> list[float]:
 
 
 def _digest(body: dict[str, Any]) -> str:
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return canonical_digest("antecedent.descriptive.report.v2", body)
 
 
 def raw_vs_adjusted(

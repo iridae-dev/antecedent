@@ -66,16 +66,25 @@ fn write(stream: &mut CanonicalWriter, value: &Value, depth: usize) -> Result<()
 /// A blank domain, an oversized or unparseable document, a non-finite number
 /// or excessive nesting refuses.
 pub fn canonical_json_digest(domain: &str, json: &str) -> Result<String, IoError> {
-    if domain.trim().is_empty() {
-        return Err(IoError::Convert("canonical digest needs a domain".into()));
-    }
     if json.len() > MAX_CANONICAL_JSON_BYTES {
         return Err(IoError::TooLarge);
     }
     let value: Value = serde_json::from_str(json)
         .map_err(|error| IoError::Convert(format!("canonical JSON is invalid: {error}")))?;
+    canonical_json_value_digest(domain, &value)
+}
+
+/// [`canonical_json_digest`] of a value already parsed, so a Rust caller digests
+/// what a host language would digest from the same document.
+///
+/// # Errors
+/// A blank domain, a non-finite number or excessive nesting refuses.
+pub fn canonical_json_value_digest(domain: &str, value: &Value) -> Result<String, IoError> {
+    if domain.trim().is_empty() {
+        return Err(IoError::Convert("canonical digest needs a domain".into()));
+    }
     let mut stream = CanonicalWriter::new(domain);
-    write(&mut stream, &value, 0)?;
+    write(&mut stream, value, 0)?;
     Ok(stream.finish_hex())
 }
 

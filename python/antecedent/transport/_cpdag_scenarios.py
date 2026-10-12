@@ -39,13 +39,13 @@ registered ``reason_code`` and the typed ``detail``.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import operator
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from .._digest import canonical_digest
 from .._native import (
     consume_cpdag_scenarios_artifact as _consume_cpdag,
 )
@@ -592,8 +592,9 @@ class RowTable:
 
     def snapshot_label(self) -> str:
         """The default snapshot label: a digest of the table, so every scenario shares it."""
-        blob = json.dumps(self._wire(), sort_keys=True, separators=(",", ":")).encode()
-        return "rows:" + hashlib.sha256(blob).hexdigest()[:32]
+        return (
+            "rows:" + canonical_digest("antecedent.transport.scenario_rows.v2", self._wire())[:32]
+        )
 
 
 def _default_units(n: int) -> tuple[str, ...]:

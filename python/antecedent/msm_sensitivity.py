@@ -41,6 +41,9 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any
 
+import numpy as np
+
+from ._digest import canonical_digest
 from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
 from ._refusal import raise_refusal
@@ -586,8 +589,6 @@ def from_analysis(
     certify that supplemental data equal its original snapshot. The new sample gets
     its own digest. Continuous covariates require explicitly declared finite strata.
     """
-    import hashlib
-
     from ._data import as_columns
     from .query import AverageEffect
     from .results import AnalysisResult
@@ -640,14 +641,8 @@ def from_analysis(
         raise CausalValueError("supplemental MSM sample must be nonempty and finite")
     from collections import Counter
 
-    sample_hash = hashlib.sha256()
-    # Stream exactly the canonical JSON [required_columns, ordered_rows] used by
-    # the original handoff, without retaining a second copy of the sample.
-    sample_hash.update(b"[")
-    sample_hash.update(json.dumps(required, sort_keys=True).encode())
-    sample_hash.update(b", [")
     groups: dict[tuple[float, ...], tuple[Counter[float], Counter[float]]] = {}
-    for index, row in enumerate(zip(*(table[name] for name in required), strict=True)):
+    for row in zip(*(table[name] for name in required), strict=True):
         if not all(math.isfinite(float(v)) for v in row):
             raise CausalValueError("supplemental MSM sample must be nonempty and finite")
         treatment, outcome, *covariates = row
@@ -668,10 +663,6 @@ def from_analysis(
                 "empirical MSM permits at most 256 distinct outcomes per arm/stratum"
             )
         counts[value] += 1
-        if index:
-            sample_hash.update(b", ")
-        sample_hash.update(json.dumps(row, sort_keys=True).encode())
-    sample_hash.update(b"]]")
 
     def empirical_law(counts: Counter[float]) -> OutcomeLaw:
         support = tuple(sorted(counts))
@@ -700,11 +691,16 @@ def from_analysis(
     )
     from dataclasses import replace
 
-    digest = sample_hash.hexdigest()
+    # The sample's identity is its content: the column names and every row's values, in
+    # order, by dtype, shape and bytes (finite, as checked above).
+    sample = np.column_stack([np.asarray(table[name], dtype=np.float64) for name in required])
+    digest = canonical_digest(
+        "antecedent.msm.empirical_sample.v2", {"columns": list(required), "rows": sample}
+    )
     return replace(
         calculated,
         input_basis="empirical_plugin",
-        sample_id=f"sha256:{digest}",
+        sample_id=f"blake3:{digest}",
         source_program_id=original["causal_contract_id"],
         interpretation="sharp bounds for the empirical distribution; population bounds estimated",
         uncertainty=MsmUncertainty(

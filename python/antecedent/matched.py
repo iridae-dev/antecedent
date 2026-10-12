@@ -28,12 +28,12 @@ Refused, with a registered reason code:
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from ._digest import canonical_digest
 from ._native import CancellationToken
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
 from .errors import CausalResourceError, CausalSerializationError, CausalTypeError
@@ -107,8 +107,7 @@ def _counts_dict(counts: MatchedSetCounts) -> dict[str, int]:
 
 
 def _digest(body: dict[str, Any]) -> str:
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return canonical_digest("antecedent.matched.result.v2", body)
 
 
 def _set_types(

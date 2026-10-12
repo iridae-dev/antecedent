@@ -228,11 +228,10 @@ def test_a_cancelled_solve_is_a_budget_stop_never_a_verdict():
 
 def sealed(body):
     """Re-seal an edited artifact body with a correct digest (a forged but consistent file)."""
-    import hashlib
+    from antecedent._digest import canonical_digest
 
     body = {k: v for k, v in body.items() if k != "digest"}
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
-    return json.dumps({**body, "digest": hashlib.sha256(canonical.encode()).hexdigest()})
+    return json.dumps({**body, "digest": canonical_digest("antecedent.matched.result.v2", body)})
 
 
 def test_an_exported_result_is_replayed_by_an_independent_consumer():

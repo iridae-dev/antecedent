@@ -21,7 +21,6 @@ and provider-declared uncertainty is a declaration, not an Antecedent interval.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
@@ -32,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ._digest import canonical_digest
 from ._native import ExternalClaimArtifact as _NativeClaim
 from ._native import bind_external_response as _bind_external_response
 from ._native import bind_external_to_program as _bind_external_to_program
@@ -64,6 +64,12 @@ _SUPPORT_SEVERITY = (
     "outside_empirical_support",
     "missing_evidence",
 )
+# Durable identities. A domain names the digest scheme: v1 was SHA-256 over
+# ``json.dumps(..., sort_keys=True)``; v2 is Rust's canonical BLAKE3 stream. The
+# premises domain is the one Rust recomputes (``native_contract_identity``).
+_CONTRACT_PREMISES_DOMAIN = "antecedent.external.contract_premises.v2"
+_CONTRACT_COORDINATES_DOMAIN = "antecedent.external.contract_coordinates.v2"
+_GRAPH_DOMAIN = "antecedent.external.graph.v2"
 OBSERVATIONAL = "observational"
 #: Dose units a spec carries when the caller names none; units are never inferred, so a
 #: program that names real dose units refuses this one (``program_binding.dose_grid_changed``).
@@ -411,8 +417,8 @@ class ExternalSpec:
         wire = self._contract_wire()
         if not with_coordinates:
             del wire["estimand"]
-        digest = hashlib.sha256(json.dumps(wire, sort_keys=True).encode()).hexdigest()
-        return f"contract:{digest}"
+        domain = _CONTRACT_COORDINATES_DOMAIN if with_coordinates else _CONTRACT_PREMISES_DOMAIN
+        return f"contract:{canonical_digest(domain, wire)}"
 
     def _require_request(self) -> ProgramRequest:
         """The identified dose-grid request, or the typed refusal for a spec with none."""
@@ -781,16 +787,16 @@ def _graph_identity(identification: Any) -> str:
             "this graph type has no canonical identity here; pass graph_id= naming the "
             "graph the external provider used"
         )
-    canonical = json.dumps(
+    digest = canonical_digest(
+        _GRAPH_DOMAIN,
         {
             "edges": sorted([str(a), str(b)] for a, b in graph),
             "names": list(identification.names or ()),
             "identifier": identification.identifier or identification.method,
             "adjustment_set": sorted(identification.adjustment_set),
         },
-        sort_keys=True,
     )
-    return "graph:" + hashlib.sha256(canonical.encode()).hexdigest()[:32]
+    return "graph:" + digest[:32]
 
 
 def _query_quantities(
