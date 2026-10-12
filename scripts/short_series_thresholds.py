@@ -39,7 +39,8 @@ import tomllib
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 REGISTRY = ROOT / "parity" / "short_series_thresholds.toml"
 DOC = ROOT / "docs" / "short-series-thresholds.md"
 TEMPORAL_BLOCK = ROOT / "crates" / "antecedent-estimate" / "src" / "temporal_block.rs"

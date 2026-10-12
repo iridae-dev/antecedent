@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import sys
 import tomllib
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 LEDGER = ROOT / "parity/evidence_ledger.toml"
 RECORDS = ROOT / "parity/promotion.toml"
 STAGES = ROOT / "parity/transport_stages.toml"

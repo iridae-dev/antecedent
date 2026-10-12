@@ -5,6 +5,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import ensure_scripts_on_path
+
 root = Path(".")
 fail = []
 
@@ -37,7 +39,7 @@ for stale in re.findall(r"Version DOI for (\d+\.\d+\.\d+)", citation):
 # Supported lines and the reviewed package version live in parity/release.toml.
 # scripts/set_version.py writes the generated blocks. This gate compares those
 # blocks to the renderer; it does not read a version out of the surrounding prose.
-sys.path.insert(0, str((root / "scripts").resolve()))
+ensure_scripts_on_path()
 import set_version  # noqa: E402
 
 fail.extend(set_version.release_snippet_problems(root, version))
@@ -211,7 +213,7 @@ with open("parity/oracle_closure.toml", "rb") as handle:
 # consumes its frozen fixture: a test function (with the helpers it calls) that
 # names the fixture's full `conformance/<category>/<name>` path outside comments,
 # parses it and asserts (scripts/test_evidence.py).
-sys.path.insert(0, str((root / "scripts").resolve()))
+ensure_scripts_on_path()
 import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 

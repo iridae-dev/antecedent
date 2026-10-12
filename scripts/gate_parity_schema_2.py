@@ -6,6 +6,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import ensure_scripts_on_path
+
 root = Path(".")
 print_counts = "--print-counts" in sys.argv
 problems = []
@@ -135,7 +137,7 @@ else:
 # emitted by a coverage test through `CoverageTally::for_record`, collected by
 # scripts/collect_coverage_records.py, stamped with the commit it was measured
 # at. The checks below are what a hand-written row cannot pass.
-sys.path.insert(0, str(root / "scripts"))
+ensure_scripts_on_path()
 import collect_coverage_records as collector  # noqa: E402
 
 
@@ -179,7 +181,7 @@ def _resolves(spec: str) -> bool:
     # (`use common::static_dgp::{path_data, ..}`) names it through that import: it
     # resolves when a file compiled into the same test target defines it.
     if re.search(rf"\buse\b[^;]*\b{re.escape(fn)}\b[^;]*;", text):
-        sys.path.insert(0, str((root / "scripts").resolve()))
+        ensure_scripts_on_path()
         import test_evidence
 
         target = test_evidence.target_root(path)

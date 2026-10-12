@@ -2,7 +2,6 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "scripts")
 import generate_graphless_support as graphless
 import test_evidence as te
 

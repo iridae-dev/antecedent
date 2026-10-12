@@ -1,9 +1,9 @@
 """Validate the transport stage registry independently of the analyze axes."""
-
 import sys
 import tomllib
 from pathlib import Path
 
+from _repo import REPO_ROOT as root
 from test_evidence import (
     checked_execution_body_problems,
     closure,
@@ -12,7 +12,6 @@ from test_evidence import (
 )
 from transport_replay_contract import shared_evidence_problems, source_replay_problems
 
-root = Path(__file__).resolve().parents[1]
 # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
 registry_path = (
     Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"

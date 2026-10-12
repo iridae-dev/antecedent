@@ -14,9 +14,8 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
 
 
 def bench_targets() -> list[tuple[str, str]]:

@@ -31,7 +31,9 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
+from _repo import ensure_scripts_on_path
+
 LICENSED = ROOT / "parity/support_licensed.toml"
 RECORDS = ROOT / "parity/coverage_records.toml"
 
@@ -142,7 +144,7 @@ def row_label(cell: dict) -> str:
 
 def probe_problem(module: str, name: str) -> str | None:
     """Why `<module>::<name>` is not a compiled, non-ignored test of crates/antecedent/tests."""
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import test_evidence  # noqa: PLC0415  (only the disclosures that name a source need it)
 
     path = ROOT / "crates/antecedent/tests" / f"{module}.rs"

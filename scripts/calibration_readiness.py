@@ -14,9 +14,8 @@ import argparse
 import collections
 import re
 import tomllib
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
 
 
 def _slug(value: str) -> str:

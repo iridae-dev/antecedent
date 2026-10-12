@@ -55,13 +55,15 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
+from _repo import ensure_scripts_on_path
+
 ROOT = Path(os.environ.get("INTERVAL_COORDINATES_ROOT", REPO))
 # check_interval_surfaces reads its tree from this variable at import; keep both on one tree.
 os.environ["INTERVAL_SURFACES_ROOT"] = str(ROOT)
 if os.environ.get("INTERVAL_COORDINATES_SKIP_ATTEST") == "1":
     os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
-sys.path.insert(0, str(REPO / "scripts"))
+ensure_scripts_on_path()
 import check_interval_surfaces as cai  # noqa: E402  (read-only reuse)
 from promotion_source import (  # noqa: E402
     assertion_texts,

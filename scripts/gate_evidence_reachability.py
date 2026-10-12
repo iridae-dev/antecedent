@@ -7,6 +7,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import ensure_scripts_on_path
+
 root = Path(".")
 fail = []
 
@@ -18,7 +20,7 @@ fail = []
 # directory), parses it and asserts (scripts/test_evidence.py). A basename in a
 # comment, a gate script, non-test source, or another category's fixture of the
 # same name does not count.
-sys.path.insert(0, str((root / "scripts").resolve()))
+ensure_scripts_on_path()
 import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 

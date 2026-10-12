@@ -19,12 +19,8 @@ if [[ -z "${VIRTUAL_ENV:-}" && -f .venv/bin/activate ]]; then
 fi
 
 echo "==> ruff check"
-# calibration_facets.py and generate_support_matrix_docs.py are owned by other
-# workstreams; leave their current findings out of this gate.
 uv run ruff check antecedent tests ../examples/python \
-  ../scripts ../benchmarks ../conformance \
-  --exclude ../scripts/calibration_facets.py \
-  --exclude ../scripts/generate_support_matrix_docs.py
+  ../scripts ../benchmarks ../conformance
 
 echo "==> ruff format --check"
 uv run ruff format --check antecedent tests ../examples/python

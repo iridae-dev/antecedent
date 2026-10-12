@@ -1,11 +1,11 @@
 """Strict finite refusal and shared-owner proof regressions."""
-
 import tempfile
 import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from _repo import REPO_ROOT
 from promotion_source import (
     defensive_carrier_route_problems,
     finite_refusal_helpers,
@@ -67,7 +67,7 @@ class FiniteRefusalTests(unittest.TestCase):
                 )
 
     def test_actual_private_nested_helpers_have_finite_literal_calls(self):
-        root = Path(__file__).resolve().parents[1]
+        root = REPO_ROOT
         literals, lines = finite_refusal_helpers(
             root / "crates/antecedent-estimate/src/nested_markov_binary.rs"
         )
@@ -137,7 +137,7 @@ class SharedNamespaceTests(unittest.TestCase):
             self.assertTrue(self.check())
 
     def test_class_only_scientific_wrong_class_or_helper_are_rejected(self):
-        root = Path(__file__).resolve().parents[1]
+        root = REPO_ROOT
         valid = {
             "evidence_test": "python/tests/test_measured_inference.py",
             "evidence_assertion": "test_native_input_exceptions_preserve_class_without_scientific_reason",
@@ -160,7 +160,7 @@ class SharedNamespaceTests(unittest.TestCase):
             self.assertTrue(typed_input_exception_problems(valid | mutation, root))
 
     def test_defensive_route_proof_rejects_factory_and_dispatch_drift(self):
-        root = Path(__file__).resolve().parents[1]
+        root = REPO_ROOT
         self.assertEqual(defensive_carrier_route_problems(root), [])
         with tempfile.TemporaryDirectory() as directory:
             fake = Path(directory)
@@ -180,7 +180,7 @@ class SharedNamespaceTests(unittest.TestCase):
             self.assertTrue(defensive_carrier_route_problems(fake))
 
     def test_class_only_constructor_drift_and_unproven_evidence_fail(self):
-        root = Path(__file__).resolve().parents[1]
+        root = REPO_ROOT
         valid = {
             "evidence_test": "python/tests/test_measured_inference.py",
             "evidence_assertion": "test_native_input_exceptions_preserve_class_without_scientific_reason",
@@ -242,7 +242,7 @@ class UntrustedIntervalInputTests(unittest.TestCase):
     def test_original_report_input_passes_and_authority_or_numeric_drift_refuses(self):
         from check_interval_coordinates import untrusted_interval_input_problems
 
-        root = Path(__file__).resolve().parents[1]
+        root = REPO_ROOT
         records = tomllib.loads(
             (root / "parity/promotion.toml").read_text(encoding="utf-8")
         )["record"]

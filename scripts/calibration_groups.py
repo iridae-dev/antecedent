@@ -66,7 +66,9 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+from _repo import ensure_scripts_on_path
+
 GATE = ROOT / "scripts" / "gate_calibration.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 PREVIOUS_LOG_DIR = ROOT / "target" / "calibration-records.previous"
@@ -227,7 +229,7 @@ def select(groups: list[Group], everything: bool) -> Selection:
     """The groups to run; see the module docstring for the rule."""
     if everything:
         return Selection(groups, 0, {g.index: "--all" for g in groups})
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import calibration_facets as facets
 
     records = facets.load_records()

@@ -19,10 +19,10 @@ import tomllib
 from itertools import product
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-import external_evidence  # noqa: E402
-import calibration_key_aliases  # noqa: E402
+import calibration_key_aliases
+import external_evidence
+from _repo import REPO_ROOT as ROOT
+from _repo import read_text, write_text
 
 OUT = ROOT / "docs" / "support-matrix.md"
 SUPPORT_SNAPSHOT = ROOT / "crates" / "antecedent" / "data" / "support_matrix.json"
@@ -36,7 +36,7 @@ FROZEN_END = "<!-- frozen:support-matrix:licensed:end -->"
 
 
 def workspace_version() -> str:
-    cargo = (ROOT / "Cargo.toml").read_text()
+    cargo = read_text(ROOT / "Cargo.toml")
     m = re.search(
         r"(?ms)^\[workspace\.package\]\n.*?^version\s*=\s*\"([^\"]+)\"",
         cargo,
@@ -53,7 +53,7 @@ def release_notes_path(version: str) -> Path:
 def documentation_release_version() -> str:
     preparation = NOTES_DIR / "preparation.toml"
     if preparation.is_file():
-        target = tomllib.loads(preparation.read_text()).get("target_version")
+        target = tomllib.loads(read_text(preparation)).get("target_version")
         if isinstance(target, str) and re.fullmatch(r"\d+\.\d+\.\d+", target):
             return target
         raise SystemExit(f"{preparation}: target_version must be X.Y.Z")
@@ -75,10 +75,10 @@ def git_tag_exists(version: str) -> bool:
 
 def freeze_licensed_block(path: Path) -> bool:
     """Rewrite live generated markers to frozen. Returns whether the file changed."""
-    text = path.read_text()
+    text = read_text(path)
     if RN_BEGIN not in text and RN_END not in text:
         return False
-    path.write_text(text.replace(RN_BEGIN, FROZEN_BEGIN).replace(RN_END, FROZEN_END))
+    write_text(path, text.replace(RN_BEGIN, FROZEN_BEGIN).replace(RN_END, FROZEN_END))
     return True
 
 
@@ -89,7 +89,7 @@ def assert_historical_notes_are_frozen(version: str) -> None:
     for path in sorted(NOTES_DIR.glob("v*.md")):
         if path.resolve() == current:
             continue
-        text = path.read_text()
+        text = read_text(path)
         if RN_BEGIN in text or RN_END in text:
             live.append(path)
     if live:
@@ -103,7 +103,7 @@ def assert_historical_notes_are_frozen(version: str) -> None:
 
 
 def load(rel: str) -> dict:
-    return tomllib.loads((ROOT / rel).read_text())
+    return tomllib.loads(read_text(ROOT / rel))
 
 
 def matches(rule: dict, cell: dict) -> bool:
@@ -379,10 +379,10 @@ that class came from that discovery strategy.
 
 {licensed_md}
 """
-    OUT.write_text(text)
+    write_text(OUT, text)
     write_snapshot(SUPPORT_SNAPSHOT, support_snapshot(na_rules, closed_rules, allowed_rules, cells))
     write_snapshot(COVERAGE_SNAPSHOT, coverage_snapshot())
-    REASON_CODES_OUT.write_text(render_reason_codes())
+    write_text(REASON_CODES_OUT, render_reason_codes())
     write_release_notes_block(
         cells,
         {
@@ -527,7 +527,7 @@ def _support_coordinates(block: str, source: Path) -> set[tuple[str, ...]]:
 
 
 def _frozen_block(path: Path) -> str:
-    text = path.read_text(encoding="utf-8")
+    text = read_text(path)
     if text.count(FROZEN_BEGIN) != 1 or text.count(FROZEN_END) != 1:
         raise ValueError(f"{path}: release delta requires one frozen support inventory")
     return text.split(FROZEN_BEGIN, 1)[1].split(FROZEN_END, 1)[0]
@@ -575,7 +575,7 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
     keys = ("query", "graph_class", "structure", "inference", "validation")
     current = {tuple(cell[key] for key in keys) for cell in cells}
     added = [cell for cell in cells if tuple(cell[key] for key in keys) not in previous]
-    removed = [dict(zip(keys, coordinate)) for coordinate in sorted(previous - current)]
+    removed = [dict(zip(keys, coordinate, strict=True)) for coordinate in sorted(previous - current)]
     version = baseline.stem.removeprefix("v")
     lines = [
         f"Changes to generic analysis support since {version}: {len(added)} added coordinates, {len(removed)} removed coordinates.",
@@ -595,6 +595,7 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
         for axis, key in zip(
             ("queries", "graph_classes", "structures", "inferences", "validations"),
             keys,
+            strict=True,
         ):
             removed_axes[axis] = list(axes[axis]) + sorted(
                 {cell[key] for cell in removed} - set(axes[axis])
@@ -631,7 +632,7 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     """
     version = documentation_release_version()
     assert_historical_notes_are_frozen(version)
-    text = RELEASE_NOTES.read_text()
+    text = read_text(RELEASE_NOTES)
     if RN_BEGIN not in text or RN_END not in text:
         raise SystemExit(
             f"{RELEASE_NOTES}: missing generated-block markers {RN_BEGIN!r} / {RN_END!r}"
@@ -666,7 +667,7 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
             f"{RELEASE_NOTES.relative_to(ROOT)}. Bump the workspace version "
             "and add live generated markers on the new notes file first."
         )
-    RELEASE_NOTES.write_text(updated)
+    write_text(RELEASE_NOTES, updated)
 
 
 COVERAGE_STR_FIELDS = (
@@ -731,7 +732,7 @@ def _legacy_rust_attesting_ids() -> list[str] | None:
     path = ROOT / "crates" / "antecedent-io-core" / "src" / "coverage_records_data.rs"
     if not path.is_file():
         return None
-    text = path.read_text(encoding="utf-8")
+    text = read_text(path)
     marker = "pub static ATTESTING_RECORD_IDS: &[&str] = &["
     start = text.find(marker)
     if start < 0:
@@ -762,7 +763,7 @@ def _live_attesting_record_ids() -> list[str]:
 def _snapshot_attesting_ids(record_ids: set[str]) -> list[str] | None:
     if not COVERAGE_SNAPSHOT.is_file():
         return None
-    data = json.loads(COVERAGE_SNAPSHOT.read_text(encoding="utf-8"))
+    data = json.loads(read_text(COVERAGE_SNAPSHOT))
     rows = data.get("records") or []
     if {str(row["id"]) for row in rows} != record_ids:
         return None
@@ -775,7 +776,7 @@ def _snapshot_attesting_ids(record_ids: set[str]) -> list[str] | None:
 def write_snapshot(path: Path, payload: dict) -> None:
     """Pretty-printed UTF-8 JSON with a trailing newline. Stable across runs."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_text(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
 def _f64(value: float) -> str:

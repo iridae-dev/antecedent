@@ -14,7 +14,8 @@ import re
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 REGISTRY = "parity/limits.toml"
 RECORDS = "parity/promotion.toml"
 OPS = {

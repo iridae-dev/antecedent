@@ -47,9 +47,11 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
+from _repo import ensure_scripts_on_path
+
 ROOT = Path(os.environ.get("INTERVAL_SURFACES_ROOT", REPO))
-sys.path.insert(0, str(REPO / "scripts"))
+ensure_scripts_on_path()
 from promotion_source import (  # noqa: E402  (the one reader of test bodies for the gates)
     closure_code,
 )

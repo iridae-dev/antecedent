@@ -1,11 +1,11 @@
 """Exercise release wheel acceptance and its fail-closed cases without publishing."""
-
 import os
 import subprocess
 import tempfile
 from pathlib import Path
 
-root = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as root
+
 verifier = root / "scripts/verify_release.sh"
 sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 

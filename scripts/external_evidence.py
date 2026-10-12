@@ -28,7 +28,8 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
+
 LICENSED = ROOT / "parity/support_licensed.toml"
 ROUTES = ROOT / "parity/licensed_routes.toml"
 AXES = ROOT / "parity/support_axes.toml"

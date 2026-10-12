@@ -284,7 +284,7 @@ def main() -> None:
     parser.add_argument("--input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    root = Path(__file__).resolve().parents[1]
+    root = REPO_ROOT
     if args.action == "capture-native":
         receipt = capture_native(root)
     else:

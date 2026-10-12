@@ -36,8 +36,7 @@ from pathlib import Path
 
 import _py_closure
 import _rust_source as _rust
-
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"

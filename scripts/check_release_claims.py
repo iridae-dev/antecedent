@@ -48,7 +48,8 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
+
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
 RECORDS = "parity/promotion.toml"
 COVERAGE = "parity/coverage_records.toml"

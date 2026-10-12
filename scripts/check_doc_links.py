@@ -31,7 +31,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
 
 PAGES = (
     ["README.md", "CONTRIBUTING.md", "SECURITY.md", "ROADMAP.md", "examples/README.md"]

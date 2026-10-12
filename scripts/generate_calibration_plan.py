@@ -11,9 +11,9 @@ import argparse
 import tomllib
 from collections import Counter
 from copy import deepcopy
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 SOURCE = ROOT / "parity/support_licensed.toml"
 OUTPUT = ROOT / "parity/calibration_plan.md"
 PROMOTION = ROOT / "parity/promotion.toml"

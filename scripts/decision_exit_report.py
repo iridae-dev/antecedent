@@ -76,7 +76,8 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
+
 ROOT = Path(os.environ.get("DECISION_EXIT_ROOT", REPO))
 
 # ---------------------------------------------------------------------------------------------

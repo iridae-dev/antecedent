@@ -8,6 +8,7 @@ round-trip the support-matrix times sign. Go through these helpers (or pass
 
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -15,8 +16,19 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def read_text(path: Path | str) -> str:
-    return Path(path).read_text(encoding="utf-8")
+def ensure_scripts_on_path() -> None:
+    """Make sibling scripts importable.
+
+    ``python3 scripts/foo.py`` already puts ``scripts/`` on ``sys.path``. An
+    import of that module from another directory does not.
+    """
+    scripts = str(REPO_ROOT / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+
+
+def read_text(path: Path | str, *, errors: str = "strict") -> str:
+    return Path(path).read_text(encoding="utf-8", errors=errors)
 
 
 def write_text(path: Path | str, data: str) -> int:

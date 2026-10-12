@@ -39,11 +39,13 @@ import sys
 import time
 from pathlib import Path
 
+from _repo import REPO_ROOT
+
 BENCHMARK_NAME = "scripts/bench_cost_model.py"
 ESTIMATORS = ("linear.adjustment.ate", "aipw")
 DEFAULT_ROWS = (400, 800, 1600)
 DEFAULT_COLUMNS = (4, 8, 16)
-DEFAULT_OUT = Path(__file__).resolve().parent.parent / "parity" / "cost_model.toml"
+DEFAULT_OUT = REPO_ROOT / "parity" / "cost_model.toml"
 
 
 def _frame(rows: int, covariates: int, seed: int):

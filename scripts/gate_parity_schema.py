@@ -5,6 +5,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import ensure_scripts_on_path
+
 root = Path(".")
 
 STATUS_VALUES = {"pending", "in_progress", "done"}
@@ -73,7 +75,7 @@ for path in sorted(root.glob("parity/baselines/*.toml")):
     }
     baseline_versions.setdefault(project, set()).update(versions)
 
-sys.path.insert(0, str((root / "scripts").resolve()))
+ensure_scripts_on_path()
 import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 

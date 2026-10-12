@@ -26,7 +26,7 @@ import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
 
 Mutation = Callable[[str], str]
 

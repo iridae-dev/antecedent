@@ -61,7 +61,8 @@ import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
+
 ROOT = Path(os.environ.get("LIMITS_AGREEMENT_ROOT", REPO))
 RECORDS = "parity/promotion.toml"
 # Records whose bounds are compared here by regex-mapped places; every other record is

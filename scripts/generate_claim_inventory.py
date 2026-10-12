@@ -20,9 +20,8 @@ import sys
 import tomllib
 from collections import defaultdict
 from itertools import product
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
 
 CLAIM_FILES = ("README.md", "docs/capabilities.md", "docs/comparison.md")
 CATALOG_FILE = "docs/capabilities.md"

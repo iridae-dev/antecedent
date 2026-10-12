@@ -21,7 +21,6 @@ Rust and body-analysis fixtures cite synthetic test files outside the repo, reso
 statically (PROMOTION_SYNTHETIC_EVIDENCE), so the self-test does not depend on any
 cargo target compiling. Committed files are never written.
 """
-
 import os
 import re
 import subprocess
@@ -30,7 +29,8 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 CHECKER = ROOT / "scripts/check_promotion_records.py"
 os.chdir(ROOT)
 

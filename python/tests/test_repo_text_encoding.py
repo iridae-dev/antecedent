@@ -9,13 +9,6 @@ from _repo_text import REPO_ROOT, load_json, read_text
 
 _TESTS = Path(__file__).resolve().parent
 _ALLOWED_BARE_READ = {"_repo_text.py"}
-# Another workstream owns these. They still have locale text IO; do not treat
-# that as a pass for every other script.
-_OWNED_ELSEWHERE = {
-    "scripts/calibration_facets.py",
-    "scripts/collect_coverage_records.py",
-    "scripts/generate_support_matrix_docs.py",
-}
 _HELPER_FUNCS = {"read_text", "write_text", "load_toml"}
 
 
@@ -136,9 +129,6 @@ def test_scripts_and_conformance_text_io_declares_utf8() -> None:
     offenders: list[str] = []
     for base in ("scripts", "conformance"):
         for path in sorted((REPO_ROOT / base).rglob("*.py")):
-            rel = path.relative_to(REPO_ROOT).as_posix()
-            if rel in _OWNED_ELSEWHERE:
-                continue
             offenders.extend(_text_io_offenders(path, REPO_ROOT))
     assert not offenders, (
         "read repository text as UTF-8 (`scripts/_repo.py` or encoding='utf-8'). "

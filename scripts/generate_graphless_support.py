@@ -6,9 +6,9 @@ import argparse
 import json
 import re
 import tomllib
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 SOURCE = ROOT / "parity/support_graphless.toml"
 RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"
 DOC = ROOT / "docs/graphless-support-matrix.md"

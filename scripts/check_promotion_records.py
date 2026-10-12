@@ -69,7 +69,6 @@ Environment overrides (gate self-tests and analysis only):
   PROMOTION_EVIDENCE_CACHE     directory caching cargo/pytest listing results
   PROMOTION_STATIC_ONLY        1: resolve evidence statically, without cargo or pytest
 """
-
 import hashlib
 import json
 import os
@@ -78,6 +77,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import REPO_ROOT as root
 from promotion_source import (
     Symbol,
     assertion_problems,
@@ -104,8 +104,6 @@ from test_evidence import (
     static_python_test,
     static_rust_test,
 )
-
-root = Path(__file__).resolve().parents[1]
 
 # Every rule the checker can report, with what it enforces. `fail("<id>", ...)` is
 # the only way to report, each message ends with `[<id>]`, and

@@ -8,6 +8,8 @@ import tomllib
 from itertools import product
 from pathlib import Path
 
+from _repo import ensure_scripts_on_path
+
 root = Path(".")
 fail: list[str] = []
 matrix_shard = sys.argv[1]
@@ -267,7 +269,7 @@ def is_n_a(cell: dict) -> bool:
 # Cited evidence is read through scripts/test_evidence.py, the one reader of test
 # source for the gates: the cited function must be an executing test and, with the
 # helpers it calls, must consume its fixture and build the row's axis values.
-sys.path.insert(0, str((root / "scripts").resolve()))
+ensure_scripts_on_path()
 import test_evidence  # noqa: E402
 
 closed_rules = closed_doc.get("closed") or []

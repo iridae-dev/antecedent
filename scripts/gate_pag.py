@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import sys
 
-sys.path.insert(0, "scripts")
 import gate_hot_path_baselines as hp
 import parity_rows as pr
 

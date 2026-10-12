@@ -13,7 +13,8 @@ import argparse
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 IDENTITY = ROOT / "parity" / "identity.toml"
 MATRIX = ROOT / "parity" / "producer_consumer.toml"
 NAMING = ROOT / "docs" / "api_naming.md"
