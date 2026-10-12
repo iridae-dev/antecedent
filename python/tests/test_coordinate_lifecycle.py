@@ -43,11 +43,12 @@ from antecedent.joint_distribution import ScientificQuantity
 
 import test_inverse_query as inverse_fixtures
 from _refusal import assert_registered_refusal
+from _repo_text import REPO_ROOT
 from test_design_ranking import GUESS, UTILITY_MAP, _guess_candidate, _quantity, _signal
 from test_repair import backdoor
 
 _E = TypeVar("_E", bound=BaseException)
-FIXTURE_DIR = Path(__file__).resolve().parents[2] / "conformance" / "cross_surface"
+FIXTURE_DIR = REPO_ROOT / "conformance" / "cross_surface"
 REGENERATE_PY = (
     "ANTECEDENT_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py "
     "-k regenerate_python_fixtures"

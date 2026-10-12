@@ -13,10 +13,10 @@ from pathlib import Path
 import antecedent
 import pytest
 
-from _repo_text import load_json, load_toml
+from _repo_text import REPO_ROOT, load_json, load_toml
 
 _NOTEBOOKS = sorted(
-    (Path(__file__).resolve().parents[2] / "examples" / "notebooks").glob("*.ipynb")
+    (REPO_ROOT / "examples" / "notebooks").glob("*.ipynb")
 )
 
 # `antecedent.a.b.c` — capture the dotted tail so submodule paths resolve too.
@@ -48,7 +48,7 @@ def _resolve(path: str):
 
 def _notebook_pin() -> str:
     """Pip pin for `[workspace.package].version` in the workspace Cargo.toml."""
-    cargo = Path(__file__).resolve().parents[2] / "Cargo.toml"
+    cargo = REPO_ROOT / "Cargo.toml"
     version = load_toml(cargo)["workspace"]["package"]["version"]
     major, minor, *_ = version.split(".")
     return f"antecedent>={version},<{major}.{int(minor) + 1}"

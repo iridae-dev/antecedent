@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 import pytest
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
 
 def _backdoor_data(n: int = 200) -> dict[str, np.ndarray]:
@@ -176,7 +174,7 @@ def test_analyze_result_handoff_matches_identify() -> None:
 
 def test_partial_id_refuses() -> None:
     pin = load_json(
-        Path(__file__).resolve().parents[2]
+        REPO_ROOT
         / "conformance"
         / "estimate"
         / "cpdag_ate_envelope"

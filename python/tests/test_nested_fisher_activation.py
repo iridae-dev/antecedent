@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from pathlib import Path
 from statistics import NormalDist
 
 import numpy as np
@@ -23,6 +22,8 @@ from antecedent.transport._closed_pilots import (
 from antecedent.transport.advanced import (
     NestedFisherCandidate,
 )
+
+from _repo_text import REPO_ROOT
 
 _INTERNAL = hasattr(_native, "nested_markov_fisher_candidate")
 _CANDIDATE = pytest.mark.skipif(
@@ -99,7 +100,7 @@ def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_a
     assert result.values == pytest.approx((0.3, 0.5, 0.2), abs=1e-12)
     oracle = json.loads(
         (
-            Path(__file__).resolve().parents[2]
+            REPO_ROOT
             / "conformance/transport/nested_fisher/expected.json"
         ).read_text(encoding="utf-8")
     )

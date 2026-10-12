@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from antecedent import artifacts
 
-from _repo_text import load_toml
+from _repo_text import REPO_ROOT, load_toml
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _LICENSED = load_toml(_ROOT / "parity" / "support_licensed.toml")
 
 _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {

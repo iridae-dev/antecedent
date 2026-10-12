@@ -74,6 +74,7 @@ from antecedent.results.response import (
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
+from _repo_text import REPO_ROOT
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_cross_surface_fixtures as gen  # noqa: E402
@@ -107,7 +108,7 @@ TYPED = (CausalTypeError, CausalValueError, CausalUnsupportedError, CausalSerial
 # One row per producer, one status per consumer, in CONSUMERS order. The checks
 # registered below must agree with parity/producer_consumer.toml.
 _MATRIX = tomllib.loads(
-    (Path(__file__).resolve().parents[2] / "parity" / "producer_consumer.toml").read_text(
+    (REPO_ROOT / "parity" / "producer_consumer.toml").read_text(
         encoding="utf-8"
     )
 )

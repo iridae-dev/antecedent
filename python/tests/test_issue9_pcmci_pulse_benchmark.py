@@ -6,7 +6,7 @@ parent recovery (``conformance/discovery/pcmci_lag1``) and pulse ≈ 0.8.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_text import REPO_ROOT
 
 
 def test_issue9_pcmci_pulse_benchmark_example() -> None:
@@ -14,7 +14,7 @@ def test_issue9_pcmci_pulse_benchmark_example() -> None:
 
     runpy.run_path(
         str(
-            Path(__file__).resolve().parents[2] / "examples" / "python" / "pcmci_pulse_benchmark.py"
+            REPO_ROOT / "examples" / "python" / "pcmci_pulse_benchmark.py"
         ),
         run_name="__main__",
     )

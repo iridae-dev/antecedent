@@ -5,14 +5,12 @@ Fixture: conformance/gates/arrow_copy_fixture.json (shared with Rust).
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-FIXTURE = Path(__file__).resolve().parents[2] / "conformance" / "gates" / "arrow_copy_fixture.json"
+FIXTURE = REPO_ROOT / "conformance" / "gates" / "arrow_copy_fixture.json"
 
 
 def test_arrow_load_reports_measured_copy():

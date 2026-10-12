@@ -19,6 +19,8 @@ from antecedent.results import (
 )
 from antecedent.transport import advanced as transport
 
+from _repo_text import REPO_ROOT
+
 
 def test_only_queries_are_reexported_at_root():
     for name in (
@@ -484,12 +486,11 @@ def test_response_honors_explicit_threads():
 
 
 def test_response_admg_intervention_cheap_runs_plugin_level():
-    from pathlib import Path
 
     from _repo_text import load_json
 
     pin = load_json(
-        Path(__file__).resolve().parents[2]
+        REPO_ROOT
         / "conformance"
         / "estimate"
         / "admg_frontdoor_functional"

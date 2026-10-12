@@ -18,19 +18,8 @@ import pytest
 from antecedent.estimators import GlmOptions, PropensityWeighting
 
 from _native_ate import native_ate
-
-
-def _confounded_data(seed: int = 7, n: int = 400):
-    """Simple confounded SCM: z -> t -> y, z -> y. Complete cases, no missing data."""
-    rng = np.random.default_rng(seed)
-    z = rng.normal(size=n)
-    t = (z + rng.normal(size=n) * 0.5 > 0).astype(np.float64)
-    y = 2.0 * t + 1.0 * z + rng.normal(size=n) * 0.5
-    names = ["z", "t", "y"]
-    columns = [z, t, y]
-    edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    return names, columns, edges
-
+from _scm import confounded_columns as _confounded_data
+from _scm import public_scm as _public_scm
 
 # A sharp design as a graph: the running variable is the treatment's only cause.
 _RD_GRAPH = [("r", "t"), ("t", "y"), ("r", "y")]
@@ -350,14 +339,6 @@ def test_rd_key_used_without_rd_sharp_estimator_reports_the_owner():
 # these pin that `estimator_config=` is actually reachable from `antecedent.analyze`,
 # which is the only spelling documented to users.
 # ---------------------------------------------------------------------------
-
-
-def _public_scm(seed: int = 9, n: int = 400):
-    rng = np.random.default_rng(seed)
-    z = rng.normal(size=n)
-    t = (0.7 * z + rng.normal(size=n) * 0.5 > 0).astype(float)
-    y = 1.5 * t + z + rng.normal(size=n) * 0.4
-    return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
 def test_public_analyze_accepts_estimator_config_and_none_is_identical():

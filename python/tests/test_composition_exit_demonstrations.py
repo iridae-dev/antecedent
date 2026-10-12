@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import math
 import tomllib
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -44,8 +43,9 @@ from antecedent.transport.advanced import (
 )
 
 from _refusal import assert_registered_refusal
+from _repo_text import REPO_ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 
 
 def _registry() -> dict[str, dict[str, Any]]:

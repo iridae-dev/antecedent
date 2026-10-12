@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 import pytest
@@ -11,9 +9,9 @@ from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_prior_transfer" / "expected.json")
 _PULSE_CELL = "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
 _CURVE_CELL = "ResponseCurve \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"

@@ -6,7 +6,6 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from antecedent.decision import Action, Contract, Criterion, const, x
@@ -26,9 +25,11 @@ from antecedent.priors import (
 )
 from antecedent.temporal import EffectEstimand, effect_constancy
 
+from _repo_text import REPO_ROOT
+
 ORACLE = json.loads(
     (
-        Path(__file__).resolve().parents[2]
+        REPO_ROOT
         / "conformance/population_time/effect_constancy_consumers/expected.json"
     ).read_text(encoding="utf-8")
 )

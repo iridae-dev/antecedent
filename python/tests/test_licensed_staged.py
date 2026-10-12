@@ -172,7 +172,7 @@ _IR = antecedent.InterventionResponse(
 # `conformance/response/intervention_response/expected.json` (see comment above), so
 # unlike most fixtures in this file this coordinate has a real known-truth value to
 # compare against, not just self-consistency between `analyze()` and `PreparedAnalysis`.
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.REPO_ROOT
 _IR_FIXTURE = load_json(
     _REPO_ROOT / "conformance" / "response" / "intervention_response" / "expected.json"
 )

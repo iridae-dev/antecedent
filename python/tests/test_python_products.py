@@ -52,10 +52,10 @@ from antecedent.errors import CausalError
 from antecedent.inference import Frequentist
 from antecedent.intervention import Set
 
-from _repo_text import read_text
+from _repo_text import REPO_ROOT, read_text
 from _sealed_loads import assert_answer_kept
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads(read_text(ROOT / "parity" / "python_products.toml"))
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 LAGGED = [("t", 1, "y", 0)]

@@ -15,14 +15,12 @@ Covers two branch-review defects fixed together:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 
-from _repo_text import load_toml
+from _repo_text import REPO_ROOT, load_toml
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = REPO_ROOT
 _SUPPORT_CLOSED_TOML = _REPO_ROOT / "parity" / "support_closed.toml"
 
 

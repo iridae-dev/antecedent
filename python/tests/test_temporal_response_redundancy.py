@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import antecedent
@@ -11,9 +10,9 @@ import pytest
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _CONFOUNDED = load_json(
     _ROOT / "conformance" / "response" / "temporal_confounded_pulse" / "expected.json"
 )

@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import antecedent as ant
 import numpy as np
 
-from _repo_text import load_toml
+from _repo_text import REPO_ROOT, load_toml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 IDENTITY = load_toml(ROOT / "parity" / "identity.toml")
 GRAPH = [("t", "y"), ("z", "y")]
 

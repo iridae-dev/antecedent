@@ -1,6 +1,5 @@
 """Numerical and artifact evidence for the staged cells."""
 
-from pathlib import Path
 
 import antecedent as ac
 import numpy as np
@@ -11,9 +10,9 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.identify import identify
 
 from _refusal import assert_registered_refusal
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 
 
 def fixture():

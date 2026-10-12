@@ -13,6 +13,15 @@ import os
 
 import pytest
 
+from _repo_text import REPO_ROOT
+
+
+@pytest.fixture
+def repo_root():
+    """Repository root. Tests that only need the path import REPO_ROOT."""
+    return REPO_ROOT
+
+
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")

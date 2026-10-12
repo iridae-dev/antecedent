@@ -20,9 +20,11 @@ from antecedent.joint_distribution import (
     ScientificQuantity,
 )
 
+from _repo_text import REPO_ROOT
+
 PIN = json.loads(
     (
-        Path(__file__).resolve().parents[2] / "conformance/composition/rollout/expected.json"
+        REPO_ROOT / "conformance/composition/rollout/expected.json"
     ).read_text(encoding="utf-8")
 )
 

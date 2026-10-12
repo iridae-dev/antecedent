@@ -1,10 +1,8 @@
 """Actual proposal-arrival counts through the original checked transport evaluator."""
-
 import json
 import subprocess
 import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from antecedent import Admg, proposals, repair
@@ -12,10 +10,11 @@ from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.proposal_arrival import ArrivedStudy, consume_arrival
 from antecedent.transport import advanced as tr
 
+from _repo_text import REPO_ROOT
 from test_proposals import experiment, rank, semantic_ids, transport_contract
 
 EXPECTED = json.loads(
-    (Path(__file__).resolve().parents[2] / "conformance/proposals/arrival/expected.json").read_text(
+    (REPO_ROOT / "conformance/proposals/arrival/expected.json").read_text(
         encoding="utf-8"
     )
 )

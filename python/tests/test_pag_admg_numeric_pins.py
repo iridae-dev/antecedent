@@ -16,7 +16,7 @@ import pytest
 
 from _repo_text import load_json
 
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_ROOT = pathlib.REPO_ROOT
 
 
 def _load_pin(name: str) -> dict[str, Any]:

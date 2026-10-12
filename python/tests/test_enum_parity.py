@@ -11,12 +11,13 @@ mirror is missing or has an extra id, so the two stay in lockstep by constructio
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from antecedent.ids import Estimator, Identifier
 
+from _repo_text import REPO_ROOT
+
 _IDS_RS = (
-    Path(__file__).resolve().parents[2]
+    REPO_ROOT
     / "crates"
     / "antecedent"
     / "src"

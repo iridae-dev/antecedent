@@ -42,8 +42,9 @@ from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TemporalUnitPanel, temporal_dependent_interval
 
 from _refusal import REGISTERED
+from _repo_text import REPO_ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 NOT_INFERENTIAL = frozenset({"point_only", "structural_envelope", "none"})
 ORACLE_KINDS = frozenset({"closed_form", "enumerated_finite_law", "semantic_contract"})
 REQUIRED_ROLES = ("positive", "negative", "artifact")

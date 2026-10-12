@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-from _repo_text import load_json, read_text
+from _repo_text import REPO_ROOT, load_json, read_text
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _EXAMPLES = sorted((_ROOT / "examples" / "python").glob("*.py"))
 _NOTEBOOKS = sorted((_ROOT / "examples" / "notebooks").glob("*.ipynb"))
 

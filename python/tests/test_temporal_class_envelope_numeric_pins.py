@@ -10,7 +10,7 @@ import pytest
 
 from _repo_text import load_json
 
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_ROOT = pathlib.REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json")
 
 

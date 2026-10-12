@@ -1,5 +1,4 @@
 """Measured authority guards; candidate JSON and user basis never mint a license."""
-
 from dataclasses import FrozenInstanceError, replace
 from types import SimpleNamespace
 
@@ -10,6 +9,8 @@ from antecedent._measured_inference import (
     MeasuredScalar,
 )
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+
+from _repo_text import REPO_ROOT
 
 
 def identity():
@@ -116,10 +117,9 @@ def test_native_input_exceptions_preserve_class_without_scientific_reason(
 
 def test_source_report_unreachable_route_guard_is_class_only():
     import re
-    from pathlib import Path
 
     source = (
-        Path(__file__).resolve().parents[2] / "python/src/measured_inference_api.rs"
+        REPO_ROOT / "python/src/measured_inference_api.rs"
     ).read_text(encoding="utf-8")
     # No public constructor can manufacture a seventh route. This exact fallback
     # remains a defensive class-only input error, never a scientific refusal.
@@ -135,7 +135,7 @@ def test_source_report_unreachable_route_guard_is_class_only():
     assert set(re.findall(r'"([a-z_]+)"\s*=>', source)) == routes
     assert "#[new]" not in source
     consumer = (
-        Path(__file__).resolve().parents[2] / "crates/antecedent-io/src/measured_inference.rs"
+        REPO_ROOT / "crates/antecedent-io/src/measured_inference.rs"
     ).read_text(encoding="utf-8")
     start = consumer.index("match expected.route.as_str()")
     end = consumer.index("measured_inference.unsupported_route", start)

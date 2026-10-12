@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 import pytest
@@ -12,9 +10,9 @@ from antecedent.errors import CausalError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "response" / "temporal_observation" / "expected.json")
 _EDGES = [("t", 1, "y", 0), ("t", 2, "y", 0)]
 _TRUTH = np.asarray(_PIN["surface"]["mean"], dtype=float)

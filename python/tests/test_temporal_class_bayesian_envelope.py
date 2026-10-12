@@ -11,7 +11,7 @@ import pytest
 
 from _repo_text import load_json
 
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_ROOT = pathlib.REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_class_envelope" / "expected.json")
 _TRANSFER = load_json(
     _ROOT / "conformance" / "bayesian" / "temporal_class_prior_transfer" / "expected.json"

@@ -16,7 +16,6 @@ attested, and a ``native`` requirement refuses a label that has no execution rec
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -31,6 +30,7 @@ from antecedent.joint_distribution import (
 )
 
 from _refusal import assert_registered_refusal
+from _repo_text import REPO_ROOT
 
 
 def q(regime: str, functional: str = "outcome") -> ScientificQuantity:
@@ -73,7 +73,7 @@ def joint(
         assert provider == "engine" and snapshot == "snap-n"
         assert calibration == "exact" and supported is None
         path = (
-            Path(__file__).resolve().parents[2]
+            REPO_ROOT
             / "conformance/composition/metadata_only_native/legacy.art"
         )
         return JointDistributionArtifact.load(path.read_bytes(), expected_identity=identity)
@@ -178,7 +178,7 @@ def test_composition_boundary_caller_native_constructor_refuses_before_coercion(
 
 def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None:
     path = (
-        Path(__file__).resolve().parents[2]
+        REPO_ROOT
         / "conformance/composition/metadata_only_native/legacy.art"
     )
     artifact = JointDistributionArtifact.load(path.read_bytes(), expected_identity=joint().identity)

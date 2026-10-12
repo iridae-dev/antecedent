@@ -6,9 +6,9 @@ from pathlib import Path
 
 from antecedent.errors import CausalUnsupportedError
 
-from _repo_text import load_toml, read_text
+from _repo_text import REPO_ROOT, load_toml, read_text
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 CODES = load_toml(ROOT / "parity" / "reason_codes.toml")
 
 
@@ -21,7 +21,6 @@ def test_reason_codes_are_closed():
 
 def test_every_runtime_reason_code_is_in_the_vocabulary():
     import re
-    from pathlib import Path
 
     vocab = {row["id"] for row in CODES["code"] if "runtime_refusal" in row.get("applies_to", [])}
     text = "\n".join(

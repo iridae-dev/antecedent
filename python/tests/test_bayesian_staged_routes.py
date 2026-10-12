@@ -5,14 +5,15 @@ from __future__ import annotations
 import ast
 import inspect
 import json
-from pathlib import Path
 
 import antecedent as ac
 import numpy as np
 import pytest
 from antecedent.estimation import PreparedAnalysis
 
-ROOT = Path(__file__).resolve().parents[2]
+from _repo_text import REPO_ROOT
+
+ROOT = REPO_ROOT
 
 
 def _load(rel: str) -> dict:
