@@ -26,24 +26,16 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from types import MappingProxyType
 from typing import Any
 
 from .. import _native
+from .._freeze import freeze as _frozen
 from ..errors import CausalTypeError, CausalValueError
 from ..learners import Logistic, Ridge, _learner_wire
 from ._impl import TrialAipwData, TrialAipwQuery
 
 #: The one supported target of a request.
 TARGET = "target_mean_contrast"
-
-
-def _frozen(value: Any) -> Any:
-    if isinstance(value, dict):
-        return MappingProxyType({k: _frozen(v) for k, v in value.items()})
-    if isinstance(value, list):
-        return tuple(_frozen(v) for v in value)
-    return value
 
 
 @dataclass(frozen=True, slots=True)

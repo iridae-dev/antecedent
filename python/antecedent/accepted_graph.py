@@ -348,6 +348,8 @@ class AcceptedGraph:
                 "payload": payload,
             },
             separators=(",", ":"),
+            sort_keys=True,
+            allow_nan=False,
         )
 
     @classmethod

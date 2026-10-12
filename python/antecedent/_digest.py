@@ -13,15 +13,31 @@ means a new domain version, never a silent change under an old name.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
 
+# Same text ``json.dumps(..., allow_nan=False)`` raises. Callers and tests match it.
+_NON_FINITE = "Out of range float values are not JSON compliant"
+
 #: Reserved mapping keys. A mapping that already carries one is refused, so a
 #: caller's data can never pose as the digest of an array or table.
 _ARRAY_KEY = "__antecedent_array__"
 _TABLE_KEY = "__antecedent_table__"
+
+
+def _reject_non_finite(value: float) -> float:
+    """Refuse NaN and infinities before they can be hashed.
+
+    ``allow_nan=False`` already rejects them in JSON text. Float arrays used to
+    skip that check and hash the IEEE bytes, so a NaN changed the digest.
+    Finite values are not rewritten.
+    """
+    if not math.isfinite(value):
+        raise ValueError(_NON_FINITE)
+    return value
 
 
 def _array_form(array: np.ndarray) -> dict[str, Any]:
@@ -31,8 +47,8 @@ def _array_form(array: np.ndarray) -> dict[str, Any]:
     arrays share a form only when they hold the same values at the same dtype
     and shape. Object arrays are canonical only when every element is.
     """
-    from . import _native
-
+    if array.dtype.kind == "f" and array.size and not np.isfinite(array).all():
+        raise ValueError(_NON_FINITE)
     if array.dtype.kind == "O":
         return {
             _ARRAY_KEY: {
@@ -43,6 +59,8 @@ def _array_form(array: np.ndarray) -> dict[str, Any]:
         }
     if array.dtype.kind == "V":
         raise TypeError("a structured array has no canonical form; pass its columns")
+    from . import _native
+
     ordered = np.ascontiguousarray(array.astype(array.dtype.newbyteorder("<"), copy=False))
     return {
         _ARRAY_KEY: {
@@ -97,7 +115,10 @@ def _plain(item: Any) -> Any:
     if isinstance(item, np.ndarray):
         return _array_form(item)
     if isinstance(item, np.generic):
-        return item.item()
+        value = item.item()
+        if isinstance(value, float):
+            return _reject_non_finite(value)
+        return value
     if isinstance(item, Mapping):
         reserved = {_ARRAY_KEY, _TABLE_KEY}.intersection(map(str, item))
         if reserved:
@@ -105,7 +126,9 @@ def _plain(item: Any) -> Any:
         return {str(key): _plain(value) for key, value in item.items()}
     if isinstance(item, (tuple, list)):
         return [_plain(value) for value in item]
-    if isinstance(item, (str, int, float, bool)) or item is None:
+    if isinstance(item, float):
+        return _reject_non_finite(item)
+    if isinstance(item, (str, int, bool)) or item is None:
         return item
     table = _foreign_table(item)
     if table is not None:
