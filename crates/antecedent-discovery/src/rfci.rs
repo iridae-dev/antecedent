@@ -15,16 +15,13 @@
     )
 )]
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Endpoint, Pag, PagReview};
-use antecedent_stats::{
-    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
-    PartialCorrelation, PreparedCiTest,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
@@ -36,7 +33,7 @@ use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::fci::{StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state};
 use crate::orientation::{OrientationState, RuleDelta};
-use crate::pc::{adjacent_vars, collect_float_columns, edge_key};
+use crate::pc::{adjacent_vars, edge_key};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
     EvidenceSource, GraphEvidence, PcSepsets, discovery_assumptions,
@@ -65,16 +62,7 @@ pub struct Rfci {
     pub discriminating_path_budget: DiscriminatingPathBudget,
 }
 
-impl std::fmt::Debug for Rfci {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Rfci")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .field("discriminating_path_budget", &self.discriminating_path_budget)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Rfci, discriminating_path_budget);
 
 impl Default for Rfci {
     fn default() -> Self {
@@ -154,41 +142,21 @@ impl Rfci {
                 "RFCI FDR is refused until adjustment covers adjacency, Lemma 3.1, discriminating-path, and sepset-minimization CI tests",
             ));
         }
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.ci,
-            self.constraints.significance,
-            self.constraints.alpha,
-            false,
+        let (col_owned, var_index) = crate::pc::prepare_static_columns(
+            crate::pc::StaticColumnRequest {
+                ci: &*self.ci,
+                significance: self.constraints.significance,
+                alpha: self.constraints.alpha,
+                fdr: false,
+                empty_variables: "RFCI requires at least one variable",
+                insufficient_rows: "insufficient rows for RFCI",
+            },
+            data,
+            variables,
+            workspace,
+            ctx,
         )?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "RFCI requires at least one variable",
-            });
-        }
-
-        let col_owned = collect_float_columns(data, variables)?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
-        let n = cols[0].len();
-        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for RFCI"));
-        }
-        for c in &cols {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-        }
-
-        let var_index: HashMap<VariableId, usize> =
-            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-
-        let plan = CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let prepared: PreparedCiTest =
-            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
-        workspace.prepared_ci = Some(prepared);
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
@@ -500,18 +468,17 @@ fn rfci_discriminating_paths(
                 let ud = dense_of(u)?;
                 let vd = dense_of(v)?;
                 let _ = pag.remove_edge(ud, vd);
-                state.set_sepset(
-                    ud,
-                    vd,
-                    Arc::from(minimal.iter().filter_map(|x| dense_of(*x).ok()).collect::<Vec<_>>()),
-                );
+                let dense_sep: Vec<DenseNodeId> =
+                    minimal.iter().map(|x| dense_of(*x)).collect::<Result<_, _>>()?;
+                state.set_sepset(ud, vd, Arc::from(dense_sep));
                 delta.edges_changed += 1;
             }
             continue;
         }
 
         // Standard R4 orientation (Zhang) after Lemma 3.2 checks pass.
-        let c_in_sep = sep_ab.iter().any(|&z| dense_of(z).ok().is_some_and(|d| d == c));
+        let c_in_sep =
+            sep_ab.iter().map(|&z| dense_of(z)).collect::<Result<Vec<_>, _>>()?.contains(&c);
         let collider = discriminating_implies_collider(c_in_sep);
         let Some(e_cb) = pag.edge_between(c, b) else {
             continue;

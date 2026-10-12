@@ -769,9 +769,17 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR4 {
     }
 }
 
-fn is_contemporaneous_node(graph: &TemporalCpdag, id: DenseNodeId) -> bool {
+/// Whether `id` sits in the contemporaneous slice.
+///
+/// A lagged node at lag 0 and a context node are contemporaneous. A positive lag is not.
+/// PCMCI+ majority votes ([`crate::pcmci_plus`]) and the contemporaneous Meek rules share
+/// this predicate: context is part of the contemporaneous slice (it is stored as lag 0 by
+/// [`crate::pcmci_plus::node_var_lag`]), so a Meek rule that ignored context would orient a
+/// different edge than the vote that recorded the triple.
+pub(crate) fn is_contemporaneous_node(graph: &TemporalCpdag, id: DenseNodeId) -> bool {
     match graph.nodes().get(id.raw() as usize) {
         Some(antecedent_graph::NodeRef::Lagged { lag, .. }) => lag.is_contemporaneous(),
+        Some(antecedent_graph::NodeRef::Context { .. }) => true,
         _ => false,
     }
 }

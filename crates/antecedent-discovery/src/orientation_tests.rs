@@ -4,6 +4,17 @@ use antecedent_graph::TemporalCpdag;
 use super::*;
 
 #[test]
+fn context_nodes_share_the_contemporaneous_slice() {
+    let mut g = TemporalCpdag::empty();
+    let lagged = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let context = g.add_context(VariableId::from_raw(2), None).unwrap();
+    assert!(!is_contemporaneous_node(&g, lagged));
+    assert!(is_contemporaneous_node(&g, now));
+    assert!(is_contemporaneous_node(&g, context));
+}
+
+#[test]
 fn meek_r1_cycle_records_conflict_and_continues() {
     // a → b — c with c → d → a so c reaches b; orienting b→c would cycle.
     let mut g = TemporalCpdag::empty();
@@ -356,4 +367,21 @@ fn quiet_pass_does_not_end_scheduling_before_a_full_scan() {
     .unwrap();
     assert!(applied.get(), "rule A's pending application was never examined");
     assert!(d.fixed_point);
+}
+
+#[test]
+fn context_and_lag_zero_are_contemporaneous() {
+    use antecedent_graph::NodeRef;
+    let mut g = TemporalCpdag::empty();
+    let now = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let ctx = g
+        .add_node(NodeRef::Context { variable: VariableId::from_raw(1), environment: None })
+        .unwrap();
+    assert!(is_contemporaneous_node(&g, now));
+    assert!(is_contemporaneous_node(&g, ctx));
+    assert!(!is_contemporaneous_node(&g, past));
+    assert!(crate::pcmci_plus::is_contemp_node(&g, now));
+    assert!(crate::pcmci_plus::is_contemp_node(&g, ctx));
+    assert!(!crate::pcmci_plus::is_contemp_node(&g, past));
 }

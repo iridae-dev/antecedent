@@ -283,9 +283,6 @@ impl DbnPosterior {
         let (n_chains, n_warmup, n_draws, _) = schedule.as_usize();
         let n_lag_bits = (max_lag as usize) * p * p;
         let n_params = n_directed_edges(p) + n_lag_bits;
-        let mut traces = vec![0.0f64; n_chains * n_draws * n_params];
-        let mut samples: Vec<Vec<(u64, u64)>> = vec![Vec::new(); n_chains];
-        let mut rejected = 0u64;
 
         // Start inside the constrained support: every required contemporaneous and lagged
         // edge present. From the empty template a run with two or more required edges could
@@ -293,11 +290,14 @@ impl DbnPosterior {
         // invalid empty template as a posterior sample until the right bit was proposed.
         let (init_cmask, init_lmask, init_score) = initial_dbn_state(target)?;
 
-        for chain in 0..n_chains {
-            if ctx.cancellation.is_cancelled() {
+        let chain_out = ctx.map_indexed(n_chains, |chain, inner| {
+            if inner.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let mut rng = ctx.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
+            let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
+            let mut local_traces = vec![0.0f64; n_draws * n_params];
+            let mut local_samples = Vec::new();
+            let mut rejected = 0u64;
             let mut cache = target.score_cache();
             let mut cmask = init_cmask;
             let mut lmask = init_lmask;
@@ -319,7 +319,7 @@ impl DbnPosterior {
             let total = n_warmup + n_draws;
             let mut kept = 0usize;
             for step in 0..total {
-                if step % 64 == 0 && ctx.cancellation.is_cancelled() {
+                if step % 64 == 0 && inner.cancellation.is_cancelled() {
                     return Err(DiscoveryError::Cancelled);
                 }
                 let (pc, pl, rej) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
@@ -352,19 +352,28 @@ impl DbnPosterior {
                             if i == j {
                                 continue;
                             }
-                            traces[(chain * n_draws + kept) * n_params + idx] =
+                            local_traces[kept * n_params + idx] =
                                 if has_edge(cmask, p, i, j) { 1.0 } else { 0.0 };
                             idx += 1;
                         }
                     }
                     for b in 0..n_lag_bits {
-                        traces[(chain * n_draws + kept) * n_params + idx + b] =
+                        local_traces[kept * n_params + idx + b] =
                             if (lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
                     }
-                    samples[chain].push((cmask, lmask));
+                    local_samples.push((cmask, lmask));
                     kept += 1;
                 }
             }
+            Ok((local_traces, local_samples, rejected))
+        })?;
+        let mut traces = Vec::with_capacity(n_chains * n_draws * n_params);
+        let mut samples = Vec::with_capacity(n_chains);
+        let mut rejected = 0u64;
+        for (local_traces, local_samples, local_rej) in chain_out {
+            traces.extend(local_traces);
+            samples.push(local_samples);
+            rejected += local_rej;
         }
 
         let (diagnostics, param_mcse) = diagnostics_from_traces(

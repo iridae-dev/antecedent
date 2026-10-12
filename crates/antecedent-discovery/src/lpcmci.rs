@@ -42,7 +42,9 @@ impl Lpcmci {
         constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
         Self {
             engine: PcmciEngine::new().with_constraints(constraints),
-            fdr: Some(FdrAdjustment::bh()),
+            // FDR is not applied (the multi-phase family is not one BH family). The default
+            // used to store `Some` and ignore it; `None` matches the adjustment that ran.
+            fdr: None,
             n_preliminary_iterations: 1,
         }
     }
@@ -191,5 +193,29 @@ mod tests {
         assert_eq!(result.algorithm.id.as_ref(), "lpcmci");
         assert!(result.evidence.graph.node_count() > 0);
         assert!(matches!(result.evidence.source, crate::result::EvidenceSource::Discovery { .. }));
+    }
+
+    /// Default FDR is off: `Lpcmci::new` used to store BH and ignore it. Requesting FDR
+    /// is a refusal, the same rule RFCI uses for an adjustment that does not cover the search.
+    #[test]
+    fn fdr_is_off_by_default_and_refused_when_requested() {
+        assert!(Lpcmci::new().fdr.is_none());
+        let (data, vars) = tiny_xy(80);
+        let alg = Lpcmci::new().with_fdr(true).with_constraints(DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            alpha: 0.2,
+            max_cond_size: 2,
+            ..DiscoveryConstraints::default()
+        });
+        let err = alg
+            .run(&data, &vars, &mut DiscoveryWorkspace::default(), &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { message } if message.contains("FDR")),
+            "{err}"
+        );
     }
 }

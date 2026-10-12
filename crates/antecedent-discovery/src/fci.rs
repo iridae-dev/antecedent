@@ -23,10 +23,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag, PagReview};
-use antecedent_stats::{
-    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
-    PartialCorrelation, PreparedCiTest,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
@@ -34,7 +31,7 @@ use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{OrientationError, OrientationState};
-use crate::pc::{collect_float_columns, edge_key, sorted_edge_pairs};
+use crate::pc::{edge_key, sorted_edge_pairs};
 use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
@@ -70,17 +67,7 @@ pub struct Fci {
     pub discriminating_path_budget: DiscriminatingPathBudget,
 }
 
-impl std::fmt::Debug for Fci {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Fci")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .field("pds_max_nodes", &self.pds_max_nodes)
-            .field("discriminating_path_budget", &self.discriminating_path_budget)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Fci, pds_max_nodes, discriminating_path_budget);
 
 impl Default for Fci {
     fn default() -> Self {
@@ -161,41 +148,21 @@ impl Fci {
                 "FCI FDR is refused until adjustment covers both adjacency and Possible-D-Sep CI tests",
             ));
         }
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.ci,
-            self.constraints.significance,
-            self.constraints.alpha,
-            false,
+        let (col_owned, var_index) = crate::pc::prepare_static_columns(
+            crate::pc::StaticColumnRequest {
+                ci: &*self.ci,
+                significance: self.constraints.significance,
+                alpha: self.constraints.alpha,
+                fdr: false,
+                empty_variables: "FCI requires at least one variable",
+                insufficient_rows: "insufficient rows for FCI",
+            },
+            data,
+            variables,
+            workspace,
+            ctx,
         )?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "FCI requires at least one variable",
-            });
-        }
-
-        let col_owned = collect_float_columns(data, variables)?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
-        let n = cols[0].len();
-        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for FCI"));
-        }
-        for c in &cols {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-        }
-
-        let var_index: HashMap<VariableId, usize> =
-            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-
-        let plan = CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let prepared: PreparedCiTest =
-            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
-        workspace.prepared_ci = Some(prepared);
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
@@ -283,7 +250,7 @@ impl Fci {
                 record_sepset(&mut sepsets, x, y, &best_sep);
                 let _ = pag.remove_edge(xd, yd);
                 let dense_sep: Vec<DenseNodeId> =
-                    best_sep.iter().filter_map(|v| dense_of(*v).ok()).collect();
+                    best_sep.iter().map(|v| dense_of(*v)).collect::<Result<_, _>>()?;
                 state.set_sepset(xd, yd, Arc::from(dense_sep));
             }
         }
@@ -380,17 +347,7 @@ pub(crate) fn load_sepsets_into_state(
     dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
     state: &mut OrientationState,
 ) -> Result<(), DiscoveryError> {
-    for ((sx, _, ty, _), sep) in sepsets {
-        if sx.raw() > ty.raw() {
-            continue;
-        }
-        let a = dense_of(*sx)?;
-        let b = dense_of(*ty)?;
-        let dense_sep: Vec<DenseNodeId> =
-            sep.iter().filter_map(|(v, _)| dense_of(*v).ok()).collect();
-        state.set_sepset(a, b, Arc::from(dense_sep));
-    }
-    Ok(())
+    crate::pc::load_sepsets_into_state(sepsets, dense_of, state)
 }
 
 pub(crate) fn build_pag_circle_skeleton(
@@ -412,8 +369,8 @@ pub(crate) fn build_pag_circle_skeleton(
         let b_idx = *var_index
             .get(&VariableId::from_raw(hi))
             .ok_or_else(|| DiscoveryError::data_msg("unknown variable in skeleton"))?;
-        let a = DenseNodeId::from_raw(u32::try_from(a_idx).expect("fit"));
-        let b = DenseNodeId::from_raw(u32::try_from(b_idx).expect("fit"));
+        let a = DenseNodeId::from_raw(crate::indexing::dense_u32(a_idx));
+        let b = DenseNodeId::from_raw(crate::indexing::dense_u32(b_idx));
         pag.insert_circle_circle(a, b).map_err(DiscoveryError::from)?;
     }
     Ok(pag)

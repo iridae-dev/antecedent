@@ -20,8 +20,8 @@ use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_blocks_for_frame};
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::{
-    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
-    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest, SignificanceMethod,
+    CiQuery, CiWorkspace, ConditionalIndependence, PairwiseMultivariateCi, PartialCorrelation,
+    PreparedCiTest, SignificanceMethod,
 };
 
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
@@ -362,25 +362,18 @@ impl PcmciEngine {
         }
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
         self.ensure_prepared_ci(frame, workspace, ctx)?;
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_flat, self.constraints.significance);
         let prepared = workspace
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
             .map_err(DiscoveryError::from)?;
-        if out.results.len() != parents.len() {
+        if results.len() != parents.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
-        for (pi, (result, combo)) in out.results.into_iter().zip(combos).enumerate() {
+        for (pi, (result, combo)) in results.into_iter().zip(combos).enumerate() {
             if !result.statistic.is_finite() || !result.p_value.is_finite() {
                 return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
             }
@@ -533,12 +526,12 @@ impl PcmciEngine {
         // : prepare CI once for the lagged frame (unmasked fast path).
         if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: engine.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
-            workspace.prepared_ci =
-                Some(engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+            workspace.prepared_ci = Some(crate::ci::prepare_ci(
+                &*engine.ci,
+                &cols,
+                engine.constraints.significance,
+                ctx,
+            )?);
         } else {
             workspace.prepared_ci = None;
             workspace.keep_cache.clear();
@@ -622,65 +615,30 @@ impl PcmciEngine {
         }
 
         let n = variables.len();
-        let mut slots: Vec<Option<Result<ParentSelectOut, DiscoveryError>>> =
-            (0..n).map(|_| None).collect();
-
         let prepared_ci = workspace.prepared_ci.clone();
-        let mut worker_panicked = false;
-        std::thread::scope(|scope| {
-            let mut handles = Vec::new();
-            let mut rest = slots.as_mut_slice();
-            let mut cursor = 0usize;
-            for (start, end) in chunk_ranges(n, threads) {
-                let (this, next) = rest.split_at_mut(end - start);
-                debug_assert_eq!(cursor, start);
-                let chunk_vars = &variables[start..end];
-                let engine = self;
-                let prepared_ci = prepared_ci.clone();
-                handles.push(scope.spawn(move || {
-                    let mut local_ws =
-                        DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
-                    for (i, &target) in chunk_vars.iter().enumerate() {
-                        this[i] = Some(
-                            engine
-                                .select_parents(
-                                    frame,
-                                    target,
-                                    variables,
-                                    compiled,
-                                    &mut local_ws,
-                                    ctx,
-                                )
-                                .map(|(parents, tests)| ParentSelectOut {
-                                    target,
-                                    parents,
-                                    tests,
-                                    sepsets: std::mem::take(&mut local_ws.sepsets),
-                                }),
-                        );
-                    }
-                }));
-                rest = next;
-                cursor = end;
+        let outs = ctx.map_indexed(n, |i, inner| {
+            if inner.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
             }
-            // A panicking worker becomes an error, not a panic across the FFI boundary.
-            for h in handles {
-                worker_panicked |= h.join().is_err();
-            }
-        });
-        if worker_panicked {
-            return Err(DiscoveryError::Unsupported {
-                message: "parent-selection worker panicked",
-            });
-        }
+            let target = variables[i];
+            let mut local_ws = DiscoveryWorkspace {
+                prepared_ci: prepared_ci.clone(),
+                ..DiscoveryWorkspace::default()
+            };
+            self.select_parents(frame, target, variables, compiled, &mut local_ws, inner).map(
+                |(parents, tests)| ParentSelectOut {
+                    target,
+                    parents,
+                    tests,
+                    sepsets: std::mem::take(&mut local_ws.sepsets),
+                },
+            )
+        })?;
 
         let mut all_parents = Vec::with_capacity(n);
         let mut iterations = Vec::with_capacity(n);
         let mut ci_tests = 0u64;
-        for (i, slot) in slots.into_iter().enumerate() {
-            let out = slot.ok_or(DiscoveryError::Unsupported {
-                message: "parallel PC worker left empty slot",
-            })??;
+        for (i, out) in outs.into_iter().enumerate() {
             debug_assert_eq!(out.target, variables[i]);
             ci_tests += out.tests;
             workspace.sepsets.extend(out.sepsets);
@@ -722,52 +680,28 @@ impl PcmciEngine {
         }
 
         let n = all_parents.len();
-        let ranges = chunk_ranges(n, threads);
-        let mut partials: Vec<Option<Result<MciChunkOut, DiscoveryError>>> =
-            Vec::with_capacity(ranges.len());
-
         let prepared_ci = workspace.prepared_ci.clone();
-        std::thread::scope(|scope| {
-            let mut handles = Vec::with_capacity(ranges.len());
-            for &(start, end) in &ranges {
-                let chunk_parents = &all_parents[start..end];
-                let engine = self;
-                let prepared_ci = prepared_ci.clone();
-                handles.push(scope.spawn(move || {
-                    let mut local_ws =
-                        DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
-                    let mut local_scored = Vec::new();
-                    let mut tests = 0u64;
-                    let mut truncated = 0u64;
-                    for (target, parents) in chunk_parents {
-                        let (batch, trunc) = engine.mci_batch_for_target(
-                            search,
-                            *target,
-                            parents,
-                            all_parents,
-                            &mut local_ws,
-                            ctx,
-                        )?;
-                        tests += batch.len() as u64;
-                        truncated += trunc;
-                        local_scored.extend(batch);
-                    }
-                    Ok(MciChunkOut { scored: local_scored, tests, truncated })
-                }));
-            }
-            for h in handles {
-                partials.push(Some(h.join().unwrap_or({
-                    Err(DiscoveryError::Unsupported { message: "MCI worker panicked" })
-                })));
-            }
-        });
+        let partials = ctx.map_indexed(n, |i, inner| {
+            let (target, parents) = &all_parents[i];
+            let mut local_ws = DiscoveryWorkspace {
+                prepared_ci: prepared_ci.clone(),
+                ..DiscoveryWorkspace::default()
+            };
+            let (batch, trunc) = self.mci_batch_for_target(
+                search,
+                *target,
+                parents,
+                all_parents,
+                &mut local_ws,
+                inner,
+            )?;
+            let tests = batch.len() as u64;
+            Ok::<_, DiscoveryError>(MciChunkOut { scored: batch, tests, truncated: trunc })
+        })?;
 
         let mut tests = 0u64;
         let mut truncated = 0u64;
-        for slot in partials {
-            let chunk = slot.ok_or(DiscoveryError::Unsupported {
-                message: "parallel MCI worker left empty slot",
-            })??;
+        for chunk in partials {
             tests += chunk.tests;
             truncated += chunk.truncated;
             scored.extend(chunk.scored);
@@ -850,26 +784,19 @@ impl PcmciEngine {
             links.push(link);
         }
 
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_flat, self.constraints.significance);
         let prepared = workspace
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
             .map_err(DiscoveryError::from)?;
-        if out.results.len() != links.len() {
+        if results.len() != links.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         let mut scored = Vec::with_capacity(links.len());
-        for (link, result) in links.into_iter().zip(out.results) {
+        for (link, result) in links.into_iter().zip(results) {
             if !result.statistic.is_finite() || !result.p_value.is_finite() {
                 return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
             }
@@ -898,12 +825,8 @@ impl PcmciEngine {
         };
         if needs {
             let cols: Vec<&[f64]> = (0..ncols).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: self.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
             workspace.prepared_ci =
-                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?);
         }
         Ok(())
     }
@@ -939,13 +862,8 @@ impl PcmciEngine {
         }
         self.ensure_prepared_ci(frame, workspace, ctx).ok()?;
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_flat, self.constraints.significance);
         let prepared = workspace.prepared_ci.as_ref()?;
         let results =
             crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx).ok()?;
@@ -1066,23 +984,18 @@ impl PcmciEngine {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             self.ensure_prepared_ci(frame, workspace, ctx)?;
             let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
-            let req = CiBatchRequest {
-                columns: &cols,
-                queries: &queries,
-                z_flat: &workspace.z_flat,
-                significance: self.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
+            let req = crate::ci::ci_batch_request(
+                &cols,
+                &queries,
+                &workspace.z_flat,
+                self.constraints.significance,
+            );
             let prepared = workspace
                 .prepared_ci
                 .as_ref()
                 .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-            let out = self
-                .ci
-                .test_batch(prepared, &req, &mut workspace.ci, ctx)
-                .map_err(DiscoveryError::from)?;
-            let result = out
-                .results
+            let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
+                .map_err(DiscoveryError::from)?
                 .into_iter()
                 .next()
                 .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
@@ -1163,38 +1076,25 @@ impl PcmciEngine {
                 }
             }
         }
-        let plan = antecedent_stats::CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
         {
             let cols: Vec<&[f64]> = (0..n_sel)
                 .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
                 .collect();
             workspace.prepared_ci =
-                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?);
         }
         let cols: Vec<&[f64]> =
             (0..n_sel).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
         let z_remap: Vec<usize> = (2..2 + z_len).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_remap,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_remap, self.constraints.significance);
         let prepared = workspace
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
-        let result = out
-            .results
+        let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
+            .map_err(DiscoveryError::from)?
             .into_iter()
             .next()
             .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
@@ -1382,23 +1282,6 @@ pub(crate) fn refuse_truncated_mci(dropped: u64) -> Result<(), DiscoveryError> {
              refusing a truncated test"
         )))
     }
-}
-
-/// Inclusive-exclusive index ranges for target-wise parallel work.
-fn chunk_ranges(n: usize, threads: u32) -> Vec<(usize, usize)> {
-    if n == 0 {
-        return Vec::new();
-    }
-    let n_threads = (threads as usize).min(n).max(1);
-    let chunk = n.div_ceil(n_threads);
-    let mut out = Vec::with_capacity(n_threads);
-    let mut start = 0;
-    while start < n {
-        let end = (start + chunk).min(n);
-        out.push((start, end));
-        start = end;
-    }
-    out
 }
 
 #[cfg(test)]

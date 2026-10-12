@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_stats::{CiBatchRequest, CiQuery, ConditionalIndependence, ConfidenceMethod};
+use antecedent_stats::{CiQuery, ConditionalIndependence};
 
 use crate::ci::{ChunkSchedule, run_ci_batch};
 use crate::combinations::Combinations;
@@ -135,17 +135,10 @@ pub(crate) fn static_ci_test(
         .as_ref()
         .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
     let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
-    let req = CiBatchRequest {
-        columns: cols,
-        queries: &queries,
-        z_flat: &workspace.z_flat,
-        significance: constraints.significance,
-        confidence: ConfidenceMethod::default(),
-    };
-    let out =
-        ci.test_batch(prepared, &req, &mut workspace.ci, ctx).map_err(DiscoveryError::from)?;
-    let result = out
-        .results
+    let req =
+        crate::ci::ci_batch_request(cols, &queries, &workspace.z_flat, constraints.significance);
+    let result = run_ci_batch(ci, prepared, &req, &mut workspace.ci, ctx)
+        .map_err(DiscoveryError::from)?
         .into_iter()
         .next()
         .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
@@ -182,13 +175,7 @@ fn static_ci_batch(
         }
         queries.push(CiQuery { x: xi, y: yi, z_start, z_len: z.len() });
     }
-    let req = CiBatchRequest {
-        columns: cols,
-        queries: &queries,
-        z_flat: &z_flat,
-        significance: constraints.significance,
-        confidence: ConfidenceMethod::default(),
-    };
+    let req = crate::ci::ci_batch_request(cols, &queries, &z_flat, constraints.significance);
     let prepared = workspace.prepared_ci.as_ref()?;
     let results = run_ci_batch(ci, prepared, &req, &mut workspace.ci, ctx).ok()?;
     (results.len() == zs.len()).then_some(results)

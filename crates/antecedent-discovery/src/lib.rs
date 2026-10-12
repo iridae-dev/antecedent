@@ -20,6 +20,26 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod debug_ci {
+    macro_rules! debug_with_ci {
+        ($ty:ident $(, $field:ident)*) => {
+            impl std::fmt::Debug for $ty {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.debug_struct(stringify!($ty))
+                        .field("constraints", &self.constraints)
+                        .field("ci", &"<dyn ConditionalIndependence>")
+                        .field("fdr", &self.fdr)
+                        $(.field(stringify!($field), &self.$field))*
+                        .finish()
+                }
+            }
+        };
+    }
+    pub(crate) use debug_with_ci;
+}
+
+pub(crate) use debug_ci::debug_with_ci;
+
 pub mod ci;
 pub mod ci_screened_posterior;
 pub mod combinations;

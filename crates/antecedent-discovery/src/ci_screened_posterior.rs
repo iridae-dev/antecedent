@@ -349,7 +349,29 @@ fn apply_screened_out_floor(
         }
     }
     if floored > 0 {
+        // Orientation marginals are the same accumulator as edge marginals (see
+        // `accumulate_marginals`). Floor both so `to_weighted_samples` does not report a
+        // screened-out edge as floored in one field and exactly 0 in the other.
+        let mut orientation = post.orientation_marginals.to_vec();
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let key = (crate::indexing::dense_u32(i), crate::indexing::dense_u32(j));
+                if screened_in.contains(&key) || forbidden_idx.contains(&key) {
+                    continue;
+                }
+                let half = floor / 2.0;
+                let cell_ij = i * n + j;
+                let cell_ji = j * n + i;
+                if orientation[cell_ij] < half {
+                    orientation[cell_ij] = half;
+                }
+                if orientation[cell_ji] < half {
+                    orientation[cell_ji] = half;
+                }
+            }
+        }
         post.edge_marginals = Arc::from(marginals);
+        post.orientation_marginals = Arc::from(orientation);
         post.diagnostics.notes.push(Arc::from(format!(
             "ci_screened_floor pairs={floored} floor={floor:.4} \
              (min of caller edge_inclusion prior and screen alpha; screened-out \
@@ -558,6 +580,16 @@ mod tests {
             "no diagnostic disclosed the screened-out floor: {:?}",
             post.diagnostics.notes
         );
+        let samples = post.to_weighted_samples().unwrap();
+        assert_eq!(samples.edge_marginals.as_deref(), Some(post.edge_marginals.as_ref()));
+        assert_eq!(
+            samples.orientation_marginals.as_deref(),
+            Some(post.orientation_marginals.as_ref())
+        );
+        assert_eq!(post.edge_marginals.as_ref(), post.orientation_marginals.as_ref());
+        let half = ac / 2.0;
+        assert!((post.orientation_marginals[2] - half).abs() < 1e-12);
+        assert!((post.orientation_marginals[2 * n] - half).abs() < 1e-12);
     }
 
     /// A caller's explicit `required` link is an explicit prior belief, not a

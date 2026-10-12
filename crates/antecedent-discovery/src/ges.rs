@@ -43,17 +43,7 @@ pub struct Ges {
     pub max_subset: Option<usize>,
 }
 
-impl std::fmt::Debug for Ges {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Ges")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .field("screen_pc", &self.screen_pc)
-            .field("max_subset", &self.max_subset)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Ges, screen_pc, max_subset);
 
 impl Default for Ges {
     fn default() -> Self {
@@ -604,9 +594,9 @@ fn insert_delta(
     neu.push(x.raw());
     neu.sort_unstable();
     neu.dedup();
-    let old = cache.local_score(data, y.raw(), &Arc::from(base))?;
-    let new = cache.local_score(data, y.raw(), &Arc::from(neu))?;
-    Ok(new - old)
+    let old = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(base))?;
+    let new = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(neu))?;
+    Ok(operator_delta(old, new))
 }
 
 fn delete_delta(
@@ -636,46 +626,48 @@ fn delete_delta(
     without_x.extend_from_slice(&na_rest);
     without_x.sort_unstable();
     without_x.dedup();
-    let old = cache.local_score(data, y.raw(), &Arc::from(with_x))?;
-    let new = cache.local_score(data, y.raw(), &Arc::from(without_x))?;
-    Ok(new - old)
+    let old = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(with_x))?;
+    let new = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(without_x))?;
+    Ok(operator_delta(old, new))
+}
+
+/// A zero-residual (deterministic) local score is not a finite BIC. Treat that parent set as
+/// `−∞` so the operator is never selected, instead of aborting the search.
+fn local_score_or_degenerate(
+    cache: &mut LocalScoreCache,
+    data: &GraphScoreData,
+    node: u32,
+    parents: &Arc<[u32]>,
+) -> Result<f64, DiscoveryError> {
+    match cache.local_score(data, node, parents) {
+        Ok(score) => Ok(score),
+        Err(antecedent_state::StateError::Numerical(message)) if message.contains("degenerate") => {
+            Ok(f64::NEG_INFINITY)
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// `new − old`, with a non-finite candidate scoring `−∞` (never chosen) and a non-finite
+/// current score yielding `+∞` when the candidate is finite (leaving the degenerate set).
+fn operator_delta(old: f64, new: f64) -> f64 {
+    if !new.is_finite() {
+        f64::NEG_INFINITY
+    } else if !old.is_finite() {
+        f64::INFINITY
+    } else {
+        new - old
+    }
 }
 
 fn for_each_subset(items: &[DenseNodeId], max_k: usize, mut visit: impl FnMut(&[DenseNodeId])) {
     let m = items.len().min(max_k);
     let mut scratch = Vec::new();
     for k in 0..=m {
-        if k == 0 {
-            visit(&[]);
-            continue;
-        }
-        if k > items.len() {
-            break;
-        }
-        scratch.resize(k, DenseNodeId::from_raw(0));
-        let mut idx: Vec<usize> = (0..k).collect();
-        loop {
-            for (slot, &i) in idx.iter().enumerate() {
-                scratch[slot] = items[i];
-            }
-            visit(&scratch);
-            let mut i = k;
-            let mut advanced = false;
-            while i > 0 {
-                i -= 1;
-                if idx[i] != i + items.len() - k {
-                    idx[i] += 1;
-                    for j in i + 1..k {
-                        idx[j] = idx[j - 1] + 1;
-                    }
-                    advanced = true;
-                    break;
-                }
-            }
-            if !advanced {
-                break;
-            }
-        }
+        crate::combinations::for_each_combination(items, k, &mut scratch, |combo| {
+            visit(combo);
+            true
+        });
     }
 }
 
@@ -1224,5 +1216,52 @@ mod tests {
         for e in dag.edges() {
             assert!(e.parent_child().is_some());
         }
+    }
+
+    #[test]
+    fn ges_scores_a_degenerate_parent_as_negative_infinity() {
+        let n = 80;
+        let mut b = CausalSchemaBuilder::new();
+        for i in 0..2 {
+            b.add_variable(
+                format!("d{i}"),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let x: Vec<f64> = (0..n).map(|i| (i as f64) * 0.1).collect();
+        let owned = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x.clone()),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+        let result = Ges::new().run(
+            &data,
+            &vars,
+            &mut DiscoveryWorkspace::default(),
+            &ExecutionContext::for_tests(1),
+        );
+        assert!(result.is_ok(), "{result:?}");
     }
 }

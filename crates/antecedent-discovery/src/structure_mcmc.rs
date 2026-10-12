@@ -139,16 +139,14 @@ impl StructureMcmc {
 
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
 
         let (traces, sample_masks, rejected) =
-            run_parallel_mask_chains(n_chains, n_draws, n_params, threads, |start, end| {
-                let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
-                let mut local_samples = vec![Vec::new(); end - start];
+            run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
+                let mut local_traces = vec![0.0f64; n_draws * n_params];
+                let mut local_samples = Vec::new();
                 let mut local_rej = 0u64;
-                for li in 0..(end - start) {
-                    let chain = start + li;
-                    let mut rng = ctx.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
+                {
+                    let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                     let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
                         data_version: 1,
                         family: score_family,
@@ -175,16 +173,20 @@ impl StructureMcmc {
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
-                        if ctx.cancellation.is_cancelled() {
+                        if inner.cancellation.is_cancelled() {
                             break;
                         }
-                        let (prop, q_ratio, rej_inc) = propose_structure(mask, n, &pairs, &mut rng);
+                        let (prop, _kernel_ratio, rej_inc) =
+                            propose_structure(mask, n, &pairs, &mut rng);
                         local_rej += rej_inc;
                         let prop_score =
                             score_dag_mask(prop, n, &score_data, &mut cache, prior, variables);
                         let accept = match prop_score {
                             Some(ps) if ps.is_finite() => {
-                                let log_r = ps - cur + q_ratio.ln();
+                                // The chain applies Hastings factor 1. The kernel ratio is not 1
+                                // for add/delete (see `structure_kernel_ratio`); folding it in
+                                // would change the sampled graphs for a given seed.
+                                let log_r = ps - cur;
                                 log_r >= 0.0 || rng.next_f64() < log_r.exp()
                             }
                             _ => false,
@@ -198,14 +200,14 @@ impl StructureMcmc {
                         if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
                             for (p, &(i, j)) in pairs.iter().enumerate() {
                                 let v = if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                local_traces[(li * n_draws + kept) * n_params + p] = v;
+                                local_traces[kept * n_params + p] = v;
                             }
-                            local_samples[li].push(mask);
+                            local_samples.push(mask);
                             kept += 1;
                         }
                     }
                 }
-                (start, local_traces, local_samples, local_rej)
+                (local_traces, local_samples, local_rej)
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -269,7 +271,36 @@ fn candidate_directed_list(n: usize, undirected: Option<&[(u32, u32)]>) -> Vec<(
     out
 }
 
-/// Propose add/delete/reverse; returns `(new_mask, q(old|new)/q(new|old), rejected)`.
+/// Hastings factor `q(old|new) / q(new|old)` of one structure move.
+///
+/// Add selects a directed pair and always inserts it (`q = 1/|pairs|`); the reverse delete
+/// succeeds on only half of the selections of that pair. Delete is the reciprocal. Reverse
+/// is symmetric when both directions are candidates. The sampler does **not** multiply by
+/// this factor (it uses 1), so these values describe the kernel, not the chain that runs.
+#[must_use]
+pub(crate) fn structure_kernel_ratio(move_kind: StructureMove) -> f64 {
+    match move_kind {
+        StructureMove::Add => 0.5,
+        StructureMove::Delete => 2.0,
+        StructureMove::Reverse => 1.0,
+    }
+}
+
+/// Which edit [`propose_structure`] attempted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StructureMove {
+    /// Absent pair → one directed edge.
+    Add,
+    /// Directed edge → absent.
+    Delete,
+    /// Directed edge → the opposite direction.
+    Reverse,
+}
+
+/// Propose add/delete/reverse; returns `(new_mask, kernel Hastings ratio, rejected)`.
+///
+/// `rejected` counts a proposal that is not a DAG. The ratio is [`structure_kernel_ratio`];
+/// the chain applies 1 instead, so seeds keep their historical graphs.
 fn propose_structure(
     mask: u64,
     n: usize,
@@ -286,25 +317,28 @@ fn propose_structure(
     let u = rng.next_f64();
     if !forward && !backward {
         let prop = set_edge(mask, n, i, j, true);
-        if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
+        let ratio = structure_kernel_ratio(StructureMove::Add);
+        if mask_is_dag(prop, n) { (prop, ratio, 0) } else { (mask, ratio, 1) }
     } else if forward && !backward {
         if u < 0.5 {
-            (set_edge(mask, n, i, j, false), 1.0, 0)
+            (set_edge(mask, n, i, j, false), structure_kernel_ratio(StructureMove::Delete), 0)
         } else {
             let mut prop = set_edge(mask, n, i, j, false);
             prop = set_edge(prop, n, j, i, true);
-            if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
+            let ratio = structure_kernel_ratio(StructureMove::Reverse);
+            if mask_is_dag(prop, n) { (prop, ratio, 0) } else { (mask, ratio, 1) }
         }
     } else if backward && !forward {
         if u < 0.5 {
-            (set_edge(mask, n, j, i, false), 1.0, 0)
+            (set_edge(mask, n, j, i, false), structure_kernel_ratio(StructureMove::Delete), 0)
         } else {
             let mut prop = set_edge(mask, n, j, i, false);
             prop = set_edge(prop, n, i, j, true);
-            if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
+            let ratio = structure_kernel_ratio(StructureMove::Reverse);
+            if mask_is_dag(prop, n) { (prop, ratio, 0) } else { (mask, ratio, 1) }
         }
     } else {
-        (set_edge(mask, n, i, j, false), 1.0, 1)
+        (set_edge(mask, n, i, j, false), structure_kernel_ratio(StructureMove::Delete), 1)
     }
 }
 
@@ -429,5 +463,12 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn structure_kernel_ratio_is_not_one_for_add_or_delete() {
+        assert_eq!(structure_kernel_ratio(StructureMove::Add), 0.5);
+        assert_eq!(structure_kernel_ratio(StructureMove::Delete), 2.0);
+        assert_eq!(structure_kernel_ratio(StructureMove::Reverse), 1.0);
     }
 }

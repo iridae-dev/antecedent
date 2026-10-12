@@ -190,6 +190,40 @@ pub(crate) fn ensure_ci_fits_rows(
     }
 }
 
+/// Prepare `columns` once for the unmasked fast path.
+///
+/// Every algorithm uses the caller's significance method and the default confidence
+/// method. Masked queries still re-prepare on the compacted columns.
+///
+/// # Errors
+///
+/// The CI implementation's prepare error.
+pub(crate) fn prepare_ci(
+    ci: &(dyn ConditionalIndependence + Sync),
+    columns: &[&[f64]],
+    significance: SignificanceMethod,
+    ctx: &ExecutionContext,
+) -> Result<PreparedCiTest, DiscoveryError> {
+    let plan = CiPreparationPlan { significance, confidence: ConfidenceMethod::default() };
+    ci.prepare(columns, &plan, ctx).map_err(DiscoveryError::from)
+}
+
+/// One batch request at the caller's significance level and the default confidence method.
+pub(crate) fn ci_batch_request<'a>(
+    columns: &'a [&'a [f64]],
+    queries: &'a [CiQuery],
+    z_flat: &'a [usize],
+    significance: SignificanceMethod,
+) -> CiBatchRequest<'a> {
+    CiBatchRequest {
+        columns,
+        queries,
+        z_flat,
+        significance,
+        confidence: ConfidenceMethod::default(),
+    }
+}
+
 pub use antecedent_stats::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, PartialCorrelation,

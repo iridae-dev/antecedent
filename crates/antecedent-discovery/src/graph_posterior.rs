@@ -159,9 +159,15 @@ pub struct GraphPosterior {
     pub adjacency: Arc<[u64]>,
     /// Opaque keys (often the adjacency mask itself).
     pub graph_keys: Arc<[u64]>,
-    /// Edge presence marginals, length `n_vars * n_vars`.
+    /// Directed-edge inclusion, length `n_vars * n_vars`.
+    ///
+    /// For a DAG mask this is `P(i → j)`. It is the same event as
+    /// [`Self::orientation_marginals`]: the mask has no separate undirected bit.
     pub edge_marginals: Arc<[f64]>,
-    /// Directed orientation mass for each ordered pair (same packing).
+    /// `P(i → j)`, same values as [`Self::edge_marginals`].
+    ///
+    /// Kept as its own vector so a CI-screen floor can be applied without aliasing the
+    /// two fields. A PAG atom's circle marks live in [`Self::mark_masks`], not here.
     pub orientation_marginals: Arc<[f64]>,
     /// Kish effective number of graphs, `(Σw)² / Σw²`, of the weight vector.
     ///
@@ -714,7 +720,16 @@ pub fn adjacency_masks_from_pag(pag: &Pag) -> Result<(u64, u64), DiscoveryError>
                     marks = set_edge(marks, n_vars, i, j, true);
                     marks = set_edge(marks, n_vars, j, i, true);
                 }
-                _ => {}
+                (Endpoint::Tail, Endpoint::Tail) => {
+                    return Err(DiscoveryError::unsupported(
+                        "PAG packing cannot represent a tail-tail edge; refusing to drop it",
+                    ));
+                }
+                (Endpoint::Conflict, _) | (_, Endpoint::Conflict) => {
+                    return Err(DiscoveryError::unsupported(
+                        "PAG packing cannot represent a conflict endpoint; refusing to drop it",
+                    ));
+                }
             }
         }
     }
@@ -979,26 +994,28 @@ pub fn normalize_log_weights(log_w: &[f64]) -> Result<Vec<f64>, DiscoveryError> 
     })
 }
 
-/// Accumulate edge / orientation marginals from weighted adjacency masks.
+/// Directed-edge inclusion from weighted adjacency masks.
+///
+/// Both vectors are that probability. DAG masks do not record a separate orientation,
+/// so splitting "skeleton" from "direction" here would change the serialized marginals.
+/// The second vector is a clone so a later floor can edit one field without aliasing.
 #[must_use]
 pub(crate) fn accumulate_marginals(
     n: usize,
     weights: &[f64],
     masks: &[u64],
 ) -> (Vec<f64>, Vec<f64>) {
-    let cell = n * n;
-    let mut edge = vec![0.0; cell];
-    let mut orient = vec![0.0; cell];
+    let mut edge = vec![0.0; n * n];
     for (&w, &mask) in weights.iter().zip(masks.iter()) {
         for i in 0..n {
             for j in 0..n {
                 if i != j && has_edge(mask, n, i, j) {
                     edge[i * n + j] += w;
-                    orient[i * n + j] += w;
                 }
             }
         }
     }
+    let orient = edge.clone();
     (edge, orient)
 }
 
@@ -1258,6 +1275,16 @@ pub(crate) fn graph_chain_summary(
 mod tests {
     use super::*;
 
+    #[test]
+    fn directed_masks_report_one_inclusion_probability() {
+        let n = 2;
+        let mask = set_edge(0, n, 0, 1, true);
+        let (edge, orient) = accumulate_marginals(n, &[0.25, 0.75], &[0, mask]);
+        assert_eq!(edge, orient);
+        assert_eq!(edge[1], 0.75);
+        assert_eq!(edge[n], 0.0);
+    }
+
     /// A chain that never moved must not publish, however good its other diagnostics look.
     ///
     /// When every edge indicator is constant across every chain and draw,
@@ -1370,6 +1397,41 @@ mod tests {
         assert!(
             back.edge_between(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
                 .is_some_and(antecedent_graph::MarkedEdge::is_bidirected)
+        );
+    }
+
+    /// A tail–tail edge is a real adjacency. Packing used to drop it and return `Ok`,
+    /// so the mask round-trip deleted the edge.
+    #[test]
+    fn pag_mask_refuses_a_tail_tail_edge() {
+        let mut g = Pag::with_variables(2);
+        g.insert_marked(antecedent_graph::MarkedEdge::undirected(
+            DenseNodeId::from_raw(0),
+            DenseNodeId::from_raw(1),
+        ))
+        .unwrap();
+        let err = adjacency_masks_from_pag(&g).unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { message } if message.contains("tail-tail")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn pag_mask_refuses_a_conflict_endpoint() {
+        let mut g = Pag::with_variables(2);
+        g.insert_marked(antecedent_graph::MarkedEdge {
+            a: DenseNodeId::from_raw(0),
+            b: DenseNodeId::from_raw(1),
+            at_a: Endpoint::Conflict,
+            at_b: Endpoint::Arrow,
+            middle: antecedent_graph::MiddleMark::Empty,
+        })
+        .unwrap();
+        let err = adjacency_masks_from_pag(&g).unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { message } if message.contains("conflict")),
+            "{err}"
         );
     }
 

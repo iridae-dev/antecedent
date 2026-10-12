@@ -15,9 +15,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
 use antecedent_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
-use antecedent_stats::{
-    ConditionalIndependence, ConfidenceMethod, FdrAdjustment, PairwiseMultivariateCi,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PairwiseMultivariateCi};
 
 use crate::constraints::{
     ContextKind, DiscoveryConstraints, JpcmciNodeRole, SpaceDummyCiMode, TimeDummyCiMode,
@@ -215,12 +213,8 @@ impl JpcmciPlus {
         let threads = ctx.parallelism.max_threads.get().max(1);
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
             workspace.prepared_ci =
-                Some(ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(crate::ci::prepare_ci(&*ci, &cols, constraints.significance, ctx)?);
         }
 
         let engine =

@@ -133,16 +133,14 @@ impl OrderMcmc {
 
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = n_directed_edges(n);
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
 
         let (traces, sample_masks, rejected) =
-            run_parallel_mask_chains(n_chains, n_draws, n_params, threads, |start, end| {
-                let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
-                let mut local_samples = vec![Vec::new(); end - start];
+            run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
+                let mut local_traces = vec![0.0f64; n_draws * n_params];
+                let mut local_samples = Vec::new();
                 let mut local_rej = 0u64;
-                for li in 0..(end - start) {
-                    let chain = start + li;
-                    let mut rng = ctx.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
+                {
+                    let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
                     let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
                         data_version: 1,
                         family: score_family,
@@ -157,7 +155,7 @@ impl OrderMcmc {
                     // R-hat blind to a chain that has not left its initial mode.
                     if chain > 0 {
                         for _ in 0..(4 * n_params).min(400) {
-                            let (new_order, new_mask, _) = propose_order(&order, mask, n, &mut rng);
+                            let (new_order, new_mask) = propose_order(&order, mask, n, &mut rng);
                             if let Some(ps) = score_dag_mask(
                                 new_mask,
                                 n,
@@ -177,11 +175,10 @@ impl OrderMcmc {
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
-                        if ctx.cancellation.is_cancelled() {
+                        if inner.cancellation.is_cancelled() {
                             break;
                         }
-                        let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
-                        local_rej += rej;
+                        let (new_order, new_mask) = propose_order(&order, mask, n, &mut rng);
                         let prop_score =
                             score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables)
                                 .map(|score| score - log_topological_order_count(new_mask, n));
@@ -190,7 +187,12 @@ impl OrderMcmc {
                                 let log_r = ps - cur;
                                 log_r >= 0.0 || rng.next_f64() < log_r.exp()
                             }
-                            _ => false,
+                            // Constraint-invalid or non-finite score. A Metropolis rejection of
+                            // a finite score is not counted here.
+                            _ => {
+                                local_rej += 1;
+                                false
+                            }
                         };
                         if accept {
                             if let Some(ps) = prop_score {
@@ -206,17 +208,17 @@ impl OrderMcmc {
                                     if i == j {
                                         continue;
                                     }
-                                    local_traces[(li * n_draws + kept) * n_params + p] =
+                                    local_traces[kept * n_params + p] =
                                         if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
                                     p += 1;
                                 }
                             }
-                            local_samples[li].push(mask);
+                            local_samples.push(mask);
                             kept += 1;
                         }
                     }
                 }
-                (start, local_traces, local_samples, local_rej)
+                (local_traces, local_samples, local_rej)
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -254,15 +256,9 @@ impl GraphPosteriorEngine for OrderMcmc {
     }
 }
 
-fn propose_order(
-    order: &[usize],
-    mask: u64,
-    n: usize,
-    rng: &mut CausalRng,
-) -> (Vec<usize>, u64, u64) {
+fn propose_order(order: &[usize], mask: u64, n: usize, rng: &mut CausalRng) -> (Vec<usize>, u64) {
     let mut new_order = order.to_vec();
     let mut new_mask = mask;
-    let rejected = 0u64;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
         let k = crate::indexing::bounded_index(rng.next_u64(), n - 1);
@@ -285,7 +281,7 @@ fn propose_order(
             new_mask = set_edge(new_mask, n, from, to, !on);
         }
     }
-    (new_order, new_mask, rejected)
+    (new_order, new_mask)
 }
 
 fn position_map(order: &[usize]) -> Vec<usize> {
@@ -437,5 +433,31 @@ mod tests {
             .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap_err();
         assert!(err.to_string().contains("diagnostics gate"), "err={err}");
+    }
+
+    #[test]
+    fn order_mcmc_counts_forbidden_proposals() {
+        let (data, vars) = chain_data(40);
+        let mut prior = GraphPrior::uniform();
+        prior.constraints.forbidden = std::sync::Arc::from([
+            crate::graph_posterior::static_link(&vars, 0, 1),
+            crate::graph_posterior::static_link(&vars, 1, 0),
+            crate::graph_posterior::static_link(&vars, 0, 2),
+            crate::graph_posterior::static_link(&vars, 2, 0),
+            crate::graph_posterior::static_link(&vars, 1, 2),
+            crate::graph_posterior::static_link(&vars, 2, 1),
+        ]);
+        let eng = OrderMcmc::new().with_schedule(2, 0, 30, 1).with_diagnostics_gate(false);
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ExecutionContext::for_tests(3),
+            )
+            .unwrap();
+        assert!(post.rejected_invalid > 0, "forbidden edges were reported as accepted proposals");
     }
 }

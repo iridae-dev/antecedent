@@ -14,7 +14,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
-use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
+use antecedent_stats::FdrAdjustment;
 
 use crate::combinations::Combinations;
 use crate::constraints::DiscoveryConstraints;
@@ -161,12 +161,12 @@ impl PcmciPlus {
         let compiled = self.engine.constraints.compile(variables)?;
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: self.engine.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
-            workspace.prepared_ci =
-                Some(self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+            workspace.prepared_ci = Some(crate::ci::prepare_ci(
+                &*self.engine.ci,
+                &cols,
+                self.engine.constraints.significance,
+                ctx,
+            )?);
         }
 
         // --- Step 1: lagged-only PC1 → B̂⁻ ---
@@ -585,8 +585,10 @@ pub(crate) fn orient_majority_colliders(
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
+                // Integer counts: `n_with_c / n_sep == 1/2` is exact for every conditioning-set
+                // size that fits in `usize`, where an f64 comparison to 0.5 is not.
                 let frac = f64::from(n_with_c) / f64::from(n_sep);
-                if (frac - 0.5).abs() < f64::EPSILON {
+                if n_with_c.saturating_mul(2) == n_sep {
                     state.mark_ambiguous_triple(a, c, b);
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
@@ -654,12 +656,8 @@ fn orient_majority_leg(
     Ok(())
 }
 
-fn is_contemp_node(graph: &antecedent_graph::TemporalCpdag, id: DenseNodeId) -> bool {
-    match graph.nodes().get(id.raw() as usize) {
-        Some(NodeRef::Lagged { lag, .. }) => lag.is_contemporaneous(),
-        Some(NodeRef::Context { .. }) => true,
-        _ => false,
-    }
+pub(crate) fn is_contemp_node(graph: &antecedent_graph::TemporalCpdag, id: DenseNodeId) -> bool {
+    crate::orientation::is_contemporaneous_node(graph, id)
 }
 
 fn node_var_lag(

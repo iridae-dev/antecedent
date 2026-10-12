@@ -109,49 +109,20 @@ impl ExactDagPosterior {
 
         let masks = enumerate_unique_dags(n);
         let scorer = DagScorer::new(n, &score_data, score_family, prior, variables);
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        let chunk = masks.len().div_ceil(threads).max(1);
-        let mut log_w = vec![f64::NEG_INFINITY; masks.len()];
+        let scored = ctx.map_indexed(masks.len(), |index, inner| {
+            if inner.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            Ok(match scorer.score(masks[index]) {
+                Some(lw) => (lw, 0u64),
+                None => (f64::NEG_INFINITY, 1u64),
+            })
+        })?;
+        let mut log_w = Vec::with_capacity(scored.len());
         let mut rejected = 0u64;
-        let mut worker_panicked = false;
-
-        std::thread::scope(|scope| {
-            let mut handles = Vec::new();
-            for start in (0..masks.len()).step_by(chunk) {
-                let end = (start + chunk).min(masks.len());
-                let masks_ref = &masks;
-                let scorer = &scorer;
-                handles.push(scope.spawn(move || {
-                    let mut local_log = vec![f64::NEG_INFINITY; end - start];
-                    let mut local_rej = 0u64;
-                    for (k, &mask) in masks_ref[start..end].iter().enumerate() {
-                        if ctx.cancellation.is_cancelled() {
-                            break;
-                        }
-                        match scorer.score(mask) {
-                            Some(lw) => local_log[k] = lw,
-                            None => local_rej += 1,
-                        }
-                    }
-                    (start, local_log, local_rej)
-                }));
-            }
-            for h in handles {
-                let Ok((start, local_log, local_rej)) = h.join() else {
-                    worker_panicked = true;
-                    continue;
-                };
-                rejected += local_rej;
-                for (i, lw) in local_log.into_iter().enumerate() {
-                    log_w[start + i] = lw;
-                }
-            }
-        });
-
-        if worker_panicked {
-            return Err(DiscoveryError::Unsupported {
-                message: "exact enumeration worker panicked",
-            });
+        for (lw, rej) in scored {
+            log_w.push(lw);
+            rejected += rej;
         }
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);

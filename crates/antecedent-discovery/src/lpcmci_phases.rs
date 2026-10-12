@@ -927,6 +927,12 @@ fn run_lpcmci_on_frame(
         fdr.is_some(),
     )?;
     crate::ci::ensure_ci_fits_frame(&*engine.ci, frame)?;
+    if fdr.is_some() {
+        return Err(DiscoveryError::unsupported(
+            "LPCMCI FDR is refused until adjustment covers the preliminary, ancestral and \
+             non-ancestral CI families together",
+        ));
+    }
     workspace.prepared_ci = None;
 
     let mut sepsets = PcSepsets::default();
@@ -938,6 +944,12 @@ fn run_lpcmci_on_frame(
 
     // Preliminary phases.
     for k in 0..n_preliminary {
+        // Each preliminary PAG is discarded. Orientation state must not carry sepsets or
+        // conflicts from that discarded graph into the next phase. The first pass starts
+        // from the fresh state above.
+        if k > 0 {
+            state = OrientationState::default();
+        }
         let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
         apply_remembered_parents(&mut pag, &idx, &parents_mem);
         let phase = RemovalPhase { engine, frame, idx: &idx, variables, max_p: max_cond };
@@ -959,7 +971,9 @@ fn run_lpcmci_on_frame(
         let _ = pag;
     }
 
-    // Full ancestral + non-ancestral.
+    // Full ancestral + non-ancestral. Fresh orientation state: preliminary sepsets belonged
+    // to graphs that were thrown away.
+    state = OrientationState::default();
     let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
     apply_remembered_parents(&mut pag, &idx, &parents_mem);
     let phase = RemovalPhase { engine, frame, idx: &idx, variables, max_p: max_cond };
@@ -987,8 +1001,6 @@ fn run_lpcmci_on_frame(
     // The final oriented PAG is the sole authority on what survived; reconcile the
     // phase-accumulated `scored`/`sepsets` against it before packaging evidence.
     reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
-
-    let _ = fdr; // alpha-based removals; FDR on residual scored links is not applied in Alg. 1.
 
     let algorithm = algorithm_record(
         "lpcmci",

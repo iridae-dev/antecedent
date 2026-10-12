@@ -20,10 +20,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, CpdagReview, DenseNodeId};
-use antecedent_stats::{
-    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
-    PartialCorrelation, PreparedCiTest,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
@@ -61,15 +58,7 @@ pub struct Pc {
     pub fdr: Option<FdrAdjustment>,
 }
 
-impl std::fmt::Debug for Pc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pc")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Pc);
 
 impl Default for Pc {
     fn default() -> Self {
@@ -139,41 +128,21 @@ impl Pc {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.ci,
-            self.constraints.significance,
-            self.constraints.alpha,
-            self.fdr.is_some(),
+        let (col_owned, var_index) = prepare_static_columns(
+            StaticColumnRequest {
+                ci: &*self.ci,
+                significance: self.constraints.significance,
+                alpha: self.constraints.alpha,
+                fdr: self.fdr.is_some(),
+                empty_variables: "PC requires at least one variable",
+                insufficient_rows: "insufficient rows for PC",
+            },
+            data,
+            variables,
+            workspace,
+            ctx,
         )?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "PC requires at least one variable",
-            });
-        }
-
-        let col_owned = collect_float_columns(data, variables)?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
-        let n = cols[0].len();
-        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for PC"));
-        }
-        for c in &cols {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-        }
-
-        let var_index: HashMap<VariableId, usize> =
-            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-
-        let plan = CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let prepared: PreparedCiTest =
-            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
-        workspace.prepared_ci = Some(prepared);
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
@@ -240,19 +209,8 @@ impl Pc {
             cpdag.insert_undirected(a, b).map_err(DiscoveryError::from)?;
         }
 
-        // Orientation state from sepsets (dense ids).
         let mut state = OrientationState::default();
-        for ((sx, _, ty, _), sep) in &sepsets {
-            // Only store one direction with dense node ids.
-            if sx.raw() > ty.raw() {
-                continue;
-            }
-            let a = dense_of(*sx)?;
-            let b = dense_of(*ty)?;
-            let dense_sep: Vec<DenseNodeId> =
-                sep.iter().filter_map(|(v, _)| dense_of(*v).ok()).collect();
-            state.set_sepset(a, b, Arc::from(dense_sep));
-        }
+        load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
 
         let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
@@ -329,6 +287,88 @@ pub(crate) fn adjacent_vars(
     variables.iter().copied().filter(|&u| u != v && adj.contains(&edge_key(v, u))).collect()
 }
 
+/// Map a separating set to dense ids. A variable that is not in the graph is an error,
+/// not a silently shorter sepset.
+/// What [`prepare_static_columns`] needs from the algorithm besides the table.
+pub(crate) struct StaticColumnRequest<'a> {
+    /// CI test to prepare.
+    pub ci: &'a (dyn antecedent_stats::ConditionalIndependence + Sync),
+    /// Significance method recorded on the prepared test.
+    pub significance: antecedent_stats::SignificanceMethod,
+    /// Level passed to the resolvability check.
+    pub alpha: f64,
+    /// Whether an FDR adjustment is configured.
+    pub fdr: bool,
+    /// Refusal when `variables` is empty.
+    pub empty_variables: &'static str,
+    /// Refusal when the table has fewer than three rows.
+    pub insufficient_rows: &'static str,
+}
+
+/// Column vectors, variable index, and a prepared CI test for a static algorithm.
+///
+/// The refusal strings stay `&'static str` so each algorithm keeps the [`DiscoveryError`]
+/// variant it already returned.
+///
+/// # Errors
+///
+/// Empty variable list, short or ragged columns, or a CI prepare failure.
+pub(crate) fn prepare_static_columns(
+    request: StaticColumnRequest<'_>,
+    data: &TabularData,
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<Arc<[f64]>>, HashMap<VariableId, usize>), DiscoveryError> {
+    let StaticColumnRequest { ci, significance, alpha, fdr, empty_variables, insufficient_rows } =
+        request;
+    crate::ci::ensure_ci_decisions_meaningful(ci, significance, alpha, fdr)?;
+    if variables.is_empty() {
+        return Err(DiscoveryError::unsupported(empty_variables));
+    }
+    let owned = collect_float_columns(data, variables)?;
+    let n = owned.first().map(|c| c.len()).unwrap_or(0);
+    crate::ci::ensure_ci_fits_rows(ci, n)?;
+    if n < 3 {
+        return Err(DiscoveryError::stats_msg(insufficient_rows));
+    }
+    if owned.iter().any(|c| c.len() != n) {
+        return Err(DiscoveryError::data_msg("column length mismatch"));
+    }
+    let index = variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
+    let cols: Vec<&[f64]> = owned.iter().map(AsRef::as_ref).collect();
+    workspace.prepared_ci = Some(crate::ci::prepare_ci(ci, &cols, significance, ctx)?);
+    Ok((owned, index))
+}
+
+/// Store one direction of each separating set as dense node ids.
+///
+/// # Errors
+///
+/// A separator variable that is not in the graph. Dropping it would orient from a shorter set.
+pub(crate) fn load_sepsets_into_state(
+    sepsets: &crate::result::PcSepsets,
+    dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+    state: &mut OrientationState,
+) -> Result<(), DiscoveryError> {
+    for ((sx, _, ty, _), sep) in sepsets {
+        if sx.raw() > ty.raw() {
+            continue;
+        }
+        let a = dense_of(*sx)?;
+        let b = dense_of(*ty)?;
+        state.set_sepset(a, b, Arc::from(map_sepset(sep, dense_of)?));
+    }
+    Ok(())
+}
+
+pub(crate) fn map_sepset(
+    sep: &[(VariableId, Lag)],
+    dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+) -> Result<Vec<DenseNodeId>, DiscoveryError> {
+    sep.iter().map(|(v, _)| dense_of(*v)).collect()
+}
+
 pub(crate) fn collect_float_columns(
     data: &TabularData,
     variables: &[VariableId],
@@ -354,11 +394,23 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
     use antecedent_stats::{
-        CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, OracleCi, StatsError,
+        CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, OracleCi, PreparedCiTest, StatsError,
     };
+
+    use std::collections::HashMap;
 
     use super::*;
     use crate::result::LaggedLink;
+
+    #[test]
+    fn map_sepset_refuses_an_unknown_variable() {
+        let mut index = HashMap::new();
+        index.insert(VariableId::from_raw(0), 0usize);
+        let dense = |v| crate::pipeline::dense_of(&index, v);
+        let err =
+            map_sepset(&[(VariableId::from_raw(1), Lag::CONTEMPORANEOUS)], &dense).unwrap_err();
+        assert!(err.to_string().contains("unknown variable"), "{err}");
+    }
 
     fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
         let mut b = CausalSchemaBuilder::new();

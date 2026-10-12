@@ -28,7 +28,7 @@ pub(crate) fn dense_of(
     let idx = *var_index
         .get(&v)
         .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
-    Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
+    Ok(DenseNodeId::from_raw(crate::indexing::dense_u32(idx)))
 }
 
 /// Map lagged `(variable, lag)` pairs — and context nodes as `(variable, 0)` — to dense ids.

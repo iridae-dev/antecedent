@@ -53,7 +53,7 @@ pub(crate) fn score_dag_mask(
     let mut total = lp;
     for node in 0..n {
         let pa = Arc::from(parents_of(mask, n, node));
-        let s = cache.local_score(data, u32::try_from(node).ok()?, &pa).ok()?;
+        let s = cache.local_score(data, crate::indexing::dense_u32(node), &pa).ok()?;
         if !s.is_finite() {
             return None;
         }
