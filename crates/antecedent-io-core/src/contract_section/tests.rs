@@ -9,17 +9,21 @@ use super::replay::{
     verify_nested_counterfactual_result,
 };
 use super::verify::verify_claim_calibration;
+use crate::identity::{
+    ClaimIdentityWire, claim_digest, digest_wire, payload_digest, program_digest,
+};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT, MeasurementSpec,
-    RoleHint, SmallRoleSet, ValueType, VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT, IdentityDomain,
+    MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 
 use super::*;
 use crate::expr_wire::ExprArenaWire;
 use crate::query_wire::causal_query_to_wire;
 use crate::{
-    CausalQueryWire, IdentificationResultWire, encode_analysis_result_artifact,
-    encode_analysis_result_artifact_with_contract, schema_to_wire, to_cbor,
+    CausalQueryWire, IdentificationResultWire, RefutationReportWire,
+    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract, schema_to_wire,
+    to_cbor,
 };
 
 #[test]
