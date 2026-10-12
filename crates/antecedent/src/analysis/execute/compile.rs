@@ -1288,14 +1288,14 @@ impl super::Study {
         };
         let (identifier, estimator) = self.resolve_temporal_class_pair();
         let mut logical = compile_logical_temporal_class_effect(TemporalClassEffectCompileInput {
-            data: data,
-            nodes: nodes,
-            query: query,
+            data,
+            nodes,
+            query,
             split: self.split,
             data_classification: classification,
-            plan_id: plan_id,
-            identifier: identifier,
-            estimator: estimator,
+            plan_id,
+            identifier,
+            estimator,
         })?;
         if query.is_multi_step_sustained() {
             logical.record.estimator =

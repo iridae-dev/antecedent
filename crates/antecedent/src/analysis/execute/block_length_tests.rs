@@ -194,7 +194,7 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
                 &[1.0],
                 BlockBootstrapPlan {
                     block_length: scaled,
-                    kernel_bias: kernel_bias,
+                    kernel_bias,
                     replicates: REPLICATES,
                     stream_base: 0xB10C_0000,
                 },

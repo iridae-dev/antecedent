@@ -119,7 +119,7 @@ impl super::Study {
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let estimator_id = self.dbn_posterior_estimator_id();
         let (identified, identify_cached) =
-            self.dbn_posterior_identification(gp, &vars, query, ctx)?;
+            self.dbn_response_posterior_identification(gp, &vars, query, ctx)?;
         let inputs = DbnPosteriorInputs { data, query, temporal, treatment, outcome, ctx };
         let mut atoms = dbn_posterior_structural_atoms(&identified);
         let fits = self.fit_dbn_posterior_atoms(&inputs, &identified, &mut atoms)?;
@@ -218,7 +218,7 @@ impl super::Study {
 
     /// The prepared DBN-posterior identification, built from the posterior
     /// when the study carries no cache.
-    fn dbn_posterior_identification(
+    fn dbn_response_posterior_identification(
         &self,
         gp: &GraphPosterior,
         vars: &[antecedent_core::VariableId],

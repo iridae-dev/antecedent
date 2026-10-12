@@ -567,7 +567,7 @@ mod envelope_refuter_target_tests {
                         EstimatorId::LinearAdjustmentAte,
                     ),
                     StaticEstimateInput {
-                        data: data,
+                        data,
                         estimand: &atom.estimand,
                         query: &query,
                         bootstrap_replicates: 0,

@@ -120,6 +120,12 @@ pub(crate) fn series_input(retained: &DataInput, data: TimeSeriesData) -> DataIn
     }
 }
 
+/// A compile error carrying `message`.
+#[must_use]
+pub(crate) fn compile_error(message: &str) -> CausalError {
+    CausalError::Compile { message: message.into() }
+}
+
 #[cfg(test)]
 mod tests {
     use super::same_accepted_graph;
@@ -139,10 +145,4 @@ mod tests {
         again.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(!same_accepted_graph(&AcceptedGraph::dag(again), &AcceptedGraph::dag(reversed)));
     }
-}
-
-/// A compile error carrying `message`.
-#[must_use]
-pub(crate) fn compile_error(message: &str) -> CausalError {
-    CausalError::Compile { message: message.into() }
 }

@@ -2418,9 +2418,9 @@ impl super::Study {
                 estimate_static_effect(
                     &case_spec,
                     StaticEstimateInput {
-                        data: data,
+                        data,
                         estimand: &atom.estimand,
-                        query: query,
+                        query,
                         bootstrap_replicates: checked
                             .map_or(self.bootstrap_replicates, |operation| {
                                 operation.bootstrap_replicates()
@@ -4406,9 +4406,9 @@ fn static_envelope_atom_correlation(
             estimate_static_effect(
                 &crate::estimator_spec::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
                 StaticEstimateInput {
-                    data: data,
+                    data,
                     estimand: &atom.estimand,
-                    query: query,
+                    query,
                     bootstrap_replicates: 0,
                     overlap_policy: None,
                     population_registry: None,
