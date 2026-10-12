@@ -32,6 +32,7 @@ pub struct PreparedTemporalTransport {
 }
 
 /// The intervention sequence and the source and target populations it is transported between.
+#[derive(Clone, Copy)]
 pub struct SequenceEndpoints<'a> {
     /// Interventions applied at each step.
     pub sequence: &'a [Value],

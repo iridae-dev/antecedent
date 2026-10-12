@@ -60,6 +60,7 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 }
 
 /// The frozen premises of [`CheckedCellAipwResponseOperation::checked`], carried together.
+#[derive(Clone, Copy)]
 pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
     pub(crate) structure: &'a CellAipwStructure,
     pub(crate) query: &'a ResponseQuery,
@@ -74,6 +75,10 @@ pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
 impl CheckedCellAipwResponseOperation {
     /// Validate and seal the licensed joint-cell response route on a static
     /// DAG or a `CoDetermined` tier closure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one sealing pass that refuses each unlicensed premise (query shape, interventions, identification, estimator, fold seed) before the operation is built from the same checked values"
+    )]
     pub(crate) fn checked(
         premises: CheckedCellAipwResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {

@@ -107,6 +107,10 @@ fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one DBN posterior fixture, its mixed-horizon preparation and the pinned mass and per-horizon estimate assertions"
+)]
 fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     let (series, mut query) = mediation_series(320);
     query.horizons = Arc::from([1, 2]);

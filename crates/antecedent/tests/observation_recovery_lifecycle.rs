@@ -131,7 +131,7 @@ fn preparing_from_a_decided_derivation_never_decides_again_and_checks_its_inputs
             (*derivation).clone(),
             antecedent::RecoveryEvaluation {
                 observed: model.observed_law(),
-                requests: requests,
+                requests,
                 limits: ExactEvaluationLimits::default(),
             },
             &ctx(),

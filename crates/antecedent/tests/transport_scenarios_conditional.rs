@@ -106,7 +106,7 @@ fn try_prepare(
     StudyBuilder::conditional_transport_scenarios(
         &TransportScenarioSet::try_new(set).unwrap(),
         query(&[1], &[0], &[2]),
-        antecedent::EvidenceSearch { catalog: catalog, budget: budget },
+        antecedent::EvidenceSearch { catalog, budget },
         data,
         at,
         ExactEvaluationLimits::default(),
@@ -533,7 +533,7 @@ fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
     let result = StudyBuilder::conditional_transport_scenarios(
         &set,
         query(&[1], &[0], &[2]),
-        antecedent::EvidenceSearch { catalog: catalog, budget: BUDGET },
+        antecedent::EvidenceSearch { catalog, budget: BUDGET },
         data,
         request(&[0], &[2], LEVEL),
         ExactEvaluationLimits::default(),
@@ -671,7 +671,7 @@ fn a_classical_question_still_writes_and_reads_the_version_one_artifact() {
             source: Arc::from("source"),
             target: Arc::from("target"),
         },
-        antecedent::EvidenceSearch { catalog: catalog, budget: BUDGET },
+        antecedent::EvidenceSearch { catalog, budget: BUDGET },
         data,
         Assignment::from_pairs([(VariableId::from_raw(0), antecedent_core::Value::Int64(1))]),
         ExactEvaluationLimits::default(),
