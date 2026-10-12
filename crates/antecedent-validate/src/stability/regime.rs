@@ -119,11 +119,17 @@ impl RegimeStability {
                 // Re-apply fixed labels by mapping every position back to its original row's
                 // regime (a separator row takes its predecessor's label; its values are missing
                 // anyway).
-                let boot_labels: Vec<_> = boot
+                let boot_labels = boot
                     .source_rows
                     .iter()
-                    .map(|&i| self.assignment.at(i).expect("bootstrap index in range"))
-                    .collect();
+                    .map(|&i| {
+                        self.assignment.at(i).ok_or_else(|| {
+                            ValidationError::estimation_msg(
+                                "bootstrap index is outside the regime assignment",
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let assignment =
                     RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
                 Ok((boot.series, assignment))

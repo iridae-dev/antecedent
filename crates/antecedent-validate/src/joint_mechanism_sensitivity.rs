@@ -961,9 +961,7 @@ const LINE_BYTES: u64 = std::mem::size_of::<FrontierPoint>() as u64;
 /// A typed [`JointSensitivityError`] carrying its reason code and
 /// `joint_sensitivity.*` detail.
 ///
-/// # Panics
-///
-/// Never: one bracketing outcome is recorded per stage before stages are read back.
+/// A missing stage outcome is a refusal (`joint_sensitivity.stage_accounting`), not a panic.
 #[allow(
     clippy::too_many_lines,
     reason = "one sensitivity grid evaluated in order; the stages share the bound transport formula"
@@ -1061,7 +1059,13 @@ pub fn z_transport_joint_mechanism_sensitivity(
         let mut outcomes = outcomes.into_iter();
         if joint_box.kernel.is_some() {
             for fraction in &grid {
-                let (status, bracket) = outcomes.next().expect("one outcome per stage");
+                let (status, bracket) = outcomes.next().ok_or_else(|| {
+                    refuse(
+                        reason_code!("invalid_argument"),
+                        "joint_sensitivity.stage_accounting",
+                        "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
+                    )
+                })?;
                 frontier.push(FrontierPoint { parent_fraction: *fraction, status, bracket });
             }
             let first = frontier[0];
@@ -1073,7 +1077,13 @@ pub fn z_transport_joint_mechanism_sensitivity(
             });
         }
         if joint_box.parent.is_some() {
-            let (status, bracket) = outcomes.next().expect("one outcome per stage");
+            let (status, bracket) = outcomes.next().ok_or_else(|| {
+                refuse(
+                    reason_code!("invalid_argument"),
+                    "joint_sensitivity.stage_accounting",
+                    "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
+                )
+            })?;
             axis_tipping.push(AxisTipping {
                 factor: JointFactor::SharedParentMarginal,
                 analytic: factors.parent_stage(parent, Some(threshold))?.tipping_fraction,

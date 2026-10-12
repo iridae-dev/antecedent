@@ -210,7 +210,11 @@ impl RieszSensitivity {
     ) -> Result<Representer, ValidationError> {
         let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, propensity)?;
         let defect = cols.defect;
-        let y = cols.outcome.expect("outcome requested");
+        let y = cols.outcome.ok_or_else(|| {
+            ValidationError::estimation_msg(
+                "diagnostic propensity fit omitted the requested outcome",
+            )
+        })?;
         let nrows = cols.treatment.len();
         #[allow(
             clippy::float_cmp,
