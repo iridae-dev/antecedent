@@ -65,7 +65,7 @@ impl GcompContrast<'_> {
     ///
     /// Column-outer: each design column is streamed once into the two arms' linear
     /// predictors. Row `r` accumulates the same terms in the same order as
-    /// [`Self::row_contrast`], so the values are bit-identical to it.
+    /// the row-first single-row contrast, so the values are bit-identical to it.
     #[must_use]
     pub fn diffs(&self, coefficients: &[f64]) -> Vec<f64> {
         assert!(coefficients.len() >= self.ncols, "one coefficient per design column");
@@ -97,7 +97,8 @@ impl GcompContrast<'_> {
             .collect()
     }
 
-    /// Single-row mean-scale contrast.
+    /// Single-row mean-scale contrast; the row-first oracle of the column-outer kernels.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64 {
         assert!(coefficients.len() >= self.ncols, "one coefficient per design column");
