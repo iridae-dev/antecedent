@@ -64,7 +64,7 @@ pub use artifact::{
 };
 
 /// Relative tolerance of the direct-sum cross-check against the replayed point.
-const DIRECT_SUM_TOLERANCE: f64 = 1e-10;
+pub(super) const DIRECT_SUM_TOLERANCE: f64 = 1e-10;
 
 /// What the caller asks of the cell beyond the query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -7,6 +7,7 @@ use super::closed_form::{closed_form_agrees, closed_form_point, ols_on_parents};
 use super::*;
 use crate::gcm::NestedCounterfactualOperation;
 use antecedent_core::NestedCounterfactualQuery;
+use antecedent_graph::DenseNodeId;
 
 #[test]
 fn ill_posed_abduction_keeps_the_invalid_query_detail() {

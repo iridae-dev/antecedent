@@ -854,7 +854,6 @@ fn build_accepts_conditional_effect_on_cpdag() {
 // -- `effective_graph_class` --------------------------------------------
 
 use antecedent_core::{AverageEffectQuery, TemporalEffectQuery, VariableId};
-use antecedent_graph::{Cpdag, TemporalCpdag, TemporalPag};
 
 fn ate_query() -> CausalQuery {
     CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
