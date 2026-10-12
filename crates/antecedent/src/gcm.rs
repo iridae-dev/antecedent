@@ -67,10 +67,20 @@ pub struct FittedGcm {
 ///
 /// Propagates model fit / assignment failures.
 pub fn fit_gcm(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError> {
-    let compiled = CompiledCausalModel::compile(graph).map_err(map_model)?;
-    let (store, assignments) = MechanismRegistry::standard()
-        .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
-        .map_err(map_model)?;
+    fit_with_registry(&MechanismRegistry::standard(), graph, data, CausalError::from)
+}
+
+/// Compile `graph` and fit `registry` to `data`; `fit_error` maps a failure of the
+/// fit itself (compile failures always convert plainly).
+fn fit_with_registry(
+    registry: &MechanismRegistry,
+    graph: Dag,
+    data: &TabularData,
+    fit_error: fn(ModelError) -> CausalError,
+) -> Result<FittedGcm, CausalError> {
+    let compiled = CompiledCausalModel::compile(graph)?;
+    let (store, assignments) =
+        registry.assign_and_fit(&compiled, data, SelectionPolicy::BestScore).map_err(fit_error)?;
     Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
 }
 
@@ -87,11 +97,12 @@ pub fn fit_gcm(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError>
 /// Propagates model fit / assignment failures; a mechanism that does not
 /// converge is refused with reason `mechanism_fit_not_converged`.
 pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError> {
-    let compiled = CompiledCausalModel::compile(graph).map_err(map_model)?;
-    let (store, assignments) = MechanismRegistry::with_heterogeneity_families()
-        .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
-        .map_err(map_mechanism_fit)?;
-    Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+    fit_with_registry(
+        &MechanismRegistry::with_heterogeneity_families(),
+        graph,
+        data,
+        map_mechanism_fit,
+    )
 }
 
 /// Frozen single-intervention ITE target and mechanism-fitting procedure.
@@ -168,8 +179,7 @@ impl CheckedCounterfactualOperation {
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &CounterfactualQuery) -> bool {
-        self.query == *query
-            && crate::graph_identity::same_dag_structure(graph, &self.graph)
+        self.query == *query && crate::graph_identity::same_dag_structure(graph, &self.graph)
     }
 
     /// Fit mechanisms under the frozen graph, then abduct once for both worlds.
@@ -320,8 +330,7 @@ impl NestedCounterfactualOperation {
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &NestedCounterfactualQuery) -> bool {
-        self.query == *query
-            && crate::graph_identity::same_dag_structure(graph, &self.graph)
+        self.query == *query && crate::graph_identity::same_dag_structure(graph, &self.graph)
     }
 
     pub(crate) fn mediation_query(&self) -> &antecedent_core::MediationQuery {
@@ -333,7 +342,7 @@ impl NestedCounterfactualOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<f64, CausalError> {
-        let compiled = CompiledCausalModel::compile(self.graph.clone()).map_err(map_model)?;
+        let compiled = CompiledCausalModel::compile(self.graph.clone())?;
         let store =
             fit_nested_mechanisms(&compiled, data, self.outcome_mechanism, self.query.outcome)?;
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
@@ -403,7 +412,7 @@ pub(crate) fn fit_nested_mechanisms_polled(
 ) -> Result<CompiledMechanismStore, CausalError> {
     let map = |error: ModelError| match error {
         ModelError::Cancelled => CausalError::Cancelled { stage },
-        other => map_model(other),
+        other => CausalError::from(other),
     };
     match mechanism {
         NestedOutcomeMechanism::LinearGaussian => Ok(MechanismRegistry::standard()
@@ -458,7 +467,7 @@ fn fit_non_separable_nested_outcome_polled(
         )
         .map_err(|e| match e {
             ModelError::Cancelled => CausalError::Cancelled { stage },
-            other => map_model(other),
+            other => CausalError::from(other),
         })?;
     let mut retargeted = false;
     for assignment in &mut assignments {
@@ -497,7 +506,7 @@ pub(crate) fn map_mechanism_fit(e: ModelError) -> CausalError {
              parent columns; drop or coarsen parents that nearly separate the categories or \
              duplicate one another, then re-run"
         ),
-        other => map_model(other),
+        other => CausalError::from(other),
     }
 }
 
@@ -514,7 +523,7 @@ pub fn sample_do(
     ctx: &ExecutionContext,
 ) -> Result<ValueBatch, CausalError> {
     let mut ws = MechanismWorkspace::default();
-    sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(map_model)
+    sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
 }
 
 /// Abduction once, then unit-level ITE for binary hard interventions on `treatment`.
@@ -532,18 +541,16 @@ pub fn counterfactual_ite(
     ctx: &ExecutionContext,
 ) -> Result<IteResult, CausalError> {
     let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx).map_err(map_cf)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
     let mut ws = MechanismWorkspace::default();
-    let ite = engine
-        .individual_treatment_effect(
-            &exo,
-            outcome,
-            Intervention::set(treatment, Value::f64(active)),
-            Intervention::set(treatment, Value::f64(control)),
-            &mut ws,
-            ctx,
-        )
-        .map_err(map_cf)?;
+    let ite = engine.individual_treatment_effect(
+        &exo,
+        outcome,
+        Intervention::set(treatment, Value::f64(active)),
+        Intervention::set(treatment, Value::f64(control)),
+        &mut ws,
+        ctx,
+    )?;
     let n = ite.len().max(1) as f64;
     let mean = ite.iter().sum::<f64>() / n;
     Ok(IteResult {
@@ -620,7 +627,7 @@ pub fn anomaly_attribution(
 ) -> Result<Vec<AnomalyScores>, CausalError> {
     let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
     let q = AnomalyAttributionQuery::new(targets, max_units);
-    score_anomalies(model, data, &q).map_err(map_attr)
+    score_anomalies(model, data, &q).map_err(CausalError::from)
 }
 
 /// [`anomaly_attribution`] under an execution context: rows are scored in parallel up to its
@@ -638,7 +645,7 @@ pub fn anomaly_attribution_with(
 ) -> Result<Vec<AnomalyScores>, CausalError> {
     let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
     let q = AnomalyAttributionQuery::new(targets, max_units);
-    score_anomalies_with(model, data, &q, ctx).map_err(map_attr)
+    score_anomalies_with(model, data, &q, ctx).map_err(CausalError::from)
 }
 
 /// [`anomaly_attribution_with`] against a full [`AnomalyAttributionQuery`], so the
@@ -653,7 +660,7 @@ pub fn anomaly_attribution_query_with(
     query: &AnomalyAttributionQuery,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<AnomalyScores>, CausalError> {
-    score_anomalies_with(model, data, query, ctx).map_err(map_attr)
+    score_anomalies_with(model, data, query, ctx).map_err(CausalError::from)
 }
 
 /// Distribution-change attribution (pinned baseline-GCM parity).
@@ -668,7 +675,7 @@ pub fn attribute_distribution_change(
     options: &DistributionChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, CausalError> {
-    distribution_change(model, data, query, options, ctx).map_err(map_attr)
+    distribution_change(model, data, query, options, ctx).map_err(CausalError::from)
 }
 
 /// Robust distribution-change attribution.
@@ -683,7 +690,7 @@ pub fn attribute_distribution_change_robust(
     options: &RobustChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, CausalError> {
-    distribution_change_robust(model, data, query, options, ctx).map_err(map_attr)
+    distribution_change_robust(model, data, query, options, ctx).map_err(CausalError::from)
 }
 
 /// Structure-change attribution between two DAGs (parent-set Shapley).
@@ -699,7 +706,8 @@ pub fn attribute_structure_change(
     options: &StructureChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, CausalError> {
-    structure_change(baseline_model, comparison_model, data, query, options, ctx).map_err(map_attr)
+    structure_change(baseline_model, comparison_model, data, query, options, ctx)
+        .map_err(CausalError::from)
 }
 
 /// Mechanism-change detection (not attribution).
@@ -714,7 +722,7 @@ pub fn mechanism_change_detection(
     method: MechanismChangeMethod,
     ctx: &ExecutionContext,
 ) -> Result<Vec<antecedent_attribution::MechanismChangeDetection>, CausalError> {
-    detect_mechanism_changes(model, data, query, method, ctx).map_err(map_attr)
+    detect_mechanism_changes(model, data, query, method, ctx).map_err(CausalError::from)
 }
 
 /// Unit-change attribution.
@@ -728,7 +736,7 @@ pub fn attribute_unit_change(
     query: &UnitChangeQuery,
     ctx: &ExecutionContext,
 ) -> Result<UnitChangeResult, CausalError> {
-    unit_change(model, data, query, ctx).map_err(map_attr)
+    unit_change(model, data, query, ctx).map_err(CausalError::from)
 }
 
 /// Sample an interventional distribution under [`InterventionalDistributionQuery`].
@@ -782,8 +790,7 @@ pub fn attribute_path_specific(
         query.max_paths,
         query.max_len,
         ctx,
-    )
-    .map_err(map_attr)?;
+    )?;
     if !query.path_nodes.is_empty() {
         let filtered: Vec<_> = result
             .path_breakdown
@@ -810,7 +817,7 @@ pub fn attribute_paths(
     max_len: usize,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, CausalError> {
-    path_decompose(model, sources, outcome, max_paths, max_len, ctx).map_err(map_attr)
+    path_decompose(model, sources, outcome, max_paths, max_len, ctx).map_err(CausalError::from)
 }
 
 /// Feature relevance under interventions, with the sampling options as one value.
@@ -826,7 +833,7 @@ pub fn attribute_feature_relevance_with(
     options: &antecedent_attribution::FeatureRelevanceOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<FeatureRelevance>, CausalError> {
-    feature_relevance(model, data, outcome, features, options, ctx).map_err(map_attr)
+    feature_relevance(model, data, outcome, features, options, ctx).map_err(CausalError::from)
 }
 
 /// Feature relevance under interventions.
@@ -865,31 +872,7 @@ pub fn rank_root_causes(
     attribution: &ChangeAttributionResult,
     ctx: &ExecutionContext,
 ) -> Result<Vec<RootCauseRank>, CausalError> {
-    root_cause_rank(attribution, None, None, ctx).map_err(map_attr)
-}
-
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "map_err adapter: takes the error by value so it can be passed to `map_err` as it is"
-)]
-fn map_model(e: ModelError) -> CausalError {
-    CausalError::from(e)
-}
-
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "map_err adapter: takes the error by value so it can be passed to `map_err` as it is"
-)]
-fn map_cf(e: CounterfactualError) -> CausalError {
-    CausalError::from(e)
-}
-
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "map_err adapter: takes the error by value so it can be passed to `map_err` as it is"
-)]
-fn map_attr(e: AttributionError) -> CausalError {
-    CausalError::from(e)
+    root_cause_rank(attribution, None, None, ctx).map_err(CausalError::from)
 }
 
 #[cfg(test)]
