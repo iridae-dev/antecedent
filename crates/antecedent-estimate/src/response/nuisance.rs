@@ -1,8 +1,8 @@
 //! Cross-fitted nuisance and outcome-target fits.
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, GaussianMixtureDensity, SmoothSpec,
-    fit_gam, fit_gam_weighted_design, gaussian_density,
+    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, GaussianMixtureDensity, PredictorMatrix,
+    SmoothSpec, fit_gam, fit_gam_weighted_design, gaussian_density,
 };
 
 use crate::EstimationError;
@@ -284,9 +284,7 @@ impl ContinuousResponseEstimator {
         let specs = self.outcome_target_specs(sample);
         let mut gam_ws = GamWorkspace::default();
         let target = fit_gam(
-            &x,
-            sample.len(),
-            sample.raw_cols,
+            &PredictorMatrix::new(&x, sample.len(), sample.raw_cols),
             &sample.outcome,
             &specs,
             &GamOptions { max_iter: 500, tol: 1e-6 },

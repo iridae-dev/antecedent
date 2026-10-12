@@ -20,6 +20,26 @@ use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 const CUBIC_DEGREE: usize = 3;
 const CUBIC_ORDER: usize = CUBIC_DEGREE + 1;
 
+/// A column-major raw predictor matrix of `nrows × n_raw_cols`, the input every
+/// [`SmoothSpec::raw_col`] indexes into.
+#[derive(Clone, Copy, Debug)]
+pub struct PredictorMatrix<'a> {
+    /// Column-major values, `nrows * n_raw_cols` long.
+    pub x_colmajor: &'a [f64],
+    /// Rows of the matrix.
+    pub nrows: usize,
+    /// Raw predictor columns.
+    pub n_raw_cols: usize,
+}
+
+impl<'a> PredictorMatrix<'a> {
+    /// View `x_colmajor` as `nrows × n_raw_cols`.
+    #[must_use]
+    pub fn new(x_colmajor: &'a [f64], nrows: usize, n_raw_cols: usize) -> Self {
+        Self { x_colmajor, nrows, n_raw_cols }
+    }
+}
+
 /// One smooth term specification for [`fit_gam`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SmoothSpec {
@@ -273,21 +293,15 @@ pub fn compile_additive_design(
 /// # Errors
 ///
 /// Shape mismatch, invalid λ / basis sizes, singular penalized Gram, or empty specs.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "a column-major buffer with explicit dimensions, the smooth specs and options of one published estimator; callers in antecedent-estimate bind them positionally"
-)]
 pub fn fit_gam(
-    x_colmajor: &[f64],
-    nrows: usize,
-    n_raw_cols: usize,
+    predictors: &PredictorMatrix<'_>,
     y: &[f64],
     specs: &[SmoothSpec],
     options: &GamOptions,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut GamWorkspace,
 ) -> Result<GamFit, StatsError> {
-    fit_gam_weighted(x_colmajor, nrows, n_raw_cols, y, specs, options, None, backend, workspace)
+    fit_gam_weighted(predictors, y, specs, options, None, backend, workspace)
 }
 
 /// Fit the same additive GAM with nonnegative observation weights.
@@ -296,14 +310,8 @@ pub fn fit_gam(
 ///
 /// # Errors
 /// Invalid weights or any error from the unweighted GAM fit.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "a column-major buffer with explicit dimensions, the smooth specs and options of one published estimator; callers in antecedent-estimate bind them positionally"
-)]
 pub fn fit_gam_weighted(
-    x_colmajor: &[f64],
-    nrows: usize,
-    n_raw_cols: usize,
+    predictors: &PredictorMatrix<'_>,
     y: &[f64],
     specs: &[SmoothSpec],
     options: &GamOptions,
@@ -311,6 +319,7 @@ pub fn fit_gam_weighted(
     _backend: &impl DenseLinearAlgebra,
     workspace: &mut GamWorkspace,
 ) -> Result<GamFit, StatsError> {
+    let PredictorMatrix { x_colmajor, nrows, n_raw_cols } = *predictors;
     validate_weights(weights, nrows)?;
     if specs.is_empty() {
         return Err(StatsError::Shape { message: "GAM requires at least one smooth term" });
@@ -1339,9 +1348,7 @@ mod tests {
             let mut ws_a = GamWorkspace::default();
             let mut ws_b = GamWorkspace::default();
             let per_call = fit_gam_weighted(
-                &x,
-                nrows,
-                2,
+                &PredictorMatrix::new(&x, nrows, 2),
                 &y,
                 &specs,
                 &options,
@@ -1381,9 +1388,7 @@ mod tests {
         fn fit_for(y: &[f64], x: &[f64], nrows: usize, specs: &[SmoothSpec]) -> GamFit {
             let mut ws = GamWorkspace::default();
             fit_gam(
-                x,
-                nrows,
-                1,
+                &PredictorMatrix::new(x, nrows, 1),
                 y,
                 specs,
                 &GamOptions { max_iter: 5000, tol: 1e-12 },
@@ -1468,8 +1473,15 @@ mod tests {
         ];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
-        let fit = fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &backend, &mut ws)
-            .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &backend,
+            &mut ws,
+        )
+        .unwrap();
         assert!(fit.converged, "iterations={}", fit.iterations);
         let ss_res: f64 = fit.residuals.iter().map(|e| e * e).sum();
         let y_bar = y.iter().sum::<f64>() / y.len() as f64;
@@ -1498,9 +1510,15 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone(), x2.clone()]);
         let specs = [SmoothSpec::new(0, 8, 0.5), SmoothSpec::new(1, 6, 1.0)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         // Probe on and off the training support, including the clamped edges.
         for &(a, b) in
             &[(0.0, -0.5), (0.31, 0.12), (1.0, 0.49), (-0.2, 0.0), (1.3, -0.7), (0.777, 0.123)]
@@ -1534,9 +1552,7 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
         let mut ws = GamWorkspace::default();
         let fit = fit_gam(
-            &x,
-            nrows,
-            ncols,
+            &PredictorMatrix::new(&x, nrows, ncols),
             &y,
             &[SmoothSpec::new(0, 8, 0.2)],
             &GamOptions::default(),
@@ -1561,9 +1577,7 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
         let mut ws = GamWorkspace::default();
         let fit = fit_gam(
-            &x,
-            nrows,
-            ncols,
+            &PredictorMatrix::new(&x, nrows, ncols),
             &y,
             &[SmoothSpec::new(0, 10, 0.3)],
             &GamOptions::default(),
@@ -1593,9 +1607,7 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
         let mut ws = GamWorkspace::default();
         let fit = fit_gam(
-            &x,
-            nrows,
-            ncols,
+            &PredictorMatrix::new(&x, nrows, ncols),
             &y,
             &[SmoothSpec::new(0, 9, 0.1)],
             &GamOptions::default(),
@@ -1628,9 +1640,15 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone(), x2.clone()]);
         let specs = [SmoothSpec::new(0, 7, 0.2), SmoothSpec::new(1, 5, 0.7)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         for r in 0..n {
             let row = [x1[r], x2[r]];
             let pred = fit.predict_row(&row).unwrap();
@@ -1653,8 +1671,15 @@ mod tests {
         let specs = [SmoothSpec::new(0, 6, 1e6)];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
-        let fit = fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &backend, &mut ws)
-            .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &backend,
+            &mut ws,
+        )
+        .unwrap();
         assert!((fit.intercept - 3.0).abs() < 0.05);
         let max_abs_smooth: f64 =
             fit.fitted.iter().map(|&f| (f - fit.intercept).abs()).fold(0.0, f64::max);
@@ -1682,9 +1707,15 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone()]);
         let specs = [SmoothSpec::new(0, 8, 1e-4)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         let mut max_d2 = 0.0_f64;
         for r in 1..n - 1 {
             let d2 = fit.fitted[r - 1] - 2.0 * fit.fitted[r] + fit.fitted[r + 1];
@@ -1705,9 +1736,7 @@ mod tests {
         for &lambda in &[0.01, 0.1, 1.0, 10.0, 100.0, 1e4] {
             let specs = [SmoothSpec::new(0, 10, lambda)];
             let fit = fit_gam(
-                &x,
-                nrows,
-                ncols,
+                &PredictorMatrix::new(&x, nrows, ncols),
                 &y,
                 &specs,
                 &GamOptions::default(),
@@ -1813,9 +1842,15 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
         let specs = [SmoothSpec::new(0, 8, 1e8)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         // Mean level lives in the intercept; large roughness λ must not shrink it to 0.
         assert!((fit.intercept - 5.0).abs() < 0.15, "intercept={}", fit.intercept);
     }
@@ -1832,9 +1867,15 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
         let specs = [SmoothSpec::auto(0, 10)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         assert!(fit.smooths[0].lambda.is_finite() && fit.smooths[0].lambda > 0.0);
         assert!(fit.converged);
     }
@@ -1951,9 +1992,15 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone(), x2.clone()]);
         let specs = [SmoothSpec::auto(0, 8), SmoothSpec::auto(1, 8)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         assert!(fit.converged);
         let cols = [&x1, &x2];
         let ones = vec![1.0; n];
@@ -2001,17 +2048,30 @@ mod tests {
         let (x, nrows, ncols) = colmajor_from_cols(&[x1, x2]);
         let specs = [SmoothSpec::new(0, 6, 0.1), SmoothSpec::new(1, 5, 0.1)];
         let mut ws = GamWorkspace::default();
-        let fit =
-            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         // Both partitions of unity span the constant: 1 + (6 − 1) + (5 − 1) = 10, not 12.
         assert_eq!(fit.diagnostics.rank, 10);
         assert!(fit.boundary_lambda_smooths.is_empty());
         let mut bad = y.clone();
         bad[3] = f64::NAN;
         assert!(
-            fit_gam(&x, nrows, ncols, &bad, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
-                .is_err()
+            fit_gam(
+                &PredictorMatrix::new(&x, nrows, ncols),
+                &bad,
+                &specs,
+                &GamOptions::default(),
+                &FaerBackend,
+                &mut ws
+            )
+            .is_err()
         );
     }
 
@@ -2028,8 +2088,15 @@ mod tests {
         let specs = [SmoothSpec::new(0, 8, 0.01).with_variable(VariableId::from_raw(0))];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
-        let fit = fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &backend, &mut ws)
-            .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &backend,
+            &mut ws,
+        )
+        .unwrap();
         let pred = predict_gam(&fit, &x, nrows, ncols).unwrap();
         for r in 0..nrows {
             assert!(
@@ -2052,8 +2119,15 @@ mod tests {
         let specs = [SmoothSpec::new(0, 8, 0.01)];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
-        let fit = fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &backend, &mut ws)
-            .unwrap();
+        let fit = fit_gam(
+            &PredictorMatrix::new(&x, nrows, ncols),
+            &y,
+            &specs,
+            &GamOptions::default(),
+            &backend,
+            &mut ws,
+        )
+        .unwrap();
         // Quarter-period peak: sin(π/2)=1, away from the mean-zero smooth.
         let idx = n / 4;
         let x_one = vec![x1[idx]];
@@ -2093,12 +2167,24 @@ mod tests {
         let specs = [SmoothSpec::new(0, 6, -1.0)];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
-        let err =
-            fit_gam(&x, 3, 1, &[1.0, 2.0, 3.0], &specs, &GamOptions::default(), &backend, &mut ws);
+        let err = fit_gam(
+            &PredictorMatrix::new(&x, 3, 1),
+            &[1.0, 2.0, 3.0],
+            &specs,
+            &GamOptions::default(),
+            &backend,
+            &mut ws,
+        );
         assert!(err.is_err());
         let specs = [SmoothSpec::new(1, 6, 0.1)];
-        let err =
-            fit_gam(&x, 3, 1, &[1.0, 2.0, 3.0], &specs, &GamOptions::default(), &backend, &mut ws);
+        let err = fit_gam(
+            &PredictorMatrix::new(&x, 3, 1),
+            &[1.0, 2.0, 3.0],
+            &specs,
+            &GamOptions::default(),
+            &backend,
+            &mut ws,
+        );
         assert!(err.is_err());
     }
 
@@ -2140,9 +2226,7 @@ mod tests {
         }
         let options = GamOptions { max_iter: 500, tol: 1e-9 };
         let weighted = fit_gam_weighted(
-            &x,
-            n,
-            1,
+            &PredictorMatrix::new(&x, n, 1),
             &y,
             &specs,
             &options,
@@ -2152,9 +2236,7 @@ mod tests {
         )
         .unwrap();
         let repeated = fit_gam(
-            &repeated_x,
-            n,
-            1,
+            &PredictorMatrix::new(&repeated_x, n, 1),
             &repeated_y,
             &specs,
             &options,

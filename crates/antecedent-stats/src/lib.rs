@@ -77,9 +77,9 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use gam::{
-    AdditiveDesign, GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design,
-    expand_bspline, fit_gam, fit_gam_weighted, fit_gam_weighted_design, fitted_from_gam,
-    predict_gam,
+    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec,
+    compile_additive_design, expand_bspline, fit_gam, fit_gam_weighted, fit_gam_weighted_design,
+    fitted_from_gam, predict_gam,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
@@ -132,7 +132,8 @@ pub use special::{
     normal_ppf, regularized_incomplete_beta, student_t_ppf, student_t_sf, trigamma,
 };
 pub use twosls::{
-    FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_kf_critical,
-    anderson_rubin_statistic, chi2_critical, f_critical, fit_2sls, fit_wls,
+    FirstStageDiagnostics, IvBlocks, TwoSlsFit, anderson_rubin_confidence_set,
+    anderson_rubin_kf_critical, anderson_rubin_statistic, chi2_critical, f_critical, fit_2sls,
+    fit_wls,
 };
 pub use welford::Welford;

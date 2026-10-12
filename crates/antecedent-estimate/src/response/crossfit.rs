@@ -7,7 +7,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, SmoothSpec, fit_gam,
+    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec, fit_gam,
     fit_gam_weighted_design,
 };
 
@@ -29,9 +29,7 @@ pub(super) fn fit_additive(
     // 100-iteration / 1e-6 tolerance combination routinely returns converged=false on the
     // cross-fitted Kennedy fixtures while the fit itself is already stable enough to use.
     let fit = fit_gam(
-        x,
-        nrows,
-        ncols,
+        &PredictorMatrix::new(x, nrows, ncols),
         y,
         &specs,
         &GamOptions { max_iter: 500, tol: 1e-6 },

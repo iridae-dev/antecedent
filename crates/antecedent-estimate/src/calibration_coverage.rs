@@ -1003,13 +1003,15 @@ fn wald_coverage_on(
                 };
                 let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
                 let ar_true = antecedent_stats::anderson_rubin_statistic(
+                    &antecedent_stats::IvBlocks {
+                        nrows: prep.nrows,
+                        instruments_colmajor: &z,
+                        z_ncols: 1,
+                        exogenous_colmajor: &prep.exogenous_matrix,
+                        x_ncols: prep.x_ncols,
+                    },
                     &prep.outcome,
                     &prep.treatment,
-                    &z,
-                    prep.nrows,
-                    1,
-                    &prep.exogenous_matrix,
-                    prep.x_ncols,
                     TRUE_ATE,
                     &antecedent_stats::FaerBackend,
                     &mut ws,
@@ -1138,13 +1140,15 @@ fn two_sls_coverage(
                 let z_ncols = prep.z_ncols - 1;
                 let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
                 let ar_true = antecedent_stats::anderson_rubin_statistic(
+                    &antecedent_stats::IvBlocks {
+                        nrows: prep.nrows,
+                        instruments_colmajor: &prep.instruments_matrix[prep.nrows..],
+                        z_ncols,
+                        exogenous_colmajor: &prep.exogenous_matrix,
+                        x_ncols: prep.x_ncols,
+                    },
                     &prep.outcome,
                     &prep.treatment,
-                    &prep.instruments_matrix[prep.nrows..],
-                    prep.nrows,
-                    z_ncols,
-                    &prep.exogenous_matrix,
-                    prep.x_ncols,
                     TRUE_ATE,
                     &antecedent_stats::FaerBackend,
                     &mut ws,

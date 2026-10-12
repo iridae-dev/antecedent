@@ -15,8 +15,8 @@ use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent_core::ExecutionContext;
 use antecedent_stats::fit_counts::count_least_squares_solves;
 use antecedent_stats::{
-    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
-    anderson_rubin_kf_critical,
+    FaerBackend, FirstStageDiagnostics, IvBlocks, LeastSquaresWorkspace,
+    anderson_rubin_confidence_set, anderson_rubin_kf_critical,
 };
 use antecedent_test_support::dot;
 use calibration::{grid_n, grid_seed, map_replicates, n_sim};
@@ -86,13 +86,15 @@ fn inspect(r: &DesignRequest, diagnostics: &FirstStageDiagnostics, critical: f64
     let z = &r.columns[2].1;
     let exogenous = vec![1.; n];
     let original = anderson_rubin_confidence_set(
+        &IvBlocks {
+            nrows: n,
+            instruments_colmajor: z,
+            z_ncols: 1,
+            exogenous_colmajor: &exogenous,
+            x_ncols: 1,
+        },
         &r.columns[1].1,
         &r.columns[0].1,
-        z,
-        n,
-        1,
-        &exogenous,
-        1,
         0.95,
         &FaerBackend,
         &mut LeastSquaresWorkspace::default(),

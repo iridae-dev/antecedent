@@ -112,21 +112,15 @@ pub struct TwoSlsFit {
 /// # Errors
 ///
 /// Shape mismatch or backend failure.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "instrument and exogenous blocks are column-major buffers with explicit dimensions; callers in antecedent-estimate bind them positionally"
-)]
 pub fn fit_2sls(
-    instruments_colmajor: &[f64],
-    z_nrows: usize,
-    z_ncols: usize,
+    blocks: &IvBlocks<'_>,
     endogenous: &[f64],
-    exogenous_colmajor: &[f64],
-    x_ncols: usize,
     y: &[f64],
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<TwoSlsFit, StatsError> {
+    let IvBlocks { nrows: z_nrows, instruments_colmajor, z_ncols, exogenous_colmajor, x_ncols } =
+        *blocks;
     if endogenous.len() != z_nrows || y.len() != z_nrows {
         return Err(StatsError::Shape { message: "endogenous/y length != nrows" });
     }
@@ -139,13 +133,8 @@ pub fn fit_2sls(
     x1[..z_nrows * z_ncols].copy_from_slice(&instruments_colmajor[..z_nrows * z_ncols]);
     x1[z_nrows * z_ncols..].copy_from_slice(&exogenous_colmajor[..z_nrows * x_ncols]);
     let first_stage = backend.least_squares(&x1, z_nrows, stage1_ncols, endogenous, workspace)?;
-    let first_stage_diagnostics = first_stage_f_test(
-        &FirstStageBlocks { nrows: z_nrows, z_ncols, x_ncols, exogenous_colmajor },
-        endogenous,
-        first_stage.rss,
-        backend,
-        workspace,
-    )?;
+    let first_stage_diagnostics =
+        first_stage_f_test(blocks, endogenous, first_stage.rss, backend, workspace)?;
     let mut fitted = vec![0.0; z_nrows];
     for r in 0..z_nrows {
         let mut pred = 0.0;
@@ -186,15 +175,20 @@ pub fn fit_2sls(
     })
 }
 
-/// Dimensions and included-exogenous block of a first-stage regression.
-#[derive(Clone, Copy)]
-struct FirstStageBlocks<'a> {
-    nrows: usize,
-    /// Excluded instruments.
-    z_ncols: usize,
-    /// Included exogenous regressors.
-    x_ncols: usize,
-    exogenous_colmajor: &'a [f64],
+/// The column-major instrument and included-exogenous blocks of one
+/// instrumental-variable problem over `nrows` rows.
+#[derive(Clone, Copy, Debug)]
+pub struct IvBlocks<'a> {
+    /// Rows shared by every block.
+    pub nrows: usize,
+    /// Excluded instruments, `nrows × z_ncols`.
+    pub instruments_colmajor: &'a [f64],
+    /// Excluded instrument columns.
+    pub z_ncols: usize,
+    /// Included exogenous regressors (may carry the intercept), `nrows × x_ncols`.
+    pub exogenous_colmajor: &'a [f64],
+    /// Included exogenous columns.
+    pub x_ncols: usize,
 }
 
 /// Partial F-test for the excluded-instrument block of a first-stage regression:
@@ -202,13 +196,13 @@ struct FirstStageBlocks<'a> {
 /// computed by the caller) against a restricted fit on `exogenous` alone (or the
 /// zero model when `x_ncols == 0`, i.e. `RSS = Σ endogenous²`).
 fn first_stage_f_test(
-    blocks: &FirstStageBlocks<'_>,
+    blocks: &IvBlocks<'_>,
     endogenous: &[f64],
     full_rss: f64,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<FirstStageDiagnostics, StatsError> {
-    let FirstStageBlocks { nrows, z_ncols, x_ncols, exogenous_colmajor } = *blocks;
+    let IvBlocks { nrows, z_ncols, x_ncols, exogenous_colmajor, .. } = *blocks;
     let restricted_rss = if x_ncols == 0 {
         endogenous.iter().map(|v| v * v).sum::<f64>()
     } else {
@@ -334,22 +328,16 @@ pub fn anderson_rubin_kf_critical(level: f64, k: usize, df: usize) -> f64 {
 /// # Errors
 ///
 /// Shape mismatch or backend failure.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "instrument and exogenous blocks are column-major buffers with explicit dimensions; callers in antecedent-estimate bind them positionally"
-)]
 pub fn anderson_rubin_statistic(
+    blocks: &IvBlocks<'_>,
     y: &[f64],
     t: &[f64],
-    instruments_colmajor: &[f64],
-    z_nrows: usize,
-    z_ncols: usize,
-    exogenous_colmajor: &[f64],
-    x_ncols: usize,
     beta0: f64,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<f64, StatsError> {
+    let IvBlocks { nrows: z_nrows, instruments_colmajor, z_ncols, exogenous_colmajor, x_ncols } =
+        *blocks;
     if y.len() != z_nrows || t.len() != z_nrows {
         return Err(StatsError::Shape { message: "y/t length != nrows" });
     }
@@ -481,22 +469,16 @@ type ArConfidenceSet = (Option<(f64, f64, f64)>, Option<&'static str>);
 /// # Errors
 ///
 /// Shape mismatch or backend failure while residualizing / projecting.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "instrument and exogenous blocks are column-major buffers with explicit dimensions; callers in antecedent-estimate bind them positionally"
-)]
 pub fn anderson_rubin_confidence_set(
+    blocks: &IvBlocks<'_>,
     y: &[f64],
     t: &[f64],
-    instruments_colmajor: &[f64],
-    z_nrows: usize,
-    z_ncols: usize,
-    exogenous_colmajor: &[f64],
-    x_ncols: usize,
     level: f64,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<ArConfidenceSet, StatsError> {
+    let IvBlocks { nrows: z_nrows, instruments_colmajor, z_ncols, exogenous_colmajor, x_ncols } =
+        *blocks;
     if z_ncols == 0 {
         return Ok((None, Some("anderson_rubin_requires_excluded_instruments")));
     }
@@ -574,6 +556,16 @@ pub fn anderson_rubin_confidence_set(
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
+
+    fn iv_blocks<'a>(
+        z: &'a [f64],
+        nrows: usize,
+        z_ncols: usize,
+        x: &'a [f64],
+        x_ncols: usize,
+    ) -> IvBlocks<'a> {
+        IvBlocks { nrows, instruments_colmajor: z, z_ncols, exogenous_colmajor: x, x_ncols }
+    }
 
     #[test]
     fn wls_matches_ols_with_unit_weights() {
@@ -655,7 +647,7 @@ mod tests {
             x[i] = 1.0;
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let fit = fit_2sls(&z, n, 1, &t, &x, 1, &y, &FaerBackend, &mut ws).unwrap();
+        let fit = fit_2sls(&iv_blocks(&z, n, 1, &x, 1), &t, &y, &FaerBackend, &mut ws).unwrap();
         assert!((fit.second_stage.coefficients[0] - 2.0).abs() < 0.05);
         assert!(fit.structural_rss <= fit.second_stage.rss);
     }
@@ -689,8 +681,10 @@ mod tests {
 
         let mut ws = LeastSquaresWorkspace::default();
         let strong =
-            fit_2sls(&z, n, 1, &t_strong, &x, 1, &y_strong, &FaerBackend, &mut ws).unwrap();
-        let weak = fit_2sls(&z, n, 1, &t_weak, &x, 1, &y_weak, &FaerBackend, &mut ws).unwrap();
+            fit_2sls(&iv_blocks(&z, n, 1, &x, 1), &t_strong, &y_strong, &FaerBackend, &mut ws)
+                .unwrap();
+        let weak =
+            fit_2sls(&iv_blocks(&z, n, 1, &x, 1), &t_weak, &y_weak, &FaerBackend, &mut ws).unwrap();
 
         assert_eq!(strong.first_stage_diagnostics.df1, 1);
         assert_eq!(strong.first_stage_diagnostics.df2, n - 2);
@@ -723,8 +717,15 @@ mod tests {
             t.iter().enumerate().map(|(i, &ti)| 2.0 * ti + 0.05 * (i as f64 - 3.5)).collect();
         let x = [1.0; 8];
         let mut ws = LeastSquaresWorkspace::default();
-        let ar =
-            anderson_rubin_statistic(&y, &t, &z, n, 1, &x, 1, 2.0, &FaerBackend, &mut ws).unwrap();
+        let ar = anderson_rubin_statistic(
+            &iv_blocks(&z, n, 1, &x, 1),
+            &y,
+            &t,
+            2.0,
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
 
         let y_star: Vec<f64> = y.iter().zip(t).map(|(yi, ti)| yi - 2.0 * ti).collect();
         let mut xz = vec![0.0; n * 2];
@@ -754,9 +755,15 @@ mod tests {
             x[i] = 1.0;
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let (ar, reason) =
-            anderson_rubin_confidence_set(&y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws)
-                .unwrap();
+        let (ar, reason) = anderson_rubin_confidence_set(
+            &iv_blocks(&z, n, 1, &x, 1),
+            &y,
+            &t,
+            0.95,
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         assert!(reason.is_none(), "unexpected withhold: {reason:?}");
         let (lo, hi, level) = ar.expect("connected AR set");
         assert_eq!(level, 0.95);
@@ -784,9 +791,15 @@ mod tests {
             y[i] = beta * t[i] + 1e-6 * ((i % 5) as f64 - 2.0);
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let (ar, reason) =
-            anderson_rubin_confidence_set(&y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws)
-                .unwrap();
+        let (ar, reason) = anderson_rubin_confidence_set(
+            &iv_blocks(&z, n, 1, &x, 1),
+            &y,
+            &t,
+            0.95,
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         assert!(reason.is_none(), "unexpected withhold: {reason:?}");
         let (lo, hi, level) = ar.expect("narrow AR set must exist");
         assert_eq!(level, 0.95);
@@ -826,9 +839,15 @@ mod tests {
             y[i] = 2.0 * t[i] + 40.0 * ((i % 11) as f64 - 5.0);
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let (ar, reason) =
-            anderson_rubin_confidence_set(&y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws)
-                .unwrap();
+        let (ar, reason) = anderson_rubin_confidence_set(
+            &iv_blocks(&z, n, 1, &x, 1),
+            &y,
+            &t,
+            0.95,
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
         assert!(reason.is_none(), "unexpected withhold: {reason:?}");
         let (lo, hi, _) = ar.expect("connected AR set");
         assert!(lo.is_finite() && hi.is_finite(), "expected finite endpoints, got [{lo}, {hi}]");
@@ -860,7 +879,7 @@ mod tests {
             x[n + i] = xi;
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let fit = fit_2sls(&z, n, 1, &t, &x, 2, &y, &FaerBackend, &mut ws).unwrap();
+        let fit = fit_2sls(&iv_blocks(&z, n, 1, &x, 2), &t, &y, &FaerBackend, &mut ws).unwrap();
         assert!(
             (fit.second_stage.coefficients[0] - 2.0).abs() < 0.05,
             "beta_T={}",

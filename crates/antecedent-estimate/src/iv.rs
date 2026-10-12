@@ -53,8 +53,8 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
-    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
-    fit_2sls,
+    FaerBackend, FirstStageDiagnostics, IvBlocks, LeastSquaresWorkspace,
+    anderson_rubin_confidence_set, fit_2sls,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -805,19 +805,11 @@ fn attach_anderson_rubin(
         return Ok(());
     }
     let mut ws = LeastSquaresWorkspace::default();
-    let (ar, reason) = anderson_rubin_confidence_set(
-        y,
-        t,
-        instruments_colmajor,
-        y.len(),
-        z_ncols,
-        exogenous_colmajor,
-        x_ncols,
-        AR_LEVEL,
-        &FaerBackend,
-        &mut ws,
-    )
-    .map_err(stats_err)?;
+    let blocks =
+        IvBlocks { nrows: y.len(), instruments_colmajor, z_ncols, exogenous_colmajor, x_ncols };
+    let (ar, reason) =
+        anderson_rubin_confidence_set(&blocks, y, t, AR_LEVEL, &FaerBackend, &mut ws)
+            .map_err(stats_err)?;
     // Scale structural-β endpoints to the published ATE contrast.
     diag.anderson_rubin = ar.map(|(lo, hi, level)| {
         let (mut lo_a, mut hi_a) = (lo * treatment_delta, hi * treatment_delta);
@@ -1083,13 +1075,16 @@ impl TwoStageLeastSquares {
         // The exogenous block carries the intercept, so pass the excluded instruments
         // without their leading intercept column (fit_2sls appends the exogenous block
         // to form the full first-stage instrument set).
+        let blocks = IvBlocks {
+            nrows: problem.nrows,
+            instruments_colmajor: &problem.instruments_matrix[problem.nrows..],
+            z_ncols: problem.z_ncols - 1,
+            exogenous_colmajor: &problem.exogenous_matrix,
+            x_ncols: problem.x_ncols,
+        };
         let fit = fit_2sls(
-            &problem.instruments_matrix[problem.nrows..],
-            problem.nrows,
-            problem.z_ncols - 1,
+            &blocks,
             &problem.treatment,
-            &problem.exogenous_matrix,
-            problem.x_ncols,
             &problem.outcome,
             &self.backend,
             &mut workspace.ols,
@@ -1639,13 +1634,15 @@ mod tests {
                 (0..prep.nrows).map(|r| prep.instruments_matrix[prep.nrows + r]).collect();
             let mut ws = LeastSquaresWorkspace::default();
             let ar_true = antecedent_stats::anderson_rubin_statistic(
+                &IvBlocks {
+                    nrows: prep.nrows,
+                    instruments_colmajor: &z,
+                    z_ncols: 1,
+                    exogenous_colmajor: &prep.exogenous_matrix,
+                    x_ncols: prep.x_ncols,
+                },
                 &prep.outcome,
                 &prep.treatment,
-                &z,
-                prep.nrows,
-                1,
-                &prep.exogenous_matrix,
-                prep.x_ncols,
                 2.0,
                 &FaerBackend,
                 &mut ws,
