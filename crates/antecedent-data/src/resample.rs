@@ -224,7 +224,11 @@ fn fill_indexes_prepared(
                 out.push(unbiased_index(rng, n) as u32);
             }
         }
-        ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
+        ResamplingPlan::BayesianBootstrap => {
+            return Err(DataError::InvalidArgument {
+                message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
+            });
+        }
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
             out.resize(n, 0);
             fill_block_slice(
@@ -240,7 +244,12 @@ fn fill_indexes_prepared(
             fill_stationary(n, expected_length, rng, out)?;
         }
         ResamplingPlan::ClusterBootstrap { .. } => {
-            fill_cluster_bootstrap(clusters.expect("clustered plan prepared"), rng, out)?;
+            let Some(clusters) = clusters else {
+                return Err(DataError::InvalidArgument {
+                    message: "clustered resampling requires cluster_ids".into(),
+                });
+            };
+            fill_cluster_bootstrap(clusters, rng, out)?;
         }
         ResamplingPlan::Permutation(PermutationScheme::Full) => {
             out.extend(0..n as u32);
@@ -251,12 +260,12 @@ fn fill_indexes_prepared(
             }
         }
         ResamplingPlan::Permutation(PermutationScheme::WithinCluster) => {
-            fill_within_cluster_permutation(
-                n,
-                clusters.expect("clustered plan prepared"),
-                rng,
-                out,
-            );
+            let Some(clusters) = clusters else {
+                return Err(DataError::InvalidArgument {
+                    message: "clustered resampling requires cluster_ids".into(),
+                });
+            };
+            fill_within_cluster_permutation(n, clusters, rng, out);
         }
     }
     Ok(())

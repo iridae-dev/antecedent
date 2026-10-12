@@ -264,8 +264,9 @@ impl CausalState {
         self.cache_budget = staged_budget;
         let data_version = self.data_catalog.version;
         for update in updates {
-            let record =
-                self.queries.queries.get_mut(&update.query).expect("query ids were prevalidated");
+            let Some(record) = self.queries.queries.get_mut(&update.query) else {
+                return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
+            };
             record.result_valid_at = Some(self.version);
             if let (Some(lineage), Some(data_snapshot)) = (update.lineage, update.data_snapshot) {
                 record.last_published =

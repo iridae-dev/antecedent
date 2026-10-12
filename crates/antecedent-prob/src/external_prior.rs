@@ -442,7 +442,9 @@ fn compose_power_add(
         if alpha == 0.0 {
             continue;
         }
-        let coef = src.prior.gaussian_coefficients().expect("validated");
+        let coef = src.prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+            message: "external source prior missing GaussianCoefficients",
+        })?;
         let prec = coef.precision();
         for i in 0..n {
             let a_lam = alpha * prec[i];
@@ -592,7 +594,9 @@ fn compose_mixture(
             // Dropped mass folds into leftover baseline.
             continue;
         }
-        let coef = src.prior.gaussian_coefficients().expect("validated");
+        let coef = src.prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+            message: "external source prior missing GaussianCoefficients",
+        })?;
         comps.push((w, coef, alpha));
         active_w += w;
     }

@@ -69,7 +69,7 @@ pub fn exposures(
 ) -> Result<Vec<ExposureLevel>, StatsError> {
     validate_exposure_inputs(assignment.len(), incoming, mapping)?;
     let mut out = Vec::with_capacity(assignment.len());
-    exposures_into(assignment, incoming, mapping, &mut out);
+    exposures_into(assignment, incoming, mapping, &mut out)?;
     Ok(out)
 }
 
@@ -103,7 +103,7 @@ fn exposures_into(
     incoming: &[Vec<(usize, f64)>],
     mapping: &ExposureMapping,
     out: &mut Vec<ExposureLevel>,
-) {
+) -> Result<(), StatsError> {
     out.clear();
     for (unit, edges) in incoming.iter().enumerate() {
         let own = f64::from(assignment[unit]);
@@ -138,10 +138,15 @@ fn exposures_into(
                         / weight
                 }
             }
-            ExposureMapping::Custom(_) => unreachable!(),
+            ExposureMapping::Custom(_) => {
+                return Err(StatsError::Backend(
+                    "custom exposure mappings require a caller registry".into(),
+                ));
+            }
         };
         out.push(ExposureLevel { own, neighbors });
     }
+    Ok(())
 }
 
 /// Compute exposure probabilities exactly when the support is small enough, otherwise by Monte
@@ -218,12 +223,12 @@ pub fn exposure_probabilities(
     validate_exposure_inputs(n, incoming, mapping)?;
     let mut rng = CausalRng::from_seed(seed);
     let mut counts = vec![0_u32; n];
-    let mut sampler = AssignmentSampler::new(design, n);
+    let mut sampler = AssignmentSampler::new(design, n)?;
     let mut assignment = vec![false; n];
     let mut levels = Vec::with_capacity(n);
     for _ in 0..monte_carlo_draws {
-        sampler.sample_into(design, &mut assignment, &mut rng);
-        exposures_into(&assignment, incoming, mapping, &mut levels);
+        sampler.sample_into(design, &mut assignment, &mut rng)?;
+        exposures_into(&assignment, incoming, mapping, &mut levels)?;
         for (i, actual) in levels.iter().enumerate() {
             if same_exposure(*actual, level) {
                 counts[i] = counts[i].saturating_add(1);
@@ -392,10 +397,14 @@ fn enumerate_assignments(
                     let assignment = clusters
                         .iter()
                         .map(|id| {
-                            let j = ids.binary_search(id).expect("cluster id present");
-                            mask & (1_u64 << j) != 0
+                            let j = ids.binary_search(id).map_err(|_| {
+                                StatsError::Backend(
+                                    "cluster id missing from the sorted cluster table".into(),
+                                )
+                            })?;
+                            Ok(mask & (1_u64 << j) != 0)
                         })
-                        .collect::<Vec<_>>();
+                        .collect::<Result<Vec<_>, StatsError>>()?;
                     visit(&assignment, 1.0);
                 }
             }
@@ -431,7 +440,7 @@ struct AssignmentSampler {
 }
 
 impl AssignmentSampler {
-    fn new(design: &AssignmentDesign, n: usize) -> Self {
+    fn new(design: &AssignmentDesign, n: usize) -> Result<Self, StatsError> {
         let (cluster_ids, unit_cluster_pos) = match design {
             AssignmentDesign::ClusterRandomization { clusters, .. } => {
                 let mut ids = clusters.to_vec();
@@ -439,8 +448,14 @@ impl AssignmentSampler {
                 ids.dedup();
                 let pos = clusters
                     .iter()
-                    .map(|id| ids.binary_search(id).expect("cluster id present"))
-                    .collect();
+                    .map(|id| {
+                        ids.binary_search(id).map_err(|_| {
+                            StatsError::Backend(
+                                "cluster id missing from the sorted cluster table".into(),
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, StatsError>>()?;
                 (ids, pos)
             }
             _ => (Vec::new(), Vec::new()),
@@ -453,10 +468,15 @@ impl AssignmentSampler {
             | AssignmentDesign::ObservedExposure { .. } => 0,
         };
         let chosen = vec![false; cluster_ids.len()];
-        Self { cluster_ids, unit_cluster_pos, keys: Vec::with_capacity(key_capacity), chosen }
+        Ok(Self { cluster_ids, unit_cluster_pos, keys: Vec::with_capacity(key_capacity), chosen })
     }
 
-    fn sample_into(&mut self, design: &AssignmentDesign, out: &mut [bool], rng: &mut CausalRng) {
+    fn sample_into(
+        &mut self,
+        design: &AssignmentDesign,
+        out: &mut [bool],
+        rng: &mut CausalRng,
+    ) -> Result<(), StatsError> {
         let n = out.len();
         match design {
             AssignmentDesign::Bernoulli { probabilities } => {
@@ -494,12 +514,17 @@ impl AssignmentSampler {
                 }
             }
             AssignmentDesign::TwoStageSaturation { .. } => {
-                unreachable!("two-stage saturation is refused before generic sampling")
+                return Err(StatsError::Backend(
+                    "use the exact two-stage saturation estimator".into(),
+                ));
             }
             AssignmentDesign::ObservedExposure { .. } => {
-                unreachable!("observational exposure is refused before generic sampling")
+                return Err(StatsError::Backend(
+                    "use the supplied-propensity observational estimator".into(),
+                ));
             }
         }
+        Ok(())
     }
 }
 
@@ -633,10 +658,10 @@ mod tests {
         for design in &designs {
             let mut rng_new = CausalRng::from_seed(4242);
             let mut rng_ref = CausalRng::from_seed(4242);
-            let mut sampler = AssignmentSampler::new(design, n);
+            let mut sampler = AssignmentSampler::new(design, n).unwrap();
             let mut assignment = vec![false; n];
             for draw in 0..50 {
-                sampler.sample_into(design, &mut assignment, &mut rng_new);
+                sampler.sample_into(design, &mut assignment, &mut rng_new).unwrap();
                 let expected = reference_draw(design, n, &mut rng_ref);
                 assert_eq!(assignment, expected, "design {design:?} draw {draw}");
             }

@@ -306,15 +306,21 @@ fn hc_meat(
         let adj = match kind {
             SandwichKind::Hc0 | SandwichKind::Hc1 => e * e,
             SandwichKind::Hc2 => {
-                let h = hat.as_ref().unwrap()[i].max(0.0);
+                let h = hc_leverage(hat.as_deref(), i)?;
                 (e * e) / (1.0 - h)
             }
             SandwichKind::Hc3 => {
-                let h = hat.as_ref().unwrap()[i].max(0.0);
+                let h = hc_leverage(hat.as_deref(), i)?;
                 let d = 1.0 - h;
                 (e * e) / (d * d)
             }
-            _ => unreachable!(),
+            SandwichKind::Homoskedastic
+            | SandwichKind::Cluster { .. }
+            | SandwichKind::Multiway { .. }
+            | SandwichKind::NeweyWest { .. }
+            | SandwichKind::PanelClusterHac { .. } => {
+                return Err(StatsError::Shape { message: "HC meat is only defined for HC0–HC3" });
+            }
         };
         accumulate_xx(&mut meat, x_colmajor, nrows, ncols, i, adj);
     }
@@ -328,6 +334,14 @@ fn hc_meat(
         }
     }
     Ok(meat)
+}
+
+fn hc_leverage(hat: Option<&[f64]>, row: usize) -> Result<f64, StatsError> {
+    let h = hat.ok_or(StatsError::Shape { message: "HC2/HC3 leverage vector missing" })?;
+    h.get(row)
+        .copied()
+        .ok_or(StatsError::Shape { message: "HC2/HC3 leverage vector is shorter than the design" })
+        .map(|v| v.max(0.0))
 }
 
 fn leverages(
