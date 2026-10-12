@@ -152,8 +152,8 @@ impl AdjustmentProblem {
         }
         let lags = dense_lags(dag, config);
         let max_history_lag = config.max_history_lag;
-        // History lag stays off this list. Efficient backdoor never consulted it;
-        // backdoor drops lagged nodes after this returns.
+        // History lag is not applied. Efficient backdoor never consulted it;
+        // the backdoor search filters afterwards.
         let candidates = DenseNodeId::all(n).filter(|id| !forbidden.contains(*id)).collect();
         let mutilated = remove_outgoing(dag, t)?;
         Ok(Self {
@@ -388,7 +388,7 @@ impl BackdoorIdentifier {
         // Textor 2014), so one separation test decides existence and the subset search below
         // only chooses which valid sets to return.
         let constructive =
-            screen_ancestor_candidates(dag, t, y, forbidden, &problem, &mut workspace.graph);
+            screen_ancestor_candidates(dag, t, y, forbidden, &problem, true, &mut workspace.graph);
         examined += 1;
         let exists = is_backdoor_adjustment(mutilated, t, y, &constructive, &mut workspace.dsep)?;
 
@@ -647,12 +647,17 @@ pub(crate) fn screen_ancestor_candidates(
     y: DenseNodeId,
     forbidden: &BitSet,
     problem: &AdjustmentProblem,
+    respect_history_lag: bool,
     gws: &mut antecedent_graph::GraphWorkspace,
 ) -> Vec<DenseNodeId> {
     let mut an = BitSet::with_len(dag.node_count());
     dag.ancestors_of(&[t, y], &mut an, gws);
     DenseNodeId::all(dag.node_count())
-        .filter(|id| an.contains(*id) && !forbidden.contains(*id) && !problem.exceeds_lag(*id))
+        .filter(|id| {
+            an.contains(*id)
+                && !forbidden.contains(*id)
+                && !(respect_history_lag && problem.exceeds_lag(*id))
+        })
         .collect()
 }
 

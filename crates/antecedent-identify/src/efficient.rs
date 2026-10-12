@@ -31,8 +31,8 @@ use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::backdoor::{
-    AdjustmentProblem, AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph,
-    dense_to_var, is_backdoor_adjustment, screen_ancestor_candidates,
+    dense_to_var, is_backdoor_adjustment, screen_ancestor_candidates, AdjustmentProblem,
+    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph,
 };
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
@@ -154,7 +154,7 @@ impl EfficientBackdoorIdentifier {
         // Primary rule: the O-set (optimal adjustment set, Henckel et al.).
         let o_set = optimal_adjustment_set(dag, t, y, &mut workspace.graph);
         examined += 1;
-        if o_set.iter().all(|v| !forbidden.contains(*v) && !problem.exceeds_lag(*v))
+        if o_set.iter().all(|v| !forbidden.contains(*v))
             && is_backdoor_adjustment(mutilated, t, y, &o_set, &mut workspace.dsep)?
         {
             return Self::finish(
@@ -183,7 +183,7 @@ impl EfficientBackdoorIdentifier {
         // Textor 2014). If it fails no set exists and the size-ordered search is not needed;
         // if it passes it is the certified fallback wherever the search cannot finish.
         let constructive: Vec<DenseNodeId> =
-            screen_ancestor_candidates(dag, t, y, forbidden, &problem, &mut workspace.graph);
+            screen_ancestor_candidates(dag, t, y, forbidden, &problem, false, &mut workspace.graph);
         examined += 1;
         if !is_backdoor_adjustment(mutilated, t, y, &constructive, &mut workspace.dsep)? {
             let mut assumptions = default_assumptions();
@@ -643,34 +643,54 @@ mod tests {
 
     #[test]
     fn measurement_cost_breaks_ties_after_parent_overlap() {
-        // Forbid Z1 so the O-set {Z1, Z2, Z3} fails. {Z2} and {Z3} are both minimum
-        // cardinality and both parents of T. Lexicographic order prefers Z2; a lower
-        // cost on Z3 must win. With no costs, Z2 still wins.
-        let mut g = Dag::with_variables(5);
-        let t = DenseNodeId::from_raw(0);
-        let y = DenseNodeId::from_raw(1);
+        // T <- U <- Z2 <- Z4 -> Y, T <- Z3 -> Y, and a precision parent P -> Y.
+        // Forbidding U and P rejects the O-set (it contains P) and leaves two
+        // minimum-cardinality sets, {Z2, Z3} and {Z4, Z3}, with the same number
+        // of parents of T. Lexicographic order prefers Z2; a lower cost on Z4
+        // must win.
+        let mut g = Dag::with_variables(7);
+        let (t, y, z3, z2, u, z4, p) = (
+            DenseNodeId::from_raw(0),
+            DenseNodeId::from_raw(1),
+            DenseNodeId::from_raw(2),
+            DenseNodeId::from_raw(3),
+            DenseNodeId::from_raw(4),
+            DenseNodeId::from_raw(5),
+            DenseNodeId::from_raw(6),
+        );
+        g.insert_directed(z3, t).unwrap();
+        g.insert_directed(z3, y).unwrap();
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(z2, u).unwrap();
+        g.insert_directed(z4, z2).unwrap();
+        g.insert_directed(z4, y).unwrap();
+        g.insert_directed(p, y).unwrap();
         g.insert_directed(t, y).unwrap();
-        for i in 2..=4 {
-            let z = DenseNodeId::from_raw(i);
-            g.insert_directed(z, t).unwrap();
-            g.insert_directed(z, y).unwrap();
-        }
         let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
         let mut plain = EfficientBackdoorIdentifier::new();
-        plain.config.forbidden = Arc::from([VariableId::from_raw(2)]);
+        plain.config.forbidden =
+            Arc::from([VariableId::from_raw(u.raw()), VariableId::from_raw(p.raw())]);
         let prep = plain.prepare(&g).unwrap();
         let plain_res = plain.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
-        assert_eq!(plain_res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
+        assert_eq!(
+            plain_res.estimands[0].adjustment_set.as_ref(),
+            &[VariableId::from_raw(z3.raw()), VariableId::from_raw(z2.raw())]
+        );
 
         let mut priced = plain.clone();
-        priced.config.measurement_costs =
-            Arc::from([(VariableId::from_raw(3), 5.0), (VariableId::from_raw(4), 0.1)]);
+        priced.config.measurement_costs = Arc::from([
+            (VariableId::from_raw(z2.raw()), 10.0),
+            (VariableId::from_raw(z4.raw()), 0.1),
+        ]);
         let priced_res =
             priced.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
-        assert_eq!(priced_res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(4)]);
+        assert_eq!(
+            priced_res.estimands[0].adjustment_set.as_ref(),
+            &[VariableId::from_raw(z3.raw()), VariableId::from_raw(z4.raw())]
+        );
     }
 
     #[test]
