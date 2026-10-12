@@ -71,7 +71,7 @@ pub use execution::{
     CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
     ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
     MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
-    StreamDomain, default_user_threads,
+    StreamDomain, WeakCancellationToken, default_user_threads,
 };
 pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};

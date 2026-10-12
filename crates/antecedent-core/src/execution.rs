@@ -366,6 +366,15 @@ impl CancellationToken {
         Self { cancelled: Arc::default(), trip_after: Some(Arc::new(AtomicUsize::new(checks))) }
     }
 
+    /// A non-owning handle that does not keep this token alive.
+    #[must_use]
+    pub fn downgrade(&self) -> WeakCancellationToken {
+        WeakCancellationToken {
+            cancelled: Arc::downgrade(&self.cancelled),
+            trip_after: self.trip_after.clone(),
+        }
+    }
+
     /// Request cancellation.
     pub fn cancel(&self) {
         self.cancelled.store(true, Ordering::SeqCst);
@@ -381,6 +390,35 @@ impl CancellationToken {
             }
         }
         self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
+/// A non-owning handle to a [`CancellationToken`].
+///
+/// It keeps the token's cancellation flag reachable without keeping the token
+/// alive: once every owner of the token is gone, [`Self::upgrade`] returns
+/// `None`. A queue of contexts waiting for a run can hold these without
+/// leaking the contexts that were built and dropped.
+#[derive(Clone, Debug)]
+pub struct WeakCancellationToken {
+    cancelled: std::sync::Weak<AtomicBool>,
+    trip_after: Option<Arc<AtomicUsize>>,
+}
+
+impl WeakCancellationToken {
+    /// The token, if any owner of it is still alive.
+    #[must_use]
+    pub fn upgrade(&self) -> Option<CancellationToken> {
+        Some(CancellationToken {
+            cancelled: self.cancelled.upgrade()?,
+            trip_after: self.trip_after.clone(),
+        })
+    }
+
+    /// Whether an owner of the token is still alive.
+    #[must_use]
+    pub fn is_alive(&self) -> bool {
+        self.cancelled.strong_count() > 0
     }
 }
 

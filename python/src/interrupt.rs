@@ -22,7 +22,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
-use antecedent_core::CancellationToken;
+use antecedent_core::{CancellationToken, WeakCancellationToken};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
@@ -55,15 +55,18 @@ impl Scope {
     }
 }
 
-/// Bound on tokens waiting for the next run on a thread (contexts built and never run).
-const MAX_PENDING: usize = 64;
+/// Queue length at which dead entries are first pruned from [`PENDING`].
+const PENDING_PRUNE_FLOOR: usize = 64;
 
 thread_local! {
     static ACTIVE: RefCell<Option<Arc<Scope>>> = const { RefCell::new(None) };
-    /// Tokens of contexts built on a Python thread ahead of the [`run`] that will execute them.
-    static PENDING: RefCell<Vec<CancellationToken>> = const { RefCell::new(Vec::new()) };
-    /// Set when a token was refused because [`PENDING`] was already at [`MAX_PENDING`].
-    static PENDING_REFUSED: Cell<bool> = const { Cell::new(false) };
+    /// Contexts built on a Python thread ahead of the [`run`] that will execute them.
+    ///
+    /// Weak: a context built and dropped without running leaves nothing to cancel, and a
+    /// live one is never evicted or refused however many wait.
+    static PENDING: RefCell<Vec<WeakCancellationToken>> = const { RefCell::new(Vec::new()) };
+    /// Queue length at which [`PENDING`] is next pruned (doubles with the live set).
+    static PENDING_PRUNE_AT: Cell<usize> = const { Cell::new(PENDING_PRUNE_FLOOR) };
 }
 
 /// The interruptible run's token, if the current thread is a [`run`] worker.
@@ -85,25 +88,12 @@ pub(crate) fn link(token: &CancellationToken) {
     if !joined {
         PENDING.with(|pending| {
             let mut pending = pending.borrow_mut();
-            if pending.len() >= MAX_PENDING {
-                // Refuse the new token. Evicting the oldest dropped a context that
-                // Ctrl-C was still supposed to cancel.
-                PENDING_REFUSED.set(true);
-                return;
+            if pending.len() >= PENDING_PRUNE_AT.get() {
+                pending.retain(WeakCancellationToken::is_alive);
+                PENDING_PRUNE_AT.set((pending.len() * 2).max(PENDING_PRUNE_FLOOR));
             }
-            pending.push(token.clone());
+            pending.push(token.downgrade());
         });
-    }
-}
-
-/// `Err` when a token was refused since the last call. Clears the flag.
-fn take_pending_refusal() -> Result<(), &'static str> {
-    if PENDING_REFUSED.replace(false) {
-        Err(
-            "too many cancellation tokens were queued on this thread before a native run; the extra token was refused instead of evicting an older one",
-        )
-    } else {
-        Ok(())
     }
 }
 
@@ -188,13 +178,13 @@ where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
 {
-    take_pending_refusal().map_err(CausalError::new_err)?;
     let scope = Arc::new(Scope::default());
-    scope
-        .linked
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .extend(PENDING.with(|pending| std::mem::take(&mut *pending.borrow_mut())));
+    scope.linked.lock().unwrap_or_else(PoisonError::into_inner).extend(PENDING.with(|pending| {
+        std::mem::take(&mut *pending.borrow_mut())
+            .iter()
+            .filter_map(WeakCancellationToken::upgrade)
+            .collect::<Vec<_>>()
+    }));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
     let observation = antecedent_core::execution_attempt::ObservationToken::capture();
     let outcome = std::thread::scope(|s| {
@@ -266,18 +256,29 @@ mod tests {
     }
 
     #[test]
-    fn a_pending_token_past_the_cap_is_refused_instead_of_evicting() {
-        use super::{MAX_PENDING, PENDING, PENDING_REFUSED, link, take_pending_refusal};
+    fn every_live_pending_context_joins_the_next_run() {
+        use super::{PENDING, link};
         use antecedent_core::CancellationToken;
         PENDING.with(|pending| pending.borrow_mut().clear());
-        PENDING_REFUSED.set(false);
-        for _ in 0..MAX_PENDING {
+        let live: Vec<CancellationToken> = (0..500).map(|_| CancellationToken::new()).collect();
+        for token in &live {
+            link(token);
+        }
+        let queued = PENDING
+            .with(|pending| pending.borrow().iter().filter_map(|weak| weak.upgrade()).count());
+        assert_eq!(queued, live.len());
+        PENDING.with(|pending| pending.borrow_mut().clear());
+    }
+
+    #[test]
+    fn tokens_of_dropped_contexts_do_not_accumulate() {
+        use super::{PENDING, link};
+        use antecedent_core::CancellationToken;
+        PENDING.with(|pending| pending.borrow_mut().clear());
+        for _ in 0..10_000 {
             link(&CancellationToken::new());
         }
-        link(&CancellationToken::new());
-        assert_eq!(PENDING.with(|pending| pending.borrow().len()), MAX_PENDING);
-        assert!(take_pending_refusal().is_err());
+        assert!(PENDING.with(|pending| pending.borrow().len()) < 200);
         PENDING.with(|pending| pending.borrow_mut().clear());
-        PENDING_REFUSED.set(false);
     }
 }
