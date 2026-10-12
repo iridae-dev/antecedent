@@ -35,3 +35,11 @@ harness = false
 [[bench]]
 name = "mseparation"
 harness = false
+
+[[bench]]
+name = "surgery"
+harness = false
+
+[[bench]]
+name = "unfold"
+harness = false
