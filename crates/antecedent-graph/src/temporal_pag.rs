@@ -333,19 +333,34 @@ impl TemporalPag {
     /// View as static [`Pag`] for algorithms that only need adjacency/marks.
     ///
     /// Nodes keep their identity as [`NodeRef::Unfolded`] slots (`variable` at `-lag`), never
-    /// as schema variables — only for algorithm reuse.
+    /// as schema variables — only for algorithm reuse. The return type stays [`Pag`] for
+    /// callers that cannot observe [`GraphError`]. A projection the static PAG rejects is
+    /// empty, not a graph that silently dropped the edge. Algorithm paths use
+    /// [`Self::try_as_static_pag_for_alg`].
     #[must_use]
     pub fn as_static_pag_for_alg(&self) -> Pag {
+        self.try_as_static_pag_for_alg().unwrap_or_else(|_| Pag::empty())
+    }
+
+    /// Same projection as [`Self::as_static_pag_for_alg`].
+    ///
+    /// # Errors
+    ///
+    /// A lag that does not fit a signed offset, or a node or edge the static PAG rejects.
+    pub(crate) fn try_as_static_pag_for_alg(&self) -> Result<Pag, GraphError> {
         let mut p = Pag::empty();
         for node in self.nodes() {
             let slot = match *node {
-                NodeRef::Lagged { variable, lag } => NodeRef::Unfolded {
-                    variable,
-                    offset: -i32::try_from(lag.raw()).expect("lag fits i32"),
-                },
+                NodeRef::Lagged { variable, lag } => {
+                    let magnitude =
+                        i32::try_from(lag.raw()).map_err(|_| GraphError::InvalidEndpoints {
+                            message: "lag does not fit a signed temporal offset",
+                        })?;
+                    NodeRef::Unfolded { variable, offset: -magnitude }
+                }
                 other => other,
             };
-            p.add_node(slot).expect("static-graph node");
+            p.add_node(slot)?;
         }
         for i in 0..self.node_count() {
             let a = DenseNodeId::from_index(i);
@@ -353,17 +368,16 @@ impl TemporalPag {
                 if e.neighbor.raw() < a.raw() {
                     continue;
                 }
-                let edge = MarkedEdge {
+                p.insert_marked(MarkedEdge {
                     a,
                     b: e.neighbor,
                     at_a: e.at_self,
                     at_b: e.at_neighbor,
                     middle: e.middle,
-                };
-                let _ = p.insert_marked(edge);
+                })?;
             }
         }
-        p
+        Ok(p)
     }
 
     /// Convert to a [`TemporalDag`](crate::TemporalDag) when every edge is definite-directed (no circles,
@@ -432,7 +446,7 @@ impl TemporalPag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<crate::pag::DefiniteStatusPathSearch, GraphError> {
-        self.as_static_pag_for_alg().definite_status_paths(x, y, max_paths, max_len)
+        self.try_as_static_pag_for_alg()?.definite_status_paths(x, y, max_paths, max_len)
     }
 }
 
