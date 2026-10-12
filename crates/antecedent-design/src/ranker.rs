@@ -277,6 +277,8 @@ impl DesignRanker {
             ctx_eval,
             ctx,
             &ActiveScoring { active: &active, decision: decision.as_ref() },
+            // Exact objectives return the same value on every draw, so one is enough.
+            !evaluations.is_empty() && evaluations.iter().all(|e| *e == ScoreEvaluation::Exact),
             z,
         )?;
 
@@ -334,7 +336,8 @@ impl DesignRanker {
     /// Adaptive batched Monte Carlo scoring loop with shared CRN draws across active
     /// candidates. Returns every candidate's per-draw scores (draw `i` is the same graph /
     /// decision replicate for all candidates, so pairwise differences are paired) alongside
-    /// the realized sample count / budget / early-stop flag.
+    /// the realized sample count / budget / early-stop flag. When every active candidate is
+    /// scored exactly (`all_exact`) a single draw is taken and reported as one sample.
     fn run_mc_scoring_loop<A, O>(
         &self,
         objective: &DesignObjective,
@@ -342,6 +345,7 @@ impl DesignRanker {
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
         scoring: &ActiveScoring<'_, O>,
+        all_exact: bool,
         z: f64,
     ) -> Result<ScoringRun, DesignError>
     where
@@ -361,7 +365,8 @@ impl DesignRanker {
         let max_batches = self.config.max_batches.max(min_batches);
 
         for batch_i in 0..max_batches {
-            for _ in 0..self.config.batch_size {
+            let batch_size = if all_exact { 1 } else { self.config.batch_size };
+            for _ in 0..batch_size {
                 // Shared CRN draw index into graph posterior.
                 let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights)
                     .ok_or(DesignError::EmptyPosterior)?;
@@ -387,6 +392,15 @@ impl DesignRanker {
                 budget.samples = n_samples;
             }
 
+            if all_exact {
+                // The replicates of an exact objective are identical: the stopping test
+                // sees the same zero paired standard error it would at any count >= 2.
+                let replicated: Vec<Vec<f64>> =
+                    draws.iter().map(|d| d.iter().chain(d).copied().collect()).collect();
+                early_stopped =
+                    rank_uncertainty_ok(&replicated, z, self.config.rank_uncertainty_threshold);
+                break;
+            }
             if batch_i + 1 >= min_batches
                 && rank_uncertainty_ok(&draws, z, self.config.rank_uncertainty_threshold)
             {
@@ -2230,5 +2244,40 @@ mod tests {
         assert!(matches!(rank(0), Err(DesignError::Config(_))));
         assert!(matches!(rank(7), Err(DesignError::Config(_))));
         assert!(matches!(rank(1), Err(DesignError::NoAdmissibleAction(_))));
+    }
+
+    /// Every candidate exact: the draws would be identical, so one is taken and reported.
+    #[test]
+    fn exact_objectives_take_a_single_draw() {
+        let graphs = toy_graphs();
+        let registry = coin_registry(Arc::new(crate::preposterior::BinomialSignal));
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &[sampling(1, 0), sampling(10, 1), sampling(100, 2)],
+                &decision_eval(&graphs, &registry),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        assert_eq!(ranking.budget.samples, 1);
+        assert_eq!(ranking.budget.evaluations, 3);
+        assert!(ranking.early_stopped);
+        for ranked in ranking.ranked.iter() {
+            assert_eq!(ranked.monte_carlo.samples, 1);
+            assert_eq!(ranked.monte_carlo.stderr, 0.0);
+        }
+        // A Monte Carlo candidate in the mix keeps the full batch schedule.
+        let mixed =
+            coin_registry(Arc::new(crate::preposterior::GaussianMeanSignal::new(0.25).unwrap()));
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &[sampling(4, 0), sampling(0, 1)],
+                &decision_eval(&graphs, &mixed),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        assert_eq!(ranking.budget.samples, 16);
+        assert_eq!(ranking.budget.evaluations, 32);
     }
 }
