@@ -99,7 +99,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::IdentificationError;
 use crate::hedge::HedgeCertificate;
-use crate::id::{MeteredId, identify_interventional_metered};
+use crate::id::{identify_interventional_metered, MeteredId};
 use crate::prepared::PreparedAdmg;
 use crate::sid::{SearchCharge, SharedSearch};
 
@@ -427,7 +427,12 @@ impl CounterfactualIdProblem {
     fn prepared(&self) -> Result<PreparedAdmg, IdentificationError> {
         let mut admg = Admg::empty();
         for i in 0..self.levels.len() {
-            admg.add_node(NodeRef::Static(VariableId::from_raw(u32::try_from(i).unwrap_or(0))))?;
+            let raw = u32::try_from(i).map_err(|_| {
+                IdentificationError::msg(
+                    "counterfactual graph has more nodes than a variable id can name",
+                )
+            })?;
+            admg.add_node(NodeRef::Static(VariableId::from_raw(raw)))?;
         }
         for &(a, b) in &self.directed {
             admg.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))?;
@@ -875,9 +880,16 @@ fn decide_under(
     let mut engine = Engine {
         problem,
         prepared,
-        parents: (0..problem.node_count())
-            .map(|v| problem.parents(u32::try_from(v).unwrap_or(0)))
-            .collect(),
+        parents: {
+            let mut parents = Vec::with_capacity(problem.node_count());
+            for v in 0..problem.node_count() {
+                let id = u32::try_from(v).map_err(|_| {
+                    CounterfactualIdRefusal::graph("variable index does not fit u32")
+                })?;
+                parents.push(problem.parents(id));
+            }
+            parents
+        },
         topo: problem.topological_order().unwrap_or_default(),
         search,
         next_symbol: 0,
@@ -1488,7 +1500,9 @@ impl Engine<'_, '_> {
         let mut pw: Vec<(usize, u32)> = Vec::new();
         for (w, sub) in worlds.iter().enumerate() {
             for v in 0..n {
-                let v = u32::try_from(v).unwrap_or(0);
+                let Ok(v) = u32::try_from(v) else {
+                    return Err(Halt::Failure("variable index does not fit u32".into()));
+                };
                 if !sub.contains_key(&v) {
                     index.insert((w, v), pw.len());
                     pw.push((w, v));
@@ -1540,7 +1554,11 @@ impl Engine<'_, '_> {
         let mut value_of: BTreeMap<usize, CfValue> = BTreeMap::new();
         let mut event_classes = BTreeSet::new();
         for atom in event {
-            let w = worlds.iter().position(|s| *s == atom.sub).unwrap_or(0);
+            let Some(w) = worlds.iter().position(|s| *s == atom.sub) else {
+                return Err(Halt::Failure(
+                    "an event world is missing from the submodel list".into(),
+                ));
+            };
             let Some(&node) = index.get(&(w, atom.var)) else {
                 return Err(Halt::Failure("an event on a variable its world sets".into()));
             };
