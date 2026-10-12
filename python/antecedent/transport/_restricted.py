@@ -14,6 +14,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .._columns import coerce_fields
 from .._transport_results import TransportGridPoint, TransportUncertainty
 from ..errors import CausalUnsupportedError, CausalValueError
 from ..graph import Admg
@@ -108,10 +109,10 @@ class RestrictedTransportIdentification:
         return _canonical_status(self.outcome)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "rules", tuple(self.rules))
-        object.__setattr__(self, "laws", tuple(self.laws))
-        object.__setattr__(self, "obstructions", tuple(self.obstructions))
-        object.__setattr__(self, "components", tuple(self.components))
+        coerce_fields(self, rules=tuple(self.rules))
+        coerce_fields(self, laws=tuple(self.laws))
+        coerce_fields(self, obstructions=tuple(self.obstructions))
+        coerce_fields(self, components=tuple(self.components))
 
 
 class RestrictedTransportExecution:
@@ -294,17 +295,16 @@ class _RestrictedNative:
         cancel = self.limits.cancel if cancel is None else cancel
         laws, catalog = self.rebuild(data)
         if catalog == self.catalog:
-            done = 0
-            try:
-                for prepared in self._prepared:
-                    prepared.refresh(laws, cancel=cancel)
-                    done += 1
-            except Exception:
-                # Restore the handles already rebound so a failed refresh leaves
-                # every world on the previous valid snapshot.
-                for prepared in self._prepared[:done]:
-                    prepared.refresh(self.laws, cancel=cancel)
-                raise
+            from .._rollback import refresh_all_or_restore
+
+            previous = self.laws
+            # A cancellation is a BaseException. except Exception would leave the
+            # worlds already rebound on ``laws`` and the rest on ``previous``.
+            refresh_all_or_restore(
+                self._prepared,
+                lambda prepared: prepared.refresh(laws, cancel=cancel),
+                lambda prepared: prepared.refresh(previous, cancel=cancel),
+            )
         else:
             self._prepared = self._prepare_all(catalog, laws, cancel=cancel)
         self.laws = laws
