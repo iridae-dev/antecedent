@@ -4,6 +4,10 @@
 
 The package version on this branch is 2.4.0. The last tagged release remains 2.3.0. The [draft release notes](docs/release-notes/v2.4.0.md) list the generic analysis-support delta since that tag.
 
+### Fixed
+
+- A section payload is read up to its declared length and then checked, so an untrusted length can no longer allocate 512 MiB before any byte arrives. A short read is still an incomplete fill. Counts that do not fit the wire word are refused (`TooLarge` or the artifact's limit error) instead of being stored as `u64::MAX` or `u32::MAX`: query approximation and path limits, analysis-result interval counts, latent-class indexes and restart counts, nonlinear-mediation quadrature nodes, temporal shared-abduction unit/world/horizon counts, and mz point-contrast request indexes. A count that fits is stored as the same word as before, and digests of artifacts that already round-trip are unchanged.
+
 ### Changed
 
 - Public-API narrowing (`antecedent-*` crates other than the facade, core, contract, io-core and io). Items with no reference outside their crate (checked across crates, python, benches, examples, fuzz, docs, parity and scripts) are now `pub(crate)`, and those unused even inside the crate are removed. Each lists the items now crate-private, then `removed:` ones. The surface is snapshotted per crate in `parity/public_api/` and gated by `scripts/gate_public_api.sh`.
