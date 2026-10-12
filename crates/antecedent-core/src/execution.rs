@@ -398,53 +398,115 @@ pub trait ProgressSink: Send + Sync {
     fn report(&self, fraction: f64, stage: &str);
 }
 
-/// Closed set of RNG stream domains.
+/// RNG stream domain: a tag that keeps indexed stream families apart.
 ///
-/// Indexed families must use [`RngFactory::stream_for`] with a dedicated variant
+/// Indexed families must use [`RngFactory::stream_for`] with a dedicated domain
 /// rather than `CONST.wrapping_add(index)` into [`RngFactory::stream`]: additive
 /// family offsets collide across domains and, under an additive mixer, across
 /// adjacent master seeds.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[repr(u64)]
-pub enum StreamDomain {
+///
+/// The domains the workspace's own crates draw from are the associated
+/// constants below, tags `1..=19`. The set is open: a crate outside this
+/// workspace names its own domain with [`Self::external`], which accepts only
+/// tags from [`Self::EXTERNAL_BASE`] up so it cannot alias a built-in one. The
+/// tag is the only input a domain contributes to a derived stream, so the
+/// built-in constants derive exactly the streams the closed enum did.
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+pub struct StreamDomain(u64);
+
+// The built-in domains keep their former variant spellings so no call site changes.
+#[allow(non_upper_case_globals)]
+impl StreamDomain {
+    /// First tag available to [`Self::external`]; lower tags are reserved for
+    /// the constants below.
+    pub const EXTERNAL_BASE: u64 = 1 << 16;
+
     /// IID / block / cluster / Bayesian bootstrap replicates.
-    Resample = 1,
+    pub const Resample: Self = Self(1);
     /// Lag-aligned temporal block-bootstrap families.
-    TemporalBlock = 2,
+    pub const TemporalBlock: Self = Self(2);
     /// Bayesian draw / posterior simulation streams.
-    Bayesian = 3,
+    pub const Bayesian: Self = Self(3);
     /// Structure-MCMC chains.
-    McmcStructure = 4,
+    pub const McmcStructure: Self = Self(4);
     /// Order-MCMC chains.
-    McmcOrder = 5,
+    pub const McmcOrder: Self = Self(5);
     /// DBN posterior MCMC chains.
-    McmcDbn = 6,
+    pub const McmcDbn: Self = Self(6);
     /// Graph-completion / identified-set posterior streams.
-    Completion = 7,
+    pub const Completion: Self = Self(7);
     /// Counterfactual abduction / action / prediction noise.
-    Counterfactual = 8,
+    pub const Counterfactual: Self = Self(8);
     /// Attribution Monte Carlo arms.
-    Attribution = 9,
+    pub const Attribution: Self = Self(9);
     /// Design ranking and allocation draws.
-    Design = 10,
+    pub const Design: Self = Self(10);
     /// Statistical transport / retargeting draws.
-    Transport = 11,
+    pub const Transport: Self = Self(11);
     /// Conditional-independence / CI null Monte Carlo.
-    StatsCi = 12,
+    pub const StatsCi: Self = Self(12);
     /// Learner-internal randomness (forest, GBT, neural).
-    Learner = 13,
+    pub const Learner: Self = Self(13);
     /// Estimator-local streams (AIPW, IV, RD, …).
-    Estimate = 14,
+    pub const Estimate: Self = Self(14);
     /// Temporal / DBN mediation block streams.
-    Mediation = 15,
+    pub const Mediation: Self = Self(15);
     /// Panel / interference path streams.
-    Panel = 16,
+    pub const Panel: Self = Self(16);
     /// Facade execute-path streams.
-    Execute = 17,
+    pub const Execute: Self = Self(17);
     /// Unit / integration test fixtures.
-    Test = 18,
+    pub const Test: Self = Self(18);
     /// Example programs.
-    Example = 19,
+    pub const Example: Self = Self(19);
+
+    /// A domain outside the built-in set.
+    ///
+    /// # Panics
+    /// If `tag` is below [`Self::EXTERNAL_BASE`]; in a `const` item this is a
+    /// compile-time error.
+    #[must_use]
+    pub const fn external(tag: u64) -> Self {
+        assert!(
+            tag >= Self::EXTERNAL_BASE,
+            "external stream domain tag collides with a built-in domain"
+        );
+        Self(tag)
+    }
+
+    /// The tag mixed into every stream this domain derives.
+    #[must_use]
+    pub const fn tag(self) -> u64 {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for StreamDomain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self.0 {
+            1 => "Resample",
+            2 => "TemporalBlock",
+            3 => "Bayesian",
+            4 => "McmcStructure",
+            5 => "McmcOrder",
+            6 => "McmcDbn",
+            7 => "Completion",
+            8 => "Counterfactual",
+            9 => "Attribution",
+            10 => "Design",
+            11 => "Transport",
+            12 => "StatsCi",
+            13 => "Learner",
+            14 => "Estimate",
+            15 => "Mediation",
+            16 => "Panel",
+            17 => "Execute",
+            18 => "Test",
+            19 => "Example",
+            tag => return write!(f, "StreamDomain::external({tag})"),
+        };
+        f.write_str(name)
+    }
 }
 
 /// Factory for deterministic RNG streams.
@@ -486,7 +548,7 @@ impl RngFactory {
     #[must_use]
     pub fn stream_for(&self, domain: StreamDomain, index: u64) -> CausalRng {
         // Odd multiplier so domain tags stay distinct under xor with index.
-        let stream_id = (domain as u64).wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
+        let stream_id = domain.tag().wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
         self.stream(stream_id)
     }
 }
@@ -901,6 +963,59 @@ mod tests {
         assert_ne!(a, b);
         assert_ne!(a, c);
         assert_ne!(b, c);
+    }
+
+    #[test]
+    fn built_in_domain_tags_are_pinned() {
+        // The tag is the whole domain contribution to a derived stream; these
+        // are the values the closed enum carried, so they may never change.
+        let pinned = [
+            (StreamDomain::Resample, 1),
+            (StreamDomain::TemporalBlock, 2),
+            (StreamDomain::Bayesian, 3),
+            (StreamDomain::McmcStructure, 4),
+            (StreamDomain::McmcOrder, 5),
+            (StreamDomain::McmcDbn, 6),
+            (StreamDomain::Completion, 7),
+            (StreamDomain::Counterfactual, 8),
+            (StreamDomain::Attribution, 9),
+            (StreamDomain::Design, 10),
+            (StreamDomain::Transport, 11),
+            (StreamDomain::StatsCi, 12),
+            (StreamDomain::Learner, 13),
+            (StreamDomain::Estimate, 14),
+            (StreamDomain::Mediation, 15),
+            (StreamDomain::Panel, 16),
+            (StreamDomain::Execute, 17),
+            (StreamDomain::Test, 18),
+            (StreamDomain::Example, 19),
+        ];
+        for (domain, tag) in pinned {
+            assert_eq!(domain.tag(), tag);
+        }
+        let factory = RngFactory::from_seed(42);
+        let by_domain = factory.stream_for(StreamDomain::Transport, 5).state();
+        let by_hand = factory.stream(11u64.wrapping_mul(0xD1B5_4A32_D192_ED03) ^ 5).state();
+        assert_eq!(by_domain, by_hand);
+    }
+
+    #[test]
+    fn external_domains_stay_clear_of_built_in_tags() {
+        const OURS: StreamDomain = StreamDomain::external(StreamDomain::EXTERNAL_BASE);
+        assert_eq!(OURS.tag(), StreamDomain::EXTERNAL_BASE);
+        assert_ne!(OURS, StreamDomain::Example);
+        assert_eq!(format!("{:?}", StreamDomain::Resample), "Resample");
+        let factory = RngFactory::from_seed(42);
+        assert_ne!(
+            factory.stream_for(OURS, 0).state(),
+            factory.stream_for(StreamDomain::Example, 0).state()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "collides with a built-in domain")]
+    fn external_domain_below_the_base_is_refused() {
+        let _ = StreamDomain::external(StreamDomain::Example.tag());
     }
 
     #[test]
