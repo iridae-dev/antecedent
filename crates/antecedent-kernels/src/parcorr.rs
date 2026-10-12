@@ -237,61 +237,16 @@ fn centered_dot(col: &[f64], y: &[f64], y_mean: f64) -> f64 {
 /// sees exactly the operations a solve of that vector by itself would apply, and one
 /// elimination serving X and Y returns bit-identical coefficients to two. A Cholesky
 /// factorization would not: it rounds differently and its pivot floor (`64 eps`
-/// relative) refuses a different set of near-collinear designs than this `1e-12` one.
+/// Gauss-Jordan on a unit-scaled Gram.
+///
+/// The diagonal is already 1, so [`crate::gram::symmetric_scales`] would be the
+/// identity. The pivot floor is [`crate::gram::EQUILIBRATED_PIVOT_FLOOR`] times
+/// that diagonal: the same predicate [`crate::gram::invert_square`] applies
+/// after equilibration.
 fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize, nrhs: usize) -> bool {
-    let mut scale = 0.0_f64;
-    for d in 0..ncols {
-        scale = scale.max(gram[d * ncols + d].abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
-        return false;
-    }
-    let tol = 1e-12 * scale;
-    for col in 0..ncols {
-        let mut best_row = col;
-        let mut best = gram[col * ncols + col].abs();
-        for row in (col + 1)..ncols {
-            let v = gram[row * ncols + col].abs();
-            if v > best {
-                best = v;
-                best_row = row;
-            }
-        }
-        if best <= tol {
-            return false;
-        }
-        if best_row != col {
-            for j in 0..ncols {
-                gram.swap(col * ncols + j, best_row * ncols + j);
-            }
-            for k in 0..nrhs {
-                rhs.swap(k * ncols + col, k * ncols + best_row);
-            }
-        }
-        let pivot = gram[col * ncols + col];
-        for j in 0..ncols {
-            gram[col * ncols + j] /= pivot;
-        }
-        for k in 0..nrhs {
-            rhs[k * ncols + col] /= pivot;
-        }
-        for row in 0..ncols {
-            if row == col {
-                continue;
-            }
-            let factor = gram[row * ncols + col];
-            for j in 0..ncols {
-                gram[row * ncols + j] -= factor * gram[col * ncols + j];
-            }
-            for k in 0..nrhs {
-                rhs[k * ncols + row] -= factor * rhs[k * ncols + col];
-            }
-        }
-    }
-    true
+    crate::gram::gauss_jordan_solve(gram, rhs, ncols, nrhs)
 }
 
-/// Residuals of `y` on the design columns, given coefficients `beta`.
 fn residual_from_cols(y: &[f64], cols: &[&[f64]], beta: &[f64], out: &mut [f64]) {
     let n = y.len();
     let y_mean = y.iter().sum::<f64>() / n as f64;
@@ -375,70 +330,18 @@ fn pearson_after_residualize(
     }
 }
 
-/// Fused two-pass Pearson favoring contiguous auto-vectorization.
+/// Same reduction as [`pearson`].
+///
+/// A chunked accumulator was kept here so the portable path could vectorise.
+/// The partial sums are a different addition order from [`pearson`], so the two
+/// paths disagreed in the last bits and neither was benchmarked as a replacement
+/// for the other. One reduction is canonical.
 fn pearson_fused(x: &[f64], y: &[f64]) -> Option<f64> {
-    pearson_fused_floored(x, y, None)
+    pearson(x, y)
 }
 
 fn pearson_fused_floored(x: &[f64], y: &[f64], floors: Option<(f64, f64)>) -> Option<f64> {
-    const CHUNK: usize = 8;
-    debug_assert_eq!(x.len(), y.len());
-    let n = x.len();
-    if n < 2 {
-        return None;
-    }
-    let nf = n as f64;
-    let (mut mx, mut my) = (0.0, 0.0);
-    let mut i = 0;
-    while i + CHUNK <= n {
-        let mut sx = 0.0;
-        let mut sy = 0.0;
-        for k in 0..CHUNK {
-            sx += x[i + k];
-            sy += y[i + k];
-        }
-        mx += sx;
-        my += sy;
-        i += CHUNK;
-    }
-    while i < n {
-        mx += x[i];
-        my += y[i];
-        i += 1;
-    }
-    mx /= nf;
-    my /= nf;
-    let (mut cxx, mut cyy, mut cxy) = (0.0, 0.0, 0.0);
-    i = 0;
-    while i + CHUNK <= n {
-        let mut sxx = 0.0;
-        let mut syy = 0.0;
-        let mut sxy = 0.0;
-        for k in 0..CHUNK {
-            let dx = x[i + k] - mx;
-            let dy = y[i + k] - my;
-            sxx += dx * dx;
-            syy += dy * dy;
-            sxy += dx * dy;
-        }
-        cxx += sxx;
-        cyy += syy;
-        cxy += sxy;
-        i += CHUNK;
-    }
-    while i < n {
-        let dx = x[i] - mx;
-        let dy = y[i] - my;
-        cxx += dx * dx;
-        cyy += dy * dy;
-        cxy += dx * dy;
-        i += 1;
-    }
-    let (floor_x, floor_y) = floors.unwrap_or((raw_floor(mx, nf), raw_floor(my, nf)));
-    if constant_column(cxx, floor_x) || constant_column(cyy, floor_y) {
-        return None;
-    }
-    Some(cxy / (cxx * cyy).sqrt())
+    pearson_floored(x, y, floors)
 }
 
 /// Cap on the retained scaled conditioning columns of one batch (`f64` count, 128 MiB).
@@ -618,14 +521,16 @@ pub(crate) fn partial_correlation_portable(
     partial_correlation_impl(x, y, z_cols, workspace, pearson_fused, pearson_fused_floored)
 }
 
-/// Run a batch of [`ParCorrQuery`] items against shared columns (deterministic order).
+/// Which reduction a batch selects.
 ///
-/// Kernel path for batch partial correlation.
+/// [`Self::Native`] and [`Self::Portable`] both call the scalar Pearson
+/// reduction. The names stay so a kernel policy can still request a mode; they
+/// no longer select different arithmetic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ParCorrMode {
-    /// Scalar reference implementation.
+    /// Canonical reduction.
     Native,
-    /// Portable-optimized path.
+    /// Same reduction as [`Self::Native`].
     Portable,
 }
 
@@ -643,11 +548,15 @@ impl From<bool> for ParCorrMode {
     }
 }
 
-/// `z_flat` holds concatenated conditioning indexes for all queries.
+/// Run a batch of [`ParCorrQuery`] items against shared columns, in order.
 ///
-/// # Panics
+/// `z_flat` holds the concatenated conditioning indexes. Repeated conditioning
+/// columns in one batch are scaled once. [`ParCorrMode::Native`] and
+/// [`ParCorrMode::Portable`] perform the same arithmetic.
 ///
-/// Panics if `out.len() != queries.len()`.
+/// # Errors
+///
+/// [`crate::view::ViewError::InvalidShape`] when `out.len() != queries.len()`.
 pub fn partial_correlation_batch(
     columns: &[&[f64]],
     queries: &[ParCorrQuery],
@@ -655,8 +564,12 @@ pub fn partial_correlation_batch(
     out: &mut [Option<f64>],
     workspace: &mut ParCorrWorkspace,
     mode: ParCorrMode,
-) {
-    assert_eq!(out.len(), queries.len());
+) -> Result<(), crate::view::ViewError> {
+    if out.len() != queries.len() {
+        return Err(crate::view::ViewError::InvalidShape {
+            message: "partial correlation out.len() must equal queries.len()",
+        });
+    }
     // Queries of one batch usually repeat conditioning columns; a lone query gains
     // nothing from the bookkeeping.
     let mut shared = (queries.len() > 1)
@@ -685,6 +598,7 @@ pub fn partial_correlation_batch(
         };
         out[qi] = r;
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -769,7 +683,7 @@ mod tests {
             (ParCorrMode::Native, pearson_floored as FlooredPearson),
         ] {
             let mut out = vec![None; queries.len()];
-            partial_correlation_batch(&refs, &queries, &z_flat, &mut out, &mut ws, mode);
+            partial_correlation_batch(&refs, &queries, &z_flat, &mut out, &mut ws, mode).unwrap();
             let mut some = 0;
             for (q, got) in queries.iter().zip(&out) {
                 let z: Vec<&[f64]> =
@@ -875,7 +789,8 @@ mod tests {
             &mut base,
             &mut ws,
             ParCorrMode::Native,
-        );
+        )
+        .unwrap();
         partial_correlation_batch(
             &[&x, &y, &z_shifted],
             &queries,
@@ -883,7 +798,8 @@ mod tests {
             &mut shifted,
             &mut ws,
             ParCorrMode::Portable,
-        );
+        )
+        .unwrap();
         assert!((base[0].unwrap() - shifted[0].unwrap()).abs() <= 1e-10);
     }
 
@@ -917,7 +833,7 @@ mod tests {
         let mut ws_p = ParCorrWorkspace::default();
         let s = partial_correlation_scalar(&x, &y, &[&z], &mut ws_s).unwrap();
         let p = partial_correlation_portable(&x, &y, &[&z], &mut ws_p).unwrap();
-        assert!(ToleranceClass::StableFloat.close(s, p));
+        assert_eq!(s.to_bits(), p.to_bits());
     }
 
     #[test]
@@ -941,7 +857,8 @@ mod tests {
             &mut out,
             &mut ws,
             ParCorrMode::Native,
-        );
+        )
+        .unwrap();
         let cap_n = ws.capacity_n();
         let cap_p = ws.capacity_p();
         for _ in 0..20 {
@@ -952,7 +869,8 @@ mod tests {
                 &mut out,
                 &mut ws,
                 ParCorrMode::Portable,
-            );
+            )
+            .unwrap();
             assert_eq!(ws.capacity_n(), cap_n);
             assert_eq!(ws.capacity_p(), cap_p);
         }

@@ -12,7 +12,7 @@ use super::block_shuffle::{query_stream_salt, residual_null_pvalue};
 use super::residualize::ZDesign;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, PreparedCiTest, SignificanceMethod, permutation_min_p,
+    ConfidenceMethod, PreparedCiTest, SignificanceMethod,
 };
 use crate::error::StatsError;
 
@@ -86,7 +86,8 @@ impl PartialCorrelation {
             &mut workspace.stats[..1],
             &mut workspace.parcorr,
             mode,
-        );
+        )
+        .map_err(|_| StatsError::Shape { message: "partial correlation output length" })?;
         let Some(r) = workspace.stats[0] else {
             // A constant or collinear conditioning set has no partial correlation.
             // That is not evidence of independence, so the p-value stays 1.
@@ -188,7 +189,8 @@ impl ConditionalIndependenceTest for PartialCorrelation {
             &mut workspace.stats[..nq],
             &mut workspace.parcorr,
             mode,
-        );
+        )
+        .map_err(|_| StatsError::Shape { message: "partial correlation output length" })?;
 
         let mut results = Vec::with_capacity(nq);
         for (i, q) in request.queries.iter().enumerate() {
@@ -213,18 +215,8 @@ impl ConditionalIndependenceTest for PartialCorrelation {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
-    }
-}
-
-/// Smallest attainable p-value of the block-permutation null (`0` under the analytic path).
-pub(crate) fn block_shuffle_min_p(significance: SignificanceMethod) -> f64 {
-    match significance {
-        SignificanceMethod::Analytic => 0.0,
-        SignificanceMethod::BlockShuffle { replicates, .. } => {
-            permutation_min_p(replicates as usize)
-        }
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 

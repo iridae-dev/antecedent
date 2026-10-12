@@ -45,7 +45,8 @@ fn bench_parcorr_shared(c: &mut Criterion) {
                     black_box(&mut out),
                     black_box(&mut ws),
                     mode,
-                );
+                )
+                .unwrap();
             });
         });
     }
@@ -82,7 +83,8 @@ fn bench_parcorr(c: &mut Criterion) {
                 black_box(&mut out),
                 black_box(&mut ws),
                 ParCorrMode::Portable,
-            );
+            )
+            .unwrap();
         });
     });
 }

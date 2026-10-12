@@ -26,7 +26,7 @@ pub use parcorr_variants::{
     BlockTest, MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
 pub use types::{
-    CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
+    AttainableP, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnDependenceWorkspace,
     PreparedCiTest, SignificanceMethod, ensure_alpha_resolvable,
 };

@@ -295,7 +295,8 @@ impl LaggedSamplePlan {
                 F64VectorView::contiguous(src.values.as_slice()),
                 &workspace.row_indexes[..n],
                 dst,
-            );
+            )
+            .map_err(|err| DataError::InvalidArgument { message: err.to_string() })?;
         }
 
         Ok(LaggedPreparedSample {

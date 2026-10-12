@@ -17,7 +17,7 @@ use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::unbiased_index;
 
 use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
-use super::parcorr::{PartialCorrelation, block_shuffle_min_p};
+use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     PreparedCiTest, reject_unsupported_block_size, requested_block_size,
@@ -124,8 +124,8 @@ impl ConditionalIndependenceTest for GSquared {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: super::types::SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -441,8 +441,8 @@ impl ConditionalIndependenceTest for RegressionCi {
         self.inner.test_batch(prepared, request, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: super::types::SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 

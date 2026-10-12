@@ -76,16 +76,26 @@ pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> O
     if n == 0 { None } else { Some(acc / n as f64) }
 }
 
-/// Gather values at `indices` into `out` (must have `out.len() == indices.len()`).
+/// Gather values at `indices` into `out` (`out.len()` must equal `indices.len()`).
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `out.len() != indices.len()` or any index is out of bounds.
-pub fn gather(src: F64VectorView<'_>, indices: &[usize], out: &mut [f64]) {
-    assert_eq!(out.len(), indices.len());
-    for (dst, &idx) in out.iter_mut().zip(indices.iter()) {
-        *dst = src.get(idx).expect("gather index in bounds");
+/// [`crate::view::ViewError::InvalidShape`] when `out.len() != indices.len()`, or
+/// [`crate::view::ViewError::OutOfBounds`] when an index does not address `src`.
+pub fn gather(
+    src: F64VectorView<'_>,
+    indices: &[usize],
+    out: &mut [f64],
+) -> Result<(), crate::view::ViewError> {
+    if out.len() != indices.len() {
+        return Err(crate::view::ViewError::InvalidShape {
+            message: "gather out.len() must equal indices.len()",
+        });
     }
+    for (dst, &idx) in out.iter_mut().zip(indices.iter()) {
+        *dst = src.get(idx)?;
+    }
+    Ok(())
 }
 
 /// Population covariance of paired observations. Returns `None` when no valid pairs.

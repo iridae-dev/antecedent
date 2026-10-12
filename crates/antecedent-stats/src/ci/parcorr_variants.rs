@@ -6,7 +6,7 @@ use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::sanitize_weight;
 
 use super::block_shuffle::{block_row_permutation, query_stream_salt, residual_null_pvalue};
-use super::parcorr::{PartialCorrelation, block_shuffle_min_p};
+use super::parcorr::PartialCorrelation;
 use super::residualize::{ZDesign, residual_is_uninformative, weighted_pearson};
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -99,8 +99,8 @@ impl ConditionalIndependenceTest for RobustPartialCorrelation {
         self.inner.test_batch(prepared, &req, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -224,8 +224,8 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -449,8 +449,8 @@ impl ConditionalIndependenceTest for MultivariatePartialCorrelation {
         self.inner.test_batch(prepared, request, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 

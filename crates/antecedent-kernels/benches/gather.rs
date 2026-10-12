@@ -21,7 +21,8 @@ fn bench_gather(c: &mut Criterion) {
 
     c.bench_function("gather_stride10_n100k", |b| {
         b.iter(|| {
-            gather(black_box(&policy), black_box(src), black_box(&indices), black_box(&mut out));
+            gather(black_box(&policy), black_box(src), black_box(&indices), black_box(&mut out))
+                .unwrap();
         });
     });
 }

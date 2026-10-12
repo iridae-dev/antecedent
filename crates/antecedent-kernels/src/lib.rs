@@ -11,6 +11,7 @@
 
 pub mod cholesky;
 pub mod dispatch;
+pub mod gram;
 pub mod numeric;
 pub mod parcorr;
 pub mod portable;
@@ -19,6 +20,7 @@ pub mod rng;
 pub mod scalar;
 pub mod special;
 pub mod view;
+pub mod welford;
 
 pub use cholesky::{
     CholeskyError, back_solve_into, chol_inverse, chol_solve_into, cholesky_condition_lower_bound,
@@ -26,6 +28,9 @@ pub use cholesky::{
 };
 pub use dispatch::{
     KernelImpl, accumulate_contingency, gather, select_impl, standardize_inplace, weighted_mean,
+};
+pub use gram::{
+    EQUILIBRATED_PIVOT_FLOOR, equilibrate_into, gauss_jordan_solve, invert_square, symmetric_scales,
 };
 pub use numeric::{
     LogWeightError, dot, mean, median_sorted, midranks_into, normalize_log_weights,
@@ -44,6 +49,7 @@ pub use special::{
     norm_inv, norm_pdf, norm_sf,
 };
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
+pub use welford::{Welford, update_scatter};
 
 #[cfg(test)]
 mod tests {
@@ -163,15 +169,15 @@ mod tests {
         let indices: Vec<usize> = (0..32).collect();
         let mut out_s = vec![0.0; 32];
         let mut out_p = vec![0.0; 32];
-        scalar::gather(contiguous, &indices, &mut out_s);
-        portable::gather(contiguous, &indices, &mut out_p);
+        scalar::gather(contiguous, &indices, &mut out_s).unwrap();
+        portable::gather(contiguous, &indices, &mut out_p).unwrap();
         assert_eq!(out_s, out_p);
 
         let mut out_strided = vec![0.0; 16];
         let idx: Vec<usize> = (0..16).collect();
-        scalar::gather(strided, &idx, &mut out_strided);
+        scalar::gather(strided, &idx, &mut out_strided).unwrap();
         let mut out_strided_p = vec![0.0; 16];
-        portable::gather(strided, &idx, &mut out_strided_p);
+        portable::gather(strided, &idx, &mut out_strided_p).unwrap();
         assert_eq!(out_strided, out_strided_p);
     }
 
@@ -201,9 +207,9 @@ mod tests {
         let policy = KernelPolicy::scalar_only();
         let mut out = vec![0.0; 8];
         let idx = [0usize, 1, 2, 3, 4, 5, 6, 7];
-        gather(&policy, x, &idx, &mut out);
+        gather(&policy, x, &idx, &mut out).unwrap();
         let mut expected = vec![0.0; 8];
-        scalar::gather(x, &idx, &mut expected);
+        scalar::gather(x, &idx, &mut expected).unwrap();
         assert_eq!(out, expected);
 
         let mut std_d = data.clone();
@@ -303,7 +309,7 @@ mod tests {
         let ptr = out.as_ptr();
         let cap = out.capacity();
         for _ in 0..200 {
-            gather(&policy, src, &indices, &mut out);
+            gather(&policy, src, &indices, &mut out).unwrap();
             assert_eq!(out.as_ptr(), ptr);
             assert_eq!(out.capacity(), cap);
         }

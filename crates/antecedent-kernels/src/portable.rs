@@ -59,15 +59,28 @@ pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> O
 }
 
 /// Gather with contiguous source fast path.
-pub fn gather(src: F64VectorView<'_>, indices: &[usize], out: &mut [f64]) {
-    assert_eq!(out.len(), indices.len());
+/// # Errors
+///
+/// Same contract as [`crate::scalar::gather`].
+pub fn gather(
+    src: F64VectorView<'_>,
+    indices: &[usize],
+    out: &mut [f64],
+) -> Result<(), crate::view::ViewError> {
+    if out.len() != indices.len() {
+        return Err(crate::view::ViewError::InvalidShape {
+            message: "gather out.len() must equal indices.len()",
+        });
+    }
     if let Some(slice) = src.as_slice() {
         for (dst, &idx) in out.iter_mut().zip(indices.iter()) {
-            *dst = slice[idx];
+            *dst = *slice
+                .get(idx)
+                .ok_or(crate::view::ViewError::OutOfBounds { index: idx, len: slice.len() })?;
         }
-        return;
+        return Ok(());
     }
-    crate::scalar::gather(src, indices, out);
+    crate::scalar::gather(src, indices, out)
 }
 
 /// Contiguous fast path for population covariance.

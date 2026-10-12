@@ -31,7 +31,15 @@ pub fn select_impl(policy: &KernelPolicy) -> KernelImpl {
 }
 
 /// Public semantic entry: gather.
-pub fn gather(policy: &KernelPolicy, src: F64VectorView<'_>, indices: &[usize], out: &mut [f64]) {
+/// # Errors
+///
+/// Same contract as [`crate::scalar::gather`].
+pub fn gather(
+    policy: &KernelPolicy,
+    src: F64VectorView<'_>,
+    indices: &[usize],
+    out: &mut [f64],
+) -> Result<(), crate::view::ViewError> {
     match select_impl(policy) {
         KernelImpl::Scalar => crate::scalar::gather(src, indices, out),
         KernelImpl::PortableOptimized => crate::portable::gather(src, indices, out),

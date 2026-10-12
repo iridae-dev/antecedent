@@ -91,6 +91,41 @@ pub(crate) fn permutation_min_p(replicates: usize) -> f64 {
     1.0 / (replicates as f64 + 1.0)
 }
 
+/// Which null sets [`ConditionalIndependenceTest::min_attainable_p`].
+///
+/// The trait default is [`AttainableP::Zero`], so a test that does not override
+/// [`ConditionalIndependenceTest::attainable_p`] keeps reporting `0`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum AttainableP {
+    /// Always `0`, including when the caller asked for a block shuffle.
+    Zero,
+    /// `0` on the analytic path; `1 / (replicates + 1)` under block shuffle.
+    AnalyticOrBlockShuffle,
+    /// Permutation floor, using the default replicate count when the method is analytic.
+    NonparametricPermutation,
+}
+
+/// Smallest attainable p-value of the block-permutation null (`0` under the analytic path).
+pub(crate) fn block_shuffle_min_p(significance: SignificanceMethod) -> f64 {
+    match significance {
+        SignificanceMethod::Analytic => 0.0,
+        SignificanceMethod::BlockShuffle { replicates, .. } => {
+            permutation_min_p(replicates as usize)
+        }
+    }
+}
+
+/// Floor reported by [`AttainableP`].
+pub(crate) fn attainable_p_value(kind: AttainableP, significance: SignificanceMethod) -> f64 {
+    match kind {
+        AttainableP::Zero => 0.0,
+        AttainableP::AnalyticOrBlockShuffle => block_shuffle_min_p(significance),
+        AttainableP::NonparametricPermutation => {
+            permutation_min_p(nonparametric_permutation_count(significance))
+        }
+    }
+}
+
 /// Refuse an `alpha` that a test with smallest attainable p-value `min_p` cannot resolve.
 ///
 /// A p-value can only fall below `alpha` if `min_p < alpha`; otherwise every edge is kept
@@ -346,14 +381,26 @@ pub trait ConditionalIndependenceTest {
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError>;
 
+    /// Which null this test's smallest p-value comes from.
+    ///
+    /// The default is [`AttainableP::Zero`]. Analytic partial-correlation tests override
+    /// with [`AttainableP::AnalyticOrBlockShuffle`]; nonparametric permutation tests override
+    /// with [`AttainableP::NonparametricPermutation`]. A test whose floor depends on instance
+    /// state overrides [`Self::min_attainable_p`] instead.
+    fn attainable_p(&self) -> AttainableP {
+        AttainableP::Zero
+    }
+
     /// Smallest p-value this test can report under `significance`.
     ///
     /// `0.0` for tests with a continuous analytic reference. Permutation tests return
     /// `1 / (replicates + 1)`; a caller with a significance level `alpha <= min_attainable_p`
     /// cannot get a rejection from them (see [`ensure_alpha_resolvable`]).
+    ///
+    /// The default reads [`Self::attainable_p`]. Override this method only when the floor
+    /// depends on values stored on `self`.
     fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        let _ = significance;
-        0.0
+        attainable_p_value(self.attainable_p(), significance)
     }
 
     /// Length of the whole series this test's per-row weights were supplied for, when they are

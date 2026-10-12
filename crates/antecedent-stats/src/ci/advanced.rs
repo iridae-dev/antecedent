@@ -15,8 +15,8 @@ use super::gsquared::{
 use super::residualize::residual_is_uninformative;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnDependenceWorkspace, PreparedCiTest, SignificanceMethod, nonparametric_permutation_count,
-    permutation_min_p, reject_unsupported_block_size, requested_block_size,
+    KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
+    reject_unsupported_block_size, requested_block_size,
 };
 use crate::dcor::distance_correlation;
 use crate::error::StatsError;
@@ -194,15 +194,9 @@ impl ConditionalIndependenceTest for KnnDependence {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
-}
-
-/// Smallest attainable p-value of a nonparametric permutation test: the default 49
-/// replicates under `Analytic` (0.02), the caller's `replicates` under `BlockShuffle`.
-fn permutation_floor(significance: SignificanceMethod) -> f64 {
-    permutation_min_p(nonparametric_permutation_count(significance))
 }
 
 /// Content identity of the columns feeding a kNN index.
@@ -359,9 +353,7 @@ fn joint_z_keys(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<u64> {
 /// Sort rows by univariate Z, then cut into contiguous windows of size `neighbourhood`.
 fn local_z_neighbourhood_strata(col: &[f64], n: usize, neighbourhood: usize) -> Vec<Vec<usize>> {
     let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| {
-        col[a].partial_cmp(&col[b]).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.cmp(&b))
-    });
+    order.sort_by(|&a, &b| col[a].total_cmp(&col[b]).then_with(|| a.cmp(&b)));
     let m = neighbourhood.clamp(2, n);
     let mut strata = Vec::new();
     let mut start = 0usize;
@@ -438,8 +430,8 @@ impl ConditionalIndependenceTest for MixedKnnDependence {
         self.inner.test_batch(prepared, &ranked_req, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
 }
 
@@ -544,8 +536,8 @@ impl ConditionalIndependenceTest for SymbolicCmi {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
 }
 
@@ -721,8 +713,8 @@ impl ConditionalIndependenceTest for Gpdc {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
 }
 
