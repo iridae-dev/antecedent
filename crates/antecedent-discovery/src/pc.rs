@@ -35,7 +35,7 @@ use crate::result::{
     GraphEvidence, ScoredLink, discovery_assumptions,
 };
 use crate::static_skeleton::{
-    StaticSkeleton, StaticSkeletonInput, run_static_skeleton, skeleton_scored_links,
+    StaticSkeleton, StaticSkeletonInput, UndirectedAdj, run_static_skeleton, skeleton_scored_links,
     static_edge_evidence,
 };
 
@@ -203,7 +203,7 @@ impl Pc {
             }
         }
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
-        for &(lo, hi) in &adj {
+        for (lo, hi) in adj.edge_pairs() {
             let a = dense_of(VariableId::from_raw(lo))?;
             let b = dense_of(VariableId::from_raw(hi))?;
             cpdag.insert_undirected(a, b).map_err(DiscoveryError::from)?;
@@ -272,16 +272,19 @@ pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
 /// unsorted traversal makes the resulting skeleton nondeterministic across runs on
 /// bit-identical input. Sorting fixes a canonical order; it does not change the
 /// algorithm's existing (documented) order-dependence, only makes it reproducible.
-pub(crate) fn sorted_edge_pairs(adj: &HashSet<(u32, u32)>) -> Vec<(VariableId, VariableId)> {
-    let mut edges: Vec<(VariableId, VariableId)> =
-        adj.iter().map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi))).collect();
+pub(crate) fn sorted_edge_pairs(adj: &UndirectedAdj) -> Vec<(VariableId, VariableId)> {
+    let mut edges: Vec<(VariableId, VariableId)> = adj
+        .edge_pairs()
+        .into_iter()
+        .map(|(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi)))
+        .collect();
     edges.sort_unstable();
     edges
 }
 
 pub(crate) fn adjacent_vars(
     v: VariableId,
-    adj: &HashSet<(u32, u32)>,
+    adj: &UndirectedAdj,
     variables: &[VariableId],
 ) -> Vec<VariableId> {
     variables.iter().copied().filter(|&u| u != v && adj.contains(&edge_key(v, u))).collect()
@@ -401,6 +404,7 @@ mod tests {
 
     use super::*;
     use crate::result::LaggedLink;
+    use crate::test_tables::tabular_n;
 
     #[test]
     fn map_sepset_refuses_an_unknown_variable() {
@@ -410,36 +414,6 @@ mod tests {
         let err =
             map_sepset(&[(VariableId::from_raw(1), Lag::CONTEMPORANEOUS)], &dense).unwrap_err();
         assert!(err.to_string().contains("unknown variable"), "{err}");
-    }
-
-    fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vec![0.0; nrows]),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
     }
 
     #[test]
@@ -748,11 +722,12 @@ mod tests {
         }
         debug_assert!(expected.is_sorted());
 
-        let mut ascending: HashSet<(u32, u32)> = HashSet::new();
+        let vars: Vec<VariableId> = (0..n).map(VariableId::from_raw).collect();
+        let mut ascending = UndirectedAdj::from_variables(&vars);
         for &(a, b) in &expected {
             ascending.insert(edge_key(a, b));
         }
-        let mut descending: HashSet<(u32, u32)> = HashSet::new();
+        let mut descending = UndirectedAdj::from_variables(&vars);
         for &(a, b) in expected.iter().rev() {
             descending.insert(edge_key(a, b));
         }

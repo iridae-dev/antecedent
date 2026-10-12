@@ -585,15 +585,18 @@ pub(crate) fn orient_majority_colliders(
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
-                // Integer counts: `n_with_c / n_sep == 1/2` is exact for every conditioning-set
-                // size that fits in `usize`, where an f64 comparison to 0.5 is not.
+                // Integer counts: a tie (`2 * n_with_c == n_sep`) and a collider
+                // (`2 * n_with_c < n_sep`) are exact. The quotient used in the premise
+                // string is not, but for every `u32` pair it lands on the same side of
+                // 1/2 as the integer test (the gap is at least `1/(2 n_sep)`, far above
+                // an ulp at 0.5).
                 let frac = f64::from(n_with_c) / f64::from(n_sep);
                 if n_with_c.saturating_mul(2) == n_sep {
                     state.mark_ambiguous_triple(a, c, b);
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
-                if frac < 0.5 {
+                if majority_is_collider(n_with_c, n_sep) {
                     // Collider at c.
                     if a_und {
                         let premise = format!(
@@ -654,6 +657,14 @@ fn orient_majority_leg(
         }
     }
     Ok(())
+}
+
+/// Collider at `c` when strictly fewer than half the separating sets contain it.
+///
+/// See the call in [`orient_majority_colliders`]: this matches `frac < 0.5` for every
+/// `u32` count, and it does not change which edge the vote orients.
+fn majority_is_collider(n_with_c: u32, n_sep: u32) -> bool {
+    u64::from(n_with_c).saturating_mul(2) < u64::from(n_sep)
 }
 
 pub(crate) fn is_contemp_node(graph: &antecedent_graph::TemporalCpdag, id: DenseNodeId) -> bool {
@@ -1005,6 +1016,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!((n_sep, n_with_c), (1, 0), "collider case: c must never appear in a sepset");
+        assert!(majority_is_collider(n_with_c, n_sep));
         assert!(f64::from(n_with_c) / f64::from(n_sep) < 0.5);
 
         // Chain/fork ground truth: only {c} separates a, b ⇒ vote must conclude
@@ -1025,6 +1037,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!((n_sep, n_with_c), (1, 1), "chain/fork case: every sepset must contain c");
+        assert!(!majority_is_collider(n_with_c, n_sep));
         assert!(f64::from(n_with_c) / f64::from(n_sep) > 0.5);
     }
 

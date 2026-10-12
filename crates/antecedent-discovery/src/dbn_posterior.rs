@@ -19,7 +19,7 @@ use antecedent_graph::{
     DenseNodeId, GraphError, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag,
 };
 use antecedent_prob::kish_ess;
-use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
@@ -70,12 +70,11 @@ struct DbnTarget<'a> {
 
 impl DbnTarget<'_> {
     fn score_cache(&self) -> LocalScoreCache {
-        LocalScoreCache::new(GraphScoreCacheKey {
-            data_version: 1,
-            family: self.score_family,
-            var_fingerprint: self.data.n_vars as u64,
-            penalty_fingerprint: self.data.n_rows as u64,
-        })
+        LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            self.score_family,
+            self.data.n_vars,
+            self.data.n_rows,
+        ))
     }
 }
 
@@ -169,11 +168,10 @@ impl DbnPosterior {
                 "DBN posterior requires at least one variable",
             ));
         }
-        if n_directed_edges(p) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "DBN contemporaneous adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            p,
+            "DBN contemporaneous adjacency exceeds 63 directed edges",
+        )?;
         let max_lag = self.max_lag;
         let n_lag_bits = (max_lag as usize).saturating_mul(p.saturating_mul(p));
         if n_lag_bits > 48 {
@@ -269,7 +267,9 @@ impl DbnPosterior {
         target: &DbnTarget<'_>,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        use crate::graph_mcmc::{GraphMcmcSchedule, diagnostics_from_traces};
+        use crate::graph_mcmc::{
+            GraphMcmcSchedule, diagnostics_from_traces, run_parallel_mask_chains,
+        };
         use std::collections::HashMap;
 
         let DbnTarget { p, max_lag, .. } = *target;
@@ -290,91 +290,84 @@ impl DbnPosterior {
         // invalid empty template as a posterior sample until the right bit was proposed.
         let (init_cmask, init_lmask, init_score) = initial_dbn_state(target)?;
 
-        let chain_out = ctx.map_indexed(n_chains, |chain, inner| {
-            if inner.cancellation.is_cancelled() {
-                return Err(DiscoveryError::Cancelled);
-            }
-            let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
-            let mut local_traces = vec![0.0f64; n_draws * n_params];
-            let mut local_samples = Vec::new();
-            let mut rejected = 0u64;
-            let mut cache = target.score_cache();
-            let mut cmask = init_cmask;
-            let mut lmask = init_lmask;
-            let mut cur = init_score;
-            // Overdisperse the starts (chain 0 stays at the required-edge template): identical
-            // starts make R-hat blind to a chain that has not left its initial mode.
-            if chain > 0 {
-                for _ in 0..(4 * n_params).min(400) {
-                    let (pc, pl, _) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
-                    if let Some(ps) =
-                        score_dbn_template(pc, pl, target, &mut cache).filter(|s| s.is_finite())
-                    {
-                        cmask = pc;
-                        lmask = pl;
-                        cur = ps;
-                    }
-                }
-            }
-            let total = n_warmup + n_draws;
-            let mut kept = 0usize;
-            for step in 0..total {
-                if step % 64 == 0 && inner.cancellation.is_cancelled() {
+        let (traces, samples, rejected) =
+            run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
+                if inner.cancellation.is_cancelled() {
                     return Err(DiscoveryError::Cancelled);
                 }
-                let (pc, pl, rej) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
-                rejected += rej;
-                let prop = score_dbn_template(pc, pl, target, &mut cache);
-                let accept = match prop {
-                    Some(ps) if cur.is_finite() => {
-                        let lr = ps - cur;
-                        lr >= 0.0 || rng.next_f64() < lr.exp()
-                    }
-                    Some(ps) => {
-                        cmask = pc;
-                        lmask = pl;
-                        cur = ps;
-                        false
-                    }
-                    None => false,
-                };
-                if accept {
-                    if let Some(ps) = prop {
-                        cmask = pc;
-                        lmask = pl;
-                        cur = ps;
-                    }
-                }
-                if step >= n_warmup && kept < n_draws {
-                    let mut idx = 0;
-                    for i in 0..p {
-                        for j in 0..p {
-                            if i == j {
-                                continue;
-                            }
-                            local_traces[kept * n_params + idx] =
-                                if has_edge(cmask, p, i, j) { 1.0 } else { 0.0 };
-                            idx += 1;
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
+                let mut local_traces = vec![0.0f64; n_draws * n_params];
+                let mut local_samples = Vec::new();
+                let mut rejected = 0u64;
+                let mut cache = target.score_cache();
+                let mut cmask = init_cmask;
+                let mut lmask = init_lmask;
+                let mut cur = init_score;
+                // Overdisperse the starts (chain 0 stays at the required-edge template): identical
+                // starts make R-hat blind to a chain that has not left its initial mode.
+                if chain > 0 {
+                    for _ in 0..(4 * n_params).min(400) {
+                        let (pc, pl, _) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
+                        if let Some(ps) =
+                            score_dbn_template(pc, pl, target, &mut cache).filter(|s| s.is_finite())
+                        {
+                            cmask = pc;
+                            lmask = pl;
+                            cur = ps;
                         }
                     }
-                    for b in 0..n_lag_bits {
-                        local_traces[kept * n_params + idx + b] =
-                            if (lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
-                    }
-                    local_samples.push((cmask, lmask));
-                    kept += 1;
                 }
-            }
-            Ok((local_traces, local_samples, rejected))
-        })?;
-        let mut traces = Vec::with_capacity(n_chains * n_draws * n_params);
-        let mut samples = Vec::with_capacity(n_chains);
-        let mut rejected = 0u64;
-        for (local_traces, local_samples, local_rej) in chain_out {
-            traces.extend(local_traces);
-            samples.push(local_samples);
-            rejected += local_rej;
-        }
+                let total = n_warmup + n_draws;
+                let mut kept = 0usize;
+                for step in 0..total {
+                    if step % 64 == 0 && inner.cancellation.is_cancelled() {
+                        return Err(DiscoveryError::Cancelled);
+                    }
+                    let (pc, pl, rej) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
+                    rejected += rej;
+                    let prop = score_dbn_template(pc, pl, target, &mut cache);
+                    let accept = match prop {
+                        Some(ps) if cur.is_finite() => {
+                            let lr = ps - cur;
+                            lr >= 0.0 || rng.next_f64() < lr.exp()
+                        }
+                        Some(ps) => {
+                            cmask = pc;
+                            lmask = pl;
+                            cur = ps;
+                            false
+                        }
+                        None => false,
+                    };
+                    if accept {
+                        if let Some(ps) = prop {
+                            cmask = pc;
+                            lmask = pl;
+                            cur = ps;
+                        }
+                    }
+                    if step >= n_warmup && kept < n_draws {
+                        let mut idx = 0;
+                        for i in 0..p {
+                            for j in 0..p {
+                                if i == j {
+                                    continue;
+                                }
+                                local_traces[kept * n_params + idx] =
+                                    if has_edge(cmask, p, i, j) { 1.0 } else { 0.0 };
+                                idx += 1;
+                            }
+                        }
+                        for b in 0..n_lag_bits {
+                            local_traces[kept * n_params + idx + b] =
+                                if (lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
+                        }
+                        local_samples.push((cmask, lmask));
+                        kept += 1;
+                    }
+                }
+                Ok((local_traces, local_samples, rejected))
+            })?;
 
         let (diagnostics, param_mcse) = diagnostics_from_traces(
             &schedule,

@@ -6,14 +6,13 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
 use crate::graph_posterior::{
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, n_directed_edges,
-    set_edge,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, set_edge,
 };
 use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
 
@@ -113,11 +112,10 @@ impl StructureMcmc {
                 "structure MCMC requires at least one variable",
             ));
         }
-        if n_directed_edges(n) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "structure MCMC adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            n,
+            "structure MCMC adjacency exceeds 63 directed edges",
+        )?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
                 "structure MCMC currently supports GaussianBic only",
@@ -147,12 +145,12 @@ impl StructureMcmc {
                 let mut local_rej = 0u64;
                 {
                     let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
-                    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                        data_version: 1,
-                        family: score_family,
-                        var_fingerprint: n as u64,
-                        penalty_fingerprint: score_data.n_rows as u64,
-                    });
+                    let mut cache =
+                        LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                            score_family,
+                            n,
+                            score_data.n_rows,
+                        ));
                     let mut mask = initial_mask;
                     let mut cur = initial_score;
                     // Overdisperse the starts: chain 0 begins at the required-edge graph, the
@@ -207,7 +205,7 @@ impl StructureMcmc {
                         }
                     }
                 }
-                (local_traces, local_samples, local_rej)
+                Ok((local_traces, local_samples, local_rej))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);

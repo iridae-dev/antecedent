@@ -12,7 +12,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, NodeRef};
-use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::constraints::DiscoveryConstraints;
@@ -160,12 +160,11 @@ impl Ges {
             flat.extend_from_slice(c.as_ref());
         }
         let score_data = GraphScoreData::new(n, n_vars, Arc::from(flat))?;
-        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-            data_version: 1,
-            family: GraphScoreFamily::GaussianBic,
-            var_fingerprint: n_vars as u64,
-            penalty_fingerprint: n as u64,
-        });
+        let mut cache = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            n_vars,
+            n,
+        ));
 
         let screen: Option<HashSet<(u32, u32)>> = if self.screen_pc {
             Some(pc_skeleton_pairs(self, data, variables, workspace, ctx)?)
@@ -1133,12 +1132,11 @@ mod tests {
             flat.extend(data.float64_values(*v).unwrap());
         }
         let score = GraphScoreData::new(40, vars.len(), Arc::from(flat)).unwrap();
-        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-            data_version: 1,
-            family: GraphScoreFamily::GaussianBic,
-            var_fingerprint: vars.len() as u64,
-            penalty_fingerprint: 40,
-        });
+        let mut cache = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            vars.len(),
+            40,
+        ));
         let constraints = DiscoveryConstraints::default();
         let search = GesSearch {
             data: &score,

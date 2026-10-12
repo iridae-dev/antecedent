@@ -75,6 +75,8 @@ pub mod rpcmci;
 pub mod rule_scheduling;
 mod static_skeleton;
 pub mod structure_mcmc;
+#[cfg(test)]
+mod test_tables;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
 

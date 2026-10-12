@@ -17,7 +17,7 @@
     )
 )]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -41,8 +41,8 @@ use crate::rule_scheduling::{
     FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
 };
 use crate::static_skeleton::{
-    StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton, skeleton_scored_links,
-    static_ci_test, static_edge_evidence,
+    StaticSkeleton, StaticSkeletonInput, UndirectedAdj, record_sepset, run_static_skeleton,
+    skeleton_scored_links, static_ci_test, static_edge_evidence,
 };
 
 /// Static FCI discovery result (`Pag` evidence + review).
@@ -353,7 +353,7 @@ pub(crate) fn load_sepsets_into_state(
 pub(crate) fn build_pag_circle_skeleton(
     variables: &[VariableId],
     var_index: &HashMap<VariableId, usize>,
-    adj: &HashSet<(u32, u32)>,
+    adj: &UndirectedAdj,
 ) -> Result<Pag, DiscoveryError> {
     let mut pag = Pag::with_variables(u32::try_from(variables.len()).unwrap_or(u32::MAX));
     if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
@@ -362,7 +362,7 @@ pub(crate) fn build_pag_circle_skeleton(
             pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
         }
     }
-    for &(lo, hi) in adj {
+    for (lo, hi) in adj.edge_pairs() {
         let a_idx = *var_index
             .get(&VariableId::from_raw(lo))
             .ok_or_else(|| DiscoveryError::data_msg("unknown variable in skeleton"))?;
@@ -380,47 +380,12 @@ pub(crate) fn build_pag_circle_skeleton(
 mod tests {
     use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_core::{ExecutionContext, VariableId};
     use antecedent_graph::Endpoint;
     use antecedent_stats::OracleCi;
 
     use super::*;
-
-    fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vec![0.0; nrows]),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
-    }
+    use crate::test_tables::tabular_n;
 
     #[test]
     fn oracle_chain_recovers_skeleton() {

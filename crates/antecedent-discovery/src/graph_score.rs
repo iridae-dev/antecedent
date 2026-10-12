@@ -14,6 +14,29 @@ use crate::graph_posterior::{
 };
 use crate::pc::collect_float_columns;
 
+/// Version stamped on every discovery [`GraphScoreCacheKey`].
+///
+/// These searches score the columns they were handed, not a data-catalog snapshot.
+/// One literal keeps the copied `1`s from drifting apart and splitting the cache.
+pub(crate) const GRAPH_SCORE_DATA_VERSION: u64 = 1;
+
+/// Cache key for a local-score table over `n_vars` columns and `n_rows` rows.
+///
+/// Fingerprints use the same `u64` conversion every caller used (`n as u64` where `n`
+/// fits, which every `usize` does).
+pub(crate) fn graph_score_cache_key(
+    family: GraphScoreFamily,
+    n_vars: usize,
+    n_rows: usize,
+) -> GraphScoreCacheKey {
+    GraphScoreCacheKey {
+        data_version: GRAPH_SCORE_DATA_VERSION,
+        family,
+        var_fingerprint: u64::try_from(n_vars).unwrap_or(u64::MAX),
+        penalty_fingerprint: u64::try_from(n_rows).unwrap_or(u64::MAX),
+    }
+}
+
 /// Build column-major [`GraphScoreData`] from tabular float columns.
 pub(crate) fn tabular_score_data(
     data: &TabularData,
@@ -82,12 +105,7 @@ impl DagScorer {
         prior: &GraphPrior,
         variables: &[VariableId],
     ) -> Self {
-        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-            data_version: 1,
-            family,
-            var_fingerprint: n as u64,
-            penalty_fingerprint: data.n_rows as u64,
-        });
+        let mut cache = LocalScoreCache::new(graph_score_cache_key(family, n, data.n_rows));
         let mut local = vec![None; n << n];
         for node in 0..n {
             for parents in 0..(1usize << n) {
@@ -141,12 +159,7 @@ pub(crate) fn initial_scored_mask(
             }
         }
     }
-    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-        data_version: 1,
-        family,
-        var_fingerprint: u64::try_from(n).unwrap_or(u64::MAX),
-        penalty_fingerprint: u64::try_from(data.n_rows).unwrap_or(u64::MAX),
-    });
+    let mut cache = LocalScoreCache::new(graph_score_cache_key(family, n, data.n_rows));
     let score = score_dag_mask(mask, n, data, &mut cache, prior, variables)
         .filter(|s| s.is_finite())
         .ok_or_else(|| {

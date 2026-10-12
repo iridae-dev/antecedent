@@ -307,7 +307,7 @@ impl Rfci {
 
 /// The mutable graph state the RFCI phases edit: skeleton, separating sets, PAG and marks.
 struct RfciGraph<'a> {
-    adj: &'a mut HashSet<(u32, u32)>,
+    adj: &'a mut crate::static_skeleton::UndirectedAdj,
     sepsets: &'a mut PcSepsets,
     pag: &'a mut Pag,
     state: &'a mut OrientationState,
@@ -551,47 +551,12 @@ fn sepset_vars(sepsets: &PcSepsets, a: VariableId, b: VariableId) -> Option<Vec<
 mod tests {
     use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_core::{ExecutionContext, VariableId};
     use antecedent_graph::Endpoint;
     use antecedent_stats::OracleCi;
 
     use super::*;
-
-    fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vec![0.0; nrows]),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
-    }
+    use crate::test_tables::tabular_n;
 
     #[test]
     fn oracle_chain_recovers_skeleton() {

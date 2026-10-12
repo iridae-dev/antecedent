@@ -22,8 +22,7 @@ use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, SamplingSummary,
-    accumulate_marginals, analytic_graph_diagnostics, edge_bit, n_directed_edges,
-    normalize_log_weights,
+    accumulate_marginals, analytic_graph_diagnostics, edge_bit, normalize_log_weights,
 };
 use crate::graph_score::{DagScorer, tabular_score_data};
 
@@ -82,11 +81,10 @@ impl ExactDagPosterior {
                  use order_mcmc, structure_mcmc, or ci_screened_posterior",
             ));
         }
-        if n_directed_edges(n) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "exact DAG posterior adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            n,
+            "exact DAG posterior adjacency exceeds 63 directed edges",
+        )?;
 
         let score_data = tabular_score_data(data, variables)?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
@@ -334,12 +332,11 @@ mod tests {
         );
         let scorer = DagScorer::new(n, &score_data, GraphScoreFamily::GaussianBic, &prior, &vars);
         let mut cache =
-            antecedent_state::LocalScoreCache::new(antecedent_state::GraphScoreCacheKey {
-                data_version: 1,
-                family: GraphScoreFamily::GaussianBic,
-                var_fingerprint: n as u64,
-                penalty_fingerprint: score_data.n_rows as u64,
-            });
+            antecedent_state::LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                GraphScoreFamily::GaussianBic,
+                n,
+                score_data.n_rows,
+            ));
         for mask in 0..(1u64 << (n * (n - 1))) {
             let direct =
                 crate::graph_score::score_dag_mask(mask, n, &score_data, &mut cache, &prior, &vars);

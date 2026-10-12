@@ -7,7 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -21,10 +21,139 @@ use crate::error::DiscoveryError;
 use crate::pc::{adjacent_vars, edge_key, sorted_edge_pairs};
 use crate::result::{DiscoveryIteration, EdgeEvidence, LaggedLink, PcSepsets, ScoredLink};
 
+/// Undirected skeleton as one bit-row per variable.
+///
+/// Row `i` bit `j` is the edge between `variables[i]` and `variables[j]`. A
+/// `HashSet<(u32, u32)>` of [`crate::pc::edge_key`] pairs has the same membership.
+/// Degrees are updated on insert and remove, so the depth check does not rebuild
+/// them by scanning every edge into a map. [`Self::edge_pairs`] is sorted by raw id,
+/// which is the order the skeleton search already imposed before it mutated the graph.
+pub(crate) struct UndirectedAdj {
+    ids: Vec<u32>,
+    pos: HashMap<u32, usize>,
+    words: usize,
+    rows: Vec<u64>,
+    degree: Vec<usize>,
+    n_edges: usize,
+}
+
+impl UndirectedAdj {
+    /// Empty skeleton on `variables` (last duplicate id wins, as a `HashMap` index does).
+    pub(crate) fn from_variables(variables: &[VariableId]) -> Self {
+        let n = variables.len();
+        let mut pos = HashMap::with_capacity(n);
+        for (i, v) in variables.iter().enumerate() {
+            pos.insert(v.raw(), i);
+        }
+        let words = n.div_ceil(64);
+        Self {
+            ids: variables.iter().map(|v| v.raw()).collect(),
+            pos,
+            words,
+            rows: vec![0; n.saturating_mul(words)],
+            degree: vec![0; n],
+            n_edges: 0,
+        }
+    }
+
+    fn positions(&self, lo: u32, hi: u32) -> Option<(usize, usize)> {
+        let i = *self.pos.get(&lo)?;
+        let j = *self.pos.get(&hi)?;
+        (i != j).then_some((i, j))
+    }
+
+    fn mask(&self, i: usize, j: usize) -> (usize, u64) {
+        (i * self.words + j / 64, 1u64 << (j % 64))
+    }
+
+    fn test(&self, i: usize, j: usize) -> bool {
+        let (slot, bit) = self.mask(i, j);
+        self.rows[slot] & bit != 0
+    }
+
+    fn set(&mut self, i: usize, j: usize) {
+        let (slot, bit) = self.mask(i, j);
+        self.rows[slot] |= bit;
+    }
+
+    fn clear_bit(&mut self, i: usize, j: usize) {
+        let (slot, bit) = self.mask(i, j);
+        self.rows[slot] &= !bit;
+    }
+
+    /// Insert the undirected edge. Returns whether it was absent.
+    ///
+    /// An id that is not one of the skeleton variables is ignored.
+    pub(crate) fn insert(&mut self, edge: (u32, u32)) -> bool {
+        let Some((i, j)) = self.positions(edge.0, edge.1) else {
+            return false;
+        };
+        if self.test(i, j) {
+            return false;
+        }
+        self.set(i, j);
+        self.set(j, i);
+        self.degree[i] += 1;
+        self.degree[j] += 1;
+        self.n_edges += 1;
+        true
+    }
+
+    /// Remove the undirected edge. Returns whether it was present.
+    pub(crate) fn remove(&mut self, edge: &(u32, u32)) -> bool {
+        let Some((i, j)) = self.positions(edge.0, edge.1) else {
+            return false;
+        };
+        if !self.test(i, j) {
+            return false;
+        }
+        self.clear_bit(i, j);
+        self.clear_bit(j, i);
+        self.degree[i] -= 1;
+        self.degree[j] -= 1;
+        self.n_edges -= 1;
+        true
+    }
+
+    pub(crate) fn contains(&self, edge: &(u32, u32)) -> bool {
+        self.positions(edge.0, edge.1).is_some_and(|(i, j)| self.test(i, j))
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.n_edges
+    }
+
+    /// Keep edges for which `pred` is true.
+    pub(crate) fn retain(&mut self, mut pred: impl FnMut(&(u32, u32)) -> bool) {
+        for edge in self.edge_pairs() {
+            if !pred(&edge) {
+                self.remove(&edge);
+            }
+        }
+    }
+
+    /// Undirected edges as `(lo, hi)` raw ids, sorted.
+    pub(crate) fn edge_pairs(&self) -> Vec<(u32, u32)> {
+        let mut out = Vec::with_capacity(self.n_edges);
+        let n = self.ids.len();
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if self.test(i, j) {
+                    let (a, b) = (self.ids[i], self.ids[j]);
+                    out.push(if a <= b { (a, b) } else { (b, a) });
+                }
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+}
+
 /// Outcome of the adjacency search.
 pub(crate) struct StaticSkeleton {
-    /// Surviving undirected edges (`edge_key` order).
-    pub adj: HashSet<(u32, u32)>,
+    /// Surviving undirected edges.
+    pub adj: UndirectedAdj,
     /// Weakest CI evidence per retained, tested edge. Required edges have no entry: no test
     /// was ever run on them.
     pub edge_scores: HashMap<(u32, u32), ScoredLink>,
@@ -198,7 +327,7 @@ pub(crate) fn record_sepset(
 fn sorted_neighbours(
     v: VariableId,
     other: VariableId,
-    adj: &HashSet<(u32, u32)>,
+    adj: &UndirectedAdj,
     variables: &[VariableId],
 ) -> Vec<VariableId> {
     let mut out: Vec<VariableId> =
@@ -229,13 +358,11 @@ fn sorted_union<T: Ord>(
 }
 
 /// Largest number of neighbours an endpoint of a remaining edge has besides the other endpoint.
-fn max_excess_degree(adj: &HashSet<(u32, u32)>) -> usize {
-    let mut degree: HashMap<u32, usize> = HashMap::new();
-    for &(lo, hi) in adj {
-        *degree.entry(lo).or_default() += 1;
-        *degree.entry(hi).or_default() += 1;
-    }
-    adj.iter().map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1)).max().unwrap_or(0)
+///
+/// That quantity is `max(degree) - 1`: a node of maximum degree is an endpoint of some
+/// remaining edge, and the other endpoint of that edge is one of its neighbours.
+fn max_excess_degree(adj: &UndirectedAdj) -> usize {
+    adj.degree.iter().copied().max().unwrap_or(0).saturating_sub(1)
 }
 
 /// The edge `x — y` (`key`) and the conditioning-set size a scan of it runs at.
@@ -326,7 +453,7 @@ pub(crate) fn run_static_skeleton(
     let max_cond = constraints.max_cond_size;
 
     let mut skel = StaticSkeleton {
-        adj: HashSet::new(),
+        adj: UndirectedAdj::from_variables(variables),
         edge_scores: HashMap::new(),
         sepsets: PcSepsets::default(),
         ci_tests: 0,
@@ -422,7 +549,7 @@ pub(crate) fn run_static_skeleton(
 /// Edges the skeleton never tested (required by the caller's constraints) carry `NaN`
 /// statistic and p-value: "not tested", never a fabricated significance.
 pub(crate) fn skeleton_scored_links(skel: &StaticSkeleton) -> Vec<ScoredLink> {
-    let mut keys: Vec<(u32, u32)> = skel.adj.iter().copied().collect();
+    let mut keys: Vec<(u32, u32)> = skel.adj.edge_pairs();
     keys.sort_unstable();
     keys.into_iter()
         .map(|(lo, hi)| {
@@ -490,6 +617,65 @@ mod tests {
             p_value,
             adjusted_p_value: None,
         }
+    }
+
+    /// Bit rows agree with a `HashSet` of `edge_key` pairs: membership, the sorted
+    /// edge list, `retain`, and the excess degree the depth check used to recompute
+    /// by scanning edges into a map. Ids are not `0..n`.
+    #[test]
+    fn bit_rows_match_hashset_edges_and_excess_degree() {
+        use std::collections::{HashMap, HashSet};
+
+        let ids = [4u32, 1, 9, 2, 7];
+        let vars: Vec<_> = ids.into_iter().map(VariableId::from_raw).collect();
+        let mut bits = UndirectedAdj::from_variables(&vars);
+        let mut set = HashSet::new();
+        for (a, b) in [(4u32, 1), (9, 2), (1, 7), (4, 9), (2, 7), (4, 2)] {
+            let key = if a <= b { (a, b) } else { (b, a) };
+            assert_eq!(bits.insert(key), set.insert(key));
+        }
+        assert!(!bits.insert((3, 4)), "an id outside the variable list is not an edge");
+        assert_eq!(bits.remove(&(1, 4)), set.remove(&(1, 4)));
+        for i in 0..ids.len() {
+            for j in (i + 1)..ids.len() {
+                let (a, b) = (ids[i], ids[j]);
+                let key = if a <= b { (a, b) } else { (b, a) };
+                assert_eq!(bits.contains(&key), set.contains(&key), "{key:?}");
+            }
+        }
+        let mut keys: Vec<_> = set.iter().copied().collect();
+        keys.sort_unstable();
+        assert_eq!(bits.edge_pairs(), keys);
+        assert_eq!(bits.len(), set.len());
+
+        let mut degree: HashMap<u32, usize> = HashMap::new();
+        for &(lo, hi) in &set {
+            *degree.entry(lo).or_default() += 1;
+            *degree.entry(hi).or_default() += 1;
+        }
+        let rescanned = set
+            .iter()
+            .map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1))
+            .max()
+            .unwrap_or(0);
+        assert_eq!(max_excess_degree(&bits), rescanned);
+
+        bits.retain(|edge| edge.0 != 9 && edge.1 != 9);
+        set.retain(|edge| edge.0 != 9 && edge.1 != 9);
+        let mut keys: Vec<_> = set.into_iter().collect();
+        keys.sort_unstable();
+        assert_eq!(bits.edge_pairs(), keys);
+        assert_eq!(max_excess_degree(&bits), {
+            let mut degree: HashMap<u32, usize> = HashMap::new();
+            for &(lo, hi) in &keys {
+                *degree.entry(lo).or_default() += 1;
+                *degree.entry(hi).or_default() += 1;
+            }
+            keys.iter()
+                .map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1))
+                .max()
+                .unwrap_or(0)
+        });
     }
 
     #[test]

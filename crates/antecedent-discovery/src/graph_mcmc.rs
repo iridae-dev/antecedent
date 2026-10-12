@@ -14,11 +14,14 @@ use crate::graph_posterior::{
     graph_chain_summary, mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
-/// One chain: flat edge-indicator trace, sampled masks, constraint-invalid proposals.
-type ChainOutput = (Vec<f64>, Vec<u64>, u64);
+/// One chain: flat edge-indicator trace, sampled states, constraint-invalid proposals.
+///
+/// `S` is a `u64` adjacency for structure and order MCMC, and a contemporaneous/lag
+/// pair for the DBN posterior. The three samplers used to each spell this triple.
+type ChainOutput<S> = (Vec<f64>, Vec<S>, u64);
 
-/// Merged `(traces, sample masks, rejected proposals)` of every chain.
-type MergedChains = (Vec<f64>, Vec<Vec<u64>>, u64);
+/// Merged `(traces, per-chain samples, rejected proposals)`.
+type MaskChainMerge<S> = (Vec<f64>, Vec<Vec<S>>, u64);
 
 /// Shared MCMC schedule knobs for mask-based graph samplers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,11 +64,11 @@ impl GraphMcmcSchedule {
 }
 
 /// Merge per-chunk worker outputs into global edge-indicator traces and samples.
-pub(crate) fn merge_chain_outputs(
+pub(crate) fn merge_chain_outputs<S>(
     n_draws: usize,
     n_params: usize,
-    chains: impl IntoIterator<Item = ChainOutput>,
-) -> MergedChains {
+    chains: impl IntoIterator<Item = ChainOutput<S>>,
+) -> MaskChainMerge<S> {
     let mut traces = Vec::new();
     let mut sample_masks = Vec::new();
     let mut rejected = 0u64;
@@ -78,25 +81,25 @@ pub(crate) fn merge_chain_outputs(
     (traces, sample_masks, rejected)
 }
 
-/// Merged chain output: flat traces, per-chain sampled masks and the rejected-proposal count.
-type MaskChainMerge = (Vec<f64>, Vec<Vec<u64>>, u64);
-
-/// Run chunked parallel chain workers and merge their outputs.
-pub(crate) fn run_parallel_mask_chains<F>(
+/// Run one worker per chain and merge their outputs.
+///
+/// Accept/reject stays in the worker. Structure MCMC computes a kernel Hastings
+/// ratio and does not multiply it into the accept step, so this driver must not
+/// either.
+pub(crate) fn run_parallel_mask_chains<S, F>(
     ctx: &ExecutionContext,
     n_chains: usize,
     n_draws: usize,
     n_params: usize,
     worker: F,
-) -> Result<MaskChainMerge, DiscoveryError>
+) -> Result<MaskChainMerge<S>, DiscoveryError>
 where
-    F: Fn(usize, &ExecutionContext) -> ChainOutput + Sync,
+    S: Send,
+    F: Fn(usize, &ExecutionContext) -> Result<ChainOutput<S>, DiscoveryError> + Sync,
 {
     // One call per chain index. `map_indexed` assigns chain `i` the stream the worker
     // opens for `i`, and a panic in `worker` propagates with its payload.
-    let outputs = ctx.map_indexed(n_chains, |chain, inner| {
-        Ok::<ChainOutput, DiscoveryError>(worker(chain, inner))
-    })?;
+    let outputs = ctx.map_indexed(n_chains, |chain, inner| worker(chain, inner))?;
     Ok(merge_chain_outputs(n_draws, n_params, outputs))
 }
 
@@ -230,7 +233,7 @@ mod tests {
         let ctx = ExecutionContext::production(0, 2);
         let (traces, samples, _) = run_parallel_mask_chains(&ctx, 5, 4, 1, |chain, _| {
             workers.fetch_add(1, Ordering::Relaxed);
-            (vec![chain as f64; 4], vec![chain as u64; 4], 0)
+            Ok((vec![chain as f64; 4], vec![chain as u64; 4], 0))
         })
         .unwrap();
         assert_eq!(workers.load(Ordering::Relaxed), 5);

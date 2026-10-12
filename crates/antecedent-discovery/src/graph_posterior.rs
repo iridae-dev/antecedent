@@ -435,6 +435,22 @@ pub const fn n_directed_edges(n: usize) -> usize {
     n.saturating_mul(n.saturating_sub(1))
 }
 
+/// Refuse a directed adjacency that does not fit in the `u64` mask (`n(n-1) > 63`).
+///
+/// `message` stays the caller's: exact enumeration, order MCMC, structure MCMC, and the
+/// DBN posterior each name their own engine. The predicate is the one those four guards
+/// copied.
+///
+/// # Errors
+///
+/// [`DiscoveryError::Unsupported`] with `message` when the mask would need bit 64 or higher.
+pub(crate) fn ensure_directed_mask_fits(
+    n: usize,
+    message: &'static str,
+) -> Result<(), DiscoveryError> {
+    if n_directed_edges(n) > 63 { Err(DiscoveryError::unsupported(message)) } else { Ok(()) }
+}
+
 /// Whether bit `from → to` is set.
 #[must_use]
 pub fn has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool {
@@ -1497,5 +1513,23 @@ mod tests {
     fn exact_posterior_reports_no_sampling_ess() {
         let d = analytic_graph_diagnostics(25, 1.0);
         assert_eq!(d.ess_bulk_min, None);
+    }
+
+    /// `n = 8` has 56 directed edges and fits; `n = 9` has 72 and is the first refusal.
+    /// The message is the caller's, unchanged from the four copied guards.
+    #[test]
+    fn directed_mask_fits_through_eight_nodes() {
+        assert!(
+            ensure_directed_mask_fits(8, "order MCMC adjacency exceeds 63 directed edges").is_ok()
+        );
+        let err =
+            ensure_directed_mask_fits(9, "structure MCMC adjacency exceeds 63 directed edges")
+                .unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { message } if message == "structure MCMC adjacency exceeds 63 directed edges"),
+            "{err}"
+        );
+        assert_eq!(n_directed_edges(8), 56);
+        assert_eq!(n_directed_edges(9), 72);
     }
 }

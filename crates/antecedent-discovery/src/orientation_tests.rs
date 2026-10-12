@@ -1,5 +1,5 @@
 use antecedent_core::{Lag, VariableId};
-use antecedent_graph::TemporalCpdag;
+use antecedent_graph::{DenseNodeId, TemporalCpdag};
 
 use super::*;
 
@@ -211,6 +211,38 @@ fn contemp_meek_r1_skips_lagged_undirected() {
     let d = ContempMeekR1.apply(&mut g, &mut state, &mut queue).unwrap();
     assert_eq!(d.edges_changed, 0);
     assert!(g.edge_between(b, c).unwrap().is_undirected());
+}
+
+#[test]
+fn contemp_meek_r1_matches_meek_r1_on_a_contemporaneous_chain() {
+    fn chain() -> (TemporalCpdag, DenseNodeId, DenseNodeId) {
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_undirected(b, c).unwrap();
+        (g, b, c)
+    }
+    let (mut general, b, c) = chain();
+    let (mut contemp, _, _) = chain();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    queue.push(b);
+    let general_delta =
+        OrientationRule::<TemporalCpdag>::apply(&MeekR1, &mut general, &mut state, &mut queue)
+            .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    queue.push(b);
+    let contemp_delta = ContempMeekR1.apply(&mut contemp, &mut state, &mut queue).unwrap();
+    assert_eq!(
+        general.edge_between(b, c).unwrap().parent_child(),
+        contemp.edge_between(b, c).unwrap().parent_child()
+    );
+    assert_eq!(general_delta.edges_changed, contemp_delta.edges_changed);
+    assert!(general_delta.premises.iter().any(|p| p.starts_with("meek.r1:")));
+    assert!(contemp_delta.premises.iter().any(|p| p.starts_with("meek.r1.contemp:")));
 }
 
 #[test]

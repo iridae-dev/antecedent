@@ -528,6 +528,8 @@ fn apply_meek_r1<G: CpdagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
+    label: &'static str,
+    in_scope: impl Fn(&G, DenseNodeId) -> bool,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
     let focus = focus_nodes(graph.node_count(), queue);
@@ -535,12 +537,17 @@ fn apply_meek_r1<G: CpdagOps>(
     for b in focus {
         for a in graph.parents(b) {
             for c in graph.undirected_neighbors(b) {
+                // Contemporaneous R1 requires `b` and `c` in the slice. The unrestricted
+                // rule passes a predicate that is always true, so this check does not fire.
+                if !in_scope(graph, b) || !in_scope(graph, c) {
+                    continue;
+                }
                 if state.is_ambiguous_triple(a, b, c) {
                     continue;
                 }
                 if !graph.has_edge(a, c) {
                     let premise = format!(
-                        "meek.r1: {}→{}—{} and {} not adj {}",
+                        "{label}: {}→{}—{} and {} not adj {}",
                         a.raw(),
                         b.raw(),
                         c.raw(),
@@ -572,7 +579,7 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR1 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r1(graph, state, queue)
+        apply_meek_r1(graph, state, queue, "meek.r1", |_, _| true)
     }
 }
 
@@ -584,6 +591,8 @@ fn apply_meek_r2<G: CpdagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
+    label: &'static str,
+    in_scope: impl Fn(&G, DenseNodeId) -> bool,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
     let focus = focus_nodes(graph.node_count(), queue);
@@ -591,12 +600,17 @@ fn apply_meek_r2<G: CpdagOps>(
     for a in &focus {
         for b in graph.children(*a) {
             for c in graph.children(b) {
+                // Contemporaneous R2 requires `a` and `c` in the slice. Unrestricted R2
+                // passes a predicate that is always true.
+                if !in_scope(graph, *a) || !in_scope(graph, c) {
+                    continue;
+                }
                 if graph
                     .edge_between(*a, c)
                     .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
                 {
                     let premise = format!(
-                        "meek.r2: {}→{}→{} and {}—{}",
+                        "{label}: {}→{}→{} and {}—{}",
                         a.raw(),
                         b.raw(),
                         c.raw(),
@@ -628,7 +642,7 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR2 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r2(graph, state, queue)
+        apply_meek_r2(graph, state, queue, "meek.r2", |_, _| true)
     }
 }
 
@@ -656,12 +670,18 @@ fn apply_meek_r3<G: CpdagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
+    label: &'static str,
+    in_scope: impl Fn(&G, DenseNodeId) -> bool,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
     let focus = focus_nodes(graph.node_count(), queue);
     let mut changed = Vec::new();
     for a in &focus {
-        let und_a: Vec<DenseNodeId> = graph.undirected_neighbors(*a);
+        if !in_scope(graph, *a) {
+            continue;
+        }
+        let und_a: Vec<DenseNodeId> =
+            graph.undirected_neighbors(*a).into_iter().filter(|&n| in_scope(graph, n)).collect();
         for &b in &und_a {
             let mut mediators = Vec::new();
             for &c in &und_a {
@@ -674,7 +694,7 @@ fn apply_meek_r3<G: CpdagOps>(
             }
             let orient = has_definite_noncollider_pair(graph, state, *a, &mediators);
             if orient {
-                let premise = format!("meek.r3: {}—{} via nonadjacent mediators", a.raw(), b.raw());
+                let premise = format!("{label}: {}—{} via nonadjacent mediators", a.raw(), b.raw());
                 if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
                     changed.push(*a);
                     changed.push(b);
@@ -699,7 +719,7 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR3 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r3(graph, state, queue)
+        apply_meek_r3(graph, state, queue, "meek.r3", |_, _| true)
     }
 }
 
@@ -711,18 +731,29 @@ fn apply_meek_r4<G: CpdagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
+    label: &'static str,
+    in_scope: impl Fn(&G, DenseNodeId) -> bool,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
     let focus = focus_nodes(graph.node_count(), queue);
     let mut changed = Vec::new();
     for a in &focus {
+        if !in_scope(graph, *a) {
+            continue;
+        }
         for b in graph.undirected_neighbors(*a) {
+            if !in_scope(graph, b) {
+                continue;
+            }
             let mut orient = false;
             for c in graph.undirected_neighbors(*a) {
-                if c == b {
+                if c == b || !in_scope(graph, c) {
                     continue;
                 }
                 for d in graph.children(c) {
+                    if !in_scope(graph, d) {
+                        continue;
+                    }
                     if !graph.is_parent(d, b) {
                         continue;
                     }
@@ -740,7 +771,7 @@ fn apply_meek_r4<G: CpdagOps>(
                 }
             }
             if orient {
-                let premise = format!("meek.r4: {}—{} via discriminating path", a.raw(), b.raw());
+                let premise = format!("{label}: {}—{} via discriminating path", a.raw(), b.raw());
                 if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
                     changed.push(*a);
                     changed.push(b);
@@ -765,7 +796,7 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR4 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r4(graph, state, queue)
+        apply_meek_r4(graph, state, queue, "meek.r4", |_, _| true)
     }
 }
 
@@ -799,39 +830,9 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR1 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph.node_count(), queue);
-        let mut changed_nodes = Vec::new();
-        for b in focus {
-            for a in graph.parents(b) {
-                for c in graph.undirected_neighbors(b) {
-                    if !is_contemporaneous_node(graph, b) || !is_contemporaneous_node(graph, c) {
-                        continue;
-                    }
-                    if state.is_ambiguous_triple(a, b, c) {
-                        continue;
-                    }
-                    if !graph.has_edge(a, c) {
-                        let premise = format!(
-                            "meek.r1.contemp: {}→{}—{} and {} not adj {}",
-                            a.raw(),
-                            b.raw(),
-                            c.raw(),
-                            a.raw(),
-                            c.raw()
-                        );
-                        if try_orient_undirected(graph, state, &mut delta, b, c, premise)? {
-                            changed_nodes.push(b);
-                            changed_nodes.push(c);
-                        }
-                    }
-                }
-            }
-        }
-        for n in changed_nodes {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r1(graph, state, queue, "meek.r1.contemp", |g, id| {
+            is_contemporaneous_node(g, id)
+        })
     }
 }
 
@@ -850,39 +851,9 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR2 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph.node_count(), queue);
-        let mut changed = Vec::new();
-        for a in &focus {
-            for b in graph.children(*a) {
-                for c in graph.children(b) {
-                    if !is_contemporaneous_node(graph, *a) || !is_contemporaneous_node(graph, c) {
-                        continue;
-                    }
-                    if graph
-                        .edge_between(*a, c)
-                        .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
-                    {
-                        let premise = format!(
-                            "meek.r2.contemp: {}→{}→{} and {}—{}",
-                            a.raw(),
-                            b.raw(),
-                            c.raw(),
-                            a.raw(),
-                            c.raw()
-                        );
-                        if try_orient_undirected(graph, state, &mut delta, *a, c, premise)? {
-                            changed.push(*a);
-                            changed.push(c);
-                        }
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r2(graph, state, queue, "meek.r2.contemp", |g, id| {
+            is_contemporaneous_node(g, id)
+        })
     }
 }
 
@@ -901,46 +872,9 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph.node_count(), queue);
-        let mut changed = Vec::new();
-        for a in &focus {
-            if !is_contemporaneous_node(graph, *a) {
-                continue;
-            }
-            let und_a: Vec<DenseNodeId> = graph
-                .undirected_neighbors(*a)
-                .into_iter()
-                .filter(|&n| is_contemporaneous_node(graph, n))
-                .collect();
-            for &b in &und_a {
-                let mut mediators = Vec::new();
-                for &c in &und_a {
-                    if c == b {
-                        continue;
-                    }
-                    if graph.is_parent(c, b) {
-                        mediators.push(c);
-                    }
-                }
-                let orient = has_definite_noncollider_pair(graph, state, *a, &mediators);
-                if orient {
-                    let premise = format!(
-                        "meek.r3.contemp: {}—{} via nonadjacent mediators",
-                        a.raw(),
-                        b.raw()
-                    );
-                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
-                        changed.push(*a);
-                        changed.push(b);
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r3(graph, state, queue, "meek.r3.contemp", |g, id| {
+            is_contemporaneous_node(g, id)
+        })
     }
 }
 
@@ -959,56 +893,9 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR4 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph.node_count(), queue);
-        let mut changed = Vec::new();
-        for a in &focus {
-            if !is_contemporaneous_node(graph, *a) {
-                continue;
-            }
-            for b in graph.undirected_neighbors(*a) {
-                if !is_contemporaneous_node(graph, b) {
-                    continue;
-                }
-                let mut orient = false;
-                for c in graph.undirected_neighbors(*a) {
-                    if c == b || !is_contemporaneous_node(graph, c) {
-                        continue;
-                    }
-                    for d in graph.children(c) {
-                        if !is_contemporaneous_node(graph, d) {
-                            continue;
-                        }
-                        if !graph.is_parent(d, b) {
-                            continue;
-                        }
-                        if !graph.has_edge(*a, d) {
-                            continue;
-                        }
-                        if graph.has_edge(c, b) {
-                            continue;
-                        }
-                        orient = true;
-                        break;
-                    }
-                    if orient {
-                        break;
-                    }
-                }
-                if orient {
-                    let premise =
-                        format!("meek.r4.contemp: {}—{} via discriminating path", a.raw(), b.raw());
-                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
-                        changed.push(*a);
-                        changed.push(b);
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r4(graph, state, queue, "meek.r4.contemp", |g, id| {
+            is_contemporaneous_node(g, id)
+        })
     }
 }
 
