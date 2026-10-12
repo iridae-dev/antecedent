@@ -71,8 +71,9 @@ def test_path_distribution_literals_match_support_closed_toml():
     against the TOML reason so either side changing alone fails loudly.
     """
     import inspect
+    import re
 
-    import antecedent.estimation as estimation
+    import antecedent._prepare_route as prepare_route
 
     rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
@@ -83,9 +84,9 @@ def test_path_distribution_literals_match_support_closed_toml():
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
-    source = inspect.getsource(estimation)
+    source = inspect.getsource(prepare_route)
     # The literal is wrapped across adjacent string fragments; normalize.
-    collapsed = source.replace('"\n            "', "")
+    collapsed = re.sub(r'"\s*\n\s*"', "", source)
     count = collapsed.count(reason.rstrip("."))
     assert count >= 1, (
         f"expected the TOML reason at the prepare routing gate; found {count}: {reason!r}"

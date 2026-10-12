@@ -31,6 +31,8 @@ def test_sigint_interrupts_a_running_native_discovery():
     Before the interrupt watcher, the GIL-released run never returned to CPython's signal
     machinery, so the KeyboardInterrupt only surfaced after the whole discovery finished.
     """
+    if signal.getsignal(signal.SIGINT) is signal.SIG_IGN:
+        pytest.skip("SIGINT is ignored (background job): Python never raises KeyboardInterrupt")
     names, columns = _static()
 
     def slow_independent(_columns, queries):
