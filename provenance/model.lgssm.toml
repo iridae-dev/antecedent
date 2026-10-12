@@ -21,7 +21,7 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-model/src/lgssm.rs unit tests (abduction_is_lossless_and_reports_invertible_noise, sampled_residual_paths_have_the_prior_variance_and_lag_covariance, likelihood_respects_changes_of_units)",
  "conformance/gcm/lgssm",
- "crates/antecedent-model/src/registry.rs (conditional state-space fit, parent effects, unit scaling, and EM likelihood regressions)",
+ "crates/antecedent-model/src/registry/mod.rs (conditional state-space fit, parent effects, unit scaling, and EM likelihood regressions)",
  "crates/antecedent-io-core/src/mechanism_wire.rs (conditional_lgssm_roundtrip_retains_regression_and_state_parameters)",
  "crates/antecedent-model/tests/scm_oracle.rs (kalman_filter_and_rts_smoother_match_clean_room_recursion)",
 ]

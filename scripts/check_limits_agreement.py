@@ -919,21 +919,21 @@ class Reader:
         return self._cache[rel]
 
     def find_const(
-        self, name: str, near: str, depth: int = 0
+        self, name: str, near: str, depth: int = 0, local_only: bool = False
     ) -> tuple[int | float | None, str]:
         """Value of `const NAME: ty = <int|ALIAS>;`. The mapped constant must live in
         `near` (the cell's own file): a same-named constant of another cell would
         otherwise satisfy the mapping. An alias it names is followed from `near` into
         the rest of crates/*/src."""
         files = [near]
-        if depth:
+        if depth and not local_only:
             files += sorted(
                 str(p.relative_to(self.root))
                 for p in (self.root / "crates").glob("*/src/**/*.rs")
                 if str(p.relative_to(self.root)) != near
             )
         pat = re.compile(
-            rf"\bconst {re.escape(name)}\s*:\s*[\w<>\[\]]+\s*=\s*([\w.\-]+)\s*;"
+            rf"\bconst {re.escape(name)}\s*:\s*[\w<>\[\]]+\s*=\s*([\w.:\-]+)\s*;"
         )
         for rel in files:
             text = self.text(rel)
@@ -946,6 +946,17 @@ class Reader:
             v = to_num(raw)
             if v is not None:
                 return v, rel
+            qualified = re.fullmatch(r"crate::([a-z_][a-z0-9_]*)::([A-Z][A-Z0-9_]*)", raw)
+            if qualified and depth < 4:
+                # Resolve the declared module, never an unrelated same-named
+                # constant elsewhere in the workspace.
+                source = self.root / rel
+                src = next((parent for parent in source.parents if parent.name == "src"), None)
+                if src:
+                    for target in (src / f"{qualified[1]}.rs", src / qualified[1] / "mod.rs"):
+                        if target.is_file():
+                            return self.find_const(qualified[2], str(target.relative_to(self.root)), depth + 1, True)
+                return None, rel
             if depth < 4 and re.fullmatch(r"[A-Z][A-Z0-9_]+", raw):
                 return self.find_const(raw, rel, depth + 1)
             return None, rel
@@ -1299,13 +1310,14 @@ detail = "carried.bounds_exceeded"
 when = "More than 3 things."
 """
 SYN_RS = """
+mod tipping;
 pub const SYN_BASE_B: usize = 12;
 pub const SYN_MAX_B: usize = SYN_BASE_B;
 pub const SYN_MAX_A: usize = 4;
 pub const SYN_MAX_C: usize = 3;
 pub const SYN_DEFAULT: Limits = Limits { operations: 4_096, depth: 24 };
 pub const SYN_NODES: [usize; 2] = [2, 4];
-pub const SYN_MIN_TOL: f64 = 1e-3;
+pub const SYN_MIN_TOL: f64 = crate::tipping::MIN_TOL;
 pub const SYN_MAX_TOL: f64 = 1e-1;
 """
 SYN_DOC = (
@@ -1386,6 +1398,7 @@ def _syn_tree(dest: Path) -> None:
     for rel, text in (
         (RECORDS, SYN_RECORDS),
         (SYN_RS_PATH, SYN_RS),
+        ("crates/synth/src/tipping.rs", "pub const MIN_TOL: f64 = 1e-3;\n"),
         (SYN_DOC_PATH, SYN_DOC),
         (SYN_PY_PATH, SYN_PY),
     ):
@@ -1468,6 +1481,20 @@ def self_test() -> int:
             "SYN_BASE_B: usize = 12",
             "SYN_BASE_B: usize = 13",
             "max_b",
+        )
+        mutated(
+            "qualified_float_alias_followed",
+            "crates/synth/src/tipping.rs",
+            "MIN_TOL: f64 = 1e-3",
+            "MIN_TOL: f64 = 2e-3",
+            "tol",
+        )
+        mutated(
+            "qualified_alias_wrong_module",
+            SYN_RS_PATH,
+            "crate::tipping::MIN_TOL",
+            "crate::missing::MIN_TOL",
+            "SYN_MIN_TOL",
         )
         mutated(
             "rust_literal",

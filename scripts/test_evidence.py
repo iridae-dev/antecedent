@@ -31,6 +31,7 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -588,6 +589,50 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
         for it in items:
             if it.kind != "mod":
                 index.setdefault(it.name, []).append((f, it))
+    # The workspace's dev-only utility crate moved fixture loading out of test
+    # targets. Follow only explicitly imported public functions, and only when
+    # the target really declares that dependency; unrelated helpers are not
+    # evidence for a test that never calls them.
+    root = target_root(root_file)
+    if root:
+        manifest = ROOT / "crates" / root_file.relative_to(ROOT).parts[1] / "Cargo.toml"
+        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        dependency = data.get("dev-dependencies", {}).get("antecedent-test-support", {})
+        base = manifest.parent
+        if isinstance(dependency, dict) and dependency.get("workspace"):
+            dependency = (
+                tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+                .get("workspace", {})
+                .get("dependencies", {})
+                .get("antecedent-test-support", {})
+            )
+            base = ROOT
+        if isinstance(dependency, dict) and "path" in dependency:
+            support = ROOT / "crates/antecedent-test-support/src/lib.rs"
+            if (
+                base / dependency["path"] / "src/lib.rs"
+            ).resolve() == support.resolve() and support.is_file():
+                masked, items = rust_items(support)
+                public = {
+                    it.name: it
+                    for it in items
+                    if it.kind == "fn"
+                    and re.search(
+                        r"\bpub\s+(?:\#\[[^\]]+\]\s*)?$", masked.skeleton[: it.start]
+                    )
+                }
+                for f in target_files(root_file):
+                    for imported in re.findall(
+                        r"\buse\s+antecedent_test_support::([^;]+);",
+                        rust_items(f)[0].skeleton,
+                    ):
+                        for entry in imported.strip().strip("{}").split(","):
+                            names = entry.strip().split(" as ")
+                            original = names[0].strip()
+                            if original in public:
+                                index.setdefault(names[-1].strip(), []).append(
+                                    (support, public[original])
+                                )
     return index
 
 
@@ -629,6 +674,9 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
                 index.setdefault(it.name, []).append((path, it))
     out, skel_out, seen = [], [], set()
     todo = [(ff, it) for ff, it in index.get(name, []) if ff == path]
+    if not todo:
+        # Direct query for a helper imported by this target.
+        todo = list(index.get(name, ()))
     while todo:
         ff, it = todo.pop()
         key = (ff, it.start)
@@ -691,6 +739,13 @@ def names_fixture(path: Path, test_name: str, body: str, fixture: str) -> bool:
     for m in re.finditer(rf"[\"']{re.escape(name)}[\"']", body):
         helper = call.search(code, max(0, m.start() - 80), m.start())
         if helper and _names_category(closure(path, helper.group(1)), category):
+            return True
+    # conformance_dir("category/name") joins a relative fixture path with the
+    # shared conformance root. Require the called helper's actual closure to
+    # build that root; the relative string alone proves nothing.
+    for m in re.finditer(rf"[\"']{re.escape(category + '/' + name)}[\"']", body):
+        helper = call.search(code, max(0, m.start() - 80), m.start())
+        if helper and re.search(r"conformance[\"'/)]", closure(path, helper.group(1))):
             return True
     return False
 

@@ -460,8 +460,8 @@ record = "recalculation.receipt"
 key = "max_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", constant = "MAX_RECALC_RECEIPT_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", constant = "MAX_RECALC_RECEIPT_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_RECALC_RECEIPT_ARTIFACT_BYTES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_RECALC_RECEIPT_ARTIFACT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_RECALC_RECEIPT_ARTIFACT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
 scope_fixture = { path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs", pattern = "\\bartifact_model_fits_are_bound_and_legacy_counts_remain_unchanged\\b" }
 
 [[bound]]
@@ -577,8 +577,8 @@ record = "sensitivity.mechanism_discrepancy"
 key = "max_bytes"
 implementation = [{ path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", constant = "MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", constant = "MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
 scope_fixture = { path = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", pattern = "\\bdiscrepancy_incomparable_measurements_refuse\\b" }
 
 [[bound]]
@@ -604,8 +604,8 @@ record = "recalculation.frozen_scores_artifact"
 key = "max_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORES_ARTIFACT_BYTES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORES_ARTIFACT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_FROZEN_SCORES_ARTIFACT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
 scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
 
 [[bound]]
@@ -982,8 +982,8 @@ record = "composition.rollout_state"
 key = "max_artifact_bytes"
 implementation = [{ path = "crates/antecedent-design/src/rollout_artifact.rs", constant = "MAX_ROLLOUT_BYTES" }]
 documentation = [{ path = "crates/antecedent-design/src/rollout_artifact.rs", constant = "MAX_ROLLOUT_BYTES" }]
-guard = { path = "crates/antecedent-design/src/rollout_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_ROLLOUT_BYTES\\ \\{" }
-refusal = { path = "crates/antecedent-design/src/rollout_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_ROLLOUT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-design/src/rollout_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_ROLLOUT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
 scope_fixture = { path = "python/tests/test_rollout.py", pattern = "\\btest_rollout_truncated_and_oversized_artifacts_refuse_before_replay\\b" }
 
 [[bound]]

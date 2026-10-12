@@ -22,7 +22,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-validate/src/bayesian_checks.rs unit tests",
+ "crates/antecedent-validate/src/bayesian_checks/tests.rs unit tests",
  "conformance/bayesian/ppc",
  "conformance/bayesian/prior_sensitivity",
  "conformance/validate/bayesian_checks",

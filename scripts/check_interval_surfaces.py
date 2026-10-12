@@ -93,7 +93,7 @@ INTERVAL_SURFACES = {
         "python/antecedent/transport/_temporal.py",
     ],
     "counterfactual.path_specific_edge": [
-        "crates/antecedent/src/cross_world.rs",
+        "crates/antecedent/src/cross_world/mod.rs",
         "crates/antecedent-io-core/src/cross_world_artifact.rs",
         "python/antecedent/cross_world.py",
     ],

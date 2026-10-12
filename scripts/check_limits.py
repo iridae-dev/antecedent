@@ -62,7 +62,7 @@ def integer_expression(
 def constants_in(text: str) -> dict[str, str]:
     return dict(
         re.findall(
-            r"\bconst\s+([A-Z][A-Z0-9_]*)\s*:\s*[\w<>;\[\]]+\s*=\s*([^;\n]+);", text
+            r"\bconst\s+([A-Z][A-Z0-9_]*)\s*:\s*(?:[ui](?:8|16|32|64|128|size))\s*=\s*([^;\n]+);", text
         )
     )
 
@@ -284,6 +284,7 @@ def self_test() -> int:
         (root / "parity").mkdir()
         (root / "source.rs").write_text(
             "const ALPHA: usize = 4;\nconst BETA: usize = 1 << 3;\n"
+            "const UNRELATED_FLOAT: f64 = crate::tipping::MIN_TOLERANCE;\n"
             "if n > ALPHA { return Err(bad); }\nif n > BETA { return Err(bad); }\n",
             encoding="utf-8",
         )

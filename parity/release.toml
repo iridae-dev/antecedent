@@ -30,7 +30,7 @@ status = "done"
 evidence_test = "crates/antecedent-io-core/src/migrate.rs"
 evidence_assertion = "migrate_0_2_to_0_5_preserves_sections"
 limitations = "Named test covers the 0.2 to 0.5 migration chain preserving section bytes; the 0.1, 0.3 and 0.4 paths, golden fixtures and validate_result_* bindings are covered by sibling tests."
-notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. Composition: validate_result_* in crates/antecedent-io-core/src/analysis_result_artifact.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
+notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. Composition: validate_result_* in crates/antecedent-io-core/src/analysis_result_artifact/validate.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
 
 [[capabilities]]
 id = "release.wheel_matrix"

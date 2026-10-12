@@ -5,7 +5,7 @@ import parity_rows as pr
 EVIDENCE = {
     "gcm.model.compiled_plans": "crates/antecedent-model/src/compile.rs",
     "gcm.model.mechanisms": "crates/antecedent-model/src/mechanism.rs",
-    "gcm.model.registry_fit": "crates/antecedent-model/src/registry.rs",
+    "gcm.model.registry_fit": "crates/antecedent-model/src/registry/mod.rs",
     "gcm.model.sampling": "crates/antecedent-model/src/sample.rs",
     "gcm.do_sampling": "crates/antecedent/tests/gcm.rs",
     # Additive shift do(X := X + delta): overlay accumulation is the primary

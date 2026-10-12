@@ -25,6 +25,29 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 IT_RS = r"""
+use antecedent_test_support::{conformance_dir as fixture_root, load_expected_json};
+
+#[test]
+fn shared_helpers_consume_fixture() {
+    let expected = load_expected_json(&fixture_root("demo/truth"));
+    assert!(expected.contains("2.0"), "{}", axes());
+}
+
+#[test]
+fn shared_helpers_are_not_called() {
+    assert!(true, "{}", axes());
+}
+
+fn fake_root(name: &str) -> String {
+    name.to_string()
+}
+
+#[test]
+fn relative_string_without_conformance_root() {
+    let expected = load_expected_json(&fake_root("demo/truth"));
+    assert!(expected.contains("2.0"), "{}", axes());
+}
+
 fn load_expected(name: &str) -> String {
     let dir = format!("{}/../../conformance/demo/{name}", env!("CARGO_MANIFEST_DIR"));
     std::fs::read_to_string(format!("{dir}/expected.json")).unwrap()
@@ -174,13 +197,32 @@ BASE_ROW = {
 
 def build(tmp: Path) -> None:
     (tmp / "scripts").mkdir()
-    shutil.copy(HERE / "test_evidence.py", tmp / "scripts" / "test_evidence.py")
-    (tmp / "Cargo.toml").write_text('[workspace]\nresolver = "2"\nmembers = ["crates/selftest"]\n', encoding="utf-8", newline="\n")
+    for helper in ("test_evidence.py", "_py_closure.py", "_rust_source.py", "_repo.py"):
+        shutil.copy(HERE / helper, tmp / "scripts" / helper)
+    (tmp / "Cargo.toml").write_text(
+        '[workspace]\nresolver = "2"\nmembers = ["crates/selftest", "crates/antecedent-test-support"]\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    support = tmp / "crates" / "antecedent-test-support"
+    (support / "src").mkdir(parents=True)
+    (support / "Cargo.toml").write_text(
+        '[package]\nname = "antecedent-test-support"\nversion = "0.0.0"\nedition = "2021"\n',
+        encoding="utf-8",
+    )
+    (support / "src/lib.rs").write_text(
+        "pub fn conformance_dir(relative: &str) -> String {\n"
+        '    format!("{}/../../conformance/{relative}", env!("CARGO_MANIFEST_DIR"))\n}\n'
+        "pub fn load_expected_json(dir: &str) -> String {\n"
+        '    std::fs::read_to_string(format!("{dir}/expected.json")).unwrap()\n}\n',
+        encoding="utf-8",
+    )
     crate = tmp / "crates" / "selftest"
     (crate / "src").mkdir(parents=True)
     (crate / "tests" / "sub").mkdir(parents=True)
     (crate / "Cargo.toml").write_text(
         '[package]\nname = "selftest"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n'
+        '[dev-dependencies]\nantecedent-test-support = { path = "../antecedent-test-support" }\n'
     , encoding="utf-8", newline="\n")
     (crate / "src" / "lib.rs").write_text("pub fn noop() {}\n", encoding="utf-8", newline="\n")
     (crate / "tests" / "it.rs").write_text(IT_RS, encoding="utf-8", newline="\n")
@@ -257,6 +299,17 @@ def main() -> int:
 
         cases = [
             ("control", rs("good_consumes_fixture"), None),
+            ("shared_helper_control", rs("shared_helpers_consume_fixture"), None),
+            (
+                "uncalled_shared_helpers",
+                rs("shared_helpers_are_not_called"),
+                "never names conformance/demo/truth",
+            ),
+            (
+                "relative_path_without_root",
+                rs("relative_string_without_conformance_root"),
+                "never names conformance/demo/truth",
+            ),
             ("ignore_before_test", rs("ignored_before_test"), "is #[ignore]d"),
             ("cfg_compiled_out", rs("compiled_out"), "compiled only under #[cfg(any())]"),
             ("block_comment", rs("in_block_comment"), "no fn in_block_comment outside comments"),

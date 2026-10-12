@@ -1,8 +1,5 @@
 //! Generated from `parity/support_graphless.toml`; do not edit by hand.
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "One flat support row; the requires_* flags are independent gates"
-)]
+#[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.
 pub(crate) struct GraphlessLicenseRow {
     pub(crate) family: &'static str,
     pub(crate) design: &'static str,
