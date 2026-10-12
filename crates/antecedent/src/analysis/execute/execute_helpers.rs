@@ -14,17 +14,28 @@ pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
             Ok((treatment, outcome))
         }
         CausalQuery::AnomalyAttribution(q) => {
-            let outcome = *q.targets.first().unwrap_or(&VariableId::from_raw(0));
+            let outcome = first_target(&q.targets, "anomaly attribution")?;
             Ok((outcome, outcome))
         }
         CausalQuery::ChangeAttribution(q) => Ok((q.outcome, q.outcome)),
         CausalQuery::MechanismChange(q) => {
-            let outcome = *q.targets.first().unwrap_or(&VariableId::from_raw(0));
+            let outcome = first_target(&q.targets, "mechanism change")?;
             Ok((outcome, outcome))
         }
         CausalQuery::UnitChange(q) => Ok((q.outcome, q.outcome)),
         _ => Err(CausalError::Compile { message: "gcm_query_vars: unsupported query".into() }),
     }
+}
+
+/// The first declared target of a GCM query. An empty target list is refused rather than read
+/// as variable 0, which would silently pick the first schema variable.
+fn first_target(
+    targets: &[VariableId],
+    query_kind: &'static str,
+) -> Result<VariableId, CausalError> {
+    targets.first().copied().ok_or_else(|| CausalError::Compile {
+        message: format!("{query_kind} query declares no target variable"),
+    })
 }
 
 /// Named execute / compile cell. Graph-completion arms still specialize on class.

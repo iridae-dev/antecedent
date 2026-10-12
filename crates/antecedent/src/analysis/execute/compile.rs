@@ -1007,8 +1007,8 @@ impl super::Study {
         plan_id: &str,
         classification: DataClassification,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (treatment, outcome) = gcm_query_vars(&self.query)?;
         self.query.validate()?;
+        let (treatment, outcome) = gcm_query_vars(&self.query)?;
         Ok(self.study_query_plan(
             row_count_hint,
             classification,
