@@ -315,6 +315,35 @@ impl RefutationProblem<'_> {
     pub fn outcome(&self) -> VariableId {
         self.query.outcome
     }
+
+    /// Schema columns that define the estimate's complete-case sample.
+    ///
+    /// Treatment, outcome, and effect modifiers, plus the adjustment set when
+    /// `include_adjustment` is set. A temporal problem's adjustment ids are dense
+    /// node ids, not columns, so those callers pass `false`; modifiers are still
+    /// included, because a missing modifier drops the row from the conditional fit.
+    /// Duplicate ids (a modifier that is also an adjustment column) are omitted.
+    pub(crate) fn estimation_ids(&self, include_adjustment: bool) -> Vec<VariableId> {
+        let mut ids = Vec::with_capacity(
+            2 + usize::from(include_adjustment) * self.estimand.adjustment_set.len()
+                + self.query.effect_modifiers.len(),
+        );
+        ids.push(self.treatment());
+        ids.push(self.outcome());
+        if include_adjustment {
+            for &id in self.estimand.adjustment_set.iter() {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+        }
+        for &id in self.query.effect_modifiers.iter() {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        ids
+    }
 }
 
 /// Replace a refuter column while preserving its validity, mask, and weights.
@@ -646,9 +675,7 @@ pub(crate) fn propensity_fit_defect(glm: &antecedent_stats::GlmFit) -> Option<&'
     reason = "a binary treatment is coded exactly 0.0 or 1.0; values merely near 0 or 1 are not binary"
 )]
 pub(crate) fn binary_treatment(problem: &RefutationProblem<'_>) -> Result<bool, ValidationError> {
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
-    ids.extend_from_slice(&problem.query.effect_modifiers);
+    let ids = problem.estimation_ids(true);
     let mask = match problem.data.complete_case_mask(&ids) {
         Ok(mask) => mask,
         Err(DataError::EmptySelection { .. }) => return Ok(false),
@@ -673,9 +700,7 @@ pub(crate) fn fit_diagnostic_propensity(
     include_outcome_in_mask: bool,
     propensity: &mut PropensityWorkspace,
 ) -> Result<DiagnosticPropensityColumns, ValidationError> {
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
-    ids.extend_from_slice(&problem.query.effect_modifiers);
+    let ids = problem.estimation_ids(true);
     let row_mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
     let treatment = problem
         .data
@@ -846,8 +871,8 @@ pub(crate) fn noise_replace_refute(
     // OLS recovery of ~0 under independent noise cannot falsify the claim.
     finish_p_report(refuter_id, problem.original.ate, &ates, 0.0, alpha, |mean_ate, p_value| {
         format!(
-            "{failure_label} ATE distribution (mean {mean_ate}) is inconsistent with zero \
-             (p={p_value} < alpha={alpha})"
+            "{failure_label}: null value 0 is atypical under the replicate distribution \
+             (mean {mean_ate}, p={p_value} < alpha={alpha})"
         )
     })
 }
@@ -1340,6 +1365,20 @@ pub(crate) fn sample_sd(values: &[f64]) -> f64 {
     antecedent_stats::sample_std(values)
 }
 
+/// Column-major `Xβ`: `out[r] = Σ_c matrix[c * n + r] * beta[c]`.
+///
+/// Each row accumulates in column order, the same operations as summing that
+/// row's terms from the first column to the last.
+pub(crate) fn column_major_dot(matrix: &[f64], n: usize, beta: &[f64], out: &mut [f64]) {
+    out.fill(0.0);
+    for (c, &b) in beta.iter().enumerate() {
+        let column = &matrix[c * n..(c + 1) * n];
+        for (slot, &x) in out.iter_mut().zip(column) {
+            *slot += x * b;
+        }
+    }
+}
+
 /// Standard-normal draws via Box–Muller from [`ExecutionContext`] RNG.
 ///
 /// Emits both cos/sin components from each uniform pair (same stream use as
@@ -1427,7 +1466,7 @@ mod tests {
         // operational failure the caller must see as an error.
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             let err = replicate_p_value(&[1.0, 2.0, bad, 3.0], 0.0).unwrap_err();
-            assert!(matches!(err, ValidationError::Estimation(_)), "{err:?}");
+            assert!(matches!(err, ValidationError::Refused { .. }), "{err:?}");
         }
     }
 

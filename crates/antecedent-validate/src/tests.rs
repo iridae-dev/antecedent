@@ -662,7 +662,7 @@ fn ols_refuters_do_not_earn_a_pass_from_p_equals_one() {
     // refutation (p = 0) it later became.
     assert!(matches!(
         crate::common::replicate_p_value(&[0.1, f64::NAN, 0.2, 0.15], 0.0),
-        Err(ValidationError::Estimation(_))
+        Err(ValidationError::Refused { .. })
     ));
 
     let (data, estimand, _) = toy_confounded();
@@ -1851,7 +1851,7 @@ fn a_non_finite_refit_effect_is_an_error_in_every_replicate_refuter() {
     )
     .with_effect_refit(&refit);
     let is_operational_error = |result: Result<crate::RefutationReport, ValidationError>| {
-        matches!(result, Err(ValidationError::Estimation(_)))
+        matches!(result, Err(ValidationError::Refused { .. }))
     };
     assert!(is_operational_error(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx)));
     assert!(is_operational_error(DummyOutcome::new().refute(&problem, &mut ws, &ctx)));
