@@ -662,6 +662,17 @@ fn reals_of(bytes: &[u8]) -> Vec<f64> {
     crate::artifact_codec::f64s_from_le_bytes(bytes)
 }
 
+const _: () = assert!(5 + 2 == REALS_PER_UNIT);
+
+/// One unit's seven words: five factual values, then the plus and minus outcomes.
+fn next_unit(reals: &mut &[f64]) -> ([f64; 5], f64, f64) {
+    let row = crate::artifact_codec::split_reals(reals, 5);
+    let factual = [row[0], row[1], row[2], row[3], row[4]];
+    let plus = crate::artifact_codec::split_reals(reals, 1)[0];
+    let minus = crate::artifact_codec::split_reals(reals, 1)[0];
+    (factual, plus, minus)
+}
+
 /// Encode a metadata section and a values section as a checksummed container.
 ///
 /// Hidden: the producer path is [`TemporalCounterfactualArtifact::to_bytes`]; tests use this
@@ -765,17 +776,17 @@ fn request_of(
         return Err(TemporalCounterfactualArtifactError::Malformed("values section length".into()));
     }
     let reals = reals_of(values);
+    let mut rest = reals.as_slice();
     let factual = meta
         .units
         .iter()
-        .enumerate()
-        .map(|(i, u)| {
-            let row = &reals[i * REALS_PER_UNIT..i * REALS_PER_UNIT + 5];
+        .map(|u| {
+            let (values, _plus, _minus) = next_unit(&mut rest);
             FactualUnitWire {
                 unit: u.unit.clone(),
                 history: u.history.clone(),
                 times: u.times,
-                values: [row[0], row[1], row[2], row[3], row[4]],
+                values,
             }
         })
         .collect();
@@ -953,10 +964,11 @@ impl TemporalCounterfactualArtifact {
             ));
         }
         let stored = reals_of(&values);
-        let outcomes_replay = result.units.iter().enumerate().all(|(i, unit)| {
-            let row = &stored[i * REALS_PER_UNIT..(i + 1) * REALS_PER_UNIT];
-            row[5].to_bits() == unit.plus_outcome.to_bits()
-                && row[6].to_bits() == unit.minus_outcome.to_bits()
+        let mut rest = stored.as_slice();
+        let outcomes_replay = result.units.iter().all(|unit| {
+            let (_factual, plus, minus) = next_unit(&mut rest);
+            plus.to_bits() == unit.plus_outcome.to_bits()
+                && minus.to_bits() == unit.minus_outcome.to_bits()
         });
         if !outcomes_replay || result.units.len() != meta.units.len() {
             return Err(TemporalCounterfactualArtifactError::ResultMismatch("per-unit outcomes"));
@@ -995,5 +1007,27 @@ mod error_text_tests {
             Error::ResultMismatch("mean").to_string(),
             "stored temporal counterfactual does not replay: mean"
         );
+    }
+
+    #[test]
+    fn unit_words_round_trip_keeps_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let values = [-0.0, 1.0, -1.0, 2.0, nan, -0.0, 3.0, 4.0, 5.0, 6.0, 7.0, nan, 0.0, -0.0];
+        let bytes = crate::artifact_codec::f64s_to_le_bytes(&values);
+        let direct: Vec<u8> = values.iter().flat_map(|value| value.to_le_bytes()).collect();
+        assert_eq!(bytes, direct);
+        let decoded = super::reals_of(&bytes);
+        let mut rest = decoded.as_slice();
+        let mut rebuilt = Vec::new();
+        for _ in 0..2 {
+            let (factual, plus, minus) = super::next_unit(&mut rest);
+            rebuilt.extend_from_slice(&factual);
+            rebuilt.push(plus);
+            rebuilt.push(minus);
+        }
+        assert!(rest.is_empty());
+        let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&rebuilt), bits(&values));
+        assert_eq!(crate::artifact_codec::f64s_to_le_bytes(&rebuilt), bytes);
     }
 }

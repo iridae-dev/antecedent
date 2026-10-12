@@ -441,7 +441,14 @@ impl Replay {
                     return Err(malformed("numbers section length"));
                 }
                 let n = decl.n_rows;
-                let mut columns = numbers.chunks_exact(n.max(1)).map(<[f64]>::to_vec);
+                // A zero row count is an empty payload, so there are no columns.
+                let mut columns = if n == 0 {
+                    Vec::new()
+                } else {
+                    let mut rest = numbers;
+                    crate::width::take_blocks(&mut rest, n, numbers.len() / n)
+                }
+                .into_iter();
                 let outcome = columns.next().unwrap_or_default();
                 let adjustment: Vec<Vec<f64>> =
                     columns.by_ref().take(decl.adjustment.len()).collect();
@@ -947,5 +954,54 @@ impl VectorTreatmentArtifact {
             }
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+}
+
+#[cfg(test)]
+mod number_section_tests {
+    use super::{Decl, REPLAY_ROWS, Replay};
+
+    fn decl(n_rows: usize) -> Decl {
+        Decl {
+            row_snapshot: String::new(),
+            n_rows,
+            adjustment: vec!["z".into()],
+            treatments: vec!["a".into()],
+            covariance: String::new(),
+            contrasts: Vec::new(),
+        }
+    }
+
+    fn bits(sample: &[f64]) -> Vec<u64> {
+        sample.iter().map(|value| value.to_bits()).collect()
+    }
+
+    #[test]
+    fn row_replay_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let replay = Replay::Rows {
+            outcome: vec![-0.0, 1.0],
+            adjustment: vec![vec![nan, -1.5]],
+            treatments: vec![vec![0.0, f64::MIN_POSITIVE]],
+        };
+        let numbers = replay.numbers();
+        let bytes = crate::width::f64s_to_le_bytes(&numbers);
+        let direct: Vec<u8> = numbers.iter().flat_map(|value| value.to_le_bytes()).collect();
+        assert_eq!(bytes, direct);
+        let decoded = crate::width::f64s_from_le_bytes(&bytes);
+        let back = Replay::from_numbers(&decl(2), REPLAY_ROWS, &decoded).unwrap();
+        assert_eq!(bits(&back.numbers()), bits(&numbers));
+        assert_eq!(crate::width::f64s_to_le_bytes(&back.numbers()), bytes);
+    }
+
+    #[test]
+    fn zero_row_replay_has_no_columns() {
+        let back = Replay::from_numbers(&decl(0), REPLAY_ROWS, &[]).unwrap();
+        let Replay::Rows { outcome, adjustment, treatments } = back else {
+            panic!("rows replay");
+        };
+        assert!(outcome.is_empty());
+        assert!(adjustment.is_empty());
+        assert!(treatments.is_empty());
     }
 }

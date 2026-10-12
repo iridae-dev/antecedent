@@ -446,23 +446,24 @@ fn request_of(
     if p > NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES {
         return Err(NonlinearMediationArtifactError::LimitsExceeded("covariates"));
     }
-    let expected = (3 + p).checked_mul(n).and_then(|c| c.checked_mul(8));
-    if expected != Some(numbers.len()) {
-        return Err(NonlinearMediationArtifactError::Malformed("data section length".into()));
-    }
-    let values = crate::width::f64s_from_le_bytes(numbers);
-    let column = |j: usize| values[j * n..(j + 1) * n].to_vec();
+    let columns = crate::width::columns_from_le(numbers, n, 3 + p)
+        .ok_or_else(|| NonlinearMediationArtifactError::Malformed("data section length".into()))?;
     Ok(NonlinearMediationRequestWire {
         premises: meta.premises.clone(),
         config: meta.config.clone(),
-        data: MediationDataWire {
-            treatment: column(0),
-            mediator: column(1),
-            outcome: column(2),
-            covariate_names: meta.model_specs.covariates.clone(),
-            covariates: (0..p).map(|j| column(3 + j)).collect(),
-        },
+        data: data_from_columns(columns, meta.model_specs.covariates.clone()),
     })
+}
+
+fn data_from_columns(
+    mut columns: Vec<Vec<f64>>,
+    covariate_names: Vec<String>,
+) -> MediationDataWire {
+    let covariates = columns.split_off(3);
+    let outcome = columns.pop().unwrap_or_default();
+    let mediator = columns.pop().unwrap_or_default();
+    let treatment = columns.pop().unwrap_or_default();
+    MediationDataWire { treatment, mediator, outcome, covariate_names, covariates }
 }
 
 fn premise_records(premises: &MediationPremisesWire) -> Vec<MediationPremiseRecord> {
@@ -835,5 +836,32 @@ impl NonlinearMediationArtifact {
             }
         }
         Ok(Self { meta: rebuilt, request, estimate })
+    }
+}
+
+#[cfg(test)]
+mod data_section_tests {
+    use super::data_bytes;
+    use crate::nonlinear_mediation_artifact::MediationDataWire;
+
+    #[test]
+    fn data_section_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let data = MediationDataWire {
+            treatment: vec![-0.0, 1.0],
+            mediator: vec![nan, -1.5],
+            outcome: vec![0.0, f64::MIN_POSITIVE],
+            covariate_names: vec!["x".into()],
+            covariates: vec![vec![-0.0, nan]],
+        };
+        let bytes = data_bytes(&data);
+        let columns = crate::width::columns_from_le(&bytes, 2, 4).unwrap();
+        let again = super::data_from_columns(columns, data.covariate_names.clone());
+        assert_eq!(data_bytes(&again), bytes);
+        let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&again.treatment), bits(&data.treatment));
+        assert_eq!(bits(&again.mediator), bits(&data.mediator));
+        assert_eq!(bits(&again.outcome), bits(&data.outcome));
+        assert_eq!(bits(&again.covariates[0]), bits(&data.covariates[0]));
     }
 }

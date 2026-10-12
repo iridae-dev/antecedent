@@ -375,21 +375,22 @@ fn request_of(
     if p > LATENT_CLASS_ARTIFACT_MAX_COVARIATES {
         return Err(LatentClassArtifactError::LimitsExceeded("covariates"));
     }
-    let expected = (2 + p).checked_mul(n).and_then(|c| c.checked_mul(8));
-    if expected != Some(numbers.len()) {
-        return Err(LatentClassArtifactError::Malformed("data section length".into()));
-    }
-    let values = crate::width::f64s_from_le_bytes(numbers);
-    let column = |j: usize| values[j * n..(j + 1) * n].to_vec();
+    let columns = crate::width::columns_from_le(numbers, n, 2 + p)
+        .ok_or_else(|| LatentClassArtifactError::Malformed("data section length".into()))?;
     Ok(LatentClassRequestWire {
         config: meta.config.clone(),
-        data: LatentClassDataWire {
-            outcome: column(0),
-            treatment: column(1),
-            covariate_names: meta.covariate_names.clone(),
-            covariates: (0..p).map(|j| column(2 + j)).collect(),
-        },
+        data: data_from_columns(columns, meta.covariate_names.clone()),
     })
+}
+
+fn data_from_columns(
+    mut columns: Vec<Vec<f64>>,
+    covariate_names: Vec<String>,
+) -> LatentClassDataWire {
+    let covariates = columns.split_off(2);
+    let treatment = columns.pop().unwrap_or_default();
+    let outcome = columns.pop().unwrap_or_default();
+    LatentClassDataWire { outcome, treatment, covariate_names, covariates }
 }
 
 fn hard_u32(result: &LatentClassResult) -> Result<Vec<u32>, LatentClassArtifactError> {
@@ -783,5 +784,30 @@ impl LatentClassArtifact {
             }
         }
         Ok(Self { meta: rebuilt, request, result, hard_assignment })
+    }
+}
+
+#[cfg(test)]
+mod data_section_tests {
+    use super::data_bytes;
+    use crate::latent_class_artifact::LatentClassDataWire;
+
+    #[test]
+    fn data_section_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let data = LatentClassDataWire {
+            outcome: vec![-0.0, 1.0],
+            treatment: vec![nan, -1.0],
+            covariate_names: vec!["x".into()],
+            covariates: vec![vec![0.0, f64::MIN_POSITIVE]],
+        };
+        let bytes = data_bytes(&data);
+        let columns = crate::width::columns_from_le(&bytes, 2, 3).unwrap();
+        let again = super::data_from_columns(columns, data.covariate_names.clone());
+        assert_eq!(data_bytes(&again), bytes);
+        let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&again.outcome), bits(&data.outcome));
+        assert_eq!(bits(&again.treatment), bits(&data.treatment));
+        assert_eq!(bits(&again.covariates[0]), bits(&data.covariates[0]));
     }
 }

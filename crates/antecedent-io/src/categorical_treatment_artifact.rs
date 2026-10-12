@@ -597,7 +597,15 @@ impl Replay {
                 if decl.n_rows.checked_mul(1 + a) != Some(numbers.len()) {
                     return Err(malformed("numbers section length"));
                 }
-                let mut columns = numbers.chunks_exact(decl.n_rows.max(1)).map(<[f64]>::to_vec);
+                let n = decl.n_rows;
+                // A zero row count is an empty payload, so there are no columns.
+                let mut columns = if n == 0 {
+                    Vec::new()
+                } else {
+                    let mut rest = numbers;
+                    crate::width::take_blocks(&mut rest, n, numbers.len() / n)
+                }
+                .into_iter();
                 let outcome = columns.next().unwrap_or_default();
                 Ok(Self::Rows {
                     outcome,
@@ -1128,5 +1136,109 @@ impl CategoricalTreatmentArtifact {
             }
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+}
+
+#[cfg(test)]
+mod number_section_tests {
+    use super::{
+        CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentIdentity,
+        CategoricalTreatmentMeta, Decl, REPLAY_ROWS, Replay,
+    };
+    use crate::vector_treatment_artifact::WaldWire;
+
+    fn spec() -> CategoricalSpecWire {
+        CategoricalSpecWire {
+            declared_levels: vec!["a".into(), "b".into()],
+            scale: "unordered".into(),
+            reference: "a".into(),
+            min_level_rows: 1,
+            pairwise: Vec::new(),
+            monotonicity: None,
+            covariance: "hc1".into(),
+        }
+    }
+
+    fn decl(n_rows: usize) -> Decl {
+        Decl { row_snapshot: String::new(), n_rows, adjustment: vec!["z".into()], spec: spec() }
+    }
+
+    fn meta(n_rows: u64, levels: Vec<String>) -> CategoricalTreatmentMeta {
+        CategoricalTreatmentMeta {
+            version: 1,
+            feature: String::new(),
+            null: String::new(),
+            monotonicity_null: None,
+            inference_claim: String::new(),
+            calibration: String::new(),
+            replay: REPLAY_ROWS.into(),
+            row_snapshot: String::new(),
+            n_rows,
+            adjustment: vec!["z".into()],
+            spec: spec(),
+            counts: Vec::new(),
+            row_levels: levels,
+            identity: CategoricalTreatmentIdentity {
+                snapshot_id: String::new(),
+                adjustment_set_id: String::new(),
+                level_scale_id: String::new(),
+                design_id: String::new(),
+                covariance_id: String::new(),
+                family_id: String::new(),
+                omnibus_null: String::new(),
+                monotonicity_null: String::new(),
+                result_id: String::new(),
+                digest: String::new(),
+            },
+            result: CategoricalResultWire {
+                reference: String::new(),
+                scale: String::new(),
+                level_order: Vec::new(),
+                counts: Vec::new(),
+                coefficients: Vec::new(),
+                covariance: Vec::new(),
+                level_contrasts: Vec::new(),
+                pairwise: Vec::new(),
+                family_size: 0,
+                omnibus: WaldWire { statistic: 0.0, degrees_of_freedom: 0, p_value: 0.0 },
+                monotonicity: None,
+                covariance_kind: String::new(),
+                calibration: String::new(),
+            },
+            caveats: Vec::new(),
+        }
+    }
+
+    fn bits(sample: &[f64]) -> Vec<u64> {
+        sample.iter().map(|value| value.to_bits()).collect()
+    }
+
+    #[test]
+    fn row_replay_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let replay = Replay::Rows {
+            outcome: vec![-0.0, 1.0],
+            adjustment: vec![vec![nan, f64::MIN_POSITIVE]],
+            levels: vec!["a".into(), "b".into()],
+        };
+        let numbers = replay.numbers();
+        let bytes = crate::width::f64s_to_le_bytes(&numbers);
+        let direct: Vec<u8> = numbers.iter().flat_map(|value| value.to_le_bytes()).collect();
+        assert_eq!(bytes, direct);
+        let decoded = crate::width::f64s_from_le_bytes(&bytes);
+        let back =
+            Replay::from_parts(&decl(2), &meta(2, vec!["a".into(), "b".into()]), &decoded).unwrap();
+        assert_eq!(bits(&back.numbers()), bits(&numbers));
+        assert_eq!(crate::width::f64s_to_le_bytes(&back.numbers()), bytes);
+    }
+
+    #[test]
+    fn zero_row_replay_has_no_columns() {
+        let back = Replay::from_parts(&decl(0), &meta(0, Vec::new()), &[]).unwrap();
+        let Replay::Rows { outcome, adjustment, .. } = back else {
+            panic!("rows replay");
+        };
+        assert!(outcome.is_empty());
+        assert!(adjustment.is_empty());
     }
 }
