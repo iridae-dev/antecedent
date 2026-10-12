@@ -6,6 +6,7 @@
 
 use super::{SealedOperation, stamp_tabular};
 use crate::analysis::builder::{DataInput, RefuteSuite};
+use crate::analysis::prepared::estimate::{ClickNotes, Rebound};
 use crate::analysis::prepared::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
     CheckedFrontDoorOperation, CheckedFunctionalEffectOperation, CheckedIvOperation,
@@ -29,11 +30,14 @@ fn stamp_functional(
     custom_validator_names: &[Arc<str>],
     inference: &InferenceMode,
     refute: RefuteSuite,
+    defer: bool,
 ) -> Result<Option<StudyResult>, CausalError> {
     let input = DataInput::Tabular(data.clone());
     result.custom_validator_names = custom_validator_names.to_vec();
     crate::analysis::execute::push_gaussian_likelihood_disclosure(&mut result, inference, &input);
-    result.executed_contract = Some(handle.executed_contract(&input, refute, None)?);
+    if !defer {
+        result.executed_contract = Some(handle.executed_contract(&input, refute, None)?);
+    }
     Ok(Some(result))
 }
 
@@ -62,13 +66,21 @@ impl SealedOperation for CheckedLinearOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        handle.stamp_linear(&DataInput::Tabular(data.clone()), &rebound, result).map(Some)
+        let result = handle.stamp_linear(
+            &DataInput::Tabular(data.clone()),
+            &rebound,
+            result,
+            notes.defers_contract(),
+        )?;
+        notes.record(Rebound::Linear(Box::new(rebound)));
+        Ok(Some(result))
     }
 }
 
@@ -84,6 +96,7 @@ impl SealedOperation for CheckedAdmgResponseCurveOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
@@ -97,6 +110,7 @@ impl SealedOperation for CheckedAdmgResponseCurveOperation {
             &rebound.custom_validator_names,
             &rebound.inference,
             rebound.refute,
+            notes.defers_contract(),
         )
     }
 }
@@ -113,6 +127,7 @@ impl SealedOperation for CheckedPathSpecificEffectOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
@@ -126,6 +141,7 @@ impl SealedOperation for CheckedPathSpecificEffectOperation {
             &rebound.custom_validator_names,
             &rebound.inference,
             rebound.refute,
+            notes.defers_contract(),
         )
     }
 }
@@ -142,6 +158,7 @@ impl SealedOperation for CheckedFunctionalEffectOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
@@ -155,6 +172,7 @@ impl SealedOperation for CheckedFunctionalEffectOperation {
             &rebound.custom_validator_names,
             &rebound.inference,
             rebound.refute,
+            notes.defers_contract(),
         )
     }
 }
@@ -178,6 +196,7 @@ impl SealedOperation for CheckedAipwOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
@@ -185,7 +204,14 @@ impl SealedOperation for CheckedAipwOperation {
         let rebound = self.rebind(data)?;
         let mut result = rebound.execute(data, ctx)?;
         result.custom_validator_names = rebound.custom_validator_names.to_vec();
-        handle.stamp_aipw(&DataInput::Tabular(data.clone()), &rebound, result).map(Some)
+        let result = handle.stamp_aipw(
+            &DataInput::Tabular(data.clone()),
+            &rebound,
+            result,
+            notes.defers_contract(),
+        )?;
+        notes.record(Rebound::Aipw(Box::new(rebound)));
+        Ok(Some(result))
     }
 }
 
@@ -201,13 +227,21 @@ impl SealedOperation for CheckedDistributionOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
         }
         let mut result = self.execute(data, ctx)?;
         result.custom_validator_names = self.custom_validator_names.to_vec();
-        handle.stamp_distribution(&DataInput::Tabular(data.clone()), self, result).map(Some)
+        handle
+            .stamp_distribution(
+                &DataInput::Tabular(data.clone()),
+                self,
+                result,
+                notes.defers_contract(),
+            )
+            .map(Some)
     }
 }
 
@@ -230,10 +264,13 @@ impl SealedOperation for CheckedFrontDoorOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_frontdoor(data, &rebound, ctx)?;
-        stamp_tabular(handle, data, result)
+        let result = stamp_tabular(handle, data, result, notes);
+        notes.record(Rebound::FrontDoor(Box::new(rebound)));
+        result
     }
 }
 
@@ -256,10 +293,13 @@ impl SealedOperation for CheckedIvOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_iv(data, &rebound, ctx)?;
-        stamp_tabular(handle, data, result)
+        let result = stamp_tabular(handle, data, result, notes);
+        notes.record(Rebound::Iv(Box::new(rebound)));
+        result
     }
 }
 

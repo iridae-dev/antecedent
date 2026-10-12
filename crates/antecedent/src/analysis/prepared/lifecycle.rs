@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::estimate::{ClickNotes, Rebound};
 use super::sealed::{SeriesCall, SeriesEntry};
 use super::{
     PreparedExecution, PreparedModality, PreparedStudy, overlay_prepared_score_functional,
@@ -24,6 +25,12 @@ use std::time::Instant;
 impl PreparedStudy {
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
     ///
+    /// Everything the click derives from the new rows is handed to the
+    /// handle rather than derived again: the rebound sealed operation, the
+    /// frozen scores of a functional click, and, through one shared
+    /// nuisance scope, the cross-fitted nuisances of the click and of the
+    /// frozen score table (see [`Self::refresh_scoped`]).
+    ///
     /// # Errors
     ///
     /// Schema incompatibility, identification / estimation / validation failures.
@@ -34,60 +41,70 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
-        // The checked static lowering belongs to the prepared handle. Execute
-        // through it before replacing the retained data snapshot; otherwise the
-        // generic Study refresh route would rederive an unchecked preparation.
-        let checked_result = (!matches!(self.execution, PreparedExecution::OrdinaryDispatch))
-            .then(|| self.estimate(&data, ctx))
-            .transpose()?;
-        let mut refreshed = self.analysis.clone();
-        refreshed.shared_batch_design = refreshed
+        antecedent_estimate::CrossfitNuisanceCache::within_scope(|| self.refresh_scoped(data, ctx))
+    }
+
+    /// The body of [`Self::refresh`], run inside one nuisance scope.
+    ///
+    /// The click and the frozen score table of the refreshed study fit the
+    /// same cross-fitted nuisances: the same design, treatment coding, fold
+    /// plan (seeded by the context) and learner options. The scope keys every
+    /// fit on all of those inputs, so the second request is served from the
+    /// first fit and the table is bit-identical to an unshared build.
+    fn refresh_scoped(
+        &mut self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let shared = self
+            .analysis
             .shared_batch_design
             .as_ref()
             .map(|s| s.rebind(&data).map(Arc::new))
             .transpose()?;
+        // The checked static lowering belongs to the prepared handle. Execute
+        // through it before replacing the retained data snapshot; otherwise the
+        // generic Study refresh route would rederive an unchecked preparation.
+        let mut notes = ClickNotes::deferred();
+        let click = if matches!(self.execution, PreparedExecution::OrdinaryDispatch) {
+            None
+        } else {
+            Some(
+                self.estimate_with_shared_unnamed(&data, shared.clone(), ctx, &mut notes)
+                    .map_err(|error| self.name_stats_refusal(&data, error, ctx))?,
+            )
+        };
+        let mut refreshed = self.analysis.clone();
+        refreshed.shared_batch_design = shared;
         refreshed.interference =
             refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
-        if let Some(mut result) = checked_result {
-            let rebound_conditional = match (&self.execution, &refreshed.data) {
-                (PreparedExecution::CheckedConditional(operation), DataInput::Tabular(data)) => {
-                    Some(operation.rebind(data)?)
-                }
-                _ => None,
-            };
+        if let Some(mut result) = click {
+            let ClickNotes { rebound, scores, .. } = notes;
             // Any prepared route that retained scores before execution must
-            // rebuild them against the refreshed rows. Cell-AIPW response
-            // operations are sealed too, but their row scores remain the
-            // source for retargeting after the click.
-            let scores =
-                if self.score_table.is_some() { refreshed.prepare_score_table(ctx)? } else { None };
-            // Receipts that bind complete-case rows (linear, GLM, RD, AIPW,
-            // front-door, IV) must describe the retained snapshot, or the
-            // published contract would carry prepare-time row counts.
-            let rebound_dispatch = self.rebound_dispatch_execution(&refreshed.data)?;
+            // rebuild them against the refreshed rows. A functional click has
+            // already built them for exactly this study snapshot and context;
+            // cell-AIPW response operations are sealed too, but their row
+            // scores remain the source for retargeting after the click.
+            let scores = match scores {
+                Some(built) => built.filter(|_| self.score_table.is_some()),
+                None if self.score_table.is_some() => refreshed.prepare_score_table(ctx)?,
+                None => None,
+            };
             self.replace_study(refreshed);
-            if let Some(execution) = rebound_dispatch {
-                self.install_execution(execution);
-            }
-            if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
-                if let DataInput::Tabular(data) = &self.analysis.data {
-                    self.execution = PreparedExecution::CellAipwResponse(operation.refresh(
-                        &self.analysis.graph,
-                        self.analysis.tiered.as_ref(),
-                        data,
-                    )?);
-                }
-            }
-            if let Some(operation) = rebound_conditional {
-                self.execution = PreparedExecution::CheckedConditional(operation);
+            // Receipts that bind complete-case rows (linear, GLM, RD, AIPW,
+            // front-door, IV, conditional, cell-AIPW) must describe the
+            // retained snapshot, or the published contract would carry
+            // prepare-time row counts.
+            if let Some(rebound) = rebound {
+                self.install_rebound(rebound);
             }
             self.score_table = scores;
-            // `checked_result` was stamped while this handle still referenced
-            // its previous study snapshot. Refresh has now replaced the
-            // retained data and any data-bound evidence (such as the fixed
-            // interference network), so bind the result to the snapshot the
-            // handle actually retains before returning it to callers.
+            // The click ran while this handle still referenced its previous
+            // study snapshot. Refresh has now replaced the retained data and
+            // any data-bound evidence (such as the fixed interference
+            // network), so the result is bound once, to the snapshot the
+            // handle actually retains.
             result.executed_contract =
                 Some(self.executed_contract(&self.analysis.data, self.analysis.refute, None)?);
             return Ok(result);
@@ -99,6 +116,13 @@ impl PreparedStudy {
         self.score_table = scores;
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
+    }
+
+    /// Install a click's rebound operation. Out of line so the refresh frame
+    /// never holds a second execution value.
+    #[inline(never)]
+    fn install_rebound(&mut self, rebound: Rebound) {
+        self.execution = rebound.into_execution();
     }
 
     /// Execute the retained discrete ADMG response providers without rebuilding them.

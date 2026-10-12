@@ -10,6 +10,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::estimate::ClickNotes;
 use super::{CheckedProgramBinding, PreparedExecution, PreparedStudy};
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
@@ -93,11 +94,16 @@ pub(super) trait SealedOperation {
 
     /// Execute from the sealed route on tabular `data`. `None` leaves the
     /// click to the shared tabular dispatcher.
+    ///
+    /// An operation that rebinds itself to the click's rows records the
+    /// rebound operation in `notes`, and leaves the result's executed contract
+    /// unset when `notes` defers it.
     fn estimate_tabular(
         &self,
         _handle: &PreparedStudy,
         _data: &TabularData,
         _ctx: &ExecutionContext,
+        _notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         Ok(None)
     }
@@ -139,8 +145,9 @@ impl<T: SealedOperation + ?Sized> SealedOperation for Box<T> {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
-        (**self).estimate_tabular(handle, data, ctx)
+        (**self).estimate_tabular(handle, data, ctx, notes)
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
@@ -221,6 +228,9 @@ pub(super) fn stamp_tabular(
     handle: &PreparedStudy,
     data: &TabularData,
     result: StudyResult,
+    notes: &ClickNotes,
 ) -> Result<Option<StudyResult>, CausalError> {
-    handle.stamp(&DataInput::Tabular(data.clone()), result).map(Some)
+    handle
+        .stamp_deferrable(&DataInput::Tabular(data.clone()), result, notes.defers_contract())
+        .map(Some)
 }

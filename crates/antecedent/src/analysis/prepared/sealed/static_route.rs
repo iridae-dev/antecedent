@@ -14,6 +14,7 @@ use crate::analysis::execute::{
     CheckedStaticDagResponseOperation, CheckedStaticMediationOperation, CheckedSurvivalOperation,
     CheckedSyntheticControlOperation,
 };
+use crate::analysis::prepared::estimate::{ClickNotes, Rebound};
 use crate::analysis::prepared::{
     CheckedStaticResponseCurve, CheckedUnknownTieredAverageOperation, PreparedStudy,
 };
@@ -36,9 +37,10 @@ macro_rules! executes_as_prepared {
                 handle: &PreparedStudy,
                 data: &TabularData,
                 ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
             ) -> Result<Option<StudyResult>, CausalError> {
                 let result = self.execute(data, ctx)?;
-                stamp_tabular(handle, data, result)
+                stamp_tabular(handle, data, result, notes)
             }
         }
     )+};
@@ -69,9 +71,10 @@ impl SealedOperation for CheckedAttributionOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(data, ctx)?;
-        stamp_tabular(handle, data, result)
+        stamp_tabular(handle, data, result, notes)
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
@@ -89,6 +92,7 @@ impl SealedOperation for CheckedUnknownTieredAverageOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = handle.analysis.execute_checked_unknown_tiered_average(
             data,
@@ -100,7 +104,7 @@ impl SealedOperation for CheckedUnknownTieredAverageOperation {
             self.identifier,
             self.estimator,
         )?;
-        stamp_tabular(handle, data, result)
+        stamp_tabular(handle, data, result, notes)
     }
 }
 
@@ -114,10 +118,11 @@ impl SealedOperation for CheckedDerivativeResponseOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result =
             handle.analysis.execute_checked_derivative_response(data, &handle.plan, ctx, self)?;
-        stamp_tabular(handle, data, result)
+        stamp_tabular(handle, data, result, notes)
     }
 }
 
@@ -131,10 +136,13 @@ impl SealedOperation for CheckedStaticDagResponseOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result =
             handle.analysis.execute_checked_static_dag_response(data, &handle.plan, ctx, self)?;
-        handle.stamp_with_likelihood(data, self.inference(), result).map(Some)
+        handle
+            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract())
+            .map(Some)
     }
 }
 
@@ -148,6 +156,7 @@ impl SealedOperation for CheckedCellAipwResponseOperation {
         handle: &PreparedStudy,
         data: &TabularData,
         ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound =
             self.refresh(&handle.analysis.graph, handle.analysis.tiered.as_ref(), data)?;
@@ -157,7 +166,9 @@ impl SealedOperation for CheckedCellAipwResponseOperation {
             ctx,
             &rebound,
         )?;
-        stamp_tabular(handle, data, result)
+        let result = stamp_tabular(handle, data, result, notes);
+        notes.record(Rebound::CellAipwResponse(Box::new(rebound)));
+        result
     }
 }
 

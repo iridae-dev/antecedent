@@ -193,6 +193,21 @@ impl CrossfitNuisanceCache {
         (out, guard.finish())
     }
 
+    /// Run `work` under the cache already active on this thread, or under a
+    /// fresh cache that lives exactly as long as `work` when none is.
+    ///
+    /// A caller that fits one table more than once (a click and the score
+    /// table it freezes) uses this to share the nuisances between its own
+    /// fits without hiding them from an enclosing batch scope: joining the
+    /// active cache keeps that batch's counters and sharing intact, where a
+    /// nested [`Self::scope`] would replace it for the duration of `work`.
+    pub fn within_scope<R>(work: impl FnOnce() -> R) -> R {
+        if active_cache().is_some() {
+            return work();
+        }
+        Self::new().scope(work).0
+    }
+
     /// `(propensity, outcome)`: whether a scope read a propensity / outcome fit that
     /// at least one other scope of this cache also read.
     #[must_use]

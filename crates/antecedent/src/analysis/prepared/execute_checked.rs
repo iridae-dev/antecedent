@@ -31,6 +31,21 @@ use std::sync::Arc;
 use std::time::Instant;
 
 impl PreparedStudy {
+    /// Bind the contract `result` executed under `refute` on `data`, unless the
+    /// caller `defer`s it (a refresh binds once, to the state it retains).
+    fn bind_executed_contract(
+        &self,
+        data: &DataInput,
+        refute: RefuteSuite,
+        defer: bool,
+        result: &mut StudyResult,
+    ) -> Result<(), CausalError> {
+        if !defer {
+            result.executed_contract = Some(self.executed_contract(data, refute, None)?);
+        }
+        Ok(())
+    }
+
     /// Record `inference`'s likelihood disclosure on `result`, then stamp it
     /// as executed on tabular `data`.
     pub(super) fn stamp_with_likelihood(
@@ -38,6 +53,7 @@ impl PreparedStudy {
         data: &TabularData,
         inference: &InferenceMode,
         mut result: StudyResult,
+        defer: bool,
     ) -> Result<StudyResult, CausalError> {
         let input = DataInput::Tabular(data.clone());
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
@@ -45,22 +61,31 @@ impl PreparedStudy {
             inference,
             &input,
         );
-        self.stamp(&input, result)
+        self.stamp_deferrable(&input, result, defer)
     }
 
     /// Stamp the contract `result` was executed under on `data`.
     pub(super) fn stamp(
         &self,
         data: &DataInput,
+        result: StudyResult,
+    ) -> Result<StudyResult, CausalError> {
+        self.stamp_deferrable(data, result, false)
+    }
+
+    /// [`Self::stamp`], leaving the contract to the caller when `defer`.
+    pub(super) fn stamp_deferrable(
+        &self,
+        data: &DataInput,
         mut result: StudyResult,
+        defer: bool,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &self.analysis.inference,
             data,
         );
-        result.executed_contract =
-            Some(self.executed_contract(data, self.analysis.refute, None)?);
+        self.bind_executed_contract(data, self.analysis.refute, defer, &mut result)?;
         Ok(result)
     }
 
@@ -69,13 +94,14 @@ impl PreparedStudy {
         data: &DataInput,
         operation: &CheckedDistributionOperation,
         mut result: StudyResult,
+        defer: bool,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        result.executed_contract = Some(self.executed_contract(data, operation.refute, None)?);
+        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
         Ok(result)
     }
 
@@ -84,13 +110,14 @@ impl PreparedStudy {
         data: &DataInput,
         operation: &CheckedLinearOperation,
         mut result: StudyResult,
+        defer: bool,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        result.executed_contract = Some(self.executed_contract(data, operation.refute, None)?);
+        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
         Ok(result)
     }
 
@@ -691,13 +718,14 @@ impl PreparedStudy {
         data: &DataInput,
         operation: &CheckedAipwOperation,
         mut result: StudyResult,
+        defer: bool,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        result.executed_contract = Some(self.executed_contract(data, operation.refute, None)?);
+        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
         Ok(result)
     }
 }
