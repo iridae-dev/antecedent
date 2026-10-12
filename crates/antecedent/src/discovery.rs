@@ -147,7 +147,7 @@ pub fn discover_pcmci(
     ctx: &ExecutionContext,
 ) -> Result<DagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    pcmci_for(params).run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(pcmci_for(params).run(data, variables, &mut ws, ctx)?)
 }
 
 fn pcmci_for(params: &DiscoverParams) -> Pcmci {
@@ -173,7 +173,7 @@ pub fn discover_pcmci_panel(
     ctx: &ExecutionContext,
 ) -> Result<DagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    pcmci_for(params).run_panel(units, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(pcmci_for(params).run_panel(units, variables, &mut ws, ctx)?)
 }
 
 /// Run PCMCI+.
@@ -188,7 +188,7 @@ pub fn discover_pcmci_plus(
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    pcmci_plus_for(params).run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(pcmci_plus_for(params).run(data, variables, &mut ws, ctx)?)
 }
 
 fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
@@ -214,7 +214,7 @@ pub fn discover_pcmci_plus_panel(
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    pcmci_plus_for(params).run_panel(units, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(pcmci_plus_for(params).run_panel(units, variables, &mut ws, ctx)?)
 }
 
 /// Run LPCMCI.
@@ -229,7 +229,7 @@ pub fn discover_lpcmci(
     ctx: &ExecutionContext,
 ) -> Result<PagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    lpcmci_for(params).run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(lpcmci_for(params).run(data, variables, &mut ws, ctx)?)
 }
 
 fn lpcmci_for(params: &DiscoverParams) -> Lpcmci {
@@ -255,7 +255,7 @@ pub fn discover_lpcmci_panel(
     ctx: &ExecutionContext,
 ) -> Result<PagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    lpcmci_for(params).run_panel(units, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(lpcmci_for(params).run_panel(units, variables, &mut ws, ctx)?)
 }
 
 /// Run J-PCMCI+ over multi-environment series.
@@ -279,7 +279,7 @@ pub fn discover_jpcmci_plus(
         ))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
 /// Run RPCMCI with a supplied regime assignment.
@@ -307,7 +307,12 @@ pub fn discover_rpcmci(
         .with_min_regime_len(min_regime_len.unwrap_or(DEFAULT_RPCMCI_MIN_REGIME_LEN))
         .with_pcmci_plus(plus);
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, assignment, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, assignment, &mut ws, ctx)?)
+}
+
+/// Static discovery tests every pair, so the contemporaneous exclusion is always off.
+fn static_fdr(params: &StaticDiscoverParams) -> Option<FdrAdjustment> {
+    params.fdr.map(|f| f.with_exclude_contemporaneous(false))
 }
 
 /// Run static PC over tabular data.
@@ -321,13 +326,13 @@ pub fn discover_pc(
     params: &StaticDiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<StaticCpdagDiscoveryResult, CausalError> {
-    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let fdr = static_fdr(params);
     let alg = Pc::new()
         .with_fdr_adjustment(fdr)
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
 /// Run classic static FCI over tabular data → PAG.
@@ -341,13 +346,13 @@ pub fn discover_fci(
     params: &StaticDiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<StaticPagDiscoveryResult, CausalError> {
-    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let fdr = static_fdr(params);
     let alg = Fci::new()
         .with_fdr_adjustment(fdr)
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
 /// Run classic static RFCI over tabular data → PAG.
@@ -361,13 +366,13 @@ pub fn discover_rfci(
     params: &StaticDiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<StaticPagDiscoveryResult, CausalError> {
-    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let fdr = static_fdr(params);
     let alg = Rfci::new()
         .with_fdr_adjustment(fdr)
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
 /// Run GES (Gaussian BIC) over tabular data → CPDAG.
@@ -381,7 +386,7 @@ pub fn discover_ges(
     params: &StaticDiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<StaticCpdagDiscoveryResult, CausalError> {
-    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let fdr = static_fdr(params);
     let alg = Ges::new()
         .with_fdr_adjustment(fdr)
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
@@ -389,7 +394,7 @@ pub fn discover_ges(
         .with_pc_screening(params.screen_pc)
         .with_max_subset(params.max_subset);
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
 /// Run `DirectLiNGAM` over tabular data → DAG.
@@ -408,10 +413,10 @@ pub fn discover_lingam(
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
         .with_prune_threshold(prune_threshold);
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
-/// Discover a static DAG with NOTEARS (continuous SEM; ).
+/// Discover a static DAG with NOTEARS (continuous SEM).
 ///
 /// Returns the hard DAG review plus the soft weight matrix for mechanism seeding.
 ///
@@ -433,7 +438,7 @@ pub fn discover_notears(
         .with_threshold(threshold)
         .with_standardize(standardize);
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
 
 /// Exact DAG posterior enumeration (`n ≤ 6`, Gaussian BIC).
@@ -449,9 +454,9 @@ pub fn discover_exact_dag_posterior(
 ) -> Result<GraphPosterior, CausalError> {
     let eng = ExactDagPosterior::new();
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
-        .map(|gp| gp.with_algorithm("exact_dag_posterior"))
-        .map_err(CausalError::from)
+    Ok(eng
+        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
+        .with_algorithm("exact_dag_posterior"))
 }
 
 /// Order MCMC DAG posterior (Gaussian BIC).
@@ -471,9 +476,9 @@ pub fn discover_order_mcmc(
         .with_schedule(schedule.n_chains, schedule.n_warmup, schedule.n_draws, schedule.thin)
         .with_diagnostics_gate(require_diagnostics_gate);
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
-        .map(|gp| gp.with_algorithm("order_mcmc"))
-        .map_err(CausalError::from)
+    Ok(eng
+        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
+        .with_algorithm("order_mcmc"))
 }
 
 /// Structure MCMC DAG posterior (Gaussian BIC).
@@ -495,9 +500,9 @@ pub fn discover_structure_mcmc(
         schedule.thin,
     );
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
-        .map(|gp| gp.with_algorithm("structure_mcmc"))
-        .map_err(CausalError::from)
+    Ok(eng
+        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
+        .with_algorithm("structure_mcmc"))
 }
 
 /// CI-screened candidate-edge posterior (PC skeleton → structure MCMC).
@@ -514,7 +519,7 @@ pub fn discover_ci_screened_posterior(
     soft_weight: CiSoftWeight,
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, CausalError> {
-    let fdr = screen.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let fdr = static_fdr(screen);
     let mcmc = StructureMcmc::new().with_schedule(
         schedule.n_chains,
         schedule.n_warmup,
@@ -530,9 +535,9 @@ pub fn discover_ci_screened_posterior(
     let mut eng = eng;
     eng.fdr = fdr;
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
-        .map(|gp| gp.with_algorithm("ci_screened_posterior"))
-        .map_err(CausalError::from)
+    Ok(eng
+        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
+        .with_algorithm("ci_screened_posterior"))
 }
 
 /// Bounded-lag DBN template posterior from a time series (Gaussian BIC).
@@ -549,10 +554,9 @@ pub fn discover_dbn_posterior(
     schedule: &GraphMcmcSchedule,
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, CausalError> {
-    dbn_posterior_for(max_lag, force_mcmc, schedule)
-        .run(data, variables, &params.prior, params.score_family, ctx)
-        .map(|gp| gp.with_algorithm("dbn_posterior"))
-        .map_err(CausalError::from)
+    Ok(dbn_posterior_for(max_lag, force_mcmc, schedule)
+        .run(data, variables, &params.prior, params.score_family, ctx)?
+        .with_algorithm("dbn_posterior"))
 }
 
 fn dbn_posterior_for(max_lag: u32, force_mcmc: bool, schedule: &GraphMcmcSchedule) -> DbnPosterior {
@@ -577,10 +581,9 @@ pub fn discover_dbn_posterior_panel(
     schedule: &GraphMcmcSchedule,
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, CausalError> {
-    dbn_posterior_for(max_lag, force_mcmc, schedule)
-        .run_panel(units, variables, &params.prior, params.score_family, ctx)
-        .map(|gp| gp.with_algorithm("dbn_posterior"))
-        .map_err(CausalError::from)
+    Ok(dbn_posterior_for(max_lag, force_mcmc, schedule)
+        .run_panel(units, variables, &params.prior, params.score_family, ctx)?
+        .with_algorithm("dbn_posterior"))
 }
 
 /// Count definite directed edges in a temporal PAG (Tail–Arrow or Arrow–Tail).
