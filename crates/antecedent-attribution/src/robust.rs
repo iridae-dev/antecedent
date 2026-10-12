@@ -365,11 +365,11 @@ impl CoalitionPayoff for RobustLinearPayoff<'_> {
 /// baseline/comparison store — the same slot the hybrid store would have held (players
 /// here are all mechanism-kind).
 ///
-/// The RNG is reseeded to the *same* stream at the start of every [`CoalitionPayoff::value`]
-/// call (common random numbers), so two coalitions differ only in which mechanisms were
-/// swapped, not in which random draws were used — this is what keeps the Shapley
-/// differences of two Monte Carlo estimates numerically usable at a practical sample count,
-/// the same technique `distribution_change`'s `MechanismSwapPayoff` uses.
+/// Every node gets its own stream, keyed by its dense id, and that stream is restarted for
+/// every [`CoalitionPayoff::value`] call. Thus changing one node's mechanism cannot shift
+/// the noise draws for later nodes (common random numbers across coalitions), which keeps
+/// Monte Carlo Shapley differences from acquiring artificial interactions merely because
+/// two mechanism families consume different numbers of random draws.
 struct RobustMechanismPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
@@ -452,9 +452,6 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
 
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n = self.n_samples;
-        // Common random numbers: fresh stream from the same seed every call, so
-        // only the swapped mechanisms (via `mask`) differ between coalitions.
-        let mut rng = attribution_stream(self.ctx, ROBUST_STREAM, self.seed);
         // Ancestral Monte Carlo walk (`parent_gathers` is aligned with `node_order`,
         // so this iteration is the `node_order` + `gather_for` walk without the O(n)
         // lookups): every node, root or not, draws real noise and is evaluated on it.
@@ -475,6 +472,12 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
                 matches!(self.node_player[node.as_usize()], Some(i) if mask & (1u64 << i) != 0);
             let slot =
                 if use_comparison { self.comparison.get(node) } else { self.baseline.get(node) };
+            // A node-local stream prevents an upstream mechanism's draw count from
+            // shifting every downstream node's noise when comparing coalitions.
+            let node_seed = self
+                .seed
+                .wrapping_add((node.as_usize() as u64).wrapping_mul(antecedent_core::GOLDEN_GAMMA));
+            let mut rng = attribution_stream(self.ctx, ROBUST_STREAM, node_seed);
             sample_noise_column(slot, n, &mut rng, &mut self.noise_scratch)?;
             let out = &mut self.values[node.as_usize() * n..(node.as_usize() + 1) * n];
             evaluate_column(slot, parents, &self.noise_scratch[..n], out, &mut self.ws)?;
@@ -711,6 +714,43 @@ mod tests {
         let plain = run(None).unwrap();
         let sampled = run(Some((DifferenceMeasure::MeanDiff, 1_000, 9))).unwrap();
         assert_eq!(plain.total_change.to_bits(), sampled.total_change.to_bits());
+    }
+
+    /// Swapping a zero-effect root from a constant to a Gaussian family must not change
+    /// the downstream mechanism's Monte Carlo noise. The structural truth is zero: Y has
+    /// coefficient 0 on X and identical noise under both populations. This catches a
+    /// sequential-stream bug where X's family consumes a different number of random draws
+    /// and shifts Y's sample, creating a spurious finite-sample Shapley interaction.
+    #[test]
+    fn robust_node_noise_is_stable_when_another_family_changes_draw_count() {
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let template = CompiledCausalModel::compile(graph).unwrap();
+        let x_constant = MechanismSlot::Constant { value: 0.0 };
+        let x_gaussian =
+            MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([]), sigma: 1.0 };
+        let y =
+            MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([0.0]), sigma: 1.0 };
+        let baseline = CompiledMechanismStore { slots: Arc::from([x_constant, y.clone()]) };
+        let comparison = CompiledMechanismStore { slots: Arc::from([x_gaussian, y]) };
+        let players = [
+            ComponentId::from_variable(VariableId::from_raw(0)),
+            ComponentId::from_variable(VariableId::from_raw(1)),
+        ];
+        let ctx = ExecutionContext::for_tests(17);
+        let mut payoff = RobustMechanismPayoff::new(
+            template,
+            baseline,
+            comparison,
+            &players,
+            DenseNodeId::from_raw(1),
+            McSampling { n_samples: 128, seed: 23 },
+            &ctx,
+        );
+
+        let unchanged_x = payoff.value(0).unwrap();
+        let changed_x_only = payoff.value(1).unwrap();
+        assert_eq!(unchanged_x.to_bits(), changed_x_only.to_bits());
     }
 
     /// `X -> Y`, `Y = X²` exactly (zero-noise quadratic mechanism), `X`'s mean held
