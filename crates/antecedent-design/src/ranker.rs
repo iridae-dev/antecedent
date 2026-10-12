@@ -24,9 +24,9 @@ use antecedent_stats::{Welford, invert_square, normal_ppf};
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
 use crate::error::DesignError;
-use crate::objective::DesignObjective;
+use crate::objective::{DesignObjective, ObjectiveChannel, ObjectiveScorer};
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
-use crate::result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+use crate::result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
 
 /// Stream index of a ranking's shared CRN draws within [`StreamDomain::Design`].
 const RANK_STREAM: u64 = 0xD351_0611;
@@ -257,10 +257,10 @@ impl DesignRanker {
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
-    ) -> Result<DesignRanking, DesignError>
+    ) -> Result<ScoredDesignRanking, DesignError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         self.validate_rank_inputs(candidates, ctx_eval)?;
         validate_objective_context(objective, ctx_eval)?;
@@ -372,8 +372,8 @@ impl DesignRanker {
         z: f64,
     ) -> Result<ScoringRun, DesignError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         let (active, decision, all_exact) = (scoring.active, scoring.decision, scoring.all_exact);
         let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
@@ -387,12 +387,10 @@ impl DesignRanker {
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
         let mut stats = RankDrawStats::new(active.len());
-        let mut log_lik = Vec::new();
-        let mut weights = Vec::new();
         // The entropy channel's expectation depends only on the candidate, so it is
         // computed once per candidate and reported as exact.
         let entropy_gain: Option<Vec<f64>> =
-            matches!(objective, DesignObjective::ReduceGraphEntropy).then(|| {
+            matches!(objective.channel(), ObjectiveChannel::GraphEntropy).then(|| {
                 active
                     .iter()
                     .map(|&cand_i| {
@@ -416,32 +414,31 @@ impl DesignRanker {
                     gains.clone()
                 } else if let Some(d) = decision {
                     // Decision replicates share one seed, so every candidate sees the
-                    // same sampled state and noise.
+                    // same sampled state and noise. `map_indexed` only changes which
+                    // thread scores a candidate; the seed does not.
                     let crn_seed = rng.next_u64();
-                    let mut scores = Vec::with_capacity(active.len());
-                    for &cand_i in active {
-                        scores.push(d.score(cand_i, crn_seed, &mut log_lik, &mut weights)?);
-                    }
-                    scores
+                    ctx.map_indexed(active.len(), |slot, _ctx| {
+                        let mut log_lik = Vec::new();
+                        let mut weights = Vec::new();
+                        d.score(active[slot], crn_seed, &mut log_lik, &mut weights)
+                    })?
                 } else {
                     // Non-decision scores that consume randomness (model distinction)
                     // each open a fresh generator from this seed. Sharing the outer
                     // generator coupled candidates by how many draws the previous
                     // candidate happened to take.
                     let draw_seed = rng.next_u64();
-                    let mut scores = Vec::with_capacity(active.len());
-                    for &cand_i in active {
+                    ctx.map_indexed(active.len(), |slot, _ctx| {
                         let mut local = CausalRng::from_seed(draw_seed);
-                        scores.push(score_candidate(
+                        score_candidate(
                             objective,
-                            &candidates[cand_i],
+                            &candidates[active[slot]],
                             ctx_eval,
                             &channels,
                             g_idx,
                             &mut local,
-                        )?);
-                    }
-                    scores
+                        )
+                    })?
                 };
                 for (slot, score) in replicate.iter().enumerate() {
                     draws[slot].push(*score);
@@ -549,7 +546,7 @@ impl DesignRanker {
         }))
     }
 
-    /// Turn per-candidate draws into a sorted, CI-annotated [`DesignRanking`].
+    /// Turn per-candidate draws into a sorted, CI-annotated [`ScoredDesignRanking`].
     ///
     /// `rank_uncertain` compares each candidate with the next-ranked one through the
     /// *paired* difference of their draws (shared-CRN replicates) at the sequentially
@@ -562,7 +559,7 @@ impl DesignRanker {
         violations: Vec<ConstraintViolation>,
         implemented_functional: &'static str,
         z: f64,
-    ) -> DesignRanking {
+    ) -> ScoredDesignRanking {
         let ScoringRun { draws, n_samples, budget, early_stopped } = run;
         // (candidate index, mean, error, evaluation, slot)
         let mut scored: Vec<(usize, f64, MonteCarloError, ScoreEvaluation, usize)> = active
@@ -606,7 +603,7 @@ impl DesignRanker {
             });
         }
 
-        DesignRanking {
+        ScoredDesignRanking {
             ranked: Arc::from(ranked),
             violations: Arc::from(violations),
             budget,
@@ -758,12 +755,12 @@ struct ScoringChannels {
 
 impl ScoringChannels {
     fn new<A, O>(objective: &DesignObjective, ctx: &DesignEvaluationContext<'_, A, O>) -> Self {
-        match objective {
-            DesignObjective::ReduceGraphEntropy => Self {
+        match objective.channel() {
+            ObjectiveChannel::GraphEntropy => Self {
                 entropy: EntropyChannel::new(ctx.graphs, ctx.graph_features),
                 model_pairs: Vec::new(),
             },
-            DesignObjective::DistinguishModels { models } => Self {
+            ObjectiveChannel::ModelDistinction { models } => Self {
                 entropy: None,
                 model_pairs: ctx
                     .model_loglik
@@ -781,8 +778,8 @@ fn validate_objective_context<A, O>(
     ctx: &DesignEvaluationContext<'_, A, O>,
 ) -> Result<(), DesignError> {
     let n = ctx.graphs.n_samples;
-    match objective {
-        DesignObjective::ReduceGraphEntropy => {
+    match objective.channel() {
+        ObjectiveChannel::GraphEntropy => {
             if let Some(features) = ctx.graph_features {
                 if features.len() != n {
                     return Err(DesignError::Shape(format!(
@@ -792,7 +789,7 @@ fn validate_objective_context<A, O>(
                 }
             }
         }
-        DesignObjective::IncreaseIdentificationProbability { .. } => {
+        ObjectiveChannel::Identification { .. } => {
             if let Some(flags) = ctx.identified_under_intervention {
                 if flags.len() != n {
                     return Err(DesignError::Shape(format!(
@@ -802,7 +799,7 @@ fn validate_objective_context<A, O>(
                 }
             }
         }
-        DesignObjective::ReduceEffectPosteriorWidth { .. } => {
+        ObjectiveChannel::EffectWidth { .. } => {
             let Some(ew) = ctx.effect_width else {
                 return Err(DesignError::Config(
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
@@ -810,7 +807,7 @@ fn validate_objective_context<A, O>(
             };
             baseline_treatment_se(ew)?;
         }
-        DesignObjective::DistinguishModels { .. } => {
+        ObjectiveChannel::ModelDistinction { .. } => {
             let Some(ll) = ctx.model_loglik else {
                 return Err(DesignError::Config(
                     "DistinguishModels requires model_loglik context".into(),
@@ -825,7 +822,7 @@ fn validate_objective_context<A, O>(
                 )));
             }
         }
-        DesignObjective::ReduceDecisionRegret { .. } => {}
+        ObjectiveChannel::Decision { .. } => {}
     }
     Ok(())
 }
@@ -842,14 +839,12 @@ where
     A: Clone,
     O: Clone,
 {
-    match objective {
-        DesignObjective::ReduceGraphEntropy => {
+    match objective.channel() {
+        ObjectiveChannel::GraphEntropy => {
             Ok(channels.entropy.as_ref().map_or(0.0, |c| c.draw(candidate, graph_idx, rng)))
         }
-        DesignObjective::IncreaseIdentificationProbability { query } => {
-            Ok(id_prob_gain(candidate, ctx, *query))
-        }
-        DesignObjective::ReduceEffectPosteriorWidth { query: _ } => {
+        ObjectiveChannel::Identification { query } => Ok(id_prob_gain(candidate, ctx, query)),
+        ObjectiveChannel::EffectWidth { .. } => {
             let Some(ew) = ctx.effect_width else {
                 return Err(DesignError::Config(
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
@@ -857,7 +852,7 @@ where
             };
             effect_width_reduction(candidate, ew)
         }
-        DesignObjective::DistinguishModels { models } => {
+        ObjectiveChannel::ModelDistinction { models } => {
             let Some(ll) = ctx.model_loglik else {
                 return Err(DesignError::Config(
                     "DistinguishModels requires model_loglik context".into(),
@@ -865,7 +860,7 @@ where
             };
             Ok(model_distinguish_score(candidate, ll, models.len(), &channels.model_pairs, rng))
         }
-        DesignObjective::ReduceDecisionRegret { .. } => Err(DesignError::Config(
+        ObjectiveChannel::Decision { .. } => Err(DesignError::Config(
             "ReduceDecisionRegret is scored through its prepared preposterior analysis".into(),
         )),
     }
@@ -1323,14 +1318,8 @@ fn model_distinguish_score(
 
 /// How non-decision objectives are evaluated: deterministic functionals are exact;
 /// scores that consume per-draw randomness are Monte Carlo estimates.
-const fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
-    match objective {
-        DesignObjective::IncreaseIdentificationProbability { .. }
-        | DesignObjective::ReduceEffectPosteriorWidth { .. }
-        | DesignObjective::ReduceGraphEntropy => ScoreEvaluation::Exact,
-        DesignObjective::DistinguishModels { .. }
-        | DesignObjective::ReduceDecisionRegret { .. } => ScoreEvaluation::MonteCarlo,
-    }
+fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
+    objective.static_evaluation()
 }
 
 /// Prepare the preposterior analysis for [`DesignObjective::ReduceDecisionRegret`]
@@ -1339,7 +1328,7 @@ fn prepare_decision<'a, A, O>(
     objective: &DesignObjective,
     ctx: &DesignEvaluationContext<'a, A, O>,
 ) -> Result<Option<PreposteriorAnalysis<'a, O>>, DesignError> {
-    let DesignObjective::ReduceDecisionRegret { decision } = objective else {
+    let ObjectiveChannel::Decision { decision } = objective.channel() else {
         return Ok(None);
     };
     let Some(registry) = ctx.decisions else {

@@ -44,7 +44,7 @@ use antecedent_core::{
 };
 use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
 
-use crate::design_ranking_artifact::{CandidateWire, DesignRankingArtifactWire};
+use crate::design_ranking_artifact::{DesignRankingArtifactWire, EvsiCandidateWire};
 use crate::repair::{FamilyVerdict, RepairCancelled, RepairFamily};
 use crate::repair_artifact::{RepairFamilyRef, RepairOutcomeWire, RepairReportArtifact};
 use crate::study_candidate::DurableStudyCandidate;
@@ -350,7 +350,10 @@ fn singleton_outcome<'a>(
     ))
 }
 
-fn find_scored<'a>(ranking: &'a DesignRankingArtifactWire, id: &str) -> Result<&'a CandidateWire> {
+fn find_scored<'a>(
+    ranking: &'a DesignRankingArtifactWire,
+    id: &str,
+) -> Result<&'a EvsiCandidateWire> {
     ranking.candidates.iter().find(|c| c.semantic_id == id).ok_or_else(|| {
         ProposalReceiptError::mismatch(
             "proposal_receipt.candidate_not_in_ranking",
@@ -359,7 +362,11 @@ fn find_scored<'a>(ranking: &'a DesignRankingArtifactWire, id: &str) -> Result<&
     })
 }
 
-fn check_declared(repair: &RepairReportArtifact, scored: &CandidateWire, id: &str) -> Result<()> {
+fn check_declared(
+    repair: &RepairReportArtifact,
+    scored: &EvsiCandidateWire,
+    id: &str,
+) -> Result<()> {
     let declared =
         repair.premises.candidates.iter().find(|c| c.semantic_id == id).ok_or_else(|| {
             ProposalReceiptError::mismatch(
@@ -395,7 +402,7 @@ fn derivation_digest(outcome: &RepairOutcomeWire) -> Option<String> {
     })
 }
 
-fn snapshots_of(scored: &CandidateWire) -> Vec<String> {
+fn snapshots_of(scored: &EvsiCandidateWire) -> Vec<String> {
     let mut snapshots = scored.request.evidence_lineage.clone();
     if let Some(provider) = &scored.provider {
         snapshots.push(format!("provider:{}/{}", provider.provider_id, provider.snapshot_id));

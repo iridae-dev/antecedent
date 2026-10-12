@@ -54,12 +54,12 @@ use serde::{Deserialize, Serialize};
 use crate::decision::{DecisionProblem, DecisionTable};
 use crate::error::DesignError;
 use crate::evsi::{
-    CandidateEvsi, CostToUtilityMap, EvsiCandidate, EvsiReport, EvsiRequest, IntegrationMethod,
+    CostToUtilityMap, EvsiCandidate, EvsiCandidateRow, EvsiReport, EvsiRequest, IntegrationMethod,
     SearchReceipt,
 };
 use crate::preposterior::{DecisionPrior, DecisionSignal, expected_max_affine};
 use crate::rank_rows::{AdjacentRank, evsi_bound_ok, rank_rows};
-use crate::ranking::{DesignRankingBasis, DesignRankingValue, RankingEntry, RankingError};
+use crate::ranking::{DesignRankingBasis, EvsiRankRow, RankingError, RankingRecord};
 use crate::signal::{
     PreparedLaw, PreparedSignal, RefusalBuilder, SignalError, SignalLimits, SignalReceipt,
     SignalRequest, SignalTrustLabel, SignalUpdateMode, recall_prepared,
@@ -250,7 +250,7 @@ pub enum LawWire {
 /// One ranked candidate with everything needed to inspect or recompute its value.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CandidateWire {
+pub struct EvsiCandidateWire {
     /// Stable semantic identity.
     pub semantic_id: String,
     /// Sample size.
@@ -313,6 +313,73 @@ pub struct CandidateWire {
     pub assumptions: Vec<String>,
 }
 
+impl EvsiCandidateWire {
+    /// Scored columns come from [`EvsiRankRow::from`]; the request, law and
+    /// provider fields are the seal inputs that are not on the rank row.
+    fn from_scored(row: &EvsiCandidateRow, declared: &EvsiCandidate, law: LawWire) -> Self {
+        let scored = EvsiRankRow::from(row);
+        let receipt = &row.signal_receipt;
+        Self {
+            semantic_id: scored.semantic_id,
+            sample_size: scored.sample_size,
+            cost_amount: scored.study_cost_amount,
+            cost_unit: scored.study_cost_unit,
+            reused_observation_ids: declared.reused_observation_ids.clone(),
+            request: request_wire(&declared.signal_request),
+            family: receipt.family.clone(),
+            update_mode: scored.update_mode.as_str().to_owned(),
+            trust: scored.provider_trust.as_str().to_owned(),
+            attestor: receipt.attestor.clone(),
+            provider: receipt.provider_identity.as_ref().map(provider_wire),
+            law_digest: receipt.law_digest.clone(),
+            request_fingerprint: scored.request_fingerprint,
+            signal_identity: scored.signal_identity,
+            law,
+            evsi: scored.evsi,
+            evpi: scored.evpi,
+            integration: scored.integration.as_str().to_owned(),
+            replicates: scored.replicates,
+            stderr: scored.mc_stderr,
+            ess: row.integration.ess,
+            converged: row.integration.converged,
+            early_stopped: row.integration.early_stopped,
+            study_cost_utility: row.study_cost_utility,
+            net_value: scored.net_value,
+            rank: scored.rank as u64,
+            rank_uncertain: scored.rank_uncertain,
+            overlap_checked: row.source_overlap.observations_checked as u64,
+            overlapping: row.source_overlap.overlapping.clone(),
+            assumptions: row.assumptions.clone(),
+        }
+    }
+}
+
+impl TryFrom<&EvsiCandidateWire> for EvsiRankRow {
+    type Error = DesignRankingArtifactError;
+
+    fn try_from(wire: &EvsiCandidateWire) -> std::result::Result<Self, Self::Error> {
+        let invalid = DesignRankingArtifactError::InvalidWire;
+        Ok(Self {
+            semantic_id: wire.semantic_id.clone(),
+            rank: usize::try_from(wire.rank).map_err(|_| invalid("rank"))?,
+            evsi: wire.evsi,
+            mc_stderr: wire.stderr,
+            replicates: wire.replicates,
+            integration: parse_method(&wire.integration).ok_or_else(|| invalid("integration"))?,
+            evpi: wire.evpi,
+            sample_size: wire.sample_size,
+            study_cost_amount: wire.cost_amount,
+            study_cost_unit: wire.cost_unit.clone(),
+            net_value: wire.net_value,
+            rank_uncertain: wire.rank_uncertain,
+            signal_identity: wire.signal_identity.clone(),
+            request_fingerprint: wire.request_fingerprint.clone(),
+            update_mode: parse_mode(&wire.update_mode).ok_or_else(|| invalid("update_mode"))?,
+            provider_trust: parse_trust(&wire.trust).ok_or_else(|| invalid("trust"))?,
+        })
+    }
+}
+
 /// Search receipt on the wire.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -364,12 +431,12 @@ pub struct DesignRankingArtifactWire {
     /// Expected value of perfect information.
     pub evpi: f64,
     /// Candidates (any order; the digest uses semantic-id order).
-    pub candidates: Vec<CandidateWire>,
+    pub candidates: Vec<EvsiCandidateWire>,
     /// Adjacent pairs tied within the tie tolerance.
     pub ties: Vec<(String, String)>,
     /// Search receipt.
     pub search: SearchWire,
-    /// Identity of the in-memory [`DesignRankingValue`] value.
+    /// Identity of the in-memory [`RankingRecord`] value.
     pub ranking_identity: String,
     /// Digest over the canonical body.
     pub digest: String,
@@ -747,7 +814,7 @@ fn is_native(law: &LawWire) -> bool {
 }
 
 fn recompute(
-    candidate: &CandidateWire,
+    candidate: &EvsiCandidateWire,
     decision: &DecisionWire,
     base: &Baseline,
     method: IntegrationMethod,
@@ -944,7 +1011,7 @@ impl ConsumedCandidate {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConsumedDesignRanking {
     /// The ranking value rebuilt from the artifact.
-    pub ranking: DesignRankingValue,
+    pub ranking: RankingRecord,
     /// The artifact digest.
     pub identity: String,
     /// Candidates in rank order.
@@ -1023,7 +1090,7 @@ impl DesignRankingArtifactWire {
             links.push(link(id.clone(), CompositionStage::DistributionArtifact, vec![]));
             result_parents.push(id);
         }
-        let mut candidates: Vec<&CandidateWire> = self.candidates.iter().collect();
+        let mut candidates: Vec<&EvsiCandidateWire> = self.candidates.iter().collect();
         candidates.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
         let mut seen_providers = BTreeSet::new();
         for candidate in candidates {
@@ -1276,7 +1343,7 @@ fn law_wire(
 
 /// The law from evaluation when its receipt is still on the row; otherwise a
 /// fresh prepare that must answer with that same receipt identity.
-fn prepared_for_seal(declared: &EvsiCandidate, row: &CandidateEvsi) -> Result<PreparedSignal> {
+fn prepared_for_seal(declared: &EvsiCandidate, row: &EvsiCandidateRow) -> Result<PreparedSignal> {
     if let Some(retained) = recall_prepared(&row.signal_receipt.identity())
         .filter(|retained| retained.receipt == row.signal_receipt)
     {
@@ -1317,7 +1384,7 @@ fn prepared_for_seal(declared: &EvsiCandidate, row: &CandidateEvsi) -> Result<Pr
 /// retained, a duplicated declared semantic id, or an empty report.
 pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifactWire> {
     let report = inputs.report;
-    let ranking = DesignRankingValue::from_evsi(report, inputs.source_digests)?;
+    let ranking = RankingRecord::from_evsi(report, inputs.source_digests)?;
     let decision = decision_wire(inputs)?;
     let mut declared_by_id = BTreeMap::new();
     for candidate in &inputs.request.candidates {
@@ -1334,42 +1401,8 @@ pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifac
             .copied()
             .ok_or(DesignRankingArtifactError::InvalidWire("report names an unknown candidate"))?;
         let prepared = prepared_for_seal(declared, row)?;
-        let receipt = &row.signal_receipt;
-        let law = law_wire(receipt, &prepared, row.sample_size)?;
-        let mut lineage = receipt.evidence_lineage.clone();
-        lineage.sort();
-        candidates.push(CandidateWire {
-            semantic_id: row.semantic_id.clone(),
-            sample_size: row.sample_size,
-            cost_amount: row.study_cost.amount,
-            cost_unit: row.study_cost.unit.clone(),
-            reused_observation_ids: declared.reused_observation_ids.clone(),
-            request: request_wire(&declared.signal_request),
-            family: receipt.family.clone(),
-            update_mode: receipt.update_mode.as_str().to_owned(),
-            trust: receipt.trust.as_str().to_owned(),
-            attestor: receipt.attestor.clone(),
-            provider: receipt.provider_identity.as_ref().map(provider_wire),
-            law_digest: receipt.law_digest.clone(),
-            request_fingerprint: receipt.request_fingerprint.clone(),
-            signal_identity: receipt.identity(),
-            law,
-            evsi: row.evsi,
-            evpi: row.evpi,
-            integration: row.integration.method.as_str().to_owned(),
-            replicates: row.integration.replicates,
-            stderr: row.integration.stderr,
-            ess: row.integration.ess,
-            converged: row.integration.converged,
-            early_stopped: row.integration.early_stopped,
-            study_cost_utility: row.study_cost_utility,
-            net_value: row.net_value,
-            rank: row.rank as u64,
-            rank_uncertain: row.rank_uncertain,
-            overlap_checked: row.source_overlap.observations_checked as u64,
-            overlapping: row.source_overlap.overlapping.clone(),
-            assumptions: row.assumptions.clone(),
-        });
+        let law = law_wire(&row.signal_receipt, &prepared, row.sample_size)?;
+        candidates.push(EvsiCandidateWire::from_scored(row, declared, law));
     }
     let config = &inputs.request.rank_config;
     let mut wire = DesignRankingArtifactWire {
@@ -1526,7 +1559,7 @@ fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
     Ok(())
 }
 
-fn signal_request_of(candidate: &CandidateWire) -> Option<SignalRequest> {
+fn signal_request_of(candidate: &EvsiCandidateWire) -> Option<SignalRequest> {
     let wire = &candidate.request;
     let state = ScientificQuantity::try_from(wire.state_quantity.clone()).ok()?;
     let observation = ScientificQuantity::try_from(wire.observation_quantity.clone()).ok()?;
@@ -1560,7 +1593,7 @@ fn trust_limit(trust: SignalTrustLabel, attestor: Option<&str>) -> String {
     }
 }
 
-fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUpdateMode)> {
+fn check_signal(candidate: &EvsiCandidateWire) -> Result<(SignalTrustLabel, SignalUpdateMode)> {
     let id = &candidate.semantic_id;
     let inconsistent = |slot: &'static str| DesignRankingArtifactError::SignalInconsistent {
         candidate: id.clone(),
@@ -1654,7 +1687,7 @@ fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUp
 
 fn verify_candidate(
     wire: &DesignRankingArtifactWire,
-    candidate: &CandidateWire,
+    candidate: &EvsiCandidateWire,
     base: &Baseline,
 ) -> Result<ConsumedCandidate> {
     let id = &candidate.semantic_id;
@@ -1737,13 +1770,13 @@ fn verify_candidate(
     })
 }
 
-fn rank_key(candidate: &CandidateWire) -> f64 {
+fn rank_key(candidate: &EvsiCandidateWire) -> f64 {
     candidate.net_value.unwrap_or(candidate.evsi)
 }
 
 /// Recompute the order, rank-uncertainty flags and ties from the stored values.
 fn verify_order(wire: &DesignRankingArtifactWire) -> Result<()> {
-    let mut rows: Vec<&CandidateWire> = wire.candidates.iter().collect();
+    let mut rows: Vec<&EvsiCandidateWire> = wire.candidates.iter().collect();
     rows.sort_by(|a, b| {
         rank_key(b).total_cmp(&rank_key(a)).then_with(|| a.semantic_id.cmp(&b.semantic_id))
     });
@@ -1793,7 +1826,7 @@ fn verify_search(wire: &DesignRankingArtifactWire) -> Result<()> {
     Ok(())
 }
 
-fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRankingValue> {
+fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<RankingRecord> {
     let basis =
         rank_basis(&wire.basis).ok_or(DesignRankingArtifactError::InvalidWire("ranking basis"))?;
     if (basis == DesignRankingBasis::NetValue) != wire.cost_map.is_some() {
@@ -1801,31 +1834,13 @@ fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRankingValu
     }
     let mut entries = Vec::with_capacity(wire.candidates.len());
     for c in &wire.candidates {
-        let invalid = DesignRankingArtifactError::InvalidWire;
-        entries.push(RankingEntry {
-            semantic_id: c.semantic_id.clone(),
-            rank: usize::try_from(c.rank).map_err(|_| invalid("rank"))?,
-            evsi: c.evsi,
-            mc_stderr: c.stderr,
-            replicates: c.replicates,
-            integration: parse_method(&c.integration).ok_or_else(|| invalid("integration"))?,
-            evpi: c.evpi,
-            sample_size: c.sample_size,
-            study_cost_amount: c.cost_amount,
-            study_cost_unit: c.cost_unit.clone(),
-            net_value: c.net_value,
-            rank_uncertain: c.rank_uncertain,
-            signal_identity: c.signal_identity.clone(),
-            request_fingerprint: c.request_fingerprint.clone(),
-            update_mode: parse_mode(&c.update_mode).ok_or_else(|| invalid("update_mode"))?,
-            provider_trust: parse_trust(&c.trust).ok_or_else(|| invalid("trust"))?,
-        });
+        entries.push(EvsiRankRow::try_from(c)?);
     }
     entries.sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
     let mut digests = wire.source_digests.clone();
     digests.sort();
     digests.dedup();
-    Ok(DesignRankingValue {
+    Ok(RankingRecord {
         basis,
         decision_contract_identity: Some(wire.decision.contract_identity.clone()),
         utility_unit: Some(wire.decision.utility_unit.clone()),

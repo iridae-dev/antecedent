@@ -1,4 +1,4 @@
-//! The in-memory `DesignRankingValue` value, its order-invariant identity, replay
+//! The in-memory `RankingRecord` value, its order-invariant identity, replay
 //! checks, and the preserved structural ordering.
 //!
 //! Oracles (frozen guess decision, enumerated by hand): binary state, guess it for utility 1 if
@@ -20,7 +20,7 @@ use antecedent_design::evsi::{
     StudyCostSpec, evaluate_evsi,
 };
 use antecedent_design::ranking::{
-    DesignRankingBasis, DesignRankingValue, RankingError, StructuralCandidate,
+    DesignRankingBasis, RankingError, RankingRecord, StructuralCandidate,
 };
 use antecedent_design::signal::{
     ExternalLaw, ExternalSignal, ExternalSignalBody, SignalLimits, SignalProvider, SignalRequest,
@@ -190,8 +190,8 @@ fn net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() {
     reversed_candidates.reverse();
     let reversed = evaluate(&request(reversed_candidates, Some(utility_map()))).unwrap();
 
-    let ranking = DesignRankingValue::from_evsi(&forward, &digests()).unwrap();
-    let other = DesignRankingValue::from_evsi(&reversed, &digests()).unwrap();
+    let ranking = RankingRecord::from_evsi(&forward, &digests()).unwrap();
+    let other = RankingRecord::from_evsi(&reversed, &digests()).unwrap();
     assert_eq!(ranking.basis, DesignRankingBasis::NetValue);
     let ids: Vec<&str> = ranking.entries.iter().map(|e| e.semantic_id.as_str()).collect();
     assert_eq!(ids, vec!["cand-1", "cand-2"]);
@@ -208,7 +208,7 @@ fn net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() {
 #[test]
 fn independent_inspection_recovers_every_retained_field() {
     let report = evaluate(&request(frozen_candidates(), Some(utility_map()))).unwrap();
-    let ranking = DesignRankingValue::from_evsi(&report, &digests()).unwrap();
+    let ranking = RankingRecord::from_evsi(&report, &digests()).unwrap();
     assert_eq!(ranking.decision_contract_identity.as_deref(), Some("contract-1"));
     assert_eq!(ranking.utility_unit.as_deref(), Some("utility"));
     assert_eq!(ranking.cost_mapping, Some(utility_map()));
@@ -228,7 +228,7 @@ fn independent_inspection_recovers_every_retained_field() {
     // A fresh build from an independent evaluation reproduces the identity.
     let again = evaluate(&request(frozen_candidates(), Some(utility_map()))).unwrap();
     assert_eq!(
-        DesignRankingValue::from_evsi(&again, &digests()).unwrap().identity(),
+        RankingRecord::from_evsi(&again, &digests()).unwrap().identity(),
         ranking.identity()
     );
 }
@@ -236,7 +236,7 @@ fn independent_inspection_recovers_every_retained_field() {
 #[test]
 fn altered_signal_update_source_cost_or_contract_changes_identity_and_refuses_replay() {
     let base = evaluate(&request(frozen_candidates(), Some(utility_map()))).unwrap();
-    let ranking = DesignRankingValue::from_evsi(&base, &digests()).unwrap();
+    let ranking = RankingRecord::from_evsi(&base, &digests()).unwrap();
     let signals = identities(&base);
     assert_eq!(
         ranking.verify_replay("contract-1", &signals, &digests(), Some(&utility_map())),
@@ -256,7 +256,7 @@ fn altered_signal_update_source_cost_or_contract_changes_identity_and_refuses_re
     ))
     .unwrap();
     assert!(near(altered.candidates[0].evsi, 0.25));
-    let altered_ranking = DesignRankingValue::from_evsi(&altered, &digests()).unwrap();
+    let altered_ranking = RankingRecord::from_evsi(&altered, &digests()).unwrap();
     assert_ne!(altered_ranking.identity(), ranking.identity());
     assert_eq!(
         ranking.verify_replay(
@@ -293,11 +293,11 @@ fn altered_signal_update_source_cost_or_contract_changes_identity_and_refuses_re
     // A different cost mapping or source digest also changes the identity of the value.
     let rescaled = evaluate(&request(frozen_candidates(), Some(other_map))).unwrap();
     assert_ne!(
-        DesignRankingValue::from_evsi(&rescaled, &digests()).unwrap().identity(),
+        RankingRecord::from_evsi(&rescaled, &digests()).unwrap().identity(),
         ranking.identity()
     );
     assert_ne!(
-        DesignRankingValue::from_evsi(&base, &changed_digests).unwrap().identity(),
+        RankingRecord::from_evsi(&base, &changed_digests).unwrap().identity(),
         ranking.identity()
     );
 }
@@ -332,7 +332,7 @@ fn noisy_candidate_regret_differs_from_its_structural_unlock_rank() {
             cost: StudyCost { units: 1, sample_budget: 100 },
         },
     ];
-    let structural_ranking = DesignRankingValue::with_fallback(None, &structural).unwrap();
+    let structural_ranking = RankingRecord::with_fallback(None, &structural).unwrap();
     assert_eq!(structural_ranking.basis, DesignRankingBasis::StructuralSufficiencyCost);
     assert_eq!(structural_ranking.structural[0].semantic_id, "noisy");
 
@@ -348,7 +348,7 @@ fn noisy_candidate_regret_differs_from_its_structural_unlock_rank() {
     .unwrap();
     let source_digests = digests();
     let probabilistic =
-        DesignRankingValue::with_fallback(Some((&report, source_digests.as_slice())), &structural)
+        RankingRecord::with_fallback(Some((&report, source_digests.as_slice())), &structural)
             .unwrap();
     assert_eq!(probabilistic.basis, DesignRankingBasis::Evsi);
     let ids: Vec<&str> = probabilistic.entries.iter().map(|e| e.semantic_id.as_str()).collect();
@@ -373,20 +373,17 @@ fn structural_order_is_sufficiency_then_cost_then_budget_then_id() {
         candidate("tie_a", true, 3, 10),
         candidate("small_budget", true, 3, 5),
     ];
-    let ranking = DesignRankingValue::from_structural(&list).unwrap();
+    let ranking = RankingRecord::from_structural(&list).unwrap();
     let ids: Vec<&str> = ranking.structural.iter().map(|e| e.semantic_id.as_str()).collect();
     assert_eq!(ids, vec!["cheap", "small_budget", "repair", "tie_a", "tie_b", "impossible"]);
     let mut shuffled = list.clone();
     shuffled.reverse();
-    assert_eq!(
-        DesignRankingValue::from_structural(&shuffled).unwrap().identity(),
-        ranking.identity()
-    );
+    assert_eq!(RankingRecord::from_structural(&shuffled).unwrap().identity(), ranking.identity());
 
-    assert_eq!(DesignRankingValue::from_structural(&[]), Err(RankingError::Empty));
+    assert_eq!(RankingRecord::from_structural(&[]), Err(RankingError::Empty));
     let duplicate = vec![candidate("a", true, 1, 1), candidate("a", false, 2, 2)];
     assert_eq!(
-        DesignRankingValue::from_structural(&duplicate),
+        RankingRecord::from_structural(&duplicate),
         Err(RankingError::DuplicateCandidate("a".into()))
     );
 }
@@ -397,8 +394,8 @@ fn truncated_search_is_recorded_and_changes_the_identity() {
     let mut bounded = request(frozen_candidates(), None);
     bounded.max_candidates = 1;
     let cut = evaluate(&bounded).unwrap();
-    let full_ranking = DesignRankingValue::from_evsi(&full, &digests()).unwrap();
-    let cut_ranking = DesignRankingValue::from_evsi(&cut, &digests()).unwrap();
+    let full_ranking = RankingRecord::from_evsi(&full, &digests()).unwrap();
+    let cut_ranking = RankingRecord::from_evsi(&cut, &digests()).unwrap();
     assert!(!full_ranking.search.truncated);
     assert!(cut_ranking.search.truncated);
     assert_eq!(cut_ranking.search.unevaluated_ids, vec!["cand-2".to_owned()]);

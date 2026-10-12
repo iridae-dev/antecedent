@@ -68,7 +68,7 @@ pub struct RankedCandidate {
 
 /// Full ranking output.
 #[derive(Clone, Debug)]
-pub struct DesignRanking {
+pub struct ScoredDesignRanking {
     /// Ranked candidates (best first).
     pub ranked: Arc<[RankedCandidate]>,
     /// Candidates filtered by hard constraints (never silently dropped).

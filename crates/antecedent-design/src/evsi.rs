@@ -4,7 +4,7 @@
 //! Every candidate's signal comes from its [`SignalProvider`]. A provider that supplies
 //! an observation law (native or external likelihood) is scored through the existing
 //! [`DesignObjective::ReduceDecisionRegret`] path of [`DesignRanker`] (one
-//! preposterior analysis per candidate; no parallel scorer), with EVPI and the current
+//! preposterior analysis per candidate, scheduled with `map_indexed`), with EVPI and the current
 //! Bayes action read from [`PreposteriorAnalysis`]. A provider that supplies externally
 //! computed per-branch decision values is evaluated as
 //! `EVSI = Σ_y P(y)·max_{a∈F} V_y(a) − max_{a∈F} E[U(a,θ)]`, after the supplied values
@@ -156,7 +156,7 @@ pub struct SourceOverlapDiagnostics {
 
 /// Report for one candidate.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CandidateEvsi {
+pub struct EvsiCandidateRow {
     /// Semantic identity.
     pub semantic_id: String,
     /// Expected value of sample information.
@@ -234,7 +234,7 @@ pub struct EvsiReport {
     /// What the candidates are sorted by.
     pub basis: RankingBasis,
     /// Candidates, best first.
-    pub candidates: Vec<CandidateEvsi>,
+    pub candidates: Vec<EvsiCandidateRow>,
     /// Adjacent pairs tied within the tie tolerance.
     pub ties: Vec<(String, String)>,
     /// Search receipt.
@@ -658,7 +658,7 @@ fn assumptions(
 /// Invalid requests, signal refusals, source overlap, sample-size or action-set
 /// mismatches, incoherent external values, cost-unit mismatches, bound violations,
 /// cancellation, and decision-analysis failures.
-pub fn evaluate_evsi<A: Clone>(
+pub fn evaluate_evsi<A: Clone + Sync>(
     problem: &DecisionProblem<A, f64>,
     prior: &DecisionPrior<f64>,
     request: &EvsiRequest,
@@ -671,15 +671,17 @@ pub fn evaluate_evsi<A: Clone>(
     let unevaluated_ids: Vec<String> =
         ordered.iter().skip(request.max_candidates).map(|c| c.semantic_id.clone()).collect();
     ordered.truncate(request.max_candidates);
-    let mut ctx = ExecutionContext::production(request.rng_seed, 1);
+    let mut ctx =
+        ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
     ctx.cancellation = cancellation.clone();
-    let mut evaluated = Vec::with_capacity(ordered.len());
-    for candidate in &ordered {
-        if cancellation.is_cancelled() {
+    // Each candidate restarts the design stream from `request.rng_seed`, so the
+    // index order of `map_indexed` does not move that seed.
+    let evaluated = ctx.map_indexed(ordered.len(), |index, ctx| {
+        if ctx.cancellation.is_cancelled() {
             return Err(EvsiError::Cancelled);
         }
-        evaluated.push(evaluate_candidate(problem, prior, request, candidate, &ctx)?);
-    }
+        evaluate_candidate(problem, prior, request, ordered[index], ctx)
+    })?;
     let search = SearchReceipt {
         supplied,
         evaluated: ordered.len(),
@@ -697,12 +699,12 @@ fn assemble(
     search: SearchReceipt,
 ) -> EvsiReport {
     let map = request.cost_map.as_ref();
-    let mut rows: Vec<CandidateEvsi> = ordered
+    let mut rows: Vec<EvsiCandidateRow> = ordered
         .iter()
         .zip(evaluated)
         .map(|(candidate, e)| {
             let cost_utility = map.map(|m| m.utility_per_cost * candidate.cost.amount);
-            CandidateEvsi {
+            EvsiCandidateRow {
                 semantic_id: candidate.semantic_id.clone(),
                 evsi: e.evsi,
                 integration: e.integration,
@@ -721,7 +723,7 @@ fn assemble(
             }
         })
         .collect();
-    let key = |row: &CandidateEvsi| row.net_value.unwrap_or(row.evsi);
+    let key = |row: &EvsiCandidateRow| row.net_value.unwrap_or(row.evsi);
     rows.sort_by(|a, b| key(b).total_cmp(&key(a)).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
     let ranked = rank_rows(
         &rows

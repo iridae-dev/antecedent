@@ -1058,10 +1058,10 @@ impl PreparedStudy {
         candidates: &[crate::design::CandidateDesign],
         eval: &crate::design::DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
-    ) -> Result<crate::design::DesignRanking, CausalError>
+    ) -> Result<crate::design::ScoredDesignRanking, CausalError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         self.rank_designs_bound(ranker, objective, candidates, eval, ctx, None)
     }
@@ -1083,10 +1083,10 @@ impl PreparedStudy {
         eval: &crate::design::DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
         decision_target: Option<antecedent_core::SemanticDigest>,
-    ) -> Result<crate::design::DesignRanking, CausalError>
+    ) -> Result<crate::design::ScoredDesignRanking, CausalError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         crate::design::rank_designs_bound(
             &self.contract()?,

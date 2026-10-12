@@ -1,10 +1,10 @@
 //! In-memory design ranking value: the record a later wave serializes as a
 //! `DesignRankingArtifact`.
 //!
-//! A [`DesignRankingValue`] binds the decision contract identity, the semantic candidate
+//! A [`RankingRecord`] binds the decision contract identity, the semantic candidate
 //! ids, each candidate's signal provider identity and update mode, the source
 //! distribution digests, RNG and error, and the cost mapping to a deterministic
-//! canonical order. Its [`DesignRankingValue::identity`] is invariant to the order the
+//! canonical order. Its [`RankingRecord::identity`] is invariant to the order the
 //! candidates were supplied in and changes with any altered signal, update, source,
 //! cost mapping, value or order. When no probabilistic model is licensed the structural
 //! ordering is preserved: verified structural sufficiency first, then lower cost
@@ -17,7 +17,9 @@ use std::collections::BTreeMap;
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::CanonicalWriter;
 
-use crate::evsi::{CostToUtilityMap, EvsiReport, IntegrationMethod, SearchReceipt};
+use crate::evsi::{
+    CostToUtilityMap, EvsiCandidateRow, EvsiReport, IntegrationMethod, SearchReceipt,
+};
 use crate::signal::{RefusalBuilder, SignalTrustLabel, SignalUpdateMode};
 use crate::study_planner::StudyCost;
 
@@ -46,7 +48,7 @@ impl DesignRankingBasis {
 
 /// One probabilistically ranked candidate.
 #[derive(Clone, Debug, PartialEq)]
-pub struct RankingEntry {
+pub struct EvsiRankRow {
     /// Candidate semantic id.
     pub semantic_id: String,
     /// Rank (0 best).
@@ -81,6 +83,29 @@ pub struct RankingEntry {
     pub provider_trust: SignalTrustLabel,
 }
 
+impl From<&EvsiCandidateRow> for EvsiRankRow {
+    fn from(row: &EvsiCandidateRow) -> Self {
+        Self {
+            semantic_id: row.semantic_id.clone(),
+            rank: row.rank,
+            evsi: row.evsi,
+            mc_stderr: row.integration.stderr,
+            replicates: row.integration.replicates,
+            integration: row.integration.method,
+            evpi: row.evpi,
+            sample_size: row.sample_size,
+            study_cost_amount: row.study_cost.amount,
+            study_cost_unit: row.study_cost.unit.clone(),
+            net_value: row.net_value,
+            rank_uncertain: row.rank_uncertain,
+            signal_identity: row.signal_receipt.identity(),
+            request_fingerprint: row.signal_receipt.request_fingerprint.clone(),
+            update_mode: row.update_mode,
+            provider_trust: row.provider_trust,
+        }
+    }
+}
+
 /// A candidate with a verified structural verdict, for the no-model ordering.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructuralCandidate {
@@ -107,7 +132,7 @@ pub struct StructuralEntry {
 
 /// The in-memory ranking value.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DesignRankingValue {
+pub struct RankingRecord {
     /// Basis of the order.
     pub basis: DesignRankingBasis,
     /// Decision contract identity (`None` for a structural ranking).
@@ -121,7 +146,7 @@ pub struct DesignRankingValue {
     /// Source distribution digests (sorted).
     pub source_digests: Vec<String>,
     /// Probabilistic entries in canonical order (empty for a structural ranking).
-    pub entries: Vec<RankingEntry>,
+    pub entries: Vec<EvsiRankRow>,
     /// Structural entries in canonical order (empty for a probabilistic ranking).
     pub structural: Vec<StructuralEntry>,
     /// Search receipt of the evaluation.
@@ -177,7 +202,7 @@ impl RankingError {
     }
 }
 
-impl DesignRankingValue {
+impl RankingRecord {
     /// Build the probabilistic ranking from an EVSI report and the digests of the
     /// source distributions (prior sources and external laws) it was computed from.
     ///
@@ -188,28 +213,8 @@ impl DesignRankingValue {
         if report.candidates.is_empty() {
             return Err(RankingError::Empty);
         }
-        let mut entries: Vec<RankingEntry> = report
-            .candidates
-            .iter()
-            .map(|c| RankingEntry {
-                semantic_id: c.semantic_id.clone(),
-                rank: c.rank,
-                evsi: c.evsi,
-                mc_stderr: c.integration.stderr,
-                replicates: c.integration.replicates,
-                integration: c.integration.method,
-                evpi: c.evpi,
-                sample_size: c.sample_size,
-                study_cost_amount: c.study_cost.amount,
-                study_cost_unit: c.study_cost.unit.clone(),
-                net_value: c.net_value,
-                rank_uncertain: c.rank_uncertain,
-                signal_identity: c.signal_receipt.identity(),
-                request_fingerprint: c.signal_receipt.request_fingerprint.clone(),
-                update_mode: c.update_mode,
-                provider_trust: c.provider_trust,
-            })
-            .collect();
+        let mut entries: Vec<EvsiRankRow> =
+            report.candidates.iter().map(EvsiRankRow::from).collect();
         entries.sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
         let mut digests = source_digests.to_vec();
         digests.sort();
@@ -318,7 +323,7 @@ impl DesignRankingValue {
             }
         }
         hasher.opt_word(self.rng_seed).texts(&self.source_digests);
-        let mut entries: Vec<&RankingEntry> = self.entries.iter().collect();
+        let mut entries: Vec<&EvsiRankRow> = self.entries.iter().collect();
         entries.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
         hasher.word(entries.len() as u64);
         for e in entries {

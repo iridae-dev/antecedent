@@ -68,7 +68,7 @@ pub use decision_contract::{
 };
 pub use decision_structural_artifact::StructuralResultArtifact;
 pub use error::DesignError;
-pub use objective::DesignObjective;
+pub use objective::{DesignObjective, ObjectiveChannel, ObjectiveScorer};
 pub use preposterior::{
     BinomialSignal, DecisionPrior, DecisionSignal, GaussianMeanSignal, PreposteriorAnalysis,
 };
@@ -85,7 +85,7 @@ pub use repair::{
 pub use repair_artifact::{
     RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReportArtifact,
 };
-pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+pub use result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
 pub use study_candidate::{
     DurableStudyCandidate, ExpectedEvidence, StudyCandidateError, StudyCostDeclaration, StudyKind,
     UnitRules,

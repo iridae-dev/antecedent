@@ -115,41 +115,12 @@ fn objective_from_kind(
     model_ids: Option<Vec<u32>>,
     decision_id: Option<u32>,
 ) -> PyResult<DesignObjective> {
-    match kind {
-        // `eig` is a historical alias for heuristic graph-channel entropy, not
-        // expected information gain under a likelihood. See implemented_functional.
-        "reduce_graph_entropy" | "eig" => Ok(DesignObjective::ReduceGraphEntropy),
-        "increase_identification_probability" | "id_probability" => {
-            let q = query_id.ok_or_else(|| {
-                crate::value_err("increase_identification_probability requires query_id")
-            })?;
-            Ok(DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(q) })
-        }
-        "reduce_effect_posterior_width" | "effect_width" => {
-            let q = query_id.ok_or_else(|| {
-                crate::value_err("reduce_effect_posterior_width requires query_id")
-            })?;
-            Ok(DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(q) })
-        }
-        "reduce_decision_regret" | "decision_regret" => {
-            let d = decision_id
-                .ok_or_else(|| crate::value_err("reduce_decision_regret requires decision_id"))?;
-            Ok(DesignObjective::ReduceDecisionRegret {
-                decision: antecedent::design::DecisionProblemId::from_raw(d),
-            })
-        }
-        "distinguish_models" => {
-            let ids = model_ids
-                .ok_or_else(|| crate::value_err("distinguish_models requires model_ids"))?;
-            if ids.len() < 2 {
-                return Err(crate::value_err("distinguish_models needs ≥2 model_ids"));
-            }
-            Ok(DesignObjective::DistinguishModels {
-                models: Arc::from(ids.into_iter().map(ModelId::from_raw).collect::<Vec<_>>()),
-            })
-        }
-        other => Err(crate::value_err(format!("unknown objective `{other}`"))),
-    }
+    // `eig` and the other labels are parsed by `DesignObjective::from_label`, which
+    // is the one match over objective arms. This binding does not match the enum.
+    let query = query_id.map(QueryId::from_raw);
+    let models = model_ids.map(|ids| ids.into_iter().map(ModelId::from_raw).collect::<Vec<_>>());
+    let decision = decision_id.map(antecedent::design::DecisionProblemId::from_raw);
+    DesignObjective::from_label(kind, query, models.as_deref(), decision).map_err(crate::value_err)
 }
 
 fn parse_objective(
@@ -529,7 +500,8 @@ pub(crate) fn rank_designs(
         }
         let objective = match objective {
             Some(obj) => parse_objective(&obj, query_id, model_ids, decision_id)?,
-            None => DesignObjective::ReduceGraphEntropy,
+            None => DesignObjective::from_label("reduce_graph_entropy", None, None, None)
+                .expect("reduce_graph_entropy is a registered objective label"),
         };
         let unlock_vars = parse_unlock_vars(query_id_unlock)?;
         let unlock_envs = parse_unlock_envs(env_id_unlock)?;

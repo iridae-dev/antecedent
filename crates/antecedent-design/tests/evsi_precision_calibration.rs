@@ -21,7 +21,7 @@ use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, IntegrationMethod, StudyCostSpec,
     evaluate_evsi,
 };
-use antecedent_design::ranking::DesignRankingValue;
+use antecedent_design::ranking::RankingRecord;
 use antecedent_design::signal::{
     NativeBinomialSignal, NativeGaussianMeanSignal, SignalLimits, SignalProvider, SignalRequest,
 };
@@ -202,7 +202,7 @@ fn evsi_monte_carlo_score_error_and_net_value_precision() {
             assert!((row.evpi - 0.5).abs() < 1e-12);
             assert!((row.net_value.unwrap() - (row.evsi - cost)).abs() < 1e-12);
             let ranking =
-                DesignRankingValue::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
+                RankingRecord::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
             assert!((ranking.entries[0].evsi - row.evsi).abs() < 1e-12);
             let artifact = seal(&SealInputs {
                 problem: &model,
@@ -379,10 +379,9 @@ fn evsi_fixed_rank_selection_and_tie_precision() {
                 reversed.candidates.reverse();
                 let other =
                     evaluate_evsi(&model, &prior, &reversed, &CancellationToken::new()).unwrap();
-                let a = DesignRankingValue::from_evsi(&report, &["fixed_declared_prior".into()])
-                    .unwrap();
-                let b = DesignRankingValue::from_evsi(&other, &["fixed_declared_prior".into()])
-                    .unwrap();
+                let a =
+                    RankingRecord::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
+                let b = RankingRecord::from_evsi(&other, &["fixed_declared_prior".into()]).unwrap();
                 assert_eq!(a.identity(), b.identity());
             }
             let top = &report.candidates[0];

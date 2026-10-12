@@ -22,9 +22,9 @@ use antecedent_contract::{
 };
 use antecedent_core::CancellationToken;
 use antecedent_design::design_ranking_artifact::{
-    CandidateWire, ConsumeExpectation, ConsumedCandidate, DESIGN_RANKING_CALIBRATION,
-    DesignRankingArtifactError, DesignRankingArtifactWire, LawWire, MAX_RANKING_CANDIDATES,
-    ReplayKind, SealInputs, consume, consume_wire, seal,
+    ConsumeExpectation, ConsumedCandidate, DESIGN_RANKING_CALIBRATION, DesignRankingArtifactError,
+    DesignRankingArtifactWire, EvsiCandidateWire, LawWire, MAX_RANKING_CANDIDATES, ReplayKind,
+    SealInputs, consume, consume_wire, seal,
 };
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiReport, EvsiRequest, StudyCostSpec, evaluate_evsi,
@@ -231,7 +231,10 @@ fn refusal_detail(error: &DesignRankingArtifactError) -> String {
     error.refusal().expect("a refusal").detail
 }
 
-fn candidate_mut<'a>(wire: &'a mut DesignRankingArtifactWire, id: &str) -> &'a mut CandidateWire {
+fn candidate_mut<'a>(
+    wire: &'a mut DesignRankingArtifactWire,
+    id: &str,
+) -> &'a mut EvsiCandidateWire {
     wire.candidates.iter_mut().find(|c| c.semantic_id == id).unwrap()
 }
 
@@ -345,7 +348,7 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
 
 #[test]
 fn altered_signal_or_update_is_refused_even_when_resealed() {
-    type CandidateMutation = Box<dyn Fn(&mut CandidateWire)>;
+    type CandidateMutation = Box<dyn Fn(&mut EvsiCandidateWire)>;
     let wire = seal_guess(frozen_candidates());
 
     // Update mode relabelled to the other mode the law could claim.

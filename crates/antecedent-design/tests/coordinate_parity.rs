@@ -37,8 +37,8 @@ use antecedent_core::{CancellationToken, VariableId};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_eval::DecisionEvalError;
 use antecedent_design::design_ranking_artifact::{
-    CandidateWire, ConsumeExpectation, DESIGN_RANKING_CLAIM_LINK_ID, DesignRankingArtifactError,
-    DesignRankingArtifactWire, SealInputs, consume, seal,
+    ConsumeExpectation, DESIGN_RANKING_CLAIM_LINK_ID, DesignRankingArtifactError,
+    DesignRankingArtifactWire, EvsiCandidateWire, SealInputs, consume, seal,
 };
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, StudyCostSpec, evaluate_evsi,
@@ -193,7 +193,10 @@ fn seal_guess() -> DesignRankingArtifactWire {
     .unwrap()
 }
 
-fn candidate_mut<'a>(wire: &'a mut DesignRankingArtifactWire, id: &str) -> &'a mut CandidateWire {
+fn candidate_mut<'a>(
+    wire: &'a mut DesignRankingArtifactWire,
+    id: &str,
+) -> &'a mut EvsiCandidateWire {
     wire.candidates.iter_mut().find(|c| c.semantic_id == id).unwrap()
 }
 

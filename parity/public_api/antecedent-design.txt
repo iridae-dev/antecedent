@@ -35,6 +35,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::signal::Prepar
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::signal::PreparedSignal [auto]
 impl antecedent_design::DecisionSignal<f64> for antecedent_design::BinomialSignal
 impl antecedent_design::DecisionSignal<f64> for antecedent_design::GaussianMeanSignal
+impl antecedent_design::ObjectiveScorer for antecedent_design::DesignObjective
 impl antecedent_design::RepairFamily for antecedent_design::BackdoorRepairFamily
 impl antecedent_design::RepairFamily for antecedent_design::TransportRepairFamily
 impl antecedent_design::RepairFamily for antecedent_design::ZTransportRepairFamily
@@ -72,7 +73,6 @@ impl core::clone::Clone for antecedent_design::DesignCost
 impl core::clone::Clone for antecedent_design::DesignError
 impl core::clone::Clone for antecedent_design::DesignObjective
 impl core::clone::Clone for antecedent_design::DesignRankConfig
-impl core::clone::Clone for antecedent_design::DesignRanking
 impl core::clone::Clone for antecedent_design::DurableStudyCandidate
 impl core::clone::Clone for antecedent_design::EffectWidthContext
 impl core::clone::Clone for antecedent_design::EnvironmentGramSpec
@@ -99,6 +99,7 @@ impl core::clone::Clone for antecedent_design::RepairReport
 impl core::clone::Clone for antecedent_design::RepairReportArtifact
 impl core::clone::Clone for antecedent_design::SamplingPlan
 impl core::clone::Clone for antecedent_design::ScoreEvaluation
+impl core::clone::Clone for antecedent_design::ScoredDesignRanking
 impl core::clone::Clone for antecedent_design::SourceMode
 impl core::clone::Clone for antecedent_design::SourceRepresentation
 impl core::clone::Clone for antecedent_design::SourceRequirement
@@ -252,13 +253,13 @@ impl core::clone::Clone for antecedent_design::decision_structural::StructuralAt
 impl core::clone::Clone for antecedent_design::decision_structural::StructuralDecisionResult
 impl core::clone::Clone for antecedent_design::decision_structural::StructuralError
 impl core::clone::Clone for antecedent_design::decision_structural::StructuralVerdict
-impl core::clone::Clone for antecedent_design::design_ranking_artifact::CandidateWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ConsumeExpectation
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ConsumedCandidate
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ConsumedDesignRanking
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::CostMapWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::DecisionWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+impl core::clone::Clone for antecedent_design::design_ranking_artifact::EvsiCandidateWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::LawWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::PriorWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ProviderWire
@@ -267,9 +268,9 @@ impl core::clone::Clone for antecedent_design::design_ranking_artifact::ReplayKi
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::SearchWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::UtilityWire
-impl core::clone::Clone for antecedent_design::evsi::CandidateEvsi
 impl core::clone::Clone for antecedent_design::evsi::CostToUtilityMap
 impl core::clone::Clone for antecedent_design::evsi::EvsiCandidate
+impl core::clone::Clone for antecedent_design::evsi::EvsiCandidateRow
 impl core::clone::Clone for antecedent_design::evsi::EvsiError
 impl core::clone::Clone for antecedent_design::evsi::EvsiReport
 impl core::clone::Clone for antecedent_design::evsi::EvsiRequest
@@ -350,9 +351,9 @@ impl core::clone::Clone for antecedent_design::proposal_receipt::ProposalReceipt
 impl core::clone::Clone for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::clone::Clone for antecedent_design::proposal_receipt::ValuationBinding
 impl core::clone::Clone for antecedent_design::ranking::DesignRankingBasis
-impl core::clone::Clone for antecedent_design::ranking::DesignRankingValue
-impl core::clone::Clone for antecedent_design::ranking::RankingEntry
+impl core::clone::Clone for antecedent_design::ranking::EvsiRankRow
 impl core::clone::Clone for antecedent_design::ranking::RankingError
+impl core::clone::Clone for antecedent_design::ranking::RankingRecord
 impl core::clone::Clone for antecedent_design::ranking::StructuralCandidate
 impl core::clone::Clone for antecedent_design::ranking::StructuralEntry
 impl core::clone::Clone for antecedent_design::repair::RepairCancelled
@@ -698,12 +699,12 @@ impl core::cmp::PartialEq for antecedent_design::decision_structural::AtomSummar
 impl core::cmp::PartialEq for antecedent_design::decision_structural::StructuralDecisionResult
 impl core::cmp::PartialEq for antecedent_design::decision_structural::StructuralError
 impl core::cmp::PartialEq for antecedent_design::decision_structural::StructuralVerdict
-impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::CandidateWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::ConsumedCandidate
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::ConsumedDesignRanking
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::CostMapWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::DecisionWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::EvsiCandidateWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::LawWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::PriorWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::ProviderWire
@@ -712,8 +713,8 @@ impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::Replay
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::SearchWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::UtilityWire
-impl core::cmp::PartialEq for antecedent_design::evsi::CandidateEvsi
 impl core::cmp::PartialEq for antecedent_design::evsi::CostToUtilityMap
+impl core::cmp::PartialEq for antecedent_design::evsi::EvsiCandidateRow
 impl core::cmp::PartialEq for antecedent_design::evsi::EvsiError
 impl core::cmp::PartialEq for antecedent_design::evsi::EvsiReport
 impl core::cmp::PartialEq for antecedent_design::evsi::IntegrationMethod
@@ -783,9 +784,9 @@ impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ProposalRecei
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ValuationBinding
 impl core::cmp::PartialEq for antecedent_design::ranking::DesignRankingBasis
-impl core::cmp::PartialEq for antecedent_design::ranking::DesignRankingValue
-impl core::cmp::PartialEq for antecedent_design::ranking::RankingEntry
+impl core::cmp::PartialEq for antecedent_design::ranking::EvsiRankRow
 impl core::cmp::PartialEq for antecedent_design::ranking::RankingError
+impl core::cmp::PartialEq for antecedent_design::ranking::RankingRecord
 impl core::cmp::PartialEq for antecedent_design::ranking::StructuralCandidate
 impl core::cmp::PartialEq for antecedent_design::ranking::StructuralEntry
 impl core::cmp::PartialEq for antecedent_design::repair::RepairCancelled
@@ -829,6 +830,7 @@ impl core::cmp::PartialEq for antecedent_design::source_projection_artifact::Sou
 impl core::cmp::PartialOrd for antecedent_design::DecisionProblemId
 impl core::cmp::PartialOrd for antecedent_design::composition_bundle::NodeKind
 impl core::convert::From<&antecedent_design::decision_eval::SourceReceipt> for antecedent_design::inverse_query_artifact::SourceReceiptWire
+impl core::convert::From<&antecedent_design::evsi::EvsiCandidateRow> for antecedent_design::ranking::EvsiRankRow
 impl core::convert::From<&antecedent_design::inverse_query::ActionReport> for antecedent_design::inverse_query_artifact::ActionReportWire
 impl core::convert::From<&antecedent_design::inverse_query::ConstraintValue> for antecedent_design::inverse_query_artifact::ConstraintValueWire
 impl core::convert::From<&antecedent_design::inverse_query::InverseConstraint> for antecedent_design::inverse_query_artifact::ConstraintWire
@@ -858,6 +860,7 @@ impl core::convert::From<antecedent_identify::sid::study_planning::StudyPlanRefu
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::ZTransportPlanningError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::composition_bundle::BundleError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
+impl core::convert::TryFrom<&antecedent_design::design_ranking_artifact::EvsiCandidateWire> for antecedent_design::ranking::EvsiRankRow
 impl core::default::Default for antecedent_design::BinomialSignal
 impl core::default::Default for antecedent_design::DesignConstraints
 impl core::default::Default for antecedent_design::DesignRankConfig
@@ -917,7 +920,6 @@ impl core::fmt::Debug for antecedent_design::DesignCost
 impl core::fmt::Debug for antecedent_design::DesignError
 impl core::fmt::Debug for antecedent_design::DesignObjective
 impl core::fmt::Debug for antecedent_design::DesignRankConfig
-impl core::fmt::Debug for antecedent_design::DesignRanking
 impl core::fmt::Debug for antecedent_design::DurableStudyCandidate
 impl core::fmt::Debug for antecedent_design::EffectWidthContext
 impl core::fmt::Debug for antecedent_design::EnvironmentGramSpec
@@ -944,6 +946,7 @@ impl core::fmt::Debug for antecedent_design::RepairReport
 impl core::fmt::Debug for antecedent_design::RepairReportArtifact
 impl core::fmt::Debug for antecedent_design::SamplingPlan
 impl core::fmt::Debug for antecedent_design::ScoreEvaluation
+impl core::fmt::Debug for antecedent_design::ScoredDesignRanking
 impl core::fmt::Debug for antecedent_design::SourceMode
 impl core::fmt::Debug for antecedent_design::SourceRepresentation
 impl core::fmt::Debug for antecedent_design::SourceRequirement
@@ -1098,7 +1101,6 @@ impl core::fmt::Debug for antecedent_design::decision_structural::StructuralAtom
 impl core::fmt::Debug for antecedent_design::decision_structural::StructuralDecisionResult
 impl core::fmt::Debug for antecedent_design::decision_structural::StructuralError
 impl core::fmt::Debug for antecedent_design::decision_structural::StructuralVerdict
-impl core::fmt::Debug for antecedent_design::design_ranking_artifact::CandidateWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ConsumeExpectation
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ConsumedCandidate
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ConsumedDesignRanking
@@ -1106,6 +1108,7 @@ impl core::fmt::Debug for antecedent_design::design_ranking_artifact::CostMapWir
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::DecisionWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+impl core::fmt::Debug for antecedent_design::design_ranking_artifact::EvsiCandidateWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::LawWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::PriorWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ProviderWire
@@ -1114,8 +1117,8 @@ impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ReplayKind
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::SearchWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::UtilityWire
-impl core::fmt::Debug for antecedent_design::evsi::CandidateEvsi
 impl core::fmt::Debug for antecedent_design::evsi::CostToUtilityMap
+impl core::fmt::Debug for antecedent_design::evsi::EvsiCandidateRow
 impl core::fmt::Debug for antecedent_design::evsi::EvsiError
 impl core::fmt::Debug for antecedent_design::evsi::EvsiReport
 impl core::fmt::Debug for antecedent_design::evsi::IntegrationMethod
@@ -1193,9 +1196,9 @@ impl core::fmt::Debug for antecedent_design::proposal_receipt::ProposalReceipt
 impl core::fmt::Debug for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::fmt::Debug for antecedent_design::proposal_receipt::ValuationBinding
 impl core::fmt::Debug for antecedent_design::ranking::DesignRankingBasis
-impl core::fmt::Debug for antecedent_design::ranking::DesignRankingValue
-impl core::fmt::Debug for antecedent_design::ranking::RankingEntry
+impl core::fmt::Debug for antecedent_design::ranking::EvsiRankRow
 impl core::fmt::Debug for antecedent_design::ranking::RankingError
+impl core::fmt::Debug for antecedent_design::ranking::RankingRecord
 impl core::fmt::Debug for antecedent_design::ranking::StructuralCandidate
 impl core::fmt::Debug for antecedent_design::ranking::StructuralEntry
 impl core::fmt::Debug for antecedent_design::repair::RepairCancelled
@@ -1381,7 +1384,6 @@ impl core::marker::Freeze for antecedent_design::DesignError [auto]
 impl core::marker::Freeze for antecedent_design::DesignObjective [auto]
 impl core::marker::Freeze for antecedent_design::DesignRankConfig [auto]
 impl core::marker::Freeze for antecedent_design::DesignRanker [auto]
-impl core::marker::Freeze for antecedent_design::DesignRanking [auto]
 impl core::marker::Freeze for antecedent_design::DurableStudyCandidate [auto]
 impl core::marker::Freeze for antecedent_design::EffectWidthContext [auto]
 impl core::marker::Freeze for antecedent_design::EnvironmentGramSpec [auto]
@@ -1408,6 +1410,7 @@ impl core::marker::Freeze for antecedent_design::RepairReport [auto]
 impl core::marker::Freeze for antecedent_design::RepairReportArtifact [auto]
 impl core::marker::Freeze for antecedent_design::SamplingPlan [auto]
 impl core::marker::Freeze for antecedent_design::ScoreEvaluation [auto]
+impl core::marker::Freeze for antecedent_design::ScoredDesignRanking [auto]
 impl core::marker::Freeze for antecedent_design::SourceMode [auto]
 impl core::marker::Freeze for antecedent_design::SourceRepresentation [auto]
 impl core::marker::Freeze for antecedent_design::SourceRequirement [auto]
@@ -1563,7 +1566,6 @@ impl core::marker::Freeze for antecedent_design::decision_structural::Structural
 impl core::marker::Freeze for antecedent_design::decision_structural::StructuralDecisionResult [auto]
 impl core::marker::Freeze for antecedent_design::decision_structural::StructuralError [auto]
 impl core::marker::Freeze for antecedent_design::decision_structural::StructuralVerdict [auto]
-impl core::marker::Freeze for antecedent_design::design_ranking_artifact::CandidateWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -1571,6 +1573,7 @@ impl core::marker::Freeze for antecedent_design::design_ranking_artifact::CostMa
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::DecisionWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::DesignRankingArtifactError [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire [auto]
+impl core::marker::Freeze for antecedent_design::design_ranking_artifact::EvsiCandidateWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::LawWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::PriorWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ProviderWire [auto]
@@ -1579,9 +1582,9 @@ impl core::marker::Freeze for antecedent_design::design_ranking_artifact::Replay
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::UtilityWire [auto]
-impl core::marker::Freeze for antecedent_design::evsi::CandidateEvsi [auto]
 impl core::marker::Freeze for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiCandidate [auto]
+impl core::marker::Freeze for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiRequest [auto]
@@ -1662,9 +1665,9 @@ impl core::marker::Freeze for antecedent_design::proposal_receipt::ProposalRecei
 impl core::marker::Freeze for antecedent_design::proposal_receipt::ProposalReceiptError [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::ValuationBinding [auto]
 impl core::marker::Freeze for antecedent_design::ranking::DesignRankingBasis [auto]
-impl core::marker::Freeze for antecedent_design::ranking::DesignRankingValue [auto]
-impl core::marker::Freeze for antecedent_design::ranking::RankingEntry [auto]
+impl core::marker::Freeze for antecedent_design::ranking::EvsiRankRow [auto]
 impl core::marker::Freeze for antecedent_design::ranking::RankingError [auto]
+impl core::marker::Freeze for antecedent_design::ranking::RankingRecord [auto]
 impl core::marker::Freeze for antecedent_design::ranking::StructuralCandidate [auto]
 impl core::marker::Freeze for antecedent_design::ranking::StructuralEntry [auto]
 impl core::marker::Freeze for antecedent_design::repair::RepairCancelled [auto]
@@ -1733,7 +1736,6 @@ impl core::marker::Send for antecedent_design::DesignError [auto]
 impl core::marker::Send for antecedent_design::DesignObjective [auto]
 impl core::marker::Send for antecedent_design::DesignRankConfig [auto]
 impl core::marker::Send for antecedent_design::DesignRanker [auto]
-impl core::marker::Send for antecedent_design::DesignRanking [auto]
 impl core::marker::Send for antecedent_design::DurableStudyCandidate [auto]
 impl core::marker::Send for antecedent_design::EffectWidthContext [auto]
 impl core::marker::Send for antecedent_design::EnvironmentGramSpec [auto]
@@ -1760,6 +1762,7 @@ impl core::marker::Send for antecedent_design::RepairReport [auto]
 impl core::marker::Send for antecedent_design::RepairReportArtifact [auto]
 impl core::marker::Send for antecedent_design::SamplingPlan [auto]
 impl core::marker::Send for antecedent_design::ScoreEvaluation [auto]
+impl core::marker::Send for antecedent_design::ScoredDesignRanking [auto]
 impl core::marker::Send for antecedent_design::SourceMode [auto]
 impl core::marker::Send for antecedent_design::SourceRepresentation [auto]
 impl core::marker::Send for antecedent_design::SourceRequirement [auto]
@@ -1914,7 +1917,6 @@ impl core::marker::Send for antecedent_design::decision_structural::StructuralAt
 impl core::marker::Send for antecedent_design::decision_structural::StructuralDecisionResult [auto]
 impl core::marker::Send for antecedent_design::decision_structural::StructuralError [auto]
 impl core::marker::Send for antecedent_design::decision_structural::StructuralVerdict [auto]
-impl core::marker::Send for antecedent_design::design_ranking_artifact::CandidateWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -1922,6 +1924,7 @@ impl core::marker::Send for antecedent_design::design_ranking_artifact::CostMapW
 impl core::marker::Send for antecedent_design::design_ranking_artifact::DecisionWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::DesignRankingArtifactError [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire [auto]
+impl core::marker::Send for antecedent_design::design_ranking_artifact::EvsiCandidateWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::LawWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::PriorWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ProviderWire [auto]
@@ -1930,9 +1933,9 @@ impl core::marker::Send for antecedent_design::design_ranking_artifact::ReplayKi
 impl core::marker::Send for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::UtilityWire [auto]
-impl core::marker::Send for antecedent_design::evsi::CandidateEvsi [auto]
 impl core::marker::Send for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiCandidate [auto]
+impl core::marker::Send for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiRequest [auto]
@@ -2013,9 +2016,9 @@ impl core::marker::Send for antecedent_design::proposal_receipt::ProposalReceipt
 impl core::marker::Send for antecedent_design::proposal_receipt::ProposalReceiptError [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::ValuationBinding [auto]
 impl core::marker::Send for antecedent_design::ranking::DesignRankingBasis [auto]
-impl core::marker::Send for antecedent_design::ranking::DesignRankingValue [auto]
-impl core::marker::Send for antecedent_design::ranking::RankingEntry [auto]
+impl core::marker::Send for antecedent_design::ranking::EvsiRankRow [auto]
 impl core::marker::Send for antecedent_design::ranking::RankingError [auto]
+impl core::marker::Send for antecedent_design::ranking::RankingRecord [auto]
 impl core::marker::Send for antecedent_design::ranking::StructuralCandidate [auto]
 impl core::marker::Send for antecedent_design::ranking::StructuralEntry [auto]
 impl core::marker::Send for antecedent_design::repair::RepairCancelled [auto]
@@ -2224,12 +2227,12 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_structura
 impl core::marker::StructuralPartialEq for antecedent_design::decision_structural::StructuralDecisionResult
 impl core::marker::StructuralPartialEq for antecedent_design::decision_structural::StructuralError
 impl core::marker::StructuralPartialEq for antecedent_design::decision_structural::StructuralVerdict
-impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::CandidateWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::ConsumedCandidate
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::ConsumedDesignRanking
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::CostMapWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::DecisionWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::EvsiCandidateWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::LawWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::PriorWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::ProviderWire
@@ -2238,8 +2241,8 @@ impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_art
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::SearchWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::UtilityWire
-impl core::marker::StructuralPartialEq for antecedent_design::evsi::CandidateEvsi
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::CostToUtilityMap
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::EvsiCandidateRow
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::EvsiError
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::EvsiReport
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::IntegrationMethod
@@ -2309,9 +2312,9 @@ impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::ValuationBinding
 impl core::marker::StructuralPartialEq for antecedent_design::ranking::DesignRankingBasis
-impl core::marker::StructuralPartialEq for antecedent_design::ranking::DesignRankingValue
-impl core::marker::StructuralPartialEq for antecedent_design::ranking::RankingEntry
+impl core::marker::StructuralPartialEq for antecedent_design::ranking::EvsiRankRow
 impl core::marker::StructuralPartialEq for antecedent_design::ranking::RankingError
+impl core::marker::StructuralPartialEq for antecedent_design::ranking::RankingRecord
 impl core::marker::StructuralPartialEq for antecedent_design::ranking::StructuralCandidate
 impl core::marker::StructuralPartialEq for antecedent_design::ranking::StructuralEntry
 impl core::marker::StructuralPartialEq for antecedent_design::repair::RepairCancelled
@@ -2371,7 +2374,6 @@ impl core::marker::Sync for antecedent_design::DesignError [auto]
 impl core::marker::Sync for antecedent_design::DesignObjective [auto]
 impl core::marker::Sync for antecedent_design::DesignRankConfig [auto]
 impl core::marker::Sync for antecedent_design::DesignRanker [auto]
-impl core::marker::Sync for antecedent_design::DesignRanking [auto]
 impl core::marker::Sync for antecedent_design::DurableStudyCandidate [auto]
 impl core::marker::Sync for antecedent_design::EffectWidthContext [auto]
 impl core::marker::Sync for antecedent_design::EnvironmentGramSpec [auto]
@@ -2398,6 +2400,7 @@ impl core::marker::Sync for antecedent_design::RepairReport [auto]
 impl core::marker::Sync for antecedent_design::RepairReportArtifact [auto]
 impl core::marker::Sync for antecedent_design::SamplingPlan [auto]
 impl core::marker::Sync for antecedent_design::ScoreEvaluation [auto]
+impl core::marker::Sync for antecedent_design::ScoredDesignRanking [auto]
 impl core::marker::Sync for antecedent_design::SourceMode [auto]
 impl core::marker::Sync for antecedent_design::SourceRepresentation [auto]
 impl core::marker::Sync for antecedent_design::SourceRequirement [auto]
@@ -2552,7 +2555,6 @@ impl core::marker::Sync for antecedent_design::decision_structural::StructuralAt
 impl core::marker::Sync for antecedent_design::decision_structural::StructuralDecisionResult [auto]
 impl core::marker::Sync for antecedent_design::decision_structural::StructuralError [auto]
 impl core::marker::Sync for antecedent_design::decision_structural::StructuralVerdict [auto]
-impl core::marker::Sync for antecedent_design::design_ranking_artifact::CandidateWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -2560,6 +2562,7 @@ impl core::marker::Sync for antecedent_design::design_ranking_artifact::CostMapW
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::DecisionWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::DesignRankingArtifactError [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire [auto]
+impl core::marker::Sync for antecedent_design::design_ranking_artifact::EvsiCandidateWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::LawWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::PriorWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ProviderWire [auto]
@@ -2568,9 +2571,9 @@ impl core::marker::Sync for antecedent_design::design_ranking_artifact::ReplayKi
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::UtilityWire [auto]
-impl core::marker::Sync for antecedent_design::evsi::CandidateEvsi [auto]
 impl core::marker::Sync for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiCandidate [auto]
+impl core::marker::Sync for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiRequest [auto]
@@ -2651,9 +2654,9 @@ impl core::marker::Sync for antecedent_design::proposal_receipt::ProposalReceipt
 impl core::marker::Sync for antecedent_design::proposal_receipt::ProposalReceiptError [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::ValuationBinding [auto]
 impl core::marker::Sync for antecedent_design::ranking::DesignRankingBasis [auto]
-impl core::marker::Sync for antecedent_design::ranking::DesignRankingValue [auto]
-impl core::marker::Sync for antecedent_design::ranking::RankingEntry [auto]
+impl core::marker::Sync for antecedent_design::ranking::EvsiRankRow [auto]
 impl core::marker::Sync for antecedent_design::ranking::RankingError [auto]
+impl core::marker::Sync for antecedent_design::ranking::RankingRecord [auto]
 impl core::marker::Sync for antecedent_design::ranking::StructuralCandidate [auto]
 impl core::marker::Sync for antecedent_design::ranking::StructuralEntry [auto]
 impl core::marker::Sync for antecedent_design::repair::RepairCancelled [auto]
@@ -2722,7 +2725,6 @@ impl core::marker::Unpin for antecedent_design::DesignError [auto]
 impl core::marker::Unpin for antecedent_design::DesignObjective [auto]
 impl core::marker::Unpin for antecedent_design::DesignRankConfig [auto]
 impl core::marker::Unpin for antecedent_design::DesignRanker [auto]
-impl core::marker::Unpin for antecedent_design::DesignRanking [auto]
 impl core::marker::Unpin for antecedent_design::DurableStudyCandidate [auto]
 impl core::marker::Unpin for antecedent_design::EffectWidthContext [auto]
 impl core::marker::Unpin for antecedent_design::EnvironmentGramSpec [auto]
@@ -2749,6 +2751,7 @@ impl core::marker::Unpin for antecedent_design::RepairReport [auto]
 impl core::marker::Unpin for antecedent_design::RepairReportArtifact [auto]
 impl core::marker::Unpin for antecedent_design::SamplingPlan [auto]
 impl core::marker::Unpin for antecedent_design::ScoreEvaluation [auto]
+impl core::marker::Unpin for antecedent_design::ScoredDesignRanking [auto]
 impl core::marker::Unpin for antecedent_design::SourceMode [auto]
 impl core::marker::Unpin for antecedent_design::SourceRepresentation [auto]
 impl core::marker::Unpin for antecedent_design::SourceRequirement [auto]
@@ -2904,7 +2907,6 @@ impl core::marker::Unpin for antecedent_design::decision_structural::StructuralA
 impl core::marker::Unpin for antecedent_design::decision_structural::StructuralDecisionResult [auto]
 impl core::marker::Unpin for antecedent_design::decision_structural::StructuralError [auto]
 impl core::marker::Unpin for antecedent_design::decision_structural::StructuralVerdict [auto]
-impl core::marker::Unpin for antecedent_design::design_ranking_artifact::CandidateWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -2912,6 +2914,7 @@ impl core::marker::Unpin for antecedent_design::design_ranking_artifact::CostMap
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::DecisionWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::DesignRankingArtifactError [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire [auto]
+impl core::marker::Unpin for antecedent_design::design_ranking_artifact::EvsiCandidateWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::LawWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::PriorWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ProviderWire [auto]
@@ -2920,9 +2923,9 @@ impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ReplayK
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::UtilityWire [auto]
-impl core::marker::Unpin for antecedent_design::evsi::CandidateEvsi [auto]
 impl core::marker::Unpin for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiCandidate [auto]
+impl core::marker::Unpin for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiRequest [auto]
@@ -3003,9 +3006,9 @@ impl core::marker::Unpin for antecedent_design::proposal_receipt::ProposalReceip
 impl core::marker::Unpin for antecedent_design::proposal_receipt::ProposalReceiptError [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::ValuationBinding [auto]
 impl core::marker::Unpin for antecedent_design::ranking::DesignRankingBasis [auto]
-impl core::marker::Unpin for antecedent_design::ranking::DesignRankingValue [auto]
-impl core::marker::Unpin for antecedent_design::ranking::RankingEntry [auto]
+impl core::marker::Unpin for antecedent_design::ranking::EvsiRankRow [auto]
 impl core::marker::Unpin for antecedent_design::ranking::RankingError [auto]
+impl core::marker::Unpin for antecedent_design::ranking::RankingRecord [auto]
 impl core::marker::Unpin for antecedent_design::ranking::StructuralCandidate [auto]
 impl core::marker::Unpin for antecedent_design::ranking::StructuralEntry [auto]
 impl core::marker::Unpin for antecedent_design::repair::RepairCancelled [auto]
@@ -3074,7 +3077,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DesignError 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DesignObjective [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DesignRankConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DesignRanker [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DesignRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DurableStudyCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::EffectWidthContext [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::EnvironmentGramSpec [auto]
@@ -3101,6 +3103,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::RepairReport
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::RepairReportArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::SamplingPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ScoreEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ScoredDesignRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::SourceMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::SourceRepresentation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::SourceRequirement [auto]
@@ -3255,7 +3258,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_str
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_structural::StructuralDecisionResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_structural::StructuralError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_structural::StructuralVerdict [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::CandidateWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -3263,6 +3265,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranki
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::DecisionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::DesignRankingArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::EvsiCandidateWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::LawWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::PriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ProviderWire [auto]
@@ -3271,8 +3274,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranki
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::UtilityWire [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::CandidateEvsi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::CostToUtilityMap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::IntegrationMethod [auto]
@@ -3349,9 +3352,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_rec
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::ProposalReceiptError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::ValuationBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::DesignRankingBasis [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::DesignRankingValue [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::RankingEntry [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::EvsiRankRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::RankingError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::RankingRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::StructuralCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ranking::StructuralEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::repair::RepairCancelled [auto]
@@ -3418,7 +3421,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::DesignError [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::DesignObjective [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::DesignRankConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::DesignRanker [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::DesignRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::DurableStudyCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::EffectWidthContext [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::EnvironmentGramSpec [auto]
@@ -3445,6 +3447,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::RepairReport [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::RepairReportArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::SamplingPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ScoreEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ScoredDesignRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::SourceMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::SourceRepresentation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::SourceRequirement [auto]
@@ -3599,7 +3602,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_struct
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_structural::StructuralDecisionResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_structural::StructuralError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_structural::StructuralVerdict [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::CandidateWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -3607,6 +3609,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::DecisionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::DesignRankingArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::EvsiCandidateWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::LawWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::PriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ProviderWire [auto]
@@ -3615,8 +3618,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::UtilityWire [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::CandidateEvsi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::CostToUtilityMap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::IntegrationMethod [auto]
@@ -3693,9 +3696,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receip
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::ProposalReceiptError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::ValuationBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::DesignRankingBasis [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::DesignRankingValue [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::RankingEntry [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::EvsiRankRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::RankingError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::RankingRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::StructuralCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ranking::StructuralEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::repair::RepairCancelled [auto]
@@ -3763,10 +3766,10 @@ impl serde_core::ser::Serialize for antecedent_design::ZTransportFailureSnapshot
 impl serde_core::ser::Serialize for antecedent_design::ZTransportFailureStatus
 impl serde_core::ser::Serialize for antecedent_design::ZTransportProposalWire
 impl serde_core::ser::Serialize for antecedent_design::composition_bundle::ProviderOrData
-impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::CandidateWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::CostMapWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::DecisionWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::EvsiCandidateWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::LawWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::PriorWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::ProviderWire
@@ -3841,22 +3844,34 @@ impl<'a, O> core::marker::Freeze for antecedent_design::PreposteriorAnalysis<'a,
 impl<'a, O> core::marker::Send for antecedent_design::PreposteriorAnalysis<'a, O> where O: core::marker::Sync [auto]
 impl<'a, O> core::marker::Sync for antecedent_design::PreposteriorAnalysis<'a, O> where O: core::marker::Sync [auto]
 impl<'a, O> core::marker::Unpin for antecedent_design::PreposteriorAnalysis<'a, O> [auto]
+impl<'a> core::clone::Clone for antecedent_design::ObjectiveChannel<'a>
 impl<'a> core::clone::Clone for antecedent_design::RepairFamilyRef<'a>
 impl<'a> core::clone::Clone for antecedent_design::composition_bundle::UpstreamNode<'a>
+impl<'a> core::cmp::Eq for antecedent_design::ObjectiveChannel<'a>
+impl<'a> core::cmp::PartialEq for antecedent_design::ObjectiveChannel<'a>
+impl<'a> core::fmt::Debug for antecedent_design::ObjectiveChannel<'a>
 impl<'a> core::fmt::Debug for antecedent_design::RepairFamilyRef<'a>
 impl<'a> core::fmt::Debug for antecedent_design::composition_bundle::UpstreamNode<'a>
+impl<'a> core::marker::Copy for antecedent_design::ObjectiveChannel<'a>
 impl<'a> core::marker::Copy for antecedent_design::RepairFamilyRef<'a>
 impl<'a> core::marker::Copy for antecedent_design::composition_bundle::UpstreamNode<'a>
+impl<'a> core::marker::Freeze for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::Send for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_design::ObjectiveChannel<'a>
+impl<'a> core::marker::Sync for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::DecisionFunctional
@@ -3879,10 +3894,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::ZTransportFail
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::ZTransportFailureStatus
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::ZTransportProposalWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::composition_bundle::ProviderOrData
-impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::CandidateWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::CostMapWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::DecisionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::EvsiCandidateWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::LawWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::PriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::ProviderWire
@@ -4015,6 +4030,7 @@ pub enum antecedent_design::DecisionCriterion
 pub enum antecedent_design::DecisionFunctional
 pub enum antecedent_design::DecisionPrior<O>
 pub enum antecedent_design::DesignObjective
+pub enum antecedent_design::ObjectiveChannel<'a>
 pub enum antecedent_design::RepairFamilyRef<'a>
 pub enum antecedent_design::RepairObjective
 pub enum antecedent_design::ScoreEvaluation
@@ -4154,10 +4170,6 @@ pub field antecedent_design::DesignRankConfig::min_batches: u32
 pub field antecedent_design::DesignRankConfig::rank_uncertainty_threshold: f64
 pub field antecedent_design::DesignRanker::config: antecedent_design::DesignRankConfig
 pub field antecedent_design::DesignRanker::constraints: antecedent_design::DesignConstraints
-pub field antecedent_design::DesignRanking::budget: antecedent_core::execution::MonteCarloBudget
-pub field antecedent_design::DesignRanking::early_stopped: bool
-pub field antecedent_design::DesignRanking::ranked: alloc::sync::Arc<[antecedent_design::RankedCandidate]>
-pub field antecedent_design::DesignRanking::violations: alloc::sync::Arc<[antecedent_design::ConstraintViolation]>
 pub field antecedent_design::DurableStudyCandidate::cost: antecedent_design::StudyCostDeclaration
 pub field antecedent_design::DurableStudyCandidate::expected_evidence: alloc::sync::Arc<[antecedent_design::ExpectedEvidence]>
 pub field antecedent_design::DurableStudyCandidate::external_provider: core::option::Option<alloc::sync::Arc<str>>
@@ -4272,6 +4284,10 @@ pub field antecedent_design::RepairReportArtifact::version: u32
 pub field antecedent_design::SamplingPlan::additional_samples: u64
 pub field antecedent_design::SamplingPlan::cost: antecedent_design::DesignCost
 pub field antecedent_design::SamplingPlan::tag: u64
+pub field antecedent_design::ScoredDesignRanking::budget: antecedent_core::execution::MonteCarloBudget
+pub field antecedent_design::ScoredDesignRanking::early_stopped: bool
+pub field antecedent_design::ScoredDesignRanking::ranked: alloc::sync::Arc<[antecedent_design::RankedCandidate]>
+pub field antecedent_design::ScoredDesignRanking::violations: alloc::sync::Arc<[antecedent_design::ConstraintViolation]>
 pub field antecedent_design::SourceMode::needs_error_receipt: bool
 pub field antecedent_design::SourceMode::representation: antecedent_design::SourceRepresentation
 pub field antecedent_design::SourceRequirement::any_of: alloc::vec::Vec<antecedent_design::SourceRepresentation>
@@ -4645,36 +4661,6 @@ pub field antecedent_design::decision_structural::StructuralDecisionResult::poli
 pub field antecedent_design::decision_structural::StructuralDecisionResult::unevaluated_mass: core::option::Option<f64>
 pub field antecedent_design::decision_structural::StructuralDecisionResult::unidentified_mass: core::option::Option<f64>
 pub field antecedent_design::decision_structural::StructuralDecisionResult::verdict: antecedent_design::decision_structural::StructuralVerdict
-pub field antecedent_design::design_ranking_artifact::CandidateWire::assumptions: alloc::vec::Vec<alloc::string::String>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::attestor: core::option::Option<alloc::string::String>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::converged: bool
-pub field antecedent_design::design_ranking_artifact::CandidateWire::cost_amount: f64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::cost_unit: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::early_stopped: bool
-pub field antecedent_design::design_ranking_artifact::CandidateWire::ess: core::option::Option<f64>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::evpi: f64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::evsi: f64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::family: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::integration: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::law: antecedent_design::design_ranking_artifact::LawWire
-pub field antecedent_design::design_ranking_artifact::CandidateWire::law_digest: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::net_value: core::option::Option<f64>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::overlap_checked: u64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::overlapping: alloc::vec::Vec<alloc::string::String>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::provider: core::option::Option<antecedent_design::design_ranking_artifact::ProviderWire>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::rank: u64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::rank_uncertain: bool
-pub field antecedent_design::design_ranking_artifact::CandidateWire::replicates: u64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::request: antecedent_design::design_ranking_artifact::SignalRequestWire
-pub field antecedent_design::design_ranking_artifact::CandidateWire::request_fingerprint: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::reused_observation_ids: alloc::vec::Vec<alloc::string::String>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::sample_size: u64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::semantic_id: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::signal_identity: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::stderr: f64
-pub field antecedent_design::design_ranking_artifact::CandidateWire::study_cost_utility: core::option::Option<f64>
-pub field antecedent_design::design_ranking_artifact::CandidateWire::trust: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::CandidateWire::update_mode: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::ConsumeExpectation::artifact_identity: core::option::Option<alloc::string::String>
 pub field antecedent_design::design_ranking_artifact::ConsumeExpectation::cost_mapping: core::option::Option<core::option::Option<antecedent_design::evsi::CostToUtilityMap>>
 pub field antecedent_design::design_ranking_artifact::ConsumeExpectation::decision_contract_identity: core::option::Option<alloc::string::String>
@@ -4689,7 +4675,7 @@ pub field antecedent_design::design_ranking_artifact::ConsumedDesignRanking::cal
 pub field antecedent_design::design_ranking_artifact::ConsumedDesignRanking::candidates: alloc::vec::Vec<antecedent_design::design_ranking_artifact::ConsumedCandidate>
 pub field antecedent_design::design_ranking_artifact::ConsumedDesignRanking::identity: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::ConsumedDesignRanking::provenance_chain: antecedent_contract::composition_provenance::ProvenanceChain
-pub field antecedent_design::design_ranking_artifact::ConsumedDesignRanking::ranking: antecedent_design::ranking::DesignRankingValue
+pub field antecedent_design::design_ranking_artifact::ConsumedDesignRanking::ranking: antecedent_design::ranking::RankingRecord
 pub field antecedent_design::design_ranking_artifact::CostMapWire::cost_unit: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::CostMapWire::utility_per_cost: f64
 pub field antecedent_design::design_ranking_artifact::CostMapWire::utility_unit: alloc::string::String
@@ -4702,7 +4688,7 @@ pub field antecedent_design::design_ranking_artifact::DecisionWire::utility_unit
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::basis: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::bayes_action: u64
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::calibration: alloc::string::String
-pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::candidates: alloc::vec::Vec<antecedent_design::design_ranking_artifact::CandidateWire>
+pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::candidates: alloc::vec::Vec<antecedent_design::design_ranking_artifact::EvsiCandidateWire>
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::cost_map: core::option::Option<antecedent_design::design_ranking_artifact::CostMapWire>
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::decision: antecedent_design::design_ranking_artifact::DecisionWire
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::digest: alloc::string::String
@@ -4720,6 +4706,36 @@ pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire:
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::tie_tolerance: f64
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::ties: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub field antecedent_design::design_ranking_artifact::DesignRankingArtifactWire::version: u32
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::attestor: core::option::Option<alloc::string::String>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::converged: bool
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::cost_amount: f64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::cost_unit: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::early_stopped: bool
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::ess: core::option::Option<f64>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::evpi: f64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::evsi: f64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::family: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::integration: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::law: antecedent_design::design_ranking_artifact::LawWire
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::law_digest: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::net_value: core::option::Option<f64>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::overlap_checked: u64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::overlapping: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::provider: core::option::Option<antecedent_design::design_ranking_artifact::ProviderWire>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::rank: u64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::rank_uncertain: bool
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::replicates: u64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::request: antecedent_design::design_ranking_artifact::SignalRequestWire
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::request_fingerprint: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::reused_observation_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::sample_size: u64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::semantic_id: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::signal_identity: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::stderr: f64
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::study_cost_utility: core::option::Option<f64>
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::trust: alloc::string::String
+pub field antecedent_design::design_ranking_artifact::EvsiCandidateWire::update_mode: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::ProviderWire::object_id: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::ProviderWire::provider_id: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::ProviderWire::request_id: alloc::string::String
@@ -4747,21 +4763,6 @@ pub field antecedent_design::design_ranking_artifact::SignalRequestWire::observa
 pub field antecedent_design::design_ranking_artifact::SignalRequestWire::prior_id: alloc::string::String
 pub field antecedent_design::design_ranking_artifact::SignalRequestWire::rng_seed: u64
 pub field antecedent_design::design_ranking_artifact::SignalRequestWire::state_quantity: antecedent_io_core::quantity_wire::ScientificQuantityWire
-pub field antecedent_design::evsi::CandidateEvsi::assumptions: alloc::vec::Vec<alloc::string::String>
-pub field antecedent_design::evsi::CandidateEvsi::evpi: f64
-pub field antecedent_design::evsi::CandidateEvsi::evsi: f64
-pub field antecedent_design::evsi::CandidateEvsi::integration: antecedent_design::evsi::IntegrationReport
-pub field antecedent_design::evsi::CandidateEvsi::net_value: core::option::Option<f64>
-pub field antecedent_design::evsi::CandidateEvsi::provider_trust: antecedent_design::signal::SignalTrustLabel
-pub field antecedent_design::evsi::CandidateEvsi::rank: usize
-pub field antecedent_design::evsi::CandidateEvsi::rank_uncertain: bool
-pub field antecedent_design::evsi::CandidateEvsi::sample_size: u64
-pub field antecedent_design::evsi::CandidateEvsi::semantic_id: alloc::string::String
-pub field antecedent_design::evsi::CandidateEvsi::signal_receipt: antecedent_design::signal::SignalReceipt
-pub field antecedent_design::evsi::CandidateEvsi::source_overlap: antecedent_design::evsi::SourceOverlapDiagnostics
-pub field antecedent_design::evsi::CandidateEvsi::study_cost: antecedent_design::evsi::StudyCostSpec
-pub field antecedent_design::evsi::CandidateEvsi::study_cost_utility: core::option::Option<f64>
-pub field antecedent_design::evsi::CandidateEvsi::update_mode: antecedent_design::signal::SignalUpdateMode
 pub field antecedent_design::evsi::CostToUtilityMap::cost_unit: alloc::string::String
 pub field antecedent_design::evsi::CostToUtilityMap::utility_per_cost: f64
 pub field antecedent_design::evsi::CostToUtilityMap::utility_unit: alloc::string::String
@@ -4771,10 +4772,25 @@ pub field antecedent_design::evsi::EvsiCandidate::provider: alloc::sync::Arc<dyn
 pub field antecedent_design::evsi::EvsiCandidate::reused_observation_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::evsi::EvsiCandidate::semantic_id: alloc::string::String
 pub field antecedent_design::evsi::EvsiCandidate::signal_request: antecedent_design::signal::SignalRequest
+pub field antecedent_design::evsi::EvsiCandidateRow::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::evsi::EvsiCandidateRow::evpi: f64
+pub field antecedent_design::evsi::EvsiCandidateRow::evsi: f64
+pub field antecedent_design::evsi::EvsiCandidateRow::integration: antecedent_design::evsi::IntegrationReport
+pub field antecedent_design::evsi::EvsiCandidateRow::net_value: core::option::Option<f64>
+pub field antecedent_design::evsi::EvsiCandidateRow::provider_trust: antecedent_design::signal::SignalTrustLabel
+pub field antecedent_design::evsi::EvsiCandidateRow::rank: usize
+pub field antecedent_design::evsi::EvsiCandidateRow::rank_uncertain: bool
+pub field antecedent_design::evsi::EvsiCandidateRow::sample_size: u64
+pub field antecedent_design::evsi::EvsiCandidateRow::semantic_id: alloc::string::String
+pub field antecedent_design::evsi::EvsiCandidateRow::signal_receipt: antecedent_design::signal::SignalReceipt
+pub field antecedent_design::evsi::EvsiCandidateRow::source_overlap: antecedent_design::evsi::SourceOverlapDiagnostics
+pub field antecedent_design::evsi::EvsiCandidateRow::study_cost: antecedent_design::evsi::StudyCostSpec
+pub field antecedent_design::evsi::EvsiCandidateRow::study_cost_utility: core::option::Option<f64>
+pub field antecedent_design::evsi::EvsiCandidateRow::update_mode: antecedent_design::signal::SignalUpdateMode
 pub field antecedent_design::evsi::EvsiReport::action_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::evsi::EvsiReport::basis: antecedent_design::evsi::RankingBasis
 pub field antecedent_design::evsi::EvsiReport::bayes_action: usize
-pub field antecedent_design::evsi::EvsiReport::candidates: alloc::vec::Vec<antecedent_design::evsi::CandidateEvsi>
+pub field antecedent_design::evsi::EvsiReport::candidates: alloc::vec::Vec<antecedent_design::evsi::EvsiCandidateRow>
 pub field antecedent_design::evsi::EvsiReport::cost_map: core::option::Option<antecedent_design::evsi::CostToUtilityMap>
 pub field antecedent_design::evsi::EvsiReport::decision_contract_identity: alloc::string::String
 pub field antecedent_design::evsi::EvsiReport::evpi: f64
@@ -5025,31 +5041,31 @@ pub field antecedent_design::proposal_receipt::ValuationBinding::net_value_bits:
 pub field antecedent_design::proposal_receipt::ValuationBinding::rank: u64
 pub field antecedent_design::proposal_receipt::ValuationBinding::signal_identity: alloc::string::String
 pub field antecedent_design::proposal_receipt::ValuationBinding::signal_request_fingerprint: alloc::string::String
-pub field antecedent_design::ranking::DesignRankingValue::basis: antecedent_design::ranking::DesignRankingBasis
-pub field antecedent_design::ranking::DesignRankingValue::cost_mapping: core::option::Option<antecedent_design::evsi::CostToUtilityMap>
-pub field antecedent_design::ranking::DesignRankingValue::decision_contract_identity: core::option::Option<alloc::string::String>
-pub field antecedent_design::ranking::DesignRankingValue::entries: alloc::vec::Vec<antecedent_design::ranking::RankingEntry>
-pub field antecedent_design::ranking::DesignRankingValue::rng_seed: core::option::Option<u64>
-pub field antecedent_design::ranking::DesignRankingValue::search: antecedent_design::evsi::SearchReceipt
-pub field antecedent_design::ranking::DesignRankingValue::source_digests: alloc::vec::Vec<alloc::string::String>
-pub field antecedent_design::ranking::DesignRankingValue::structural: alloc::vec::Vec<antecedent_design::ranking::StructuralEntry>
-pub field antecedent_design::ranking::DesignRankingValue::utility_unit: core::option::Option<alloc::string::String>
-pub field antecedent_design::ranking::RankingEntry::evpi: f64
-pub field antecedent_design::ranking::RankingEntry::evsi: f64
-pub field antecedent_design::ranking::RankingEntry::integration: antecedent_design::evsi::IntegrationMethod
-pub field antecedent_design::ranking::RankingEntry::mc_stderr: f64
-pub field antecedent_design::ranking::RankingEntry::net_value: core::option::Option<f64>
-pub field antecedent_design::ranking::RankingEntry::provider_trust: antecedent_design::signal::SignalTrustLabel
-pub field antecedent_design::ranking::RankingEntry::rank: usize
-pub field antecedent_design::ranking::RankingEntry::rank_uncertain: bool
-pub field antecedent_design::ranking::RankingEntry::replicates: u64
-pub field antecedent_design::ranking::RankingEntry::request_fingerprint: alloc::string::String
-pub field antecedent_design::ranking::RankingEntry::sample_size: u64
-pub field antecedent_design::ranking::RankingEntry::semantic_id: alloc::string::String
-pub field antecedent_design::ranking::RankingEntry::signal_identity: alloc::string::String
-pub field antecedent_design::ranking::RankingEntry::study_cost_amount: f64
-pub field antecedent_design::ranking::RankingEntry::study_cost_unit: alloc::string::String
-pub field antecedent_design::ranking::RankingEntry::update_mode: antecedent_design::signal::SignalUpdateMode
+pub field antecedent_design::ranking::EvsiRankRow::evpi: f64
+pub field antecedent_design::ranking::EvsiRankRow::evsi: f64
+pub field antecedent_design::ranking::EvsiRankRow::integration: antecedent_design::evsi::IntegrationMethod
+pub field antecedent_design::ranking::EvsiRankRow::mc_stderr: f64
+pub field antecedent_design::ranking::EvsiRankRow::net_value: core::option::Option<f64>
+pub field antecedent_design::ranking::EvsiRankRow::provider_trust: antecedent_design::signal::SignalTrustLabel
+pub field antecedent_design::ranking::EvsiRankRow::rank: usize
+pub field antecedent_design::ranking::EvsiRankRow::rank_uncertain: bool
+pub field antecedent_design::ranking::EvsiRankRow::replicates: u64
+pub field antecedent_design::ranking::EvsiRankRow::request_fingerprint: alloc::string::String
+pub field antecedent_design::ranking::EvsiRankRow::sample_size: u64
+pub field antecedent_design::ranking::EvsiRankRow::semantic_id: alloc::string::String
+pub field antecedent_design::ranking::EvsiRankRow::signal_identity: alloc::string::String
+pub field antecedent_design::ranking::EvsiRankRow::study_cost_amount: f64
+pub field antecedent_design::ranking::EvsiRankRow::study_cost_unit: alloc::string::String
+pub field antecedent_design::ranking::EvsiRankRow::update_mode: antecedent_design::signal::SignalUpdateMode
+pub field antecedent_design::ranking::RankingRecord::basis: antecedent_design::ranking::DesignRankingBasis
+pub field antecedent_design::ranking::RankingRecord::cost_mapping: core::option::Option<antecedent_design::evsi::CostToUtilityMap>
+pub field antecedent_design::ranking::RankingRecord::decision_contract_identity: core::option::Option<alloc::string::String>
+pub field antecedent_design::ranking::RankingRecord::entries: alloc::vec::Vec<antecedent_design::ranking::EvsiRankRow>
+pub field antecedent_design::ranking::RankingRecord::rng_seed: core::option::Option<u64>
+pub field antecedent_design::ranking::RankingRecord::search: antecedent_design::evsi::SearchReceipt
+pub field antecedent_design::ranking::RankingRecord::source_digests: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::ranking::RankingRecord::structural: alloc::vec::Vec<antecedent_design::ranking::StructuralEntry>
+pub field antecedent_design::ranking::RankingRecord::utility_unit: core::option::Option<alloc::string::String>
 pub field antecedent_design::ranking::StructuralCandidate::cost: antecedent_design::StudyCost
 pub field antecedent_design::ranking::StructuralCandidate::semantic_id: alloc::string::String
 pub field antecedent_design::ranking::StructuralCandidate::verified_sufficient: bool
@@ -5273,8 +5289,9 @@ pub fn <antecedent_design::DesignCost>::const fn zero() -> Self
 pub fn <antecedent_design::DesignError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::DesignObjective>::const fn implemented_functional(&self) -> &'static str
 pub fn <antecedent_design::DesignObjective>::const fn is_exact_information_functional(&self) -> bool
+pub fn <antecedent_design::DesignObjective>::fn from_label(kind: &str, query: core::option::Option<antecedent_core::ids::QueryId>, models: core::option::Option<&[antecedent_core::ids::ModelId]>, decision: core::option::Option<antecedent_design::DecisionProblemId>) -> core::result::Result<Self, alloc::string::String>
 pub fn <antecedent_design::DesignRanker>::fn new() -> Self
-pub fn <antecedent_design::DesignRanker>::fn rank<A, O>(&self, objective: &antecedent_design::DesignObjective, candidates: &[antecedent_design::CandidateDesign], ctx_eval: &antecedent_design::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::DesignRanking, antecedent_design::DesignError> where A: core::clone::Clone, O: core::clone::Clone
+pub fn <antecedent_design::DesignRanker>::fn rank<A, O>(&self, objective: &antecedent_design::DesignObjective, candidates: &[antecedent_design::CandidateDesign], ctx_eval: &antecedent_design::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::ScoredDesignRanking, antecedent_design::DesignError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn <antecedent_design::DesignRanker>::fn with_config(self, config: antecedent_design::DesignRankConfig) -> Self
 pub fn <antecedent_design::DesignRanker>::fn with_constraints(self, constraints: antecedent_design::DesignConstraints) -> Self
 pub fn <antecedent_design::DurableStudyCandidate>::fn design_action(&self) -> antecedent_design::CandidateDesign
@@ -5507,12 +5524,12 @@ pub fn <antecedent_design::proposal_receipt::ProposalReceipt>::const fn is_avail
 pub fn <antecedent_design::proposal_receipt::ProposalReceipt>::fn compute_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::proposal_receipt::ProposalReceipt>::fn sealed(self) -> Self
 pub fn <antecedent_design::ranking::DesignRankingBasis>::const fn as_str(self) -> &'static str
-pub fn <antecedent_design::ranking::DesignRankingValue>::fn from_evsi(report: &antecedent_design::evsi::EvsiReport, source_digests: &[alloc::string::String]) -> core::result::Result<Self, antecedent_design::ranking::RankingError>
-pub fn <antecedent_design::ranking::DesignRankingValue>::fn from_structural(candidates: &[antecedent_design::ranking::StructuralCandidate]) -> core::result::Result<Self, antecedent_design::ranking::RankingError>
-pub fn <antecedent_design::ranking::DesignRankingValue>::fn identity(&self) -> alloc::string::String
-pub fn <antecedent_design::ranking::DesignRankingValue>::fn verify_replay(&self, decision_contract_identity: &str, signal_identities: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, source_digests: &[alloc::string::String], cost_mapping: core::option::Option<&antecedent_design::evsi::CostToUtilityMap>) -> core::result::Result<(), antecedent_design::ranking::RankingError>
-pub fn <antecedent_design::ranking::DesignRankingValue>::fn with_fallback(probabilistic: core::option::Option<(&antecedent_design::evsi::EvsiReport, &[alloc::string::String])>, structural: &[antecedent_design::ranking::StructuralCandidate]) -> core::result::Result<Self, antecedent_design::ranking::RankingError>
 pub fn <antecedent_design::ranking::RankingError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent_design::ranking::RankingRecord>::fn from_evsi(report: &antecedent_design::evsi::EvsiReport, source_digests: &[alloc::string::String]) -> core::result::Result<Self, antecedent_design::ranking::RankingError>
+pub fn <antecedent_design::ranking::RankingRecord>::fn from_structural(candidates: &[antecedent_design::ranking::StructuralCandidate]) -> core::result::Result<Self, antecedent_design::ranking::RankingError>
+pub fn <antecedent_design::ranking::RankingRecord>::fn identity(&self) -> alloc::string::String
+pub fn <antecedent_design::ranking::RankingRecord>::fn verify_replay(&self, decision_contract_identity: &str, signal_identities: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, source_digests: &[alloc::string::String], cost_mapping: core::option::Option<&antecedent_design::evsi::CostToUtilityMap>) -> core::result::Result<(), antecedent_design::ranking::RankingError>
+pub fn <antecedent_design::ranking::RankingRecord>::fn with_fallback(probabilistic: core::option::Option<(&antecedent_design::evsi::EvsiReport, &[alloc::string::String])>, structural: &[antecedent_design::ranking::StructuralCandidate]) -> core::result::Result<Self, antecedent_design::ranking::RankingError>
 pub fn <antecedent_design::repair_artifact::DurableStudyCandidateWire>::fn from_candidate(candidate: &antecedent_design::DurableStudyCandidate) -> Self
 pub fn <antecedent_design::repair_artifact::DurableStudyCandidateWire>::fn to_candidate(&self) -> core::result::Result<antecedent_design::DurableStudyCandidate, antecedent_design::RepairArtifactError>
 pub fn <antecedent_design::rollout_artifact::RolloutArtifact>::fn decision_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
@@ -5606,7 +5623,7 @@ pub fn antecedent_design::decision_structural::evaluate_structural(contract: &an
 pub fn antecedent_design::design_ranking_artifact::consume(bytes: &[u8], expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::consume_wire(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::seal<A: core::clone::Clone>(inputs: &antecedent_design::design_ranking_artifact::SealInputs<'_, A>) -> core::result::Result<antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
-pub fn antecedent_design::evsi::evaluate_evsi<A: core::clone::Clone>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, cancellation: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_design::evsi::EvsiReport, antecedent_design::evsi::EvsiError>
+pub fn antecedent_design::evsi::evaluate_evsi<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, cancellation: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_design::evsi::EvsiReport, antecedent_design::evsi::EvsiError>
 pub fn antecedent_design::inverse_query::evaluate_inverse_query(query: &antecedent_design::inverse_query::InverseQuery, evidence: &antecedent_design::inverse_query::ForwardEvidence) -> core::result::Result<antecedent_design::inverse_query::InverseResult, antecedent_design::inverse_query::InverseQueryError>
 pub fn antecedent_design::inverse_query::finite_enumeration_baseline(points: &[antecedent_design::inverse_query::EnumeratedForwardValue], target: f64, comparison: antecedent_design::inverse_query::Comparison, tolerance: f64) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query::FeasibilityStatus)>, antecedent_design::inverse_query::InverseQueryError>
 pub fn antecedent_design::inverse_query_artifact::artifact_refusal(error: &antecedent_io_core::error::IoError) -> antecedent_contract::external_refusal::ExternalRefusal
@@ -5684,7 +5701,6 @@ pub struct antecedent_design::DesignCost
 pub struct antecedent_design::DesignEvaluationContext<'a, A = (), O = ()>
 pub struct antecedent_design::DesignRankConfig
 pub struct antecedent_design::DesignRanker
-pub struct antecedent_design::DesignRanking
 pub struct antecedent_design::DurableStudyCandidate
 pub struct antecedent_design::EffectWidthContext
 pub struct antecedent_design::EnvironmentGramSpec
@@ -5710,6 +5726,7 @@ pub struct antecedent_design::RepairReceipt
 pub struct antecedent_design::RepairReport
 pub struct antecedent_design::RepairReportArtifact
 pub struct antecedent_design::SamplingPlan
+pub struct antecedent_design::ScoredDesignRanking
 pub struct antecedent_design::SourceMode
 pub struct antecedent_design::SourceRequirement
 pub struct antecedent_design::StructuralResultArtifact
@@ -5832,21 +5849,21 @@ pub struct antecedent_design::decision_structural::ActionStructure
 pub struct antecedent_design::decision_structural::AtomSummary
 pub struct antecedent_design::decision_structural::StructuralAtom
 pub struct antecedent_design::decision_structural::StructuralDecisionResult
-pub struct antecedent_design::design_ranking_artifact::CandidateWire
 pub struct antecedent_design::design_ranking_artifact::ConsumeExpectation
 pub struct antecedent_design::design_ranking_artifact::ConsumedCandidate
 pub struct antecedent_design::design_ranking_artifact::ConsumedDesignRanking
 pub struct antecedent_design::design_ranking_artifact::CostMapWire
 pub struct antecedent_design::design_ranking_artifact::DecisionWire
 pub struct antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
+pub struct antecedent_design::design_ranking_artifact::EvsiCandidateWire
 pub struct antecedent_design::design_ranking_artifact::ProviderWire
 pub struct antecedent_design::design_ranking_artifact::RankConfigWire
 pub struct antecedent_design::design_ranking_artifact::SealInputs<'a, A>
 pub struct antecedent_design::design_ranking_artifact::SearchWire
 pub struct antecedent_design::design_ranking_artifact::SignalRequestWire
-pub struct antecedent_design::evsi::CandidateEvsi
 pub struct antecedent_design::evsi::CostToUtilityMap
 pub struct antecedent_design::evsi::EvsiCandidate
+pub struct antecedent_design::evsi::EvsiCandidateRow
 pub struct antecedent_design::evsi::EvsiReport
 pub struct antecedent_design::evsi::EvsiRequest
 pub struct antecedent_design::evsi::IntegrationReport
@@ -5898,8 +5915,8 @@ pub struct antecedent_design::proposal_receipt::ProposalBundle
 pub struct antecedent_design::proposal_receipt::ProposalReceipt
 pub struct antecedent_design::proposal_receipt::ProposalReceiptError
 pub struct antecedent_design::proposal_receipt::ValuationBinding
-pub struct antecedent_design::ranking::DesignRankingValue
-pub struct antecedent_design::ranking::RankingEntry
+pub struct antecedent_design::ranking::EvsiRankRow
+pub struct antecedent_design::ranking::RankingRecord
 pub struct antecedent_design::ranking::StructuralCandidate
 pub struct antecedent_design::ranking::StructuralEntry
 pub struct antecedent_design::repair::RepairCancelled
@@ -5945,6 +5962,7 @@ pub struct antecedent_design::source_projection_artifact::SourceProjectionArtifa
 pub struct antecedent_design::transport_planner::CandidateDesignRecord
 pub trait antecedent_design::DecisionConstraint<A, O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::DecisionSignal<O>: core::marker::Send + core::marker::Sync
+pub trait antecedent_design::ObjectiveScorer
 pub trait antecedent_design::RepairFamily
 pub trait antecedent_design::Utility<A, O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::composition_bundle::NodeVerifier
@@ -5957,6 +5975,8 @@ pub trait fn fn antecedent_design::DecisionSignal::log_likelihood(&self, statist
 pub trait fn fn antecedent_design::DecisionSignal::name(&self) -> &str
 pub trait fn fn antecedent_design::DecisionSignal::sample_size(&self, candidate: &antecedent_design::CandidateDesign) -> core::option::Option<u64> {default}
 pub trait fn fn antecedent_design::DecisionSignal::sample_statistic(&self, state: &O, n: u64, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<f64, antecedent_design::DesignError>
+pub trait fn fn antecedent_design::ObjectiveScorer::channel(&self) -> antecedent_design::ObjectiveChannel<'_>
+pub trait fn fn antecedent_design::ObjectiveScorer::static_evaluation(&self) -> antecedent_design::ScoreEvaluation
 pub trait fn fn antecedent_design::RepairFamily::check(&self, studies: &[&antecedent_design::DurableStudyCandidate], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::FamilyVerdict, antecedent_design::repair::RepairCancelled>
 pub trait fn fn antecedent_design::RepairFamily::contract_id(&self) -> alloc::string::String
 pub trait fn fn antecedent_design::RepairFamily::family_id(&self) -> &'static str
@@ -6002,6 +6022,8 @@ pub use antecedent_design::decision_structural_artifact::StructuralResultArtifac
 pub use antecedent_design::error::DesignError = antecedent_design::DesignError
 pub use antecedent_design::evaluate_decision = antecedent_design::decision::evaluate_decision
 pub use antecedent_design::objective::DesignObjective = antecedent_design::DesignObjective
+pub use antecedent_design::objective::ObjectiveChannel = antecedent_design::ObjectiveChannel
+pub use antecedent_design::objective::ObjectiveScorer = antecedent_design::ObjectiveScorer
 pub use antecedent_design::preposterior::BinomialSignal = antecedent_design::BinomialSignal
 pub use antecedent_design::preposterior::DecisionPrior = antecedent_design::DecisionPrior
 pub use antecedent_design::preposterior::DecisionSignal = antecedent_design::DecisionSignal
@@ -6034,9 +6056,9 @@ pub use antecedent_design::repair_artifact::RepairConsumeLimits = antecedent_des
 pub use antecedent_design::repair_artifact::RepairFamilyRef = antecedent_design::RepairFamilyRef
 pub use antecedent_design::repair_artifact::RepairReportArtifact = antecedent_design::RepairReportArtifact
 pub use antecedent_design::result::ConstraintViolation = antecedent_design::ConstraintViolation
-pub use antecedent_design::result::DesignRanking = antecedent_design::DesignRanking
 pub use antecedent_design::result::RankedCandidate = antecedent_design::RankedCandidate
 pub use antecedent_design::result::ScoreEvaluation = antecedent_design::ScoreEvaluation
+pub use antecedent_design::result::ScoredDesignRanking = antecedent_design::ScoredDesignRanking
 pub use antecedent_design::sensitivity_decision::ASSUMPTION_RANGE_STATEMENT = antecedent_io_core::sensitivity_artifact::ASSUMPTION_RANGE_STATEMENT
 pub use antecedent_design::sensitivity_decision::ActionUtility = antecedent_io_core::sensitivity_artifact::ActionUtility
 pub use antecedent_design::sensitivity_decision::AssumptionCoordinate = antecedent_io_core::sensitivity_artifact::AssumptionCoordinate
@@ -6151,6 +6173,11 @@ pub variant antecedent_design::FamilyVerdict::Insufficient { reasons: alloc::vec
 pub variant antecedent_design::FamilyVerdict::Invalid { reasons: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_design::FamilyVerdict::NotCertified { reasons: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_design::FamilyVerdict::Sufficient(antecedent_design::repair::RepairDerivation)
+pub variant antecedent_design::ObjectiveChannel::Decision { decision: antecedent_design::DecisionProblemId }
+pub variant antecedent_design::ObjectiveChannel::EffectWidth { query: antecedent_core::ids::QueryId }
+pub variant antecedent_design::ObjectiveChannel::GraphEntropy
+pub variant antecedent_design::ObjectiveChannel::Identification { query: antecedent_core::ids::QueryId }
+pub variant antecedent_design::ObjectiveChannel::ModelDistinction { models: &'a [antecedent_core::ids::ModelId] }
 pub variant antecedent_design::RepairClassification::Insufficient
 pub variant antecedent_design::RepairClassification::Invalid
 pub variant antecedent_design::RepairClassification::NotCertified
