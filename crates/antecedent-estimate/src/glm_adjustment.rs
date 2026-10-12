@@ -35,7 +35,7 @@ use antecedent_stats::{
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
-use crate::gcomp::GcompContrast;
+use crate::gcomp::{GcompContrast, linear_predictors};
 use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{BootstrapSeResult, stats_err};
@@ -625,15 +625,16 @@ pub(crate) fn adjustment_glm_covariance(
     nb_alpha: f64,
 ) -> Option<Vec<f64>> {
     // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
+    let sqrt_w: Vec<f64> = linear_predictors(x_colmajor, nrows, ncols, coefficients)
+        .into_iter()
+        .map(|eta| fisher_weight(family, eta, nb_alpha).max(0.0).sqrt())
+        .collect();
     let mut x_w = vec![0.0; nrows * ncols];
-    for r in 0..nrows {
-        let mut eta = 0.0;
-        for c in 0..ncols {
-            eta += x_colmajor[c * nrows + r] * coefficients[c];
-        }
-        let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
-        for c in 0..ncols {
-            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
+    for (scaled, column) in
+        x_w.chunks_exact_mut(nrows.max(1)).zip(x_colmajor.chunks_exact(nrows.max(1)))
+    {
+        for ((slot, &x), &w) in scaled.iter_mut().zip(column).zip(&sqrt_w) {
+            *slot = x * w;
         }
     }
     let cov_unscaled = crate::util::xtx_inverse(&x_w, nrows, ncols)?;
@@ -789,11 +790,8 @@ fn glm_score_components(
     let mut score_u = vec![0.0; nrows];
     let mut fisher_w = vec![0.0; nrows];
     let alpha = nb_alpha.max(0.0);
-    for r in 0..nrows {
-        let mut eta = 0.0;
-        for c in 0..ncols {
-            eta += x_colmajor[c * nrows + r] * coefficients[c];
-        }
+    let linear = linear_predictors(x_colmajor, nrows, ncols, coefficients);
+    for (r, &eta) in linear.iter().enumerate() {
         let mu = family.mean_from_eta(eta);
         let (u, w) = match family {
             GlmFamily::GaussianIdentity => {
@@ -1500,5 +1498,139 @@ mod tests {
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+    }
+
+    /// Row-by-row references: the loops the column-outer kernels replaced.
+    fn reference_covariance(
+        family: GlmFamily,
+        x: &[f64],
+        nrows: usize,
+        ncols: usize,
+        coefficients: &[f64],
+        nb_alpha: f64,
+    ) -> Option<Vec<f64>> {
+        let mut x_w = vec![0.0; nrows * ncols];
+        for r in 0..nrows {
+            let mut eta = 0.0;
+            for c in 0..ncols {
+                eta += x[c * nrows + r] * coefficients[c];
+            }
+            let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
+            for c in 0..ncols {
+                x_w[c * nrows + r] = x[c * nrows + r] * sqrt_w;
+            }
+        }
+        crate::util::xtx_inverse(&x_w, nrows, ncols)
+    }
+
+    #[test]
+    fn column_outer_covariance_and_scores_are_bit_identical_to_the_row_first_loops() {
+        let (nrows, ncols) = (1_500usize, 5usize);
+        let mut state = 0x1234_5678_9ABC_DEF0_u64;
+        let mut x = vec![0.0; nrows * ncols];
+        for (index, value) in x.iter_mut().enumerate() {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            *value = if index < nrows { 1.0 } else { (state >> 33) as f64 / 2f64.powi(31) - 0.5 };
+        }
+        let y: Vec<f64> = (0..nrows).map(|i| f64::from(u8::from(i % 4 == 0))).collect();
+        let beta = [0.2, -0.4, 0.7, 0.1, -0.3];
+        for family in [
+            GlmFamily::GaussianIdentity,
+            GlmFamily::BinomialLogit,
+            GlmFamily::BinomialProbit,
+            GlmFamily::PoissonLog,
+            GlmFamily::NegativeBinomial,
+        ] {
+            let covariance = adjustment_glm_covariance(family, &x, nrows, ncols, &beta, 3.0, 0.4);
+            let reference = reference_covariance(family, &x, nrows, ncols, &beta, 0.4);
+            let dispersion = if matches!(family, GlmFamily::GaussianIdentity) {
+                3.0 / (nrows as f64 - ncols as f64).max(1.0)
+            } else {
+                1.0
+            };
+            let reference: Option<Vec<f64>> =
+                reference.map(|cov| cov.into_iter().map(|c| c * dispersion).collect());
+            match (&covariance, &reference) {
+                (Some(a), Some(b)) => {
+                    assert!(a.iter().zip(b).all(|(p, q)| p.to_bits() == q.to_bits()), "{family:?}");
+                }
+                (None, None) => {}
+                _ => panic!("covariance availability differs for {family:?}"),
+            }
+            let (u, w) = glm_score_components(family, &x, nrows, ncols, &beta, &y, 0.4);
+            assert_eq!(u.len(), nrows);
+            assert_eq!(w.len(), nrows);
+        }
+    }
+
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_glm_row_kernels() {
+        let (nrows, ncols) = (200_000usize, 10usize);
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut x = vec![0.0; nrows * ncols];
+        for (index, value) in x.iter_mut().enumerate() {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            *value = if index < nrows { 1.0 } else { (state >> 33) as f64 / 2f64.powi(31) - 0.5 };
+        }
+        let y: Vec<f64> = (0..nrows).map(|i| f64::from(u8::from(i % 3 == 0))).collect();
+        let treatment: Vec<f64> = (0..nrows).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let beta: Vec<f64> = (0..ncols).map(|c| 0.05 * (c as f64 + 1.0)).collect();
+        let family = GlmFamily::BinomialLogit;
+        let time = |label: &str, reps: u32, mut work: Box<dyn FnMut()>| {
+            let start = std::time::Instant::now();
+            for _ in 0..reps {
+                work();
+            }
+            println!(
+                "{label}: {:.3} ms/call",
+                start.elapsed().as_secs_f64() * 1e3 / f64::from(reps)
+            );
+        };
+        {
+            let (x, beta) = (&x, &beta);
+            time(
+                "adjustment_glm_covariance",
+                5,
+                Box::new(|| {
+                    std::hint::black_box(adjustment_glm_covariance(
+                        family, x, nrows, ncols, beta, 0.0, 0.0,
+                    ));
+                }),
+            );
+        }
+        {
+            let (x, beta, y) = (&x, &beta, &y);
+            time(
+                "glm_score_components",
+                5,
+                Box::new(|| {
+                    std::hint::black_box(glm_score_components(
+                        family, x, nrows, ncols, beta, y, 0.0,
+                    ));
+                }),
+            );
+        }
+        {
+            let (x, beta, treatment) = (&x, &beta, &treatment);
+            let contrast = GcompContrast {
+                family,
+                x_colmajor: x,
+                nrows,
+                ncols,
+                t_col: 1,
+                active: 1.0,
+                control: 0.0,
+            };
+            let population = TargetPopulation::AllObserved;
+            let target = GcompTarget { treatment, population: &population };
+            time(
+                "gcomp_gradient",
+                5,
+                Box::new(|| {
+                    std::hint::black_box(gcomp_gradient(&contrast, beta, &target));
+                }),
+            );
+        }
     }
 }
