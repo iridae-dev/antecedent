@@ -8,6 +8,10 @@
 //! including a resealed one, is refused. Holding a receipt grants no native
 //! licence and no calibration.
 
+// Refusals are the cold path of a once-per-verification call, so the large `Err`
+// variant is not worth boxing.
+#![allow(clippy::result_large_err)]
+
 use antecedent_contract::{
     ExecutionContract, ExternalVerificationError, ProviderObjectIdentity,
     ProviderVerificationReceipt, VerificationProbe, VerificationSubject, VerifiedContractKind,
