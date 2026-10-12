@@ -208,6 +208,7 @@ pub struct RecordedContrast {
 
 /// Spline / smooth basis kind recorded on a compiled additive design.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum BasisKind {
     /// Cubic B-spline basis.
     CubicBSpline,

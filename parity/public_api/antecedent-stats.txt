@@ -1,8 +1,10 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_stats::BasisKind
 #[non_exhaustive] pub enum antecedent_stats::IdentifiedSetIntervalMethod
 #[non_exhaustive] pub enum antecedent_stats::StatsError
+#[non_exhaustive] pub enum antecedent_stats::ci::AttainableP
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::BayesFactorCi
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::GSquared
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::Gpdc
@@ -949,7 +951,6 @@ pub const antecedent_stats::DEFAULT_MECHANISM_PERMUTATIONS: usize
 pub const antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION: f64
 pub const antecedent_stats::EXACT_MATCHING_ROW_LIMIT: usize
 pub const antecedent_stats::MAX_CLUSTER_DIMENSIONS: usize
-pub enum antecedent_stats::BasisKind
 pub enum antecedent_stats::ConfidenceMethod
 pub enum antecedent_stats::ContrastCodingKind
 pub enum antecedent_stats::DesignColumnRole
@@ -963,7 +964,6 @@ pub enum antecedent_stats::NbAlphaPolicy
 pub enum antecedent_stats::QuantileRule
 pub enum antecedent_stats::SandwichKind<'a>
 pub enum antecedent_stats::SignificanceMethod
-pub enum antecedent_stats::ci::AttainableP
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::z_flat: &'a [usize]

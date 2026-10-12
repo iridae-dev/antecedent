@@ -96,6 +96,7 @@ pub(crate) fn permutation_min_p(replicates: usize) -> f64 {
 /// The trait default is [`AttainableP::Zero`], so a test that does not override
 /// [`ConditionalIndependenceTest::attainable_p`] keeps reporting `0`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum AttainableP {
     /// Always `0`, including when the caller asked for a block shuffle.
     Zero,

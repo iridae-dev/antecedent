@@ -25,6 +25,7 @@ use crate::table::TableView;
 
 /// Null / permutation scheme for [`ResamplingPlan::Permutation`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum PermutationScheme {
     /// Full Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964) shuffle of row indexes `0..n`.
     Full,

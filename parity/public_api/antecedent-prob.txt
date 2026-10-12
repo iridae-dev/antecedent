@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_prob::CoefficientPrecision
 #[non_exhaustive] pub enum antecedent_prob::ProbError
 #[non_exhaustive] pub enum antecedent_prob::TransportError
 impl antecedent_prob::InferenceBackend for antecedent_prob::ConjugateGaussianBackend
@@ -514,7 +515,6 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportCont
 pub const antecedent_prob::POPULATION_TAG_KEY: &str
 pub const antecedent_prob::TRANSPORT_MIN_KISH_ESS: f64
 pub enum antecedent_prob::BayesLikelihood
-pub enum antecedent_prob::CoefficientPrecision
 pub enum antecedent_prob::ContrastCoding
 pub enum antecedent_prob::GaussianVarianceModel
 pub enum antecedent_prob::GraphIdentFlag

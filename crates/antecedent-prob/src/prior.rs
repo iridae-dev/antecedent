@@ -508,6 +508,7 @@ impl CoefficientCorrelation {
 /// The diagonal arm reproduces the per-coefficient arithmetic the backends have
 /// always used, so diagonal priors fit bit-for-bit as before.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum CoefficientPrecision {
     /// `1 / variance[i]` per coefficient.
     Diagonal(Vec<f64>),

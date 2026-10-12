@@ -2,6 +2,9 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_data::DataError
+#[non_exhaustive] pub enum antecedent_data::MaskPolicy
+#[non_exhaustive] pub enum antecedent_data::PermutationScheme
+#[non_exhaustive] pub enum antecedent_data::ReferencePointPolicy
 impl !core::marker::Sync for antecedent_data::ArrowCColumn [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowLoadResult [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::EventData [auto]
@@ -586,11 +589,8 @@ pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
 pub enum antecedent_data::ColumnView<'a>
 pub enum antecedent_data::Contrast
-pub enum antecedent_data::MaskPolicy
 pub enum antecedent_data::MissingPolicy
 pub enum antecedent_data::OwnedColumn
-pub enum antecedent_data::PermutationScheme
-pub enum antecedent_data::ReferencePointPolicy
 pub enum antecedent_data::ResamplingPlan
 pub enum antecedent_data::SamplingRegularity
 pub enum antecedent_data::TimeDummyEncoding

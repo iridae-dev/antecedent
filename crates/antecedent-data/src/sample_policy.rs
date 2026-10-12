@@ -16,6 +16,7 @@ pub enum MissingPolicy {
 
 /// How the optional analysis mask is applied.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+#[non_exhaustive]
 pub enum MaskPolicy {
     /// Intersect the analysis mask with complete-case / validity filtering.
     #[default]

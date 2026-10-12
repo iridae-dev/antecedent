@@ -29,6 +29,12 @@
 #[non_exhaustive] pub enum antecedent_core::TargetPopulation
 #[non_exhaustive] pub enum antecedent_core::TemporalIndexError
 #[non_exhaustive] pub enum antecedent_core::TemporalPolicy
+#[non_exhaustive] pub enum antecedent_core::TheoremFamily
+#[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
+#[non_exhaustive] pub enum antecedent_core::query::ExperimentFamily
+#[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
+#[non_exhaustive] pub enum antecedent_core::query::TransportDistributionFamily
+#[non_exhaustive] pub enum antecedent_core::query::TransportQueryScope
 #[non_exhaustive] pub enum antecedent_core::value::InterventionValueError
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
 #[non_exhaustive] pub struct antecedent_core::CalibrationBasis
@@ -2838,19 +2844,13 @@ pub enum antecedent_core::SupportStatus
 pub enum antecedent_core::SurvivalFunctional
 pub enum antecedent_core::SyntheticPanelMethod
 pub enum antecedent_core::TargetSampling
-pub enum antecedent_core::TheoremFamily
 pub enum antecedent_core::ToleranceClass
 pub enum antecedent_core::TransportOutcomeKind
-pub enum antecedent_core::TransportSupportCoordinate
 pub enum antecedent_core::Value
 pub enum antecedent_core::ValueType
 pub enum antecedent_core::VariableDomain
 pub enum antecedent_core::execution_attempt::Operation
-pub enum antecedent_core::query::ExperimentFamily
-pub enum antecedent_core::query::GraphAssumptionSet
 pub enum antecedent_core::query::OutcomeGuarantee
-pub enum antecedent_core::query::TransportDistributionFamily
-pub enum antecedent_core::query::TransportQueryScope
 pub enum antecedent_core::recalc::Boundary
 pub enum antecedent_core::recalc::ChangeKind
 pub enum antecedent_core::recalc::ChangedDependency
