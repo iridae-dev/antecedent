@@ -412,10 +412,7 @@ mod tests {
         for i in 0..n {
             assert!((oof.predictions[i] - y[i]).abs() < 1e-8);
         }
-        match view.storage() {
-            crate::DesignStorage::Dense(d) => assert_eq!(d.values().as_ptr(), x.as_ptr()),
-            crate::DesignStorage::SparseCsr(_) => panic!("dense"),
-        }
+        assert_eq!(view.dense().values().as_ptr(), x.as_ptr());
         assert!(oof.validation.rmse.unwrap() < 1e-8);
     }
 

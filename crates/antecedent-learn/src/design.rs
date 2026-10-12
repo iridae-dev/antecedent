@@ -89,110 +89,6 @@ impl<'a> DenseDesign<'a> {
     }
 }
 
-/// Borrowed CSR sparse design. Typed so a planner can choose it; solvers in
-/// A–C do not consume this variant.
-#[derive(Clone, Copy, Debug)]
-pub struct SparseDesignView<'a> {
-    values: &'a [f64],
-    col_indices: &'a [u32],
-    row_ptrs: &'a [u32],
-    rows: usize,
-    cols: usize,
-}
-
-impl<'a> SparseDesignView<'a> {
-    /// Construct a CSR view.
-    ///
-    /// # Errors
-    ///
-    /// `row_ptrs` must have length `rows + 1`; `values` and `col_indices` must
-    /// share a length matching `row_ptrs[rows]`.
-    pub fn new(
-        values: &'a [f64],
-        col_indices: &'a [u32],
-        row_ptrs: &'a [u32],
-        rows: usize,
-        cols: usize,
-    ) -> Result<Self, LearnError> {
-        if row_ptrs.len() != rows.saturating_add(1) {
-            return Err(LearnError::Shape { message: "CSR row_ptrs length must be rows+1" });
-        }
-        let nnz = usize::try_from(*row_ptrs.last().unwrap_or(&0))
-            .map_err(|_| LearnError::Shape { message: "CSR nnz overflow" })?;
-        if row_ptrs.first() != Some(&0) || row_ptrs.windows(2).any(|pair| pair[0] > pair[1]) {
-            return Err(LearnError::Shape {
-                message: "CSR row pointers must start at zero and be monotone",
-            });
-        }
-        if values.len() != nnz || col_indices.len() != nnz {
-            return Err(LearnError::Shape { message: "CSR values/indices shorter than nnz" });
-        }
-        if col_indices.iter().any(|&col| col as usize >= cols) {
-            return Err(LearnError::Shape { message: "CSR column index out of bounds" });
-        }
-        Ok(Self { values, col_indices, row_ptrs, rows, cols })
-    }
-
-    /// Non-zero values.
-    #[must_use]
-    pub const fn values(self) -> &'a [f64] {
-        self.values
-    }
-
-    /// Column index per non-zero.
-    #[must_use]
-    pub const fn col_indices(self) -> &'a [u32] {
-        self.col_indices
-    }
-
-    /// Row pointers (`rows + 1`).
-    #[must_use]
-    pub const fn row_ptrs(self) -> &'a [u32] {
-        self.row_ptrs
-    }
-
-    /// Physical row count.
-    #[must_use]
-    pub const fn rows(self) -> usize {
-        self.rows
-    }
-
-    /// Column count.
-    #[must_use]
-    pub const fn cols(self) -> usize {
-        self.cols
-    }
-}
-
-/// Physical storage behind a [`DesignView`].
-#[derive(Clone, Copy, Debug)]
-pub enum DesignStorage<'a> {
-    /// Packed dense matrix.
-    Dense(DenseDesign<'a>),
-    /// CSR placeholder.
-    SparseCsr(SparseDesignView<'a>),
-}
-
-impl DesignStorage<'_> {
-    /// Physical rows in storage (ignores fold selection).
-    #[must_use]
-    pub const fn physical_rows(self) -> usize {
-        match self {
-            Self::Dense(d) => d.rows(),
-            Self::SparseCsr(s) => s.rows(),
-        }
-    }
-
-    /// Column count.
-    #[must_use]
-    pub const fn cols(self) -> usize {
-        match self {
-            Self::Dense(d) => d.cols(),
-            Self::SparseCsr(s) => s.cols(),
-        }
-    }
-}
-
 /// Fold / train row subset over an immutable design buffer.
 #[derive(Clone, Copy, Debug)]
 pub struct RowSelection<'a> {
@@ -228,7 +124,7 @@ impl<'a> RowSelection<'a> {
 /// Borrowed design: storage plus optional fold row indices.
 #[derive(Clone, Copy, Debug)]
 pub struct DesignView<'a> {
-    storage: DesignStorage<'a>,
+    dense: DenseDesign<'a>,
     rows: Option<RowSelection<'a>>,
 }
 
@@ -243,15 +139,7 @@ impl<'a> DesignView<'a> {
         rows: usize,
         cols: usize,
     ) -> Result<Self, LearnError> {
-        Ok(Self {
-            storage: DesignStorage::Dense(DenseDesign::new(
-                values,
-                rows,
-                cols,
-                Layout::ColumnMajor,
-            )?),
-            rows: None,
-        })
+        Ok(Self { dense: DenseDesign::new(values, rows, cols, Layout::ColumnMajor)?, rows: None })
     }
 
     /// View a compiled causal design's matrix without copying. Ignores causal
@@ -270,25 +158,19 @@ impl<'a> DesignView<'a> {
     ///
     /// An index at or beyond the physical row count.
     pub fn with_rows(self, rows: RowSelection<'a>) -> Result<Self, LearnError> {
-        let n = self.storage.physical_rows();
+        let n = self.dense.rows();
         for &i in rows.indices() {
             if (i as usize) >= n {
                 return Err(LearnError::Shape { message: "row selection index out of bounds" });
             }
         }
-        Ok(Self { storage: self.storage, rows: Some(rows) })
+        Ok(Self { dense: self.dense, rows: Some(rows) })
     }
 
-    /// Storage (dense or sparse).
+    /// The backing dense design.
     #[must_use]
-    pub const fn storage(self) -> DesignStorage<'a> {
-        self.storage
-    }
-
-    /// Whether the backing buffer is CSR rather than dense.
-    #[must_use]
-    pub const fn is_sparse(self) -> bool {
-        matches!(self.storage, DesignStorage::SparseCsr(_))
+    pub const fn dense(self) -> DenseDesign<'a> {
+        self.dense
     }
 
     /// Fold selection, if any.
@@ -300,19 +182,19 @@ impl<'a> DesignView<'a> {
     /// Logical row count (selected rows, or all physical rows).
     #[must_use]
     pub fn nrows(self) -> usize {
-        self.rows.map_or_else(|| self.storage.physical_rows(), RowSelection::len)
+        self.rows.map_or_else(|| self.dense.rows(), RowSelection::len)
     }
 
     /// Physical rows in the backing buffer.
     #[must_use]
     pub const fn physical_nrows(self) -> usize {
-        self.storage.physical_rows()
+        self.dense.rows()
     }
 
     /// Column count.
     #[must_use]
     pub const fn ncols(self) -> usize {
-        self.storage.cols()
+        self.dense.cols()
     }
 
     /// Physical row for logical row `i`.
@@ -334,15 +216,10 @@ impl<'a> DesignView<'a> {
     ///
     /// # Errors
     ///
-    /// Out of bounds, or sparse storage (no dense getter).
+    /// Out of bounds.
     pub fn get(self, row: usize, col: usize) -> Result<f64, LearnError> {
         let physical = self.physical_index(row)?;
-        match self.storage {
-            DesignStorage::Dense(d) => d.get(physical, col),
-            DesignStorage::SparseCsr(_) => {
-                Err(LearnError::Unsupported { message: "dense get on sparse design" })
-            }
-        }
+        self.dense.get(physical, col)
     }
 }
 
@@ -400,13 +277,7 @@ mod tests {
         assert_eq!(a.get(1, 1).unwrap(), 2.0);
         assert_eq!(b.get(0, 1).unwrap(), 1.0);
         assert_eq!(b.get(1, 1).unwrap(), 3.0);
-        assert!(std::ptr::eq(
-            match a.storage() {
-                DesignStorage::Dense(d) => d.values().as_ptr(),
-                DesignStorage::SparseCsr(_) => unreachable!(),
-            },
-            x.as_ptr()
-        ));
+        assert!(std::ptr::eq(a.dense().values().as_ptr(), x.as_ptr()));
     }
 
     #[test]
@@ -417,24 +288,6 @@ mod tests {
         let view = DesignView::from_compiled(&compiled).unwrap();
         assert_eq!(view.nrows(), 3);
         assert_eq!(view.ncols(), 2);
-        assert!(std::ptr::eq(
-            match view.storage() {
-                DesignStorage::Dense(d) => d.values().as_ptr(),
-                DesignStorage::SparseCsr(_) => unreachable!(),
-            },
-            compiled.matrix.as_ptr()
-        ));
-    }
-}
-
-#[cfg(test)]
-mod csr_audit_tests {
-    use super::*;
-    #[test]
-    fn malformed_csr_is_rejected_at_construction() {
-        assert!(SparseDesignView::new(&[1.0], &[0], &[1, 1], 1, 1).is_err());
-        assert!(SparseDesignView::new(&[1.0], &[0], &[0, 2, 1], 2, 1).is_err());
-        assert!(SparseDesignView::new(&[1.0], &[1], &[0, 1], 1, 1).is_err());
-        assert!(SparseDesignView::new(&[1.0], &[0], &[0, 1], 1, 1).is_ok());
+        assert!(std::ptr::eq(view.dense().values().as_ptr(), compiled.matrix.as_ptr()));
     }
 }

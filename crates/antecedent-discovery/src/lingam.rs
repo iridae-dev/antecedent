@@ -97,10 +97,9 @@ impl DirectLingam {
         &self,
         data: &TabularData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<StaticDagDiscoveryResult, DiscoveryError> {
-        let _ = workspace;
         self.constraints.validate()?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {

@@ -91,10 +91,9 @@ impl OrderMcmc {
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let _ = workspace;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {

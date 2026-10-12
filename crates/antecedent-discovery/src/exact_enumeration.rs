@@ -66,10 +66,9 @@ impl ExactDagPosterior {
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let _ = workspace;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {
@@ -274,12 +273,6 @@ fn grow_dags(
             parents = (parents - 1) & free;
         }
     }
-}
-
-/// Empty graph always included; also used by tests.
-#[allow(dead_code, reason = "used by tests only")]
-pub(crate) fn empty_mask() -> u64 {
-    0
 }
 
 #[cfg(test)]

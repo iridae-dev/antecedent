@@ -55,9 +55,7 @@ pub use crossfit::{
     CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, cross_fit_with_folds,
     diagnose,
 };
-pub use design::{
-    DenseDesign, DesignStorage, DesignView, Layout, RowSelection, SparseDesignView, TargetView,
-};
+pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
 pub use elastic_net::ElasticNetLearner;
 pub use error::LearnError;
 pub use lasso_logistic::LassoLogisticLearner;
@@ -390,10 +388,7 @@ mod tests {
         for (k, &i) in odd.iter().enumerate() {
             assert!((out[k] - y[i as usize]).abs() < 1e-8);
         }
-        match train.storage() {
-            DesignStorage::Dense(d) => assert_eq!(d.values().as_ptr(), x.as_ptr()),
-            DesignStorage::SparseCsr(_) => panic!("expected dense"),
-        }
+        assert_eq!(train.dense().values().as_ptr(), x.as_ptr());
     }
 
     #[test]

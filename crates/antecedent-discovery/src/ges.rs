@@ -295,7 +295,6 @@ impl Ges {
         let review = CpdagReview::from_cpdag(cpdag, "ges");
         let edge_count = evidence.graph.edges().len();
 
-        let _ = workspace;
         Ok(DiscoveryResult {
             evidence,
             review,

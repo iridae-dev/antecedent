@@ -31,8 +31,6 @@ pub struct LearnerCapabilities {
     pub sample_weights: bool,
     /// Native missing-value handling.
     pub missing_values: bool,
-    /// Sparse design input.
-    pub sparse_input: bool,
     /// Native categorical columns (no one-hot).
     pub categorical_native: bool,
     /// Deterministic given `ExecutionContext` seed.
@@ -50,7 +48,6 @@ impl LearnerCapabilities {
             binary_probability: false,
             sample_weights: false,
             missing_values: false,
-            sparse_input: false,
             categorical_native: false,
             deterministic_seed: false,
             parallelism_control: false,
