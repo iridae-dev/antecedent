@@ -24,6 +24,10 @@ use super::{
     transform_point_derivative, with_estimation_assumptions,
 };
 
+fn non_derivative_functional() -> EstimationError {
+    EstimationError::unsupported("Bayesian derivative estimation requires a derivative functional")
+}
+
 impl ContinuousResponseEstimator {
     /// Bayesian generalized-linear response levels, with posterior
     /// coefficient uncertainty propagated through every intervention coordinate.
@@ -444,7 +448,11 @@ impl ContinuousResponseEstimator {
                             self.jacobian(data, outcomes, treatments, at, *scale)?;
                         (value, uncertainty, support, "estimate.response.gam_derivative")
                     }
-                    _ => unreachable!(),
+                    ResponseFunctional::MeanCurve { .. }
+                    | ResponseFunctional::AverageDerivative { .. }
+                    | ResponseFunctional::InterventionResponse { .. } => {
+                        return Err(non_derivative_functional());
+                    }
                 };
                 // The Frequentist withheld / bias-corrected notes describe the
                 // analytic interval; the draws below supply their own interval and
@@ -489,7 +497,11 @@ impl ContinuousResponseEstimator {
                         )?,
                         0.0,
                     ),
-                    _ => unreachable!(),
+                    ResponseFunctional::MeanCurve { .. }
+                    | ResponseFunctional::AverageDerivative { .. }
+                    | ResponseFunctional::InterventionResponse { .. } => {
+                        return Err(non_derivative_functional());
+                    }
                 };
                 let n = samples[0].len();
                 // Fold assignment, knots and bases are fixed across draws: the point
@@ -601,7 +613,11 @@ impl ContinuousResponseEstimator {
                                 }
                             }
                         }
-                        _ => unreachable!(),
+                        ResponseFunctional::MeanCurve { .. }
+                        | ResponseFunctional::AverageDerivative { .. }
+                        | ResponseFunctional::InterventionResponse { .. } => {
+                            return Err(non_derivative_functional());
+                        }
                     }
                     Ok(out)
                 })?;

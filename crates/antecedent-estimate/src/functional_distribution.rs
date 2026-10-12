@@ -731,7 +731,8 @@ impl FunctionalDistribution {
             if !tracked.is_finite() {
                 return Ok(None);
             }
-            let mut reps = atom_replicates.lock().expect("atom replicate lock");
+            let mut reps =
+                atom_replicates.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             for (values, &p) in reps.iter_mut().zip(aligned.iter()) {
                 if p.is_finite() {
                     values.push(p);
@@ -739,7 +740,8 @@ impl FunctionalDistribution {
             }
             Ok(Some(tracked))
         })?;
-        let atom_replicates = atom_replicates.into_inner().expect("atom replicate lock");
+        let atom_replicates =
+            atom_replicates.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         let attempted = boot.replicates_ok.saturating_add(boot.replicates_failed);
         let uncertainty: Vec<AtomUncertainty> = out
             .atoms

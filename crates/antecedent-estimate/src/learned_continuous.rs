@@ -527,7 +527,10 @@ impl LearnedContinuousOptions {
         ctx: &ExecutionContext,
     ) -> Result<(f64, (f64, f64)), EstimationError> {
         let run = estimate_learned_continuous_analytic_interval(id, input, self, ctx)?;
-        Ok((run.estimate, run.interval.expect("analytic result has an interval")))
+        let interval = run.interval.ok_or_else(|| {
+            EstimationError::data_msg("analytic learned-continuous result has no interval")
+        })?;
+        Ok((run.estimate, interval))
     }
 }
 

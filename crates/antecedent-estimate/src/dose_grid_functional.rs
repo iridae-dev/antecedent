@@ -276,6 +276,7 @@ impl DoseGridRow {
         }
         let functional =
             format!("{coordinate}.bandwidth:{:016x}.exact_quadratic", self.bandwidth.to_bits());
+        let rows = u64::try_from(self.n_rows).ok()?;
         Some(antecedent_core::CalibrationBasis::new(
             [
                 "DoseResponse",
@@ -293,7 +294,7 @@ impl DoseGridRow {
             .map(Arc::from),
             interval.nominal_level,
             Arc::from("point"),
-            u64::try_from(self.n_rows).expect("bounded row count"),
+            rows,
             None,
             None,
             0.,

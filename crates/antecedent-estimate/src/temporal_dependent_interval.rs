@@ -829,6 +829,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     let prepared = prepare_studentization(panel, estimator, point, ctx)?;
     let replicates = run_replicates(panel, estimator, config, ctx)?;
     let receipt = studentize_replicates(panel, point, &replicates, prepared, ctx)?;
+    let se = receipt.standard_error;
     let mut points = receipt.pivots.iter().flatten().copied().collect::<Vec<_>>();
     let studentization = Some(receipt);
     let failed = replicates.len() - points.len();
@@ -845,7 +846,6 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     points.sort_by(f64::total_cmp);
     let tail = (1.0 - config.level) / 2.0;
     let (low, high) = (quantile(&points, tail), quantile(&points, 1.0 - tail));
-    let se = studentization.as_ref().expect("checked studentized receipt").standard_error;
     let (lower, upper) = (point - high * se, point - low * se);
     Ok(DependentInterval {
         estimand: estimator.label(),
@@ -915,7 +915,11 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
     let (lower, upper) = match config.method {
         IntervalMethod::Percentile => (low, high),
         IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
-        IntervalMethod::Studentized => unreachable!("studentized dispatch above"),
+        IntervalMethod::Studentized => {
+            return Err(EstimationError::unsupported(
+                "studentized temporal intervals are built on the studentized path",
+            ));
+        }
     };
     Ok(DependentInterval {
         estimand: estimator.label(),

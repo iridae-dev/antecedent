@@ -53,6 +53,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::EstimationError;
 use crate::joint_bayesian_transport::{
     FailedFitDiagnostics, GaussianPrior, IdentificationRecord, JOINT_TRANSPORT_MAX_DRAWS,
     JOINT_TRANSPORT_MAX_PARAMETERS, JointDraws, JointPriors, JointTransportCalibration,
@@ -1095,7 +1096,7 @@ fn fit_inner(
     let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     let names = parameter_names(&layout, &terms, &ids);
     let draws = draw_joint(&learned.posterior, &effects, &names, options, ctx)?;
-    Ok(assemble(FitParts {
+    assemble(FitParts {
         model,
         layout: &layout,
         sources,
@@ -1109,7 +1110,8 @@ fn fit_inner(
         basis: &basis,
         basis_terms: terms,
         options,
-    }))
+    })
+    .map_err(|error| Box::new(invalid(DETAIL_INVALID_INPUT, error.to_string())))
 }
 
 /// Everything the finished fit record is assembled from.
@@ -1129,7 +1131,7 @@ struct FitParts<'a> {
     options: &'a JointTransportOptions,
 }
 
-fn assemble(parts: FitParts<'_>) -> LearnedJointFit {
+fn assemble(parts: FitParts<'_>) -> Result<LearnedJointFit, EstimationError> {
     let FitParts {
         model,
         layout,
@@ -1156,11 +1158,16 @@ fn assemble(parts: FitParts<'_>) -> LearnedJointFit {
                 quadratic(&posterior.covariance, dim, &effects.vectors[i], &effects.vectors[j]);
         }
     }
-    LearnedJointFit {
-        calibration_rows: sources
-            .iter()
-            .map(|s| u64::try_from(s.outcome.len()).expect("validated bounded source rows"))
-            .sum(),
+    let mut calibration_rows = 0u64;
+    for source in sources {
+        let rows = u64::try_from(source.outcome.len())
+            .map_err(|_| EstimationError::data_msg("learned joint source row count exceeds u64"))?;
+        calibration_rows = calibration_rows.checked_add(rows).ok_or_else(|| {
+            EstimationError::data_msg("learned joint calibration row count overflowed")
+        })?;
+    }
+    Ok(LearnedJointFit {
+        calibration_rows,
         target_effect_mean: effect_means[count - 1],
         target_effect_variance: effect_covariance[count * count - 1],
         model_identity: model_identity(model, layout, sources),
@@ -1197,5 +1204,5 @@ fn assemble(parts: FitParts<'_>) -> LearnedJointFit {
         effect_covariance,
         draws,
         identification,
-    }
+    })
 }

@@ -700,11 +700,20 @@ impl SequentialSetup {
                 dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
             // Stable coefficient positions across time copies, independent of dense
             // node order in the unfolding.
-            let child = indexer.key_of(i as u32).expect("unfolded node");
-            parents[i].sort_by_key(|&p| {
-                let parent = indexer.key_of(p as u32).expect("unfolded parent");
-                (parent.variable.raw(), child.offset - parent.offset)
-            });
+            let child =
+                indexer.key_of(i as u32).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let mut keyed = Vec::with_capacity(parents[i].len());
+            for &p in &parents[i] {
+                let parent = indexer
+                    .key_of(p as u32)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let lag = child.offset.checked_sub(parent.offset).ok_or_else(|| {
+                    EstimationError::unsupported("unfolded parent lag overflowed")
+                })?;
+                keyed.push((p, parent.variable, lag));
+            }
+            keyed.sort_by_key(|&(_, variable, lag)| (variable.raw(), lag));
+            parents[i] = keyed.iter().map(|(p, _, _)| *p).collect();
             let hard_intervention =
                 overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
             if hard_intervention || parents[i].is_empty() {
@@ -743,10 +752,8 @@ impl SequentialSetup {
                 Vec::new()
             };
             let modifier_refs: Vec<&[f64]> = modifier_values.iter().map(Vec::as_slice).collect();
-            let parent_variables: Vec<VariableId> = parents[i]
-                .iter()
-                .map(|&p| indexer.key_of(p as u32).expect("unfolded parent").variable)
-                .collect();
+            let parent_variables: Vec<VariableId> =
+                keyed.iter().map(|(_, variable, _)| *variable).collect();
             let modifier_is_parent: Vec<bool> =
                 modifiers.iter().map(|modifier| parent_variables.contains(modifier)).collect();
             let (design, slots) = extend_mechanism_design(
@@ -756,7 +763,7 @@ impl SequentialSetup {
                 &modifier_refs,
                 modifiers,
                 &modifier_is_parent,
-            );
+            )?;
             interaction_at[i] = slots;
             if !modifier_values.is_empty() {
                 node_modifier_values[i] = modifier_values;
@@ -1091,10 +1098,10 @@ fn extend_mechanism_design(
     modifier_values: &[&[f64]],
     modifier_ids: &[VariableId],
     modifier_is_parent: &[bool],
-) -> (CompiledDesign, Vec<Vec<usize>>) {
+) -> Result<(CompiledDesign, Vec<Vec<usize>>), EstimationError> {
     let mut slots = vec![Vec::new(); parent_values.len()];
     if modifier_values.is_empty() || !intervened.iter().any(|flag| *flag) {
-        return (design, slots);
+        return Ok((design, slots));
     }
     let mut extras = Vec::new();
     let mut roles = Vec::new();
@@ -1120,20 +1127,27 @@ fn extend_mechanism_design(
             products += 1;
         }
     }
-    (append_design_columns(design, &extras, &roles), slots)
+    Ok((append_design_columns(design, &extras, &roles)?, slots))
 }
 
 fn append_design_columns(
     mut design: CompiledDesign,
     extras: &[Vec<f64>],
     roles: &[VariableId],
-) -> CompiledDesign {
+) -> Result<CompiledDesign, EstimationError> {
     if extras.is_empty() {
-        return design;
+        return Ok(design);
     }
     let mut matrix = design.matrix.to_vec();
-    let mut column_roles: Vec<DesignColumnRole> =
-        (0..design.ncols).map(|index| design.columns.role(index).expect("design column")).collect();
+    let mut column_roles = Vec::with_capacity(design.ncols);
+    for index in 0..design.ncols {
+        column_roles.push(
+            design
+                .columns
+                .role(index)
+                .ok_or_else(|| EstimationError::stats_msg("design column role is missing"))?,
+        );
+    }
     for (extra, &role) in extras.iter().zip(roles) {
         matrix.extend_from_slice(extra);
         column_roles.push(DesignColumnRole::Covariate(role));
@@ -1141,7 +1155,7 @@ fn append_design_columns(
     design.ncols = column_roles.len();
     design.matrix = Arc::from(matrix);
     design.columns = DesignColumnMap::from_roles(column_roles);
-    design
+    Ok(design)
 }
 
 #[allow(
@@ -1176,22 +1190,29 @@ fn estimate_sequential(
         // copies). The value is linear in each coefficient, so central differences at the
         // OLS fit are exact up to rounding.
         let ols_base = setup.fit_ols(None, &mut ls_ws, &mut Vec::new(), &mut Vec::new()).ok();
-        let contrast_gradient = ols_base.as_ref().map(|base| {
-            let per_node = setup.gradient(base);
-            let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
-                std::collections::HashMap::new();
-            for &i in order {
-                if base[i].is_empty() {
-                    continue;
+        let contrast_gradient = match ols_base.as_ref() {
+            None => None,
+            Some(base) => {
+                let per_node = setup.gradient(base);
+                let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
+                    std::collections::HashMap::new();
+                for &i in order {
+                    if base[i].is_empty() {
+                        continue;
+                    }
+                    let variable = indexer
+                        .key_of(i as u32)
+                        .map_err(|e| EstimationError::data_msg(e.to_string()))?
+                        .variable;
+                    let entry =
+                        gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
+                    for k in 0..base[i].len().min(entry.len()) {
+                        entry[k] += per_node[i][k];
+                    }
                 }
-                let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
-                let entry = gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
-                for k in 0..base[i].len().min(entry.len()) {
-                    entry[k] += per_node[i][k];
-                }
+                Some(gradients)
             }
-            gradients
-        });
+        };
         // A level also reads the sample means of its exogenous roots, held fixed in the
         // g-formula. Their sampling error is a first-order (delta-method) shift of the
         // level: the score of the root means combined by their gradient, whose long-run
@@ -1206,19 +1227,30 @@ fn estimate_sequential(
         let mut count = usize::MAX;
         for &i in order {
             if designs[i].is_some() {
-                let child = indexer.key_of(i as u32).expect("unfolded node");
-                let parent_columns: Vec<_> = parents[i]
-                    .iter()
-                    .map(|&p| {
-                        let parent = indexer.key_of(p as u32).expect("unfolded parent");
-                        LaggedColumn {
-                            variable: parent.variable,
-                            lag: Lag::from_raw(
-                                u32::try_from(child.offset - parent.offset).expect("causal lag"),
-                            ),
-                        }
-                    })
-                    .collect();
+                let child = indexer
+                    .key_of(i as u32)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let mut parent_columns = Vec::with_capacity(parents[i].len());
+                for &p in &parents[i] {
+                    let parent = indexer
+                        .key_of(p as u32)
+                        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                    let lag = child
+                        .offset
+                        .checked_sub(parent.offset)
+                        .ok_or_else(|| {
+                            EstimationError::unsupported("unfolded parent lag overflowed")
+                        })
+                        .and_then(|delta| {
+                            u32::try_from(delta).map_err(|_| {
+                                EstimationError::unsupported(
+                                    "causal lag is not a nonnegative offset",
+                                )
+                            })
+                        })?;
+                    parent_columns
+                        .push(LaggedColumn { variable: parent.variable, lag: Lag::from_raw(lag) });
+                }
                 if mechanisms.iter().any(|(variable, columns, _)| {
                     *variable == child.variable && columns != &parent_columns
                 }) {
@@ -1288,7 +1320,7 @@ fn estimate_sequential(
                         &modifier_values,
                         &setup.modifiers,
                         &modifier_is_parent,
-                    );
+                    )?;
                     if slots != setup.interaction_at[i] {
                         return Err(EstimationError::unsupported(
                             "sustained modifier columns do not match the unfolded design",
@@ -1356,7 +1388,9 @@ fn estimate_sequential(
             let Some(design) = &designs[i] else {
                 continue;
             };
-            let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
+            let post = mechanism_posts[mechanism_of[i]].as_ref().ok_or_else(|| {
+                EstimationError::unsupported("stationary mechanism was not fitted")
+            })?;
             coefficient_columns[i] = (0..design.ncols)
                 .map(|index| {
                     post.draws
@@ -1380,7 +1414,9 @@ fn estimate_sequential(
         for draw in 0..count {
             for &i in order {
                 if designs[i].is_some() {
-                    let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
+                    let post = mechanism_posts[mechanism_of[i]].as_ref().ok_or_else(|| {
+                        EstimationError::unsupported("stationary mechanism was not fitted")
+                    })?;
                     for (value, &column) in coefficients[i].iter_mut().zip(&coefficient_columns[i])
                     {
                         *value = post.draws.column(column)?[draw];

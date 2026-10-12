@@ -676,8 +676,11 @@ fn assemble_laws(
             ));
         }
         let axes = catalog_axes_bounded(catalog, sample, options.max_joint_cells)?;
-        let regime =
-            catalog.regimes.iter().find(|r| r.id == sample.regime).expect("validated regime");
+        let regime = catalog
+            .regimes
+            .iter()
+            .find(|r| r.id == sample.regime && r.population.as_ref() == sample.population.as_ref())
+            .ok_or_else(|| EstimationError::data_msg("empirical sample names an unknown regime"))?;
         let mut interventions: Vec<_> = sample.interventions.iter().map(|a| a.variable).collect();
         interventions.sort_unstable();
         let mut expected = regime.interventions.to_vec();

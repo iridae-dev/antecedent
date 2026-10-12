@@ -171,7 +171,9 @@ fn observations(
                 return Err(EstimationError::data_msg("observed outcome must be finite"));
             }
             if let Some((_, right)) = censor {
-                let bound = bounds.as_ref().expect("censoring column")[i];
+                let bound = bounds
+                    .as_ref()
+                    .ok_or_else(|| EstimationError::data_msg("censoring column is missing"))?[i];
                 if !bound.is_finite() || (right && y[i] > bound) || (!right && y[i] < bound) {
                     return Err(EstimationError::data_msg(
                         "event outcome contradicts its censoring bound",
@@ -180,7 +182,9 @@ fn observations(
             }
             result.push(Observation::Exact(y[i]));
         } else if let Some((_, right)) = censor {
-            let bound = bounds.as_ref().expect("censoring column")[i];
+            let bound = bounds
+                .as_ref()
+                .ok_or_else(|| EstimationError::data_msg("censoring column is missing"))?[i];
             if !bound.is_finite() {
                 return Err(EstimationError::data_msg("censoring bound must be finite"));
             }
@@ -281,13 +285,17 @@ fn mechanism_templates(
     let mut parents: BTreeMap<VariableId, Vec<(VariableId, usize)>> = BTreeMap::new();
     parents.insert(outcome, Vec::new());
     for node in 0..graph.node_count() {
-        let child = graph.temporal_key(DenseNodeId::from_raw(node as u32)).expect("temporal node");
+        let child = graph.temporal_key(DenseNodeId::from_raw(node as u32)).ok_or_else(|| {
+            EstimationError::data_msg("temporal node is missing from the unfolded graph")
+        })?;
         if child.offset != 0 {
             continue;
         }
         let entry = parents.entry(child.variable).or_default();
         for &p in graph.parents(DenseNodeId::from_raw(node as u32)) {
-            let parent = graph.temporal_key(p).expect("temporal parent");
+            let parent = graph.temporal_key(p).ok_or_else(|| {
+                EstimationError::data_msg("temporal parent is missing from the unfolded graph")
+            })?;
             entry.push((
                 parent.variable,
                 parent.offset.checked_neg().and_then(|lag| usize::try_from(lag).ok()).ok_or_else(
@@ -351,7 +359,10 @@ fn sweep(
     initial_variance: f64,
     rng: &mut CausalRng,
 ) -> Result<(), EstimationError> {
-    let owner = models.iter().find(|m| m.variable == outcome).expect("outcome mechanism");
+    let owner = models
+        .iter()
+        .find(|m| m.variable == outcome)
+        .ok_or_else(|| EstimationError::data_msg("outcome mechanism is missing"))?;
     for (row, &observation) in observations.iter().enumerate() {
         if matches!(observation, Observation::Exact(_)) {
             continue;
@@ -375,7 +386,10 @@ fn sweep(
             }
         }
         let value = latent_draw(linear / precision, 1.0 / precision.sqrt(), observation, rng)?;
-        data.get_mut(&outcome).expect("outcome")[row] = value;
+        let column = data
+            .get_mut(&outcome)
+            .ok_or_else(|| EstimationError::data_msg("latent outcome column is missing"))?;
+        column[row] = value;
     }
     Ok(())
 }
@@ -604,8 +618,12 @@ pub fn estimate_observed_temporal_response(
     let obs = observations(data, query, outcome)?;
     let mut base = BTreeMap::new();
     for node in 0..graph.node_count() {
-        let v =
-            graph.temporal_key(DenseNodeId::from_raw(node as u32)).expect("temporal node").variable;
+        let v = graph
+            .temporal_key(DenseNodeId::from_raw(node as u32))
+            .ok_or_else(|| {
+                EstimationError::data_msg("temporal node is missing from the unfolded graph")
+            })?
+            .variable;
         if v != outcome && !base.contains_key(&v) {
             let values = read_column(data, v)?;
             if values.iter().any(|v| !v.is_finite()) {
@@ -659,7 +677,9 @@ pub fn estimate_observed_temporal_response(
                     overlays
                 } else {
                     let TemporalInterventionPlan::Single { treatment, level, shift } = *plan else {
-                        unreachable!()
+                        return Err(EstimationError::unsupported(
+                            "a temporal intervention without mechanism overlays must be a single schedule",
+                        ));
                     };
                     temporal
                         .policy

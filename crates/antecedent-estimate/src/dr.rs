@@ -220,7 +220,12 @@ impl DrLearner {
             ));
         }
         let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
-        Ok((effect, results.expect("profiles requested")))
+        let results = results.ok_or_else(|| {
+            EstimationError::data_msg(
+                "pointwise CATE profiles were requested but the fit returned none",
+            )
+        })?;
+        Ok((effect, results))
     }
 
     #[allow(

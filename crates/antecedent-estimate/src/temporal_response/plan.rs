@@ -197,7 +197,9 @@ fn plan_mean_mechanisms(
             .collect::<Vec<_>>(),
         TemporalInterventionPlan::Sequential { overlays } => overlays,
         TemporalInterventionPlan::Mechanisms { .. } => {
-            unreachable!("surrogate contains only Set/Shift")
+            return Err(EstimationError::unsupported(
+                "a set or shift surrogate cannot plan as a mean mechanism",
+            ));
         }
     };
     let overlays = nodes

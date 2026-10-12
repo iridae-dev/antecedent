@@ -139,7 +139,7 @@ pub fn estimate_bayesian_robust_ate(
         standard_deviation,
         draws: effects,
         row_ids: input.row_ids.clone(),
-        fold_ids: plan.fold_ids().iter().map(|&f| fold_u16(f)).collect(),
+        fold_ids: plan.fold_ids().iter().map(|&f| fold_u16(f)).collect::<Result<Vec<_>, _>>()?,
         model_identity: format!(
             "linear.weighted_ridge(lambda={}); logistic.weighted_ridge(lambda={})",
             options.ridge_penalty, options.ridge_penalty
@@ -164,7 +164,7 @@ pub fn plan_bayesian_robust_ate_folds(
 ) -> Result<Vec<u16>, EstimationError> {
     let options = BayesianRobustAteOptions { folds, ..BayesianRobustAteOptions::default() };
     validate(input, options)?;
-    Ok(fold_plan(input, folds)?.fold_ids().iter().map(|&f| fold_u16(f)).collect())
+    fold_plan(input, folds)?.fold_ids().iter().map(|&f| fold_u16(f)).collect()
 }
 
 fn validate(
@@ -224,8 +224,9 @@ fn fold_plan(
 }
 
 /// A fold id as stored in the result; validation bounds the fold count by `u16::MAX`.
-fn fold_u16(fold: u32) -> u16 {
-    u16::try_from(fold).expect("validated fold count fits the stored fold identity")
+fn fold_u16(fold: u32) -> Result<u16, EstimationError> {
+    u16::try_from(fold)
+        .map_err(|_| EstimationError::data_msg("invalid Bayesian robust ATE input or options"))
 }
 
 fn make_design(input: &BayesianRobustAteInput) -> Vec<Vec<f64>> {
