@@ -413,6 +413,7 @@ impl TemporalPag {
         for node in &self.nodes {
             dag.add_node(*node)?;
         }
+        let mut directed = Vec::new();
         for i in 0..self.node_count() {
             let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
@@ -427,10 +428,11 @@ impl TemporalPag {
                     middle: e.middle,
                 };
                 if let Some((from, to)) = edge.parent_child() {
-                    dag.insert_directed(from, to)?;
+                    directed.push((from, to));
                 }
             }
         }
+        dag.insert_directed_edges(&directed)?;
         Ok(dag)
     }
 

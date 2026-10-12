@@ -129,4 +129,36 @@ impl DirectedCore {
         self.children.as_slice() == other.children.as_slice()
             && self.parents.as_slice() == other.parents.as_slice()
     }
+
+    /// Whether appending `edges` in order adds only new edges and stays acyclic.
+    ///
+    /// Endpoints outside the graph are rejected here so the caller can fall
+    /// back to [`Self::try_insert`], which is what reports [`GraphError::UnknownNode`].
+    /// A self-loop fails the acyclicity check, matching one-edge insertion on a DAG.
+    pub(crate) fn accepts_new_edges(&self, edges: &[(DenseNodeId, DenseNodeId)]) -> bool {
+        let n = self.children.len();
+        let mut seen = std::collections::HashSet::with_capacity(edges.len());
+        for &(from, to) in edges {
+            if from.as_usize() >= n || to.as_usize() >= n {
+                return false;
+            }
+            if !seen.insert((from, to)) || self.children[from.as_usize()].contains(&to) {
+                return false;
+            }
+        }
+        if edges.is_empty() {
+            return true;
+        }
+        let mut trial = self.clone();
+        trial.push_edges(edges);
+        trial.topological_order().is_some()
+    }
+
+    /// Append edges. The caller has already accepted them with [`Self::accepts_new_edges`]
+    /// or an equivalent per-edge check.
+    pub(crate) fn push_edges(&mut self, edges: &[(DenseNodeId, DenseNodeId)]) {
+        for &(from, to) in edges {
+            self.push_unchecked(from, to);
+        }
+    }
 }

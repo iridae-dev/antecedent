@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_core::VariableId;
 
 use crate::algo::{closure_into, components_by, is_dag};
@@ -25,7 +27,7 @@ pub enum CopyLabels {
 /// ADMG: directed edges and bidirected (latent-confounder) edges; no directed cycles.
 #[derive(Clone, Debug)]
 pub struct Admg {
-    nodes: Vec<NodeRef>,
+    nodes: Arc<Vec<NodeRef>>,
     directed: DirectedCore,
     /// Bidirected neighbors (symmetric adjacency).
     bidirected: Vec<Vec<DenseNodeId>>,
@@ -45,7 +47,7 @@ impl Admg {
     /// Empty ADMG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), directed: DirectedCore::new(), bidirected: Vec::new() }
+        Self { nodes: Arc::new(Vec::new()), directed: DirectedCore::new(), bidirected: Vec::new() }
     }
 
     /// One static node per variable `0..n`.
@@ -116,26 +118,61 @@ impl Admg {
     ) -> Result<Self, GraphError> {
         let n = crate::named::schema_node_count(schema)?;
         let mut g = Self::with_variables(n);
+        let mut pending = Vec::with_capacity(edges.len());
         for &(from_name, to_name) in edges {
-            let (from, to) = crate::named::resolve_named_edge(schema, from_name, to_name)?;
-            g.insert_directed(from, to)?;
+            match crate::named::resolve_named_edge(schema, from_name, to_name) {
+                Ok(pair) => pending.push(pair),
+                Err(err) => {
+                    g.insert_directed_edges(&pending)?;
+                    return Err(err);
+                }
+            }
         }
+        g.insert_directed_edges(&pending)?;
         Ok(g)
+    }
+
+    /// Insert directed edges, using one acyclicity check when every edge is new.
+    ///
+    /// A self-loop, duplicate, or cycle takes [`Self::insert_directed`] instead,
+    /// so the error and the edges kept before it match inserting one at a time.
+    /// An ADMG self-loop is [`GraphError::InvalidEndpoints`], not a cycle report.
+    pub(crate) fn insert_directed_edges(
+        &mut self,
+        edges: &[(DenseNodeId, DenseNodeId)],
+    ) -> Result<(), GraphError> {
+        if edges.iter().all(|&(from, to)| from != to) && self.directed.accepts_new_edges(edges) {
+            self.directed.push_edges(edges);
+            return Ok(());
+        }
+        for &(from, to) in edges {
+            self.insert_directed(from, to)?;
+        }
+        Ok(())
     }
 
     /// The ADMG with `dag`'s nodes (labels preserved) and directed edges, no bidirected edges.
     ///
+    /// Node labels and directed adjacency are shared with `dag` until either
+    /// graph adds a node or a directed edge. The directed part is checked with
+    /// [`Self::validate`]; a DAG from the checked constructors passes that check
+    /// and the returned edges are the DAG's edges.
+    ///
     /// # Errors
     ///
-    /// Node capacity (a valid DAG cannot otherwise be refused).
+    /// Node capacity, or a directed cycle.
     pub fn from_dag(dag: &crate::dag::Dag) -> Result<Self, GraphError> {
-        // The DAG already validated every directed edge. Sharing the tables skips
-        // that walk and the per-edge cycle search.
-        Ok(Self {
-            nodes: dag.nodes().to_vec(),
+        // The DAG already accepted every directed edge. Sharing the node labels
+        // and the adjacency is a snapshot: a later `add_node` on either graph
+        // copies its own labels. [`Self::validate`] still checks the directed
+        // part; [`crate::dag::Dag`] construction is what accepted the edges.
+        let admg = Self {
+            nodes: dag.shared_nodes(),
             directed: dag.directed_core().clone(),
             bidirected: vec![Vec::new(); dag.node_count()],
-        })
+        };
+        admg.validate()?;
+        Ok(admg)
     }
 
     /// The DAG of this ADMG's directed edges over the same nodes (labels preserved);
@@ -177,8 +214,9 @@ impl Admg {
                 message: "Admg accepts only Static or Unfolded nodes",
             });
         }
-        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
+        let nodes = Arc::make_mut(&mut self.nodes);
+        let id = u32::try_from(nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        nodes.push(node);
         self.directed.push_node();
         self.bidirected.push(Vec::new());
         Ok(DenseNodeId::from_raw(id))
@@ -614,6 +652,32 @@ mod tests {
         assert!(g.has_bidirected());
         let dag_shaped = Admg::with_variables(2);
         assert!(!dag_shaped.has_bidirected());
+    }
+
+    #[test]
+    fn from_dag_shares_labels_until_a_node_is_added_and_still_validates() {
+        use crate::dag::Dag;
+        use crate::types::NodeRef;
+        use antecedent_core::VariableId;
+
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let admg = Admg::from_dag(&dag).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&dag.shared_nodes(), &admg.nodes));
+        let mut looped = Admg::with_variables(2);
+        let loop_err = looped.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(0));
+        let mut batched = Admg::with_variables(2);
+        let batch_err =
+            batched.insert_directed_edges(&[(DenseNodeId::from_raw(0), DenseNodeId::from_raw(0))]);
+        assert_eq!(loop_err, batch_err);
+        assert!(matches!(batch_err, Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(looped, batched);
+        assert_eq!(admg.children(DenseNodeId::from_raw(0)), &[DenseNodeId::from_raw(1)]);
+        assert!(admg.validate().is_ok());
+        dag.add_node(NodeRef::Static(VariableId::from_raw(9))).unwrap();
+        assert_eq!(dag.node_count(), 3);
+        assert_eq!(admg.node_count(), 2);
+        assert_eq!(admg.nodes()[0], NodeRef::Static(VariableId::from_raw(0)));
     }
 
     fn set(n: usize, members: &[u32]) -> BitSet {

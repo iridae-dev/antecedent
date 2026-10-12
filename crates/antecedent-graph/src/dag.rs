@@ -14,7 +14,7 @@ use crate::workspace::GraphWorkspace;
 /// Static directed acyclic graph over variables.
 #[derive(Clone, Debug)]
 pub struct Dag {
-    nodes: Vec<NodeRef>,
+    nodes: Arc<Vec<NodeRef>>,
     directed: DirectedCore,
 }
 
@@ -30,7 +30,7 @@ impl Dag {
     /// Empty DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), directed: DirectedCore::new() }
+        Self { nodes: Arc::new(Vec::new()), directed: DirectedCore::new() }
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
@@ -94,11 +94,47 @@ impl Dag {
     ) -> Result<Self, GraphError> {
         let n = crate::named::schema_node_count(schema)?;
         let mut g = Self::with_variables(n);
-        for &(from_name, to_name) in edges {
-            let (from, to) = crate::named::resolve_named_edge(schema, from_name, to_name)?;
-            g.insert_directed(from, to)?;
-        }
+        g.insert_resolved_directed(schema, edges)?;
         Ok(g)
+    }
+
+    /// Insert already-resolved directed edges.
+    ///
+    /// When every edge is new and the result is acyclic, they are appended after
+    /// one acyclicity check. Otherwise each edge goes through [`Self::insert_directed`],
+    /// so a duplicate or a cycle leaves the same prefix and the same error.
+    pub(crate) fn insert_directed_edges(
+        &mut self,
+        edges: &[(DenseNodeId, DenseNodeId)],
+    ) -> Result<(), GraphError> {
+        if self.directed.accepts_new_edges(edges) {
+            self.directed.push_edges(edges);
+            return Ok(());
+        }
+        for &(from, to) in edges {
+            self.insert_directed(from, to)?;
+        }
+        Ok(())
+    }
+
+    /// Resolve names in order, then insert. A later unknown name is reported only
+    /// after earlier edges have been inserted, which is the one-edge loop.
+    fn insert_resolved_directed(
+        &mut self,
+        schema: &antecedent_core::CausalSchema,
+        edges: &[(&str, &str)],
+    ) -> Result<(), GraphError> {
+        let mut pending = Vec::with_capacity(edges.len());
+        for &(from_name, to_name) in edges {
+            match crate::named::resolve_named_edge(schema, from_name, to_name) {
+                Ok(pair) => pending.push(pair),
+                Err(err) => {
+                    self.insert_directed_edges(&pending)?;
+                    return Err(err);
+                }
+            }
+        }
+        self.insert_directed_edges(&pending)
     }
 
     /// Number of nodes.
@@ -130,8 +166,9 @@ impl Dag {
                 message: "Dag accepts only Static or Unfolded nodes",
             });
         }
-        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
+        let nodes = Arc::make_mut(&mut self.nodes);
+        let id = u32::try_from(nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        nodes.push(node);
         self.directed.push_node();
         Ok(DenseNodeId::from_raw(id))
     }
@@ -157,6 +194,11 @@ impl Dag {
         self.directed.push_unchecked(from, to);
     }
 
+    /// Node labels. A copy shares the allocation until one side adds a node.
+    pub(crate) fn shared_nodes(&self) -> Arc<Vec<NodeRef>> {
+        Arc::clone(&self.nodes)
+    }
+
     /// Shared directed tables. Cloning bumps the adjacency refcount.
     pub(crate) fn directed_core(&self) -> &DirectedCore {
         &self.directed
@@ -168,7 +210,7 @@ impl Dag {
     }
 
     /// A DAG over `nodes` with already-validated directed edges.
-    pub(crate) fn from_directed(nodes: Vec<NodeRef>, directed: DirectedCore) -> Self {
+    pub(crate) fn from_directed(nodes: Arc<Vec<NodeRef>>, directed: DirectedCore) -> Self {
         Self { nodes, directed }
     }
 
@@ -576,6 +618,32 @@ mod tests {
             ));
             assert_eq!(ws.frontier.as_ptr(), ptr);
             assert_eq!(ws.frontier.capacity(), cap);
+        }
+    }
+
+    #[test]
+    fn batch_insert_matches_one_edge_at_a_time() {
+        let cases: &[&[(u32, u32)]] = &[
+            &[(0, 1), (1, 2), (0, 2)],
+            &[(0, 1), (1, 2), (2, 0)],
+            &[(0, 1), (0, 1)],
+            &[(0, 0)],
+            &[],
+            &[(0, 1), (2, 3), (1, 2)],
+        ];
+        for edges in cases {
+            let mut one = Dag::with_variables(4);
+            let one_err = edges.iter().try_for_each(|&(from, to)| {
+                one.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+            });
+            let mut batch = Dag::with_variables(4);
+            let batch_edges: Vec<_> = edges
+                .iter()
+                .map(|&(from, to)| (DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)))
+                .collect();
+            let batch_err = batch.insert_directed_edges(&batch_edges);
+            assert_eq!(one_err, batch_err, "edges {edges:?}");
+            assert_eq!(one, batch, "edges {edges:?}");
         }
     }
 }

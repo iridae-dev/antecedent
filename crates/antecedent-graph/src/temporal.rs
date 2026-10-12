@@ -119,6 +119,42 @@ impl TemporalDag {
         self.directed.try_insert(from, to)
     }
 
+    /// Insert directed edges, using one acyclicity check when every edge is legal.
+    ///
+    /// A temporal rejection, duplicate, or cycle is inserted one edge at a time,
+    /// so the prefix and the error match [`Self::insert_directed`].
+    pub(crate) fn insert_directed_edges(
+        &mut self,
+        edges: &[(DenseNodeId, DenseNodeId)],
+    ) -> Result<(), GraphError> {
+        if edges.iter().all(|&(from, to)| self.temporal_precheck(from, to))
+            && self.directed.accepts_new_edges(edges)
+        {
+            self.directed.push_edges(edges);
+            return Ok(());
+        }
+        for &(from, to) in edges {
+            self.insert_directed(from, to)?;
+        }
+        Ok(())
+    }
+
+    /// Whether `insert_directed` would get past the temporal rules to the cycle check.
+    fn temporal_precheck(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
+        if self.validate_node(from).is_err() || self.validate_node(to).is_err() {
+            return false;
+        }
+        let (NodeRef::Lagged { variable: v1, lag: l1 }, NodeRef::Lagged { variable: v2, lag: l2 }) =
+            (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
+        else {
+            return false;
+        };
+        if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
+            return false;
+        }
+        crate::types::reject_future_to_past(&self.nodes, from, to).is_ok()
+    }
+
     /// Children.
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
@@ -228,5 +264,27 @@ mod tests {
         let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         // `now` (lag 0) -> `past` (lag 1) points from the present into the past.
         assert!(matches!(g.insert_directed(now, past), Err(GraphError::FutureToPast { .. })));
+    }
+
+    #[test]
+    fn batch_insert_matches_one_edge_at_a_time() {
+        let mut nodes = TemporalDag::empty();
+        let past = nodes.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let now = nodes.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let other = nodes.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let cases = [
+            vec![(past, now), (past, other)],
+            vec![(now, past)],
+            vec![(now, now)],
+            vec![(past, now), (past, now)],
+        ];
+        for edges in cases {
+            let mut one = nodes.clone();
+            let one_err = edges.iter().try_for_each(|&(from, to)| one.insert_directed(from, to));
+            let mut batch = nodes.clone();
+            let batch_err = batch.insert_directed_edges(&edges);
+            assert_eq!(one_err, batch_err);
+            assert_eq!(one, batch);
+        }
     }
 }

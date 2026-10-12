@@ -115,10 +115,11 @@ impl AutoIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedAutoGraph, IdentificationError> {
-        Ok(PreparedAutoGraph {
-            dag: PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions.clone()),
-            admg: PreparedAdmg::from_dag_with_assumptions(graph, assumptions)?,
-        })
+        let dag = PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions.clone());
+        // The ADMG is the prepared DAG's directed tables, not a second copy of
+        // `graph`. `from_dag` still validates that directed part.
+        let admg = PreparedAdmg::from_dag_with_assumptions(dag.dag(), assumptions)?;
+        Ok(PreparedAutoGraph { dag, admg })
     }
 
     /// Identify `query`, collecting every successful estimand into one arena.
