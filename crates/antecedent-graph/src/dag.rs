@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 
-use crate::algo::{bfs_reaches, kahn_order};
+use crate::directed::DirectedCore;
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -15,19 +15,12 @@ use crate::workspace::GraphWorkspace;
 #[derive(Clone, Debug)]
 pub struct Dag {
     nodes: Vec<NodeRef>,
-    /// Outgoing children per node.
-    children: Vec<Vec<DenseNodeId>>,
-    /// Incoming parents per node.
-    parents: Vec<Vec<DenseNodeId>>,
-    /// Reused by insertion-time acyclicity checks to avoid per-insert allocation.
-    insert_ws: GraphWorkspace,
+    directed: DirectedCore,
 }
 
 impl PartialEq for Dag {
     fn eq(&self, other: &Self) -> bool {
-        self.nodes == other.nodes
-            && self.children == other.children
-            && self.parents == other.parents
+        self.nodes == other.nodes && self.directed.same_edges(&other.directed)
     }
 }
 
@@ -37,12 +30,7 @@ impl Dag {
     /// Empty DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self {
-            nodes: Vec::new(),
-            children: Vec::new(),
-            parents: Vec::new(),
-            insert_ws: GraphWorkspace::default(),
-        }
+        Self { nodes: Vec::new(), directed: DirectedCore::new() }
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
@@ -87,7 +75,8 @@ impl Dag {
                 continue;
             };
             if keep(from, to) {
-                out.insert_directed(from, to)?;
+                // A subset of a DAG's edges is acyclic, and each source edge is copied once.
+                out.directed.push_unchecked(from, to);
             }
         }
         Ok(out)
@@ -143,8 +132,7 @@ impl Dag {
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
-        self.children.push(Vec::new());
-        self.parents.push(Vec::new());
+        self.directed.push_node();
         Ok(DenseNodeId::from_raw(id))
     }
 
@@ -160,37 +148,25 @@ impl Dag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
-        if self.children[from.as_usize()].contains(&to) {
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
-        }
-        let mut ws = core::mem::take(&mut self.insert_ws);
-        let cycle = self.reaches_with(to, from, &mut ws);
-        self.insert_ws = ws;
-        if cycle {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-        }
-        self.children[from.as_usize()].push(to);
-        self.parents[to.as_usize()].push(from);
-        Ok(())
+        self.directed.try_insert(from, to)
     }
 
     /// Push an edge without duplicate/acyclicity checks; the caller guarantees
     /// both nodes exist and the edge preserves invariants.
     pub(crate) fn insert_directed_unchecked(&mut self, from: DenseNodeId, to: DenseNodeId) {
-        self.children[from.as_usize()].push(to);
-        self.parents[to.as_usize()].push(from);
+        self.directed.push_unchecked(from, to);
     }
 
     /// Children of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.directed.children_of(id)
     }
 
     /// Parents of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.directed.parents_of(id)
     }
 
     /// Whether `from` can reach `to` via directed edges.
@@ -210,13 +186,13 @@ impl Dag {
         to: DenseNodeId,
         ws: &mut GraphWorkspace,
     ) -> bool {
-        bfs_reaches(&self.children, from, to, ws)
+        self.directed.reaches_with(from, to, ws)
     }
 
     /// Topological order (Kahn). Returns `None` if a cycle slipped in.
     #[must_use]
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
-        kahn_order(&self.parents, &self.children)
+        self.directed.topological_order()
     }
 
     /// Validate graph invariants.
@@ -293,7 +269,7 @@ impl Dag {
 
     /// Iterate directed edges as marked edges.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
-        self.children.iter().enumerate().flat_map(|(i, kids)| {
+        self.directed.child_adj().iter().enumerate().flat_map(|(i, kids)| {
             let from = DenseNodeId::from_index(i);
             kids.iter().map(move |&to| MarkedEdge::directed(from, to))
         })

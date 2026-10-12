@@ -30,6 +30,7 @@ pub mod completion;
 pub mod cpdag;
 pub mod cpdag_completion;
 pub mod dag;
+mod directed;
 pub mod dsep;
 pub mod error;
 pub mod marked_storage;
