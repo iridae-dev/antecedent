@@ -285,6 +285,92 @@ where
     })
 }
 
+/// Walk the samples of a static graph posterior once, recording each sample's key, weight
+/// and identification flag, and collecting one atom per distinct graph key.
+///
+/// A posterior may list the same graph more than once (one entry per sample). Every entry
+/// keeps its own weight and flag in the returned samples, but consumers weight an atom by the
+/// combined mass of its key, so each key contributes exactly one atom: `classify` is told
+/// whether the sample is the first of its key and is the only place an atom is built, which
+/// keeps a repeated sample from cloning an identification it will not use.
+fn collect_graph_posterior_atoms<A>(
+    posterior: &GraphPosterior,
+    ctx: &ExecutionContext,
+    mut classify: impl FnMut(usize, bool) -> Result<(GraphIdentFlag, Option<A>), CausalError>,
+) -> Result<(WeightedGraphSamples, Vec<A>), CausalError> {
+    use std::collections::hash_map::Entry;
+
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+    let mut atom_masks: std::collections::HashMap<u64, u64> = std::collections::HashMap::new();
+
+    for i in 0..posterior.n_graphs {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        let mask = posterior.adjacency[i];
+        let key = posterior.graph_keys[i];
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        let first_for_key = match atom_masks.entry(key) {
+            Entry::Vacant(slot) => {
+                slot.insert(mask);
+                true
+            }
+            Entry::Occupied(slot) if *slot.get() == mask => false,
+            Entry::Occupied(_) => {
+                return Err(CausalError::Compile {
+                    message: "graph posterior reuses one graph key for different adjacency masks"
+                        .into(),
+                });
+            }
+        };
+        let (flag, atom) = classify(i, first_for_key)?;
+        flags.push(flag);
+        atoms.extend(atom);
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+    }
+    Ok((WeightedGraphSamples::new(weights, flags, keys)?, atoms))
+}
+
+/// The identified atoms of a DAG/ADMG posterior by adjacency mask, as
+/// [`identify_unique_adjacency_masks`] returns them.
+type MaskIdentifications =
+    std::collections::HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>>;
+
+/// [`collect_graph_posterior_atoms`] over per-mask identifications: a sample is identified
+/// when its mask is, and the first sample of a key contributes the atom.
+fn collect_mask_atoms(
+    posterior: &GraphPosterior,
+    ctx: &ExecutionContext,
+    by_mask: &MaskIdentifications,
+) -> Result<CachedGraphPosteriorIdentification, CausalError> {
+    let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
+        let Some(Some((estimand, identification))) = by_mask.get(&posterior.adjacency[i]) else {
+            return Ok((GraphIdentFlag::Unidentified, None));
+        };
+        let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {
+            key: posterior.graph_keys[i],
+            estimand: estimand.clone(),
+            identification: identification.clone(),
+        });
+        Ok((GraphIdentFlag::Identified, atom))
+    })?;
+    Ok(CachedGraphPosteriorIdentification {
+        graphs,
+        atoms: Arc::from(atoms),
+        class_atoms: Arc::from([]),
+    })
+}
+
 /// Identify every atom in a static graph posterior and retain its original mass.
 ///
 /// This is shared by fresh execution and [`Study::prepare`]. Calling it for a
@@ -295,8 +381,6 @@ pub(crate) fn build_graph_posterior_identification_cache(
     query: &AverageEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use std::collections::HashMap;
-
     use crate::strategy_table::{
         DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
     };
@@ -320,10 +404,6 @@ pub(crate) fn build_graph_posterior_identification_cache(
         _ => return build_class_graph_posterior_identification_cache(posterior, query, ctx),
     }
     super::execute::report_identify_compute(ctx);
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut atoms = Vec::new();
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
             let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
@@ -345,61 +425,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
             Ok(Some((estimand, identification)))
         })()
     })?;
-    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
-
-    for i in 0..posterior.n_graphs {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
-        let mask = posterior.adjacency[i];
-        let key = posterior.graph_keys[i];
-        keys.push(key);
-        weights.push(posterior.weights[i]);
-        let resolved = by_mask.get(&mask).cloned().flatten();
-        // A posterior may list the same graph more than once (one entry per
-        // sample). Every entry keeps its own weight and flag in `graphs`, but
-        // consumers weight an atom by the combined mass of its key, so each
-        // key contributes exactly one atom.
-        let first_for_key = match atom_masks.entry(key) {
-            std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(mask);
-                true
-            }
-            std::collections::hash_map::Entry::Occupied(slot) if *slot.get() == mask => false,
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(CausalError::Compile {
-                    message: "graph posterior reuses one graph key for different adjacency masks"
-                        .into(),
-                });
-            }
-        };
-        if let Some((estimand, identification)) = resolved {
-            flags.push(GraphIdentFlag::Identified);
-            if first_for_key {
-                atoms.push(CachedGraphPosteriorAtomIdentification {
-                    key,
-                    estimand,
-                    identification,
-                });
-            }
-        } else {
-            flags.push(GraphIdentFlag::Unidentified);
-        }
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-    }
-
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
-    Ok(CachedGraphPosteriorIdentification {
-        graphs,
-        atoms: Arc::from(atoms),
-        class_atoms: Arc::from([]),
-    })
+    collect_mask_atoms(posterior, ctx, &by_mask)
 }
 
 /// Identify every ADMG posterior atom with general ID + functional.effect.
@@ -413,18 +439,12 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     query: &ResponseQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use std::collections::HashMap;
-
     use crate::strategy_table::{
         DEFAULT_ADMG_IDENTIFIER_ID, EstimatorId, identify_admg_query, select_estimand,
     };
     use antecedent_discovery::admg_from_adjacency_mask;
 
     super::execute::report_identify_compute(ctx);
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut atoms = Vec::new();
     // `estimate_admg_posterior_atom_response` reuses this atom's cached
     // identification/estimand verbatim as the *first grid level's* claim (it
     // only re-identifies per level from the second level on). A MeanCurve
@@ -475,57 +495,7 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
             Ok(Some((estimand, identification)))
         })()
     })?;
-    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
-
-    for i in 0..posterior.n_graphs {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
-        let mask = posterior.adjacency[i];
-        let key = posterior.graph_keys[i];
-        keys.push(key);
-        weights.push(posterior.weights[i]);
-        let resolved = by_mask.get(&mask).cloned().flatten();
-        let first_for_key = match atom_masks.entry(key) {
-            std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(mask);
-                true
-            }
-            std::collections::hash_map::Entry::Occupied(slot) if *slot.get() == mask => false,
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(CausalError::Compile {
-                    message: "graph posterior reuses one graph key for different adjacency masks"
-                        .into(),
-                });
-            }
-        };
-        if let Some((estimand, identification)) = resolved {
-            flags.push(GraphIdentFlag::Identified);
-            if first_for_key {
-                atoms.push(CachedGraphPosteriorAtomIdentification {
-                    key,
-                    estimand,
-                    identification,
-                });
-            }
-        } else {
-            flags.push(GraphIdentFlag::Unidentified);
-        }
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-    }
-
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
-    Ok(CachedGraphPosteriorIdentification {
-        graphs,
-        atoms: Arc::from(atoms),
-        class_atoms: Arc::from([]),
-    })
+    collect_mask_atoms(posterior, ctx, &by_mask)
 }
 
 fn build_admg_graph_posterior_identification_cache(
@@ -533,18 +503,12 @@ fn build_admg_graph_posterior_identification_cache(
     query: &AverageEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use std::collections::HashMap;
-
     use crate::strategy_table::{
         DEFAULT_ADMG_IDENTIFIER_ID, EstimatorId, identify_admg, select_estimand,
     };
     use antecedent_discovery::admg_from_adjacency_mask;
 
     super::execute::report_identify_compute(ctx);
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut atoms = Vec::new();
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
             let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
@@ -565,57 +529,7 @@ fn build_admg_graph_posterior_identification_cache(
             Ok(Some((estimand, identification)))
         })()
     })?;
-    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
-
-    for i in 0..posterior.n_graphs {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
-        let mask = posterior.adjacency[i];
-        let key = posterior.graph_keys[i];
-        keys.push(key);
-        weights.push(posterior.weights[i]);
-        let resolved = by_mask.get(&mask).cloned().flatten();
-        let first_for_key = match atom_masks.entry(key) {
-            std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(mask);
-                true
-            }
-            std::collections::hash_map::Entry::Occupied(slot) if *slot.get() == mask => false,
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(CausalError::Compile {
-                    message: "graph posterior reuses one graph key for different adjacency masks"
-                        .into(),
-                });
-            }
-        };
-        if let Some((estimand, identification)) = resolved {
-            flags.push(GraphIdentFlag::Identified);
-            if first_for_key {
-                atoms.push(CachedGraphPosteriorAtomIdentification {
-                    key,
-                    estimand,
-                    identification,
-                });
-            }
-        } else {
-            flags.push(GraphIdentFlag::Unidentified);
-        }
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-    }
-
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
-    Ok(CachedGraphPosteriorIdentification {
-        graphs,
-        atoms: Arc::from(atoms),
-        class_atoms: Arc::from([]),
-    })
+    collect_mask_atoms(posterior, ctx, &by_mask)
 }
 
 /// Identify every CPDAG/PAG posterior atom with the existing class ATE envelope.
@@ -624,8 +538,6 @@ fn build_class_graph_posterior_identification_cache(
     query: &AverageEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use std::collections::HashMap;
-
     use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag, identify_pag};
     use antecedent_discovery::{cpdag_from_adjacency_mask, pag_from_adjacency_mask};
 
@@ -657,57 +569,19 @@ fn build_class_graph_posterior_identification_cache(
         }?;
         Ok(cached)
     })?;
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut class_atoms = Vec::new();
-    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
-
-    for (i, cached) in resolved.into_iter().enumerate() {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
-        let mask = posterior.adjacency[i];
-        let key = posterior.graph_keys[i];
-        keys.push(key);
-        weights.push(posterior.weights[i]);
-        let first_for_key = match atom_masks.entry(key) {
-            std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(mask);
-                true
-            }
-            std::collections::hash_map::Entry::Occupied(slot) if *slot.get() == mask => false,
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(CausalError::Compile {
-                    message: "graph posterior reuses one graph key for different adjacency masks"
-                        .into(),
-                });
-            }
-        };
-        let Some(cached) = cached else {
-            flags.push(GraphIdentFlag::Unidentified);
-            continue;
-        };
-        // Envelope-level GraphDependent still carries identified completion mass.
-        // Only atoms with zero identified completion weight are posterior-unidentified.
-        let identified = cached.identified_weight > 0.0;
-        if identified {
-            flags.push(GraphIdentFlag::Identified);
-        } else {
-            flags.push(GraphIdentFlag::Unidentified);
-        }
-        if first_for_key && identified {
-            class_atoms.push(cached);
-        }
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-    }
-    let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
+    let mut resolved = resolved.into_iter();
+    let (graphs, class_atoms) =
+        collect_graph_posterior_atoms(posterior, ctx, |_, first_for_key| {
+            let Some(cached) = resolved.next().flatten() else {
+                return Ok((GraphIdentFlag::Unidentified, None));
+            };
+            // Envelope-level GraphDependent still carries identified completion mass.
+            // Only atoms with zero identified completion weight are posterior-unidentified.
+            let identified = cached.identified_weight > 0.0;
+            let flag =
+                if identified { GraphIdentFlag::Identified } else { GraphIdentFlag::Unidentified };
+            Ok((flag, (first_for_key && identified).then_some(cached)))
+        })?;
     Ok(CachedGraphPosteriorIdentification {
         graphs,
         atoms: Arc::from([]),
@@ -1289,4 +1163,65 @@ fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
     u64::try_from(index).map_err(|_| CausalError::Compile {
         message: "DBN posterior has too many atoms for envelope keys".into(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::VariableId;
+    use antecedent_discovery::set_edge;
+    use antecedent_prob::InferenceDiagnostics;
+
+    /// A static posterior whose samples repeat a handful of confounding structures, as an
+    /// MCMC posterior does: many entries, few distinct graphs.
+    fn repeated_posterior(n_graphs: usize) -> GraphPosterior {
+        const N: usize = 4;
+        let edges = |list: &[(usize, usize)]| {
+            list.iter().fold(0_u64, |mask, &(from, to)| set_edge(mask, N, from, to, true))
+        };
+        let structures = [
+            edges(&[(0, 1)]),
+            edges(&[(0, 1), (2, 0)]),
+            edges(&[(0, 1), (2, 1)]),
+            edges(&[(0, 1), (2, 0), (2, 1)]),
+            edges(&[(0, 1), (2, 0), (3, 1)]),
+            edges(&[(0, 1), (3, 0), (3, 1), (2, 3)]),
+            edges(&[(2, 0), (2, 1)]),
+            edges(&[(0, 1), (1, 2)]),
+        ];
+        let adjacency: Vec<u64> = (0..n_graphs).map(|i| structures[i % structures.len()]).collect();
+        GraphPosterior::new(
+            N,
+            vec![1.0 / n_graphs as f64; n_graphs],
+            adjacency,
+            vec![0.0; N * N],
+            vec![0.0; N * N],
+            n_graphs as f64,
+            InferenceDiagnostics::analytic("identification_cache_timing"),
+            0,
+        )
+        .unwrap()
+    }
+
+    /// Timing harness for the three static builders (`cargo test -p antecedent --lib
+    /// identification_cache::tests::builder_scales_with_samples -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "timing harness"]
+    fn builder_scales_with_samples() {
+        let ctx = ExecutionContext::for_tests(11);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        for n_graphs in [2_000_usize, 20_000, 200_000] {
+            let posterior = repeated_posterior(n_graphs);
+            let started = std::time::Instant::now();
+            let cache = build_graph_posterior_identification_cache(&posterior, &query, &ctx)
+                .expect("identification cache");
+            let elapsed = started.elapsed();
+            eprintln!(
+                "n_graphs={n_graphs:>7} atoms={} build={:.1} ms",
+                cache.atoms.len(),
+                elapsed.as_secs_f64() * 1e3
+            );
+        }
+    }
 }
