@@ -30,7 +30,7 @@ pub(crate) struct CheckedBayesianSpecialistOperation {
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
     config: BayesianConfig,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 /// Read-only target and procedure retained for a checked Bayesian IV or sharp-RD route.
@@ -63,7 +63,7 @@ impl CheckedBayesianSpecialistOperation {
     #[inline(never)]
     pub(crate) fn checked(
         study: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<Self>>, CausalError> {
         let CausalQuery::AverageEffect(query) = &study.query else {
             return Ok(None);

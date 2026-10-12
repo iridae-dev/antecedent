@@ -1680,7 +1680,7 @@ pub(crate) struct CheckedUnknownTieredAverageOperation {
     pub(super) identification: antecedent_identify::IdentificationResult,
     pub(super) identifier: crate::strategy_table::IdentifierId,
     pub(super) estimator: crate::strategy_table::EstimatorId,
-    pub(super) physical: PhysicalExecutionPlan,
+    pub(super) physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 /// Public inspection of the retained two-scenario Unknown-tier ATE operation.

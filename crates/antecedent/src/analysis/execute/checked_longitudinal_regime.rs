@@ -31,7 +31,7 @@ impl CheckedLongitudinalRegimeOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::LongitudinalRegime(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -489,7 +489,7 @@ impl Study {
     pub(super) fn execute_longitudinal_regime(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedLongitudinalRegimeOperation::checked(self, data, physical)?.execute(data, ctx)

@@ -74,7 +74,7 @@ impl Study {
     /// is violated while sealing the execution plan.
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
-        let plan = self.compile(ctx)?;
+        let plan = Arc::new(self.compile(ctx)?);
         let counterfactual = self.compile_counterfactual()?;
         let nested_counterfactual = self.compile_nested_counterfactual()?;
         let (schema, modality, time_regularity) = self.prepared_modality()?;

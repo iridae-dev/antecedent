@@ -25,7 +25,7 @@ pub(crate) struct RandomizedTrialOperation<Q, E = ()> {
     pub(super) rows: usize,
     pub(super) identification: IdentificationResult,
     pub(super) estimand: IdentifiedEstimand,
-    pub(super) physical: PhysicalExecutionPlan,
+    pub(super) physical: std::sync::Arc<PhysicalExecutionPlan>,
     pub(super) result_context: IdentifiedResultContext,
     pub(super) extra: E,
 }
@@ -43,7 +43,7 @@ impl<Q: Clone + RandomizedTrialQuery, E> RandomizedTrialOperation<Q, E> {
         study: &Study,
         query: &Q,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         identification: IdentificationResult,
         estimand: IdentifiedEstimand,
         extra: E,

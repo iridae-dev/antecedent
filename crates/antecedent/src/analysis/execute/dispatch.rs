@@ -463,6 +463,15 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_shared(&std::sync::Arc::new(physical.clone()), ctx)
+    }
+
+    /// [`Self::execute`] for a plan the caller already holds behind an `Arc`.
+    pub(crate) fn execute_shared(
+        &self,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         self.execute_on(&self.data, physical, ctx)
     }
 
@@ -470,7 +479,7 @@ impl super::Study {
     pub(crate) fn execute_on(
         &self,
         data: &DataInput,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut result = self.execute_on_inner(data, physical, ctx)?;
@@ -486,7 +495,7 @@ impl super::Study {
     fn execute_on_inner(
         &self,
         data: &DataInput,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -652,7 +661,7 @@ impl super::Study {
     pub(crate) fn execute_tabular(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
@@ -715,7 +724,7 @@ impl super::Study {
         &self,
         route: AnalysisRoute,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
@@ -1918,8 +1927,8 @@ impl super::Study {
                 }
             }
         }
-        let compiled = self.compile(ctx)?;
-        self.execute(&compiled, ctx)
+        let compiled = std::sync::Arc::new(self.compile(ctx)?);
+        self.execute_shared(&compiled, ctx)
     }
 
     #[inline(never)]

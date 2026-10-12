@@ -26,7 +26,7 @@ pub(crate) struct CheckedAttributionOperation {
     inference: InferenceMode,
     procedure: AttributionProcedure,
     estimator: EstimatorId,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     result_context: IdentifiedResultContext,
     /// Present when the source graph was a TemporalDag. The static `graph` is its unfolding.
     lag_aligned: Option<super::temporal_attribution::LagAlignedScm>,
@@ -49,7 +49,7 @@ impl std::fmt::Debug for CheckedAttributionOperation {
 impl CheckedAttributionOperation {
     pub(crate) fn checked(
         study: &Study,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &crate::analysis::prepared::CachedStaticIdentification,
     ) -> Result<Self, CausalError> {
         let (graph, lag_aligned) = if let Some(dag) = study.graph.as_dag() {
@@ -628,8 +628,9 @@ mod bayesian_checked_attribution_tests {
             parametric_scm_identification(query.clone(), outcome, outcome);
         let cache =
             crate::analysis::prepared::CachedStaticIdentification { identification, estimand };
-        let operation = CheckedAttributionOperation::checked(&study, &physical, &cache)
-            .expect("Bayesian attribution plan");
+        let operation =
+            CheckedAttributionOperation::checked(&study, &Arc::new(physical.clone()), &cache)
+                .expect("Bayesian attribution plan");
         let info = operation.info();
         assert_eq!((info.identifier, info.estimator), (IdentifierId::GcmParametric, estimator));
         drop(study);

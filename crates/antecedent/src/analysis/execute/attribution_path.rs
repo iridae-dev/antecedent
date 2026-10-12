@@ -53,7 +53,7 @@ pub(crate) struct CheckedCounterfactualPlan {
     identify_cached: bool,
     inference: InferenceMode,
     procedure: CounterfactualProcedure,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     result_context: IdentifiedResultContext,
 }
 
@@ -81,7 +81,7 @@ impl CheckedCounterfactualPlan {
         identify_cached: bool,
         inference: InferenceMode,
         procedure: CounterfactualProcedure,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
         result_context: IdentifiedResultContext,
     ) -> Result<Self, CausalError> {
         if !matches!(&identification.query, CausalQuery::Counterfactual(query) if query == operation.query())
@@ -375,7 +375,7 @@ impl super::Study {
         data: &TabularData,
         graph: &Dag,
         query: &antecedent_core::CounterfactualQuery,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let operation =
@@ -386,7 +386,7 @@ impl super::Study {
     pub(crate) fn execute_counterfactual_checked(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
         operation: &crate::gcm::CheckedCounterfactualOperation,
     ) -> Result<StudyResult, CausalError> {

@@ -31,7 +31,7 @@ pub(crate) struct CheckedBayesianClassConditional {
     query: ConditionalEffectQuery,
     estimand: IdentifiedEstimand,
     identifier: IdentifierId,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     inference: InferenceMode,
     validation: RefuteSuite,
     latency_mode: Option<super::latency::LatencyMode>,
@@ -41,7 +41,7 @@ impl CheckedBayesianClassConditional {
     pub(crate) fn prepare(
         proof: ConditionalClassProof,
         query: ConditionalEffectQuery,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
         inference: InferenceMode,
         validation: RefuteSuite,
         latency_mode: Option<super::latency::LatencyMode>,
@@ -113,7 +113,7 @@ impl CheckedBayesianClassConditional {
     /// identification and non-mean targets stay outside this point plan.
     pub(crate) fn seal(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Self>, CausalError> {
         let CausalQuery::ConditionalEffect(query) = &analysis.query else {
             return Ok(None);

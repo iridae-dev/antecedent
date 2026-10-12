@@ -19,7 +19,7 @@ pub(crate) struct CheckedBayesianBasisCateExecution {
     estimand: IdentifiedEstimand,
     config: BayesianConfig,
     context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: Arc<[(VariableId, Arc<str>)]>,
 }
 
@@ -44,7 +44,7 @@ impl CheckedBayesianBasisCateExecution {
         estimand: IdentifiedEstimand,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::ConditionalEffect(target) = &context.query else {
             return Err(CausalError::Compile {

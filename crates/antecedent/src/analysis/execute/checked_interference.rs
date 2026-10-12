@@ -26,7 +26,7 @@ pub(crate) struct CheckedInterferenceOperation {
     estimand: IdentifiedEstimand,
     procedure: InterferenceProcedure,
     estimator: EstimatorId,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     result_context: IdentifiedResultContext,
 }
 
@@ -48,7 +48,7 @@ impl CheckedInterferenceOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Interference(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -943,7 +943,7 @@ mod checked_interference_tests {
             .refute(RefuteSuite::None);
         let study = builder.build().expect("study build");
         let physical = study.plan(&context()).expect("physical plan");
-        let operation = CheckedInterferenceOperation::checked(&study, data, &physical)
+        let operation = CheckedInterferenceOperation::checked(&study, data, &Arc::new(physical))
             .expect("checked interference operation");
         drop(study);
         operation
@@ -1032,7 +1032,7 @@ mod checked_interference_tests {
             .build()
             .unwrap();
         let physical = study.plan(&context()).unwrap();
-        assert!(CheckedInterferenceOperation::checked(&study, &data, &physical).is_err());
+        assert!(CheckedInterferenceOperation::checked(&study, &data, &Arc::new(physical)).is_err());
     }
 
     #[test]

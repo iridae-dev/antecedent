@@ -9,7 +9,7 @@ use crate::analysis::prepared::Inspect;
 pub(crate) struct CheckedTemporalEffectExecution {
     operation: crate::analysis::CheckedTemporalEffectOperation,
     result_context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl std::fmt::Debug for CheckedTemporalEffectExecution {
@@ -25,7 +25,7 @@ impl CheckedTemporalEffectExecution {
     pub(crate) fn checked(
         operation: crate::analysis::CheckedTemporalEffectOperation,
         result_context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         if !operation.matches_query(&result_context.query)
             || !operation.matches_query(&physical.logical.query)

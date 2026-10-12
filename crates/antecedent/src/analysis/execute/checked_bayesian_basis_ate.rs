@@ -18,7 +18,7 @@ pub(crate) struct CheckedBayesianBasisAteExecution {
     estimand: IdentifiedEstimand,
     config: BayesianConfig,
     context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: Arc<[(VariableId, Arc<str>)]>,
 }
 
@@ -67,7 +67,7 @@ impl CheckedBayesianBasisAteExecution {
         estimand: IdentifiedEstimand,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {

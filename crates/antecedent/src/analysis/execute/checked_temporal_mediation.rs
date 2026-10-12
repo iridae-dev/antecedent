@@ -26,7 +26,7 @@ pub(crate) struct CheckedTemporalMediationOperation {
     horizons: Arc<[MediationHorizonClick]>,
     inference: CheckedMediationInference,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: antecedent_core::CausalSchema,
     result_context: IdentifiedResultContext,
 }
@@ -47,7 +47,7 @@ impl CheckedTemporalMediationOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TimeSeriesData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &crate::analysis::prepared::CachedTemporalIdentification,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
@@ -376,7 +376,7 @@ mod tests {
             graph, query, estimator,
         )
         .unwrap();
-        CheckedTemporalMediationOperation::checked(&study, data, &physical, &cache)
+        CheckedTemporalMediationOperation::checked(&study, data, &Arc::new(physical), &cache)
             .unwrap()
             .execute(data, &ctx)
             .unwrap()
@@ -496,7 +496,10 @@ mod tests {
                     )
                     .unwrap();
                     let operation = CheckedTemporalMediationOperation::checked(
-                        &study, &data, &physical, &cache,
+                        &study,
+                        &data,
+                        &Arc::new(physical.clone()),
+                        &cache,
                     )
                     .unwrap();
                     let (retained_query, _, retained_validation, horizons) = operation.inspect();

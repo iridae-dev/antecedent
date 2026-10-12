@@ -21,7 +21,7 @@ use crate::analysis::latency::LatencyMode;
 pub(crate) struct CheckedStaticCommon {
     pub(crate) identifier: IdentifierId,
     pub(crate) estimator: EstimatorId,
-    pub(crate) physical: PhysicalExecutionPlan,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
     pub(crate) inference: InferenceMode,
     pub(crate) refute: RefuteSuite,
     pub(crate) graph_class: GraphClass,
@@ -40,7 +40,7 @@ impl CheckedStaticCommon {
     /// Freeze the study fields every checked static operation used to copy by hand.
     pub(crate) fn from_analysis(
         analysis: &Study,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         identifier: IdentifierId,
         estimator: EstimatorId,
     ) -> Arc<Self> {

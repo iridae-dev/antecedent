@@ -17,7 +17,7 @@ impl CheckedPanelDidOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::PanelDid(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -750,7 +750,7 @@ impl Study {
     pub(super) fn execute_panel_did(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedPanelDidOperation::checked(self, data, physical)?.execute(data, ctx)

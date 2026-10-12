@@ -13,7 +13,7 @@ pub(crate) struct CheckedBayesianStaticMediationOperation {
     query: antecedent_core::MediationQuery,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
     schema: antecedent_core::CausalSchema,
     design_roles: Arc<[VariableId]>,
@@ -40,7 +40,7 @@ impl CheckedBayesianStaticMediationOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &crate::analysis::prepared::CachedStaticIdentification,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
@@ -381,7 +381,10 @@ mod tests {
                         estimand,
                     };
                     let operation = CheckedBayesianStaticMediationOperation::checked(
-                        &study, &data, &physical, &cache,
+                        &study,
+                        &data,
+                        &Arc::new(physical.clone()),
+                        &cache,
                     )
                     .unwrap();
                     assert_eq!(operation.inspect().0, &query);

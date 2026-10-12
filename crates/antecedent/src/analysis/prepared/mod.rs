@@ -126,7 +126,7 @@ pub struct SampledPreparedState {
     /// Data-independent contract layers, compiled once per handle state.
     program_cache: std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>>,
     /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
-    plan: PhysicalExecutionPlan,
+    plan: std::sync::Arc<PhysicalExecutionPlan>,
     /// Schema fingerprint from prepare-time data.
     schema: CausalSchema,
     /// Data modality frozen at prepare; each estimate / refresh entry point

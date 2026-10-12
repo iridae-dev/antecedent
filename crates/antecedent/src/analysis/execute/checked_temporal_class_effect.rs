@@ -10,7 +10,7 @@ use crate::analysis::prepared::Inspect;
 pub(crate) struct CheckedTemporalClassEffectExecution {
     operation: crate::analysis::CheckedTemporalClassEffectOperation,
     result_context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl std::fmt::Debug for CheckedTemporalClassEffectExecution {
@@ -35,7 +35,7 @@ impl CheckedTemporalClassEffectExecution {
     pub(crate) fn checked(
         operation: crate::analysis::CheckedTemporalClassEffectOperation,
         result_context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let query = CausalQuery::TemporalEffect(operation.query().clone());
         let (identifier, estimator, _, _, _, _) = operation.procedure();

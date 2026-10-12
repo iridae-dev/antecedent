@@ -35,7 +35,7 @@ pub(crate) struct CheckedTransportTrialOperation {
     procedure: TransportTrialProcedure,
     estimator: EstimatorId,
     inference: InferenceMode,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 /// Read-only target, proof shape, and procedure retained for a checked transport route.
@@ -66,7 +66,7 @@ impl CheckedTransportTrialOperation {
     #[inline(never)]
     pub(crate) fn checked(
         study: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<Self>>, CausalError> {
         let (CausalQuery::Transport(query), DataInput::Tabular(data)) = (&study.query, &study.data)
         else {

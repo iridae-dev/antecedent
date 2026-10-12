@@ -23,7 +23,7 @@ impl CheckedRandomizedOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::RandomizedEffect(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -324,7 +324,7 @@ impl Study {
     pub(super) fn execute_policy_value(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedPolicyValueOperation::checked(self, data, physical)?.execute(data, ctx)
@@ -333,7 +333,7 @@ impl Study {
     pub(super) fn execute_randomized(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedRandomizedOperation::checked(self, data, physical)?.execute(data, ctx)
@@ -355,7 +355,7 @@ impl CheckedPolicyValueOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::PolicyValue(query) = &study.query else {
             return Err(CausalError::Compile {

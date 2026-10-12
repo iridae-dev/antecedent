@@ -27,7 +27,7 @@ impl CheckedLocalPolynomialRatioOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::LocalPolynomialRatio(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -178,7 +178,7 @@ impl Study {
     pub(super) fn execute_local_polynomial_ratio(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedLocalPolynomialRatioOperation::checked(self, data, physical)?.execute(data, ctx)

@@ -47,7 +47,7 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
     split: Option<DiscoveryEstimationSplit>,
     max_completions: Option<usize>,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl CheckedTemporalGraphPosteriorEffect {
@@ -89,7 +89,7 @@ impl CheckedTemporalGraphPosteriorEffect {
         split: Option<DiscoveryEstimationSplit>,
         max_completions: Option<usize>,
         validation: RefuteSuite,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
         if !query.policy.is_pulse_or_sustained() {

@@ -16,7 +16,7 @@ pub(crate) struct CheckedBayesianRobustAteExecution {
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
     context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: Arc<[(VariableId, Arc<str>)]>,
     row_ids: Arc<[u64]>,
     fold_ids: Arc<[u16]>,
@@ -45,7 +45,7 @@ impl CheckedBayesianRobustAteExecution {
         estimand: IdentifiedEstimand,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {

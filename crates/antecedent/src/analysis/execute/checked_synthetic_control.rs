@@ -42,7 +42,7 @@ impl CheckedSyntheticControlOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::SyntheticControl(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -347,7 +347,7 @@ impl Study {
     pub(super) fn execute_synthetic_control(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedSyntheticControlOperation::checked(self, data, physical)?.execute(data, ctx)

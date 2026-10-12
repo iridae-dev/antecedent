@@ -22,7 +22,7 @@ use std::sync::Arc;
 impl Study {
     pub(super) fn seal_static_class_effect(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<CheckedStaticClassEffect>, CausalError> {
         let CausalQuery::AverageEffect(query) = &analysis.query else {
             return Ok(None);
@@ -101,7 +101,7 @@ impl Study {
     #[inline(never)]
     pub(super) fn seal_graph_posterior_effect(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<CheckedGraphPosteriorEffect>, CausalError> {
         let (Some(posterior), Some(identification), Some(target)) = (
             analysis.graph_posterior.as_ref(),
@@ -172,7 +172,7 @@ impl Study {
     #[inline(never)]
     pub(super) fn seal_class_graph_posterior_effect(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<CheckedClassGraphPosteriorEffect>, CausalError> {
         let (Some(posterior), Some(identification), Some(target)) = (
             analysis.graph_posterior.as_ref(),
@@ -217,7 +217,7 @@ impl Study {
     #[inline(never)]
     pub(super) fn seal_bayesian_graph_posterior_ate(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<CheckedBayesianGraphPosteriorAte>>, CausalError> {
         let (Some(posterior), Some(identification), Some(target), InferenceMode::Bayesian(_)) = (
             analysis.graph_posterior.as_ref(),
@@ -256,7 +256,7 @@ impl Study {
 
     pub(super) fn seal_admg_graph_posterior_response(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<CheckedAdmgGraphPosteriorResponse>>, CausalError> {
         let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
             analysis.graph_posterior.as_ref(),
@@ -301,7 +301,7 @@ impl Study {
     /// completion envelopes (explicit or accepted structure, validation none).
     pub(super) fn seal_temporal_class_response(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<crate::analysis::CheckedTemporalClassResponseOperation>>, CausalError>
     {
         let (
@@ -353,7 +353,7 @@ impl Study {
     /// per-atom proofs (TemporalDag, TemporalCpdag, or TemporalPag atoms).
     pub(super) fn seal_temporal_graph_posterior_response(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<crate::analysis::CheckedTemporalGraphPosteriorResponse>>, CausalError>
     {
         let (
@@ -400,7 +400,7 @@ impl Study {
     #[inline(never)]
     pub(super) fn seal_bayesian_temporal_class_effect(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<
         Option<Box<crate::analysis::CheckedBayesianTemporalClassEffectOperation>>,
         CausalError,
@@ -456,7 +456,7 @@ impl Study {
     #[inline(never)]
     pub(super) fn seal_temporal_graph_posterior_effect(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<crate::analysis::CheckedTemporalGraphPosteriorEffect>>, CausalError>
     {
         let (
@@ -508,7 +508,7 @@ impl Study {
 
     pub(super) fn seal_static_class_response(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<crate::analysis::execute::CheckedStaticClassResponse>>, CausalError>
     {
         let CausalQuery::Response(query) = &analysis.query else {
@@ -568,7 +568,7 @@ impl Study {
 
     pub(super) fn seal_graph_posterior_response(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<crate::analysis::execute::CheckedGraphPosteriorResponse>>, CausalError>
     {
         let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (

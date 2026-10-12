@@ -55,7 +55,7 @@ pub(crate) struct CheckedTemporalClassMediationOperation {
     inference: InferenceMode,
     bootstrap_replicates: u32,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: antecedent_core::CausalSchema,
     structure_source: crate::support::StructureSource,
     graph_class: GraphClass,
@@ -135,7 +135,7 @@ impl CheckedTemporalClassMediationOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TimeSeriesData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {

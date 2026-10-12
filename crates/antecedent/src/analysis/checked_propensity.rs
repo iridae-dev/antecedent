@@ -514,7 +514,7 @@ mod tests {
             common: Arc::new(crate::analysis::execute::CheckedStaticCommon {
                 identifier: IdentifierId::BackdoorAdjustment,
                 estimator,
-                physical,
+                physical: Arc::new(physical),
                 inference: InferenceMode::Frequentist,
                 refute: RefuteSuite::None,
                 graph_class: GraphClass::Dag,

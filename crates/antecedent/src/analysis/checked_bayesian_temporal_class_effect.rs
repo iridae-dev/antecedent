@@ -29,7 +29,7 @@ pub(crate) struct CheckedBayesianTemporalClassEffectOperation {
     config: BayesianConfig,
     validation: RefuteSuite,
     class_prior: Option<ClassPrior>,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl std::fmt::Debug for CheckedBayesianTemporalClassEffectOperation {
@@ -73,7 +73,7 @@ impl CheckedBayesianTemporalClassEffectOperation {
         inference: &InferenceMode,
         validation: RefuteSuite,
         class_prior: Option<ClassPrior>,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let config = checked_settings(inference, validation)?;
         let (identifier, _, _, _, target_validation, custom_validators) = target.procedure();

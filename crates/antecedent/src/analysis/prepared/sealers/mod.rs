@@ -53,7 +53,7 @@ pub(super) struct SealContext<'a> {
     /// the study every retained operation is built from.
     pub(super) analysis: &'a Study,
     /// The physical plan compiled once for this prepare.
-    pub(super) plan: &'a PhysicalExecutionPlan,
+    pub(super) plan: &'a std::sync::Arc<PhysicalExecutionPlan>,
     /// The strategy names `plan` carries, parsed once.
     pub(super) binding: &'a PlanBinding,
     pub(super) ctx: &'a ExecutionContext,

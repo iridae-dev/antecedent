@@ -2371,12 +2371,11 @@ impl super::Study {
         let estimator = bayesian_gcomp(&cfg, ctx);
         require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
 
-        let (identified, identify_cached) = if let Some(cache) =
-            self.dbn_posterior_identification_cache.as_ref()
-        {
-            (Arc::clone(cache), true)
-        } else {
-            (
+        let (identified, identify_cached) =
+            if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
+            } else {
+                (
                 Arc::new(
                     crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
                         gp, &vars, query, ctx,
@@ -2384,7 +2383,7 @@ impl super::Study {
                 ),
                 false,
             )
-        };
+            };
         let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
             message: "DBN mediation requires at least one horizon".into(),
         })?;

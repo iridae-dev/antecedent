@@ -19,7 +19,7 @@ impl CheckedContinuousDoseOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::ContinuousDoseResponse(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -208,7 +208,7 @@ impl Study {
     pub(super) fn execute_continuous_dose_response(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedContinuousDoseOperation::checked(self, data, physical)?.execute(data, ctx)

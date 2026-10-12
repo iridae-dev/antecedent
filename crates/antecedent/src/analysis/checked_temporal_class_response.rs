@@ -38,7 +38,7 @@ pub(crate) struct CheckedTemporalClassResponseOperation {
     bootstrap_replicates: u32,
     class_prior: Option<ClassPrior>,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
@@ -69,7 +69,7 @@ impl CheckedTemporalClassResponseOperation {
         bootstrap_replicates: u32,
         class_prior: Option<ClassPrior>,
         validation: RefuteSuite,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
         if !matches!(source_graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {

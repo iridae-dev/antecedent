@@ -111,7 +111,7 @@ impl PreparedStudy {
                 Some(self.executed_contract(&self.analysis.data, self.analysis.refute, None)?);
             return Ok(result);
         }
-        let mut result = refreshed.execute(&self.plan, ctx)?;
+        let mut result = refreshed.execute_shared(&self.plan, ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(&refreshed.query, scores.as_ref(), &mut result)?;
         self.replace_study(refreshed);
@@ -505,7 +505,7 @@ impl PreparedStudy {
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
-        let result = refreshed.execute(&self.plan, ctx)?;
+        let result = refreshed.execute_shared(&self.plan, ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
@@ -541,7 +541,7 @@ impl PreparedStudy {
         self.ensure_multi_env_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::MultiEnv(data);
-        let result = refreshed.execute(&self.plan, ctx)?;
+        let result = refreshed.execute_shared(&self.plan, ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
@@ -622,7 +622,7 @@ impl PreparedStudy {
         let result =
             match self.run_sealed_series(&refreshed, &refreshed.data, ctx, SeriesEntry::Refresh)? {
                 Some(result) => result,
-                None => refreshed.execute(&self.plan, ctx)?,
+                None => refreshed.execute_shared(&self.plan, ctx)?,
             };
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();

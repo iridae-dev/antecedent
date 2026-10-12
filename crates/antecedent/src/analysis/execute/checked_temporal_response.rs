@@ -13,7 +13,7 @@ use crate::analysis::prepared::Inspect;
 pub(crate) struct CheckedTemporalResponseExecution {
     operation: crate::analysis::CheckedTemporalResponseOperation,
     result_context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
 }
@@ -33,7 +33,7 @@ impl CheckedTemporalResponseExecution {
     pub(crate) fn checked(
         operation: crate::analysis::CheckedTemporalResponseOperation,
         result_context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let query = CausalQuery::Response(operation.query().clone());
         if result_context.query != query || physical.logical.query != query {
@@ -396,7 +396,8 @@ mod tests {
                 .unwrap();
         let physical = logical.compile_physical_with_graph(&ctx, Some(graph.clone())).unwrap();
         let execution =
-            CheckedTemporalResponseExecution::checked(operation, context, physical).unwrap();
+            CheckedTemporalResponseExecution::checked(operation, context, Arc::new(physical))
+                .unwrap();
         drop(study);
         let result = execution.execute(&data, &ctx).unwrap();
 
