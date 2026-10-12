@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{ScalarRefuterMix, append_unidentified_atoms, finish_atom_refutations};
+use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::response_path::{
     graph_posterior_response_supported, mix_response_values, mix_support_reports,
     response_envelope_from_weighted, response_identified_value, response_primary_pair,
@@ -299,6 +300,10 @@ fn evaluate_class_atom_response_frequentist(
     let mut atom_scores = Vec::new();
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
+    let mut completion_fits: CompletionFitMemo<(
+        CausalResponse,
+        Option<antecedent_estimate::ResponseInfluence>,
+    )> = CompletionFitMemo::default();
     for (case_index, case) in atom.cases.iter().enumerate() {
         let Some(estimand) = case.estimand.as_ref() else {
             continue;
@@ -306,17 +311,30 @@ fn evaluate_class_atom_response_frequentist(
         if !identification_status_ok_for_case(case.status) {
             continue;
         }
-        let mut response_estimator =
-            ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
-        response_estimator.options = options.clone();
-        let (response, scores) = response_estimator
-            .estimate_identified_scored(
-                data,
-                query,
-                case.status,
-                atom.identification.required_assumptions.clone(),
-            )
-            .map_err(CausalError::from)?;
+        // An atom's completions share its required assumptions, and many share
+        // an adjustment set and status: those run one fit.
+        let fit_key = CompletionFitKey::new(
+            &estimand.adjustment_set,
+            case.status,
+            &atom.identification.required_assumptions,
+        );
+        let (response, scores) = if let Some((response, scores)) = completion_fits.get(&fit_key) {
+            (response.clone(), scores.clone())
+        } else {
+            let mut response_estimator =
+                ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+            response_estimator.options = options.clone();
+            let fitted = response_estimator
+                .estimate_identified_scored(
+                    data,
+                    query,
+                    case.status,
+                    atom.identification.required_assumptions.clone(),
+                )
+                .map_err(CausalError::from)?;
+            completion_fits.insert(fit_key, fitted.clone());
+            fitted
+        };
         if let Some(scores) = scores.filter(|s| !s.columns.is_empty()) {
             atom_scores.push((case.weight, scores));
         }
@@ -369,6 +387,7 @@ fn evaluate_class_atom_response_bayesian(
     let mut weighted = Vec::new();
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
+    let mut completion_fits: CompletionFitMemo<CausalResponse> = CompletionFitMemo::default();
     for (case_index, case) in atom.cases.iter().enumerate() {
         let Some(estimand) = case.estimand.as_ref() else {
             continue;
@@ -376,21 +395,32 @@ fn evaluate_class_atom_response_bayesian(
         if !identification_status_ok_for_case(case.status) {
             continue;
         }
-        let mut response_estimator =
-            ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
-        response_estimator.options = options.clone();
-        let mut bayes = bayesian_gcomp(&cfg, ctx);
-        bayes.prior.clone_from(&cfg.prior);
-        let response = response_estimator
-            .estimate_bayesian(
-                data,
-                query,
-                case.status,
-                atom.identification.required_assumptions.clone(),
-                &bayes,
-                ctx,
-            )
-            .map_err(CausalError::from)?;
+        let fit_key = CompletionFitKey::new(
+            &estimand.adjustment_set,
+            case.status,
+            &atom.identification.required_assumptions,
+        );
+        let response = if let Some(response) = completion_fits.get(&fit_key) {
+            response.clone()
+        } else {
+            let mut response_estimator =
+                ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+            response_estimator.options = options.clone();
+            let mut bayes = bayesian_gcomp(&cfg, ctx);
+            bayes.prior.clone_from(&cfg.prior);
+            let fitted = response_estimator
+                .estimate_bayesian(
+                    data,
+                    query,
+                    case.status,
+                    atom.identification.required_assumptions.clone(),
+                    &bayes,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            completion_fits.insert(fit_key, fitted.clone());
+            fitted
+        };
         if primary_estimand.is_none() {
             primary_estimand = Some(estimand.clone());
         }

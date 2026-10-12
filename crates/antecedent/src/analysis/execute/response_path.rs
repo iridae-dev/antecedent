@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::*;
 
 const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
@@ -2072,6 +2073,10 @@ impl super::Study {
         let mut unestimated_id_mass = 0.0;
         let mut unevaluable_general_id: Option<antecedent_core::CausalResponse> = None;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut completion_fits: CompletionFitMemo<(
+            CausalResponse,
+            Option<antecedent_estimate::ResponseInfluence>,
+        )> = CompletionFitMemo::default();
         for (case_index, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
@@ -2119,59 +2124,73 @@ impl super::Study {
                 }
                 continue;
             }
-            let mut response_estimator =
-                ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
-            if let Some(options) = &self.response_options {
-                response_estimator.options = options.clone();
-            }
-            let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
-                    && cfg.prior_mapping.is_none()
-                    && cfg.prior.is_none()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian class-aware response prior transfer requires a \
-                                  response-specific mapping; mappings are not a class prior \
-                                  and must not fall back to isotropic coefficients",
-                    });
+            // Completions that share an adjustment set, status and assumptions
+            // run one fit: every other input is fixed for this execution.
+            let fit_key = CompletionFitKey::new(
+                &estimand.adjustment_set,
+                case.result.status,
+                &case.result.required_assumptions,
+            );
+            let (response, scores) = if let Some((response, scores)) = completion_fits.get(&fit_key)
+            {
+                (response.clone(), scores.clone())
+            } else {
+                let mut response_estimator =
+                    ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+                if let Some(options) = &self.response_options {
+                    response_estimator.options = options.clone();
                 }
-                let mut bayes = bayesian_gcomp(cfg, ctx);
-                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-                    let (outcome, treatments) = response_prior_targets(&query.functional)?;
-                    let prep = response_estimator
-                        .prepare_linear_response_problem(&data_est, outcome, &treatments)
-                        .map_err(CausalError::from)?;
-                    let (resolved, _) = crate::inference::resolve_bayesian_prior_with_conflict(
-                        cfg,
-                        &prep,
-                        Some(ctx),
-                    )?;
-                    bayes.prior = resolved;
+                let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
+                    if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+                        && cfg.prior_mapping.is_none()
+                        && cfg.prior.is_none()
+                    {
+                        return Err(CausalError::Unsupported {
+                            message: "Bayesian class-aware response prior transfer requires a \
+                                      response-specific mapping; mappings are not a class prior \
+                                      and must not fall back to isotropic coefficients",
+                        });
+                    }
+                    let mut bayes = bayesian_gcomp(cfg, ctx);
+                    if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                        let (outcome, treatments) = response_prior_targets(&query.functional)?;
+                        let prep = response_estimator
+                            .prepare_linear_response_problem(&data_est, outcome, &treatments)
+                            .map_err(CausalError::from)?;
+                        let (resolved, _) = crate::inference::resolve_bayesian_prior_with_conflict(
+                            cfg,
+                            &prep,
+                            Some(ctx),
+                        )?;
+                        bayes.prior = resolved;
+                    } else {
+                        bayes.prior.clone_from(&cfg.prior);
+                    }
+                    (
+                        response_estimator
+                            .estimate_bayesian(
+                                &data_est,
+                                query,
+                                case.result.status,
+                                case.result.required_assumptions.clone(),
+                                &bayes,
+                                ctx,
+                            )
+                            .map_err(CausalError::from)?,
+                        None,
+                    )
                 } else {
-                    bayes.prior.clone_from(&cfg.prior);
-                }
-                (
                     response_estimator
-                        .estimate_bayesian(
+                        .estimate_identified_scored(
                             &data_est,
                             query,
                             case.result.status,
                             case.result.required_assumptions.clone(),
-                            &bayes,
-                            ctx,
                         )
-                        .map_err(CausalError::from)?,
-                    None,
-                )
-            } else {
-                response_estimator
-                    .estimate_identified_scored(
-                        &data_est,
-                        query,
-                        case.result.status,
-                        case.result.required_assumptions.clone(),
-                    )
-                    .map_err(CausalError::from)?
+                        .map_err(CausalError::from)?
+                };
+                completion_fits.insert(fit_key, (response.clone(), scores.clone()));
+                (response, scores)
             };
             let w = case.weight.0;
             total_w += w;

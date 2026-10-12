@@ -340,6 +340,7 @@ mod atom_mix;
 mod class_envelope_se;
 mod class_posterior;
 mod class_posterior_response;
+mod completion_fit_memo;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
 pub(super) use compile::compile_logical_admg_response;
@@ -399,7 +400,8 @@ pub(super) use class_envelope_se::{
 };
 pub(super) use identified_set_diagnostics::{
     IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,
-    posterior_identified_set_interval, same_fitted_mechanisms, same_fitted_problem,
+    posterior_identified_set_interval, same_fit_inputs, same_fitted_mechanisms,
+    same_fitted_problem,
 };
 pub(super) use tuple_bootstrap::{
     TupleObservationTarget, TupleReplicates, TupleSurface, tuple_block_observation_replicates,
