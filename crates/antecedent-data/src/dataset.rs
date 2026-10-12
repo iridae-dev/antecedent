@@ -223,13 +223,6 @@ impl TimeSeriesData {
         Self::try_new(replaced.storage().clone(), self.time_index.clone())
     }
 
-    /// Pointer identity of the columnar Arc (tests: planning must not clone payloads).
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn columnar_ptr(&self) -> *const [OwnedColumn] {
-        Arc::as_ptr(self.storage.columns_arc())
-    }
-
     /// Restrict analysis to rows where `mask` is valid, intersected (AND) with any existing
     /// analysis mask; preserves columns, validity, weights, and time index.
     ///

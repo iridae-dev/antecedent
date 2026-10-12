@@ -23,15 +23,3 @@ pub enum MaskPolicy {
     /// Ignore the analysis mask (still apply missingness policy).
     Ignore,
 }
-
-/// How observation weights are exposed on the prepared sample.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
-pub enum WeightPolicy {
-    /// Use storage weights when present; otherwise unit weights.
-    #[default]
-    Honor,
-    /// Always use unit weights.
-    Unit,
-    /// Ignore weights entirely (`PreparedSample.weights` is `None`).
-    Ignore,
-}

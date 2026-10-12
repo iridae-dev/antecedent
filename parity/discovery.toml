@@ -49,7 +49,7 @@ evidence_test = "crates/antecedent-data/src/lagged_frame.rs"
 evidence_assertion = "columns_borrow_source_windows_without_copying"
 limitations = "Covers SeriesOrigin and AbsoluteOrigin reference points on a LaggedFrame against source windows; other policies are not asserted."
 owner = "discovery"
-notes = "ReferencePointPolicy wired into LagMap / SamplePlan / LaggedFrame."
+notes = "ReferencePointPolicy wired into LagMap / LaggedSamplePlan / LaggedFrame."
 
 [[capabilities]]
 id = "discovery.data.vector_variables"
@@ -63,17 +63,6 @@ external_oracle = "tigramite 5.2.1.30"
 known_truth_fixture = "conformance/discovery/vector_vars_pcmci"
 owner = "ci"
 notes = "VectorVariableGroups + PairwiseMultivariateCi blocks on PCMCI; gate: conformance/discovery/vector_vars_pcmci"
-
-[[capabilities]]
-id = "discovery.data.transforms"
-group = "data_processing"
-description = "Transformations, smoothing, binning, ordinal patterns"
-status = "done"
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent-data/src/transforms.rs"
-evidence_assertion = "transforms_match_hand_derived_values"
-limitations = "Hand-derived values for equal-width binning, Bandt-Pompe ordinal codes for a monotone rise/fall, and the moving-average smoother; no external oracle."
-owner = "ci"
 
 [[capabilities]]
 id = "discovery.data.bootstrap"
@@ -543,18 +532,6 @@ limitations = "Mediated-only DGP with true mediated effect 0.8*0.5=0.4; the asse
 known_truth_fixture = "conformance/context/temporal_mediation"
 owner = "context"
 notes = "temporal mediation/effects/prediction; gate_context.sh"
-
-[[capabilities]]
-id = "discovery.simulation"
-group = "simulation_and_presentation"
-description = "Structural process generators and toy models"
-status = "done"
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent-data/src/sim.rs"
-evidence_assertion = "lag1_pair_recovers_length_and_parent"
-limitations = "Asserts the generator's length and recorded true parent only; the simulated values' distribution is not tested."
-owner = "discovery"
-notes = "LaggedLinearPair process generator in antecedent-data::sim for fixtures/toys; full SCM registry is in gcm / bayesian inventory."
 
 [[capabilities]]
 id = "discovery.ux.artifact_first"

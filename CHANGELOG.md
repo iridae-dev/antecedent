@@ -72,6 +72,7 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 ### Removed
 
 - `antecedent_identify::RankedAdjustmentSet`, `antecedent_estimate::temporal_refresh::refresh_prepared_sequence`, `Dag::markov_blanket(_nodes)` and `Admg::markov_blanket(_nodes)` (no callers outside their own tests), the `antecedent_expr::{pretty, latex}` wrapper modules (`Arena::pretty` and `Arena::latex` are unchanged), and `LazyUnfoldedTemporalGraph::has_edge` outside tests.
+- Unused `antecedent-data` API with no consumer in the workspace, benches, fuzz targets, examples or Python bindings: `SampleRequest`, `SamplePlan`, `SampleWorkspace`, `PreparedSample` and the rest of `sample_request`; `MultiEnvSamplePlan`, `PanelSamplePlan` and `plans_for_series_lengths`; the `RowSplit`, `TemporalFold`, `RegimeHoldoutSplit`, `RandomIidSplit`, `GroupedSplit`, `ClusterSplit`, `BlockedTemporalSplit` and `RollingOriginSplit` strategies; `sim` (`LaggedLinearPair`, `KnownLaggedParent`); `transforms` (`equal_width_bin`, `moving_average`, `ordinal_patterns`); `RaggedResampleIndexBatch` and `resample_index_batch_ragged`; `expand_fixed_vector_columns`; `WeightPolicy`. `integer_cube_root_ceil` is no longer public.
 
 ## 2.3.0
 

@@ -1,8 +1,7 @@
 //! Multi-environment / multi-dataset container.
 //!
-//! Typed list of series sharing one schema. Sample planning without per-env
-//! full copies lives in [`crate::multi_env_plan`]. J-PCMCI+ discovery
-//! constraints are wired in discovery.
+//! Typed list of series sharing one schema. J-PCMCI+ discovery constraints
+//! are wired in discovery.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

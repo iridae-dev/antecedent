@@ -27,7 +27,6 @@ EVIDENCE = {
     "estimate.refute.graph": "conformance/estimate/refuters",
     "estimate.refute.sensitivity": "conformance/estimate/refuters",
     # Discovery / CI inventory
-    "discovery.data.transforms": "crates/antecedent-data/src/transforms.rs",
     "discovery.ci.multivariate_partial_corr": "crates/antecedent-stats/src/ci/calibration.rs",
     "discovery.ci.weighted_partial_corr": "crates/antecedent-stats/src/ci/calibration.rs",
     "discovery.ci.robust_partial_corr": "crates/antecedent-stats/src/ci/calibration.rs",

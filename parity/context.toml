@@ -6,13 +6,13 @@
 [[capabilities]]
 id = "context.panel_data"
 group = "data"
-description = "PanelData + copy-avoiding multi-env SamplePlan"
+description = "PanelData container with zero-copy unit views"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "context"
-evidence_test = "crates/antecedent-data/src/multi_env_plan.rs"
-evidence_assertion = "multi_env_plan_shares_geometry_without_cloning_series"
-notes = "crates/antecedent-data panel.rs / multi_env_plan.rs"
+evidence_test = "crates/antecedent-data/src/panel.rs"
+evidence_assertion = "builds_two_unit_panel"
+notes = "crates/antecedent-data panel.rs / multi_env.rs"
 
 [[capabilities]]
 id = "context.context_graph"

@@ -1,8 +1,6 @@
 //! Lag-aligned sample planning for temporal discovery.
 //!
-//! General x/y/z [`SampleRequest`](crate::SampleRequest) planning lives in
-//! [`sample_request`](crate::sample_request). This module owns the lag-gather
-//! hot path ([`LaggedSamplePlan`]).
+//! This module owns the lag-gather hot path ([`LaggedSamplePlan`]).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
