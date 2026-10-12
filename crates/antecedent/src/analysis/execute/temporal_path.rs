@@ -678,225 +678,20 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
-            return self.execute_bayesian_mediation(data, graph, query, physical, cfg, ctx);
-        }
+        use super::temporal_mediation_core::{
+            MediationInference, TemporalMediationInputs, fit_temporal_mediation,
+            require_isotropic_mediation_prior,
+        };
         let started = Instant::now();
-        let (cache, identify_cached) =
-            if let Some(cache) = self.temporal_identification_cache.clone() {
-                (cache, true)
-            } else {
-                report_identify_compute(ctx);
-                (
-                    Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
-                        graph,
-                        query,
-                        EstimatorId::TemporalMediation,
-                    )?),
-                    false,
-                )
-            };
-        let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
-            self.mediation_adjustment(graph, query, horizon)
-        })?;
-        let mut extra_diagnostics = Vec::new();
-        if mediation_horizon_z_differs(&clicks) {
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.horizon_dependent",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
-                 plus mediator-outcome confounders identified for that horizon, not a shared \
-                 max-horizon set",
-            ));
-        }
-        let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-        let single_horizon = clicks.len() == 1;
-        let mut slices = Vec::with_capacity(clicks.len());
-        let mut refutations = Vec::new();
-        let mut block_replicates_ok: Option<u32> = None;
-        let mut block_cancelled = false;
-        for click in &clicks {
-            require_identified(&click.identification)?;
-            let mut qh = query.clone();
-            qh.horizons = Arc::from([click.horizon]);
-            // iid analytic SEs stay NaN for every contrast; one shared circular-block
-            // bootstrap over lag-aligned rows supplies Total/Direct/Mediated SEs.
-            let (mediation, block) = est
-                .estimate_with_block_bootstrap(
-                    data,
-                    &click.estimand,
-                    &qh,
-                    &click.adjustment,
-                    self.bootstrap_replicates,
-                    mediation_block_stream(MediationRoute::Temporal, click.horizon),
-                    ctx,
-                )
-                .map_err(CausalError::from)?;
-            block_replicates_ok = Some(
-                block_replicates_ok
-                    .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
-            );
-            block_cancelled |= mediation.effect.bootstrap_cancelled;
-            let horizon_label =
-                if single_horizon { String::new() } else { format!("horizon {}: ", click.horizon) };
-            extra_diagnostics.extend(temporal_dependence_se_diagnostics(
-                antecedent_estimate::CircularBlockFamily::Mediation,
-                block.block_length,
-                block.rows,
-                block.kernel_bias,
-                block.effective_rows,
-                block.replicates_attempted > 0,
-                &format!(
-                    "{horizon_label}iid analytic SEs are NaN for Total, Direct and Mediated; one \
-                     shared circular-block replicate of consecutive lag-aligned rows refits all \
-                     three mechanism regressions, {}/{} replicates",
-                    block.replicates_ok, block.replicates_attempted,
-                ),
-            ));
-            if self.refute != RefuteSuite::None {
-                let mut reports =
-                    antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-                        data,
-                        &click.estimand,
-                        &qh,
-                        &mediation,
-                        self.refute == RefuteSuite::Full,
-                        &click.adjustment,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                for report in &mut reports {
-                    if !single_horizon {
-                        report.refuter =
-                            Arc::from(format!("horizon.{}.{}", click.horizon, report.refuter));
-                    }
-                }
-                refutations.extend(reports);
+        let inference = match &self.inference {
+            InferenceMode::Frequentist => {
+                MediationInference::Frequentist { bootstrap_replicates: self.bootstrap_replicates }
             }
-            let uncertainty = if block.replicates_attempted > 0 {
-                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                    requested: mediation.effect.se_bootstrap,
-                    block,
-                }
-            } else {
-                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                    standard_error: mediation
-                        .effect
-                        .se_analytic
-                        .is_finite()
-                        .then_some(mediation.effect.se_analytic),
-                }
-            };
-            slices.push(antecedent_estimate::TemporalMediationSlice {
-                horizon: click.horizon,
-                identification_status: click.identification.status,
-                method: Arc::clone(&click.estimand.method),
-                adjustment: mediation_click_adjustment_keys(click),
-                estimate: mediation,
-                uncertainty,
-                identified_set: None,
-                diagnostics: click.identification.diagnostics.clone(),
-            });
-        }
-        let first = slices.first().ok_or_else(|| CausalError::Compile {
-            message: "temporal mediation requires at least one horizon".into(),
-        })?;
-        let estimate = if single_horizon {
-            first
-                .estimate
-                .effect
-                .clone()
-                .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation)
-        } else {
-            extra_diagnostics.push(Diagnostic::new(
-                "estimate.temporal_mediation.multi_horizon",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "all requested horizons are retained in mediation_grid; the scalar estimate and \
-                 scalar mediation fields are intentionally absent because no horizon is \
-                 authoritative",
-            ));
-            nan_effect()
+            InferenceMode::Bayesian(config) => {
+                require_isotropic_mediation_prior(config)?;
+                MediationInference::Bayesian(config)
+            }
         };
-        let mediation = single_horizon.then(|| first.estimate.clone());
-        let click = &clicks[0];
-        let mut identification = click.identification.clone();
-        if !single_horizon {
-            identification.status = most_conservative_identification_status(
-                slices.iter().map(|slice| slice.identification_status),
-            );
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.multi_horizon_status",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "parent identification.status is the most conservative requested-horizon \
-                 status; mediation_grid is authoritative per horizon",
-            ));
-        }
-        let mediation_grid = antecedent_estimate::TemporalMediationGrid {
-            slices: Arc::from(slices),
-            joint_posterior: false,
-        };
-        let certificate = single_horizon.then(|| crate::Identification::Point {
-            result: click.identification.clone(),
-            temporal_indexer: Some(click.indexer.clone()),
-            strategy: IdentifierId::Frontdoor,
-            structure_version: self.graph.version(),
-        });
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                click.estimand.clone(),
-                estimate,
-                IdentifierId::Frontdoor,
-                EstimatorId::TemporalMediation,
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .extra_diagnostics(extra_diagnostics)
-            .refutations(refutations)
-            .mediation(mediation)
-            .wall_time_ns(elapsed_ns(started))
-            .bootstrap_replicates_ok(block_replicates_ok.filter(|_| self.bootstrap_replicates > 0))
-            .cancelled(block_cancelled)
-            .extras(IdentifiedExecuteExtras {
-                certificate,
-                mediation_grid: Some(mediation_grid),
-                identify_provenance: Some(provenance_ids(
-                    "identify.temporal_mediation",
-                    "identify.temporal_mediation",
-                )),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal_mediation",
-                    "estimate.temporal_mediation",
-                )),
-                ..Default::default()
-            }),
-        ))
-    }
-
-    fn execute_bayesian_mediation(
-        &self,
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        query: &antecedent_core::MediationQuery,
-        physical: &PhysicalExecutionPlan,
-        cfg: &BayesianConfig,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        use antecedent_estimate::bayesian_mediation::{
-            compose_temporal_mediation, prepare_temporal_mediation_adjusted,
-            require_gaussian_mediation,
-        };
-        let started = Instant::now();
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
-            });
-        }
         let (cache, identify_cached) =
             if let Some(cache) = self.temporal_identification_cache.clone() {
                 (cache, true)
@@ -906,7 +701,7 @@ impl super::Study {
                     Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
                         graph,
                         query,
-                        EstimatorId::BayesianTemporalMediation,
+                        inference.estimator_id(),
                     )?),
                     false,
                 )
@@ -914,228 +709,24 @@ impl super::Study {
         let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
             self.mediation_adjustment(graph, query, horizon)
         })?;
-        if clicks.is_empty() {
-            return Err(CausalError::Compile {
-                message: "temporal mediation requires at least one horizon".into(),
-            });
-        }
-        let mut extra_diagnostics = Vec::new();
-        if mediation_horizon_z_differs(&clicks) {
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.horizon_dependent",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
-                 plus mediator-outcome confounders identified for that horizon, not a shared \
-                 max-horizon set",
-            ));
-        }
-        let estimator = bayesian_gcomp(cfg, ctx);
-        require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
-        let single_horizon = clicks.len() == 1;
-        let mut slices = Vec::with_capacity(clicks.len());
-        let mut refutations = Vec::new();
-        let mut predictive_checks = Vec::new();
-        let mut first_posterior = None;
-        for click in &clicks {
-            require_identified(&click.identification)?;
-            let mut qh = query.clone();
-            qh.horizons = Arc::from([click.horizon]);
-            let preparations = prepare_temporal_mediation_adjusted(
+        let fit = fit_temporal_mediation(
+            &TemporalMediationInputs {
                 data,
-                &click.estimand,
-                &qh,
-                &click.adjustment,
-                ctx,
-            )
-            .map_err(CausalError::from)?;
-            let fit = |scale: f64| -> Result<Vec<CausalPosterior>, CausalError> {
-                preparations
-                    .iter()
-                    .enumerate()
-                    .map(|(i, prep)| {
-                        let mut est = estimator.clone();
-                        est.prior_scale = scale;
-                        est.seed = mediation_mechanism_seed(est.seed, click.horizon, i);
-                        est.fit(
-                            prep,
-                            click.identification.status,
-                            &mut BayesianGCompWorkspace::default(),
-                            ctx,
-                        )
-                        .map_err(CausalError::from)
-                    })
-                    .collect()
-            };
-            let mechanisms = fit(cfg.prior_scale)?;
-            let mut posterior = compose_temporal_mediation(
-                &mechanisms[0],
-                &mechanisms[1],
-                &qh,
-                click.identification.status,
-            )
-            .map_err(CausalError::from)?;
-            let horizon_estimate = effect_from_posterior(&posterior)?;
-            let mediation = TemporalMediationEstimate {
-                effect: horizon_estimate.clone(),
-                total: Some(posterior.summaries.mean[1]),
-                direct: Some(posterior.summaries.mean[2]),
-                mediated: Some(posterior.summaries.mean[3]),
-            };
-            if self.refute != RefuteSuite::None {
-                let mut reports =
-                    antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-                        data,
-                        &click.estimand,
-                        &qh,
-                        &mediation,
-                        self.refute == RefuteSuite::Full,
-                        &click.adjustment,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                for report in &mut reports {
-                    if !single_horizon {
-                        report.refuter =
-                            Arc::from(format!("horizon.{}.{}", click.horizon, report.refuter));
-                    }
-                }
-                refutations.extend(reports);
-
-                for (i, (prep, post)) in preparations.iter().zip(&mechanisms).enumerate() {
-                    // Mediation refuses prior transfer, so the isotropic mechanism
-                    // prior is the prior in force.
-                    let prior = estimator.prior_in_force(prep.design.ncols);
-                    let prior_rep = PriorPredictiveCheck::for_estimator(&estimator, ctx)
-                        .check_with_prior(prep, &prior, ctx)
-                        .map_err(CausalError::from)?;
-                    let post_rep = PosteriorPredictiveCheck::for_estimator(&estimator, ctx)
-                        .check(prep, post)
-                        .map_err(CausalError::from)?;
-                    for report in [prior_rep, post_rep] {
-                        let mut r = report.to_refutation_report(horizon_estimate.ate, 0.05);
-                        r.refuter = if single_horizon {
-                            Arc::from(format!("mediation.mechanism_{i}.{}", r.refuter))
-                        } else {
-                            Arc::from(format!(
-                                "horizon.{}.mediation.mechanism_{i}.{}",
-                                click.horizon, r.refuter
-                            ))
-                        };
-                        refutations.push(r);
-                        predictive_checks.push(report);
-                    }
-                }
-            }
-            if self.refute == RefuteSuite::Full {
-                let sensitivity = antecedent_validate::PriorSensitivity::standard_grid();
-                let mut means = Vec::new();
-                let mut sds = Vec::new();
-                for &scale in sensitivity.scales.iter() {
-                    let posts = fit(scale)?;
-                    let post = compose_temporal_mediation(
-                        &posts[0],
-                        &posts[1],
-                        &qh,
-                        click.identification.status,
-                    )
-                    .map_err(CausalError::from)?;
-                    means.push(post.summaries.mean[0]);
-                    sds.push(post.summaries.sd[0]);
-                }
-                let summary = antecedent_prob::PriorSensitivitySummary {
-                    family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
-                    prior_scales: sensitivity.scales.clone(),
-                    alphas: Arc::from([]),
-                    variance_multipliers: Arc::from([]),
-                    effect_means: Arc::from(means),
-                    effect_sds: Arc::from(sds),
-                };
-                let mut report = sensitivity.to_report(&summary, horizon_estimate.ate);
-                if !single_horizon {
-                    report.refuter =
-                        Arc::from(format!("horizon.{}.{}", click.horizon, report.refuter));
-                }
-                refutations.push(report);
-                posterior = with_prior_sensitivity(posterior, summary);
-            }
-            let summary = |index: usize| antecedent_estimate::MediationPosteriorSummary {
-                mean: posterior.summaries.mean[index],
-                standard_deviation: posterior.summaries.sd[index],
-                q025: posterior.summaries.q025[index],
-                q975: posterior.summaries.q975[index],
-            };
-            slices.push(antecedent_estimate::TemporalMediationSlice {
-                horizon: click.horizon,
-                identification_status: click.identification.status,
-                method: Arc::clone(&click.estimand.method),
-                adjustment: mediation_click_adjustment_keys(click),
-                estimate: mediation,
-                uncertainty: antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-                    requested: summary(0),
-                    total: summary(1),
-                    direct: summary(2),
-                    mediated: summary(3),
-                    n_draws: posterior.draws.n_draws,
-                    backend: Arc::clone(&posterior.diagnostics.backend_id),
-                },
-                identified_set: None,
-                diagnostics: click.identification.diagnostics.clone(),
-            });
-            if first_posterior.is_none() {
-                first_posterior = Some(posterior);
-            }
-        }
-        let first = slices.first().ok_or_else(|| CausalError::Compile {
-            message: "temporal mediation requires at least one horizon".into(),
-        })?;
-        let estimate = if single_horizon {
-            first.estimate.effect.clone()
-        } else {
-            extra_diagnostics.push(Diagnostic::new(
-                "estimate.temporal_mediation.multi_horizon",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "each horizon retains an independent pointwise posterior summary in \
-                 mediation_grid; no scalar or joint cross-horizon posterior is asserted",
-            ));
-            nan_effect()
-        };
-        let mediation = single_horizon.then(|| first.estimate.clone());
-        let posterior = single_horizon.then(|| first_posterior.clone()).flatten();
-        let click = &clicks[0];
-        let mut identification = click.identification.clone();
-        if !single_horizon {
-            identification.status = most_conservative_identification_status(
-                slices.iter().map(|slice| slice.identification_status),
-            );
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.multi_horizon_status",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "parent identification.status is the most conservative requested-horizon \
-                 status; mediation_grid is authoritative per horizon",
-            ));
-        }
-        let mediation_grid = antecedent_estimate::TemporalMediationGrid {
-            slices: Arc::from(slices),
-            joint_posterior: false,
-        };
-        let estimand = click.estimand.clone();
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish::new(physical, identification.clone(), estimand, estimate, IdentifierId::Frontdoor, EstimatorId::BayesianTemporalMediation, query.treatment, query.outcome).identify_cached(identify_cached).extra_diagnostics({
-                extra_diagnostics.push(Diagnostic::new("estimate.mediation.bayesian", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; natural effects use the linear no-interaction alias"));
-                extra_diagnostics
-            }).refutations(refutations).mediation(mediation).wall_time_ns(elapsed_ns(started)).extras(IdentifiedExecuteExtras { posterior, predictive_checks,
-                mediation_grid: Some(mediation_grid),
-                certificate: single_horizon.then(|| crate::Identification::Point {
-                    result: identification.clone(),
-                    temporal_indexer: Some(click.indexer.clone()),
-                    strategy: IdentifierId::Frontdoor,
-                    structure_version: self.graph.version(),
-                }),
-                identify_provenance: Some(provenance_ids("identify.temporal_mediation", "identify.temporal_mediation")),
-                ..Default::default() })))
+                query,
+                horizons: &clicks,
+                inference,
+                validation: self.refute,
+            },
+            ctx,
+        )?;
+        let args = fit.finish_args(
+            physical,
+            query,
+            identify_cached,
+            self.graph.version(),
+            elapsed_ns(started),
+        );
+        Ok(self.finish_identified_execute(args))
     }
 
     pub(super) fn execute_temporal_response(
@@ -3823,6 +3414,7 @@ pub(crate) fn aggregate_temporal_horizon_evidence<'a>(
     Ok((aggregate_status, assumptions))
 }
 
+#[derive(Clone)]
 pub(super) struct MediationHorizonClick {
     pub(super) horizon: u32,
     pub(super) identification: IdentificationResult,
@@ -3896,7 +3488,7 @@ pub(super) fn mediation_horizon_z_differs(clicks: &[MediationHorizonClick]) -> b
     clicks.iter().skip(1).any(|click| click.adjustment.as_ref() != first.adjustment.as_ref())
 }
 
-fn mediation_click_adjustment_keys(
+pub(super) fn mediation_click_adjustment_keys(
     click: &MediationHorizonClick,
 ) -> Arc<[antecedent_core::TemporalNodeKey]> {
     let mut keys = click
