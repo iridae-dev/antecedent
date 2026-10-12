@@ -8,6 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::{ResponseFunctional, VariableId};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::result::IdentificationResult;
 
@@ -109,6 +110,19 @@ pub(crate) fn verify_proof_against_graph(
         return Err(CausalError::Compile { message: message.into() });
     }
     Ok(())
+}
+
+/// The treatment/outcome pair a response functional is about.
+///
+/// # Errors
+///
+/// [`CausalError::Compile`] when the functional names no such pair.
+pub(crate) fn require_primary_pair(
+    functional: &ResponseFunctional,
+) -> Result<(VariableId, VariableId), CausalError> {
+    functional.primary_pair().ok_or_else(|| CausalError::Compile {
+        message: "response query has no treatment/outcome pair".into(),
+    })
 }
 
 /// The identifier, estimator, and execution settings a sealed temporal

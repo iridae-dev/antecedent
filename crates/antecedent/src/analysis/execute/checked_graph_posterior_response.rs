@@ -96,7 +96,7 @@ impl CheckedGraphPosteriorResponse {
         let intervention_response =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         if (!intervention_response && validation != RefuteSuite::None)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !validation.is_point()
         {
             return Err(CausalError::Unsupported {
                 message: "checked graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",

@@ -100,10 +100,7 @@ impl CheckedClassGraphPosteriorEffect {
                 message: "class graph-posterior query variables must be distinct and in range",
             });
         }
-        if !matches!(
-            validation,
-            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
-        ) {
+        if !validation.is_point_or_placebo() {
             return Err(CausalError::Unsupported {
                 message: "class graph-posterior effect has an unsupported validation suite",
             });

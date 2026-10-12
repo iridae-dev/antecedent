@@ -10,6 +10,7 @@ use super::{
     TimeSeriesData, bayesian_gcomp, elapsed_ns, provenance_ids, push_conflict_diagnostics,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::require_primary_pair;
 
 /// Checked operation together with the immutable logical/physical result context.
 ///
@@ -216,12 +217,7 @@ impl CheckedTemporalResponseExecution {
             self.operation.procedure().bootstrap_replicates,
             ctx,
         )?;
-        let (treatment, outcome) =
-            self.operation.query().functional.primary_pair().ok_or_else(|| {
-                CausalError::Compile {
-                    message: "temporal response has no treatment/outcome pair".into(),
-                }
-            })?;
+        let (treatment, outcome) = require_primary_pair(&self.operation.query().functional)?;
         let (mut response, conflict_summary) =
             self.execute_response_surface(data, temporal, (treatment, outcome), ctx)?;
         // The estimator accepts one aggregate status; the sealed route keeps the

@@ -8,10 +8,7 @@ use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CausalQuery, ObservationSpec, OutcomeFunctional, ResponseFunctional, ResponseQuery,
-    TargetPopulation,
-};
+use antecedent_core::{CausalQuery, ResponseFunctional, ResponseQuery};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_prob::WeightedGraphSamples;
 
@@ -141,9 +138,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         }
         super::execute::dbn_posterior_response_supported(&query)?;
         if !temporal_response_is_direct(&query)
-            || query.observation != ObservationSpec::Complete
-            || query.target_population != TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || !complete_mean_response(&query)
             || query.functional.primary_pair().is_none()
         {
             return Err(CausalError::Unsupported {
@@ -153,7 +148,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         let intervention_response =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         if (!intervention_response && validation != RefuteSuite::None)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !validation.is_point()
         {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",

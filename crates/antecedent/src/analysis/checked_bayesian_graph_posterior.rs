@@ -75,7 +75,7 @@ impl CheckedBayesianGraphPosteriorAte {
             || query.treatment == query.outcome
             || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
             || query.target_population != antecedent_core::TargetPopulation::AllObserved
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !validation.is_point()
             || procedure.id() != licensed
             || !physical
                 .binding()

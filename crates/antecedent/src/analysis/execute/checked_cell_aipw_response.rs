@@ -110,7 +110,7 @@ impl CheckedCellAipwResponseOperation {
         }
         let (treatments, requested_arm) = joint_binary_interventions(interventions)?;
         let valid_suite =
-            matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full);
+            validation.is_point();
         let (expected_identifier, structure_ok) = match structure {
             CellAipwStructure::Dag(graph) => (
                 IdentifierId::ResponseBackdoor,
@@ -132,14 +132,10 @@ impl CheckedCellAipwResponseOperation {
             || identification.query != CausalQuery::Response(query.clone())
             || identification.status != IdentificationStatus::NonparametricallyIdentified
             || identification.estimands.is_empty()
-            || identification.estimands.first().is_none_or(|candidate| {
-                candidate.method != estimand.method
-                    || candidate.adjustment_set != estimand.adjustment_set
-                    || candidate.instruments != estimand.instruments
-                    || candidate.mediators != estimand.mediators
-                    || candidate.functional != estimand.functional
-                    || candidate.rd_design != estimand.rd_design
-            })
+            || identification
+                .estimands
+                .first()
+                .is_none_or(|candidate| !candidate.same_full_claim(estimand))
             || estimand.method_kind().ok() != Some(EstimandMethod::BackdoorAdjustment)
             || identification
                 .estimands

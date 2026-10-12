@@ -24,6 +24,7 @@ use crate::{
 };
 
 use super::GraphPosteriorEffectTarget;
+use super::route_guards::complete_mean_response;
 use super::posterior_binding::{CacheKeys, PosteriorProof, validate_posterior_cache};
 
 /// Sealed average effect over a static CPDAG or PAG completion envelope.
@@ -117,13 +118,7 @@ impl CheckedStaticClassEffect {
         if !matching_class
             || !identification_binds_query
             || query.treatment == query.outcome
-            || !matches!(
-                validation,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
+            || !validation.is_point_or_placebo()
             || !physical.binding().names(
                 crate::strategy_table::IdentifierId::GeneralizedAdjustment,
                 expected_estimator,
@@ -232,9 +227,7 @@ impl CheckedAdmgGraphPosteriorResponse {
             });
         }
         if query.temporal.is_some()
-            || query.observation != antecedent_core::ObservationSpec::Complete
-            || query.target_population != antecedent_core::TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || !complete_mean_response(&query)
             || !matches!(
                 query.functional,
                 antecedent_core::ResponseFunctional::MeanCurve { .. }
@@ -259,7 +252,7 @@ impl CheckedAdmgGraphPosteriorResponse {
             antecedent_core::ResponseFunctional::InterventionResponse { .. }
         );
         if (!intervention_response && validation != RefuteSuite::None)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !validation.is_point()
         {
             return Err(CausalError::Unsupported {
                 message: "checked ADMG graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",

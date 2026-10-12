@@ -97,7 +97,7 @@ impl CheckedTemporalClassMediationOperation {
             || study.tiered.is_some()
             || study.split.is_some()
             || !study.custom_validators.is_empty()
-            || !matches!(study.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !study.refute.is_point()
         {
             return false;
         }

@@ -63,13 +63,7 @@ impl CheckedStaticMediationOperation {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(
-                study.refute,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
+            || !study.refute.is_point_or_placebo()
             || !study.custom_validators.is_empty()
             || cache.identification.query != study.query
             || !matches!(

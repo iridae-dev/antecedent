@@ -89,7 +89,7 @@ pub(super) fn checked_bayesian_settings(
     let InferenceMode::Bayesian(config) = inference else {
         return Err(CausalError::Compile { message: requires_bayesian.into() });
     };
-    if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
+    if !validation.is_point() {
         return Err(CausalError::Unsupported { message: validation_support });
     }
     Ok(config.clone())

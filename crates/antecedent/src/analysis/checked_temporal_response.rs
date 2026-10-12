@@ -14,7 +14,7 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{NodeRef, TemporalDag};
 use antecedent_identify::result::IdentificationResult;
 
-use super::proof_support::proof_supplies;
+use super::proof_support::{proof_supplies, require_primary_pair};
 use crate::InferenceMode;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
@@ -251,10 +251,7 @@ impl CheckedTemporalResponseOperation {
                 message: "checked temporal operation supports MeanCurve and single-step InterventionResponse only",
             });
         }
-        let (treatment, outcome) =
-            query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                message: "temporal response query has no treatment/outcome pair".into(),
-            })?;
+        let (treatment, outcome) = require_primary_pair(&query.functional)?;
         let grid = checked_response_grid(query, spec)?;
         let expected_estimator = EstimatorId::temporal_response_for(inference);
         if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {

@@ -137,7 +137,7 @@ impl CheckedBayesianConditionalOperation {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !refute.is_point()
         {
             return Err(CausalError::Compile {
                 message:

@@ -18,7 +18,7 @@ use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use crate::analysis::proof_support::{EstimandClaim, proof_supplies};
 use crate::analysis::route_guards::{compile_error, envelope_summary};
 use crate::support::StructureSource;
-use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
+use crate::{CausalError, EstimatorId, IdentifierId};
 
 /// Completion proof retained for a conditional effect identified on a static
 /// equivalence class. The class graph and its complete prepare-time envelope
@@ -153,7 +153,7 @@ impl CheckedConditionalOperation {
                 common.structure_source,
                 StructureSource::Explicit | StructureSource::Accepted
             )
-            || !matches!(common.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !common.refute.is_point()
             || !common.physical.binding().estimator.is(EstimatorId::ConditionalLinearAdjustment)
         {
             return Err(compile_error(

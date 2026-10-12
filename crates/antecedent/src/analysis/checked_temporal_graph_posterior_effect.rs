@@ -116,7 +116,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 message: "checked temporal graph-posterior effect supports pulse and sustained schedules",
             });
         }
-        if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
+        if !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect supports none, cheap, or full validation",
             });

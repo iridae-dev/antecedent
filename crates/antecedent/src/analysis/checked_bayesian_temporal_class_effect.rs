@@ -55,12 +55,9 @@ impl CheckedBayesianTemporalClassEffectOperation {
             return false;
         };
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
-            && study.graph_posterior.is_none()
-            && study.tiered.is_none()
+            && study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-            && study.fixed_structure()
             && matches!(study.inference, InferenceMode::Bayesian(_))
-            && study.custom_validators.is_empty()
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
             && study
