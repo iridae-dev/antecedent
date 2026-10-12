@@ -1396,7 +1396,7 @@ fn intervention_for_factor(
     if touching.is_empty() {
         return Ok((arena.empty_intervention_set(), DomainRef::Observational));
     }
-    let intervention = arena.intern_intervention_assignments(touching);
+    let intervention = crate::intervention_support::intern_assignments(arena, touching)?;
     Ok((intervention, DomainRef::Interventional))
 }
 
@@ -1818,7 +1818,11 @@ mod tests {
         let mut calls = 0;
         let mut stop = |_: usize, _: u64| {
             calls += 1;
-            if calls >= 2 { Err(IdentificationError::Cancelled) } else { Ok(()) }
+            if calls >= 2 {
+                Err(IdentificationError::Cancelled)
+            } else {
+                Ok(())
+            }
         };
         let stopped = identify_interventional_metered(
             &prepared,

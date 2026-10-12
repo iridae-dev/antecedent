@@ -539,7 +539,10 @@ fn edge_g_formula(
                 parents.iter().map(|&p| prepared.dense_to_var(p)).collect::<Result<_, _>>()?;
             let (intervention, domain) = if parents.contains(&t) {
                 let assignment = InterventionAssignment { variable: t_var, value: edge_level(vi) };
-                (arena.intern_intervention_assignments([assignment]), DomainRef::Interventional)
+                (
+                    crate::intervention_support::intern_assignments(arena, [assignment])?,
+                    DomainRef::Interventional,
+                )
             } else {
                 (empty_i, DomainRef::Observational)
             };
@@ -575,7 +578,11 @@ fn edge_g_formula(
         }))
     };
     let path_level = |vi: DenseNodeId| {
-        if keep_out.contains(&vi) { active.clone() } else { control.clone() }
+        if keep_out.contains(&vi) {
+            active.clone()
+        } else {
+            control.clone()
+        }
     };
     let left = side(&path_level, &mut arena)?;
     let right = side(&|_| control.clone(), &mut arena)?;

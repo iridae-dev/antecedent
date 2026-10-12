@@ -6,7 +6,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::selection_separation::{
-    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
+    for_each_admissible_subset, independently_separated, MutilatedSelection, SubsetSearchEnd,
 };
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
 use antecedent_core::{
@@ -29,57 +29,62 @@ mod mixed_source;
 mod mz_transport;
 pub mod scenario_invariance;
 pub mod scenarios;
+mod static_nodes;
 mod study_planning;
 pub mod temporal_initial_shift;
 pub mod temporal_sequence;
 mod z_transport;
 pub use conditional::{
-    ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
-    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,
+    admg_conditional_refusal, decide_admg_conditional_transport,
     BoundConditionalTransportFunctional, ConditionalObstructionCandidate,
     ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
     ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
-    ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
+    ConditionalTransportRecord, ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
+    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,
 };
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
 pub use conditional_witness::{
-    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
-    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
-    search_conditional_witness, verify_conditional_witness,
+    search_conditional_witness, verify_conditional_witness, ConditionalWitnessCheck,
+    ConditionalWitnessRecord, WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord,
+    WitnessSearch, CONDITIONAL_WITNESS_MAX_LATENT_LEVELS,
 };
-use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
-    MetaSource, MetaTransportQuery, identify_meta_catalog, identify_meta_transport,
-    verify_meta_s_hedge, verify_meta_transport,
+    identify_meta_catalog, identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+    MetaSource, MetaTransportQuery,
 };
+use meta::{validate_meta_sources, CLASSICAL_SETTING, META_SETTING};
 pub use mixed_source::{
-    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
-    MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
+    bind_mixed_source_catalog, decide_mixed_source, mixed_source_rule_names, render_quantity,
+    validate_mixed_source_query, verify_mixed_source_derivation, BoundMixedSourceFunctional,
     MixedExclusion, MixedInput, MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule,
     MixedSearchInspection, MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation,
     MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
-    MixedStepRecord, ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
-    mixed_source_rule_names, render_quantity, validate_mixed_source_query,
-    verify_mixed_source_derivation,
+    MixedStepRecord, ValidatedMixedSourceQuery, MIXED_SOURCE_DEFAULT_LIMITS,
+    MIXED_SOURCE_MAX_DISTRIBUTIONS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
+    MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
 };
 pub use mz_transport::{
-    BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
-    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MZ_TRANSPORT_MEMORY_BYTES, MzSearchInspection, MzSearchRecord, MzStageRecord,
-    MzTransportDecision, MzTransportDerivation, MzTransportDerivationRecord,
-    MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
     bind_mz_transport_catalog, decide_mz_transport, mz_transport_refusal,
-    validate_mz_transport_query, verify_mz_transport_obstruction,
+    validate_mz_transport_query, verify_mz_transport_obstruction, BoundMzTransportFunctional,
+    MzSearchInspection, MzSearchRecord, MzStageRecord, MzTransportDecision, MzTransportDerivation,
+    MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery, MzTransportRoute,
+    ValidatedMzTransportQuery, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
+    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
+    MZ_TRANSPORT_MEMORY_BYTES,
 };
 pub use study_planning::{
-    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
-    STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES,
-    STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan, StudyPlanCandidate,
+    plan_study_additions, StudyBaseFailure, StudyFactor, StudyPlan, StudyPlanCandidate,
     StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop, StudyProposal,
     StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
-    plan_study_additions,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
+    STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES,
+    STUDY_PLAN_RANKING,
 };
 pub use z_transport::{
+    bind_z_transport_catalog, decide_two_source_z_transport, decide_z_transport_inspecting,
+    decide_z_transport_with_catalog, identify_z_transport, identify_z_transport_reporting,
+    intervention_ancestral_treatments, intervention_levels_conflict, intervention_mutilated_admg,
+    validate_z_experiment_family, validate_z_transport_query, verify_z_transport_derivation,
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
     TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZExperimentFamilyError,
     ZFactorObligation, ZProofOperation, ZTransportBudgetKind, ZTransportDecision,
@@ -87,11 +92,7 @@ pub use z_transport::{
     ZTransportMissingEvidence, ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind,
     ZTransportObstruction, ZTransportObstructionRecord, ZTransportOutcome,
     ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportSourceSpec,
-    ZTransportTerminalRecord, bind_z_transport_catalog, decide_two_source_z_transport,
-    decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_z_transport,
-    identify_z_transport_reporting, intervention_ancestral_treatments,
-    intervention_levels_conflict, intervention_mutilated_admg, validate_z_experiment_family,
-    validate_z_transport_query, verify_z_transport_derivation,
+    ZTransportTerminalRecord,
 };
 
 /// Theoretical query under the classical family of all source experiments.
@@ -684,7 +685,11 @@ impl<'a> Engine<'a> {
     /// Charge one operation at `depth` when this engine runs under a shared
     /// budget; an engine on its own [`SidLimits`] keeps its unchanged accounting.
     fn charge_shared(&mut self, depth: usize) -> Result<(), IdentificationError> {
-        if self.shared.is_some() { self.charge(depth) } else { Ok(()) }
+        if self.shared.is_some() {
+            self.charge(depth)
+        } else {
+            Ok(())
+        }
     }
     /// Estimated live bytes of this engine and the engines it runs inside.
     fn live_bytes(&self) -> u64 {
@@ -758,7 +763,10 @@ impl<'a> Engine<'a> {
         }
         let variables = self.arena.intern_var_set(self.vars(&v)?);
         let conditioned_on = self.arena.empty_var_set();
-        let intervention = self.arena.intern_intervention_assignments(assignments.iter().cloned());
+        let intervention = crate::intervention_support::intern_assignments(
+            &mut self.arena,
+            assignments.iter().cloned(),
+        )?;
         let population = self.arena.intern_population(Arc::clone(population));
         let kernel = self.arena.intern(ExprNode::Distribution {
             variables,
@@ -2766,20 +2774,22 @@ mod tests {
             panic!("frontdoor must identify");
         };
         assert!(proof.rules().contains(&"sid.line8"));
-        assert!(
-            proof
-                .arena()
-                .leaf_bindings(proof.root())
-                .iter()
-                .all(|b| b.population.as_ref() == "target")
-        );
+        assert!(proof
+            .arena()
+            .leaf_bindings(proof.root())
+            .iter()
+            .all(|b| b.population.as_ref() == "target"));
         verify_classical_transport(&diagram, &query(), &proof, SidLimits::default(), &ctx).unwrap();
         let mut corrupted = proof.clone();
         corrupted.proof[corrupted.root_step].output = corrupted.proof[0].output;
-        assert!(
-            verify_classical_transport(&diagram, &query(), &corrupted, SidLimits::default(), &ctx)
-                .is_err()
-        );
+        assert!(verify_classical_transport(
+            &diagram,
+            &query(),
+            &corrupted,
+            SidLimits::default(),
+            &ctx
+        )
+        .is_err());
     }
     #[test]
     fn source_rescues_unconfounded_selection_mechanism_and_rejects_changed_premise() {
@@ -2795,19 +2805,15 @@ mod tests {
         };
         assert!(proof.rules().contains(&"sid.line10"));
         let changed = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
-        assert!(
-            verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx)
-                .is_err()
-        );
-        assert!(
-            identify_classical_transport(
-                &diagram,
-                &query(),
-                SidLimits { steps: 1, depth: 1 },
-                &ctx
-            )
-            .is_err()
-        );
+        assert!(verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx)
+            .is_err());
+        assert!(identify_classical_transport(
+            &diagram,
+            &query(),
+            SidLimits { steps: 1, depth: 1 },
+            &ctx
+        )
+        .is_err());
         ctx.cancellation.cancel();
         assert!(
             identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).is_err()

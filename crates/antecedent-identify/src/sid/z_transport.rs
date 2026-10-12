@@ -1134,10 +1134,8 @@ pub fn decide_two_source_z_transport(
     // the union is one of them: the sources declare the same controllable set
     // on the same selection diagram. Otherwise a factor from each source might
     // still combine, which this decision does not search.
-    if let [
-        ZTransportDecision::ProvenNonTransportable(left),
-        ZTransportDecision::ProvenNonTransportable(right),
-    ] = decisions.as_slice()
+    if let [ZTransportDecision::ProvenNonTransportable(left), ZTransportDecision::ProvenNonTransportable(right)] =
+        decisions.as_slice()
     {
         let [first, second] = &query.sources;
         let same_family = same_variable_set(&first.controllable, &second.controllable)
@@ -1762,7 +1760,7 @@ fn derive_z_transport(
         return Err(IdentificationError::Cancelled);
     }
     if direct_joint_admissible(diagram, query)? {
-        let (arena, root) = direct_joint_formula(query);
+        let (arena, root) = direct_joint_formula(query)?;
         let derivation = ZTransportDerivation {
             query: query.clone(),
             graph_signature: super::graph_signature(diagram),
@@ -1860,7 +1858,7 @@ fn registered_surrogate_derivation(
     if !matches_registered_surrogate_graph(diagram, confounder, surrogate, treatment, outcome) {
         return Ok(None);
     }
-    let (arena, root) = surrogate_formula(query, confounder);
+    let (arena, root) = surrogate_formula(query, confounder)?;
     let derivation = ZTransportDerivation {
         query: query.clone(),
         graph_signature: super::graph_signature(diagram),
@@ -1919,14 +1917,18 @@ fn direct_joint_admissible(
     )
 }
 
-fn direct_joint_formula(query: &ZTransportQuery) -> (CausalExprArena, ExprId) {
+fn direct_joint_formula(
+    query: &ZTransportQuery,
+) -> Result<(CausalExprArena, ExprId), IdentificationError> {
     let mut arena = CausalExprArena::new();
     let variables = arena.intern_var_set(query.outcomes.iter().copied());
     let conditioned_on = arena.empty_var_set();
-    let intervention =
-        arena.intern_intervention_assignments(query.experiment_assignment.iter().map(|a| {
+    let intervention = crate::intervention_support::intern_assignments(
+        &mut arena,
+        query.experiment_assignment.iter().map(|a| {
             antecedent_expr::InterventionAssignment::concrete(a.variable, a.value.clone())
-        }));
+        }),
+    )?;
     let population = arena.intern_population(Arc::clone(&query.source));
     let root = arena.intern(ExprNode::Distribution {
         variables,
@@ -1936,7 +1938,7 @@ fn direct_joint_formula(query: &ZTransportQuery) -> (CausalExprArena, ExprId) {
         population,
         regime: None,
     });
-    (arena, root)
+    Ok((arena, root))
 }
 
 /// Independently recheck the graph and formula premises of a zTR derivation
@@ -1988,7 +1990,7 @@ pub fn verify_z_transport_derivation(
             {
                 return Err(input_mismatch());
             }
-            let (expected, root) = direct_joint_formula(query);
+            let (expected, root) = direct_joint_formula(query)?;
             if derivation.root != root || derivation.arena != expected {
                 return Err(formula_mismatch());
             }
@@ -2020,7 +2022,7 @@ pub fn verify_z_transport_derivation(
                     "z_transport.proof_graph_mismatch",
                 ));
             }
-            let (expected, root) = surrogate_formula(query, confounder);
+            let (expected, root) = surrogate_formula(query, confounder)?;
             if derivation.root != root || derivation.arena != expected {
                 return Err(formula_mismatch());
             }
@@ -2609,15 +2611,20 @@ fn inspect_z_expression(
 }
 
 /// The registered surrogate formula `Σ_w P_s(y | w, x, do(z)) P_s(w | do(z))`.
-fn surrogate_formula(query: &ZTransportQuery, confounder: VariableId) -> (CausalExprArena, ExprId) {
+fn surrogate_formula(
+    query: &ZTransportQuery,
+    confounder: VariableId,
+) -> Result<(CausalExprArena, ExprId), IdentificationError> {
     let mut arena = CausalExprArena::new();
     let y_set = arena.intern_var_set([query.outcomes[0]]);
     let w_set = arena.intern_var_set([confounder]);
     let wx_set = arena.intern_var_set([confounder, query.treatments[0]]);
-    let z_do =
-        arena.intern_intervention_assignments(query.experiment_assignment.iter().map(|a| {
+    let z_do = crate::intervention_support::intern_assignments(
+        &mut arena,
+        query.experiment_assignment.iter().map(|a| {
             antecedent_expr::InterventionAssignment::concrete(a.variable, a.value.clone())
-        }));
+        }),
+    )?;
     let source = arena.intern_population(Arc::clone(&query.source));
     let conditional = arena.intern(ExprNode::Distribution {
         variables: y_set,
@@ -2639,7 +2646,7 @@ fn surrogate_formula(query: &ZTransportQuery, confounder: VariableId) -> (Causal
     let factors = arena.intern_list([conditional, marginal]);
     let product = arena.intern(ExprNode::Product(factors));
     let root = arena.intern(ExprNode::SumOut { variables: w_set, expr: product });
-    (arena, root)
+    Ok((arena, root))
 }
 
 fn matches_registered_surrogate_graph(
@@ -3364,7 +3371,10 @@ fn source_c_factor(
     if outside.is_empty() {
         let variables = engine.arena.intern_var_set(remaining_vars);
         let conditioned_on = engine.arena.empty_var_set();
-        let intervention = engine.arena.intern_intervention_assignments(cumulative.iter().cloned());
+        let intervention = crate::intervention_support::intern_assignments(
+            &mut engine.arena,
+            cumulative.iter().cloned(),
+        )?;
         return Ok(Some(engine.arena.intern(ExprNode::Distribution {
             variables,
             conditioned_on,
@@ -3457,9 +3467,10 @@ fn transplant(
         } => {
             let variables = into.intern_var_set(from.var_set(variables).iter().copied());
             let conditioned_on = into.intern_var_set(from.var_set(conditioned_on).iter().copied());
-            let intervention = into.intern_intervention_assignments(
+            let intervention = crate::intervention_support::intern_assignments(
+                into,
                 from.intervention_assignments(intervention).iter().cloned(),
-            );
+            )?;
             let population = into.intern_population(Arc::from(from.population(population)));
             into.intern(ExprNode::Distribution {
                 variables,
@@ -3689,16 +3700,14 @@ mod tests {
         .unwrap();
         let mut altered = query.clone();
         altered.controllable = Arc::from([VariableId::from_raw(0)]);
-        assert!(
-            verify_z_transport_derivation(
-                &diagram,
-                &altered,
-                &proof,
-                super::super::SidLimits::default(),
-                &antecedent_core::ExecutionContext::for_tests(0)
-            )
-            .is_err()
-        );
+        assert!(verify_z_transport_derivation(
+            &diagram,
+            &altered,
+            &proof,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0)
+        )
+        .is_err());
     }
 
     #[test]
@@ -3763,16 +3772,14 @@ mod tests {
                 value: Value::Bool(false),
             },
         ]);
-        assert!(
-            verify_z_transport_derivation(
-                &diagram,
-                &changed,
-                &proof,
-                super::super::SidLimits::default(),
-                &antecedent_core::ExecutionContext::for_tests(0)
-            )
-            .is_err()
-        );
+        assert!(verify_z_transport_derivation(
+            &diagram,
+            &changed,
+            &proof,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0)
+        )
+        .is_err());
     }
 
     #[test]
@@ -4732,12 +4739,10 @@ mod tests {
         };
         marginal_only.regimes = altered.into();
         let inspection = proof.inspect_proof(&marginal_only);
-        assert!(
-            inspection
-                .factors
-                .iter()
-                .any(|factor| factor.failure.as_deref() == Some("joint_law_required"))
-        );
+        assert!(inspection
+            .factors
+            .iter()
+            .any(|factor| factor.failure.as_deref() == Some("joint_law_required")));
         assert!(matches!(
             validate_z_experiment_family(&diagram, &query, &marginal_only),
             Err(ZExperimentFamilyError::MissingJointLaw { .. })
