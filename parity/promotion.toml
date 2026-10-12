@@ -462,7 +462,7 @@ coverage_records = []
 search = false
 bounds = { cancellation = true, max_variables = 8, max_worlds = 8, max_rows = 100000 }
 surface = ["python/antecedent/cross_world.py"]
-surface_rust = ["crates/antecedent-core/src/query/cross_world.rs", "crates/antecedent-identify/src/cross_world.rs", "crates/antecedent-counterfactual/src/cross_world.rs", "crates/antecedent-io-core/src/cross_world_artifact.rs", "crates/antecedent/src/cross_world.rs"]
+surface_rust = ["crates/antecedent-core/src/query/cross_world.rs", "crates/antecedent-identify/src/cross_world.rs", "crates/antecedent-counterfactual/src/cross_world.rs", "crates/antecedent-io-core/src/cross_world_artifact.rs", "crates/antecedent/src/cross_world/mod.rs"]
 surface_pyo3 = ["python/src/cross_world_api.rs"]
 surface_values = ["CrossWorldEffect", "EdgeIntervention", "CrossWorldRefusal", "CounterfactualNode", "CrossWorldWitness", "CrossWorldOptions", "CrossWorldEvaluation", "CrossWorldArtifactError", "CrossWorldWorldWire", "CrossWorldQueryWire", "CrossWorldArtifactWire", "WorldId", "EdgeRoute", "WorldSpec", "ExogenousCoupling", "WorldObservation", "CrossWorldQuery"]
 surface_internal = [
@@ -498,11 +498,11 @@ fixtures = [
   { id = "counterfactual.path_specific_edge.edge_vs_node_level.truth", role = "truth", intent = "The all-edges answer equals the node-level counterfactual total from counterfactual_ite (1e-6); an edge set that omits a path differs from it by exactly the omitted path's effect (9.6 and 5.1 on the linear SCM); under interaction the natural effects are neither the structural total nor additive.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "edge_answer_differs_from_the_node_level_intervention" },
   { id = "counterfactual.path_specific_edge.nde_regression.regression", role = "regression", intent = "The edge set {X->Y} reproduces the existing licensed natural direct effect through the Study route on the exact linear SCM.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "natural_direct_effect_regression_against_the_existing_cell" },
   { id = "counterfactual.path_specific_edge.nde_noisy_regression.regression", role = "regression", intent = "The edge set {X->Y} reproduces the Study natural direct effect to 1e-9 on a noisy-mediator noisy-outcome linear SCM and on a non-separable SCM with a noisy outcome (same linear-Gaussian fit and abduction engine, so only summation order differs).", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "natural_direct_effect_regression_on_noisy_and_non_separable_fixtures" },
-  { id = "counterfactual.path_specific_edge.nde_engine_regression.regression", role = "regression", intent = "The edge set {X->Y} reproduces the existing nested operation on both the separable and the non-separable mechanism, on a noisy-outcome non-separable SCM.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "natural_direct_edge_contrast_reproduces_the_existing_nested_operation" },
+  { id = "counterfactual.path_specific_edge.nde_engine_regression.regression", role = "regression", intent = "The edge set {X->Y} reproduces the existing nested operation on both the separable and the non-separable mechanism, on a noisy-outcome non-separable SCM.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "natural_direct_edge_contrast_reproduces_the_existing_nested_operation" },
   { id = "counterfactual.path_specific_edge.nonidentification.negative", role = "negative", intent = "A recanting witness refuses with cross_world_not_identified; three worlds, a mixed-outcome contrast and a baseline that reads another world refuse with route_not_supported (query_outside_contract), never as unidentified.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "nonidentified_cross_world_queries_refuse_with_cross_world_not_identified" },
   { id = "counterfactual.path_specific_edge.abduction_invertible.positive", role = "positive", intent = "Abduction is exact inversion (NoiseInferenceKind::Invertible) on the separable and the non-separable mechanism with a noisy outcome. This is what the operation enforces; consistency is a premise that holds by construction, not a tested property.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "abduction_is_exact_inversion_on_both_mechanism_families" },
   { id = "counterfactual.path_specific_edge.abduction_ill_posed.negative", role = "negative", intent = "Ill-posed abduction is refused with the typed AbductionNotExact, not silently abduced: a deterministic mechanism given varying data (numerical branch) and a discrete node with posterior-drawn exogenous terms (non-invertible branch).", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "ill_posed_or_non_invertible_abduction_refuses" },
-  { id = "counterfactual.path_specific_edge.abduction_detail.negative", role = "negative", intent = "Ill-posed abduction surfaces as invalid_argument with the existing cross_world.invalid_query detail (no new refusal detail), and cancellation as the typed Cancelled error.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "ill_posed_abduction_keeps_the_invalid_query_detail" },
+  { id = "counterfactual.path_specific_edge.abduction_detail.negative", role = "negative", intent = "Ill-posed abduction surfaces as invalid_argument with the existing cross_world.invalid_query detail (no new refusal detail), and cancellation as the typed Cancelled error.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "ill_posed_abduction_keeps_the_invalid_query_detail" },
   { id = "counterfactual.path_specific_edge.adequacy_not_claimed.negative", role = "negative", intent = "Pins the documented limit: mechanisms fitted on one SCM evaluate data from another SCM without refusal, because model adequacy and consistency are named premises and not tested from data.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "model_adequacy_is_not_tested_from_data" },
   { id = "counterfactual.path_specific_edge.cancellation.negative", role = "negative", intent = "A pre-cancelled context is refused as the typed cancellation before any fit (a table whose fit would otherwise fail proves it), and the evaluator stops between nodes when cancelled mid-run.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "a_cancelled_context_is_refused_with_the_typed_cancellation" },
   { id = "counterfactual.path_specific_edge.cancellation_mid_run.negative", role = "negative", intent = "Cancelling after the first evaluated node stops the coupled operation before the next node and returns no answer; the uncancelled run visits every node.", evidence_test = "crates/antecedent-counterfactual/src/cross_world.rs", evidence_assertion = "a_context_cancelled_mid_run_stops_between_nodes" },
@@ -510,11 +510,11 @@ fixtures = [
   { id = "counterfactual.path_specific_edge.temporal_boundary.negative", role = "negative", intent = "Temporal DAG, CPDAG and PAG structures are refused with cross_world.graph_outside_contract.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "temporal_structures_are_refused_with_the_graph_contract_detail" },
   { id = "counterfactual.path_specific_edge.structure_and_inference_boundary.negative", role = "negative", intent = "Accepted, latent-confounded, equivalence-class and oversized structures, malformed tables and interval requests refuse with their own codes.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "structures_and_inference_outside_the_cell_are_refused" },
   { id = "counterfactual.path_specific_edge.roundtrip.artifact", role = "artifact", intent = "The artifact preserves the cross-world query semantics; the consumer replays (same evaluator) the premises digest, data digest, witness and point, and a separate closed-form recomputation agrees for the linear-Gaussian family (ordinary least squares; noiseless and noisy) and for the non-separable family (Givens-QR basis regression) on every tested edge set, so both report independently_verified.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "artifact_round_trip_is_replayed_by_the_consumer" },
-  { id = "counterfactual.path_specific_edge.closed_form_check.truth", role = "truth", intent = "The closed-form OLS recomputation used as the consumer's cross-check equals the structural truth (0.1, sample disturbances are only approximately orthogonal) and the evaluator (1e-9) for every edge set, noiseless and noisy; a singular design has no closed form.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "the_closed_form_recomputation_matches_the_structural_truth" },
-  { id = "counterfactual.path_specific_edge.non_separable_closed_form.truth", role = "truth", intent = "The independent non-separable recomputation (restated basis, knots, unit scaling and ridge, solved by streaming Givens QR) equals the fitter's point on all eight edge sets of a noisy interacting SCM (relative difference about 2e-13, tolerance 1e-6) and is far from the linear closed form on the natural indirect edge set, so the check is not vacuous.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "the_non_separable_closed_form_matches_the_fit_for_every_edge_set" },
-  { id = "counterfactual.path_specific_edge.independent_check_mutation.negative", role = "negative", intent = "An edited fitted mechanism (one basis coefficient, one moved knot) yields a point that the same evaluator replays bit for bit, so replay alone accepts it, while the independent recomputation from the table disagrees beyond the tolerance.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "an_edited_mechanism_is_caught_by_the_independent_check_but_not_by_replay" },
-  { id = "counterfactual.path_specific_edge.independent_check_declines.negative", role = "negative", intent = "The independent recomputation declines (no comparison, independently_verified stays false) for a table the fitter refuses or cannot solve: too few rows for the expansion, outcome parents with too few distinct values for a spline, an outcome with a single parent.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "the_non_separable_closed_form_declines_designs_the_fitter_refuses" },
-  { id = "counterfactual.path_specific_edge.cancellation_mid_fit.negative", role = "negative", intent = "A cancellation raised at any chosen poll in the middle of the fit (first, early, middle, last) stops it at that poll with the typed Cancelled error and no effect, for both mechanism families; the uncancelled fit polls many times and answers.", evidence_test = "crates/antecedent/src/cross_world.rs", evidence_assertion = "a_context_cancelled_mid_fit_stops_the_fit_without_a_result" },
+  { id = "counterfactual.path_specific_edge.closed_form_check.truth", role = "truth", intent = "The closed-form OLS recomputation used as the consumer's cross-check equals the structural truth (0.1, sample disturbances are only approximately orthogonal) and the evaluator (1e-9) for every edge set, noiseless and noisy; a singular design has no closed form.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "the_closed_form_recomputation_matches_the_structural_truth" },
+  { id = "counterfactual.path_specific_edge.non_separable_closed_form.truth", role = "truth", intent = "The independent non-separable recomputation (restated basis, knots, unit scaling and ridge, solved by streaming Givens QR) equals the fitter's point on all eight edge sets of a noisy interacting SCM (relative difference about 2e-13, tolerance 1e-6) and is far from the linear closed form on the natural indirect edge set, so the check is not vacuous.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "the_non_separable_closed_form_matches_the_fit_for_every_edge_set" },
+  { id = "counterfactual.path_specific_edge.independent_check_mutation.negative", role = "negative", intent = "An edited fitted mechanism (one basis coefficient, one moved knot) yields a point that the same evaluator replays bit for bit, so replay alone accepts it, while the independent recomputation from the table disagrees beyond the tolerance.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "an_edited_mechanism_is_caught_by_the_independent_check_but_not_by_replay" },
+  { id = "counterfactual.path_specific_edge.independent_check_declines.negative", role = "negative", intent = "The independent recomputation declines (no comparison, independently_verified stays false) for a table the fitter refuses or cannot solve: too few rows for the expansion, outcome parents with too few distinct values for a spline, an outcome with a single parent.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "the_non_separable_closed_form_declines_designs_the_fitter_refuses" },
+  { id = "counterfactual.path_specific_edge.cancellation_mid_fit.negative", role = "negative", intent = "A cancellation raised at any chosen poll in the middle of the fit (first, early, middle, last) stops it at that poll with the typed Cancelled error and no effect, for both mechanism families; the uncancelled fit polls many times and answers.", evidence_test = "crates/antecedent/src/cross_world/tests.rs", evidence_assertion = "a_context_cancelled_mid_fit_stops_the_fit_without_a_result" },
   { id = "counterfactual.path_specific_edge.data_binding.artifact", role = "artifact", intent = "The artifact carries a data digest separate from the premises digest; a caller's own digest accepts the artifact computed on that table and refuses another with DataIdentityMismatch.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "the_artifact_is_bound_to_the_data_it_was_computed_on" },
   { id = "counterfactual.path_specific_edge.mutated_artifact.negative", role = "negative", intent = "Typed mutation of names, graph, routes, levels, observation, mechanism, estimand, witness, point, both digests, version and feature fails consumption; an edited table is a DataIdentityMismatch and a stale premises digest a PremisesMismatch.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "a_mutated_artifact_fails_consumption_with_a_typed_error" },
   { id = "counterfactual.path_specific_edge.resealed_mutation.negative", role = "negative", intent = "Semantic edits with valid digests (table, query level, routes with and without a recomputed witness, graph, mechanism family, estimand, unknown family) fail replay with the right typed error (witness or point mismatch or unsupported semantics); a label-only rename replays and is told apart only by the data digest.", evidence_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", evidence_assertion = "resealed_semantic_mutations_fail_replay_for_the_right_reason" },
@@ -1091,17 +1091,17 @@ fixtures = [
 id = "sensitivity.joint_mechanism"
 capability = "sensitivity.joint_mechanism"
 status = "promoted"
-consumer_question = "How far can the registered surrogate z-transport contrast move when the outcome kernel and the shared parent marginal it cites deviate together from their source values, and which joint deviations cross a decision threshold? The answer is an exact assumption range; sampling uncertainty is not offered by this record (record sensitivity.joint_uncertainty, has measured coverage, but its interval route remains closed)."
-theorem = "Derived in-repo (docs/guides/joint-mechanism-sensitivity.md), not taken from a source. For the registered surrogate formula psi = sum_w P_W(w) [m(w,1) - m(w,0)], m(w,x) = sum_y y P_Y(y | w, x, do(z)), each perturbed factor is box-independently epsilon-contaminated, Q_i = (1 - eps_i) P_i + eps_i R_i with R_i free in its simplex (R_Y free per (w, x) stratum, as in the existing one-factor route). The outcome range y_max - y_min is read from the numeric values of the law's Y axis (the observed outcome levels), not from a declared outcome domain: a replacement kernel can only move mass among those levels. (1) Containment: {Q_i : eps_i <= e_i} equals the set at eps_i = e_i, so the box range is attained at its corner and no continuous eps optimization exists. (2) psi is linear in each R_i given the others, so its extrema over the product of simplices are attained at product-polytope vertices; for fixed Q_W >= 0 the kernel optimum is per stratum, giving the closed form U = (1 - e_W) sum_w P_W(w) D+(w) + e_W max_w D+(w) with D+(w) = (1 - e_Y) Delta(w) + e_Y (y_max - y_min), and L symmetric with D-(w) = (1 - e_Y) Delta(w) - e_Y (y_max - y_min). The range is exact (complete within the declared class) and verified against brute-force vertex enumeration and random interior points; it is an assumption range, not a sharp identification claim beyond the declared contamination class. (3) Nested boxes give nested ranges and U (L) is non-decreasing (non-increasing) in each eps, so for a threshold the tipping set is monotone. The frontier is a family of axis-parallel lines: each holds the parent fraction at a grid value and searches the kernel fraction, along which U (L) is convex (concave) and piecewise linear (a max (min) over w of functions linear in e_Y); each line's first crossing is bracketed by bisection, and each axis reduces to the existing one-factor tipping point. A bracket [lo, hi] is certified against the floating-point evaluation of U (L) by the same closed form (hi reaches the threshold, lo does not), not in exact arithmetic. Conditional on the existing checked z derivation and binding (the formula and its catalog binding are verified by the existing route). Sampling uncertainty is not part of this record (its conservative composition and one-sided target are record sensitivity.joint_uncertainty, measured but still closed , paper-inherited). The range is never a confidence interval."
+consumer_question = "How far can the registered surrogate z-transport contrast move when the outcome kernel and the shared parent marginal it cites deviate together from their source values, and which joint deviations cross a decision threshold? The answer is an exact assumption range; this record does not offer sampling uncertainty. The separate sensitivity.joint_uncertainty record exposes a promoted Rust/Python interval route with two historical coverage measurements; those measurements do not attest the current branch. The version-3 range artifact remains range-only and withholds sampling endpoints."
+theorem = "Derived in-repo (docs/guides/joint-mechanism-sensitivity.md), not taken from a source. For the registered surrogate formula psi = sum_w P_W(w) [m(w,1) - m(w,0)], m(w,x) = sum_y y P_Y(y | w, x, do(z)), each perturbed factor is box-independently epsilon-contaminated, Q_i = (1 - eps_i) P_i + eps_i R_i with R_i free in its simplex (R_Y free per (w, x) stratum, as in the existing one-factor route). The outcome range y_max - y_min is read from the numeric values of the law's Y axis (the observed outcome levels), not from a declared outcome domain: a replacement kernel can only move mass among those levels. (1) Containment: {Q_i : eps_i <= e_i} equals the set at eps_i = e_i, so the box range is attained at its corner and no continuous eps optimization exists. (2) psi is linear in each R_i given the others, so its extrema over the product of simplices are attained at product-polytope vertices; for fixed Q_W >= 0 the kernel optimum is per stratum, giving the closed form U = (1 - e_W) sum_w P_W(w) D+(w) + e_W max_w D+(w) with D+(w) = (1 - e_Y) Delta(w) + e_Y (y_max - y_min), and L symmetric with D-(w) = (1 - e_Y) Delta(w) - e_Y (y_max - y_min). The range is exact (complete within the declared class) and verified against brute-force vertex enumeration and random interior points; it is an assumption range, not a sharp identification claim beyond the declared contamination class. (3) Nested boxes give nested ranges and U (L) is non-decreasing (non-increasing) in each eps, so for a threshold the tipping set is monotone. The frontier is a family of axis-parallel lines: each holds the parent fraction at a grid value and searches the kernel fraction, along which U (L) is convex (concave) and piecewise linear (a max (min) over w of functions linear in e_Y); each line's first crossing is bracketed by bisection, and each axis reduces to the existing one-factor tipping point. A bracket [lo, hi] is certified against the floating-point evaluation of U (L) by the same closed form (hi reaches the threshold, lo does not), not in exact arithmetic. Conditional on the existing checked z derivation and binding (the formula and its catalog binding are verified by the existing route). Sampling uncertainty is separate from this range record. The conservative composition and one-sided target belong to sensitivity.joint_uncertainty, whose Rust/Python interval route is promoted and has two historical measurements; those measurements do not attest the current branch. The composition's interior coverage argument remains paper-inherited. The range is never a confidence interval."
 reference = "docs/guides/joint-mechanism-sensitivity.md"
-guarantee = "exact_range_complete_within_declared_contamination_class (range only; sampling uncertainty is not offered by this record, and its conservative method is paper-inherited: record sensitivity.joint_uncertainty has measured coverage but remains closed)"
+guarantee = "exact_range_complete_within_declared_contamination_class (range only; sampling uncertainty is not offered by this record. A separate promoted Rust/Python interval route is registered under sensitivity.joint_uncertainty with two historical coverage measurements that do not attest the current branch; its interior coverage argument is paper-inherited)"
 graph_class = "Single-source selection ADMG whose bounded z-transport derivation is the registered surrogate formula sum_w P(Y | w, X, do(Z)) P(w | do(Z)): one outcome, one binary treatment, one shared parent W, one cited source regime (the class z_transport_mechanism_sensitivity accepts)."
 population_semantics = "Source population supplies the cited do(Z) joint; the target differs from it only through the declared contamination of the outcome kernel and of the shared parent marginal, each within its own fraction bound (box-independent, no budget coupling). The treatment is set by intervention and is never a perturbed factor."
 evidence_family = "Exact single-source do(z) joint law, or an IID count table of that joint through the same formula."
 provider = "Existing exact finite-law evaluator via the prepared z stage (PreparedZTransport); empirical tables through the same checked formula."
 estimand = "Target active-minus-control mean outcome contrast; output is the baseline, the exact joint assumption range [L, U] over the declared box, the axis tipping points, the tipping frontier over the parent-marginal fraction grid with certified brackets, and the optimization receipt. No sampling interval is produced."
 inference_claim = "assumption_range"
-inference_notes = "The range is an assumption range over the declared contamination box and is never labelled a confidence interval (a consumer refuses an artifact that relabels it: estimator_inference_mismatch / joint_sensitivity.union_labelled_ci). Sampling uncertainty is not offered by this record: every result and artifact carries a withheld sampling descriptor (method name, coverage target, cell_not_licensed / joint_sensitivity.interval_withheld, no interval value), and a consumer refuses an artifact carrying an interval. The sampling composition, its routes and its coverage ids belong to record sensitivity.joint_uncertainty (measured; route closed )."
+inference_notes = "The range is an assumption range over the declared contamination box and is never labelled a confidence interval (a consumer refuses an artifact that relabels it: estimator_inference_mismatch / joint_sensitivity.union_labelled_ci). This range record's results and version-3 artifacts carry a withheld sampling descriptor (method name, coverage target, cell_not_licensed / joint_sensitivity.interval_withheld, no interval value), and the artifact consumer refuses an artifact carrying an interval. The separate sensitivity.joint_uncertainty record exposes promoted Rust/Python interval routes; its zero-box two-sided and positive-box one-sided-upper measurements are historical and do not attest the current branch."
 owners = ["antecedent-validate", "antecedent-estimate", "antecedent", "python/antecedent/transport"]
 identity_inputs = ["baseline z point artifact (its premises digest: graph, query, derivation, catalog, request, limits)", "perturbation definition: factor set in canonical order with each fraction bound (f64 bits)", "decision threshold (f64 bits)", "bracketing tolerance (f64 bits) and frontier grid size", "search limits (operations, depth) and declared memory cap (premises digest) and effective memory cap (receipt, replayed)", "optimization method string and interpretation", "inference claim (assumption_range) and the withheld sampling descriptor (method name, coverage target, status, reason code; no interval)", "data identity: baseline artifact bytes digest, provider snapshots and source regime (separate digest)"]
 wire_changes = ["Additive: joint z sensitivity artifact version 3 (separate wire from the v2 one-factor artifact, which is unchanged and refuses version 3; the v3 reader refuses version 2): embeds the baseline point artifact, the perturbation definition, the exact range, axis tipping points, frontier brackets, the optimization receipt (operations, depth, memory cap, stop, explored and unevaluated lines), the sampling method (withheld, no interval field value), a premises digest and a separate data digest."]
@@ -1116,11 +1116,11 @@ surface_exports = ["python/antecedent/transport/advanced.py"]
 owned_exports = ["JointDeviation", "consume_joint_mechanism_sensitivity_artifact", "export_joint_mechanism_sensitivity", "joint_mechanism_sensitivity"]
 surface_values = ["JointDeviation", "JointFactor", "JointFactorBound", "JointSensitivityLimits", "JointDeviationSpec", "JointSensitivityError", "JointSensitivityRange", "TippingStatus", "TippingBracket", "FrontierPoint", "AxisTipping", "JointSensitivityUncertainty", "JointSensitivityReceipt", "JointMechanismSensitivityResult", "JointSensitivityInterval", "JointFactorWire", "JointPerturbationWire", "JointProvenanceWire", "JointTippingWire", "JointOutcomeWire", "JointReceiptWire", "JointSensitivityBodyWire", "JointSensitivityArtifactWire", "JointSensitivityConsumeLimits"]
 surface_internal = [
-  { name = "joint_sensitivity_bootstrap_interval_internal", why = "The conservative endpoint percentile bootstrap of record sensitivity.joint_uncertainty (measured, route closed), kept in this file beside the evaluator it reuses; compiled only under the antecedent-validate calibration-internal feature (dev-dependencies alone) for the coverage harness (registered and measured) and its wiring test. No public route reaches it." },
+  { name = "joint_sensitivity_bootstrap_interval_internal", why = "The internal conservative endpoint percentile-bootstrap estimator for sensitivity.joint_uncertainty, kept beside the evaluator it reuses; compiled only under the antecedent-validate calibration-internal feature for the historical coverage harness and wiring test. The separate public Rust/Python interval route is promoted; those historical measurements do not attest the current branch. No public route reaches this calibration-internal estimator." },
   { name = "z_transport_joint_sensitivity", why = "Native pyfunction backing the routed Python joint_mechanism_sensitivity (antecedent.transport.advanced), reached only through that wrapper; the Python route owns its evidence." },
   { name = "export_z_transport_joint_sensitivity", why = "Native pyfunction backing the routed Python export_joint_mechanism_sensitivity, reached only through that wrapper." },
   { name = "consume_z_transport_joint_sensitivity_artifact", why = "Native pyfunction backing the routed Python consume_joint_mechanism_sensitivity_artifact, reached only through that wrapper." },
-  { name = "z_transport_joint_sensitivity_interval", why = "Native pyfunction backing the closed Python joint_mechanism_sensitivity_interval route of record sensitivity.joint_uncertainty (measured, route closed); it only refuses (cell_not_licensed)." },
+  { name = "z_transport_joint_sensitivity_interval", why = "Native pyfunction backing the promoted Python joint_mechanism_sensitivity_interval route of sensitivity.joint_uncertainty; it returns the endpoint tuple. Its two historical coverage measurements do not attest the current branch. The version-3 range artifact continues to withhold sampling endpoints." },
 ]
 bounds = { max_factors = 2, max_parent_levels = 64, max_outcome_categories = 32, max_frontier_points = 33, max_bisection_iterations = 64, max_operations = 100000, tolerance = "[1e-12, 1e-2]", cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "JointSensitivityLimits.operations (hard cap 100000)", depth_limit = "JointSensitivityLimits.depth = bisection iterations per frontier line (hard cap 64)", memory_limit = "SearchBudget memory cap, never absent: min(ExecutionContext.memory.hard_limit_bytes, JointSensitivityLimits.memory_bytes); the declared cap defaults to 64 MiB and has a hard ceiling of 512 MiB (a larger declaration refuses bounds_exceeded); live-state bytes cumulative across the charged read of the law and every frontier line" }
 refusals = [
@@ -1145,7 +1145,7 @@ refusals = [
   { code = "transport_missing_provider", detail = "joint_sensitivity.provider_mismatch", when = "The exact source provider does not match the formula's population, regime, world or snapshot." },
   { code = "transport_support_failure", detail = "joint_sensitivity.incomplete_kernel", when = "The source law leaves an outcome-kernel stratum without mass, or its shared parent marginal is not a distribution (|mass - 1| > 1e-10, reachable through a law accepted under a loose LawTolerance); factor normalization is enforced, never repaired by renormalizing." },
   { code = "transport_budget_cancel", detail = "joint_sensitivity.budget", when = "Operations, depth, memory or cancellation stopped the one shared budget: before the range, a refusal with its receipt; during bracketing, the range stays exact and the remaining frontier lines are reported unresolved with the receipt." },
-  { code = "cell_not_licensed", detail = "joint_sensitivity.interval_withheld", when = "A consumer receives an artifact carrying a sampling interval (this record never produces one), and the withheld descriptor every result carries; the interval routes themselves belong to sensitivity.joint_uncertainty (measured, closed )." },
+  { code = "cell_not_licensed", detail = "joint_sensitivity.interval_withheld", when = "A consumer receives a version-3 range artifact carrying a sampling interval (this range record never produces one); range results retain the withheld sampling descriptor. The separate sensitivity.joint_uncertainty record exposes promoted Rust/Python interval routes, while its historical measurements do not attest the current branch." },
   { code = "estimator_inference_mismatch", detail = "joint_sensitivity.union_labelled_ci", when = "An artifact labels the assumption range (a union over the sensitivity set) a confidence interval." },
 ]
 routes = [
@@ -1201,23 +1201,24 @@ status = "promoted"
 consumer_question = "What sampling uncertainty surrounds the joint deviation range of the registered surrogate z contrast, composed by the conservative endpoint percentile bootstrap whose coverage is measured at its own coordinate?"
 theorem = "Derived in-repo (docs/guides/joint-mechanism-sensitivity.md). One conservative composition over record sensitivity.joint_mechanism: [q_{a/2}(L*_b), q_{1-a/2}(U*_b)] over iid row-bootstrap replicates of the cited count table, each evaluated by the exact joint range. For any fixed true deviation delta0 in the box L*_b <= psi*_b(delta0) <= U*_b, so the interval contains the pointwise percentile interval at delta0, and its asymptotic coverage of psi(delta0) is at least nominal whenever the pointwise percentile bootstrap is consistent (one-sided, conservative target; exactly the percentile bootstrap at the zero box). paper-inherited: that pointwise consistency, and the framing of percentile-bootstrap sensitivity intervals with at-least-nominal coverage (Zhao, Small and Bhattacharya, arXiv 1711.11286, abstract only read) and the failure of bootstrap consistency for non-differentiable maps such as a tied max over w (Fang and Santos, arXiv 1404.3763, abstract only read); neither theorem statement was verified. The interval would never be a confidence interval for the sensitivity set. The one-sided target is measured by the coverage harness's one_sided role (CoverageTally::assert_one_sided: a floor at the level with no upper band or ceiling, the record stating its side and target)."
 reference = "docs/guides/joint-mechanism-sensitivity.md"
-guarantee = "conservative_one_sided_coverage_target_paper_inherited_route_closed"
+guarantee = "conservative_one_sided_coverage_target_paper_inherited"
 graph_class = "As record sensitivity.joint_mechanism: single-source selection ADMG whose bounded z-transport derivation is the registered surrogate formula (one outcome, one binary treatment, one shared parent W, one cited source regime)."
 population_semantics = "As the range record, plus iid row sampling of the cited source do(z) count table; the true deviation delta0 is fixed inside the declared box."
 evidence_family = "IID count table of the cited single-source do(z) joint (an exact law has no sampling uncertainty and withholds)."
 provider = "antecedent_validate::joint_sensitivity_bootstrap_interval_internal, reached by PreparedZTransport::joint_mechanism_sensitivity_interval."
 estimand = "psi(delta0), the target active-minus-control mean outcome contrast at any fixed true deviation delta0 inside the declared box; the interval [q_{a/2}(L*), q_{1-a/2}(U*)] with a one-sided (at least nominal) coverage target."
 inference_claim = "calibrated"
-inference_notes = "The public interval is the conservative endpoint percentile bootstrap. Both coverage tests of crates/antecedent/tests/joint_sensitivity_calibration.rs are registered in scripts/gate_calibration.sh (run_js, over the sample-size grid) and were measured at the cut. The zero box is a two-sided gated record (the composition is exactly the percentile bootstrap there). The positive box is a one_sided record (side upper): coverage of the true upper extremal bound U, psi(delta0) at the maximizing vertex of the true law (the_calibration_truths_are_the_extremal_vertex_of_the_true_law), at least nominal, scored as containment in [q(L*), q(U*)], whose upper endpoint binds; its acceptance is level - 3 MCSE and, from 1000 replicates, the precision floor, with no upper band or ceiling (crates/antecedent/tests/common/calibration.rs, checked by scripts/gate_parity_schema.sh and collected by scripts/collect_coverage_records.py). The range artifact still refuses a forged sampling interval."
+inference_notes = "Historical measurements at the 5c76724f cut cover two exact designs only: the zero box has a two-sided gated record (the composition is the ordinary percentile bootstrap there), and the positive box has a one_sided record (side upper) for the true upper extremal bound U at the maximizing vertex of the true law (the_calibration_truths_are_the_extremal_vertex_of_the_true_law). Positive-box acceptance uses the one-sided level - 3 MCSE floor and the 1000-replicate precision floor, with no upper band or ceiling (crates/antecedent/tests/common/calibration.rs; checked by scripts/gate_parity_schema.sh and collected by scripts/collect_coverage_records.py). These inherited measurements do not attest the current branch's public tuple wrapper or arbitrary interior two-sided coverage. The public interval returns a Rust JointSensitivityInterval or Python (lower, upper, coverage_target) tuple; the version 3 range artifact continues to carry a withheld interval descriptor, and its consumer refuses forged interval values."
 owners = ["antecedent-validate", "antecedent-estimate", "antecedent", "python/antecedent/transport"]
 identity_inputs = ["the range record's premises and data identity", "replicates", "level", "the bootstrap seed stream", "the coverage target"]
 wire_changes = ["The public interval is returned by joint_mechanism_sensitivity_interval. The version 3 joint artifact of record sensitivity.joint_mechanism still carries a withheld sampling descriptor, and its consumer refuses a forged interval."]
 compatibility = "The interval route now returns the conservative endpoint bootstrap. The range artifact is unchanged and still refuses a forged sampling interval."
 coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_positive_box"]
+inference_inventory_disposition = "outputs_listed_historical_measurements_current_surface_unattested"
 search = false
 surface = ["python/antecedent/transport/_joint_sensitivity_uncertainty.py"]
 surface_rust = ["crates/antecedent/src/analysis/joint_sensitivity_uncertainty.rs"]
-surface_values = ["JointSamplingWire"]
+surface_values = ["JointSensitivityInterval", "PreparedZTransport::joint_mechanism_sensitivity_interval", "JointSamplingWire"]
 surface_exports = ["python/antecedent/transport/advanced.py"]
 owned_exports = ["joint_mechanism_sensitivity_interval"]
 bounds = { max_bootstrap_internal = 2000, cancellation = true }
@@ -1237,6 +1238,30 @@ fixtures = [
   { id = "sensitivity.joint_uncertainty.one_sided_coverage.positive", role = "positive", shared_evidence = true, intent = "The public endpoint bootstrap at level 0.95 with 199 replicates returns a finite interval. Fewer than 199 replicates, more than 2000, and any other level refuse as joint_sensitivity.bounds_exceeded.", evidence_test = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", evidence_assertion = "the_endpoint_bootstrap_interval_replays" },
   { id = "sensitivity.joint_uncertainty.interval_artifact.artifact", role = "artifact", shared_evidence = true, intent = "An independent recomputation from the saved count table, the deviation spec, and the seed stream matches the published endpoints bit for bit.", evidence_test = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", evidence_assertion = "the_endpoint_bootstrap_interval_replays" },
 ]
+
+[[record.inference_outputs]]
+fields = ["Rust lower", "Rust upper", "Rust pointwise_at_zero", "Rust level", "Rust method", "Rust coverage_target", "Rust replicates_requested", "Rust replicates_ok", "Rust replicates_failed", "Python tuple lower", "Python tuple upper", "Python tuple coverage_target"]
+method = "Percentile interval of exact lower and upper sensitivity-range endpoints over iid row-bootstrap draws of the empirical source count table: [q_(1-level)/2(L*), q_(1+level)/2(U*)]."
+implementation_status = "implemented_unmeasured"
+boundary = "The current public interval route returns a Rust JointSensitivityInterval or Python tuple (lower, upper, coverage_target) for level 0.95 and 199-2000 replicates. The version 3 range artifact remains range-only: its sampling descriptor is withheld and its consumer rejects a forged interval. The endpoint-replay test independently recomputes percentiles from saved counts/spec/seed but reuses the law-draw and range primitives; it is a test-side arithmetic/integration check, not an independent public artifact consumer. Historical coverage records measure the zero-box two-sided percentile interval and positive-box one-sided upper-extremal target only. They do not attest current-branch code and do not establish two-sided coverage at positive boxes, arbitrary interior effects, or a confidence interval for the sensitivity set. The at-least-nominal interior argument and its percentile-bootstrap consistency premise remain paper-inherited."
+truth_design = "Historical known-SCM finite-law simulation at n=200, 400, 800 with 400 outer replicates and 199 endpoint-bootstrap draws per replicate. W~Bernoulli(0.35), X~Bernoulli(0.4), and P(Y=1|W,X) is (0.2,0.5,0.3,0.8); the box truth is derived by explicit contamination of the generating law. This is in-repository SCM arithmetic, not external truth."
+method_source = "crates/antecedent/src/analysis/joint_sensitivity_uncertainty.rs; crates/antecedent-validate/src/joint_mechanism_sensitivity.rs; crates/antecedent-estimate/src/statistical_transport.rs"
+nominal_level = "0.95 only; zero box two-sided, positive box one-sided upper-extremal target"
+measurement_suite = "crates/antecedent/tests/joint_sensitivity_calibration.rs"
+id = "joint_sensitivity_endpoint_interval.1"
+owner = "antecedent"
+operation_or_object = "PreparedZTransport::joint_mechanism_sensitivity_interval; antecedent.transport.advanced.joint_mechanism_sensitivity_interval"
+public_producers = ["antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval", "antecedent.transport.advanced.joint_mechanism_sensitivity_interval"]
+closed_producers = []
+independent_consumers = []
+truth_fixtures = ["crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_sensitivity_zero_box", "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_sensitivity_positive_box", "crates/antecedent/tests/joint_sensitivity_calibration.rs::the_calibration_truths_are_the_extremal_vertex_of_the_true_law", "crates/antecedent/tests/joint_sensitivity_lifecycle.rs::the_endpoint_bootstrap_interval_replays"]
+acceptance_threshold = "Historical zero-box acceptance is the registered two-sided 0.95 CoverageTally gate (level ± 3 MCSE plus precision floor); positive-box acceptance is the registered one-sided upper gate (level − 3 MCSE plus precision floor, no upper band or ceiling). The positive-box truth is U at the maximizing vertex. No current-branch attestation or unmeasured target is inferred."
+allocated_coverage_records = []
+inherited_coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_positive_box"]
+activation_disposition = "retain_promoted_named_scope_but_record_current_surface_unattested"
+allocation_status = "historical_coverage_ids_retained_current_surface_unattested"
+measurement_design_status = "historical_exact_designs_measured_current_branch_not_attested"
+truth_grid_allocation = "Historical exact SCM design: source count table from W~Bernoulli(0.35), X~Bernoulli(0.4), binary Y with P(Y=1|W,X)=(0.2,0.5,0.3,0.8); n=200/400/800, 400 outer replicates, 199 bootstrap draws per replicate. Zero-box truth is the generating-law effect; positive-box truth is the exact upper extremal bound at the maximizing vertex."
 
 
 [[record]]
@@ -1264,7 +1289,7 @@ coverage_records = []
 search = true
 search_impl = ["crates/antecedent-identify/src/counterfactual_id.rs"]
 surface = ["python/antecedent/counterfactual_id.py"]
-surface_rust = ["crates/antecedent-core/src/query/counterfactual_event.rs", "crates/antecedent-identify/src/counterfactual_id.rs", "crates/antecedent-io-core/src/counterfactual_id_artifact.rs", "crates/antecedent/src/counterfactual_id.rs"]
+surface_rust = ["crates/antecedent-core/src/query/counterfactual_event.rs", "crates/antecedent-identify/src/counterfactual_id.rs", "crates/antecedent-io-core/src/counterfactual_id_artifact.rs", "crates/antecedent/src/counterfactual_id/mod.rs"]
 surface_pyo3 = ["python/src/counterfactual_id_api.rs"]
 surface_values = ["CounterfactualEvent", "CounterfactualEventQuery", "CounterfactualIdRefusal", "CounterfactualIdProblem", "CfValue", "CfSymbol", "CfTerm", "CounterfactualFunctional", "CounterfactualNodeRecord", "CounterfactualGraphRecord", "CounterfactualObstruction", "CounterfactualIdSearchRecord", "CounterfactualIdShape", "CounterfactualIdDerivation", "CounterfactualIdPoint", "CounterfactualIdArtifactError", "CounterfactualIdWorldWire", "CounterfactualIdQueryWire", "CounterfactualIdAxisWire", "CounterfactualIdLawWire", "CounterfactualIdPointWire", "CounterfactualIdArtifactWire", "CounterfactualIdOptions", "PreparedCounterfactualId", "CounterfactualIdEffect", "CounterfactualIdConsumeLimits", "NativePreparedCounterfactualId", "EffectOnTreated"]
 surface_internal = [
@@ -1322,7 +1347,7 @@ fixtures = [
   { id = "counterfactual.admg_identification.cfid_budget_memory.budget", role = "budget", intent = "The memory charged is cumulative: the smallest cap the decision fits under refuses one byte lower with a Memory stop, and exceeds the cap one outcome level needs.", evidence_test = "crates/antecedent-identify/tests/counterfactual_id_search.rs", evidence_assertion = "the_memory_charged_is_cumulative_across_the_decision" },
   { id = "counterfactual.admg_identification.cfid_budget_cancel.budget", role = "budget", intent = "Cancellation raised after the first, a middle and the last-but-one charge stops the decision exactly there with a Cancelled receipt.", evidence_test = "crates/antecedent-identify/src/counterfactual_id.rs", evidence_assertion = "a_context_cancelled_mid_decision_stops_with_a_receipt" },
   { id = "counterfactual.admg_identification.cfid_id_hook.regression", role = "regression", intent = "The crate-private budget hook in id.rs charges every ID recursion (depth from one, live bytes non-decreasing) and a charge error ends ID with that error; the hedge it returns carries its problem and re-verifies. Unmetered entry points are unchanged (the existing id.rs tests pass).", evidence_test = "crates/antecedent-identify/src/id.rs", evidence_assertion = "every_metered_recursion_is_charged_and_a_stop_ends_it" },
-  { id = "counterfactual.admg_identification.cfid_direct_sum.truth", role = "truth", intent = "The consumer direct-sum evaluator (own arithmetic over the law cells) agrees with the compiled evaluation and the front-door formula, and declines where a positive-weight conditional is undefined.", evidence_test = "crates/antecedent/src/counterfactual_id.rs", evidence_assertion = "the_direct_sum_evaluation_agrees_with_the_compiled_one_and_the_formula" },
+  { id = "counterfactual.admg_identification.cfid_direct_sum.truth", role = "truth", intent = "The consumer direct-sum evaluator (own arithmetic over the law cells) agrees with the compiled evaluation and the front-door formula, and declines where a positive-weight conditional is undefined.", evidence_test = "crates/antecedent/src/counterfactual_id/tests.rs", evidence_assertion = "the_direct_sum_evaluation_agrees_with_the_compiled_one_and_the_formula" },
   { id = "counterfactual.admg_identification.cfid_invariance.invariance", role = "invariance", intent = "Bidirected orientation and duplicate edges give the same canonical problem and bit-identical point; node relabelling and an isolated extra variable give the same point (1e-10); value relabelling is bit-identical; event order gives the same derivation.", evidence_test = "crates/antecedent-identify/tests/counterfactual_id_search.rs", evidence_assertion = "the_answer_is_invariant_to_presentation" },
   { id = "counterfactual.admg_identification.cfid_query_canonical.invariance", role = "invariance", intent = "Counterfactual event conjunctions are canonical (order-free, exact duplicates removed, -0.0 is 0.0) in value and canonical text.", evidence_test = "crates/antecedent-core/src/query/counterfactual_event.rs", evidence_assertion = "conjunctions_are_canonical_and_order_free" },
   { id = "counterfactual.admg_identification.cfid_refresh.lifecycle", role = "lifecycle", intent = "Prepare once and evaluate three laws without re-identifying: each equals its enumerated truth (distribution, probability and contrast).", evidence_test = "crates/antecedent/tests/counterfactual_id_lifecycle.rs", evidence_assertion = "prepare_once_and_evaluate_every_law_against_the_enumerated_truth" },
@@ -7898,6 +7923,31 @@ fixtures = [
   { id = "estimate.vector_treatment.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "vector_posterior_refuses_a_mapped_prior" },
   { id = "estimate.vector_treatment.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the posterior mean from the hand normal equations.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "vector_posterior_consumer_replays_the_hand_normal_equations" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.vector_treatment.bayesian.point.1"
+fields = ["posterior mean of the joint treatment coefficients"]
+method = "Independent normal priors on every non-intercept column of the joint treatment regression, with the ordinary-least-squares residual variance plugged in. The published coefficients are the ridge posterior mean. A wide prior stays at the hand-solved pin (2.75, 0.75). A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. No interval is produced."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::vector_treatment_posterior"
+public_producers = ["antecedent.treatment.joint_effects.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+truth_design = "One source-pinned test fixture only: A wide prior keeps the posterior mean at the hand-solved coefficients (2.75, 0.75), and a tight prior shrinks them. See crates/antecedent-estimate/tests/posterior_mean_linear.rs::vector_posterior_mean_stays_near_the_hand_solved_coefficients. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.vector_treatment.bayesian.near_pin.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/posterior_mean_linear.rs::vector_posterior_mean_stays_near_the_hand_solved_coefficients; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/posterior_mean_linear.rs::vector_posterior_mean_stays_near_the_hand_solved_coefficients; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.categorical_treatment.bayesian"
@@ -7933,6 +7983,31 @@ fixtures = [
   { id = "estimate.categorical_treatment.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "categorical_posterior_refuses_an_external_power_prior" },
   { id = "estimate.categorical_treatment.bayesian.dummy_summary.artifact", role = "artifact", intent = "The consumer replays the mean from the dummy-coded design summary.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "categorical_posterior_consumer_replays_the_dummy_summary" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.categorical_treatment.bayesian.point.1"
+fields = ["posterior mean of the non-reference level coefficients"]
+method = "Independent normal priors on the dummy-coded level coefficients, plug-in residual variance. The wide-prior mean stays at the group-mean differences (3, 7). A mapped prior, an external power prior, and an unmeasured band refuse."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::categorical_treatment_posterior"
+public_producers = ["antecedent.treatment.categorical_effects.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+truth_design = "One source-pinned test fixture only: The wide-prior mean stays at the group-mean differences 3 and 7. See crates/antecedent-estimate/tests/posterior_mean_linear.rs::categorical_posterior_mean_stays_near_the_group_mean_differences. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.categorical_treatment.bayesian.group_means.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/posterior_mean_linear.rs::categorical_posterior_mean_stays_near_the_group_mean_differences; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/posterior_mean_linear.rs::categorical_posterior_mean_stays_near_the_group_mean_differences; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.quadratic_dose.bayesian"
@@ -7969,6 +8044,31 @@ fixtures = [
   { id = "estimate.quadratic_dose.bayesian.unmeasured_band.negative", role = "negative", intent = "A request for an unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "quadratic_posterior_refuses_an_unmeasured_band" },
   { id = "estimate.quadratic_dose.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the mean from the local normal equations.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "quadratic_posterior_consumer_replays_the_local_normal_equations" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.quadratic_dose.bayesian.point.1"
+fields = ["posterior mean of the local quadratic level and derivative"]
+method = "Independent normal priors on the local linear and quadratic coefficients, intercept unpenalized, plug-in weighted residual variance. On a line the wide-prior level and derivative stay at the line. A mapped prior, an external power prior, and an unmeasured band refuse."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::local_quadratic_posterior"
+public_producers = ["antecedent.dose.quadratic.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+truth_design = "One source-pinned test fixture only: On an exact line the posterior level and derivative stay at the line. See crates/antecedent-estimate/tests/posterior_mean_linear.rs::quadratic_posterior_mean_stays_near_the_linear_dose_response. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.quadratic_dose.bayesian.line.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/posterior_mean_linear.rs::quadratic_posterior_mean_stays_near_the_linear_dose_response; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/posterior_mean_linear.rs::quadratic_posterior_mean_stays_near_the_linear_dose_response; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.dose_grid_functional.bayesian"
@@ -8005,6 +8105,31 @@ fixtures = [
   { id = "estimate.dose_grid_functional.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "dose_grid_posterior_refuses_a_mapped_prior" },
   { id = "estimate.dose_grid_functional.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the grid mean from the local normal equations.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "dose_grid_posterior_consumer_replays_the_local_normal_equations" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.dose_grid_functional.bayesian.point.1"
+fields = ["posterior mean of the dose-grid level and derivative"]
+method = "The same local-quadratic posterior mean as the quadratic-dose sibling, evaluated on the dose grid's point. No interval. A mapped prior, an external power prior, and an unmeasured band refuse."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::local_quadratic_posterior"
+public_producers = ["antecedent.dose.grid.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+truth_design = "One source-pinned test fixture only: On an exact line the grid posterior stays at the line. See crates/antecedent-estimate/tests/posterior_mean_linear.rs::dose_grid_posterior_mean_stays_near_the_linear_dose_response. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.dose_grid_functional.bayesian.line.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/posterior_mean_linear.rs::dose_grid_posterior_mean_stays_near_the_linear_dose_response; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/posterior_mean_linear.rs::dose_grid_posterior_mean_stays_near_the_linear_dose_response; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "decision.functionals.bayesian"
@@ -8041,6 +8166,31 @@ fixtures = [
   { id = "decision.functionals.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "decision_posterior_refuses_a_mapped_prior" },
   { id = "decision.functionals.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "decision_posterior_consumer_replays_the_dirichlet_weights" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "decision.functionals.bayesian.point.1"
+fields = ["functional of the Dirichlet posterior mean of the finite law"]
+method = "A Dirichlet posterior on the finite law the decision functional already reads. The published number is the functional of the posterior mean. A wide concentration stays at the finite-law expectation 1.5. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+public_producers = ["antecedent.decision.functionals.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent/tests/posterior_mean_decision.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration keeps the expectation at 1.5. See crates/antecedent/tests/posterior_mean_decision.rs::decision_posterior_mean_keeps_the_finite_law_expectation. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["decision.functionals.bayesian.expectation.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent/tests/posterior_mean_decision.rs::decision_posterior_mean_keeps_the_finite_law_expectation; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent/tests/posterior_mean_decision.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent/tests/posterior_mean_decision.rs::decision_posterior_mean_keeps_the_finite_law_expectation; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "decision.functional_inverse.bayesian"
@@ -8077,6 +8227,31 @@ fixtures = [
   { id = "decision.functional_inverse.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "functional_inverse_posterior_refuses_an_external_power_prior" },
   { id = "decision.functional_inverse.bayesian.replay.artifact", role = "artifact", intent = "The consumer replays the inverse of the mean law.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "functional_inverse_posterior_consumer_replays_the_mean_law" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "decision.functional_inverse.bayesian.point.1"
+fields = ["inverse of the functional of the Dirichlet posterior mean"]
+method = "The inverse reads the Dirichlet posterior mean of the finite law the functional already evaluates. No new functional. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+public_producers = ["antecedent.decision.functional_inverse.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent/tests/posterior_mean_decision.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration selects the same action as the raw weights. See crates/antecedent/tests/posterior_mean_decision.rs::functional_inverse_posterior_uses_the_dirichlet_mean. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["decision.functional_inverse.bayesian.mean_law.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent/tests/posterior_mean_decision.rs::functional_inverse_posterior_uses_the_dirichlet_mean; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent/tests/posterior_mean_decision.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent/tests/posterior_mean_decision.rs::functional_inverse_posterior_uses_the_dirichlet_mean; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "decision.finite_action_inverse.bayesian"
@@ -8113,6 +8288,31 @@ fixtures = [
   { id = "decision.finite_action_inverse.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "finite_action_inverse_posterior_refuses_an_unmeasured_band" },
   { id = "decision.finite_action_inverse.bayesian.replay.artifact", role = "artifact", intent = "The consumer replays the selected action.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "finite_action_inverse_posterior_consumer_replays_the_selected_action" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "decision.finite_action_inverse.bayesian.point.1"
+fields = ["finite-action inverse of the Dirichlet posterior mean"]
+method = "The finite-action inverse uses the Dirichlet posterior mean of the law it already reads. No new action. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+public_producers = ["antecedent.decision.finite_action_inverse.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent/tests/posterior_mean_decision.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration selects the same action as the raw weights. See crates/antecedent/tests/posterior_mean_decision.rs::finite_action_inverse_posterior_uses_the_dirichlet_mean. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["decision.finite_action_inverse.bayesian.selected_action.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent/tests/posterior_mean_decision.rs::finite_action_inverse_posterior_uses_the_dirichlet_mean; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent/tests/posterior_mean_decision.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent/tests/posterior_mean_decision.rs::finite_action_inverse_posterior_uses_the_dirichlet_mean; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "recovery.binary_observation.bayesian"
@@ -8149,6 +8349,31 @@ fixtures = [
   { id = "recovery.binary_observation.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/observation_recovery_execution.rs", evidence_assertion = "binary_posterior_refuses_an_external_power_prior" },
   { id = "recovery.binary_observation.bayesian.pattern_mean.artifact", role = "artifact", intent = "The consumer replays the Dirichlet pattern mean.", evidence_test = "crates/antecedent-estimate/tests/observation_recovery_execution.rs", evidence_assertion = "binary_posterior_consumer_replays_the_pattern_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "recovery.binary_observation.bayesian.point.1"
+fields = ["exact binary recovery of the Dirichlet posterior mean"]
+method = "The exact recovery formula applied to the Dirichlet posterior mean of the observed pattern table, with structural zeros held at zero. A tiny concentration stays at the frequentist recovery. A sampled provider that is not this update still refuses. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+public_producers = ["antecedent.recovery.binary_observation.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/observation_recovery_execution.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the frequentist recovery. See crates/antecedent-estimate/tests/observation_recovery_execution.rs::binary_posterior_mean_stays_at_the_enumerated_recovery. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["recovery.binary_observation.bayesian.enumerated.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/observation_recovery_execution.rs::binary_posterior_mean_stays_at_the_enumerated_recovery; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/observation_recovery_execution.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/observation_recovery_execution.rs::binary_posterior_mean_stays_at_the_enumerated_recovery; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "recovery.chain_observation.bayesian"
@@ -8185,6 +8410,31 @@ fixtures = [
   { id = "recovery.chain_observation.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs", evidence_assertion = "chain_posterior_refuses_a_mapped_prior" },
   { id = "recovery.chain_observation.bayesian.pattern_mean.artifact", role = "artifact", intent = "The consumer replays the Dirichlet pattern mean.", evidence_test = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs", evidence_assertion = "chain_posterior_consumer_replays_the_pattern_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "recovery.chain_observation.bayesian.point.1"
+fields = ["exact chain recovery of the Dirichlet posterior mean"]
+method = "The chain recovery formula applied to the Dirichlet posterior mean of the observed pattern table. A tiny concentration stays at the frequentist recovery. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+public_producers = ["antecedent.recovery.chain_observation.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the frequentist recovery. See crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs::chain_posterior_mean_stays_at_the_enumerated_recovery. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["recovery.chain_observation.bayesian.enumerated.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs::chain_posterior_mean_stays_at_the_enumerated_recovery; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs::chain_posterior_mean_stays_at_the_enumerated_recovery; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.penalized_propensity_aipw.bayesian"
@@ -8221,6 +8471,31 @@ fixtures = [
   { id = "estimate.penalized_propensity_aipw.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "penalized_posterior_refuses_a_mapped_prior" },
   { id = "estimate.penalized_propensity_aipw.bayesian.shrunk_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "penalized_posterior_consumer_replays_the_shrunk_score_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.penalized_propensity_aipw.bayesian.point.1"
+fields = ["posterior mean of the cross-fitted AIPW score contrast"]
+method = "Independent normal prior on the mean of the cross-fitted score contrast, with the plug-in score variance. A wide scale stays at the score mean, which is the AIPW point. The frequentist interval is not reused. No coverage is claimed."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::score_contrast_posterior"
+public_producers = ["antecedent.estimate.penalized_aipw.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/penalized_aipw.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the cross-fitted score mean. See crates/antecedent-estimate/tests/penalized_aipw.rs::penalized_posterior_mean_stays_near_the_cross_fitted_score. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.penalized_propensity_aipw.bayesian.score_mean.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/penalized_aipw.rs::penalized_posterior_mean_stays_near_the_cross_fitted_score; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/penalized_aipw.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/penalized_aipw.rs::penalized_posterior_mean_stays_near_the_cross_fitted_score; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.clustered_dml_aipw.bayesian"
@@ -8257,6 +8532,31 @@ fixtures = [
   { id = "estimate.clustered_dml_aipw.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs", evidence_assertion = "clustered_posterior_refuses_an_external_power_prior" },
   { id = "estimate.clustered_dml_aipw.bayesian.shrunk_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs", evidence_assertion = "clustered_posterior_consumer_replays_the_shrunk_score_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.clustered_dml_aipw.bayesian.point.1"
+fields = ["posterior mean of the clustered cross-fitted score contrast"]
+method = "Independent normal prior on the mean of the cross-fitted score contrast from the cluster-DML table, with the plug-in score variance. A wide scale stays at the score mean. The frequentist interval is not reused. No coverage is claimed."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::score_contrast_posterior"
+public_producers = ["antecedent.estimate.clustered_dml.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the cross-fitted score mean. See crates/antecedent-estimate/tests/cluster_dml_aipw.rs::clustered_posterior_mean_stays_near_the_cross_fitted_score. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.clustered_dml_aipw.bayesian.score_mean.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/cluster_dml_aipw.rs::clustered_posterior_mean_stays_near_the_cross_fitted_score; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/cluster_dml_aipw.rs::clustered_posterior_mean_stays_near_the_cross_fitted_score; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.batch_retarget_covariance.bayesian"
@@ -8293,6 +8593,31 @@ fixtures = [
   { id = "estimate.batch_retarget_covariance.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "batch_retarget_posterior_refuses_an_unmeasured_band" },
   { id = "estimate.batch_retarget_covariance.bayesian.shrunk_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "batch_retarget_posterior_consumer_replays_the_shrunk_score_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.batch_retarget_covariance.bayesian.point.1"
+fields = ["posterior mean of the cross-fitted score contrast the batch reads"]
+method = "Independent normal prior on the mean of the cross-fitted score contrast the retarget reads, with the plug-in score variance. A wide scale stays at that score mean. The frequentist covariance interval is not reused. No coverage is claimed."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::score_contrast_posterior"
+public_producers = ["antecedent.estimate.batch_retarget.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/penalized_aipw.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the retargeted score mean. See crates/antecedent-estimate/tests/penalized_aipw.rs::batch_retarget_posterior_mean_stays_near_the_cross_fitted_score. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.batch_retarget_covariance.bayesian.score_mean.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/penalized_aipw.rs::batch_retarget_posterior_mean_stays_near_the_cross_fitted_score; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/penalized_aipw.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/penalized_aipw.rs::batch_retarget_posterior_mean_stays_near_the_cross_fitted_score; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "transport.multi_source_limited_experiment.bayesian"
@@ -8329,6 +8654,31 @@ fixtures = [
   { id = "transport.multi_source_limited_experiment.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "multi_source_posterior_refuses_a_mapped_prior" },
   { id = "transport.multi_source_limited_experiment.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "multi_source_posterior_consumer_replays_the_dirichlet_weights" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "transport.multi_source_limited_experiment.bayesian.point.1"
+fields = ["multi-source transport of the Dirichlet posterior means of the supplied laws"]
+method = "Dirichlet posterior means of the supplied finite laws, structural zeros held at zero, pushed through the multi-source identifier the frequentist record already runs. A tiny concentration stays at the target interventional truth. No TemporalAdmg. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+public_producers = ["antecedent_estimate.multi_source_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/mz_transport_execution.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the target interventional truth. See crates/antecedent-estimate/tests/mz_transport_execution.rs::multi_source_posterior_mean_stays_at_the_target_truth. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["transport.multi_source_limited_experiment.bayesian.target_truth.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/mz_transport_execution.rs::multi_source_posterior_mean_stays_at_the_target_truth; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/mz_transport_execution.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/mz_transport_execution.rs::multi_source_posterior_mean_stays_at_the_target_truth; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "transport.two_step_temporal.bayesian"
@@ -8365,6 +8715,31 @@ fixtures = [
   { id = "transport.two_step_temporal.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs", evidence_assertion = "two_step_posterior_refuses_an_external_power_prior" },
   { id = "transport.two_step_temporal.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs", evidence_assertion = "two_step_posterior_consumer_replays_the_dirichlet_weights" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "transport.two_step_temporal.bayesian.point.1"
+fields = ["two-step temporal transport of the Dirichlet posterior means"]
+method = "Dirichlet posterior means of the supplied finite laws on the existing two-slice selection diagram, pushed through the temporal sequence identifier. A tiny concentration stays at the target truth. This is not a TemporalAdmg license. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+public_producers = ["antecedent_estimate.two_step_temporal_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/temporal_transport_execution.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the target sequence truth. See crates/antecedent-estimate/tests/temporal_transport_execution.rs::two_step_posterior_mean_stays_at_the_target_truth. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["transport.two_step_temporal.bayesian.target_truth.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/temporal_transport_execution.rs::two_step_posterior_mean_stays_at_the_target_truth; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/temporal_transport_execution.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/temporal_transport_execution.rs::two_step_posterior_mean_stays_at_the_target_truth; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "transport.admg_conditional.bayesian"
@@ -8401,6 +8776,31 @@ fixtures = [
   { id = "transport.admg_conditional.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs", evidence_assertion = "admg_conditional_posterior_refuses_an_unmeasured_band" },
   { id = "transport.admg_conditional.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs", evidence_assertion = "admg_conditional_posterior_consumer_replays_the_dirichlet_weights" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "transport.admg_conditional.bayesian.point.1"
+fields = ["conditional transport of the Dirichlet posterior means"]
+method = "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not a TemporalAdmg license. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+public_producers = ["antecedent_estimate.admg_conditional_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the enumerated conditional truth. See crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs::admg_conditional_posterior_mean_stays_at_the_enumerated_truth. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["transport.admg_conditional.bayesian.enumerated.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs::admg_conditional_posterior_mean_stays_at_the_enumerated_truth; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs::admg_conditional_posterior_mean_stays_at_the_enumerated_truth; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "transport.shared_scenario_covariance.bayesian"
@@ -8437,6 +8837,31 @@ fixtures = [
   { id = "transport.shared_scenario_covariance.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_refuses_an_external_power_prior" },
   { id = "transport.shared_scenario_covariance.bayesian.shrunk_entries.artifact", role = "artifact", intent = "The consumer replays the normal-normal weight that uses the sampling variance, including a constant matrix.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_consumer_replays_the_shrunk_entries" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "transport.shared_scenario_covariance.bayesian.point.1"
+fields = ["posterior mean of the shared scenario covariance"]
+method = "Independent normal priors at zero on the shared scenario covariance entries. The plug-in variance of each entry is the sampling variance of the covariance estimator: correction squared times the weighted second moment of the centered replicate products, divided by the number of rows. A wide scale stays at the enumerated covariance. A tight scale shrinks each entry toward 0 by the normal-normal weight. A constant matrix uses that sampling variance and is not refused for zero cross-entry spread. The scenario envelope stays a structural envelope. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::covariance_entry_posterior"
+public_producers = ["antecedent_estimate.scenario_covariance_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/scenario_covariance.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the enumerated covariance. See crates/antecedent-estimate/tests/scenario_covariance.rs::scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["transport.shared_scenario_covariance.bayesian.enumerated.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/scenario_covariance.rs::scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/scenario_covariance.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/scenario_covariance.rs::scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "temporal.uncertain_initial_state.bayesian"
@@ -8473,6 +8898,31 @@ fixtures = [
   { id = "temporal.uncertain_initial_state.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "initial_state_posterior_refuses_a_mapped_prior" },
   { id = "temporal.uncertain_initial_state.bayesian.weighted_responses.artifact", role = "artifact", intent = "The consumer replays the weighted responses.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "initial_state_posterior_consumer_replays_the_weighted_responses" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "temporal.uncertain_initial_state.bayesian.point.1"
+fields = ["posterior mean of the initial-state mixture"]
+method = "Dirichlet posterior mean of the supplied target initial-state law, then the same finite sum the frequentist record evaluates. A tiny concentration stays at 0.421. This is not a reuse of recalculation.bayesian. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+public_producers = ["antecedent.temporal.uncertain_initial_state.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/temporal_initial_state.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the hand sum 0.421. See crates/antecedent-estimate/tests/temporal_initial_state.rs::initial_state_posterior_mean_stays_at_the_hand_sum. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["temporal.uncertain_initial_state.bayesian.hand_sum.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/temporal_initial_state.rs::initial_state_posterior_mean_stays_at_the_hand_sum; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/temporal_initial_state.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/temporal_initial_state.rs::initial_state_posterior_mean_stays_at_the_hand_sum; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "temporal.new_period_refresh.bayesian"
@@ -8509,6 +8959,31 @@ fixtures = [
   { id = "temporal.new_period_refresh.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "refresh_posterior_refuses_an_unmeasured_band" },
   { id = "temporal.new_period_refresh.bayesian.sample_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk sample mean.", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "refresh_posterior_consumer_replays_the_sample_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "temporal.new_period_refresh.bayesian.point.1"
+fields = ["posterior mean of the refreshed period response"]
+method = "Normal posterior mean of the refreshed period's outcomes, plug-in variance. A wide scale stays at the refreshed response 6. This is not a reuse of recalculation.bayesian. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::normal_mean_posterior"
+public_producers = ["antecedent.temporal.new_period_refresh.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/temporal_refresh.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the refreshed response. See crates/antecedent-estimate/tests/temporal_refresh.rs::refresh_posterior_mean_stays_at_the_new_period_response. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["temporal.new_period_refresh.bayesian.new_period.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/temporal_refresh.rs::refresh_posterior_mean_stays_at_the_new_period_response; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/temporal_refresh.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/temporal_refresh.rs::refresh_posterior_mean_stays_at_the_new_period_response; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "temporal.effect_constancy.bayesian"
@@ -8545,6 +9020,31 @@ fixtures = [
   { id = "temporal.effect_constancy.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_refuses_a_mapped_prior" },
   { id = "temporal.effect_constancy.bayesian.shrunk_contrast.artifact", role = "artifact", intent = "The consumer replays the shrunk contrast.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_consumer_replays_the_shrunk_contrast" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "temporal.effect_constancy.bayesian.point.1"
+fields = ["posterior mean of the constancy contrast"]
+method = "Normal posterior mean of the constancy contrast, using the contrast variance the frequentist test already forms. A wide scale stays at the contrast. This is not a reuse of recalculation.bayesian. No interval."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::known_variance_posterior"
+public_producers = ["antecedent.temporal.effect_constancy.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/effect_constancy.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the partition contrast. See crates/antecedent-estimate/tests/effect_constancy.rs::constancy_posterior_mean_stays_at_the_partition_contrast. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["temporal.effect_constancy.bayesian.contrast.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/effect_constancy.rs::constancy_posterior_mean_stays_at_the_partition_contrast; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/effect_constancy.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/effect_constancy.rs::constancy_posterior_mean_stays_at_the_partition_contrast; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.nonlinear_mediation.bayesian"
@@ -8581,6 +9081,31 @@ fixtures = [
   { id = "estimate.nonlinear_mediation.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs", evidence_assertion = "mediation_posterior_refuses_a_mapped_prior" },
   { id = "estimate.nonlinear_mediation.bayesian.design_summary.artifact", role = "artifact", intent = "The consumer replays the ridge mean from the design summary.", evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs", evidence_assertion = "mediation_posterior_consumer_replays_the_design_summary" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.nonlinear_mediation.bayesian.point.1"
+fields = ["posterior mean of the mediator and outcome coefficient vectors"]
+method = "Independent normal priors on the non-intercept columns of the mediator and outcome designs the nonlinear-mediation fit already computed, intercept unpenalized, plug-in residual variance. The published numbers are those posterior means. Draws are not an interval. A wide prior stays at the exact SCM coefficients. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::mediation_coefficient_posterior"
+public_producers = ["antecedent.mediation.nonlinear.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/nonlinear_mediation.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the exact SCM coefficients. See crates/antecedent-estimate/tests/nonlinear_mediation.rs::mediation_posterior_mean_stays_at_the_exact_scm_coefficients. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.nonlinear_mediation.bayesian.exact_scm.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/nonlinear_mediation.rs::mediation_posterior_mean_stays_at_the_exact_scm_coefficients; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/nonlinear_mediation.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/nonlinear_mediation.rs::mediation_posterior_mean_stays_at_the_exact_scm_coefficients; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "estimate.latent_class_effects.bayesian"
@@ -8617,6 +9142,31 @@ fixtures = [
   { id = "estimate.latent_class_effects.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/latent_class_effects.rs", evidence_assertion = "latent_class_posterior_refuses_an_external_power_prior" },
   { id = "estimate.latent_class_effects.bayesian.class_design.artifact", role = "artifact", intent = "The consumer replays the class-effect posterior from the design.", evidence_test = "crates/antecedent-estimate/tests/latent_class_effects.rs", evidence_assertion = "latent_class_posterior_consumer_replays_the_class_design" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "estimate.latent_class_effects.bayesian.point.1"
+fields = ["posterior mean of each class treatment coefficient"]
+method = "A normal posterior mean of each class effect from the weighted design the EM fit already computed. The treatment coefficient is the first slope. The published numbers are those posterior means. Draws are not an interval. A wide prior stays at the class effects -2 and 1. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::latent_class_effect_posterior"
+public_producers = ["antecedent.mixture.latent_class.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/latent_class_effects.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the class effects. See crates/antecedent-estimate/tests/latent_class_effects.rs::latent_class_posterior_mean_stays_at_the_class_effects. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["estimate.latent_class_effects.bayesian.class_effects.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/latent_class_effects.rs::latent_class_posterior_mean_stays_at_the_class_effects; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/latent_class_effects.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/latent_class_effects.rs::latent_class_posterior_mean_stays_at_the_class_effects; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "sensitivity.mechanism_discrepancy.bayesian"
@@ -8653,6 +9203,31 @@ fixtures = [
   { id = "sensitivity.mechanism_discrepancy.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", evidence_assertion = "mechanism_posterior_refuses_an_unmeasured_band" },
   { id = "sensitivity.mechanism_discrepancy.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the ridge mean from the normal equations.", evidence_test = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", evidence_assertion = "mechanism_posterior_consumer_replays_the_normal_equations" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "sensitivity.mechanism_discrepancy.bayesian.point.1"
+fields = ["posterior mean of the mechanism coefficients"]
+method = "A normal posterior mean of the coefficients from the mechanism summary the discrepancy fit already stored. The published vector includes the intercept. It is not a posterior of the Wald statistic. Draws are not an interval. A wide prior stays at the hand coefficients 1.3 and 0.8. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::mechanism_coefficient_posterior"
+public_producers = ["antecedent.mechanism_discrepancy.coefficient_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-estimate/tests/mechanism_discrepancy.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the hand coefficients. See crates/antecedent-estimate/tests/mechanism_discrepancy.rs::mechanism_posterior_mean_stays_at_the_hand_coefficients. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["sensitivity.mechanism_discrepancy.bayesian.hand_coefficients.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-estimate/tests/mechanism_discrepancy.rs::mechanism_posterior_mean_stays_at_the_hand_coefficients; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/mechanism_discrepancy.rs::mechanism_posterior_mean_stays_at_the_hand_coefficients; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "sensitivity.marginal_structural_model.bayesian"
@@ -8689,6 +9264,31 @@ fixtures = [
   { id = "sensitivity.marginal_structural_model.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_posterior_refuses_a_mapped_prior" },
   { id = "sensitivity.marginal_structural_model.bayesian.dirichlet_laws.artifact", role = "artifact", intent = "The consumer replays the Dirichlet laws through the same engine.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_posterior_consumer_replays_the_dirichlet_laws" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "sensitivity.marginal_structural_model.bayesian.point.1"
+fields = ["identified average treatment effect of the Dirichlet posterior mean at Lambda 1"]
+method = "A Dirichlet posterior mean of the stratum masses and of each arm's finite outcome law, pushed through the existing marginal-structural-model engine at Lambda 1. The published number is that identified posterior mean. Draws are not an interval. A tiny concentration stays at the identified average treatment effect 0.3. Structural zeros stay zero. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-validate"
+operation_or_object = "antecedent_validate::msm_sensitivity::msm_dirichlet_posterior"
+public_producers = ["antecedent.sensitivity.msm.posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-validate/src/msm_sensitivity.rs; crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent-validate/tests/msm_sensitivity.rs"
+truth_design = "One source-pinned test fixture only: A tiny concentration stays at the identified average treatment effect. See crates/antecedent-validate/tests/msm_sensitivity.rs::msm_posterior_mean_stays_at_the_identified_ate. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["sensitivity.marginal_structural_model.bayesian.identified_ate.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent-validate/tests/msm_sensitivity.rs::msm_posterior_mean_stays_at_the_identified_ate; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-validate/tests/msm_sensitivity.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-validate/tests/msm_sensitivity.rs::msm_posterior_mean_stays_at_the_identified_ate; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "transport.learned_continuous_trial.bayesian"
@@ -8725,6 +9325,31 @@ fixtures = [
   { id = "transport.learned_continuous_trial.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "learned_continuous_posterior_refuses_a_mapped_prior" },
   { id = "transport.learned_continuous_trial.bayesian.score_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "learned_continuous_posterior_consumer_replays_the_score_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "transport.learned_continuous_trial.bayesian.point.1"
+fields = ["posterior mean of the learned-continuous AIPW score table"]
+method = "A normal posterior mean of the per-row AIPW scores the learned-continuous fit already computed. The scores are scaled so their sample mean is the augmented estimate. The published number is that posterior mean. Draws are not an interval. A wide prior stays at the estimate, which the known-truth fixture places at 2.5. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::learned_continuous_score_posterior"
+public_producers = ["antecedent_estimate.learned_continuous_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent/tests/learned_continuous_lifecycle.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the known-truth estimate. See crates/antecedent/tests/learned_continuous_lifecycle.rs::learned_continuous_posterior_mean_stays_at_the_known_truth. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["transport.learned_continuous_trial.bayesian.known_truth.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent/tests/learned_continuous_lifecycle.rs::learned_continuous_posterior_mean_stays_at_the_known_truth; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent/tests/learned_continuous_lifecycle.rs::learned_continuous_posterior_mean_stays_at_the_known_truth; it covers the named fixture in that test, not a population-level calibration grid."
+
 
 [[record]]
 id = "transport.smoothed_dose_response.bayesian"
@@ -8761,3 +9386,27 @@ fixtures = [
   { id = "transport.smoothed_dose_response.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs", evidence_assertion = "smoothed_dose_posterior_refuses_an_external_power_prior" },
   { id = "transport.smoothed_dose_response.bayesian.score_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs", evidence_assertion = "smoothed_dose_posterior_consumer_replays_the_score_mean" },
 ]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "transport.smoothed_dose_response.bayesian.point.1"
+fields = ["posterior mean of each grid dose's score table"]
+method = "A normal posterior mean of the per-row score contributions the smoothed-dose fit already computed, one table per grid dose. The scores are scaled so their sample mean is the grid estimate. The published numbers are those posterior means. Draws are not an interval. A wide prior stays at each grid estimate, which the known-truth fixture places on the smoothed curve. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::posterior_mean::smoothed_dose_score_posterior"
+public_producers = ["antecedent_estimate.smoothed_dose_posterior_mean"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/posterior_mean.rs; crates/antecedent/tests/smoothed_dose_lifecycle.rs"
+truth_design = "One source-pinned test fixture only: A wide prior stays at the known-truth curve. See crates/antecedent/tests/smoothed_dose_lifecycle.rs::smoothed_dose_posterior_mean_stays_at_the_known_truth. This is a finite fixture check, not an external oracle or repeated-sampling study."
+truth_fixtures = ["transport.smoothed_dose_response.bayesian.known_truth.positive"]
+nominal_level = "none; point-only posterior mean, no interval or coverage target"
+acceptance_threshold = "Only the point-level assertion in crates/antecedent/tests/smoothed_dose_lifecycle.rs::smoothed_dose_posterior_mean_stays_at_the_known_truth; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes the named posterior-mean point only. The record and tests do not license posterior draws as intervals, sampling coverage, or a universal guarantee. Artifact replay is test-side arithmetic on the selected design/law/score inputs, not external truth. Any historical calibration on other routes does not attest this method or the current branch."
+activation_disposition = "retain_existing_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent/tests/smoothed_dose_lifecycle.rs::smoothed_dose_posterior_mean_stays_at_the_known_truth; it covers the named fixture in that test, not a population-level calibration grid."

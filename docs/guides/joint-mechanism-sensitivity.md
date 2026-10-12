@@ -2,17 +2,21 @@
 
 This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
-states what it claims and what it does not. It also records the one sampling
-composition that was designed for the range. Its two coverage records have
-been measured, but every public route still refuses.
+states what it claims and what it does not. It also records the sampling
+composition for the range. Two historical coverage records measure its zero-box
+two-sided and positive-box one-sided targets. The Rust and Python public interval
+routes are now promoted for the named level and replicate bounds; the current
+branch wrapper has not been re-attested. The version-3 range artifact remains
+range-only and carries no sampling endpoints.
 
 Two records in `parity/promotion.toml` cover this page:
 
 - `sensitivity.joint_mechanism` (promoted): the exact assumption range
   only. It offers no sampling uncertainty.
-- `sensitivity.joint_uncertainty` (in progress): the conservative
-  endpoint bootstrap, its closed routes and its two coverage ids. Their tests
-  were measured by the registered calibration gate.
+- `sensitivity.joint_uncertainty` (promoted): the conservative endpoint
+  bootstrap returned by Rust and Python tuple APIs, plus two historical coverage
+  ids. Their tests were measured by the registered calibration gate; those
+  records do not attest the current branch wrapper.
 
 The derivation is our own; it is not taken from a source.
 
@@ -45,8 +49,7 @@ Refused by design, each with a `joint_sensitivity.*` detail:
 At most {{bound:sensitivity.joint_mechanism.max_factors}} factors declared (the outcome kernel and the shared parent marginal), {{bound:sensitivity.joint_mechanism.max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.max_outcome_categories}} outcome categories,
 a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.max_frontier_points}} points, at most {{bound:sensitivity.joint_mechanism.max_operations}} search operations, a bisection depth of
 {{bound:sensitivity.joint_mechanism.max_bisection_iterations}} iterations per frontier line, and a declared memory cap of at most 512 MiB (default
-64 MiB). The internal estimator of the uncertainty record has a
-bootstrap request cap of {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} (no public route reaches it). A request above a bound refuses as
+64 MiB). The public interval admits 199 to {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} bootstrap replicates at level 0.95; the internal estimator retains the same upper cap. A request outside the public bounds refuses as
 `joint_sensitivity.bounds_exceeded`.
 
 The parent-level and outcome-category bounds are checked on the law's shape,
@@ -191,13 +194,14 @@ cancelled frontier is not exported, because it does not replay.
   covers the range only. Sampling uncertainty is not offered by the range
   record, and the sampling method below is paper-inherited.
 
-## Sampling uncertainty (measured, route closed)
+## Sampling uncertainty (historical measurements; public tuple route promoted)
 
-Record `sensitivity.joint_uncertainty` is in progress. Every route to
-this composition refuses with `cell_not_licensed`. Its two
-coverage records were measured by `scripts/gate_calibration.sh` (`run_js`, over
-the sample-size grid).
-This section records what the composition is and how its coverage is measured.
+Record `sensitivity.joint_uncertainty` now has licensed Rust and Python
+functions returning the endpoint interval directly. The existing coverage
+records were measured by `scripts/gate_calibration.sh` (`run_js`, over the
+sample-size grid) at the historical source cut. The current public wrapper is
+not attested by those historical records. This section states the composition
+and its measured scope.
 
 There is one composition: the percentile bootstrap of the exact endpoints,
 
@@ -211,10 +215,13 @@ Fix any true deviation `delta0` in the box. On every replicate,
 percentile interval of `psi(delta0)`, and its coverage of `psi(delta0)` is at
 least that interval's coverage.
 
-The coverage target is therefore one-sided: asymptotic coverage of at least the
-nominal level whenever the pointwise percentile bootstrap is consistent. That
-consistency is **paper-inherited** and unverified here. At the zero box the
-composition is exactly the ordinary percentile bootstrap.
+The mathematical containment argument gives a one-sided at-least-nominal target
+for a fixed interior deviation if the pointwise percentile bootstrap is
+consistent. That consistency is **paper-inherited** and unverified here. The
+measured scope is narrower: the zero box is an ordinary two-sided percentile
+record, while the positive box measures only the upper extremal truth with a
+one-sided upper target. No positive-box two-sided claim or empirical coverage
+claim for arbitrary interior deviations follows from these records.
 
 References, from abstracts only (the theorem statements were not verified):
 
@@ -224,10 +231,17 @@ References, from abstracts only (the theorem statements were not verified):
   fully differentiable, such as a tied max over `w`. The dominance argument
   above does not need the endpoints themselves to be consistent.
 
-The estimator `joint_sensitivity_bootstrap_interval_internal` is compiled only
-under the `calibration-internal` feature. Every public route refuses the
-interval with `cell_not_licensed` / `joint_sensitivity.interval_withheld`, and a
-consumer refuses an artifact that carries one.
+The current public interval route is `PreparedZTransport::joint_mechanism_sensitivity_interval`
+and the Python `joint_mechanism_sensitivity_interval`; it returns a Rust
+`JointSensitivityInterval` or Python `(lower, upper, coverage_target)` tuple
+for level 0.95 and 199–2000 replicates. This tuple is not serialized into the
+version-3 range artifact: that artifact retains a withheld sampling descriptor,
+and its consumer refuses a forged interval. The lifecycle test independently
+recomputes the endpoint percentiles from the saved count table, deviation and
+seed, but reuses the law-draw and range primitives; it is a test-side
+recomputation, not an independent public artifact consumer. The zero-box and
+positive-box measurements remain historical, and no external truth or arbitrary
+interior two-sided coverage is claimed.
 
 **How the coverage is measured.** Two records, both measured at the
 extremal-vertex truth:

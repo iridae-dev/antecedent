@@ -152,15 +152,38 @@ def render(report: dict) -> str:
 
 
 def self_test() -> int:
-    # Overlay only registry inputs: no measurement, build or release gate runs.
+    # Pin synthetic closed records: promotion in the live registry must not
+    # remove the very broken-input controls this checker is meant to exercise.
+    # No measurement, build or release gate runs.
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         (root / "parity").mkdir()
         (root / "parity/promotion.toml").write_text(
-            (REPO / "parity/promotion.toml").read_text(encoding="utf-8")
+            "\n".join(
+                f'''[[record]]
+id = "{rid}"
+status = "carried_forward"
+inference_claim = "none"
+owners = ["synthetic_owner"]
+routes = [{{ name = "synthetic.{index}", status = "closed", reason_code = "cell_not_licensed", refusal_test = "synthetic.rs", refusal_assertion = "refuses_{index}" }}]
+refusals = [{{ code = "cell_not_licensed", detail = "synthetic.closed" }}]
+'''
+                for index, rid in enumerate(["sensitivity.joint_uncertainty", "synthetic.transport"])
+            )
         , encoding="utf-8", newline="\n")
         (root / "parity/promotion_carryovers.toml").write_text(
-            (REPO / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
+            '''version = 1
+[[cell]]
+id = "sensitivity.joint_uncertainty"
+failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]
+detail = "Synthetic public interval gap."
+corrective_action = "Implement and exercise both synthetic routes."
+[[cell]]
+id = "synthetic.transport"
+failed_gates = ["synthetic_transport"]
+detail = "Synthetic transport gap."
+corrective_action = "Add independent transport evidence."
+'''
         , encoding="utf-8", newline="\n")
         report = build_report(root)
         assert report["records"]

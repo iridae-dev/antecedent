@@ -3,12 +3,6 @@ version = 1
 # Failed obligations, not waivers. Promotion must remove the corresponding
 # disposition only after its public routes pass their own evidence gates.
 [[cell]]
-id = "sensitivity.joint_uncertainty"
-failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]
-detail = "The measured internal percentile estimator is calibration-internal; the released producer and artifact have no interval path. Positive-box coverage targets the upper extremal bound, not a two-sided effect interval."
-corrective_action = "Implement the normal-build interval producer and versioned independent consumer at the exact dependence, box and endpoint coordinates; remeasure after numerical changes."
-
-[[cell]]
 id = "counterfactual.transported_path_specific"
 failed_gates = ["bounded_ctftr_derivation_and_implementation", "general_provider_and_artifact_evidence"]
 detail = "The published CTFTR counterfactual transportability theorem exists, but its bounded nested/conditional query reduction, selection-aware district transport, factor/evidence provider and replay are not implemented in this repository. The separately promoted affine-additive row does not license this general path-specific route."

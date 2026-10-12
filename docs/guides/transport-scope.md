@@ -212,12 +212,12 @@ points, at most {{bound:sensitivity.joint_mechanism.max_operations}} search oper
 frontier line and a declared memory cap of at most 512 MiB; the uncertainty
 record's internal estimator has a bootstrap request cap of {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}}. The range is
 never a confidence interval, and its guarantee (exact within the declared contamination
-class) covers the range only. The one declared sampling composition (conservative endpoint
-percentile bootstrap, paper-inherited) is record `sensitivity.joint_uncertainty`,
-in progress: its gated zero-box and `one_sided` positive-box coverage records
-were measured. Its public routes still refuse with `cell_not_licensed` pending
-promotion. Export and consume use a
-separate version 3 artifact. Derivation and scope: [joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
+class) covers the range only. The separate record `sensitivity.joint_uncertainty` exposes a
+promoted Rust/Python endpoint-bootstrap route. Its zero-box two-sided and positive-box
+one-sided-upper coverage measurements are historical and do not attest the current branch.
+The version-3 range artifact remains range-only and withholds sampling endpoints. Export
+and consume use a separate version 3 artifact. Derivation and scope:
+[joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
 
 ## Learned continuous-outcome transport
 

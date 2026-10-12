@@ -17,6 +17,7 @@ never modified.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -75,7 +76,8 @@ def materialize(ov: Path, rel: str) -> Path:
 
 def run_gate(ov: Path, script: str) -> tuple[int, str]:
     proc = subprocess.run(
-        ["bash", str(ov / "scripts" / script)], cwd=ov, capture_output=True, text=True
+        ["bash", str(ov / "scripts" / script)], cwd=ov, capture_output=True, text=True,
+        env={**os.environ, "GIT_DIR": str(ROOT / ".git"), "GIT_WORK_TREE": str(ov)},
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -358,12 +360,22 @@ def schema_cases() -> list[bool]:
             g,
             "no_interval_reported_out_of_scope",
             {
-                "parity/reason_codes.toml": replace(
-                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]',
-                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution"]',
+                "parity/reason_codes.toml": in_block(
+                    "code", "no_interval_reported", replace(', "ChangeAttribution"', '')
                 )
             },
             ["no_interval_reported on a ChangeAttribution cell"],
+        ),
+        case(
+            g,
+            "no_interval_reason_with_an_interval_method",
+            {
+                "parity/support_licensed.toml": replace(
+                    'calibration_reason = "no_interval_reported"',
+                    'calibration_reason = "no_interval_reported"\ninterval_method = "analytic_se"',
+                )
+            },
+            ["no_interval_reported cannot declare an interval method"],
         ),
         case(
             g,
@@ -391,7 +403,7 @@ def schema_cases() -> list[bool]:
             "external_fixture_not_parsed_by_the_cited_test",
             {
                 "crates/antecedent-discovery/tests/discovery_masked_mci_lag1.rs": replace(
-                    "let expected = load_expected();",
+                    "let expected = load_expected_json(&fixture_dir());",
                     "let expected = serde_json::Value::Null;",
                 )
             },

@@ -2773,8 +2773,9 @@ reason_code = "cell_not_licensed"
 notes = "Closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h and ...smoothed_dose_transport_independent_samples_psi_h are measured (crates/antecedent/tests/smoothed_dose_calibration.rs, gate_calibration.sh run_sd). The internal estimator is antecedent_estimate::smoothed_dose_interval_internal (calibration-internal feature only)."
 
 # Joint mechanism deviations (record sensitivity.joint_mechanism: the exact
-# assumption range only). The three closed uncertainty rows below belong to record
-# sensitivity.joint_uncertainty (in progress; interval route closed until its coverage is measured).
+# assumption range only). The separate, promoted interval routes belong to record
+# sensitivity.joint_uncertainty; their coverage measurements are historical and do
+# not attest the current branch. The version-3 range artifact still withholds endpoints.
 
 [[routes]]
 route = "antecedent_validate.z_transport_joint_mechanism_sensitivity"

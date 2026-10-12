@@ -1,8 +1,8 @@
 # Interval dispositions
 
-The values below are the checked-in calibration records measured at the v2.2.0 tag, not new measurements. All three public interval families remain closed. Their point estimates and, for joint sensitivity, the assumption range remain independently available. An internal calibrated method does not license a public producer or consumer.
+The records below are the checked-in calibration measurements from the v2.2.0 cut, not new measurements. Multi-source mz transport and smoothed-dose intervals remain closed. Joint sensitivity has since gained a promoted Rust/Python interval route returning a tuple; its version-3 assumption-range artifact remains range-only and withholds sampling endpoints. The historical measurements do not attest the current branch’s public wrapper.
 
-`scripts/gate_calibration_attestation.sh` passed against those records: the multi-source mz transport and joint sensitivity facets matched their measurement commits; the smoothed-dose changes used the reviewed bit-identical replay waiver already recorded by that gate. This historical result attests those internal measurements, not the current branch or a public interval route. A release requires fresh attestation after implementation stabilizes.
+`scripts/gate_calibration_attestation.sh` passed against those records: the multi-source mz transport and joint sensitivity facets matched their measurement commits; the smoothed-dose changes used the reviewed bit-identical replay waiver already recorded by that gate. This historical result attests the recorded measurement source at that cut, not the current branch’s public joint-sensitivity wrapper. A release still requires current source-surface attestation after implementation stabilizes.
 
 ## Versioned release evidence reports
 
@@ -22,7 +22,7 @@ The values below are the checked-in calibration records measured at the v2.2.0 t
 | `transport.learned_joint` | Completed four degree2 Gaussian measurements; final scientific-basis surface attestation and original-source replay acceptance. | Degree2 fixed prior/known variance/design; broader candidates remain unmeasured. |
 | `counterfactual.transported_path_specific` | General bounded CTFTR identification/provider/artifact implementation is genuinely missing; dependency-ordered work in ROADMAP.md. | General route remains closed; separately promoted affine-additive route retains its narrow scope. |
 
-The disposition contract also includes the retained `sensitivity.joint_uncertainty` public producer/consumer gap described below. No status, route license, coverage record or waiver is changed by reporting these blockers. Calibration remains the final step after implementation stabilizes.
+The joint-sensitivity route is now registered as promoted and is no longer a carryover disposition. This historical note preserves the scope limits of its measurements; it does not attest current branch code. The remaining carried disposition is listed in `parity/promotion_carryovers.toml`.
 
 ## Multi-source mz transport
 
@@ -54,9 +54,9 @@ Decision: retain `cell_not_licensed` / `dose_response.interval_withheld` at the 
 
 Source: `cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_independent_samples_psi_h` and `...smoothed_dose_transport_nested_cohort_psi_h`. Corrective owner: `antecedent-estimate`, `antecedent-io`, and facade/Python transport. A new public route needs the exact method and design bound to an interval-bearing artifact with independent replay, followed by the full grid after stabilization. The point grid and its support/quadrature checks remain licensed.
 
-## Joint sensitivity uncertainty
+## Joint sensitivity uncertainty (historical measurements; current public tuple route)
 
-Decision: retain `cell_not_licensed` / `joint_sensitivity.interval_withheld` for `sensitivity.joint_uncertainty`. The interval calculation remains `calibration-internal`, and no public interval artifact exists. The zero box is a two-sided percentile interval. At a positive box, the reported conservative interval's upper endpoint targets the **true upper extremal bound** `U`, the effect at the maximizing vertex of the true law; the registered record is one-sided (`side = upper`). Coverage of an arbitrary interior effect is not a two-sided claim licensed by that record. The assumption range is unaffected.
+The promotion registry now licenses the named Rust and Python interval functions, which return a `JointSensitivityInterval` or `(lower, upper, coverage_target)` tuple at level 0.95 and 199–2000 replicates. This is not an interval artifact: the version-3 range artifact still withholds its interval descriptor and its consumer refuses a forged interval. The coverage figures below are historical measurements, and the current public wrapper has not been re-attested on this branch. At the zero box, the measured target is the two-sided percentile interval. At a positive box, the registered record is one-sided (`side = upper`) and targets the **true upper extremal bound** `U` at the maximizing vertex of the true law. It does not establish two-sided coverage at positive boxes or coverage for arbitrary interior effects. The assumption-range record remains separate.
 
 | Sensitivity box | n | Observed coverage | Replicates | Registered role |
 | --- | ---: | ---: | ---: | --- |
@@ -67,7 +67,7 @@ Decision: retain `cell_not_licensed` / `joint_sensitivity.interval_withheld` for
 | Positive | 400 | 0.9700 | 400 | one-sided upper |
 | Positive | 800 | 0.9775 | 400 | one-sided upper |
 
-Source: `cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box` and `...z_joint_sensitivity_positive_box`. The extremal-vertex truth and one-sided acceptance rule are asserted in `joint_sensitivity_calibration.rs`; the endpoint bootstrap's containment behavior is asserted in `joint_mechanism_sensitivity.rs`. Corrective owner: `antecedent-validate`, `antecedent-estimate`, `antecedent-io`, and facade/Python transport. Promotion requires a public interval producer, a versioned consumer that replays the assumption and sampling coordinates, and remeasurement if those numerical paths change.
+Source: `cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box` and `...z_joint_sensitivity_positive_box`. The extremal-vertex truth and one-sided acceptance rule are asserted in `joint_sensitivity_calibration.rs`; the endpoint bootstrap's containment behavior is asserted in `joint_mechanism_sensitivity.rs`. The promoted Rust/Python interval producers and version-3 range consumer now exist. These historical measurements do not attest the current branch, so current source-surface attestation is still required before release.
 
 ## Other measured or adjacent closed routes
 

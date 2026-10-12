@@ -504,6 +504,10 @@ for cell in lic:
     # known-truth values, SEs and disclosed probe figures stay in the license text.
     # ---- [gates] reason-code eligibility comes from the registry row ----
     cited = cell.get("calibration_reason")
+    if cited == "no_interval_reported" and cell.get("interval_method") not in (None, "none", "None"):
+        problems.append(
+            f"support_licensed.toml {label}: no_interval_reported cannot declare an interval method"
+        )
     scope = codes.get(cited, {}).get("queries") if isinstance(cited, str) else None
     if scope is not None and cell.get("query") not in scope:
         problems.append(

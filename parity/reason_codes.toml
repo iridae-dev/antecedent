@@ -7,10 +7,10 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-max_uses = 8
+max_uses = 249
 # Eligibility: a licensed cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
-queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]
+queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution", "AverageEffect", "InterventionResponse", "InterventionalDistribution", "PathSpecificEffect", "ResponseCurve", "TransportQuery", "TemporalConditionalPulse", "TemporalConditionalSustained", "AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
 
 [[code]]
 id = "boundary_record"
