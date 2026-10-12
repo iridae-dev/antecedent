@@ -583,6 +583,10 @@ pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::Iv))
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "every sealer shares the table's fallible `SealOutcome` signature"
+)]
 pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (

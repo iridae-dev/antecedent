@@ -105,6 +105,10 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     )))
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "every sealer shares the table's fallible `SealOutcome` signature"
+)]
 pub(super) fn nested_counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     Ok(cx
         .nested_counterfactual

@@ -244,7 +244,7 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                 GraphClass::TemporalAdmg => analysis
                     .graph
                     .as_temporal_admg()
-                    .map(|graph| crate::analysis::execute::temporal_admg_projection(graph))
+                    .map(crate::analysis::execute::temporal_admg_projection)
                     .transpose()?,
                 _ => None,
             }
