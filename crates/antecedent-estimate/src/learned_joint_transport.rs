@@ -1091,33 +1091,56 @@ fn fit_inner(
     let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     let names = parameter_names(&layout, &terms, &ids);
     let draws = draw_joint(&learned.posterior, &effects, &names, options, ctx)?;
-    Ok(assemble(
+    Ok(assemble(FitParts {
         model,
-        &layout,
+        layout: &layout,
         sources,
-        &learned,
+        learned: &learned,
         effects,
-        (draws, names),
-        (identification, mass, disagreement),
-        (&basis, terms),
+        draws,
+        parameter_names: names,
+        identification,
+        unsupported_mass: mass,
+        disagreement,
+        basis: &basis,
+        basis_terms: terms,
         options,
-    ))
+    }))
 }
 
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn assemble(
-    model: &LearnedJointModel,
-    layout: &Layout,
-    sources: &[SourceData],
-    learned: &LearnFit,
+/// Everything the finished fit record is assembled from.
+struct FitParts<'a> {
+    model: &'a LearnedJointModel,
+    layout: &'a Layout,
+    sources: &'a [SourceData],
+    learned: &'a LearnFit,
     effects: EffectSet,
-    drawn: (JointDraws, Vec<String>),
-    checked: (IdentificationRecord, f64, SourceDisagreement),
-    basis: (&PolynomialBasis, Vec<String>),
-    options: &JointTransportOptions,
-) -> LearnedJointFit {
-    let (draws, parameter_names) = drawn;
-    let (identification, mass, disagreement) = checked;
+    draws: JointDraws,
+    parameter_names: Vec<String>,
+    identification: IdentificationRecord,
+    unsupported_mass: f64,
+    disagreement: SourceDisagreement,
+    basis: &'a PolynomialBasis,
+    basis_terms: Vec<String>,
+    options: &'a JointTransportOptions,
+}
+
+fn assemble(parts: FitParts<'_>) -> LearnedJointFit {
+    let FitParts {
+        model,
+        layout,
+        sources,
+        learned,
+        effects,
+        draws,
+        parameter_names,
+        identification,
+        unsupported_mass: mass,
+        disagreement,
+        basis,
+        basis_terms,
+        options,
+    } = parts;
     let posterior = &learned.posterior;
     let dim = layout.dim();
     let count = effects.vectors.len();
@@ -1159,8 +1182,8 @@ fn assemble(
             query: LEARNED_JOINT_QUERY,
             learn_model_id: posterior.model_id.to_string(),
             learn_implementation: posterior.provenance.implementation.clone(),
-            basis_id: basis.0.id(),
-            basis_terms: basis.1,
+            basis_id: basis.id(),
+            basis_terms,
         },
         parameter_names,
         posterior_mean: posterior.mean.clone(),

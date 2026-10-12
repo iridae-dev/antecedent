@@ -1089,10 +1089,7 @@ pub fn fit_factorized_joint_cells(
     config.validate()?;
     let learned = config.learner.map(LearnedNuisance::resolve).transpose()?;
     fit_with_nuisance(
-        data,
-        treatments,
-        outcome,
-        adjustment,
+        &JointCellRows { data, treatments, outcome, adjustment },
         orderings,
         config,
         ctx,
@@ -1100,20 +1097,22 @@ pub fn fit_factorized_joint_cells(
     )
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "the public entry point's arguments plus the resolved nuisance learners"
-)]
-fn fit_with_nuisance(
-    data: &TabularData,
-    treatments: &[VariableId],
+/// The table and variable roles of a factorized joint-cell fit.
+struct JointCellRows<'a> {
+    data: &'a TabularData,
+    treatments: &'a [VariableId],
     outcome: VariableId,
-    adjustment: &[VariableId],
+    adjustment: &'a [VariableId],
+}
+
+fn fit_with_nuisance(
+    rows: &JointCellRows<'_>,
     orderings: &[Vec<usize>],
     config: &FactorizedJointConfig,
     ctx: &ExecutionContext,
     learned: Option<&LearnedNuisance>,
 ) -> Result<FactorizedJointFit, EstimationError> {
+    let JointCellRows { data, treatments, outcome, adjustment } = *rows;
     let k = treatments.len();
     check_permutation(k, &(0..k).collect::<Vec<_>>())?;
     validate_orderings(k, orderings)?;
@@ -1584,10 +1583,12 @@ mod tests {
         let mut config = FactorizedJointConfig::new(RidgeTuning::default());
         config.seed = 5;
         fit_with_nuisance(
-            &fixture.data,
-            &fixture.treatments,
-            fixture.outcome,
-            &fixture.adjustment,
+            &JointCellRows {
+                data: &fixture.data,
+                treatments: &fixture.treatments,
+                outcome: fixture.outcome,
+                adjustment: &fixture.adjustment,
+            },
             &[vec![0, 1]],
             &config,
             &ExecutionContext::for_tests(9),

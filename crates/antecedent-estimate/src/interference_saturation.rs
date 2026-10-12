@@ -203,16 +203,16 @@ pub fn estimate_saturation_interference(
     }
     let ht_contrast = active.ht - baseline.ht;
     let interval = saturation_cluster_interval(
-        &ids,
-        &observed_cluster_saturation,
-        *high_probability,
-        *high_clusters,
-        &baseline.cluster_totals,
-        &active.cluster_totals,
+        &SaturationDesign {
+            ids: &ids,
+            observed_saturation: &observed_cluster_saturation,
+            high_probability: *high_probability,
+            high_count: *high_clusters,
+        },
+        &baseline,
+        &active,
         n,
         ht_contrast,
-        baseline.clusters,
-        active.clusters,
     );
     let (pointwise_interval, interval_unavailable_reason) = match interval {
         Ok(value) => (Some(value), None),
@@ -255,19 +255,28 @@ pub fn estimate_saturation_interference_pointwise(
     Ok(result)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn saturation_cluster_interval(
-    ids: &[u32],
-    observed_saturation: &[Option<f64>],
+/// The two-stage saturation design the cluster interval is formed over.
+struct SaturationDesign<'a> {
+    /// Cluster ids in cluster order.
+    ids: &'a [u32],
+    /// Realized saturation of each cluster.
+    observed_saturation: &'a [Option<f64>],
+    /// The high saturation probability.
     high_probability: f64,
+    /// Clusters realized at the high saturation.
     high_count: usize,
-    from_totals: &BTreeMap<u32, f64>,
-    to_totals: &BTreeMap<u32, f64>,
+}
+
+fn saturation_cluster_interval(
+    design: &SaturationDesign<'_>,
+    from: &WeightedMean,
+    to: &WeightedMean,
     units: usize,
     point: f64,
-    from_clusters: usize,
-    to_clusters: usize,
 ) -> Result<SaturationClusterInterval, &'static str> {
+    let SaturationDesign { ids, observed_saturation, high_probability, high_count } = *design;
+    let (from_totals, to_totals) = (&from.cluster_totals, &to.cluster_totals);
+    let (from_clusters, to_clusters) = (from.clusters, to.clusters);
     let k = ids.len();
     let low_count = k - high_count;
     if high_count < 24 || low_count < 24 {

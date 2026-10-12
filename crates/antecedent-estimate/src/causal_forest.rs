@@ -7,7 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_wrap, clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_wrap)]
 #![cfg_attr(
     test,
     allow(
@@ -177,14 +177,12 @@ impl CausalForest {
                 "CausalForest requires binary treatment in {0, 1}",
             ));
         }
-        let min_leaf = self.min_leaf;
-        let max_depth = self.max_depth;
+        let data = ForestData { x: &x, n, p, y, t };
+        let shape = TreeShape { min_leaf: self.min_leaf, max_depth: self.max_depth };
         let honesty = self.honesty;
         let trees = ctx.map_indexed(self.n_trees, |b, inner| {
             let mut rng = inner.rng.stream_for(StreamDomain::Estimate, 0xC0F0_0000_u64 ^ b as u64);
-            Ok::<_, EstimationError>(grow_tree(
-                &x, n, p, y, t, min_leaf, max_depth, honesty, &mut rng,
-            ))
+            Ok::<_, EstimationError>(grow_tree(&data, shape, honesty, &mut rng))
         })?;
         let ForestCate { cate, hits, leaf_dispersion, se_complete } =
             aggregate_forest_cate(&trees, &x, n, p);
@@ -340,17 +338,27 @@ impl Node {
     }
 }
 
-fn grow_tree(
-    x: &[f64],
+/// The rows a forest is grown on: column-major covariates (`n × p`) with the outcome and
+/// the binary treatment.
+#[derive(Clone, Copy)]
+struct ForestData<'a> {
+    x: &'a [f64],
     n: usize,
     p: usize,
-    y: &[f64],
-    t: &[f64],
+    y: &'a [f64],
+    t: &'a [f64],
+}
+
+/// Stopping rules shared by every tree of the forest.
+#[derive(Clone, Copy)]
+struct TreeShape {
     min_leaf: usize,
     max_depth: usize,
-    honesty: bool,
-    rng: &mut CausalRng,
-) -> Node {
+}
+
+fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut CausalRng) -> Node {
+    let ForestData { n, y, t, .. } = *data;
+    let TreeShape { min_leaf, .. } = shape;
     let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng);
     if sample.len() < min_leaf.saturating_mul(2) {
         return Node::Leaf { cate: leaf_tau(y, t, &sample), se: leaf_se(y, t, &sample) };
@@ -361,8 +369,8 @@ fn grow_tree(
     } else {
         (sample.clone(), sample)
     };
-    let mut root = grow_from(&split_idx, 0, x, n, p, y, t, min_leaf, max_depth, rng);
-    fill_cate(&mut root, &est_idx, x, n, p, y, t, None);
+    let mut root = grow_from(&split_idx, 0, data, shape, rng);
+    fill_cate(&mut root, &est_idx, data, None);
     root
 }
 
@@ -387,41 +395,34 @@ fn subsample(n: usize, frac: f64, min_leaf: usize, rng: &mut CausalRng) -> Vec<u
 fn grow_from(
     rows: &[u32],
     depth: usize,
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    t: &[f64],
-    min_leaf: usize,
-    max_depth: usize,
+    data: &ForestData<'_>,
+    shape: TreeShape,
     rng: &mut CausalRng,
 ) -> Node {
+    let ForestData { p, y, t, .. } = *data;
+    let TreeShape { min_leaf, max_depth } = shape;
     if depth >= max_depth || rows.len() < min_leaf.saturating_mul(2) || p == 0 {
         return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     }
-    let Some((feature, threshold, left_rows, right_rows)) =
-        best_split(rows, x, n, p, y, t, min_leaf, rng)
+    let Some((feature, threshold, left_rows, right_rows)) = best_split(rows, data, min_leaf, rng)
     else {
         return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     };
     Node::Split {
         feature,
         threshold,
-        left: Box::new(grow_from(&left_rows, depth + 1, x, n, p, y, t, min_leaf, max_depth, rng)),
-        right: Box::new(grow_from(&right_rows, depth + 1, x, n, p, y, t, min_leaf, max_depth, rng)),
+        left: Box::new(grow_from(&left_rows, depth + 1, data, shape, rng)),
+        right: Box::new(grow_from(&right_rows, depth + 1, data, shape, rng)),
     }
 }
 
 fn best_split(
     rows: &[u32],
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    t: &[f64],
+    data: &ForestData<'_>,
     min_leaf: usize,
     rng: &mut CausalRng,
 ) -> Option<(usize, f64, Vec<u32>, Vec<u32>)> {
+    let ForestData { x, n, p, y, t } = *data;
     let feats = choose_features(p, rng);
     let mut best_score = f64::NEG_INFINITY;
     let mut best: Option<(usize, f64)> = None;
@@ -519,13 +520,10 @@ fn partition(rows: &[u32], x: &[f64], n: usize, feat: usize, thr: f64) -> (Vec<u
 fn fill_cate(
     node: &mut Node,
     rows: &[u32],
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    t: &[f64],
+    data: &ForestData<'_>,
     parent: Option<(f64, Option<f64>)>,
 ) {
+    let ForestData { x, n, p, y, t } = *data;
     let honest = leaf_stat(y, t, rows).or(parent);
     match node {
         Node::Leaf { cate, se } => {
@@ -538,8 +536,8 @@ fn fill_cate(
                 return;
             }
             let (l, r) = partition(rows, x, n, *feature, *threshold);
-            fill_cate(left, &l, x, n, p, y, t, honest);
-            fill_cate(right, &r, x, n, p, y, t, honest);
+            fill_cate(left, &l, data, honest);
+            fill_cate(right, &r, data, honest);
         }
     }
 }
@@ -615,9 +613,10 @@ mod tests {
     #[test]
     fn honest_leaf_never_reuses_split_outcomes() {
         let mut node = Node::Leaf { cate: Some(999.0), se: None };
-        fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], None);
+        let data = ForestData { x: &[], n: 1, p: 0, y: &[10.0], t: &[1.0] };
+        fill_cate(&mut node, &[0], &data, None);
         assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
-        fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], Some((2.0, Some(0.5))));
+        fill_cate(&mut node, &[0], &data, Some((2.0, Some(0.5))));
         assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some((2.0, Some(0.5))));
     }
 

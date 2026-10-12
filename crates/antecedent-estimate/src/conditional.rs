@@ -365,12 +365,19 @@ impl ConditionalLinearAdjustment {
             let base = (4 + k) * n;
             *zmean = design[base..base + n].iter().sum::<f64>() / n_f;
         }
-        let if0 = plugin_arm_influence(
-            control, mu0, &coef, &inv, &design, &residuals, &w, &z_bar, n, ncols, n_z,
-        );
-        let if1 = plugin_arm_influence(
-            active, mu1, &coef, &inv, &design, &residuals, &w, &z_bar, n, ncols, n_z,
-        );
+        let fit = InteractionFit {
+            coef: &coef,
+            inv: &inv,
+            design: &design,
+            residuals: &residuals,
+            w: &w,
+            z_bar: &z_bar,
+            n,
+            ncols,
+            n_z,
+        };
+        let if0 = plugin_arm_influence(&fit, control, mu0);
+        let if1 = plugin_arm_influence(&fit, active, mu1);
         let mut row_index = Vec::with_capacity(n);
         for (i, &keep) in row_mask.iter().enumerate() {
             if keep {
@@ -400,20 +407,26 @@ impl ConditionalLinearAdjustment {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn plugin_arm_influence(
-    level: f64,
-    mean: f64,
-    coef: &[f64],
-    inv: &[f64],
-    design: &[f64],
-    residuals: &[f64],
-    w: &[f64],
-    z_bar: &[f64],
+/// The fitted `Y ~ 1 + T + W + T×W + Z` interaction model an arm's plug-in influence is
+/// formed from.
+struct InteractionFit<'a> {
+    coef: &'a [f64],
+    /// `(XᵀX)⁻¹`, row-major `ncols × ncols`.
+    inv: &'a [f64],
+    /// Column-major design.
+    design: &'a [f64],
+    residuals: &'a [f64],
+    /// Effect-modifier values.
+    w: &'a [f64],
+    /// Column means of the `Z` covariates.
+    z_bar: &'a [f64],
     n: usize,
     ncols: usize,
     n_z: usize,
-) -> Vec<f64> {
+}
+
+fn plugin_arm_influence(fit: &InteractionFit<'_>, level: f64, mean: f64) -> Vec<f64> {
+    let InteractionFit { coef, inv, design, residuals, w, z_bar, n, ncols, n_z } = *fit;
     let n_f = n as f64;
     let mut xbar = vec![0.0; ncols];
     xbar[0] = 1.0;
