@@ -85,7 +85,7 @@ pub struct ParCorrQuery {
 /// `None` for fewer than two points, a non-finite column, or an effectively
 /// constant column (see `constant_column`).
 #[must_use]
-pub fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
+fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
     pearson_floored(x, y, None)
 }
 
@@ -692,7 +692,7 @@ mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
     use super::*;
-    use crate::dispatch::{KernelImpl, partial_correlation, select_impl};
+    use crate::dispatch::{KernelImpl, select_impl};
 
     /// The solve this module used before the two right-hand sides shared one
     /// elimination: Gram formed and eliminated once for X and again for Y.
@@ -966,7 +966,7 @@ mod tests {
         let mut ws = ParCorrWorkspace::default();
         let policy = KernelPolicy::scalar_only();
         assert_eq!(select_impl(&policy), KernelImpl::Scalar);
-        let r = partial_correlation(&policy, &x, &y, &[], &mut ws).unwrap();
+        let r = partial_correlation_scalar(&x, &y, &[], &mut ws).unwrap();
         assert!(ToleranceClass::StableFloat.close(r, 1.0));
     }
 

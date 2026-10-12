@@ -31,7 +31,7 @@ Portable contiguous paths (covariance / standardize / weighted_sum / pairwise) r
 safe auto-vectorization. Contingency is scatter-add and shares the scalar body.
 No kernel cleared the ≥10% median win vs portable at `n ≥ 10_000` needed to justify
 `unsafe` arch SIMD + `simd-runtime`. `KernelPolicy::allow_arch_simd`
-is consulted by `select_impl`; `arch_simd_available()` remains false until justified.
+is persisted in the execution identity but selects no kernel until one is justified.
 
 ## Acceptance
 

@@ -47,6 +47,7 @@ pub fn masked_mean(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Optio
         if mask.is_some_and(|m| !m.get(i)) {
             continue;
         }
+        // SAFETY: i < x.len()
         acc += unsafe { x.get_unchecked(i) };
         n += 1;
     }
@@ -67,6 +68,7 @@ pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> O
         if mask.is_some_and(|m| !m.get(i)) {
             continue;
         }
+        // SAFETY: i < x.len()
         let d = unsafe { x.get_unchecked(i) } - mean;
         acc += d * d;
         n += 1;
@@ -83,18 +85,6 @@ pub fn gather(src: F64VectorView<'_>, indices: &[usize], out: &mut [f64]) {
     assert_eq!(out.len(), indices.len());
     for (dst, &idx) in out.iter_mut().zip(indices.iter()) {
         *dst = src.get(idx).expect("gather index in bounds");
-    }
-}
-
-/// Copy `src` into `dst` (same length).
-///
-/// # Panics
-///
-/// Panics if lengths differ.
-pub fn copy_vec(src: F64VectorView<'_>, dst: &mut [f64]) {
-    assert_eq!(dst.len(), src.len());
-    for (i, slot) in dst.iter_mut().enumerate() {
-        *slot = unsafe { src.get_unchecked(i) };
     }
 }
 
@@ -116,8 +106,9 @@ pub fn masked_covariance(
         if mask.is_some_and(|m| !m.get(i)) {
             continue;
         }
-        // SAFETY: i < len for both views
+        // SAFETY: i < x.len(), and y.len() == x.len() is asserted above
         sx += unsafe { x.get_unchecked(i) };
+        // SAFETY: as above, i < y.len()
         sy += unsafe { y.get_unchecked(i) };
         n += 1;
     }
@@ -132,7 +123,9 @@ pub fn masked_covariance(
         if mask.is_some_and(|m| !m.get(i)) {
             continue;
         }
+        // SAFETY: i < x.len(), and y.len() == x.len() is asserted above
         let dx = unsafe { x.get_unchecked(i) } - mx;
+        // SAFETY: as above, i < y.len()
         let dy = unsafe { y.get_unchecked(i) } - my;
         acc += dx * dy;
     }
@@ -210,30 +203,6 @@ pub fn accumulate_contingency(
         let iy = yc as usize;
         assert!(ix < x_cardinality && iy < n_y_levels, "contingency code out of range");
         out[ix * n_y_levels + iy] += 1.0;
-    }
-}
-
-/// Accumulate contingency over a row subset (indexes into `x_codes` / `y_codes`).
-///
-/// # Panics
-///
-/// Same as [`accumulate_contingency`], plus out-of-range row indexes.
-pub fn accumulate_contingency_rows(
-    x_codes: &[u32],
-    y_codes: &[u32],
-    rows: &[usize],
-    out: &mut [f64],
-    n_y_levels: usize,
-) {
-    assert_eq!(x_codes.len(), y_codes.len(), "contingency code lengths");
-    assert!(n_y_levels > 0, "n_y_levels must be > 0");
-    let x_cardinality = out.len() / n_y_levels;
-    assert_eq!(out.len(), x_cardinality.saturating_mul(n_y_levels), "contingency out shape");
-    for &r in rows {
-        let xc = x_codes[r] as usize;
-        let yc = y_codes[r] as usize;
-        assert!(xc < x_cardinality && yc < n_y_levels, "contingency code out of range");
-        out[xc * n_y_levels + yc] += 1.0;
     }
 }
 
@@ -320,22 +289,6 @@ pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Option<f64> {
         sx += ww * xi;
     }
     if sw <= 0.0 { None } else { Some(sx / sw) }
-}
-
-/// Weighted dot product `Σ w_i x_i y_i`.
-///
-/// # Panics
-///
-/// Panics if lengths differ.
-#[must_use]
-pub fn weighted_dot(x: &[f64], y: &[f64], weights: &[f64]) -> f64 {
-    assert_eq!(x.len(), y.len(), "weighted_dot xy length");
-    assert_eq!(x.len(), weights.len(), "weighted_dot weight length");
-    let mut acc = 0.0;
-    for i in 0..x.len() {
-        acc += sanitize_weight(weights[i]) * x[i] * y[i];
-    }
-    acc
 }
 
 #[cfg(test)]

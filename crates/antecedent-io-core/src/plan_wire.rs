@@ -177,7 +177,6 @@ fn kernel_to_str(k: KernelSelection) -> &'static str {
     match k {
         KernelSelection::Scalar => "scalar",
         KernelSelection::PortableOptimized => "portable_optimized",
-        KernelSelection::ArchSimd => "arch_simd",
         KernelSelection::DenseBackend => "dense_backend",
     }
 }
@@ -186,7 +185,6 @@ fn kernel_from_str(s: &str) -> Result<KernelSelection, IoError> {
     Ok(match s {
         "scalar" => KernelSelection::Scalar,
         "portable_optimized" => KernelSelection::PortableOptimized,
-        "arch_simd" => KernelSelection::ArchSimd,
         "dense_backend" => KernelSelection::DenseBackend,
         other => return Err(IoError::Convert(format!("unknown KernelSelection `{other}`"))),
     })

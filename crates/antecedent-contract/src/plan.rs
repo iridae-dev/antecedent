@@ -65,8 +65,6 @@ pub enum KernelSelection {
     Scalar,
     /// Portable optimized (e.g. auto-vectorized).
     PortableOptimized,
-    /// Architecture-specific SIMD.
-    ArchSimd,
     /// External dense backend (e.g. faer).
     DenseBackend,
 }

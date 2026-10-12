@@ -25,18 +25,13 @@ pub use cholesky::{
     cholesky_spd_into, forward_solve_into,
 };
 pub use dispatch::{
-    KernelImpl, accumulate_contingency, accumulate_contingency_rows, arch_simd_available, copy_vec,
-    gather, masked_covariance, masked_mean, masked_sum, masked_variance, pairwise_l1_fill,
-    partial_correlation, select_impl, standardize_inplace, weighted_dot, weighted_mean,
-    weighted_sum,
+    KernelImpl, accumulate_contingency, gather, select_impl, standardize_inplace, weighted_mean,
 };
 pub use numeric::{
     LogWeightError, dot, mean, median_sorted, midranks_into, normalize_log_weights,
     normalize_log_weights_into, sample_std, sigmoid, softmax_in_place, softplus,
 };
-pub use parcorr::{
-    ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson,
-};
+pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
     bayesian_bootstrap_weights, box_muller, categorical_from_u, exp1, fill_standard_normal,
@@ -136,7 +131,6 @@ mod tests {
     #[test]
     fn scalar_and_portable_agree_on_weighted() {
         let x = sample_data();
-        let y: Vec<f64> = x.iter().map(|v| v + 1.0).collect();
         let w: Vec<f64> =
             (0..x.len()).map(|i| if i % 5 == 0 { 0.0 } else { 1.0 + (i as f64) * 0.01 }).collect();
         let s_sum = scalar::weighted_sum(&x, &w);
@@ -145,9 +139,6 @@ mod tests {
         let s_mean = scalar::weighted_mean(&x, &w).unwrap();
         let p_mean = portable::weighted_mean(&x, &w).unwrap();
         assert!(ToleranceClass::StableFloat.close(s_mean, p_mean));
-        let s_dot = scalar::weighted_dot(&x, &y, &w);
-        let p_dot = portable::weighted_dot(&x, &y, &w);
-        assert!(ToleranceClass::StableFloat.close(s_dot, p_dot));
     }
 
     #[test]
@@ -189,9 +180,9 @@ mod tests {
         let policy = KernelPolicy::scalar_only();
         assert_eq!(select_impl(&policy), KernelImpl::Scalar);
         let default = KernelPolicy::default_policy();
-        // Without simd-runtime, default selects portable even when allow_arch_simd is true.
+        // No arch-specific kernel is compiled in, so default selects portable even when
+        // allow_arch_simd is true.
         assert_eq!(select_impl(&default), KernelImpl::PortableOptimized);
-        assert!(!arch_simd_available());
     }
 
     #[test]
@@ -215,11 +206,12 @@ mod tests {
         scalar::gather(x, &idx, &mut expected);
         assert_eq!(out, expected);
 
-        let y: Vec<f64> = data.iter().map(|v| v * 2.0).collect();
-        let yv = F64VectorView::contiguous(&y);
-        let cov = masked_covariance(&policy, x, yv, None).unwrap();
-        let cov_s = scalar::masked_covariance(x, yv, None).unwrap();
-        assert!(ToleranceClass::StableFloat.close(cov, cov_s));
+        let mut std_d = data.clone();
+        let mut std_s = data.clone();
+        let (mean_d, sd_d) = standardize_inplace(&policy, &mut std_d, 1e-12);
+        let (mean_s, sd_s) = scalar::standardize_inplace(&mut std_s, 1e-12);
+        assert_eq!((mean_d, sd_d), (mean_s, sd_s));
+        assert_eq!(std_d, std_s);
     }
 
     /// : scalar ≡ portable under random lengths, strides/tails, masks, NaNs.
@@ -325,7 +317,7 @@ mod tests {
         let ptr = out.as_ptr();
         let cap = out.capacity();
         for _ in 0..50 {
-            pairwise_l1_fill(&policy, &x, &mut out);
+            portable::pairwise_l1_fill(&x, &mut out);
             assert_eq!(out.as_ptr(), ptr);
             assert_eq!(out.capacity(), cap);
         }

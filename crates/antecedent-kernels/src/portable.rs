@@ -70,16 +70,6 @@ pub fn gather(src: F64VectorView<'_>, indices: &[usize], out: &mut [f64]) {
     crate::scalar::gather(src, indices, out);
 }
 
-/// Copy with contiguous source fast path.
-pub fn copy_vec(src: F64VectorView<'_>, dst: &mut [f64]) {
-    assert_eq!(dst.len(), src.len());
-    if let Some(slice) = src.as_slice() {
-        dst.copy_from_slice(slice);
-        return;
-    }
-    crate::scalar::copy_vec(src, dst);
-}
-
 /// Contiguous fast path for population covariance.
 #[must_use]
 pub fn masked_covariance(
@@ -136,17 +126,6 @@ pub fn accumulate_contingency(
     crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels);
 }
 
-/// Row-subset contingency accumulation.
-pub fn accumulate_contingency_rows(
-    x_codes: &[u32],
-    y_codes: &[u32],
-    rows: &[usize],
-    out: &mut [f64],
-    n_y_levels: usize,
-) {
-    crate::scalar::accumulate_contingency_rows(x_codes, y_codes, rows, out, n_y_levels);
-}
-
 /// Weighted sum with contiguous zip.
 #[must_use]
 pub fn weighted_sum(x: &[f64], weights: &[f64]) -> f64 {
@@ -158,16 +137,4 @@ pub fn weighted_sum(x: &[f64], weights: &[f64]) -> f64 {
 #[must_use]
 pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Option<f64> {
     crate::scalar::weighted_mean(x, weights)
-}
-
-/// Weighted dot with contiguous zip.
-#[must_use]
-pub fn weighted_dot(x: &[f64], y: &[f64], weights: &[f64]) -> f64 {
-    assert_eq!(x.len(), y.len(), "weighted_dot xy length");
-    assert_eq!(x.len(), weights.len(), "weighted_dot weight length");
-    let mut acc = 0.0;
-    for i in 0..x.len() {
-        acc += crate::scalar::sanitize_weight(weights[i]) * x[i] * y[i];
-    }
-    acc
 }

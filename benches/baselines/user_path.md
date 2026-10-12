@@ -42,5 +42,5 @@ P4 hunts only what those profiles name. Known leftovers after this cut:
 
 - GAC candidate enumeration is still per-call; ordinary ID already memos `SubproblemKey`. Inspect/capability must not search (pinned). User graphs that never hit the cap of 40 do not pay a memo miss.
 - `PY_DEFAULT_CACHE_MAX_BYTES` (4 MB) is on; `CacheBudget` refuses (`StateError::CacheBudget`) rather than growing into OOM.
-- `arch_simd_available()` stays false. No `simd-runtime` unless a profiled path matches scalar tests bit-for-bit.
+- No architecture-specific kernel is compiled in. No `simd-runtime` unless a profiled path matches scalar tests bit-for-bit.
 - Arrow CDI borrow is the ingest win; pandas/dict `as_columns` stays the explicit copy.

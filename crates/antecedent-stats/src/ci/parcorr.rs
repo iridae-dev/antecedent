@@ -25,7 +25,7 @@ use crate::error::StatsError;
 pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
     match select_impl(policy) {
         KernelImpl::Scalar => ParCorrMode::Native,
-        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => ParCorrMode::Portable,
+        KernelImpl::PortableOptimized => ParCorrMode::Portable,
     }
 }
 

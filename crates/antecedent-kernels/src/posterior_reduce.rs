@@ -50,7 +50,7 @@ pub fn reduce_posterior_draws(
     let view = F64VectorView::contiguous(draws);
     match select_impl(policy) {
         KernelImpl::Scalar => reduce_scalar(view, op),
-        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => reduce_portable(view, op),
+        KernelImpl::PortableOptimized => reduce_portable(view, op),
     }
 }
 
