@@ -846,10 +846,13 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         query: finish.certificate_query,
         graph_class: finish.certificate_graph_class,
     });
-    result.support_status = finish.common.support_status;
-    result.structure_source = finish.common.structure_source;
-    result.population_registry.clone_from(&finish.common.population_registry);
-    result.custom_validator_names = finish.common.custom_validator_names.to_vec();
+    crate::analysis::helpers::stamp_result_context(
+        &mut result,
+        finish.common.support_status,
+        finish.common.structure_source,
+        finish.common.population_registry.as_ref(),
+        &finish.common.custom_validator_names,
+    );
     if finish.mirror_refuted_evalue {
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
     }

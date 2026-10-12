@@ -112,6 +112,24 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
     result
 }
 
+/// Copy the support, structure, population, and caller-validator fields a
+/// checked execution stamps after [`assemble_result`].
+///
+/// The assembled result starts with an empty registry, so assigning the cloned
+/// registry matches `clone_from` on that empty slot.
+pub(crate) fn stamp_result_context(
+    result: &mut StudyResult,
+    support_status: Option<crate::support::CellStatus>,
+    structure_source: crate::support::StructureSource,
+    population_registry: Option<&antecedent_core::PopulationRegistry>,
+    custom_validator_names: &[Arc<str>],
+) {
+    result.support_status = support_status;
+    result.structure_source = structure_source;
+    result.population_registry = population_registry.cloned();
+    result.custom_validator_names = custom_validator_names.to_vec();
+}
+
 pub(crate) type ProvStep<'a> = (&'a str, &'a str, &'a [&'a str], &'a AssumptionSet);
 
 pub(crate) fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> ProvenanceGraph {

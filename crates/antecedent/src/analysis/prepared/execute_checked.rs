@@ -14,6 +14,7 @@ use crate::analysis::checked_propensity::{
 };
 use crate::analysis::helpers::{
     AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, provenance_pair,
+    stamp_result_context,
 };
 use crate::analysis::{CheckedConditionalOperation, ConditionalProcedure};
 use crate::error::CausalError;
@@ -596,15 +597,19 @@ impl PreparedStudy {
             query: self.analysis.query.clone(),
             graph_class: self.analysis.graph.class(),
         });
-        result.support_status = self.analysis.support_status;
-        result.structure_source = self.analysis.structure_source;
-        result.population_registry.clone_from(&self.analysis.population_registry);
-        result.custom_validator_names = self
+        let custom_validator_names = self
             .analysis
             .custom_validators
             .iter()
             .map(|validator| Arc::from(validator.name()))
-            .collect();
+            .collect::<Vec<_>>();
+        stamp_result_context(
+            &mut result,
+            self.analysis.support_status,
+            self.analysis.structure_source,
+            self.analysis.population_registry.as_ref(),
+            &custom_validator_names,
+        );
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
     }
@@ -706,10 +711,13 @@ impl PreparedStudy {
             query: metadata.source_query.clone(),
             graph_class: metadata.graph_class,
         });
-        result.support_status = metadata.support_status;
-        result.structure_source = metadata.structure_source;
-        result.population_registry = metadata.population_registry.cloned();
-        result.custom_validator_names = metadata.custom_validator_names.to_vec();
+        stamp_result_context(
+            &mut result,
+            metadata.support_status,
+            metadata.structure_source,
+            metadata.population_registry,
+            metadata.custom_validator_names,
+        );
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
     }

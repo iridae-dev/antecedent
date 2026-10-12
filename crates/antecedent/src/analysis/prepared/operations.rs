@@ -7,7 +7,7 @@ use crate::analysis::builder::RefuteSuite;
 use crate::analysis::execute::CheckedStaticCommon;
 use crate::analysis::helpers::{
     AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, project_for_ate_estimate,
-    provenance_pair,
+    provenance_pair, stamp_result_context,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::proof_supplies;
@@ -1077,10 +1077,13 @@ impl CheckedAipwOperation {
             query: CausalQuery::AverageEffect(self.query.clone()),
             graph_class: self.graph_class,
         });
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        result.population_registry.clone_from(&self.population_registry);
-        result.custom_validator_names = self.custom_validator_names.to_vec();
+        stamp_result_context(
+            &mut result,
+            self.support_status,
+            self.structure_source,
+            self.population_registry.as_ref(),
+            &self.custom_validator_names,
+        );
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         crate::analysis::helpers::attach_tiered_evalue_for_cell(
             &mut result.estimate,
@@ -1461,10 +1464,13 @@ impl CheckedLinearOperation {
             query: CausalQuery::AverageEffect(self.query.clone()),
             graph_class: self.graph_class,
         });
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        result.population_registry.clone_from(&self.population_registry);
-        result.custom_validator_names = self.custom_validator_names.to_vec();
+        stamp_result_context(
+            &mut result,
+            self.support_status,
+            self.structure_source,
+            self.population_registry.as_ref(),
+            &self.custom_validator_names,
+        );
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
     }
