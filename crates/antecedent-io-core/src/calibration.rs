@@ -191,7 +191,7 @@ pub struct CalibrationBasisWire {
 
 impl CalibrationKeyWire {
     fn same_construction(&self, record: &CoverageRecord) -> bool {
-        self.same_construction_with_aliases(record, FUNCTIONAL_IDENTITY_ALIASES)
+        self.same_construction_with_aliases(record, &FUNCTIONAL_IDENTITY_ALIASES)
     }
 
     fn same_construction_with_aliases(
@@ -233,7 +233,7 @@ fn functional_matches(
 /// [`record_attests_current_code`].
 #[must_use]
 pub fn calibration_slot(basis: &CalibrationBasisWire) -> CalibrationSlotWire {
-    calibration_slot_with(basis, RECORDS, record_attests_current_code)
+    calibration_slot_with(basis, &RECORDS, record_attests_current_code)
 }
 
 /// Calibration slot of the primary interval, with one secondary slot per

@@ -11,6 +11,7 @@ is the explicit, reviewed source for that temporary target.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -24,8 +25,8 @@ import external_evidence  # noqa: E402
 import calibration_key_aliases  # noqa: E402
 
 OUT = ROOT / "docs" / "support-matrix.md"
-RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
-COVERAGE_OUT = ROOT / "crates" / "antecedent-io" / "src" / "coverage_records_data.rs"
+SUPPORT_SNAPSHOT = ROOT / "crates" / "antecedent" / "data" / "support_matrix.json"
+COVERAGE_SNAPSHOT = ROOT / "crates" / "antecedent-io-core" / "data" / "coverage_records.json"
 REASON_CODES_OUT = ROOT / "crates" / "antecedent-core" / "src" / "reason_codes_data.rs"
 NOTES_DIR = ROOT / "docs" / "release-notes"
 RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
@@ -379,8 +380,8 @@ that class came from that discovery strategy.
 {licensed_md}
 """
     OUT.write_text(text)
-    RUST_OUT.write_text(render_rust(na_rules, closed_rules, allowed_rules, cells))
-    COVERAGE_OUT.write_text(render_coverage_records())
+    write_snapshot(SUPPORT_SNAPSHOT, support_snapshot(na_rules, closed_rules, allowed_rules, cells))
+    write_snapshot(COVERAGE_SNAPSHOT, coverage_snapshot())
     REASON_CODES_OUT.write_text(render_reason_codes())
     write_release_notes_block(
         cells,
@@ -397,8 +398,8 @@ that class came from that discovery strategy.
         axes,
     )
     print(f"Wrote {OUT.relative_to(ROOT)}")
-    print(f"Wrote {RUST_OUT.relative_to(ROOT)}")
-    print(f"Wrote {COVERAGE_OUT.relative_to(ROOT)}")
+    print(f"Wrote {SUPPORT_SNAPSHOT.relative_to(ROOT)}")
+    print(f"Wrote {COVERAGE_SNAPSHOT.relative_to(ROOT)}")
     print(f"Wrote {REASON_CODES_OUT.relative_to(ROOT)}")
     print(f"Wrote {RELEASE_NOTES.relative_to(ROOT)} (licensed block)")
     return 0
@@ -700,11 +701,52 @@ def attesting_record_ids() -> list[str]:
     replay waiver covers the change. The runtime reads this list to decide whether
     a matching record may report `calibrated`. It fails closed: a commit this clone
     cannot resolve, or no git at all, leaves a record out.
+
+    Regenerating the support-matrix docs on a tree whose surface has already
+    drifted would otherwise replace a previously emitted list with nothing.
+    When the registry rows are unchanged and the live assessment is empty, the
+    ids already in the snapshot stay. A changed registry takes the live result,
+    including an empty one.
     """
+    records = load("parity/coverage_records.toml").get("record") or []
+    record_ids = {str(row["id"]) for row in records}
+    live = _live_attesting_record_ids()
+    if live:
+        return live
+    previous = _snapshot_attesting_ids(record_ids)
+    if previous is not None:
+        return previous
+    legacy = _legacy_rust_attesting_ids()
+    if legacy is not None:
+        return legacy
+    return live
+
+
+def _legacy_rust_attesting_ids() -> list[str] | None:
+    """Ids from the pre-snapshot literal module, used once while that file remains.
+
+    The loader that replaced the literal does not contain this static, so this
+    returns nothing after the migration commit.
+    """
+    path = ROOT / "crates" / "antecedent-io-core" / "src" / "coverage_records_data.rs"
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8")
+    marker = "pub static ATTESTING_RECORD_IDS: &[&str] = &["
+    start = text.find(marker)
+    if start < 0:
+        return None
+    end = text.find("];", start)
+    if end < 0:
+        return None
+    return re.findall(r'"([^"]*)"', text[start:end])
+
+
+def _live_attesting_record_ids() -> list[str]:
     import calibration_facets as facets
 
     try:
-        registry = facets.load_records(COVERAGE_OUT.parents[3] / "parity/coverage_records.toml")
+        registry = facets.load_records(ROOT / "parity/coverage_records.toml")
         surface = facets.load_surface()
         ids: set[str] = set()
         for assessment in facets.assess(surface, registry, registry=registry):
@@ -717,51 +759,69 @@ def attesting_record_ids() -> list[str]:
         return []
 
 
-def render_coverage_records() -> str:
-    """`crates/antecedent-io-core/src/coverage_records_data.rs` from the TOML.
+def _snapshot_attesting_ids(record_ids: set[str]) -> list[str] | None:
+    if not COVERAGE_SNAPSHOT.is_file():
+        return None
+    data = json.loads(COVERAGE_SNAPSHOT.read_text(encoding="utf-8"))
+    rows = data.get("records") or []
+    if {str(row["id"]) for row in rows} != record_ids:
+        return None
+    ids = data.get("attesting_record_ids") or []
+    if not ids:
+        return None
+    return [str(item) for item in ids]
 
-    Lives in `antecedent-io` (outside `scripts/calibration_surface.list`), so
-    stamping `calibration_sha` never moves the statistical surface it attests.
-    """
-    records = load("parity/coverage_records.toml").get("record") or []
-    items = []
-    for row in records:
-        lines = ["    CoverageRecord {"]
-        for key in COVERAGE_STR_FIELDS:
-            lines.append(f'        {key}: "{rust_escape(str(row.get(key) or ""))}",')
-        lines.append(f"        nominal: {rust_f64(row['nominal'])},")
-        lines.append(f"        n_min: {int(row['n_min'])},")
-        lines.append(f"        n_max: {int(row['n_max'])},")
-        lines.append(f"        replicates_min: {int(row['replicates_min'])},")
-        lines.append(f"        posterior_draws_min: {int(row['posterior_draws_min'])},")
-        lines.append(f"        unidentified_mass_max: {rust_f64(row['unidentified_mass_max'])},")
-        lines.append(f"        observed: {rust_f64(row['observed'])},")
-        lines.append(f"        mcse: {rust_f64(row['mcse'])},")
-        lines.append(f"        replicates: {int(row['replicates'])},")
-        lines.append(f"        boundary: {'true' if row.get('boundary') else 'false'},")
-        points = row.get("grid") or []
-        if points:
-            lines.append("        grid: &[")
-            for point in points:
-                lines.append(
-                    "            CoverageGridPoint { "
-                    f"point: {int(point['point'])}, "
-                    f"n_min: {int(point['n_min'])}, "
-                    f"n_max: {int(point['n_max'])}, "
-                    f"observed: {rust_f64(point['observed'])}, "
-                    f"mcse: {rust_f64(point['mcse'])}, "
-                    f"replicates: {int(point['replicates'])}, "
-                    f"boundary: {'true' if point['boundary'] else 'false'} }},"
-                )
-            lines.append("        ],")
-        else:
-            lines.append("        grid: &[],")
-        for key in COVERAGE_TAIL_STR_FIELDS:
-            lines.append(f'        {key}: "{rust_escape(str(row[key]))}",')
-        lines.append("    }")
-        items.append("\n".join(lines))
-    # An interval method with no measured record carries the reason code the
-    # runtime reports for it, so the closed enum stays accounted for.
+
+def write_snapshot(path: Path, payload: dict) -> None:
+    """Pretty-printed UTF-8 JSON with a trailing newline. Stable across runs."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _f64(value: float) -> str:
+    """Decimal spelling rustc and `f64::from_str` parse to the same bits."""
+    return rust_f64(value)
+
+
+def _coverage_grid(points: list[dict]) -> list[dict]:
+    return [
+        {
+            "point": int(point["point"]),
+            "n_min": int(point["n_min"]),
+            "n_max": int(point["n_max"]),
+            "observed": _f64(point["observed"]),
+            "mcse": _f64(point["mcse"]),
+            "replicates": int(point["replicates"]),
+            "boundary": bool(point["boundary"]),
+        }
+        for point in points
+    ]
+
+
+def _coverage_record(row: dict) -> dict:
+    item = {key: str(row.get(key) or "") for key in COVERAGE_STR_FIELDS}
+    item.update(
+        {
+            "nominal": _f64(row["nominal"]),
+            "n_min": int(row["n_min"]),
+            "n_max": int(row["n_max"]),
+            "replicates_min": int(row["replicates_min"]),
+            "posterior_draws_min": int(row["posterior_draws_min"]),
+            "unidentified_mass_max": _f64(row["unidentified_mass_max"]),
+            "observed": _f64(row["observed"]),
+            "mcse": _f64(row["mcse"]),
+            "replicates": int(row["replicates"]),
+            "boundary": bool(row.get("boundary")),
+            "grid": _coverage_grid(row.get("grid") or []),
+        }
+    )
+    for key in COVERAGE_TAIL_STR_FIELDS:
+        item[key] = str(row[key])
+    return item
+
+
+def _interval_method_reasons(records: list[dict]) -> list[dict]:
+    """An unmeasured method carries the reason the runtime reports for it."""
     measured = {str(row["interval_method"]) for row in records}
     methods = [
         ("AnalyticSe", "analytic_se"),
@@ -774,112 +834,42 @@ def render_coverage_records() -> str:
         ("AndersonRubin", "anderson_rubin"),
         ("None", "none"),
     ]
-    reason_items = ",\n".join(
-        f"    (antecedent_core::IntervalMethod::{variant}, "
-        + (
-            "None)"
-            if name in measured
-            else f'Some("{"no_interval_reported" if name == "none" else "estimator_grid_not_measured"}"))'
-        )
-        for variant, name in methods
-    )
-    block = ",\n".join(items) if items else ""
+    reasons = []
+    for variant, name in methods:
+        if name in measured:
+            reason = None
+        elif name == "none":
+            reason = "no_interval_reported"
+        else:
+            reason = "estimator_grid_not_measured"
+        reasons.append({"method": variant, "reason": reason})
+    return reasons
+
+
+def coverage_snapshot() -> dict:
+    """In-crate snapshot consumed by `coverage_records_data`.
+
+    `parity/coverage_records.toml` stays the registry. Floats are decimal
+    strings so the loader's `f64::from_str` matches the old Rust literals.
+    Attesting ids and identity aliases are not in that TOML; they are stamped
+    here the same way the old literal module carried them.
+    """
+    records = load("parity/coverage_records.toml").get("record") or []
     aliases = calibration_key_aliases.validated_aliases(ROOT)
-    alias_items = "\n".join(
-        "    FunctionalIdentityAlias { "
-        + ", ".join(f'{key}: "{rust_escape(row[key])}"' for key in (
-            "record_id", "measurement_sha", "original_functional", "canonical_functional",
-        ))
-        + " }," for row in aliases
+    alias_keys = (
+        "record_id",
+        "measurement_sha",
+        "original_functional",
+        "canonical_functional",
     )
-    attesting = "".join(f'    "{rust_escape(rid)}",\n' for rid in attesting_record_ids())
-    return f"""//! Generated from `parity/coverage_records.toml` by
-//! `scripts/generate_support_matrix_docs.py`. Do not edit.
-//!
-//! Every row was emitted by a coverage test through `CoverageTally::for_record`
-//! and collected by `scripts/collect_coverage_records.py`.
-
-#![allow(missing_docs, dead_code, clippy::unreadable_literal)]
-#![cfg_attr(rustfmt, rustfmt::skip)]
-
-/// One measured coverage record. Key fields first, then the measured scope,
-/// then the measurement and its provenance.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CoverageRecord {{
-    pub id: &'static str,
-    pub query: &'static str,
-    pub graph_class: &'static str,
-    pub structure: &'static str,
-    pub modality: &'static str,
-    pub inference: &'static str,
-    pub estimator: &'static str,
-    pub interval_method: &'static str,
-    pub se_kind: &'static str,
-    pub dependence: &'static str,
-    pub posterior: &'static str,
-    pub functional: &'static str,
-    pub identification: &'static str,
-    pub nominal: f64,
-    pub n_min: u64,
-    pub n_max: u64,
-    pub replicates_min: u32,
-    pub posterior_draws_min: u32,
-    pub unidentified_mass_max: f64,
-    pub observed: f64,
-    pub mcse: f64,
-    pub replicates: u32,
-    pub boundary: bool,
-    /// The measurement at each sample-size grid point, smallest `n` first.
-    /// `n_min..n_max` spans these points; the record is a boundary when any
-    /// point is.
-    pub grid: &'static [CoverageGridPoint],
-    pub dgp: &'static str,
-    pub test: &'static str,
-    pub calibration_sha: &'static str,
-}}
-
-/// One sample-size grid point of a coverage record: the rows it measured and
-/// the coverage it measured there.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CoverageGridPoint {{
-    pub point: u8,
-    pub n_min: u64,
-    pub n_max: u64,
-    pub observed: f64,
-    pub mcse: f64,
-    pub replicates: u32,
-    pub boundary: bool,
-}}
-
-pub static RECORDS: &[CoverageRecord] = &[
-{block}
-];
-
-/// Exact identity-only migrations with reviewed original-engine replay evidence.
-/// All other construction axes, measured bounds and attestation remain mandatory.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct FunctionalIdentityAlias {{
-    pub(crate) record_id: &'static str,
-    pub(crate) measurement_sha: &'static str,
-    pub(crate) original_functional: &'static str,
-    pub(crate) canonical_functional: &'static str,
-}}
-
-pub(crate) static FUNCTIONAL_IDENTITY_ALIASES: &[FunctionalIdentityAlias] = &[
-{alias_items}
-];
-
-/// Ids of the records in [`RECORDS`] that attest the tree this file was generated
-/// from (`scripts/calibration_facets.py`: no facet drifted since the record's
-/// `calibration_sha`, or a valid replay waiver covers it). Regenerated with the
-/// registry; a `calibrated` slot requires its governing record to be listed.
-pub static ATTESTING_RECORD_IDS: &[&str] = &[
-{attesting}];
-
-pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&'static str>)] = &[
-{reason_items}
-];
-"""
+    return {
+        "records": [_coverage_record(row) for row in records],
+        "functional_identity_aliases": [
+            {key: row[key] for key in alias_keys} for row in aliases
+        ],
+        "attesting_record_ids": attesting_record_ids(),
+        "interval_method_reasons": _interval_method_reasons(records),
+    }
 
 
 def render_reason_codes() -> str:
@@ -905,50 +895,8 @@ pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
 """
 
 
-def rust_list(values: list[str] | None) -> str:
-    if values is None:
-        return "None"
-    if not values:
-        return "Some(&[])"
-    inner = ", ".join(f'"{v}"' for v in values)
-    return f"Some(&[{inner}])"
-
-
 def rust_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def render_rules(rules: list[dict]) -> str:
-    items = []
-    for rule in rules:
-        items.append(
-            "    NaRule {\n"
-            f"        queries: {rust_list(rule.get('queries'))},\n"
-            f"        graph_classes: {rust_list(rule.get('graph_classes'))},\n"
-            f"        structures: {rust_list(rule.get('structures'))},\n"
-            f"        inferences: {rust_list(rule.get('inferences'))},\n"
-            f"        validations: {rust_list(rule.get('validations'))},\n"
-            f'        reason: "{rust_escape(rule["reason"])}",\n'
-            "    }"
-        )
-    return ",\n".join(items) if items else ""
-
-
-def render_allowed_rules(rules: list[dict]) -> str:
-    items = []
-    for rule in rules:
-        items.append(
-            "    AllowedRule {\n"
-            f"        queries: {rust_list(rule.get('queries'))},\n"
-            f"        graph_classes: {rust_list(rule.get('graph_classes'))},\n"
-            f"        structures: {rust_list(rule.get('structures'))},\n"
-            f"        inferences: {rust_list(rule.get('inferences'))},\n"
-            f"        validations: {rust_list(rule.get('validations'))},\n"
-            f'        reason: "{rust_escape(rule["reason"])}",\n'
-            f'        parent: "{rust_escape(rule["parent"])}",\n'
-            "    }"
-        )
-    return ",\n".join(items) if items else ""
 
 
 # Unambiguous substrings of calibration record ids → EstimatorId::as_str().
@@ -1028,100 +976,48 @@ def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
     return out
 
 
-def rust_opt_str(value: str | None) -> str:
-    if value is None:
-        return "None"
-    return f'Some("{rust_escape(value)}")'
+
+def _rule_snapshot(rule: dict, *, parent: bool = False) -> dict:
+    item = {
+        "queries": rule.get("queries"),
+        "graph_classes": rule.get("graph_classes"),
+        "structures": rule.get("structures"),
+        "inferences": rule.get("inferences"),
+        "validations": rule.get("validations"),
+        "reason": rule["reason"],
+    }
+    if parent:
+        item["parent"] = rule["parent"]
+    return item
 
 
-def rust_str_list(values: list[str]) -> str:
-    if not values:
-        return "&[]"
-    inner = ", ".join(f'"{rust_escape(v)}"' for v in values)
-    return f"&[{inner}]"
-
-
-def render_rust(
+def support_snapshot(
     na_rules: list[dict],
     closed_rules: list[dict],
     allowed_rules: list[dict],
     cells: list[dict],
-) -> str:
-    na_block = render_rules(na_rules)
-    closed_block = render_rules(closed_rules)
-    allowed_block = render_allowed_rules(allowed_rules)
+) -> dict:
+    """Resolved support matrix. Omitted rule axes stay JSON null (`None` in Rust)."""
     routes = external_evidence.routes()
-    lic_items = []
+    licensed = []
     for row in cells:
-        estimators = cell_estimators(row, routes)
-        route = cell_route_estimator(row, routes)
-        lic_items.append(
-            "    LicensedCell {\n"
-            f'        query: "{rust_escape(row["query"])}",\n'
-            f'        graph_class: "{rust_escape(row["graph_class"])}",\n'
-            f'        structure: "{rust_escape(row["structure"])}",\n'
-            f'        inference: "{rust_escape(row["inference"])}",\n'
-            f'        validation: "{rust_escape(row["validation"])}",\n'
-            f"        route_estimator: {rust_opt_str(route)},\n"
-            f"        estimators: {rust_str_list(estimators)},\n"
-            "    }"
+        licensed.append(
+            {
+                "query": row["query"],
+                "graph_class": row["graph_class"],
+                "structure": row["structure"],
+                "inference": row["inference"],
+                "validation": row["validation"],
+                "route_estimator": cell_route_estimator(row, routes),
+                "estimators": cell_estimators(row, routes),
+            }
         )
-    lic_block = ",\n".join(lic_items) if lic_items else ""
-    return f"""//! Generated from `parity/support_*.toml`. Do not edit.
-
-#![allow(missing_docs)]
-#![cfg_attr(rustfmt, rustfmt::skip)]
-
-#[derive(Clone, Copy, Debug)]
-pub struct NaRule {{
-    pub queries: Option<&'static [&'static str]>,
-    pub graph_classes: Option<&'static [&'static str]>,
-    pub structures: Option<&'static [&'static str]>,
-    pub inferences: Option<&'static [&'static str]>,
-    pub validations: Option<&'static [&'static str]>,
-    pub reason: &'static str,
-}}
-
-#[derive(Clone, Copy, Debug)]
-pub struct AllowedRule {{
-    pub queries: Option<&'static [&'static str]>,
-    pub graph_classes: Option<&'static [&'static str]>,
-    pub structures: Option<&'static [&'static str]>,
-    pub inferences: Option<&'static [&'static str]>,
-    pub validations: Option<&'static [&'static str]>,
-    pub reason: &'static str,
-    pub parent: &'static str,
-}}
-
-#[derive(Clone, Copy, Debug)]
-pub struct LicensedCell {{
-    pub query: &'static str,
-    pub graph_class: &'static str,
-    pub structure: &'static str,
-    pub inference: &'static str,
-    pub validation: &'static str,
-    /// Compiler-plan estimator from `parity/licensed_routes.toml`, when present.
-    pub route_estimator: Option<&'static str>,
-    /// Union of route, explicitly licensed, and calibration-token estimators.
-    pub estimators: &'static [&'static str],
-}}
-
-pub static NA_RULES: &[NaRule] = &[
-{na_block}
-];
-
-pub static CLOSED_RULES: &[NaRule] = &[
-{closed_block}
-];
-
-pub static ALLOWED_RULES: &[AllowedRule] = &[
-{allowed_block}
-];
-
-pub static LICENSED: &[LicensedCell] = &[
-{lic_block}
-];
-"""
+    return {
+        "na_rules": [_rule_snapshot(rule) for rule in na_rules],
+        "closed_rules": [_rule_snapshot(rule) for rule in closed_rules],
+        "allowed_rules": [_rule_snapshot(rule, parent=True) for rule in allowed_rules],
+        "licensed": licensed,
+    }
 
 
 def _freeze_cli(version: str) -> int:

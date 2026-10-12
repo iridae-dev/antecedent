@@ -250,12 +250,12 @@ echo "== regenerate support-matrix docs (must be clean) =="
 python3 scripts/generate_support_matrix_docs.py
 VERSION="$(python3 "$ROOT/scripts/release_notes_version.py")"
 if ! git diff --exit-code -- docs/support-matrix.md \
-    crates/antecedent/src/support_matrix_data.rs \
-    crates/antecedent-io-core/src/coverage_records_data.rs \
+    crates/antecedent/data/support_matrix.json \
+    crates/antecedent-io-core/data/coverage_records.json \
     "docs/release-notes/v${VERSION}.md" >/dev/null; then
   echo "support-matrix generated files are stale; commit regenerated output"
-  git diff --stat -- docs/support-matrix.md crates/antecedent/src/support_matrix_data.rs \
-    crates/antecedent-io-core/src/coverage_records_data.rs \
+  git diff --stat -- docs/support-matrix.md crates/antecedent/data/support_matrix.json \
+    crates/antecedent-io-core/data/coverage_records.json \
     "docs/release-notes/v${VERSION}.md"
   exit 1
 fi
