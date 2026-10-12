@@ -7,8 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use crate::backend::BayesDesignRef;
 use crate::error::ProbError;
 use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel};
@@ -41,6 +39,10 @@ impl GaussianSufficientStats {
     /// # Errors
     ///
     /// Empty design or coefficient length mismatch.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_design(design: BayesDesignRef<'_>, ncols: usize) -> Result<Self, ProbError> {
         if design.ncols != ncols {
             return Err(ProbError::Shape {
@@ -66,6 +68,10 @@ impl GaussianSufficientStats {
 /// Weighted residual sum of squares and score `X' W r` at `beta`.
 ///
 /// `r_i = y_i - offset_i - x_i' β`, `RSS_w = Σ w_i r_i²`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn rss_and_xtwr(
     design: BayesDesignRef<'_>,
     beta: &[f64],
@@ -163,6 +169,10 @@ impl<'a> GaussianKnownTarget<'a> {
     /// # Errors
     ///
     /// Invalid σ², design / prior shape errors, or a precision of the wrong size.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn with_precision(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -212,6 +222,10 @@ impl PosteriorTarget for GaussianKnownTarget<'_> {
         self.stats.p
     }
 
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn logp_and_grad(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
         let p = self.dim();
         if q.len() != p || grad.len() != p {
@@ -253,7 +267,7 @@ impl<'a> GaussianInvGammaTarget<'a> {
     ///
     /// # Errors
     ///
-    /// Invalid InvGamma params or design / prior shape errors.
+    /// Invalid `InvGamma` params or design / prior shape errors.
     pub fn new(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -268,8 +282,12 @@ impl<'a> GaussianInvGammaTarget<'a> {
     ///
     /// # Errors
     ///
-    /// Invalid InvGamma params, design / prior shape errors, or a precision of
+    /// Invalid `InvGamma` params, design / prior shape errors, or a precision of
     /// the wrong size.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn with_precision(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -329,6 +347,10 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
         self.stats.p + 1
     }
 
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn logp_and_grad(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
         let p = self.stats.p;
         if q.len() != p + 1 || grad.len() != p + 1 {

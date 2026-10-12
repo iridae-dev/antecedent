@@ -405,7 +405,7 @@ impl SmoothedDoseArtifactWire {
             if version == SMOOTHED_DOSE_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })
     }

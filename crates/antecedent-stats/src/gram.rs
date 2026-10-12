@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 /// Fill symmetric `ncols×ncols` `XtX` (row-major) from column-major `X`.
 pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
@@ -48,7 +46,7 @@ pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut 
 }
 
 /// Accumulate one design row into `XtX` and `Xty` (row-major Gram).
-#[allow(clippy::similar_names)] // xtx / xty are standard OLS Gram notation
+#[allow(clippy::similar_names, reason = "xtx / xty are standard OLS Gram notation")]
 pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64]) {
     let ncols = row.len();
     debug_assert!(xtx.len() >= ncols * ncols);
@@ -235,7 +233,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

@@ -214,7 +214,10 @@ fn validate_atoms(atoms: &[StructuralAtom]) -> Result<bool, StructuralError> {
 /// # Errors
 /// Refuses an invalid contract, malformed atoms or probabilities, and Bayes
 /// weighting without genuine probabilities.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn evaluate_structural(
     contract: &DecisionContract,
     atoms: &[StructuralAtom],

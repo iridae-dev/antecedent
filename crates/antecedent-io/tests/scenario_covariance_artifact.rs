@@ -5,11 +5,7 @@
 //! under multinomial resampling) and the adjusted and crude contrasts (checked against a
 //! walk of all `n^n` row-index tuples). A fresh consumer must reproduce the matrix bit
 //! for bit from the artifact alone and refuse every re-sealed change.
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    reason = "tiny fixtures with exact small integers"
-)]
+#![allow(clippy::cast_precision_loss, reason = "tiny fixtures with exact small integers")]
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::scenario_covariance::ScenarioCovariance;

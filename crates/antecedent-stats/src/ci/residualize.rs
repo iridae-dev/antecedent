@@ -8,15 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::trivially_copy_pass_by_ref,
-    clippy::neg_cmp_op_on_partial_ord
-)]
-
 use antecedent_core::KernelPolicy;
 use antecedent_kernels::{sanitize_weight, weighted_mean};
 
@@ -126,6 +117,10 @@ impl ZDesign {
     /// # Errors
     ///
     /// [`StatsError::Shape`] on a non-finite or short target.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     pub(crate) fn residuals(&self, target: &[f64]) -> Result<Vec<f64>, StatsError> {
         let n = self.n;
         if target.len() < n || target[..n].iter().any(|v| !v.is_finite()) {
@@ -174,6 +169,10 @@ pub(crate) fn ensure_valid_weights(weights: &[f64]) -> Result<(), StatsError> {
 }
 
 /// Weighted Pearson correlation with weighted centering (`weights` are sanitised).
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 pub(crate) fn weighted_pearson(
     policy: &KernelPolicy,
     x: &[f64],
@@ -215,6 +214,10 @@ pub(crate) fn centered_sum_squares(v: &[f64]) -> f64 {
 
 /// Whether a residual carries no information about its column: the column is constant, or
 /// the conditioning set explains it to working precision.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub(crate) fn residual_is_uninformative(raw: &[f64], resid: &[f64]) -> bool {
     let raw_ss = centered_sum_squares(raw);
     let res_ss: f64 = resid.iter().map(|v| v * v).sum();

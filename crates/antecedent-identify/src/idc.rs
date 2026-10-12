@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::large_enum_variant, clippy::too_many_arguments)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -153,17 +151,8 @@ impl IdcIdentifier {
         derivation.push("general.idc", "Shpitser–Pearl IDC");
         let mut perf = IdentificationPerformanceRecord::default();
 
-        let expr_result = idc_recurse(
-            &self.inner,
-            prepared,
-            &y,
-            &x,
-            &z,
-            &known_values,
-            workspace,
-            &mut derivation,
-            &mut perf,
-        )?;
+        let problem = IdcProblem { id: &self.inner, prepared, known_values: &known_values };
+        let expr_result = idc_recurse(&problem, &y, &x, &z, workspace, &mut derivation, &mut perf)?;
 
         match expr_result {
             IdcOk::Identified { functional, arena } => {
@@ -200,22 +189,30 @@ impl IdcIdentifier {
     }
 }
 
+#[allow(clippy::large_enum_variant, reason = "built once per call and moved, never stored in bulk")]
 enum IdcOk {
     Identified { functional: antecedent_expr::ExprId, arena: CausalExprArena },
     NotIdentified(IdentificationResult),
 }
 
+/// The ID engine, prepared graph and caller-supplied intervention levels an IDC recursion
+/// reads.
+struct IdcProblem<'a> {
+    id: &'a IdIdentifier,
+    prepared: &'a PreparedAdmg,
+    known_values: &'a std::collections::BTreeMap<VariableId, Value>,
+}
+
 fn idc_recurse(
-    id: &IdIdentifier,
-    prepared: &PreparedAdmg,
+    problem: &IdcProblem<'_>,
     y: &BitSet,
     x: &BitSet,
     z: &BitSet,
-    known_values: &std::collections::BTreeMap<VariableId, Value>,
     workspace: &mut IdentificationWorkspace,
     derivation: &mut DerivationTrace,
     perf: &mut IdentificationPerformanceRecord,
 ) -> Result<IdcOk, IdentificationError> {
+    let IdcProblem { id, prepared, known_values } = *problem;
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
 
     // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}
@@ -231,17 +228,7 @@ fn idc_recurse(
             );
             let mut x2 = x.clone();
             x2.insert(z_node);
-            return idc_recurse(
-                id,
-                prepared,
-                y,
-                &x2,
-                &z_rest,
-                known_values,
-                workspace,
-                derivation,
-                perf,
-            );
+            return idc_recurse(problem, y, &x2, &z_rest, workspace, derivation, perf);
         }
     }
 

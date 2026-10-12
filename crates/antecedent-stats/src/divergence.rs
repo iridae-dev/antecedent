@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::unnecessary_wraps)]
 #![cfg_attr(
     test,
     allow(
         clippy::float_cmp,
-        clippy::cast_possible_truncation,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]

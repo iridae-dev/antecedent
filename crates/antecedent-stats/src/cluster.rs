@@ -5,16 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::error::StatsError;
@@ -38,6 +28,10 @@ struct ClusterTuple {
 /// # Errors
 ///
 /// Empty / too many dimensions, bad mask, or length mismatch.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn intern_cluster_tuples(
     dimensions: &[&[u32]],
     subset_mask: usize,

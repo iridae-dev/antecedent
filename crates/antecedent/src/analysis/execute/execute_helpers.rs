@@ -2154,17 +2154,18 @@ pub(crate) fn parametric_scm_identification(
         scope: antecedent_core::AssumptionScope::Identification,
         status: antecedent_core::AssumptionStatus::Declared,
     });
-    let identification = IdentificationResult::from_parts(
-        IdentificationStatus::IdentifiedUnderParametricRestrictions,
-        query,
-        vec![estimand.clone()],
-        arena,
-        DerivationTrace::default(),
-        assumptions,
-        Vec::new(),
-        IdentificationPerformanceRecord::default(),
-        None,
-    );
+    let identification =
+        IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
+            status: IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            query,
+            estimands: vec![estimand.clone()],
+            arena,
+            derivation: DerivationTrace::default(),
+            required_assumptions: assumptions,
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
+        });
     (identification, estimand)
 }
 
@@ -2472,17 +2473,17 @@ pub(super) fn envelope_to_identification_result_for<G>(
             estimands.push(inv);
         }
     }
-    IdentificationResult::from_parts(
-        envelope.status,
+    IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
+        status: envelope.status,
         query,
         estimands,
         arena,
-        DerivationTrace::default(),
-        assumptions,
+        derivation: DerivationTrace::default(),
+        required_assumptions: assumptions,
         diagnostics,
-        IdentificationPerformanceRecord::default(),
-        None,
-    )
+        performance: IdentificationPerformanceRecord::default(),
+        hedge: None,
+    })
 }
 
 pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {

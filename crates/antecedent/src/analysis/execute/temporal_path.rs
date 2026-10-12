@@ -4280,17 +4280,17 @@ mod tests {
             scope: AssumptionScope::Identification,
             status: AssumptionStatus::Declared,
         });
-        IdentificationResult::from_parts(
+        IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
             status,
-            CausalQuery::AverageEffect(query),
-            Vec::new(),
-            CausalExprArena::new(),
-            DerivationTrace::default(),
-            assumptions,
-            Vec::new(),
-            IdentificationPerformanceRecord::default(),
-            None,
-        )
+            query: CausalQuery::AverageEffect(query),
+            estimands: Vec::new(),
+            arena: CausalExprArena::new(),
+            derivation: DerivationTrace::default(),
+            required_assumptions: assumptions,
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
+        })
     }
 
     #[test]

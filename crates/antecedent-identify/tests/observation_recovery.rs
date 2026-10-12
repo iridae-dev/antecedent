@@ -16,7 +16,7 @@ use antecedent_expr::ExprNode;
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RECOVERY_RULE_VERSION,
-    RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits,
+    RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits, StoredRecovery,
     decide_observation_recovery, validate_mixed_source_query, verify_observation_recovery,
     verify_recovery_witness,
 };
@@ -587,9 +587,7 @@ fn a_tampered_record_or_arena_fails_verification() {
         &q,
         &c,
         Some(&effect),
-        d.record(),
-        d.arena(),
-        Some(&e_arena),
+        &StoredRecovery { record: d.record(), arena: d.arena(), effect_arena: Some(&e_arena) },
         RECOVERY_DEFAULT_LIMITS,
         &ctx(),
     )
@@ -603,9 +601,7 @@ fn a_tampered_record_or_arena_fails_verification() {
             &q,
             &c,
             Some(&effect),
-            record,
-            arena,
-            effect_arena,
+            &StoredRecovery { record, arena, effect_arena },
             RECOVERY_DEFAULT_LIMITS,
             &ctx(),
         )
@@ -642,9 +638,7 @@ fn a_tampered_record_or_arena_fails_verification() {
         &q,
         &c,
         Some(&effect),
-        &limits,
-        d.arena(),
-        Some(&e_arena),
+        &StoredRecovery { record: &limits, arena: d.arena(), effect_arena: Some(&e_arena) },
         RECOVERY_DEFAULT_LIMITS,
         &ctx(),
     )
@@ -658,9 +652,7 @@ fn a_tampered_record_or_arena_fails_verification() {
         &q,
         &other,
         Some(&effect),
-        d.record(),
-        d.arena(),
-        Some(&e_arena),
+        &StoredRecovery { record: d.record(), arena: d.arena(), effect_arena: Some(&e_arena) },
         RECOVERY_DEFAULT_LIMITS,
         &ctx(),
     )
@@ -698,9 +690,7 @@ fn a_sealed_derivation_verifies_and_any_other_version_or_edit_refuses() {
             &q,
             &c,
             Some(&effect),
-            record,
-            current.arena(),
-            Some(&effect_arena),
+            &StoredRecovery { record, arena: current.arena(), effect_arena: Some(&effect_arena) },
             RECOVERY_DEFAULT_LIMITS,
             &ctx(),
         )

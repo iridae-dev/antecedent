@@ -177,7 +177,6 @@ fn coefficients_with_ones_intercept(fit: LassoFit, ncols: usize) -> Vec<f64> {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use super::*;
 

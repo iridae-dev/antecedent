@@ -289,7 +289,10 @@ pub enum ComponentFactorization {
 }
 
 /// Result of searching two sources separately, then the bounded disconnected case.
-#[allow(clippy::large_enum_variant)] // Public result keeps both source certificates directly inspectable.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "Public result keeps both source certificates directly inspectable"
+)]
 #[derive(Clone, Debug)]
 pub enum TwoSourceZTransportDecision {
     /// One source's single-source derivation identifies and its cited factors bind.
@@ -755,8 +758,14 @@ pub fn validate_z_transport_query(
 /// part of this family unless a separate theorem premise requires it.
 /// Results here are catalog facts only; a successful check does not identify a
 /// query or establish that one supplied regime can substitute for another.
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::float_cmp)] // Categorical intervention labels are finite exact integers encoded as f64.
+#[allow(
+    clippy::float_cmp,
+    reason = "Categorical intervention labels are finite exact integers encoded as f64"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+)]
 pub fn validate_z_experiment_family(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -994,7 +1003,10 @@ pub(super) fn decide_z_transport_reporting(
 /// A source population collides with the other source or the target, a
 /// selection diagram is invalid, or neither source identifies and one search
 /// failed (the first failure is reported).
-#[allow(clippy::too_many_lines)] // Mirrors the single-source, disconnected, and connected branches explicitly.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Mirrors the single-source, disconnected, and connected branches explicitly"
+)]
 pub fn decide_two_source_z_transport(
     graph: &antecedent_graph::Admg,
     query: &TwoSourceZTransportQuery,
@@ -1499,7 +1511,10 @@ impl ZTransportObstruction {
     ///
     /// # Errors
     /// Changed graph, query, controllable set, or terminal search state.
-    #[allow(clippy::needless_pass_by_value)] // Public checked-import API consumes the untrusted record.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "Public checked-import API consumes the untrusted record"
+    )]
     pub fn from_record_checked(
         record: ZTransportObstructionRecord,
         diagram: &SelectionDiagram,
@@ -1714,7 +1729,10 @@ pub fn identify_z_transport_reporting(
     })
 }
 
-#[allow(clippy::large_enum_variant)] // Private short-lived state; boxing would add allocation to recursive search.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "Private short-lived state; boxing would add allocation to recursive search"
+)]
 enum ZDerivation {
     Formula(ZTransportDerivation),
     Line11 { terminal: TrzTerminalFailure, inspection: ZTransportNotCertifiedInspection },
@@ -2052,7 +2070,10 @@ fn z_search(
 ///
 /// # Errors
 /// Invalid catalog or a missing joint margin covering the formula variables.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+)]
 pub fn bind_z_transport_catalog(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -2914,7 +2935,11 @@ fn search_limits_receipt(
     }
 }
 
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Mirrors the paper rule state explicitly.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "Mirrors the paper rule state explicitly"
+)]
 fn search_trz_state(
     engine: &mut super::Engine<'_>,
     state: &super::State,
@@ -3205,7 +3230,7 @@ fn search_trz_state(
 
 /// `TRz` rule 10 for one source: exchange its active controllables for that
 /// source's experiment and recurse with the source active.
-#[allow(clippy::too_many_arguments)] // The recursion state of `search_trz_state`.
+#[allow(clippy::too_many_arguments, reason = "The recursion state of `search_trz_state`")]
 fn exchange_trz_source(
     engine: &mut super::Engine<'_>,
     state: &super::State,
@@ -3817,7 +3842,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn recursive_trz_surrogate_formula_matches_independent_scm() {
         use antecedent_expr::{
             Assignment, DiscreteAxis, EvalContext, ExactDiscreteLaw, ExactTransportData,
@@ -4289,7 +4317,7 @@ mod tests {
 
     struct SequentialExchangeScm;
 
-    #[allow(clippy::float_cmp)] // The provider accepts only binary values 0.0 and 1.0.
+    #[allow(clippy::float_cmp, reason = "The provider accepts only binary values 0.0 and 1.0")]
     impl DistributionProvider for SequentialExchangeScm {
         fn probability(
             &self,
@@ -4431,7 +4459,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn recursive_search_handles_selected_mediator_surrogate_graph() {
         use antecedent_expr::{
             Assignment, DiscreteAxis, EvalContext, ExactDiscreteLaw, ExactTransportData,

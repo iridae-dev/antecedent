@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::VERSION;
 use antecedent_estimate::CausalPosterior;
 use antecedent_prob::PosteriorQuantityKind;
@@ -94,7 +85,7 @@ pub fn encode_causal_posterior_with_payload(
             PosteriorQuantityKind::Coefficient { index, name } => {
                 PosteriorQuantityWire::Coefficient {
                     index: *index as u32,
-                    name: name.as_ref().map(|s| s.to_string()),
+                    name: name.as_ref().map(std::string::ToString::to_string),
                 }
             }
             PosteriorQuantityKind::ResidualVariance => PosteriorQuantityWire::ResidualVariance,

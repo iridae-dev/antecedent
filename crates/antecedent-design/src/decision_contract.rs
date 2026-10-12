@@ -1171,6 +1171,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::type_complexity,
+        reason = "one-off tuple returned from a single private helper"
+    )]
     fn identity_ignores_declaration_order_but_not_semantics() {
         let base = contract();
         let id = base.identity().unwrap();

@@ -343,7 +343,7 @@ mod tests {
 
     struct NonNegOutcome;
     impl DecisionConstraint<f64, f64> for NonNegOutcome {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "nonneg"
         }
         fn satisfaction_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
@@ -408,7 +408,7 @@ mod tests {
     /// though the excluded action has higher utility (constraints are not costs).
     struct OnlySecond;
     impl DecisionConstraint<f64, f64> for OnlySecond {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "only_second"
         }
         fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {
@@ -433,7 +433,7 @@ mod tests {
 
     struct Never;
     impl DecisionConstraint<f64, f64> for Never {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "never"
         }
         fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {

@@ -186,7 +186,6 @@ pub(crate) fn lagged_link_family(
 /// spread `sd(hits_per_run) / (family·sqrt(runs))`. Links of one run share a sample, so the
 /// hits of a run are more dispersed than binomial whenever the tests are positively dependent;
 /// the empirical term makes the band honest about that instead of assuming independence.
-#[allow(clippy::cast_precision_loss)]
 pub(crate) fn null_rate_se(alpha: f64, family: usize, hits_per_run: &[u64]) -> f64 {
     let runs = hits_per_run.len() as f64;
     let family = family as f64;

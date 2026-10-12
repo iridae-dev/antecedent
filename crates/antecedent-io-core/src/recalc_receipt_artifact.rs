@@ -282,7 +282,10 @@ pub struct DeclaredStageWire {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 // Independent availability flags mirroring `ResumeContext`.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct ResumeWire {
     /// A portable fitted predictor is available.
     #[serde(default)]

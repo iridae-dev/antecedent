@@ -5,15 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -113,6 +104,10 @@ pub(crate) fn fit_with_absolute_scale_resolved(
 ///
 /// `β̂` is the weighted least-squares solution and `n` counts rows with a positive
 /// weight (the WLS residual quadratic form has expectation `σ² (n − p)`).
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
@@ -197,8 +192,14 @@ fn fit_conjugate_gaussian_resolved(
             draw_mvn_known_sigma(&mean, &cov, sigma2, options.n_draws, options.seed, workspace)?;
         (mean, draws, false, condition, Some(cov))
     } else {
-        let post =
-            posterior_nig(ncols, &coef_prior, &prec, xtx, xty, ig, yty, n_eff, Some(design))?;
+        let post = posterior_nig(
+            ncols,
+            &coef_prior,
+            &prec,
+            NigMoments { xtx, xty, yty, n_eff },
+            ig,
+            Some(design),
+        )?;
         let draws = draw_nig(
             &post.mean,
             &post.scale_chol,
@@ -233,6 +234,10 @@ fn fit_conjugate_gaussian_resolved(
     Ok(BayesFitResult { draws: posterior, map, diagnostics, cov: exact_cov })
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn ensure_conjugate_gram(
     design: BayesDesignRef<'_>,
     workspace: &mut LaplaceWorkspace,
@@ -416,17 +421,32 @@ struct NigPosterior {
     condition: f64,
 }
 
+/// Weighted normal-linear-model moments the NIG update reads.
+#[derive(Clone, Copy)]
+struct NigMoments<'a> {
+    /// `X'WX`, `ncols × ncols` row-major.
+    xtx: &'a [f64],
+    /// `X'Wy`.
+    xty: &'a [f64],
+    /// `y'Wy`.
+    yty: f64,
+    /// Effective sample size.
+    n_eff: f64,
+}
+
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn posterior_nig(
     ncols: usize,
     prior: &GaussianCoefficientPrior,
     prec: &CoefficientPrecision,
-    xtx: &[f64],
-    xty: &[f64],
+    moments: NigMoments<'_>,
     ig: InvGammaPrior,
-    yty: f64,
-    n_eff: f64,
     design: Option<BayesDesignRef<'_>>,
 ) -> Result<NigPosterior, ProbError> {
+    let NigMoments { xtx, xty, yty, n_eff } = moments;
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::PosteriorFit,
         || {
@@ -473,6 +493,10 @@ fn posterior_nig(
 }
 
 /// Weighted residual sum of squares `Σ w_i (y_i − offset_i − x_i' m)²`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn residual_ss_from_design(design: BayesDesignRef<'_>, mean: &[f64]) -> f64 {
     let nrows = design.nrows;
     let ncols = mean.len();
@@ -517,6 +541,10 @@ fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64]
     rss.max(0.0)
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn draw_mvn_known_sigma(
     mean: &[f64],
     cov: &[f64],
@@ -552,6 +580,14 @@ fn draw_mvn_known_sigma(
     Ok(Arc::from(values))
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn draw_nig(
     mean: &[f64],
     scale_chol: &[f64],
@@ -673,6 +709,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn conjugate_reports_posterior_precision_condition() {
         // Well-conditioned design: a finite condition estimate that publishes.
         let (x, y) = simple_design();
@@ -956,6 +996,14 @@ mod tests {
     /// large-mean outcomes; the residual-plus-prior-quadratic form must match the
     /// analytic `(αn, βn)` and the Student-t marginal half-width.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn nig_scale_matches_analytic_on_uncentred_design() {
         for &sigma in &[0.1_f64, 10.0] {
             let n = 64usize;
@@ -1010,11 +1058,8 @@ mod tests {
                 1,
                 prior.gaussian_coefficients().unwrap(),
                 &CoefficientPrecision::Diagonal(prior.gaussian_coefficients().unwrap().precision()),
-                &[xtx],
-                &[xty],
+                NigMoments { xtx: &[xtx], xty: &[xty], yty, n_eff: n as f64 },
                 InvGammaPrior { shape: alpha0, scale: beta0 },
-                yty,
-                n as f64,
                 Some(BayesDesignRef {
                     x_colmajor: &x,
                     nrows: n,
@@ -1091,11 +1136,8 @@ mod tests {
             1,
             &prior,
             &CoefficientPrecision::Diagonal(prior.precision()),
-            &[xtx],
-            &[xty],
+            NigMoments { xtx: &[xtx], xty: &[xty], yty, n_eff: n as f64 },
             ig,
-            yty,
-            n as f64,
             Some(BayesDesignRef {
                 x_colmajor: &x,
                 nrows: n,

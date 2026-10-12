@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 
-use super::parcorr_variants::MultivariatePartialCorrelation;
+use super::parcorr_variants::{BlockTest, MultivariatePartialCorrelation};
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     PreparedCiTest, SignificanceMethod,
@@ -103,9 +103,7 @@ impl ConditionalIndependenceTest for PairwiseMultivariateCi {
                 .collect();
             let r = self.inner.test_blocks(
                 request.columns,
-                &x_cols,
-                &y_cols,
-                &z,
+                &BlockTest { x_cols: &x_cols, y_cols: &y_cols, z_flat: &z },
                 request.significance,
                 workspace,
                 ctx,
@@ -132,9 +130,7 @@ pub fn pairwise_multivariate_test(
 ) -> Result<CiResult, StatsError> {
     MultivariatePartialCorrelation::new().test_blocks(
         columns,
-        x_cols,
-        y_cols,
-        z_flat,
+        &BlockTest { x_cols, y_cols, z_flat },
         significance,
         workspace,
         ctx,
@@ -142,7 +138,6 @@ pub fn pairwise_multivariate_test(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use super::*;
     use crate::ci::types::{CiQuery, ConfidenceMethod};

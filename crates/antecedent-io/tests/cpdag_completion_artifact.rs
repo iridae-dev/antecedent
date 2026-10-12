@@ -4,7 +4,6 @@
 //! three completions, one enumerated joint law of the SCM `a -> b -> c`, and the
 //! query `P(c | do(b = 1))`. A fresh consumer must reproduce the report from the
 //! artifact alone and refuse every re-sealed premise or evidence change.
-#![allow(clippy::float_cmp, reason = "exact replay comparisons")]
 
 use std::sync::Arc;
 

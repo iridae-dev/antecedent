@@ -6,15 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_kernels::dot;
 
 use super::acyclicity::{AcyclicityWorkspace, grad_h, h_of_w};
@@ -217,6 +208,10 @@ fn form_xtx_over_n(x: &[f64], n: usize, d: usize, xtx: &mut [f64]) {
 }
 
 /// AL objective and dense gradient on free params.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn al_value_and_grad(
     x: &[f64],
     n: usize,

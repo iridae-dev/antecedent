@@ -31,15 +31,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -157,14 +148,10 @@ impl GeneralizedAdjustmentIdentifier {
         self.pag_envelope_with(pag, |completion| {
             let mut result = identify_on_mag_completion(
                 completion,
-                t,
-                y,
-                t_d,
-                y_d,
+                MagTarget { t, y, t_d, y_d },
                 active.clone(),
                 control.clone(),
-                self.config.max_candidates,
-                self.config.max_examinations,
+                self.config.budget(),
             )?;
             result.query = CausalQuery::AverageEffect(query.clone());
             if let (Some(admg), Some(cut)) =
@@ -729,17 +716,39 @@ enum MagAdjustment {
     Failed(IdentificationResult),
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Work limits of one MAG adjustment search.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AdjustmentBudget {
+    pub max_candidates: usize,
+    pub max_examinations: u64,
+}
+
+impl GeneralizedAdjustmentConfig {
+    pub(crate) const fn budget(&self) -> AdjustmentBudget {
+        AdjustmentBudget {
+            max_candidates: self.max_candidates,
+            max_examinations: self.max_examinations,
+        }
+    }
+}
+
+/// Treatment and outcome of a MAG adjustment search, as variables and as dense nodes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MagTarget {
+    pub t: VariableId,
+    pub y: VariableId,
+    pub t_d: DenseNodeId,
+    pub y_d: DenseNodeId,
+}
+
 fn mag_adjustment_search(
     mag: &Pag,
-    _t: VariableId,
-    _y: VariableId,
-    t_d: DenseNodeId,
-    y_d: DenseNodeId,
+    target: MagTarget,
     query: CausalQuery,
-    max_candidates: usize,
-    max_examinations: u64,
+    budget: AdjustmentBudget,
 ) -> Result<MagAdjustment, IdentificationError> {
+    let MagTarget { t_d, y_d, .. } = target;
+    let AdjustmentBudget { max_candidates, max_examinations } = budget;
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(MagAdjustment::Failed(not_identified(
             query,
@@ -850,15 +859,12 @@ fn mag_adjustment_identified(
 
 pub(crate) fn identify_on_mag_completion(
     mag: &Pag,
-    t: VariableId,
-    y: VariableId,
-    t_d: DenseNodeId,
-    y_d: DenseNodeId,
+    target: MagTarget,
     active: Value,
     control: Value,
-    max_candidates: usize,
-    max_examinations: u64,
+    budget: AdjustmentBudget,
 ) -> Result<IdentificationResult, IdentificationError> {
+    let MagTarget { t, y, .. } = target;
     let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
         t,
         y,
@@ -867,16 +873,7 @@ pub(crate) fn identify_on_mag_completion(
         antecedent_core::Intervention::set(t, active.clone()),
         antecedent_core::TargetPopulation::AllObserved,
     ));
-    match mag_adjustment_search(
-        mag,
-        t,
-        y,
-        t_d,
-        y_d,
-        query.clone(),
-        max_candidates,
-        max_examinations,
-    )? {
+    match mag_adjustment_search(mag, target, query.clone(), budget)? {
         MagAdjustment::Failed(result) => Ok(result),
         MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
@@ -896,26 +893,14 @@ pub(crate) fn identify_on_mag_completion(
 /// Single-arm MAG adjustment mean `E[Y | do(T=level)]` at the requested Set.
 pub(crate) fn identify_on_mag_completion_mean(
     mag: &Pag,
-    t: VariableId,
-    y: VariableId,
-    t_d: DenseNodeId,
-    y_d: DenseNodeId,
+    target: MagTarget,
     level: Value,
-    max_candidates: usize,
-    max_examinations: u64,
+    budget: AdjustmentBudget,
     response: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
+    let MagTarget { t, y, .. } = target;
     let query = CausalQuery::Response(response.clone());
-    match mag_adjustment_search(
-        mag,
-        t,
-        y,
-        t_d,
-        y_d,
-        query.clone(),
-        max_candidates,
-        max_examinations,
-    )? {
+    match mag_adjustment_search(mag, target, query.clone(), budget)? {
         MagAdjustment::Failed(result) => Ok(result),
         MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();

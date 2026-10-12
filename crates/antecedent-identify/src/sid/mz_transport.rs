@@ -753,7 +753,7 @@ fn stage_names(query: &MzTransportQuery) -> Vec<String> {
 }
 
 /// Every stage of a validated decision, charged to `search`.
-#[allow(clippy::too_many_lines)] // One linear pass over the stages and their outcomes.
+#[allow(clippy::too_many_lines, reason = "One linear pass over the stages and their outcomes")]
 fn decide_charged(
     graph: &antecedent_graph::Admg,
     validated: ValidatedMzTransportQuery,
@@ -1003,7 +1003,7 @@ fn recursion_call<'q>(
     }
 }
 
-#[allow(clippy::too_many_arguments)] // The derivation's premises, each passed once.
+#[allow(clippy::too_many_arguments, reason = "The derivation's premises, each passed once")]
 fn recursive_derivation(
     query: &MzTransportQuery,
     signature: &str,

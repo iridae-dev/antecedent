@@ -106,6 +106,10 @@ pub fn detect_mechanism_changes(
 /// # Errors
 ///
 /// Query / fit / stats failures.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn detect_mechanism_changes_with_correction(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
@@ -836,6 +840,10 @@ mod tests {
     /// targets flagged) with `correction: None` against the corrected default
     /// `detect_mechanism_changes`.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn mean_diff_null_split_family_wise_type_i_rate() {
         let m = 10usize;
         let n = 120usize;

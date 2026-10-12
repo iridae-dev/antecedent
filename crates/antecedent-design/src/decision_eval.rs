@@ -279,8 +279,11 @@ fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
 /// Refuses an invalid contract, non-joint draws, a missing or masked
 /// coordinate, a source meaning that cannot answer an outcome-law input, and
 /// criteria that need structure inputs.
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::float_cmp)] // Ties of the finite-law criterion values.
+#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn evaluate_contract(
     contract: &DecisionContract,
     source: &DistributionArtifact,
@@ -497,7 +500,6 @@ pub struct FunctionalValue {
 const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
 /// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF.
-#[allow(clippy::float_cmp)] // Zero-weight atoms are outside the law support.
 fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
@@ -674,7 +676,10 @@ fn mean_insufficient(needed: Vec<SourceRepresentation>) -> DecisionEvalError {
 /// expected loss, any hard constraint, a nonlinear utility, an unknown
 /// coordinate, an input whose functional is `outcome` (a mean grid is not an
 /// outcome law), and a non-finite utility.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn evaluate_contract_on_means(
     contract: &DecisionContract,
     source: &MeanSource,

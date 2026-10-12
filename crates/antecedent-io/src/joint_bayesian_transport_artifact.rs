@@ -666,7 +666,7 @@ impl JointBayesianArtifactWire {
             if version == JOINT_BAYESIAN_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         let unsupported = JointBayesianArtifactError::UnsupportedSemantics;
@@ -809,7 +809,6 @@ impl JointBayesianArtifactWire {
     /// measured target-effect scalar. Other posterior quantities remain unmeasured.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
-    #[allow(clippy::too_many_arguments)]
     pub fn build_measured(
         id: &TransportIdentification,
         model: &JointTransportModel,

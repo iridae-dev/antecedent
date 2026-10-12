@@ -7,16 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -173,6 +163,10 @@ pub struct GamFit {
 /// # Errors
 ///
 /// Empty `x`, `n_basis < 4`, non-finite values, or invalid supplied knot vector.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn expand_bspline(
     x: &[f64],
     n_basis: usize,
@@ -213,6 +207,10 @@ pub fn expand_bspline(
 /// # Errors
 ///
 /// Shape mismatch, bad specs, or B-spline expansion failure.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn compile_additive_design(
     x_colmajor: &[f64],
     nrows: usize,
@@ -275,6 +273,10 @@ pub fn compile_additive_design(
 /// # Errors
 ///
 /// Shape mismatch, invalid λ / basis sizes, singular penalized Gram, or empty specs.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a column-major buffer with explicit dimensions, the smooth specs and options of one published estimator; callers in antecedent-estimate bind them positionally"
+)]
 pub fn fit_gam(
     x_colmajor: &[f64],
     nrows: usize,
@@ -294,6 +296,10 @@ pub fn fit_gam(
 ///
 /// # Errors
 /// Invalid weights or any error from the unweighted GAM fit.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a column-major buffer with explicit dimensions, the smooth specs and options of one published estimator; callers in antecedent-estimate bind them positionally"
+)]
 pub fn fit_gam_weighted(
     x_colmajor: &[f64],
     nrows: usize,
@@ -440,6 +446,10 @@ impl AdditiveDesign {
 /// # Errors
 ///
 /// Invalid weights or response, or a singular penalized Gram.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn fit_gam_weighted_design(
     design: &AdditiveDesign,
     y: &[f64],
@@ -900,7 +910,7 @@ fn validate_knots(knots: &[f64], n_basis: usize) -> Result<(), StatsError> {
     Ok(())
 }
 
-#[allow(clippy::float_cmp)] // Only exactly constant data need an artificial knot domain.
+#[allow(clippy::float_cmp, reason = "Only exactly constant data need an artificial knot domain")]
 fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
     let mut sorted = x.to_vec();
     sorted.sort_by(f64::total_cmp);
@@ -1041,6 +1051,10 @@ fn quadratic_nonzeros(x: f64, knots: &[f64], span: usize) -> [f64; CUBIC_ORDER] 
 }
 
 /// Cox–de Boor evaluation of all cubic basis functions at `x` into column-major `out`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn eval_cubic_bspline(
     x: f64,
     knots: &[f64],
@@ -2002,6 +2016,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn predict_matches_fitted_on_training() {
         let n = 100usize;
         let x1 = linspace(n, 0.0, 1.0);

@@ -734,19 +734,19 @@ impl PreparedStudy {
     /// Score-reuse payload for this handle's score table under `identities`.
     fn score_reuse_wire(&self, identities: &ContractIdentities) -> Option<ScoreReuseIdentityWire> {
         let table = self.score_table()?;
-        Some(ScoreReuseIdentityWire::score_table(
-            identities.identification,
-            identities.data_snapshot,
-            &table.row_index,
-            &table.fold_ids,
-            table.n_folds,
-            &table.adjustment_set,
-            table.nuisance_provenance.as_ref(),
-            table.treatment,
-            &table.intervened,
-            self.study().bootstrap_replicates,
-            identities.inference_binding,
-        ))
+        Some(ScoreReuseIdentityWire::score_table(&antecedent_io::ScoreTableKey {
+            identification: identities.identification,
+            data_snapshot: identities.data_snapshot,
+            row_index: &table.row_index,
+            fold_ids: &table.fold_ids,
+            n_folds: table.n_folds,
+            adjustment_set: &table.adjustment_set,
+            nuisance_provenance: table.nuisance_provenance.as_ref(),
+            treatment: table.treatment,
+            intervened: &table.intervened,
+            bootstrap_replicates: self.study().bootstrap_replicates,
+            inference_binding: identities.inference_binding,
+        }))
     }
 
     /// The reuse layers this handle exports beside a result, advertised on the
@@ -3865,18 +3865,20 @@ mod tests {
         GraphIdentificationCase {
             graph: 0,
             result: IdentificationResult::from_parts(
-                status,
-                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-                    antecedent_core::VariableId::from_raw(0),
-                    antecedent_core::VariableId::from_raw(1),
-                )),
-                Vec::new(),
-                antecedent_expr::CausalExprArena::new(),
-                DerivationTrace::default(),
-                AssumptionSet::default(),
-                diagnostics,
-                IdentificationPerformanceRecord::default(),
-                None,
+                antecedent_identify::IdentificationResultParts {
+                    status,
+                    query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                        antecedent_core::VariableId::from_raw(0),
+                        antecedent_core::VariableId::from_raw(1),
+                    )),
+                    estimands: Vec::new(),
+                    arena: antecedent_expr::CausalExprArena::new(),
+                    derivation: DerivationTrace::default(),
+                    required_assumptions: AssumptionSet::default(),
+                    diagnostics,
+                    performance: IdentificationPerformanceRecord::default(),
+                    hedge: None,
+                },
             ),
             weight: ProbabilityMass(weight),
         }

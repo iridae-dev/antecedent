@@ -175,7 +175,7 @@ pub use identity::{
     ObservationIdentityWire, ObservationOptionsWire, OverlapPolicyWire, PayloadDigestWire,
     PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
     PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,
-    RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, SplitIdentityWire,
+    RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
     TargetIdentityWire, TargetWeightsIdentityWire, TemporalClassIdentityWire,
     TransportIdentityWire, admg_identity, canonical_dag_wire, canonical_temporal_dag_wire,
     cpdag_identity, dag_identity, data_snapshot_digest, digest_canonical, digest_wire,

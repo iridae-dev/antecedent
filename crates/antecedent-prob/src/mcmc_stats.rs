@@ -4,16 +4,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_kernels::{median_sorted, midranks_into, norm_inv, quantile_type7_sorted};
 
 /// Per-parameter MCMC diagnostics (Vehtari / Stan style).
@@ -284,6 +274,10 @@ fn rank_normalize(x: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
     let stats = split_segment_stats(seg_major, m, n);
     if !(stats.w > 0.0) {
@@ -300,6 +294,10 @@ fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
 /// O(m·n²) work of which O(m·n·τ) is used. Per-lag arithmetic, the
 /// truncation test, and the monotone clamp are unchanged, so the result is
 /// bit-identical to the eager form.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     let s = (m * n) as f64;
     let stats = split_segment_stats(seg_major, m, n);
@@ -353,6 +351,10 @@ struct SegmentStats {
     var_hat: f64,
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     let nf = n as f64;
     let mut means = vec![0.0; m];
@@ -390,8 +392,8 @@ fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     SegmentStats { means, w, var_hat }
 }
 
-/// Â_lag for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
-/// Â_t = var̂⁺ − W + ā_t, so ρ̂_t = 1 − (W − ā_t)/var̂⁺ — not ā_t/var̂⁺,
+/// `Â_lag` for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
+/// `Â_t = var̂⁺ − W + ā_t`, so `ρ̂_t = 1 − (W − ā_t)/var̂⁺`, not `ā_t/var̂⁺`,
 /// which ignores between-chain variance).
 fn lag_autocovariance(
     seg_major: &[f64],

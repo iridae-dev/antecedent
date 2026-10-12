@@ -50,7 +50,7 @@ pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequen
 pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 /// A refused sequence, window or bound as a reason-coded refusal.
 #[must_use]
-#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+#[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 #[doc(hidden)]
 pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
     IoError::Refused {
@@ -491,7 +491,7 @@ impl TemporalSequenceArtifactWire {
             if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [TEMPORAL_TRANSPORT_ARTIFACT_FEATURE] {

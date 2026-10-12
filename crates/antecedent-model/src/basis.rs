@@ -28,13 +28,6 @@
 
 // Parent indices are dense graph ids (`u32` by construction) and a term index is
 // bounded by rows / `BASIS_MIN_ROWS_PER_COLUMN`, so `usize → u32` cannot truncate.
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 use std::sync::Arc;
 
@@ -411,7 +404,6 @@ impl ParentBasis {
 pub fn column_moments(columns: &[&[f64]], n_rows: usize) -> (Vec<f64>, Vec<f64>) {
     let mut centers = Vec::with_capacity(columns.len());
     let mut scales = Vec::with_capacity(columns.len());
-    #[allow(clippy::cast_precision_loss)]
     let n = n_rows.max(1) as f64;
     for col in columns {
         let mean = col[..n_rows].iter().sum::<f64>() / n;

@@ -19,8 +19,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::{sigmoid, softplus};
 use antecedent_stats::first_col_is_exact_ones;
@@ -93,10 +91,6 @@ fn score(x: &[f64], n: usize, p: usize, y: &[f64], prob: &[f64]) -> Vec<f64> {
 }
 
 /// Largest violation of the exact objective's optimality conditions.
-#[allow(
-    clippy::float_cmp,
-    reason = "a coefficient is exactly zero when the soft threshold clamped it"
-)]
 fn kkt_violation(score: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> f64 {
     let mut worst = 0.0_f64;
     for (j, (&g, &b)) in score.iter().zip(beta).enumerate() {
@@ -112,21 +106,28 @@ fn kkt_violation(score: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> 
     worst
 }
 
-/// Minimize `0.5 sum w_i (r_i - x_i . delta)^2 + lambda sum |beta_j + delta_j|` over `delta`
-/// by cyclic coordinate descent; `resid` enters as `r` and is consumed as the running residual.
-#[allow(clippy::too_many_arguments)]
-fn coordinate_descent(
-    x: &[f64],
+/// The weighted quadratic subproblem one lasso descent minimizes: design, working weights,
+/// per-column curvature, current coefficients and penalty.
+#[derive(Clone, Copy)]
+struct DescentProblem<'a> {
+    x: &'a [f64],
     n: usize,
-    weights: &[f64],
-    resid: &mut [f64],
-    curvature: &[f64],
-    beta: &[f64],
-    delta: &mut [f64],
+    weights: &'a [f64],
+    curvature: &'a [f64],
+    beta: &'a [f64],
     lambda: f64,
     pen_start: usize,
+}
+
+/// Minimize `0.5 sum w_i (r_i - x_i . delta)^2 + lambda sum |beta_j + delta_j|` over `delta`
+/// by cyclic coordinate descent; `resid` enters as `r` and is consumed as the running residual.
+fn coordinate_descent(
+    problem: &DescentProblem<'_>,
+    resid: &mut [f64],
+    delta: &mut [f64],
     sweep_tolerance: f64,
 ) {
+    let DescentProblem { x, n, weights, curvature, beta, lambda, pen_start } = *problem;
     for _ in 0..MAX_SWEEPS {
         let mut largest = 0.0_f64;
         for j in 0..beta.len() {
@@ -201,15 +202,17 @@ fn solve(
         }
         delta.fill(0.0);
         coordinate_descent(
-            x,
-            n,
-            &weights,
+            &DescentProblem {
+                x,
+                n,
+                weights: &weights,
+                curvature: &curvature,
+                beta: &beta,
+                lambda,
+                pen_start,
+            },
             &mut resid,
-            &curvature,
-            &beta,
             &mut delta,
-            lambda,
-            pen_start,
             SWEEP_SHARE * tolerance,
         );
         x_delta.fill(0.0);
@@ -334,7 +337,6 @@ impl FittedPredictor for LassoLogisticPredictor {
 #[cfg(test)]
 #[allow(
     clippy::float_cmp,
-    clippy::cast_possible_truncation,
     reason = "the tests build small synthetic designs and compare exact zeros of a thresholded fit"
 )]
 mod tests {

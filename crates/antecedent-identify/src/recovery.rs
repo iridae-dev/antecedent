@@ -747,7 +747,10 @@ fn resolve_roles<'g>(
 
 /// Refuse every mechanism outside the bounded class, charging one operation per
 /// node inspected. Returns the self-censoring edges found.
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
 fn check_class(
     m: &MGraph<'_>,
     query: &ObservationRecoveryQuery,
@@ -1270,7 +1273,10 @@ fn arena_bytes(arena: &CausalExprArena) -> u64 {
 /// local-Markov premise `R_i _||_ R_S | pa(R_i)` by m-separation in the m-graph,
 /// pattern-matches the arena from the root, and recomputes every margin's
 /// catalog identity.
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
 fn check_formula(
     graph: &Admg,
     query: &ObservationRecoveryQuery,
@@ -1452,7 +1458,10 @@ pub fn verify_recovery_witness(
     verify_witness_charged(&m, witness, &mut |_| Ok(()))
 }
 
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
 fn verify_witness_charged(
     m: &MGraph<'_>,
     witness: &RecoveryWitness,
@@ -1588,7 +1597,10 @@ fn witness_roles(m: &MGraph<'_>) -> Vec<(VariableId, VariableId)> {
 
 /// Identify the downstream effect with the ordinary target ID stage of sID on
 /// the causal restriction of the m-graph, charged to the shared budget.
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
 fn identify_effect(
     m: &MGraph<'_>,
     query: &ObservationRecoveryQuery,
@@ -1728,6 +1740,18 @@ fn cites_only_target_observational(arena: &CausalExprArena, root: ExprId, target
     })
 }
 
+/// The stored artifact parts [`verify_observation_recovery`] re-checks: the derivation
+/// record, its expression arena and, when an effect was derived, the effect arena.
+#[derive(Clone, Copy, Debug)]
+pub struct StoredRecovery<'a> {
+    /// Stored derivation record.
+    pub record: &'a RecoveryDerivationRecord,
+    /// Stored recovered-law arena.
+    pub arena: &'a CausalExprArena,
+    /// Stored downstream-effect arena.
+    pub effect_arena: Option<&'a CausalExprArena>,
+}
+
 /// Re-check a stored derivation: re-decide from the stored inputs under the
 /// stored limits (refused when above `max`), accept only an identical record and
 /// arena, and run the independent formula checker on the stored record.
@@ -1737,18 +1761,16 @@ fn cites_only_target_observational(arena: &CausalExprArena, root: ExprId, target
 /// [`RecoveryDetail::BoundsExceeded`] for stored limits above `max`;
 /// [`RecoveryDetail::InvalidDerivation`] when anything differs; the decision's
 /// own refusal when the inputs no longer recover.
-#[allow(clippy::too_many_arguments)]
 pub fn verify_observation_recovery(
     graph: &Admg,
     query: &ObservationRecoveryQuery,
     catalog: &EvidenceCatalog,
     effect: Option<&RecoveredEffectQuery>,
-    record: &RecoveryDerivationRecord,
-    arena: &CausalExprArena,
-    effect_arena: Option<&CausalExprArena>,
+    stored: &StoredRecovery<'_>,
     max: RecoveryLimits,
     ctx: &ExecutionContext,
 ) -> Result<RecoveryDerivation, RecoveryError> {
+    let StoredRecovery { record, arena, effect_arena } = *stored;
     let stored = RecoveryLimits {
         search: SearchLimits {
             operations: record.receipt.operations_limit,

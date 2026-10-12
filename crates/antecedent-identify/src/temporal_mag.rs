@@ -1,7 +1,7 @@
 //! Query-window certificates for stationary temporal MAGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::generalized::{identify_on_mag_completion, not_identified};
+use crate::generalized::{AdjustmentBudget, MagTarget, identify_on_mag_completion, not_identified};
 use crate::{IdentificationError, IdentificationResult};
 
 pub(crate) const HISTORY_CAPPED: &str = "identify.temporal.history_capped";
@@ -162,14 +162,15 @@ pub(crate) fn identify(
         };
         identify_on_mag_completion(
             &unfolded.pag,
-            VariableId::from_raw(treatment),
-            VariableId::from_raw(outcome),
-            DenseNodeId::from_raw(treatment),
-            DenseNodeId::from_raw(outcome),
+            MagTarget {
+                t: VariableId::from_raw(treatment),
+                y: VariableId::from_raw(outcome),
+                t_d: DenseNodeId::from_raw(treatment),
+                y_d: DenseNodeId::from_raw(outcome),
+            },
             level(&query.active)?,
             level(&query.control)?,
-            max_candidates,
-            max_examinations,
+            AdjustmentBudget { max_candidates, max_examinations },
         )?
     };
     let mut conditioning = keys.clone();

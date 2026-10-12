@@ -2,13 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_lossless,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::doc_markdown,
-    clippy::trivially_copy_pass_by_ref
-)]
 #![cfg_attr(
     test,
     allow(
@@ -238,6 +231,10 @@ pub(super) fn discrete_strata(
     Ok(keys.into_iter().filter_map(|k| strata.remove(&k)).collect())
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 fn g_squared_statistic(
     columns: &[&[f64]],
     x: usize,
@@ -261,6 +258,10 @@ fn g_squared_statistic(
 /// depended on the process hash seed. Permutation nulls hoist the code/strata
 /// construction (X codes and Z strata are invariant under Y-only permutation)
 /// and call this per replicate.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 fn g_squared_from_parts(
     xi: &[i32],
     yi: &[i32],
@@ -294,6 +295,14 @@ fn g_squared_from_parts(
     Ok((g_total, df_total))
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 fn g_squared_on_rows(
     xi: &[i32],
     yi: &[i32],
@@ -387,18 +396,25 @@ fn g_squared_on_rows(
 /// Exact chi-squared survival function for the integer-valued contingency degrees of freedom
 /// (`df <= 0` is a degenerate table with no mass above any statistic: `0`). A thin adapter over
 /// the single owner [`crate::special::chi_square_sf`].
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the value is a positive integral degrees-of-freedom count"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is a positive integral degrees-of-freedom count"
+)]
 fn chi2_sf(x: f64, df: f64) -> f64 {
     if df <= 0.0 {
         return if x <= 0.0 { 1.0 } else { 0.0 };
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     crate::special::chi_square_sf(x, df as usize)
 }
 
 /// Residualize-then-correlate CI — an explicit alias of [`PartialCorrelation`].
 ///
 /// Kept as a named entry point for callers who think in regression terms; the
-/// statistic is identical to ParCorr.
+/// statistic is identical to `ParCorr`.
 #[derive(Clone, Debug, Default)]
 pub struct RegressionCi {
     inner: PartialCorrelation,

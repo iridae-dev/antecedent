@@ -379,8 +379,11 @@ pub enum ExistenceClaim {
 
 /// Result of an inverse query.
 // Independent public report flags; grouping them would change the public surface.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct InverseResult {
     /// Identity of the contract that declared the actions.
     pub contract_identity: String,

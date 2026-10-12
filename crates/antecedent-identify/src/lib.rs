@@ -59,7 +59,7 @@ pub use recovery::{
     RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery, RecoveredEffectRecord,
     RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError,
     RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord, RecoveryReceiptRecord,
-    RecoveryWitness, WitnessCheck, WitnessMechanism, decide_observation_recovery,
+    RecoveryWitness, StoredRecovery, WitnessCheck, WitnessMechanism, decide_observation_recovery,
     verify_observation_recovery, verify_recovery_witness,
 };
 pub use recovery_chain::{
@@ -161,7 +161,7 @@ pub use generalized::{
     MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use hedge::{HedgeCertificate, HedgeProblem};
-pub use id::IdIdentifier;
+pub use id::{IdIdentifier, ScheduleContrast};
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
@@ -173,7 +173,7 @@ pub use response::ResponseIdentifier;
 pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
 pub use result::{
     DerivationStep, DerivationTrace, EstimandClaim, IdentificationPerformanceRecord,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentificationResult, IdentificationResultParts, IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{
     PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,

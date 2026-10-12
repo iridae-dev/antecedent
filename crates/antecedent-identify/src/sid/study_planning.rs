@@ -557,7 +557,7 @@ fn valid_id(id: &str) -> bool {
 
 /// Check a candidate universe against the bounds, the base catalog and the
 /// route's population semantics. Candidates are returned sorted by id.
-#[allow(clippy::too_many_lines)] // One linear pass over every declared candidate rule.
+#[allow(clippy::too_many_lines, reason = "One linear pass over every declared candidate rule")]
 fn validate_candidates(
     route: &StudyPlanRoute,
     catalog: &EvidenceCatalog,
@@ -798,7 +798,7 @@ struct PlanCaps {
     max_proposals: usize,
 }
 
-#[allow(clippy::too_many_lines)] // One pass: validate, freeze the base, then every subset.
+#[allow(clippy::too_many_lines, reason = "One pass: validate, freeze the base, then every subset")]
 fn plan_with_caps(
     graph: &Admg,
     route: &StudyPlanRoute,
@@ -953,7 +953,7 @@ fn plan_with_caps(
         }
         records.push(record(outcome));
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)] // At most 696 subsets.
+            #[allow(clippy::cast_precision_loss, reason = "At most 696 subsets")]
             progress.report((index + 1) as f64 / total as f64, "study planning");
         }
     }

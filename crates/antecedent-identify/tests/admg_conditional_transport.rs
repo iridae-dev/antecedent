@@ -3,7 +3,6 @@
 //! Decision, reduction, obstruction-candidate and budget evidence. Numerical truth
 //! against enumerated latent SCMs lives in
 //! crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs.
-#![allow(clippy::cast_possible_truncation, reason = "small graph coordinates")]
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,

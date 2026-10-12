@@ -32,15 +32,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 /// RNG stream base for the aligned-row block replicates.
 const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
 
@@ -264,7 +255,10 @@ impl BootstrapRefute {
     /// # Errors
     ///
     /// Data or estimation failures.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,

@@ -81,7 +81,10 @@ pub struct RefutationReport {
 impl RefutationReport {
     /// Construct a refutation report.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "all-fields constructor of a #[non_exhaustive] public record; the arguments are the record's own fields"
+    )]
     pub fn new(
         refuter: impl Into<Arc<str>>,
         original_ate: f64,
@@ -732,6 +735,18 @@ pub(crate) enum NoiseReplaceTarget {
     Outcome,
 }
 
+/// Settings of one noise-replace refuter run.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NoiseReplaceSpec {
+    pub replicates: u32,
+    pub alpha: f64,
+    pub target: NoiseReplaceTarget,
+    /// Base of the per-replicate noise stream ids.
+    pub stream_base: u64,
+    pub refuter_id: &'static str,
+    pub failure_label: &'static str,
+}
+
 /// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
 ///
 /// Under OLS / linear adjustment the coefficient on independent noise is asymptotically
@@ -739,19 +754,15 @@ pub(crate) enum NoiseReplaceTarget {
 /// Reports are therefore `informative: false` (diagnostic only, not a falsifier).
 /// A non-finite replicate estimate is a failed computation, not evidence: it is a
 /// [`ValidationError`] (rendered `Failed` by the suite), never a verdict.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
     estimator: &LinearAdjustmentAte,
-    replicates: u32,
-    alpha: f64,
-    target: NoiseReplaceTarget,
-    stream_base: u64,
-    refuter_id: &'static str,
-    failure_label: &'static str,
+    spec: &NoiseReplaceSpec,
 ) -> Result<RefutationReport, ValidationError> {
+    let NoiseReplaceSpec { replicates, alpha, target, stream_base, refuter_id, failure_label } =
+        *spec;
     check_replicate_count(replicates)?;
     let replace_id = match target {
         NoiseReplaceTarget::Treatment => problem.treatment(),
@@ -801,7 +812,6 @@ pub(crate) fn replicate_p_value(
             "non-finite replicate estimate: the refit did not produce a usable effect",
         ));
     }
-    #[allow(clippy::cast_precision_loss)]
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let sd = sample_sd(samples);
     let scale = mean.abs().max(hypothesized.abs()).max(1.0);
@@ -853,7 +863,6 @@ pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ValidationEr
 
 /// Mean of the replicate estimates.
 pub(crate) fn replicate_mean(ates: &[f64]) -> f64 {
-    #[allow(clippy::cast_precision_loss)]
     let n = ates.len() as f64;
     ates.iter().sum::<f64>() / n
 }

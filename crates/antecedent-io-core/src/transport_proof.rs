@@ -108,7 +108,7 @@ fn collect_factors(
     }
 }
 
-#[expect(
+#[allow(
     clippy::too_many_arguments,
     reason = "explicit factor premises keep the proof-inspection contract visible"
 )]

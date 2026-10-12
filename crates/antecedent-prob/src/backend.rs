@@ -124,15 +124,15 @@ pub struct LaplaceWorkspace {
     pub draw_scratch: Vec<f64>,
     /// Times [`Self::prepare`] grew any buffer.
     pub grow_count: u32,
-    /// Cached unweighted/weighted XᵀX for conjugate refits on the same design matrix.
+    /// Cached unweighted/weighted `XᵀX` for conjugate refits on the same design matrix.
     pub(crate) conjugate_xtx: Vec<f64>,
     /// Cached effective sample size (sum of weights) paired with [`Self::conjugate_xtx`].
     pub(crate) conjugate_n_eff: f64,
-    /// Design-matrix identity last used to fill the conjugate XᵀX cache.
+    /// Design-matrix identity last used to fill the conjugate `XᵀX` cache.
     pub(crate) conjugate_key: Option<ConjugateGramKey>,
 }
 
-/// Content/shape key for [`LaplaceWorkspace`]'s conjugate **XᵀX** cache.
+/// Content/shape key for [`LaplaceWorkspace`]'s conjugate **`XᵀX`** cache.
 ///
 /// Identity is the contents of `X` and weights, not their addresses: a new
 /// allocation can reuse a released design pointer. `y` and offsets stay out

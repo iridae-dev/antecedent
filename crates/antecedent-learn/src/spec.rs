@@ -352,7 +352,6 @@ fn require_resolved_task(
     Ok(())
 }
 
-#[allow(clippy::unnecessary_wraps, clippy::needless_return)]
 fn resolve_forest(
     spec: crate::ForestSpec,
     task: PredictionTask,
@@ -373,7 +372,6 @@ fn resolve_forest(
     }
 }
 
-#[allow(clippy::unnecessary_wraps, clippy::needless_return)]
 fn resolve_gbt(
     spec: crate::GbtSpec,
     task: PredictionTask,
@@ -394,7 +392,6 @@ fn resolve_gbt(
     }
 }
 
-#[allow(clippy::unnecessary_wraps, clippy::needless_return)]
 fn resolve_neural(
     spec: crate::NeuralSpec,
     task: PredictionTask,

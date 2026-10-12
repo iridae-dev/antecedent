@@ -13,7 +13,10 @@ use antecedent_core::{
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_graph::DenseNodeId;
-use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
+use antecedent_identify::{
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationResultParts,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
@@ -226,18 +229,21 @@ pub const STATUS_SPELLINGS: [(IdentificationStatus, &str, &str); 6] = [
 
 /// `snake_case` spelling of a status.
 #[doc(hidden)]
+#[must_use]
 pub fn identification_status_snake(status: IdentificationStatus) -> &'static str {
     STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("not_identified", |row| row.1)
 }
 
 /// `PascalCase` spelling of a status.
 #[doc(hidden)]
+#[must_use]
 pub fn identification_status_pascal(status: IdentificationStatus) -> &'static str {
     STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("NotIdentified", |row| row.2)
 }
 
 /// Status named by either spelling.
 #[doc(hidden)]
+#[must_use]
 pub fn identification_status_from_any(spelling: &str) -> Option<IdentificationStatus> {
     STATUS_SPELLINGS
         .iter()
@@ -316,6 +322,10 @@ pub fn identification_to_wire_with_registry(
 /// # Errors
 ///
 /// Unknown status / query / arena.
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 pub fn identification_from_wire(
     w: &IdentificationResultWire,
 ) -> Result<IdentificationResult, IoError> {
@@ -380,10 +390,11 @@ pub fn identification_from_wire(
             }
         }
     }
-    Ok(IdentificationResult::from_parts(
+    Ok(IdentificationResult::from_parts(IdentificationResultParts {
         status,
-        causal_query_from_wire(&w.query)?,
-        w.estimands
+        query: causal_query_from_wire(&w.query)?,
+        estimands: w
+            .estimands
             .iter()
             .map(|e| {
                 IdentifiedEstimand::new(
@@ -402,8 +413,8 @@ pub fn identification_from_wire(
                 )
             })
             .collect(),
-        expr_arena_from_wire(&w.arena)?,
-        DerivationTrace {
+        arena: expr_arena_from_wire(&w.arena)?,
+        derivation: DerivationTrace {
             steps: w
                 .derivation
                 .iter()
@@ -413,14 +424,18 @@ pub fn identification_from_wire(
                 })
                 .collect(),
         },
-        assumptions_from_wire(&w.required_assumptions)?,
-        w.diagnostics.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
-        IdentificationPerformanceRecord {
+        required_assumptions: assumptions_from_wire(&w.required_assumptions)?,
+        diagnostics: w
+            .diagnostics
+            .iter()
+            .map(diagnostic_from_wire)
+            .collect::<Result<Vec<_>, _>>()?,
+        performance: IdentificationPerformanceRecord {
             candidates_examined: w.candidates_examined,
             sets_returned: w.sets_returned,
         },
         hedge,
-    ))
+    }))
 }
 
 /// Encode diagnostic.

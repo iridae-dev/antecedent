@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 const TAYLOR_TERMS: u32 = 20;
 
 /// Scratch buffers for \(h(W)\) / \(\nabla h\) (grow-only).
@@ -46,6 +37,10 @@ fn grow(v: &mut Vec<f64>, n: usize) {
 /// \(h(W)=\operatorname{tr}(\exp(W\circ W))-d\).
 ///
 /// Writes `expm(W∘W)` into `ws.expm` for reuse by [`grad_h`].
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn h_of_w(
     w: &[f64],
     d: usize,

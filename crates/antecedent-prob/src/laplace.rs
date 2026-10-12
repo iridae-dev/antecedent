@@ -5,15 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -26,7 +17,9 @@ use crate::backend::{
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_precision};
-use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
+use crate::likelihood_terms::{
+    LikelihoodScratch, accumulate_likelihood, log_posterior_value, validate_design,
+};
 use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, solve_spd_into};
 use crate::posterior::{PosteriorDraws, PosteriorSchema};
 use crate::prior::{
@@ -57,6 +50,10 @@ impl InferenceBackend for LaplaceGlmBackend {
 /// # Errors
 ///
 /// Shape, prior, non-convergence, or singular curvature.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn fit_laplace_glm(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -100,10 +97,12 @@ pub fn fit_laplace_glm(
             likelihood,
             design,
             &workspace.beta[..ncols],
-            &mut workspace.grad[..ncols],
-            &mut workspace.neg_hessian[..ncols * ncols],
-            &mut workspace.eta[..nrows],
-            &mut workspace.work_w[..nrows],
+            LikelihoodScratch {
+                grad: &mut workspace.grad[..ncols],
+                neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
+                eta: &mut workspace.eta[..nrows],
+                work_w: &mut workspace.work_w[..nrows],
+            },
             1.0,
             true,
         )?;
@@ -206,10 +205,12 @@ pub fn fit_laplace_glm(
         likelihood,
         design,
         &workspace.beta[..ncols],
-        &mut workspace.grad[..ncols],
-        &mut workspace.neg_hessian[..ncols * ncols],
-        &mut workspace.eta[..nrows],
-        &mut workspace.work_w[..nrows],
+        LikelihoodScratch {
+            grad: &mut workspace.grad[..ncols],
+            neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
+            eta: &mut workspace.eta[..nrows],
+            work_w: &mut workspace.work_w[..nrows],
+        },
         1.0,
         true,
     )?;
@@ -282,7 +283,7 @@ pub fn fit_laplace_glm(
     Ok(BayesFitResult { draws, map, diagnostics, cov: Some(cov) })
 }
 
-/// GaussianIdentity Laplace: exact known-σ² posterior, or the conjugate NIG path when
+/// `GaussianIdentity` Laplace: exact known-σ² posterior, or the conjugate NIG path when
 /// residual variance is unknown (Laplace's mode Hessian is block-diagonal and is not
 /// the NIG posterior).
 fn fit_gaussian_laplace(
@@ -319,6 +320,10 @@ fn fit_gaussian_laplace(
 }
 
 /// Form `A_β = X'WX + P` and `b_β = X'W(y − offset) + P m₀`.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
+)]
 fn gaussian_normal_equations(
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
@@ -446,6 +451,10 @@ fn fit_gaussian_laplace_known(
 /// # Errors
 ///
 /// Non-SPD covariance or workspace too small.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn sample_gaussian_mvn(
     mean: &[f64],
     cov: &[f64],
@@ -902,6 +911,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn laplace_known_sigma2_strong_prior_far_from_one() {
         // Strong prior mean away from OLS + known σ² ≠ 1; repaired path matches analytic.
         let n = 20;
@@ -1036,10 +1049,12 @@ mod tests {
             BayesLikelihood::PoissonLog,
             design,
             &beta,
-            &mut grad,
-            &mut hess,
-            &mut eta,
-            &mut work_w,
+            LikelihoodScratch {
+                grad: &mut grad,
+                neg_hess: &mut hess,
+                eta: &mut eta,
+                work_w: &mut work_w,
+            },
             1.0,
             true,
         )
@@ -1138,10 +1153,12 @@ mod tests {
             BayesLikelihood::BernoulliProbit,
             design,
             &fit.map,
-            &mut grad,
-            &mut hess,
-            &mut eta,
-            &mut work_w,
+            LikelihoodScratch {
+                grad: &mut grad,
+                neg_hess: &mut hess,
+                eta: &mut eta,
+                work_w: &mut work_w,
+            },
             1.0,
             true,
         )

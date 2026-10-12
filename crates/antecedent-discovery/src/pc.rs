@@ -5,13 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::field_reassign_with_default,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unreadable_literal,
-    clippy::zero_sized_map_values
-)]
 #![cfg_attr(
     test,
     allow(
@@ -134,6 +127,10 @@ impl Pc {
     /// # Errors
     ///
     /// Data, CI, or orientation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -221,7 +218,7 @@ impl Pc {
             scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         // If FDR ran, drop edges that failed; if FDR off, keep skeleton as-is.
         if self.fdr.is_some() {
-            adj.retain(|k, ()| kept.contains(k));
+            adj.retain(|k| kept.contains(k));
         }
 
         // Build undirected CPDAG skeleton.
@@ -237,7 +234,7 @@ impl Pc {
             }
         }
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
-        for &(lo, hi) in adj.keys() {
+        for &(lo, hi) in &adj {
             let a = dense_of(VariableId::from_raw(lo))?;
             let b = dense_of(VariableId::from_raw(hi))?;
             cpdag.insert_undirected(a, b).map_err(DiscoveryError::from)?;
@@ -317,19 +314,19 @@ pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
 /// unsorted traversal makes the resulting skeleton nondeterministic across runs on
 /// bit-identical input. Sorting fixes a canonical order; it does not change the
 /// algorithm's existing (documented) order-dependence, only makes it reproducible.
-pub(crate) fn sorted_edge_pairs(adj: &HashMap<(u32, u32), ()>) -> Vec<(VariableId, VariableId)> {
+pub(crate) fn sorted_edge_pairs(adj: &HashSet<(u32, u32)>) -> Vec<(VariableId, VariableId)> {
     let mut edges: Vec<(VariableId, VariableId)> =
-        adj.keys().map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi))).collect();
+        adj.iter().map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi))).collect();
     edges.sort_unstable();
     edges
 }
 
 pub(crate) fn adjacent_vars(
     v: VariableId,
-    adj: &HashMap<(u32, u32), ()>,
+    adj: &HashSet<(u32, u32)>,
     variables: &[VariableId],
 ) -> Vec<VariableId> {
-    variables.iter().copied().filter(|&u| u != v && adj.contains_key(&edge_key(v, u))).collect()
+    variables.iter().copied().filter(|&u| u != v && adj.contains(&edge_key(v, u))).collect()
 }
 
 pub(crate) fn collect_float_columns(
@@ -633,12 +630,14 @@ mod tests {
         const N_SIM: u32 = 80;
         const ALPHA: f64 = 0.05;
         let n_pairs = (N_VARS * (N_VARS - 1)) / 2;
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.alpha = ALPHA;
-        constraints.max_cond_size = 2;
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            alpha: ALPHA,
+            max_cond_size: 2,
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let pc = Pc::new().with_fdr(false).with_constraints(constraints);
         let vars: Vec<VariableId> = (0..N_VARS as u32).map(VariableId::from_raw).collect();
@@ -677,7 +676,7 @@ mod tests {
     /// raw `HashMap` iteration order.
     ///
     /// Builds the same 21-pair edge set (7-node complete graph) via two different
-    /// insertion histories (ascending vs. descending). Pre-fix (`adj.keys().collect()`
+    /// insertion histories (ascending vs. descending). Pre-fix (`adj.iter().collect()`
     /// with no sort), `HashMap` iteration order depends on the randomly-seeded hasher
     /// and, for `hashbrown`, on insertion/removal history too — there is a vanishingly
     /// small chance (~1-in-21!) either raw order already happens to be canonically
@@ -697,13 +696,13 @@ mod tests {
         }
         debug_assert!(expected.is_sorted());
 
-        let mut ascending: HashMap<(u32, u32), ()> = HashMap::new();
+        let mut ascending: HashSet<(u32, u32)> = HashSet::new();
         for &(a, b) in &expected {
-            ascending.insert(edge_key(a, b), ());
+            ascending.insert(edge_key(a, b));
         }
-        let mut descending: HashMap<(u32, u32), ()> = HashMap::new();
+        let mut descending: HashSet<(u32, u32)> = HashSet::new();
         for &(a, b) in expected.iter().rev() {
-            descending.insert(edge_key(a, b), ());
+            descending.insert(edge_key(a, b));
         }
 
         assert_eq!(sorted_edge_pairs(&ascending), expected);
@@ -737,11 +736,13 @@ mod tests {
         // but this test keeps the disjoint layout since it targets the
         // determinism fixes, not collider orientation.
         let oracle = OracleCi::new([(0usize, 1usize), (1, 2), (3, 4), (4, 5), (6, 7), (7, 8)]);
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.max_cond_size = 2;
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            max_cond_size: 2,
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle)).with_constraints(constraints);
 
@@ -827,12 +828,14 @@ mod tests {
         let data = tabular_n(4, 30);
         let vars: Vec<VariableId> = (0..4u32).map(VariableId::from_raw).collect();
 
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.alpha = 0.5;
-        constraints.max_cond_size = 1;
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            alpha: 0.5,
+            max_cond_size: 1,
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let pc =
             Pc::new().with_fdr(false).with_ci(Arc::new(ZDependentCi)).with_constraints(constraints);
@@ -863,16 +866,18 @@ mod tests {
     fn required_edge_reports_no_test_evidence() {
         let data = tabular_n(3, 30);
         let vars: Vec<VariableId> = (0..3u32).map(VariableId::from_raw).collect();
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.required = Arc::from([LaggedLink {
-            source: VariableId::from_raw(0),
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: VariableId::from_raw(1),
-            target_lag: Lag::CONTEMPORANEOUS,
-        }]);
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            required: Arc::from([LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            }]),
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let oracle = OracleCi::new([(1usize, 2usize)]);
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle)).with_constraints(constraints);

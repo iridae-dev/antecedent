@@ -3,15 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::similar_names, clippy::trivially_copy_pass_by_ref)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{CausalRng, KernelPolicy};
 use antecedent_kernels::shuffle;
 
@@ -100,6 +91,10 @@ pub(crate) fn block_permute_contiguous(y: &mut [f64], block_size: usize, rng: &m
 /// # Errors
 ///
 /// [`StatsError::Shape`] when a residual has no variance.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 pub(crate) fn residual_null_pvalue(
     policy: &KernelPolicy,
     rx: &[f64],

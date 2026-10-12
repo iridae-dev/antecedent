@@ -14,7 +14,6 @@
     clippy::float_cmp,
     clippy::needless_pass_by_value,
     clippy::needless_range_loop,
-    clippy::too_many_lines,
     reason = "test fixtures: counts are rounded non-negative cell masses, and bit-exact float equality is the property under test"
 )]
 

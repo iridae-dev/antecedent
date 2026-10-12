@@ -24,7 +24,6 @@
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_possible_truncation,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -1008,10 +1007,13 @@ impl NonparametricSensitivity {
     /// # Errors
     ///
     /// Data failures or empty `partial_r2_grid`.
-    #[allow(clippy::only_used_in_recursion)]
     #[allow(
         clippy::cast_possible_truncation,
         reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
+    #[allow(
+        clippy::only_used_in_recursion,
+        reason = "part of the shared refuter signature; the temporal branch re-enters with the aligned problem"
     )]
     pub fn refute(
         &self,

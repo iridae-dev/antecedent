@@ -768,6 +768,7 @@ mod tests {
     use antecedent_graph::DenseNodeId;
     use antecedent_identify::{
         DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+        IdentificationResultParts,
     };
 
     use super::*;
@@ -814,17 +815,17 @@ mod tests {
     fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
-        IdentificationResult::from_parts(
+        IdentificationResult::from_parts(IdentificationResultParts {
             status,
-            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y)),
-            Vec::new(),
-            CausalExprArena::new(),
-            DerivationTrace::default(),
-            AssumptionSet::default(),
-            Vec::new(),
-            IdentificationPerformanceRecord::default(),
-            None,
-        )
+            query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y)),
+            estimands: Vec::new(),
+            arena: CausalExprArena::new(),
+            derivation: DerivationTrace::default(),
+            required_assumptions: AssumptionSet::default(),
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
+        })
     }
 
     fn estimand_wire(functional: u32, rd_design: Option<RdDesignWire>) -> IdentifiedEstimandWire {
@@ -861,20 +862,20 @@ mod tests {
             antecedent_core::Value::Bool(true),
             antecedent_core::Value::Bool(false),
         );
-        let result = IdentificationResult::from_parts(
-            IdentificationStatus::NonparametricallyIdentified,
-            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+        let result = IdentificationResult::from_parts(IdentificationResultParts {
+            status: IdentificationStatus::NonparametricallyIdentified,
+            query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
                 VariableId::from_raw(0),
                 VariableId::from_raw(1),
             )),
-            Vec::new(),
+            estimands: Vec::new(),
             arena,
-            DerivationTrace::default(),
-            AssumptionSet::default(),
-            Vec::new(),
-            IdentificationPerformanceRecord::default(),
-            None,
-        );
+            derivation: DerivationTrace::default(),
+            required_assumptions: AssumptionSet::default(),
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
+        });
         let mut wire = identification_to_wire(&result).unwrap();
         for (cutoff, bandwidth) in
             [(f64::NAN, 1.0), (0.5, 0.0), (0.5, -1.0), (0.5, f64::INFINITY), (0.5, f64::NAN)]

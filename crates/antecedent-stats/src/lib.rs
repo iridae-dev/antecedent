@@ -39,9 +39,9 @@ pub mod twosls;
 mod welford;
 
 pub use ci::{
-    BayesFactorCi, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery,
-    CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod,
-    GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence,
+    BayesFactorCi, BlockTest, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan,
+    CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest,
+    ConfidenceMethod, GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence,
     MultivariatePartialCorrelation, OracleCi, PairwiseMultivariateCi, PartialCorrelation,
     PosteriorDependenceCi, PosteriorPredictiveCi, PreparedCiTest, RegressionCi,
     RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,

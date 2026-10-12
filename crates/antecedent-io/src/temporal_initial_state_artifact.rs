@@ -531,7 +531,7 @@ impl TemporalInitialStateArtifactWire {
             if version == TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE]

@@ -10,7 +10,6 @@
 //! including one resealed with recomputed digests.
 //!
 //! Role ids: `X1 = 0, X2 = 1, R1 = 2, R2 = 3, X*1 = 4, X*2 = 5` (also the dense node order).
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::{ChainPatternLaw, evaluate_chain_recovery};

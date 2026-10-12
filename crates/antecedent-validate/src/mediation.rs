@@ -97,7 +97,6 @@ impl QueryRefutationPlan {
 /// Run the native suite with the same graph-derived adjustment as the estimate.
 #[allow(
     clippy::float_cmp,
-    clippy::too_many_arguments,
     reason = "the treatment column is compared to its own deduplicated level values, which are copies of the same floats; the argument list mirrors the estimate call"
 )]
 pub fn refute_temporal_mediation_adjusted(
@@ -227,7 +226,7 @@ fn report(id: &str, target: f64, values: &[f64]) -> Result<RefutationReport, Val
 ///
 /// # Errors
 /// Invalid refit data, regression failure, or cancellation.
-#[allow(clippy::float_cmp)] // Exact binary treatment levels define the two groups.
+#[allow(clippy::float_cmp, reason = "Exact binary treatment levels define the two groups")]
 pub fn refute_static_mediation(
     data: &TabularData,
     graph: &antecedent_graph::Dag,

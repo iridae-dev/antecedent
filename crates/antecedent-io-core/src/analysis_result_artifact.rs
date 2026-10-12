@@ -324,7 +324,7 @@ pub struct StructuralResponseMixtureWire {
     pub truncated_atoms: u64,
 }
 
-#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes `&T`.
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes `&T`")]
 fn is_zero_mass(mass: &f64) -> bool {
     *mass == 0.0
 }
@@ -1231,7 +1231,10 @@ fn graphless_status_ok(actual: Option<&str>, licensed: bool, allow_legacy_missin
 }
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_randomized_graphless(
     result: &AnalysisResultWire,
     allow_legacy_graphless_missing: bool,
@@ -1863,7 +1866,10 @@ fn validate_ratio_graphless(result: &AnalysisResultWire) -> Result<(), IoError> 
 }
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_longitudinal_graphless(
     result: &AnalysisResultWire,
     allow_legacy_graphless_missing: bool,
@@ -2188,7 +2194,10 @@ fn validate_longitudinal_graphless(
 }
 
 // A flat sequence of independent field checks; splitting would scatter the contract.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_continuous_dose_graphless(
     result: &AnalysisResultWire,
     allow_legacy_graphless_missing: bool,
@@ -2345,7 +2354,10 @@ fn validate_continuous_dose_graphless(
 }
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
     let Some(policy) = &result.policy_value else {
         return Ok(());
@@ -2768,7 +2780,10 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
 }
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
     let Some(did) = &result.panel_did else {
         return Ok(());
@@ -3119,7 +3134,10 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
 }
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
     let Some(curve) = &result.survival else {
         return Ok(());
@@ -3325,7 +3343,10 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
 }
 
 // allow(too_many_lines): single dispatch over every result-variant validator; splitting hides the total contract
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn validate_result(
     result: &AnalysisResultWire,
     variable_names: &[String],

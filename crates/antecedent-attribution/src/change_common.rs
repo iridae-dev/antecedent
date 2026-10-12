@@ -180,17 +180,25 @@ pub(crate) trait CachedOutcomeLawPayoff {
     }
 }
 
+/// What a change allocation divides, among whom, and by which method.
+#[derive(Clone, Copy)]
+pub(crate) struct ChangeAllocation<'a> {
+    pub outcome: VariableId,
+    pub players: &'a [ComponentId],
+    pub allocation: &'a AllocationMethod,
+    /// Model whose graph orders path-based allocation.
+    pub model_for_paths: Option<&'a antecedent_model::CompiledCausalModel>,
+}
+
 /// Run Shapley / sequential / path-based allocation and pack a [`ChangeAttributionResult`].
 pub(crate) fn run_change_allocation<P: CoalitionPayoff>(
-    outcome: VariableId,
-    players: &[ComponentId],
-    allocation: &AllocationMethod,
+    request: &ChangeAllocation<'_>,
     payoff: &mut P,
     total_change: f64,
     unidentified: Arc<[ComponentId]>,
     ctx: &ExecutionContext,
-    model_for_paths: Option<&antecedent_model::CompiledCausalModel>,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    let ChangeAllocation { outcome, players, allocation, model_for_paths } = *request;
     match allocation {
         AllocationMethod::Shapley { approximation } => {
             let estimate = estimate_shapley(players, approximation, payoff, ctx)?;
@@ -414,15 +422,18 @@ mod tests {
         let players = [ComponentId::from_raw(1), ComponentId::from_raw(2)];
         let allocation =
             AllocationMethod::Sequential { order: Arc::from([ComponentId::from_raw(1)]) };
+        let request = ChangeAllocation {
+            outcome: VariableId::from_raw(9),
+            players: &players,
+            allocation: &allocation,
+            model_for_paths: None,
+        };
         let err = run_change_allocation(
-            VariableId::from_raw(9),
-            &players,
-            &allocation,
+            &request,
             &mut AdditivePayoff,
             2.0,
             Arc::from([]),
             &ExecutionContext::for_tests(1),
-            None,
         )
         .unwrap_err();
         assert!(matches!(err, AttributionError::InvalidInput { .. }));
@@ -434,15 +445,18 @@ mod tests {
         let allocation = AllocationMethod::Sequential {
             order: Arc::from([ComponentId::from_raw(1), ComponentId::from_raw(3)]),
         };
+        let request = ChangeAllocation {
+            outcome: VariableId::from_raw(9),
+            players: &players,
+            allocation: &allocation,
+            model_for_paths: None,
+        };
         let err = run_change_allocation(
-            VariableId::from_raw(9),
-            &players,
-            &allocation,
+            &request,
             &mut AdditivePayoff,
             2.0,
             Arc::from([]),
             &ExecutionContext::for_tests(1),
-            None,
         )
         .unwrap_err();
         assert_eq!(err, AttributionError::UnknownPlayer);

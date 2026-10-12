@@ -31,7 +31,7 @@ pub use gsquared::{GSquared, RegressionCi};
 pub use pairwise_mv::{PairwiseMultivariateCi, pairwise_multivariate_test};
 pub use parcorr::PartialCorrelation;
 pub use parcorr_variants::{
-    MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
+    BlockTest, MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
 pub use types::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,

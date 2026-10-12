@@ -181,7 +181,7 @@ impl ScenarioCoordinate {
     /// no claim about which numbers occur, but every domain is numeric, so a
     /// non-finite or non-numeric value belongs to no domain and is refused.
     #[must_use]
-    #[allow(clippy::float_cmp)] // Domain membership is exact, not approximate equality.
+    #[allow(clippy::float_cmp, reason = "Domain membership is exact, not approximate equality")]
     pub fn accepts(&self, value: &Value) -> bool {
         let value = value.as_f64();
         match self.domain {
@@ -871,7 +871,7 @@ pub fn decide_scenario_question(
         };
         decisions.push(ScenarioDecision { scenario: scenario.clone(), outcome });
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)] // At most 64 scenarios.
+            #[allow(clippy::cast_precision_loss, reason = "At most 64 scenarios")]
             progress.report(decisions.len() as f64 / total as f64, "transport scenarios");
         }
     }

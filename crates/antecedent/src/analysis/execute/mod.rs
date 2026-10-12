@@ -413,18 +413,20 @@ mod class_mixture_mass_tests {
         GraphIdentificationCase {
             graph: 0,
             result: IdentificationResult::from_parts(
-                status,
-                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-                    VariableId::from_raw(0),
-                    VariableId::from_raw(1),
-                )),
-                Vec::new(),
-                antecedent_expr::CausalExprArena::new(),
-                DerivationTrace::default(),
-                antecedent_core::AssumptionSet::default(),
-                Vec::new(),
-                IdentificationPerformanceRecord::default(),
-                None,
+                antecedent_identify::IdentificationResultParts {
+                    status,
+                    query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                        VariableId::from_raw(0),
+                        VariableId::from_raw(1),
+                    )),
+                    estimands: Vec::new(),
+                    arena: antecedent_expr::CausalExprArena::new(),
+                    derivation: DerivationTrace::default(),
+                    required_assumptions: antecedent_core::AssumptionSet::default(),
+                    diagnostics: Vec::new(),
+                    performance: IdentificationPerformanceRecord::default(),
+                    hedge: None,
+                },
             ),
             weight: ProbabilityMass(weight),
         }
@@ -764,17 +766,17 @@ mod support_tests {
                 scope: antecedent_core::AssumptionScope::Identification,
                 status: antecedent_core::AssumptionStatus::Declared,
             });
-            IdentificationResult::from_parts(
+            IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
                 status,
-                CausalQuery::AverageEffect(query.clone()),
-                Vec::new(),
-                CausalExprArena::new(),
-                DerivationTrace::default(),
-                assumptions,
-                Vec::new(),
-                IdentificationPerformanceRecord::default(),
-                None,
-            )
+                query: CausalQuery::AverageEffect(query.clone()),
+                estimands: Vec::new(),
+                arena: CausalExprArena::new(),
+                derivation: DerivationTrace::default(),
+                required_assumptions: assumptions,
+                diagnostics: Vec::new(),
+                performance: IdentificationPerformanceRecord::default(),
+                hedge: None,
+            })
         }
 
         let query =

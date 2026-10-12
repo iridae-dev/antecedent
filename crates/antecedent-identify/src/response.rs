@@ -47,7 +47,10 @@ impl ResponseIdentifier {
     }
 
     /// Identify every treatment/outcome pair required by a response functional.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,

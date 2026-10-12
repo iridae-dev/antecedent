@@ -391,12 +391,7 @@ pub(crate) fn posterior_interval(mut draws: Vec<f64>, level: f64) -> Result<(f64
     }
     draws.sort_by(f64::total_cmp);
     let quantile = |p: f64| {
-        #[allow(
-            clippy::cast_precision_loss,
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "bounded native posterior draw indexing"
-        )]
+        #[allow(clippy::cast_precision_loss, reason = "bounded native posterior draw indexing")]
         let h = p * (draws.len() - 1) as f64;
         #[allow(
             clippy::cast_possible_truncation,

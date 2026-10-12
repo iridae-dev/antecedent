@@ -134,7 +134,10 @@ impl PathSpecificIdentifier {
         self.identify_path_specific(prepared, q, query.clone(), workspace)
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_path_specific(
         &self,
         prepared: &PreparedAdmg,
@@ -367,30 +370,12 @@ fn classify_first_hops(
                 }
             }
         }
-        PathQuestion::Avoiding(mediators) => classify_mediation(
-            dag,
-            y,
-            &children,
-            &mediators,
-            &an_y,
-            false,
-            ws,
-            &mut selected,
-            &mut complement,
-            &mut children_reaching_outcome,
-        )?,
-        PathQuestion::Through(mediators) => classify_mediation(
-            dag,
-            y,
-            &children,
-            &mediators,
-            &an_y,
-            true,
-            ws,
-            &mut selected,
-            &mut complement,
-            &mut children_reaching_outcome,
-        )?,
+        PathQuestion::Avoiding(mediators) => {
+            return classify_mediation(dag, y, &children, &mediators, &an_y, false, ws);
+        }
+        PathQuestion::Through(mediators) => {
+            return classify_mediation(dag, y, &children, &mediators, &an_y, true, ws);
+        }
     }
 
     Ok(FirstHops { selected, complement, children_reaching_outcome })
@@ -404,17 +389,17 @@ fn classify_mediation(
     an_y: &BitSet,
     want_mediated: bool,
     ws: &mut GraphWorkspace,
-    selected: &mut Vec<DenseNodeId>,
-    complement: &mut Vec<DenseNodeId>,
-    children_reaching_outcome: &mut u64,
-) -> Result<(), IdentificationError> {
+) -> Result<FirstHops, IdentificationError> {
+    let mut selected = Vec::new();
+    let mut complement = Vec::new();
+    let mut children_reaching_outcome = 0u64;
     let open = ancestors_avoiding(dag, y, mediators, ws)?;
     let mediator_set: HashSet<DenseNodeId> = mediators.iter().copied().collect();
     for &child in children {
         if !an_y.contains(child) {
             continue;
         }
-        *children_reaching_outcome += 1;
+        children_reaching_outcome += 1;
         let unmediated = !mediator_set.contains(&child) && open.contains(child);
         let mediated = mediator_set.contains(&child)
             || mediators.iter().any(|m| an_y.contains(*m) && dag.reaches(child, *m));
@@ -427,7 +412,7 @@ fn classify_mediation(
             complement.push(child);
         }
     }
-    Ok(())
+    Ok(FirstHops { selected, complement, children_reaching_outcome })
 }
 
 /// Ancestors of `y`, including `y`, along directed paths that touch no node in `avoid`.

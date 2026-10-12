@@ -1041,8 +1041,11 @@ impl<'a> Engine<'a> {
         self.memo.insert((state, source), result);
         Ok(result)
     }
-    #[allow(clippy::if_not_else)] // Keep the pinned pseudocode branch order.
-    #[allow(clippy::too_many_lines)] // One match implementing the pinned recursive algorithm.
+    #[allow(clippy::if_not_else, reason = "Keep the pinned pseudocode branch order")]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "One match implementing the pinned recursive algorithm"
+    )]
     fn solve_body(
         &mut self,
         state: &State,
@@ -1192,7 +1195,10 @@ pub fn verify_classical_transport(
 
 /// [`verify_classical_transport`] charging `meter`, with the checker rooted at
 /// `(depth offset, live bytes)` of the search it verifies for.
-#[allow(clippy::too_many_lines)] // One auditable premise dispatch for the seven pinned rules.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One auditable premise dispatch for the seven pinned rules"
+)]
 fn verify_charged(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -1973,7 +1979,7 @@ impl Engine<'_> {
 ///
 /// # Errors
 /// Invalid witness, different evidence/query/graph scope, or cancellation.
-#[allow(clippy::too_many_lines)] // Keep the independent forest conditions together.
+#[allow(clippy::too_many_lines, reason = "Keep the independent forest conditions together")]
 pub fn verify_s_hedge(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -2237,7 +2243,10 @@ pub fn identify_catalog_transport(
 ///
 /// # Errors
 /// As [`identify_catalog_transport`]; under a shared budget, its stop.
-#[allow(clippy::too_many_lines)] // one linear pipeline: source pass, then enlargement, then catalog search
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pipeline: source pass, then enlargement, then catalog search"
+)]
 pub(crate) fn identify_catalog_transport_metered(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,

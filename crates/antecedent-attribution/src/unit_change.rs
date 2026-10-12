@@ -27,6 +27,10 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 /// # Errors
 ///
 /// Size limits, out-of-range `unit_rows`, abduction, or Shapley failures.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn unit_change(
     model: &CompiledCausalModel,
     data: &TabularData,

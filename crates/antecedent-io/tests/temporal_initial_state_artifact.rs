@@ -6,10 +6,7 @@
 //! target law `P(s0 = 1) = 0.7` gives the integrated value `0.3 * 0.33 + 0.7 * 0.46 =
 //! 0.421`, while fixing the state at its mode gives `0.46`.
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
 )]
 

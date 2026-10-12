@@ -9,8 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -427,7 +425,10 @@ pub(crate) fn z_surrogate_kernels(
 /// Either hook's error stops the read as [`ScanStop::Hook`].
 // Keep the checked binding and factor validation together so a sensitivity
 // result is built only after the complete proof/provider contract passes.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub(crate) fn z_surrogate_kernels_metered<E>(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -661,7 +662,6 @@ impl std::error::Error for FixedGraphSensitivityError {}
 /// incomplete finite support, and invalid probabilities.
 // This staged validation derives the target contrast from checked graph,
 // kernel, population, and snapshot evidence before optimizing the range.
-#[allow(clippy::too_many_lines)]
 pub fn fixed_graph_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -1730,7 +1730,6 @@ mod tests {
 
     // The zero-contamination contract requires the extrema to equal baseline
     // exactly; a tolerance could hide an unintended perturbation.
-    #[allow(clippy::float_cmp, reason = "tests pin bitwise-identical replayed values")]
     fn assert_exact_float_eq(actual: f64, expected: f64) {
         assert_eq!(actual, expected);
     }
@@ -1759,7 +1758,10 @@ mod tests {
     #[test]
     // Keep construction, provider binding, and changed-input checks together
     // because they jointly verify this single staged z-route contract.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn checked_z_formula_sensitivity_binds_its_provider_and_delta_domain() {
         use antecedent_expr::{
             DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance,

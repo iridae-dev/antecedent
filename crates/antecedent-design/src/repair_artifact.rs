@@ -894,7 +894,7 @@ impl RepairReportArtifact {
     /// consumer could replay it); `repair_artifact.invalid_artifact` for a
     /// report that does not belong to `family` or `candidates`, a graph the wire
     /// cannot restore, or an encoding failure.
-    #[allow(clippy::too_many_lines)] // One explicit wire encoding of the report.
+    #[allow(clippy::too_many_lines, reason = "One explicit wire encoding of the report")]
     pub fn build(
         family: RepairFamilyRef<'_>,
         candidates: &[DurableStudyCandidate],

@@ -337,7 +337,6 @@ impl LearnerFactory for AutoLearner {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod audit_tests {
     use super::*;
     #[test]

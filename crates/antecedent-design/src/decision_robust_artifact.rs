@@ -244,7 +244,10 @@ pub fn admissible_contract_from_json(json: &str) -> Result<AdmissibleDecisionCon
 /// # Errors
 /// A malformed or invalid declaration, as a structured refusal.
 // The refusal is the cold path of a once-per-declaration check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn admissible_contract_from_json_refusal(
     json: &str,
 ) -> Result<AdmissibleDecisionContract, ExternalRefusal> {

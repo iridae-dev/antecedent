@@ -407,7 +407,7 @@ pub enum ContractReason {
 impl ContractReason {
     /// Historical reason spelling stored on [`antecedent_contract::AcceptanceReport`].
     #[must_use]
-    #[expect(
+    #[allow(
         clippy::too_many_lines,
         reason = "Each ledger code keeps its historical spelling in one match."
     )]

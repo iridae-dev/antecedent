@@ -5,7 +5,6 @@
 //! `gamma` in `{0, 1, 2}` with action A at utility `2 - gamma` (2, 1, 0) and action B at
 //! utility 1: A leads at 0, they tie at 1 and B leads at 2, so the tipping coordinate is
 //! the exact tie at `gamma = 1`.
-#![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::RegimeId;

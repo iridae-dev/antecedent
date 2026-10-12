@@ -431,8 +431,11 @@ fn validate_response_query_ids(
 }
 
 // allow(too_many_lines): exhaustive per-variant id validation; one match arm per query kind
-#[allow(clippy::too_many_lines)]
 #[doc(hidden)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 pub fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<(), IoError> {
     use CausalQueryWire as Q;
     match query {

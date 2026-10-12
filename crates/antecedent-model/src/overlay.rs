@@ -168,7 +168,10 @@ fn add_shift(overlay: &mut InterventionOverlay, idx: usize, delta: f64) -> Resul
     Ok(())
 }
 
-#[allow(clippy::float_cmp)] // a repeated identical set is idempotent: exact equality is intended
+#[allow(
+    clippy::float_cmp,
+    reason = "a repeated identical set is idempotent: exact equality is intended"
+)]
 fn apply_intervention(
     model: &CompiledCausalModel,
     overlay: &mut InterventionOverlay,

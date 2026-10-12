@@ -2,16 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::type_complexity)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -405,20 +395,33 @@ fn ancestral_link_batches(
     batches
 }
 
+/// What one LPCMCI removal phase reads: engine, lagged frame, node index, variables and the
+/// largest conditioning-set size.
+#[derive(Clone, Copy)]
+struct RemovalPhase<'a> {
+    engine: &'a PcmciEngine,
+    frame: &'a LaggedFrame,
+    idx: &'a NodeIndex,
+    variables: &'a [VariableId],
+    max_p: usize,
+}
+
 /// One ancestral removal phase (Algorithm S2).
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 fn ancestral_removal_phase(
-    engine: &PcmciEngine,
-    frame: &LaggedFrame,
+    phase: RemovalPhase<'_>,
     pag: &mut TemporalPag,
-    idx: &NodeIndex,
-    variables: &[VariableId],
     state: &mut OrientationState,
     sepsets_out: &mut PcSepsets,
     scored: &mut Vec<ScoredLink>,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-    max_p: usize,
 ) -> Result<u64, DiscoveryError> {
+    let RemovalPhase { engine, frame, idx, variables, max_p } = phase;
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
@@ -500,9 +503,9 @@ fn ancestral_removal_phase(
                             }
                         }
                         cond.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
-                        let (stat, p) = engine.ci_statistic(
-                            frame, other, other_lag, target, target_lag, &cond, workspace, ctx,
-                        )?;
+                        let link =
+                            LaggedLink { source: other, source_lag: other_lag, target, target_lag };
+                        let (stat, p) = engine.ci_statistic(frame, link, &cond, workspace, ctx)?;
                         tests += 1;
                         // break_once_separated: first independence after stable combo order.
                         if p > alpha {
@@ -588,18 +591,14 @@ fn ancestral_removal_phase(
                     .into_iter()
                     .chain(known_parents_of(pag, idx, y))
                     .collect();
-                let wm = make_sepset_weakly_minimal(
-                    engine,
-                    frame,
-                    x,
-                    x_lag,
-                    y,
-                    Lag::CONTEMPORANEOUS,
-                    &cond,
-                    &ancs,
-                    workspace,
-                    ctx,
-                )?;
+                let link = LaggedLink {
+                    source: x,
+                    source_lag: x_lag,
+                    target: y,
+                    target_lag: Lag::CONTEMPORANEOUS,
+                };
+                let wm =
+                    make_sepset_weakly_minimal(engine, frame, link, &cond, &ancs, workspace, ctx)?;
                 ci_tests += 1;
                 let sep_arc: Arc<[LaggedParent]> = Arc::from(wm);
                 sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), Arc::clone(&sep_arc));
@@ -641,18 +640,20 @@ fn ancestral_removal_phase(
 }
 
 /// Non-ancestral removal (Algorithm S3): CI given napds-style adjacencies of both sides.
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 fn non_ancestral_removal_phase(
-    engine: &PcmciEngine,
-    frame: &LaggedFrame,
+    phase: RemovalPhase<'_>,
     pag: &mut TemporalPag,
-    idx: &NodeIndex,
-    variables: &[VariableId],
     state: &mut OrientationState,
     sepsets_out: &mut PcSepsets,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-    max_p: usize,
 ) -> Result<u64, DiscoveryError> {
+    let RemovalPhase { engine, frame, idx, variables, max_p } = phase;
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
@@ -712,16 +713,14 @@ fn non_ancestral_removal_phase(
                         candidate_cond.extend_from_slice(&combo);
                         candidate_cond
                             .sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
-                        let (stat, p) = engine.ci_statistic(
-                            frame,
-                            x,
-                            x_lag,
-                            y,
-                            Lag::CONTEMPORANEOUS,
-                            &candidate_cond,
-                            workspace,
-                            ctx,
-                        )?;
+                        let link = LaggedLink {
+                            source: x,
+                            source_lag: x_lag,
+                            target: y,
+                            target_lag: Lag::CONTEMPORANEOUS,
+                        };
+                        let (stat, p) =
+                            engine.ci_statistic(frame, link, &candidate_cond, workspace, ctx)?;
                         ci_tests += 1;
                         if p > alpha {
                             best = Some((std::mem::take(&mut candidate_cond), stat, p));
@@ -732,17 +731,14 @@ fn non_ancestral_removal_phase(
                         continue;
                     };
                     let ancs: Vec<_> = s_def_x.into_iter().chain(s_def_y).collect();
+                    let link = LaggedLink {
+                        source: x,
+                        source_lag: x_lag,
+                        target: y,
+                        target_lag: Lag::CONTEMPORANEOUS,
+                    };
                     let wm = make_sepset_weakly_minimal(
-                        engine,
-                        frame,
-                        x,
-                        x_lag,
-                        y,
-                        Lag::CONTEMPORANEOUS,
-                        &cond,
-                        &ancs,
-                        workspace,
-                        ctx,
+                        engine, frame, link, &cond, &ancs, workspace, ctx,
                     )?;
                     let sep_arc: Arc<[LaggedParent]> = Arc::from(wm);
                     sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), Arc::clone(&sep_arc));
@@ -906,6 +902,10 @@ pub fn run_lpcmci_panel(
     run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 fn run_lpcmci_on_frame(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
@@ -938,18 +938,15 @@ fn run_lpcmci_on_frame(
     for k in 0..n_preliminary {
         let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
         apply_remembered_parents(&mut pag, &idx, &parents_mem);
+        let phase = RemovalPhase { engine, frame, idx: &idx, variables, max_p: max_cond };
         let t = ancestral_removal_phase(
-            engine,
-            frame,
+            phase,
             &mut pag,
-            &idx,
-            variables,
             &mut state,
             &mut sepsets,
             &mut scored,
             workspace,
             ctx,
-            max_cond,
         )?;
         ci_tests += t;
         parents_mem = collect_parents(&pag, &idx, variables);
@@ -963,34 +960,20 @@ fn run_lpcmci_on_frame(
     // Full ancestral + non-ancestral.
     let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
     apply_remembered_parents(&mut pag, &idx, &parents_mem);
+    let phase = RemovalPhase { engine, frame, idx: &idx, variables, max_p: max_cond };
     let t = ancestral_removal_phase(
-        engine,
-        frame,
+        phase,
         &mut pag,
-        &idx,
-        variables,
         &mut state,
         &mut sepsets,
         &mut scored,
         workspace,
         ctx,
-        max_cond,
     )?;
     ci_tests += t;
     iterations.push(DiscoveryIteration { label: Arc::from("lpcmci.ancestral"), ci_tests: t });
 
-    let t = non_ancestral_removal_phase(
-        engine,
-        frame,
-        &mut pag,
-        &idx,
-        variables,
-        &mut state,
-        &mut sepsets,
-        workspace,
-        ctx,
-        max_cond,
-    )?;
+    let t = non_ancestral_removal_phase(phase, &mut pag, &mut state, &mut sepsets, workspace, ctx)?;
     ci_tests += t;
     iterations.push(DiscoveryIteration { label: Arc::from("lpcmci.non_ancestral"), ci_tests: t });
 

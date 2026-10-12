@@ -100,6 +100,10 @@ impl TransportAdjustment {
     /// # Errors
     ///
     /// Length mismatch, empty, non-finite, negative weights, or zero mass.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn new(
         unit_effects: impl Into<Arc<[f64]>>,
         target_weights: impl Into<Arc<[f64]>>,
@@ -395,6 +399,10 @@ fn replace_coef_moments(
 ///
 /// [`TransportError::PolicyRequired`] when populations differ without a policy,
 /// length mismatches, or invalid adjustment weights.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn apply_transport(
     sources: &[ExternalPriorSource],
     ctx: &TransportContext<'_>,

@@ -55,7 +55,7 @@ use antecedent_estimate::{
 use antecedent_graph::{Admg, NodeRef};
 use antecedent_identify::{
     RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery, RecoveryDerivation, RecoveryDerivationRecord,
-    RecoveryError, RecoveryLimits, verify_observation_recovery,
+    RecoveryError, RecoveryLimits, StoredRecovery, verify_observation_recovery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -780,7 +780,7 @@ impl SampledRecoveryArtifactWire {
             if version == SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         wire.validate_shape()?;
@@ -876,9 +876,11 @@ impl SampledRecoveryArtifactWire {
             &query,
             &catalog,
             Some(&effect),
-            &wire.derivation,
-            &arena,
-            Some(&effect_arena),
+            &StoredRecovery {
+                record: &wire.derivation,
+                arena: &arena,
+                effect_arena: Some(&effect_arena),
+            },
             limits.decision,
             ctx,
         )

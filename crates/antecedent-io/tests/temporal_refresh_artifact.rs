@@ -6,10 +6,7 @@
 //! the old period; the replacement panel's cell means are each `0.1` higher, so the
 //! re-evaluated value is `0.3 * 0.43 + 0.7 * 0.56 = 0.521`.
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
 )]
 

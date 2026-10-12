@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize};
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci};
@@ -114,7 +106,6 @@ impl FalsePositiveCheck {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

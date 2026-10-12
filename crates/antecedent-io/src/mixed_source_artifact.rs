@@ -405,7 +405,7 @@ impl MixedSourceArtifactWire {
             if version == MIXED_SOURCE_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         wire.validate_shape()?;

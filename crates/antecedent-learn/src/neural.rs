@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value)]
-
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
 use antecedent_learn_burn::TrainedMlp;
@@ -73,11 +71,13 @@ impl LearnerFactory for NeuralNetLearner {
             nrows,
             ncols,
             &gathered_y,
-            binary,
-            self.spec.hidden as usize,
-            self.spec.epochs as usize,
-            self.spec.learning_rate,
-            seed,
+            &antecedent_learn_burn::MlpSpec {
+                binary,
+                hidden: self.spec.hidden as usize,
+                epochs: self.spec.epochs as usize,
+                learning_rate: self.spec.learning_rate,
+                seed,
+            },
         )
         .map_err(LearnError::Backend)?;
         Ok(Box::new(NeuralNetPredictor { model, task: self.task }))

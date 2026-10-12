@@ -24,16 +24,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::unused_self)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -45,7 +35,7 @@ use antecedent_graph::{DenseNodeId, NodeRef, TemporalDag, UnfoldedTemporalGraph}
 
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
-use crate::id::IdIdentifier;
+use crate::id::{IdIdentifier, ScheduleContrast};
 use crate::identifier::IdentificationWorkspace;
 use crate::prepared::PreparedAdmg;
 use crate::result::IdentificationResult;
@@ -156,12 +146,12 @@ impl TemporalBackdoorIdentifier {
             TemporalPolicy::Sustained { from, until } if from != until => {
                 let schedule: Vec<_> =
                     (*from..=*until).map(|offset| (query.treatment, offset)).collect();
-                return self.identify_active_offsets(template, query, &schedule, outcome_at);
+                return Self::identify_active_offsets(template, query, &schedule, outcome_at);
             }
             TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
                 let schedule: Vec<_> =
                     active_at.iter().map(|&offset| (query.treatment, offset)).collect();
-                return self.identify_active_offsets(template, query, &schedule, outcome_at);
+                return Self::identify_active_offsets(template, query, &schedule, outcome_at);
             }
             TemporalPolicy::Pulse { .. }
             | TemporalPolicy::Sustained { .. }
@@ -207,7 +197,7 @@ impl TemporalBackdoorIdentifier {
                 if self.parent_adjustment_fallback
                     && matches!(query.policy, TemporalPolicy::Pulse { .. }) =>
             {
-                return self.parent_adjustment(template, query, Some(message));
+                return Self::parent_adjustment(template, query, Some(message));
             }
             Err(error) => return Err(error),
         };
@@ -285,11 +275,14 @@ impl TemporalBackdoorIdentifier {
         template: &TemporalDag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
-        self.parent_adjustment(template, query, None)
+        Self::parent_adjustment(template, query, None)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn parent_adjustment(
-        &self,
         template: &TemporalDag,
         query: &TemporalEffectQuery,
         unfolding_refusal: Option<&'static str>,
@@ -532,13 +525,12 @@ impl TemporalBackdoorIdentifier {
         })?;
         let schedule_pairs: Vec<(VariableId, i32)> =
             schedule.iter().map(|&(variable, offset, _)| (variable, offset)).collect();
-        self.identify_active_offsets(template, &query, &schedule_pairs, outcome_at)
+        Self::identify_active_offsets(template, &query, &schedule_pairs, outcome_at)
     }
 
     /// Multi-time-point interventions (sustained windows or dynamic schedules):
     /// unfold, then identify via general ID (sequential / g-formula).
     fn identify_active_offsets(
-        &self,
         template: &TemporalDag,
         query: &TemporalEffectQuery,
         schedule: &[(VariableId, i32)],
@@ -618,9 +610,11 @@ impl TemporalBackdoorIdentifier {
         let mut result = id.identify_schedule_contrast(
             &prepared,
             outcome_var,
-            &schedule,
-            &active,
-            &control,
+            &ScheduleContrast {
+                schedule: &schedule,
+                active_level: &active,
+                control_level: &control,
+            },
             CausalQuery::TemporalEffect(query.clone()),
             &mut ws,
         )?;

@@ -9,7 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::zero_sized_map_values)]
 #![cfg_attr(
     test,
     allow(
@@ -18,7 +17,7 @@
     )
 )]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -145,6 +144,10 @@ impl Fci {
     ///
     /// Data, CI, Possible-D-Sep budget, orientation failures, or an FDR configuration that
     /// cannot cover the complete multi-phase CI family.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -196,18 +199,15 @@ impl Fci {
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
-        let skel = run_static_skeleton(
-            &StaticSkeletonInput {
-                ci: &*self.ci,
-                constraints: &self.constraints,
-                cols: &cols,
-                var_index: &var_index,
-                variables,
-                label: "fci.pc.depth",
-            },
-            workspace,
-            ctx,
-        )?;
+        let input = StaticSkeletonInput {
+            ci: &*self.ci,
+            constraints: &self.constraints,
+            cols: &cols,
+            var_index: &var_index,
+            variables,
+            label: "fci.pc.depth",
+        };
+        let skel = run_static_skeleton(&input, workspace, ctx)?;
         let mut scored = skeleton_scored_links(&skel);
         let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
         let mut combo_scratch = Vec::new();
@@ -235,7 +235,7 @@ impl Fci {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            if !adj.contains_key(&edge_key(x, y)) {
+            if !adj.contains(&edge_key(x, y)) {
                 continue;
             }
             if self.constraints.static_required(x, y) {
@@ -266,17 +266,7 @@ impl Fci {
                     true
                 });
                 for z in &depth_sets {
-                    let (_stat, p) = static_ci_test(
-                        &*self.ci,
-                        &self.constraints,
-                        &cols,
-                        &var_index,
-                        x,
-                        y,
-                        z,
-                        workspace,
-                        ctx,
-                    )?;
+                    let (_stat, p) = static_ci_test(&input, x, y, z, workspace, ctx)?;
                     pds_tests += 1;
                     ci_tests += 1;
                     if p > alpha {
@@ -337,7 +327,7 @@ impl Fci {
         }
 
         // Refresh scored links to surviving edges.
-        scored.retain(|s| adj.contains_key(&edge_key(s.link.source, s.link.target)));
+        scored.retain(|s| adj.contains(&edge_key(s.link.source, s.link.target)));
 
         let edge_evidence = static_edge_evidence(&scored, &sepsets, "fci");
 
@@ -406,7 +396,7 @@ pub(crate) fn load_sepsets_into_state(
 pub(crate) fn build_pag_circle_skeleton(
     variables: &[VariableId],
     var_index: &HashMap<VariableId, usize>,
-    adj: &HashMap<(u32, u32), ()>,
+    adj: &HashSet<(u32, u32)>,
 ) -> Result<Pag, DiscoveryError> {
     let mut pag = Pag::with_variables(u32::try_from(variables.len()).unwrap_or(u32::MAX));
     if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
@@ -415,7 +405,7 @@ pub(crate) fn build_pag_circle_skeleton(
             pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
         }
     }
-    for &(lo, hi) in adj.keys() {
+    for &(lo, hi) in adj {
         let a_idx = *var_index
             .get(&VariableId::from_raw(lo))
             .ok_or_else(|| DiscoveryError::data_msg("unknown variable in skeleton"))?;

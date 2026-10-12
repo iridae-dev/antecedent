@@ -7,14 +7,6 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 use burn::backend::{Autodiff, NdArray};
 use burn::module::{AutodiffModule, Module};
@@ -56,23 +48,34 @@ struct DenseLayer {
     bias: Vec<f32>,
 }
 
+/// Task, architecture and optimizer settings of [`train`].
+#[derive(Debug, Clone, Copy)]
+pub struct MlpSpec {
+    /// Binary-probability target (labels 0/1) rather than regression.
+    pub binary: bool,
+    /// Hidden units.
+    pub hidden: usize,
+    /// Training epochs.
+    pub epochs: usize,
+    /// Optimizer learning rate.
+    pub learning_rate: f64,
+    /// Initialization / stochastic-operation seed.
+    pub seed: u64,
+}
+
 /// Fit a small MLP on a column-major design.
 ///
 /// # Errors
 ///
 /// Shape mismatch, empty design, or a Burn backend failure.
-#[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 pub fn train(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     y: &[f64],
-    binary: bool,
-    hidden: usize,
-    epochs: usize,
-    learning_rate: f64,
-    seed: u64,
+    spec: &MlpSpec,
 ) -> Result<TrainedMlp, String> {
+    let MlpSpec { binary, hidden, epochs, learning_rate, seed } = *spec;
     if nrows == 0 || ncols == 0 {
         return Err("neural_net needs a non-empty design".into());
     }
@@ -232,6 +235,10 @@ impl<B: Backend> Mlp<B> {
 }
 
 impl DenseLayer {
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn forward(&self, x: &[f32]) -> Vec<f32> {
         let mut out = self.bias.clone();
         for i in 0..self.din {
@@ -366,7 +373,14 @@ mod tests {
     fn fits_a_line() {
         let n = 24usize;
         let (x, y) = line(n, 2.0, 0.5);
-        let model = train(&x, n, 2, &y, false, 8, 80, 0.05, 1).unwrap();
+        let model = train(
+            &x,
+            n,
+            2,
+            &y,
+            &MlpSpec { binary: false, hidden: 8, epochs: 80, learning_rate: 0.05, seed: 1 },
+        )
+        .unwrap();
         let mut out = vec![0.0; n];
         model.predict(&x, n, 2, &mut out).unwrap();
         assert!(out.iter().all(|v| v.is_finite()));
@@ -381,7 +395,14 @@ mod tests {
     fn large_scale_targets_are_fit_on_their_own_scale() {
         let n = 24usize;
         let (x, y) = line(n, 1.0e5, 5.0e4);
-        let model = train(&x, n, 2, &y, false, 8, 80, 0.05, 1).unwrap();
+        let model = train(
+            &x,
+            n,
+            2,
+            &y,
+            &MlpSpec { binary: false, hidden: 8, epochs: 80, learning_rate: 0.05, seed: 1 },
+        )
+        .unwrap();
         let mut out = vec![0.0; n];
         model.predict(&x, n, 2, &mut out).unwrap();
         let err = relative_mae(&out, &y);
@@ -393,12 +414,39 @@ mod tests {
         let n = 24usize;
         let (x, y) = line(n, 2.0, 0.5);
         // An absurd step size overflows the loss to inf/NaN within a few epochs.
-        assert!(train(&x, n, 2, &y, false, 8, 40, 1.0e30, 1).is_err());
+        assert!(
+            train(
+                &x,
+                n,
+                2,
+                &y,
+                &MlpSpec { binary: false, hidden: 8, epochs: 40, learning_rate: 1.0e30, seed: 1 }
+            )
+            .is_err()
+        );
         // Binary training on a non-0/1 target.
-        assert!(train(&x, n, 2, &y, true, 8, 5, 0.05, 1).is_err());
+        assert!(
+            train(
+                &x,
+                n,
+                2,
+                &y,
+                &MlpSpec { binary: true, hidden: 8, epochs: 5, learning_rate: 0.05, seed: 1 }
+            )
+            .is_err()
+        );
         // Non-finite design.
         let mut bad = x.clone();
         bad[n + 3] = f64::NAN;
-        assert!(train(&bad, n, 2, &y, false, 8, 5, 0.05, 1).is_err());
+        assert!(
+            train(
+                &bad,
+                n,
+                2,
+                &y,
+                &MlpSpec { binary: false, hidden: 8, epochs: 5, learning_rate: 0.05, seed: 1 }
+            )
+            .is_err()
+        );
     }
 }

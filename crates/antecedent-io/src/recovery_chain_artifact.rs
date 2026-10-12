@@ -633,7 +633,7 @@ impl RecoveryChainArtifactWire {
             if version == RECOVERY_CHAIN_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         wire.validate_shape()?;

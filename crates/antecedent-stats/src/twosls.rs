@@ -112,7 +112,10 @@ pub struct TwoSlsFit {
 /// # Errors
 ///
 /// Shape mismatch or backend failure.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "instrument and exogenous blocks are column-major buffers with explicit dimensions; callers in antecedent-estimate bind them positionally"
+)]
 pub fn fit_2sls(
     instruments_colmajor: &[f64],
     z_nrows: usize,
@@ -137,10 +140,7 @@ pub fn fit_2sls(
     x1[z_nrows * z_ncols..].copy_from_slice(&exogenous_colmajor[..z_nrows * x_ncols]);
     let first_stage = backend.least_squares(&x1, z_nrows, stage1_ncols, endogenous, workspace)?;
     let first_stage_diagnostics = first_stage_f_test(
-        z_nrows,
-        z_ncols,
-        x_ncols,
-        exogenous_colmajor,
+        &FirstStageBlocks { nrows: z_nrows, z_ncols, x_ncols, exogenous_colmajor },
         endogenous,
         first_stage.rss,
         backend,
@@ -186,21 +186,29 @@ pub fn fit_2sls(
     })
 }
 
+/// Dimensions and included-exogenous block of a first-stage regression.
+#[derive(Clone, Copy)]
+struct FirstStageBlocks<'a> {
+    nrows: usize,
+    /// Excluded instruments.
+    z_ncols: usize,
+    /// Included exogenous regressors.
+    x_ncols: usize,
+    exogenous_colmajor: &'a [f64],
+}
+
 /// Partial F-test for the excluded-instrument block of a first-stage regression:
 /// compares the unrestricted fit `[instruments | exogenous]` (`full_rss`, already
 /// computed by the caller) against a restricted fit on `exogenous` alone (or the
 /// zero model when `x_ncols == 0`, i.e. `RSS = Σ endogenous²`).
-#[allow(clippy::too_many_arguments)]
 fn first_stage_f_test(
-    nrows: usize,
-    z_ncols: usize,
-    x_ncols: usize,
-    exogenous_colmajor: &[f64],
+    blocks: &FirstStageBlocks<'_>,
     endogenous: &[f64],
     full_rss: f64,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<FirstStageDiagnostics, StatsError> {
+    let FirstStageBlocks { nrows, z_ncols, x_ncols, exogenous_colmajor } = *blocks;
     let restricted_rss = if x_ncols == 0 {
         endogenous.iter().map(|v| v * v).sum::<f64>()
     } else {
@@ -326,7 +334,10 @@ pub fn anderson_rubin_kf_critical(level: f64, k: usize, df: usize) -> f64 {
 /// # Errors
 ///
 /// Shape mismatch or backend failure.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "instrument and exogenous blocks are column-major buffers with explicit dimensions; callers in antecedent-estimate bind them positionally"
+)]
 pub fn anderson_rubin_statistic(
     y: &[f64],
     t: &[f64],
@@ -470,7 +481,10 @@ type ArConfidenceSet = (Option<(f64, f64, f64)>, Option<&'static str>);
 /// # Errors
 ///
 /// Shape mismatch or backend failure while residualizing / projecting.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "instrument and exogenous blocks are column-major buffers with explicit dimensions; callers in antecedent-estimate bind them positionally"
+)]
 pub fn anderson_rubin_confidence_set(
     y: &[f64],
     t: &[f64],
@@ -724,7 +738,6 @@ mod tests {
         assert!((ar - expected).abs() < 1e-10, "AR={ar} reduced-form k·F={expected}");
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(clippy::float_cmp, reason = "the level is returned as passed, not computed")]
     fn anderson_rubin_confidence_set_covers_true_beta_on_strong_fixture() {
@@ -751,7 +764,6 @@ mod tests {
         assert!(lo.is_finite() && hi.is_finite());
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(clippy::float_cmp, reason = "the level is returned as passed, not computed")]
     fn anderson_rubin_quadratic_recovers_narrow_interval_off_mesh() {

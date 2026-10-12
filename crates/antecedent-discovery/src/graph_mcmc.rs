@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -17,7 +9,7 @@ use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    GraphPosterior, MAX_EDGE_MCSE, accumulate_marginals, graph_chain_summary,
+    GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE, accumulate_marginals, graph_chain_summary,
     mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
@@ -142,17 +134,17 @@ pub(crate) fn diagnostics_from_traces(
 ) -> Result<(InferenceDiagnostics, Vec<f64>), DiscoveryError> {
     let (n_chains, _, n_draws, _) = schedule.as_usize();
     let summary = graph_chain_summary(traces, n_chains, n_draws, n_params);
-    let diagnostics = mcmc_graph_diagnostics(
-        schedule.n_chains,
-        schedule.n_warmup,
-        schedule.n_draws,
-        summary.ess_bulk_min,
-        summary.ess_tail_min,
-        summary.rhat_max,
-        0,
-        true,
-        summary.all_chains_moved,
-    );
+    let diagnostics = mcmc_graph_diagnostics(&GraphMcmcRun {
+        n_chains: schedule.n_chains,
+        n_warmup: schedule.n_warmup,
+        n_draws: schedule.n_draws,
+        ess_bulk_min: summary.ess_bulk_min,
+        ess_tail_min: summary.ess_tail_min,
+        rhat_max: summary.rhat_max,
+        n_divergences: 0,
+        converged: true,
+        chains_moved: summary.all_chains_moved,
+    });
     let mut diagnostics = publish_graph_posterior(diagnostics, false, refuse_msg)?;
     let mcse_max = summary.mcse.iter().copied().fold(0.0_f64, f64::max);
     diagnostics.notes.push(Arc::from(format!("edge_mcse_max={mcse_max:.4}")));

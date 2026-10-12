@@ -330,7 +330,7 @@ impl CrossWorldArtifactWire {
             if version == CROSS_WORLD_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(CrossWorldArtifactError::UnsupportedVersion { version: version })
+                Err(CrossWorldArtifactError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [CROSS_WORLD_ARTIFACT_FEATURE] {

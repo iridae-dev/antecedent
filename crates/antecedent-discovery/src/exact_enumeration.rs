@@ -13,15 +13,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashSet;
 
 use antecedent_core::{ExecutionContext, VariableId};
@@ -66,6 +57,10 @@ impl ExactDagPosterior {
     /// # Errors
     ///
     /// Unsupported size, data/score failures, empty valid support, or memory budget.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,

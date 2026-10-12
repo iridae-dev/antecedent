@@ -482,7 +482,7 @@ impl TemporalIntervalArtifactWire {
             if version == TEMPORAL_INTERVAL_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [TEMPORAL_INTERVAL_ARTIFACT_FEATURE]

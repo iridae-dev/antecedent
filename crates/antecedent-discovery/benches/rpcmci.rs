@@ -3,10 +3,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs)]
-#![allow(
-    clippy::cast_possible_truncation,
-    reason = "test scaffolding compares exact constants and indexes with small literals"
-)]
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

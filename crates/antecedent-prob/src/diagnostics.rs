@@ -36,7 +36,7 @@ pub struct InferenceDiagnostics {
     pub separation_warning: bool,
     /// Human-readable notes.
     pub notes: Vec<Arc<str>>,
-    /// Backend identifier (e.g. "laplace", "conjugate_gaussian", "hmc").
+    /// Backend identifier (e.g. "laplace", "`conjugate_gaussian`", "hmc").
     pub backend_id: Arc<str>,
     /// MCMC: number of chains (None for Laplace / conjugate).
     pub n_chains: Option<u32>,
@@ -214,7 +214,7 @@ pub enum PriorSensitivityFamily {
 }
 
 impl PriorSensitivityFamily {
-    /// Stable snake_case tag.
+    /// Stable `snake_case` tag.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

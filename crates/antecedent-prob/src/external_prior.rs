@@ -213,6 +213,10 @@ pub fn compose_external_priors(
 /// # Errors
 ///
 /// Length mismatch, invalid weights, missing Gaussians, or dimension mismatch.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn compose_external_priors_with_alphas(
     sources: &[ExternalPriorSource],
     alphas_requested: &[f64],
@@ -419,6 +423,10 @@ fn validate_mixture_weights(sources: &[ExternalPriorSource]) -> Result<(), ProbE
     Ok(())
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn compose_power_add(
     baseline: &GaussianCoefficientPrior,
     sources: &[ExternalPriorSource],
@@ -464,15 +472,14 @@ fn dense_scale(set: &PriorSet) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
         message: "external prior missing GaussianCoefficients",
     })?;
     let n = coef.len();
-    let v0 = match set.coefficient_correlation() {
-        Some(corr) => corr.scale_matrix(&coef.variance)?,
-        None => {
-            let mut v0 = vec![0.0; n * n];
-            for i in 0..n {
-                v0[i * n + i] = coef.variance[i];
-            }
-            v0
+    let v0 = if let Some(corr) = set.coefficient_correlation() {
+        corr.scale_matrix(&coef.variance)?
+    } else {
+        let mut v0 = vec![0.0; n * n];
+        for i in 0..n {
+            v0[i * n + i] = coef.variance[i];
         }
+        v0
     };
     Ok((coef.mean.to_vec(), v0))
 }

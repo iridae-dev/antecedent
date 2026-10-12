@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::shuffled_fold_assignment;
 
@@ -91,7 +82,7 @@ pub fn assign_folds(
 }
 
 /// Class labels to stratify folds on: the 0/1 target of a probability task.
-#[allow(clippy::float_cmp)] // labels are coded exactly 0/1
+#[allow(clippy::float_cmp, reason = "labels are coded exactly 0/1")]
 fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
     (task == PredictionTask::BinaryProbability && y.iter().all(|v| *v == 0.0 || *v == 1.0))
         .then(|| y.iter().map(|&v| u32::from(v == 1.0)).collect())
@@ -406,6 +397,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn oof_line_recovers_without_copying_x() {
         let n = 12usize;
         let (x, y) = line(n);

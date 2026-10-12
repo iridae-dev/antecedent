@@ -5,8 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::redundant_closure_for_method_calls)]
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
@@ -593,7 +591,10 @@ fn apply_meek_r2<G: CpdagOps>(
     for a in &focus {
         for b in graph.children(*a) {
             for c in graph.children(b) {
-                if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
+                if graph
+                    .edge_between(*a, c)
+                    .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
+                {
                     let premise = format!(
                         "meek.r2: {}→{}→{} and {}—{}",
                         a.raw(),
@@ -850,7 +851,10 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR2 {
                     if !is_contemporaneous_node(graph, *a) || !is_contemporaneous_node(graph, c) {
                         continue;
                     }
-                    if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
+                    if graph
+                        .edge_between(*a, c)
+                        .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
+                    {
                         let premise = format!(
                             "meek.r2.contemp: {}→{}→{} and {}—{}",
                             a.raw(),

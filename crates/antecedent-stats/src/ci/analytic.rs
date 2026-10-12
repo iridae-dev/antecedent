@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless)]
-
 use crate::special::{normal_ppf, student_t_sf};
 
 /// Two-sided analytic p-value for a partial correlation with residual `df`.

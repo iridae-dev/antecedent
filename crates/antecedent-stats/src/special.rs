@@ -2,16 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 /// Gauss–Hermite rule for the standard normal: `(nodes, weights)` with
 /// `E[g(Z)] ≈ Σ w_i g(z_i)`, exact for polynomials of degree up to `2n − 1`.
 ///
@@ -199,7 +189,7 @@ pub fn ln_gamma(z: f64) -> f64 {
         // through every caller. `scipy.special.gammaln` returns +Inf at these poles by
         // convention, so detect them directly rather than trusting the reflection formula's
         // floating-point residual.
-        #[allow(clippy::float_cmp)] // exact-integer test, not a computed-value comparison
+        #[allow(clippy::float_cmp, reason = "exact-integer test, not a computed-value comparison")]
         if z <= 0.0 && z == z.trunc() {
             return f64::INFINITY;
         }
@@ -854,7 +844,7 @@ mod tests {
 #[cfg(test)]
 mod ppf_domain_tests {
     #[test]
-    #[allow(clippy::float_cmp)] // exact conservative adjustment / infinite endpoints
+    #[allow(clippy::float_cmp, reason = "exact conservative adjustment / infinite endpoints")]
     fn ppf_preserves_mathematical_domain_and_tiny_probabilities() {
         use super::normal_ppf;
         assert_eq!(normal_ppf(0.0), f64::NEG_INFINITY);

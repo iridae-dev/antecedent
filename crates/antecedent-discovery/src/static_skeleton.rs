@@ -7,9 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::zero_sized_map_values)]
-
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -25,7 +23,7 @@ use crate::result::{DiscoveryIteration, EdgeEvidence, LaggedLink, PcSepsets, Sco
 /// Outcome of the adjacency search.
 pub(crate) struct StaticSkeleton {
     /// Surviving undirected edges (`edge_key` order).
-    pub adj: HashMap<(u32, u32), ()>,
+    pub adj: HashSet<(u32, u32)>,
     /// Weakest CI evidence per retained, tested edge. Required edges have no entry: no test
     /// was ever run on them.
     pub edge_scores: HashMap<(u32, u32), ScoredLink>,
@@ -52,6 +50,63 @@ pub(crate) struct StaticSkeletonInput<'a> {
     pub label: &'static str,
 }
 
+/// A static-graph CI test source with the workspace, context and level it is evaluated at,
+/// counting the tests it runs.
+pub(crate) struct StaticCiRun<'a> {
+    pub input: &'a StaticSkeletonInput<'a>,
+    pub workspace: &'a mut DiscoveryWorkspace,
+    pub ctx: &'a ExecutionContext,
+    /// Significance level: `p > alpha` accepts independence.
+    pub alpha: f64,
+    /// CI tests evaluated through [`Self::test`].
+    pub tests: u64,
+}
+
+impl<'a> StaticCiRun<'a> {
+    pub(crate) fn new(
+        input: &'a StaticSkeletonInput<'a>,
+        workspace: &'a mut DiscoveryWorkspace,
+        ctx: &'a ExecutionContext,
+        alpha: f64,
+    ) -> Self {
+        Self { input, workspace, ctx, alpha, tests: 0 }
+    }
+
+    /// One counted CI test `x ⊥ y | z`; returns the p-value.
+    pub(crate) fn p_value(
+        &mut self,
+        x: VariableId,
+        y: VariableId,
+        z: &[VariableId],
+    ) -> Result<f64, DiscoveryError> {
+        let (_stat, p) = static_ci_test(self.input, x, y, z, self.workspace, self.ctx)?;
+        self.tests += 1;
+        Ok(p)
+    }
+
+    /// Smallest subset of `z` (dropping one element at a time, in order) that still
+    /// separates `x` and `y`.
+    pub(crate) fn minimize_sepset(
+        &mut self,
+        x: VariableId,
+        y: VariableId,
+        z: &[VariableId],
+    ) -> Result<Vec<VariableId>, DiscoveryError> {
+        let mut s = z.to_vec();
+        let mut i = 0;
+        while i < s.len() {
+            let mut trial = s.clone();
+            trial.remove(i);
+            if self.p_value(x, y, &trial)? > self.alpha {
+                s = trial;
+            } else {
+                i += 1;
+            }
+        }
+        Ok(s)
+    }
+}
+
 /// One CI test `x ⊥ y | z` on the prepared workspace test.
 ///
 /// # Errors
@@ -59,16 +114,14 @@ pub(crate) struct StaticSkeletonInput<'a> {
 /// Unknown variables, CI failures, or a non-finite statistic / p-value (a NaN input must not
 /// pass as evidence either way).
 pub(crate) fn static_ci_test(
-    ci: &dyn ConditionalIndependence,
-    constraints: &DiscoveryConstraints,
-    cols: &[&[f64]],
-    var_index: &HashMap<VariableId, usize>,
+    input: &StaticSkeletonInput<'_>,
     x: VariableId,
     y: VariableId,
     z: &[VariableId],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<(f64, f64), DiscoveryError> {
+    let StaticSkeletonInput { ci, constraints, cols, var_index, .. } = *input;
     let xi = *var_index.get(&x).ok_or_else(|| DiscoveryError::data_msg("missing x"))?;
     let yi = *var_index.get(&y).ok_or_else(|| DiscoveryError::data_msg("missing y"))?;
     workspace.z_flat.clear();
@@ -119,7 +172,7 @@ pub(crate) fn record_sepset(
 fn candidate_sets(
     x: VariableId,
     y: VariableId,
-    adj: &HashMap<(u32, u32), ()>,
+    adj: &HashSet<(u32, u32)>,
     variables: &[VariableId],
     depth: usize,
     combo_scratch: &mut Vec<VariableId>,
@@ -143,13 +196,13 @@ fn candidate_sets(
 }
 
 /// Largest number of neighbours an endpoint of a remaining edge has besides the other endpoint.
-fn max_excess_degree(adj: &HashMap<(u32, u32), ()>) -> usize {
+fn max_excess_degree(adj: &HashSet<(u32, u32)>) -> usize {
     let mut degree: HashMap<u32, usize> = HashMap::new();
-    for &(lo, hi) in adj.keys() {
+    for &(lo, hi) in adj {
         *degree.entry(lo).or_default() += 1;
         *degree.entry(hi).or_default() += 1;
     }
-    adj.keys().map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1)).max().unwrap_or(0)
+    adj.iter().map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1)).max().unwrap_or(0)
 }
 
 /// PC adjacency search (order-dependent, deterministic traversal — see
@@ -163,18 +216,17 @@ fn max_excess_degree(adj: &HashMap<(u32, u32), ()>) -> usize {
 /// # Errors
 ///
 /// CI failures.
-#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 pub(crate) fn run_static_skeleton(
     input: &StaticSkeletonInput<'_>,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<StaticSkeleton, DiscoveryError> {
-    let StaticSkeletonInput { ci, constraints, cols, var_index, variables, label } = *input;
+    let StaticSkeletonInput { constraints, variables, label, .. } = *input;
     let alpha = constraints.alpha;
     let max_cond = constraints.max_cond_size;
 
     let mut skel = StaticSkeleton {
-        adj: HashMap::new(),
+        adj: HashSet::new(),
         edge_scores: HashMap::new(),
         sepsets: PcSepsets::default(),
         ci_tests: 0,
@@ -189,7 +241,7 @@ pub(crate) fn run_static_skeleton(
             if constraints.static_forbidden(a, b) {
                 continue;
             }
-            skel.adj.insert(edge_key(a, b), ());
+            skel.adj.insert(edge_key(a, b));
         }
     }
 
@@ -206,7 +258,7 @@ pub(crate) fn run_static_skeleton(
                 return Err(DiscoveryError::Cancelled);
             }
             let key = edge_key(x, y);
-            if !skel.adj.contains_key(&key) {
+            if !skel.adj.contains(&key) {
                 continue;
             }
             if constraints.static_required(x, y) {
@@ -219,8 +271,7 @@ pub(crate) fn run_static_skeleton(
             // depth (max p).
             let mut weakest: Option<(f64, f64)> = None;
             for z in &cand_sets {
-                let (stat, p) =
-                    static_ci_test(ci, constraints, cols, var_index, x, y, z, workspace, ctx)?;
+                let (stat, p) = static_ci_test(input, x, y, z, workspace, ctx)?;
                 skel.ci_tests += 1;
                 depth_tests += 1;
                 skel.family_p.push(p);
@@ -284,7 +335,7 @@ pub(crate) fn run_static_skeleton(
 /// Edges the skeleton never tested (required by the caller's constraints) carry `NaN`
 /// statistic and p-value: "not tested", never a fabricated significance.
 pub(crate) fn skeleton_scored_links(skel: &StaticSkeleton) -> Vec<ScoredLink> {
-    let mut keys: Vec<(u32, u32)> = skel.adj.keys().copied().collect();
+    let mut keys: Vec<(u32, u32)> = skel.adj.iter().copied().collect();
     keys.sort_unstable();
     keys.into_iter()
         .map(|(lo, hi)| {

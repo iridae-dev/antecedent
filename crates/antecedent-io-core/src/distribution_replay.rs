@@ -23,7 +23,7 @@ const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
 
 /// Recompute every finite-discrete distribution atom from its checked program and portable
 /// factor laws. Returns a stable dependency/error key suitable for a refusal report.
-#[expect(
+#[allow(
     clippy::too_many_lines,
     reason = "The bounded joint atom enumeration and its validation must share one replay context."
 )]

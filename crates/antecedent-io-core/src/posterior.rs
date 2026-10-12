@@ -75,7 +75,7 @@ pub struct CausalPosteriorWire {
     pub treatment_contrast: Option<f64>,
 }
 
-#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes `&T`.
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes `&T`")]
 fn is_zero_mass(mass: &f64) -> bool {
     *mass == 0.0
 }

@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -165,6 +163,7 @@ pub struct DecisionRegistry<A, O> {
 }
 
 /// Inputs shared across candidates for one ranking call.
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 pub struct DesignEvaluationContext<'a, A = (), O = ()> {
     /// Graph posterior ensemble (normalized preferred).
     pub graphs: &'a WeightedGraphSamples,
@@ -185,6 +184,22 @@ pub struct DesignEvaluationContext<'a, A = (), O = ()> {
     /// Optional per-graph discrete features for EIG observation models. When `None`, graph keys
     /// are used as categorical labels (soft observation of which posterior atom is true).
     pub graph_features: Option<&'a [u32]>,
+}
+
+/// The candidates one scoring loop evaluates and, for decision objectives, their scorer.
+struct ActiveScoring<'a, O> {
+    /// Indexes of the candidates that passed the constraints.
+    active: &'a [usize],
+    decision: Option<&'a DecisionScoring<'a, O>>,
+}
+
+/// Per-draw scores of every active candidate (draw `i` is the same CRN replicate for all)
+/// with the realized sample count, budget and early-stop flag.
+struct ScoringRun {
+    draws: Vec<Vec<f64>>,
+    n_samples: u64,
+    budget: MonteCarloBudget,
+    early_stopped: bool,
 }
 
 /// Rank candidate designs under an objective with batched MC and CRN.
@@ -256,25 +271,21 @@ impl DesignRanker {
             .collect();
 
         let z = self.config.critical_value();
-        let (draws, n_samples, budget, early_stopped) = self.run_mc_scoring_loop(
+        let run = self.run_mc_scoring_loop(
             objective,
             candidates,
             ctx_eval,
             ctx,
-            &active,
-            decision.as_ref(),
+            &ActiveScoring { active: &active, decision: decision.as_ref() },
             z,
         )?;
 
         Ok(Self::assemble_ranking(
             &active,
-            &draws,
+            run,
             &evaluations,
-            n_samples,
             candidates,
             violations,
-            budget,
-            early_stopped,
             objective.implemented_functional(),
             z,
         ))
@@ -324,21 +335,20 @@ impl DesignRanker {
     /// candidates. Returns every candidate's per-draw scores (draw `i` is the same graph /
     /// decision replicate for all candidates, so pairwise differences are paired) alongside
     /// the realized sample count / budget / early-stop flag.
-    #[allow(clippy::too_many_arguments)]
     fn run_mc_scoring_loop<A, O>(
         &self,
         objective: &DesignObjective,
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
-        active: &[usize],
-        decision: Option<&DecisionScoring<'_, O>>,
+        scoring: &ActiveScoring<'_, O>,
         z: f64,
-    ) -> Result<(Vec<Vec<f64>>, u64, MonteCarloBudget, bool), DesignError>
+    ) -> Result<ScoringRun, DesignError>
     where
         A: Clone,
         O: Clone,
     {
+        let (active, decision) = (scoring.active, scoring.decision);
         let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();
@@ -388,7 +398,7 @@ impl DesignRanker {
             }
         }
 
-        Ok((draws, n_samples, budget, early_stopped))
+        Ok(ScoringRun { draws, n_samples, budget, early_stopped })
     }
 
     /// Turn per-candidate draws into a sorted, CI-annotated [`DesignRanking`].
@@ -396,19 +406,16 @@ impl DesignRanker {
     /// `rank_uncertain` compares each candidate with the next-ranked one through the
     /// *paired* difference of their draws (shared-CRN replicates) at the sequentially
     /// adjusted critical value `z`; a gap of exactly zero is a tie and is always uncertain.
-    #[allow(clippy::too_many_arguments)]
     fn assemble_ranking(
         active: &[usize],
-        draws: &[Vec<f64>],
+        run: ScoringRun,
         evaluations: &[ScoreEvaluation],
-        n_samples: u64,
         candidates: &[CandidateDesign],
         violations: Vec<ConstraintViolation>,
-        budget: MonteCarloBudget,
-        early_stopped: bool,
         implemented_functional: &'static str,
         z: f64,
     ) -> DesignRanking {
+        let ScoringRun { draws, n_samples, budget, early_stopped } = run;
         // (candidate index, mean, error, evaluation, slot)
         let mut scored: Vec<(usize, f64, MonteCarloError, ScoreEvaluation, usize)> = active
             .iter()
@@ -530,6 +537,10 @@ fn rank_uncertainty_ok(draws: &[Vec<f64>], z: f64, threshold: f64) -> bool {
     true
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn shannon_entropy(weights: &[f64]) -> f64 {
     let total: f64 = weights.iter().sum();
     if !(total > 0.0) {
@@ -2039,7 +2050,7 @@ mod tests {
 
     struct Never;
     impl DecisionConstraint<f64, f64> for Never {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "never"
         }
         fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {

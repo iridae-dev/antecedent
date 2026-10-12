@@ -595,7 +595,10 @@ impl From<&SourceReceipt> for SourceReceiptWire {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 // Wire struct mirrors the stored result table, which carries four independent flags.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct InverseResultWire {
     /// Identity of the contract that declared the actions.
     pub contract_identity: String,

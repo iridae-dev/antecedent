@@ -8,7 +8,6 @@
 //! `a in {0, 1}`, `x in {-1, 1}`, `y = 20 - 2 a - 0.5 x + e`) with within-cell noise
 //! `{+0.5, -0.5, +0.25, -0.25}`. So `pi = (0.6, 0.4)`, `tau = (1, -2)`, the canonical (ascending
 //! `tau`) order is `Q, P`, and the mixture-average effect is `-0.2`.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::latent_class_artifact::{
     LATENT_CLASS_ARTIFACT_MAX_ROWS, LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact,

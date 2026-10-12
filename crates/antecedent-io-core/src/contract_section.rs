@@ -527,7 +527,7 @@ fn note_checked_program_targets(
     }
 }
 
-#[expect(
+#[allow(
     clippy::too_many_lines,
     reason = "Replay-dependency gaps stay one ordered match so a route cannot be named twice."
 )]
@@ -973,6 +973,10 @@ fn note_replay_dependencies(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn note_functional_and_nested_replay(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
@@ -1162,6 +1166,10 @@ fn note_functional_and_nested_replay(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn note_published_claim(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
@@ -1459,7 +1467,7 @@ fn calibration_basis_matches_contract(
     coordinate_ok && program_ok && snapshot_ok && identification_ok
 }
 
-#[expect(
+#[allow(
     clippy::too_many_lines,
     reason = "Stored-payload verification must retain the complete cross-layer digest checklist."
 )]
@@ -1701,6 +1709,10 @@ fn is_functional_distribution_contract(contract: &AnalysisResultContractWire) ->
     contract_uses_estimator(contract, "functional.distribution")
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn verify_nested_counterfactual_result(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
@@ -2018,7 +2030,7 @@ fn verify_checked_linear_adjustment(
     }
 }
 
-#[expect(
+#[allow(
     clippy::too_many_lines,
     reason = "The lowering verifier compares one complete checked product across its target, design, and evidence."
 )]
@@ -2396,7 +2408,7 @@ fn expected_procedure_id(procedure: &str) -> &'static str {
     }
 }
 
-#[expect(
+#[allow(
     clippy::too_many_lines,
     reason = "The lowering verifier checks the complete front-door product and its source bindings."
 )]
@@ -3721,7 +3733,10 @@ mod tests {
         );
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn contract_for(
         target: TargetIdentityWire,
         body: &AnalysisResultWire,

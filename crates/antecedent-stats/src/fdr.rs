@@ -152,7 +152,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[allow(clippy::float_cmp)] // exact conservative adjustment / infinite endpoints
+    #[allow(clippy::float_cmp, reason = "exact conservative adjustment / infinite endpoints")]
     fn invalid_tests_remain_missing_without_reducing_family_size() {
         for method in [
             MultipleTestingMethod::BenjaminiHochberg,

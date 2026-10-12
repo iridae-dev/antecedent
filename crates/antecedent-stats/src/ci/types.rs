@@ -87,7 +87,6 @@ pub fn nonparametric_permutation_count(significance: SignificanceMethod) -> usiz
 /// Smallest p-value an add-one permutation test with `replicates` draws can report:
 /// `1 / (replicates + 1)`.
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
 pub fn permutation_min_p(replicates: usize) -> f64 {
     1.0 / (replicates as f64 + 1.0)
 }

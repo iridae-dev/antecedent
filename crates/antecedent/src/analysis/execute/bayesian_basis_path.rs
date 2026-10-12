@@ -99,12 +99,14 @@ impl Study {
             .collect::<Result<_, _>>()?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(
-            &treatment,
-            &outcome,
-            &covariates_colmajor,
-            covariates.len(),
-            Some(&row_ids),
-            None,
+            &antecedent_learn::BasisData {
+                treatment: &treatment,
+                outcome: &outcome,
+                covariates_colmajor: &covariates_colmajor,
+                n_covariates: covariates.len(),
+                row_ids: Some(&row_ids),
+                fold_ids: None,
+            },
             BasisTargetPopulation::AllObserved,
             BayesianBasisSpec {
                 prior_sd: cfg.prior_scale,

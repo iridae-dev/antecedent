@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -17,9 +9,10 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::shuffle;
 
 use crate::common::{
-    NoiseReplaceTarget, RefutationProblem, RefutationReport, check_replicate_count,
-    complete_case_rows, finish_p_report, float64_full, linear_estimator_no_bootstrap,
-    noise_replace_refute, refit_effect, run_replicates, with_replaced_float,
+    NoiseReplaceSpec, NoiseReplaceTarget, RefutationProblem, RefutationReport,
+    check_replicate_count, complete_case_rows, finish_p_report, float64_full,
+    linear_estimator_no_bootstrap, noise_replace_refute, refit_effect, run_replicates,
+    with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -87,12 +80,14 @@ impl PlaceboTreatment {
                 workspace,
                 ctx,
                 &self.estimator,
-                self.replicates,
-                self.alpha,
-                NoiseReplaceTarget::Treatment,
-                0xA7E0_0001_0000,
-                "placebo.treatment",
-                "placebo",
+                &NoiseReplaceSpec {
+                    replicates: self.replicates,
+                    alpha: self.alpha,
+                    target: NoiseReplaceTarget::Treatment,
+                    stream_base: 0xA7E0_0001_0000,
+                    refuter_id: "placebo.treatment",
+                    failure_label: "placebo",
+                },
             ),
             PlaceboMode::Permute => self.refute_permute(problem, workspace, ctx),
         }

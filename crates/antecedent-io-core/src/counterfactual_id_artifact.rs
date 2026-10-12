@@ -413,7 +413,7 @@ impl CounterfactualIdArtifactWire {
             if version == COUNTERFACTUAL_ID_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(CounterfactualIdArtifactError::UnsupportedVersion { version: version })
+                Err(CounterfactualIdArtifactError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [COUNTERFACTUAL_ID_ARTIFACT_FEATURE] {

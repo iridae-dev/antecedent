@@ -5,21 +5,11 @@
 //! Chains are independent (one stream each from the library's stream mixer) and run
 //! on the execution context's threads when one is supplied.
 //!
-//! GaussianIdentity uses a fixed prior-driven target (known σ² or joint
-//! `(β, log σ²)` under an InvGamma residual prior). Other likelihoods keep the
+//! `GaussianIdentity` uses a fixed prior-driven target (known σ² or joint
+//! `(β, log σ²)` under an `InvGamma` residual prior). Other likelihoods keep the
 //! GLM score path.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 use std::sync::Arc;
 
@@ -35,7 +25,9 @@ use crate::backend::{
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_precision};
-use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
+use crate::likelihood_terms::{
+    LikelihoodScratch, accumulate_likelihood, log_posterior_value, validate_design,
+};
 use crate::mcmc_stats::{all_chains_moved, mcmc_summary};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{
@@ -353,6 +345,10 @@ fn fit_hmc_impl(
     fit_hmc_resolved(likelihood, design, prior, fit_opts, hmc, workspace, ctx)
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn fit_hmc_resolved(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -400,11 +396,18 @@ fn fit_hmc_resolved(
     let n_keep = fit_opts.n_draws;
 
     let run = |chain: usize, ws: &mut LaplaceWorkspace| -> Result<ChainRun, ProbError> {
-        match gaussian_model {
-            Some(model) => {
-                run_gaussian_chain(chain, design, &coef_prior, &prec, model, fit_opts, hmc, ws)
-            }
-            None => run_glm_chain(chain, likelihood, design, &coef_prior, &prec, fit_opts, hmc, ws),
+        if let Some(model) = gaussian_model {
+            run_gaussian_chain(
+                chain,
+                CoefficientModel { design, coef_prior: &coef_prior, prec: &prec },
+                model,
+                fit_opts,
+                hmc,
+                ws,
+            )
+        } else {
+            let target = GlmTarget { likelihood, design, coef_prior: &coef_prior, prec: &prec };
+            run_glm_chain(chain, target, fit_opts, hmc, ws)
         }
     };
     let prepare = |ws: &mut LaplaceWorkspace| ws.prepare(nrows, dim.max(ncols), dim);
@@ -432,10 +435,7 @@ fn fit_hmc_resolved(
     pack_and_gate_hmc(
         &chain_samples,
         hmc,
-        n_keep,
-        dim,
-        ncols,
-        include_sigma2,
+        ChainLayout { n_keep, state_dim: dim, ncols, include_sigma2 },
         stats,
         (step_lo, step_hi),
     )
@@ -521,16 +521,14 @@ impl HmcTarget for GlmTarget<'_> {
             &mut ws.eta[..nrows],
             1.0,
         )?;
-        neg_log_posterior_grad_slices(
-            self.likelihood,
-            self.design,
-            self.coef_prior,
-            self.prec,
+        self.neg_log_posterior_grad(
             q,
-            &mut ws.grad[..ncols],
-            &mut ws.neg_hessian[..ncols * ncols],
-            &mut ws.eta[..nrows],
-            &mut ws.work_w[..nrows],
+            LikelihoodScratch {
+                grad: &mut ws.grad[..ncols],
+                neg_hess: &mut ws.neg_hessian[..ncols * ncols],
+                eta: &mut ws.eta[..nrows],
+                work_w: &mut ws.work_w[..nrows],
+            },
             carried,
         )?;
         Ok(lp)
@@ -542,16 +540,14 @@ impl HmcTarget for GlmTarget<'_> {
         ws: &mut LaplaceWorkspace,
     ) -> Result<Option<f64>, ProbError> {
         let nrows = self.design.nrows;
-        neg_log_posterior_grad_slices(
-            self.likelihood,
-            self.design,
-            self.coef_prior,
-            self.prec,
+        self.neg_log_posterior_grad(
             &ws.q[..dim],
-            &mut ws.grad[..dim],
-            &mut ws.neg_hessian[..dim * dim],
-            &mut ws.eta[..nrows],
-            &mut ws.work_w[..nrows],
+            LikelihoodScratch {
+                grad: &mut ws.grad[..dim],
+                neg_hess: &mut ws.neg_hessian[..dim * dim],
+                eta: &mut ws.eta[..nrows],
+                work_w: &mut ws.work_w[..nrows],
+            },
             &mut ws.step[..dim],
         )?;
         Ok(None)
@@ -639,33 +635,36 @@ impl HmcTarget for GaussianRef<'_> {
 
 fn run_glm_chain(
     chain: usize,
-    likelihood: BayesLikelihood,
-    design: BayesDesignRef<'_>,
-    coef_prior: &GaussianCoefficientPrior,
-    prec: &CoefficientPrecision,
+    mut target: GlmTarget<'_>,
     fit_opts: &BayesFitOptions,
     hmc: HmcOptions,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
     let mut rng = chain_rng(fit_opts.seed, chain);
-    let mut beta = coef_prior.mean.to_vec();
+    let mut beta = target.coef_prior.mean.to_vec();
     for bi in &mut beta {
         *bi += 0.1 * standard_normal(&mut rng);
     }
-    let mut target = GlmTarget { likelihood, design, coef_prior, prec };
     run_chain(&mut target, beta, rng, fit_opts.n_draws, hmc, ws)
+}
+
+/// Design, coefficient prior and precision a coefficient posterior is sampled under.
+#[derive(Clone, Copy)]
+struct CoefficientModel<'a> {
+    design: BayesDesignRef<'a>,
+    coef_prior: &'a GaussianCoefficientPrior,
+    prec: &'a CoefficientPrecision,
 }
 
 fn run_gaussian_chain(
     chain: usize,
-    design: BayesDesignRef<'_>,
-    coef_prior: &GaussianCoefficientPrior,
-    prec: &CoefficientPrecision,
+    coefficients: CoefficientModel<'_>,
     model: GaussianVarianceModel,
     fit_opts: &BayesFitOptions,
     hmc: HmcOptions,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
+    let CoefficientModel { design, coef_prior, prec } = coefficients;
     let ncols = design.ncols;
     let mut target =
         gaussian_target_from_model_with_precision(design, coef_prior.clone(), prec.clone(), model)?;
@@ -717,17 +716,12 @@ fn run_chain<T: HmcTarget>(
             step_size = dual_average_finalize(log_eps_bar);
         }
         let exec_step = jittered_step(step_size, &mut rng);
-        let step = hmc_step(
-            target,
-            &q,
-            &carried,
-            lp_curr,
-            exec_step,
-            hmc.leapfrog_steps,
-            &metric.inv_mass,
-            ws,
-            &mut rng,
-        )?;
+        let path = Trajectory {
+            step_size: exec_step,
+            leapfrog_steps: hmc.leapfrog_steps,
+            inv_mass: &metric.inv_mass,
+        };
+        let step = hmc_step(target, &q, &carried, lp_curr, path, ws, &mut rng)?;
         stats.record(&step, t < hmc.n_warmup);
         if step.accepted {
             q.copy_from_slice(&ws.q[..dim]);
@@ -786,16 +780,24 @@ fn dual_average_finalize(log_eps_bar: f64) -> f64 {
     log_eps_bar.exp().clamp(MIN_STEP, MAX_STEP)
 }
 
-fn pack_and_gate_hmc(
-    chain_samples: &[f64],
-    hmc: HmcOptions,
+/// Shape of the pooled chain samples: retained draws per chain, state width and the
+/// coefficient / σ² split.
+#[derive(Clone, Copy)]
+struct ChainLayout {
     n_keep: usize,
     state_dim: usize,
     ncols: usize,
     include_sigma2: bool,
+}
+
+fn pack_and_gate_hmc(
+    chain_samples: &[f64],
+    hmc: HmcOptions,
+    layout: ChainLayout,
     stats: TransitionStats,
     step_range: (f64, f64),
 ) -> Result<BayesFitResult, ProbError> {
+    let ChainLayout { n_keep, state_dim, ncols, include_sigma2 } = layout;
     let total_draws = n_keep.saturating_mul(hmc.n_chains);
     let n_out = if include_sigma2 { ncols + 1 } else { ncols };
     let mut values = vec![0.0; total_draws * n_out];
@@ -899,19 +901,30 @@ fn pack_and_gate_hmc(
     Ok(BayesFitResult { draws, map, diagnostics, cov: None })
 }
 
+/// Step size, step count and diagonal inverse mass of one leapfrog trajectory.
+#[derive(Clone, Copy)]
+struct Trajectory<'a> {
+    step_size: f64,
+    leapfrog_steps: u32,
+    inv_mass: &'a [f64],
+}
+
 /// Leapfrog trajectory from `ws.q` with momentum `ws.p`, given the carried gradient
 /// at the start. `Some(logp)` is the density of the last evaluated state (`lp_old`
 /// when no sweep produced one); `None` means the trajectory diverged.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn leapfrog<T: HmcTarget>(
     target: &mut T,
     dim: usize,
-    step_size: f64,
-    leapfrog_steps: u32,
-    inv_mass: &[f64],
+    path: Trajectory<'_>,
     carried: &[f64],
     lp_old: f64,
     ws: &mut LaplaceWorkspace,
 ) -> Result<Option<f64>, ProbError> {
+    let Trajectory { step_size, leapfrog_steps, inv_mass } = path;
     // ∇U at q0 is supplied by the caller (carried from the previous transition
     // rather than re-swept).
     for i in 0..dim {
@@ -960,17 +973,20 @@ fn leapfrog<T: HmcTarget>(
 /// One HMC transition from `q0`; `carried` is the gradient at `q0` in the target's
 /// slot convention and `lp_old` the density there. The proposal is left in
 /// `ws.q` / the target's gradient slot for the caller to copy on accept.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn hmc_step<T: HmcTarget>(
     target: &mut T,
     q0: &[f64],
     carried: &[f64],
     lp_old: f64,
-    step_size: f64,
-    leapfrog_steps: u32,
-    inv_mass: &[f64],
+    path: Trajectory<'_>,
     ws: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
+    let inv_mass = path.inv_mass;
     let dim = q0.len();
     ws.q[..dim].copy_from_slice(q0);
     let mut p0_energy = 0.0;
@@ -987,9 +1003,7 @@ fn hmc_step<T: HmcTarget>(
         divergent: true,
     };
 
-    let Some(lp_last) =
-        leapfrog(target, dim, step_size, leapfrog_steps, inv_mass, carried, lp_old, ws)?
-    else {
+    let Some(lp_last) = leapfrog(target, dim, path, carried, lp_old, ws)? else {
         return Ok(reject_divergent(1_001.0));
     };
 
@@ -1025,72 +1039,50 @@ fn hmc_step_target(
     q0: &[f64],
     lp_old: f64,
     grad_old: &[f64],
-    step_size: f64,
-    leapfrog_steps: u32,
-    inv_mass: &[f64],
+    path: Trajectory<'_>,
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
-    hmc_step(
-        &mut GaussianRef(target),
-        q0,
-        grad_old,
-        lp_old,
-        step_size,
-        leapfrog_steps,
-        inv_mass,
-        workspace,
-        rng,
-    )
+    hmc_step(&mut GaussianRef(target), q0, grad_old, lp_old, path, workspace, rng)
 }
 
 /// [`hmc_step`] for the GLM score path; `gradu_old` is `∇U` at `beta`.
 #[cfg(test)]
 fn hmc_step_glm(
-    likelihood: BayesLikelihood,
-    design: BayesDesignRef<'_>,
-    coef_prior: &GaussianCoefficientPrior,
-    prec: &CoefficientPrecision,
+    mut target: GlmTarget<'_>,
     beta: &[f64],
     gradu_old: &[f64],
-    step_size: f64,
-    leapfrog_steps: u32,
-    inv_mass: &[f64],
+    path: Trajectory<'_>,
     lp_old: f64,
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
-    hmc_step(
-        &mut GlmTarget { likelihood, design, coef_prior, prec },
-        beta,
-        gradu_old,
-        lp_old,
-        step_size,
-        leapfrog_steps,
-        inv_mass,
-        workspace,
-        rng,
-    )
+    hmc_step(&mut target, beta, gradu_old, lp_old, path, workspace, rng)
 }
 
-fn neg_log_posterior_grad_slices(
-    likelihood: BayesLikelihood,
-    design: BayesDesignRef<'_>,
-    coef_prior: &GaussianCoefficientPrior,
-    prec: &CoefficientPrecision,
-    beta: &[f64],
-    grad_lp: &mut [f64],
-    neg_hessian: &mut [f64],
-    eta: &mut [f64],
-    work_w: &mut [f64],
-    grad_out: &mut [f64],
-) -> Result<(), ProbError> {
-    accumulate_likelihood(likelihood, design, beta, grad_lp, neg_hessian, eta, work_w, 1.0, false)?;
-    prec.sub_prior_gradient(beta, &coef_prior.mean, grad_lp);
-    for i in 0..beta.len() {
-        grad_out[i] = -grad_lp[i];
+impl GlmTarget<'_> {
+    /// `∇U(beta)` into `grad_out`, using `scratch` for the likelihood sweep.
+    fn neg_log_posterior_grad(
+        &self,
+        beta: &[f64],
+        scratch: LikelihoodScratch<'_>,
+        grad_out: &mut [f64],
+    ) -> Result<(), ProbError> {
+        let LikelihoodScratch { grad: grad_lp, neg_hess, eta, work_w } = scratch;
+        accumulate_likelihood(
+            self.likelihood,
+            self.design,
+            beta,
+            LikelihoodScratch { grad: &mut *grad_lp, neg_hess, eta, work_w },
+            1.0,
+            false,
+        )?;
+        self.prec.sub_prior_gradient(beta, &self.coef_prior.mean, grad_lp);
+        for i in 0..beta.len() {
+            grad_out[i] = -grad_lp[i];
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Leapfrog integration used by reversibility tests (no Metropolis): the shared
@@ -1113,8 +1105,8 @@ fn leapfrog_trajectory(
     let mut carried = vec![0.0; dim];
     let lp0 = target.init(q0, &mut ws, &mut carried)?;
     let inv_mass = vec![1.0 / mass; dim];
-    match leapfrog(&mut target, dim, step_size, leapfrog_steps, &inv_mass, &carried, lp0, &mut ws)?
-    {
+    let path = Trajectory { step_size, leapfrog_steps, inv_mass: &inv_mass };
+    match leapfrog(&mut target, dim, path, &carried, lp0, &mut ws)? {
         Some(_) => Ok((ws.q[..dim].to_vec(), ws.p[..dim].to_vec())),
         None => Err(ProbError::Numerical { message: "leapfrog trajectory diverged".into() }),
     }
@@ -1225,15 +1217,15 @@ mod tests {
         // ∇U at eta = 0: Σ(y − e^η) = 0 and the prior mean is 0.
         let gradu = [0.0_f64];
         let step = hmc_step_glm(
-            BayesLikelihood::PoissonLog,
-            design,
-            &coef,
-            &prec,
+            GlmTarget {
+                likelihood: BayesLikelihood::PoissonLog,
+                design,
+                coef_prior: &coef,
+                prec: &prec,
+            },
             &beta,
             &gradu,
-            50.0,
-            20,
-            &[1.0],
+            Trajectory { step_size: 50.0, leapfrog_steps: 20, inv_mass: &[1.0] },
             lp_old,
             &mut ws,
             &mut rng,
@@ -1613,9 +1605,7 @@ mod tests {
             &q0,
             lp_old,
             &grad_old,
-            0.05,
-            leapfrog,
-            &[1.0, 1.0],
+            Trajectory { step_size: 0.05, leapfrog_steps: leapfrog, inv_mass: &[1.0, 1.0] },
             &mut ws,
             &mut rng,
         )

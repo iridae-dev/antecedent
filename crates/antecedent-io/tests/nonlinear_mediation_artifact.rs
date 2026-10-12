@@ -9,7 +9,6 @@
 //! levels are scaled so the degrees-of-freedom corrected residual variance equals `sigma2`.
 //! Closed form: `NDE = b1 + delta*gamma*E[X]`,
 //! `NIE = (c1 + delta)*alpha + c2*(alpha^2 + 2*alpha*gamma*E[X])`, `TE = NDE + NIE`.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::nonlinear_mediation_artifact::{
     MediationConfigWire, MediationDataWire, MediationPremisesWire,

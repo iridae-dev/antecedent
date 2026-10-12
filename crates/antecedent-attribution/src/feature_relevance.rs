@@ -12,6 +12,17 @@ use crate::error::AttributionError;
 use crate::result::FeatureRelevance;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
+/// Shift, sampling and size limits of [`feature_relevance`].
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureRelevanceOptions {
+    /// Shift `δ` applied to each intervened feature, from its empirical mean.
+    pub delta: f64,
+    /// Monte Carlo samples per coalition value.
+    pub n_samples: usize,
+    /// Refuse more than this many features (exact Shapley is exponential in the count).
+    pub max_features: usize,
+}
+
 /// Score interventional relevance of each `feature` for `outcome` via Shapley values.
 ///
 /// For coalition `S`, `v(S) = E[Y | do(Xᵢ = μᵢ + δ ∀ i∈S)]` (features outside `S` free under
@@ -27,11 +38,10 @@ pub fn feature_relevance(
     data: &TabularData,
     outcome: VariableId,
     features: &[VariableId],
-    delta: f64,
-    n_samples: usize,
-    max_features: usize,
+    options: &FeatureRelevanceOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<FeatureRelevance>, AttributionError> {
+    let FeatureRelevanceOptions { delta, n_samples, max_features } = *options;
     if features.len() > max_features {
         return Err(AttributionError::SizeLimit {
             kind: "features",
@@ -190,9 +200,7 @@ mod tests {
             &data,
             VariableId::from_raw(2),
             &[VariableId::from_raw(0), VariableId::from_raw(1)],
-            1.0,
-            80,
-            8,
+            &FeatureRelevanceOptions { delta: 1.0, n_samples: 80, max_features: 8 },
             &ExecutionContext::for_tests(2),
         )
         .unwrap();

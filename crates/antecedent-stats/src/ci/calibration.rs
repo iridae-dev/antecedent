@@ -6,7 +6,6 @@
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -15,7 +14,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
 use antecedent_kernels::standard_normal;
 
-use super::parcorr_variants::MultivariatePartialCorrelation;
+use super::parcorr_variants::{BlockTest, MultivariatePartialCorrelation};
 use crate::ci::types::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
     SignificanceMethod,
@@ -81,7 +80,6 @@ impl CalibrationReport {
 /// # Errors
 ///
 /// Propagates CI failures.
-#[allow(clippy::many_single_char_names)]
 pub fn calibrate_parcorr_like(
     ci: &dyn ConditionalIndependence,
     n: usize,
@@ -153,7 +151,6 @@ pub fn calibrate_parcorr_like(
 /// # Errors
 ///
 /// Propagates CI failures.
-#[allow(clippy::many_single_char_names)]
 pub fn calibrate_multivariate_parcorr_block(
     n: usize,
     px: usize,
@@ -270,7 +267,13 @@ fn multivariate_block_pvalue_with(
     cols.extend(y_cols.iter().map(Vec::as_slice));
     let x_idx: Vec<usize> = (0..x_cols.len()).collect();
     let y_idx: Vec<usize> = (x_cols.len()..x_cols.len() + y_cols.len()).collect();
-    let out = mv.test_blocks(&cols, &x_idx, &y_idx, &[], significance, ws, ctx)?;
+    let out = mv.test_blocks(
+        &cols,
+        &BlockTest { x_cols: &x_idx, y_cols: &y_idx, z_flat: &[] },
+        significance,
+        ws,
+        ctx,
+    )?;
     Ok(out.p_value)
 }
 
@@ -286,7 +289,13 @@ fn multivariate_block_pvalue(
     cols.extend(y_cols.iter().map(Vec::as_slice));
     let x_idx: Vec<usize> = (0..x_cols.len()).collect();
     let y_idx: Vec<usize> = (x_cols.len()..x_cols.len() + y_cols.len()).collect();
-    let out = mv.test_blocks(&cols, &x_idx, &y_idx, &[], SignificanceMethod::Analytic, ws, ctx)?;
+    let out = mv.test_blocks(
+        &cols,
+        &BlockTest { x_cols: &x_idx, y_cols: &y_idx, z_flat: &[] },
+        SignificanceMethod::Analytic,
+        ws,
+        ctx,
+    )?;
     Ok(out.p_value)
 }
 

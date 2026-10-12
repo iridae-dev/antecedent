@@ -5,7 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::type_complexity)]
 #![cfg_attr(
     test,
     allow(
@@ -44,6 +43,21 @@ struct ParentSelectOut {
     parents: ParentSet,
     tests: u64,
     sepsets: PcSepsets,
+}
+
+/// The lagged frame, searched variables and compiled constraints one PC/MCI phase reads.
+#[derive(Clone, Copy)]
+pub(crate) struct LaggedSearch<'a> {
+    pub frame: &'a LaggedFrame,
+    pub variables: &'a [VariableId],
+    pub compiled: &'a CompiledConstraints,
+}
+
+/// One PC1 conditioning level for `target`: its current parents and the conditioning size.
+struct ParentLevel<'a> {
+    target: VariableId,
+    parents: &'a [(VariableId, Lag)],
+    cond_size: usize,
 }
 
 struct MciChunkOut {
@@ -156,6 +170,10 @@ impl PcmciEngine {
     /// # Errors
     ///
     /// Data or CI failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     pub fn select_parents(
         &self,
         frame: &LaggedFrame,
@@ -188,7 +206,6 @@ impl PcmciEngine {
                 break;
             }
             if let Some(p) = &ctx.progress {
-                #[allow(clippy::cast_precision_loss)]
                 p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
@@ -202,16 +219,10 @@ impl PcmciEngine {
                     SignificanceMethod::BlockShuffle { .. }
                 );
             if use_batch {
-                ci_tests += self.pc_parent_level_batch(
-                    frame,
-                    target,
-                    &parents,
-                    &mut min_stat,
-                    cond_size,
-                    compiled,
-                    workspace,
-                    ctx,
-                )?;
+                let search = LaggedSearch { frame, variables, compiled };
+                let level = ParentLevel { target, parents: &parents, cond_size };
+                ci_tests +=
+                    self.pc_parent_level_batch(search, &level, &mut min_stat, workspace, ctx)?;
             } else {
                 for pi in 0..parents.len() {
                     if ctx.cancellation.is_cancelled() {
@@ -223,16 +234,13 @@ impl PcmciEngine {
                     let mut combo = std::mem::take(&mut workspace.combo);
                     combo.clear();
                     combo.extend(pc_parent_combo(&parents, pi, cond_size));
-                    let result = self.ci_statistic(
-                        frame,
-                        src,
-                        slag,
+                    let link = LaggedLink {
+                        source: src,
+                        source_lag: slag,
                         target,
-                        Lag::CONTEMPORANEOUS,
-                        &combo,
-                        workspace,
-                        ctx,
-                    );
+                        target_lag: Lag::CONTEMPORANEOUS,
+                    };
+                    let result = self.ci_statistic(frame, link, &combo, workspace, ctx);
                     let outcome = match result {
                         Ok(pair) => pair,
                         Err(e) => {
@@ -242,15 +250,12 @@ impl PcmciEngine {
                     };
                     ci_tests += 1;
                     record_pc_parent_outcome(
-                        pi,
-                        src,
-                        slag,
-                        target,
+                        link,
                         outcome,
                         &combo,
                         compiled,
                         self.constraints.alpha,
-                        &mut min_stat,
+                        &mut min_stat[pi],
                         workspace,
                     );
                     workspace.combo = combo;
@@ -294,18 +299,16 @@ impl PcmciEngine {
     }
 
     /// One PC1 conditioning level: batch every remaining candidate on a fully-valid frame.
-    #[allow(clippy::too_many_arguments)]
     fn pc_parent_level_batch(
         &self,
-        frame: &LaggedFrame,
-        target: VariableId,
-        parents: &[(VariableId, Lag)],
+        search: LaggedSearch<'_>,
+        level: &ParentLevel<'_>,
         min_stat: &mut [f64],
-        cond_size: usize,
-        compiled: &CompiledConstraints,
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<u64, DiscoveryError> {
+        let LaggedSearch { frame, .. } = search;
+        let ParentLevel { target, parents, cond_size } = *level;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
         }
@@ -361,16 +364,19 @@ impl PcmciEngine {
                 return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
             }
             let (src, slag) = parents[pi];
-            record_pc_parent_outcome(
-                pi,
-                src,
-                slag,
+            let link = LaggedLink {
+                source: src,
+                source_lag: slag,
                 target,
+                target_lag: Lag::CONTEMPORANEOUS,
+            };
+            record_pc_parent_outcome(
+                link,
                 (result.statistic, result.p_value),
                 &combo,
-                compiled,
+                search.compiled,
                 self.constraints.alpha,
-                min_stat,
+                &mut min_stat[pi],
                 workspace,
             );
         }
@@ -402,16 +408,7 @@ impl PcmciEngine {
             mci_conditioning(link, parents_target, parents_source, &mut workspace.others);
         refuse_truncated_mci(truncated)?;
         let cond = std::mem::take(&mut workspace.others);
-        let result = self.ci_statistic(
-            frame,
-            link.source,
-            link.source_lag,
-            link.target,
-            link.target_lag,
-            &cond,
-            workspace,
-            ctx,
-        );
+        let result = self.ci_statistic(frame, link, &cond, workspace, ctx);
         workspace.others = cond;
         let (stat, p) = result?;
         Ok((ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None }, truncated))
@@ -532,16 +529,9 @@ impl PcmciEngine {
         let mut scored = Vec::new();
         // MCI conditioning that overflows the column cap is refused (`refuse_truncated_mci`),
         // so a successful run never carries a truncated test.
-        let (mci_tests, _) = engine.mci_all(
-            frame,
-            &search_vars,
-            &compiled,
-            &all_parents,
-            &mut scored,
-            workspace,
-            ctx,
-            threads,
-        )?;
+        let search = LaggedSearch { frame, variables: &search_vars, compiled: &compiled };
+        let (mci_tests, _) =
+            engine.mci_all(search, &all_parents, &mut scored, workspace, ctx, threads)?;
         ci_tests += mci_tests;
 
         let sepsets = std::mem::take(&mut workspace.sepsets);
@@ -601,7 +591,6 @@ impl PcmciEngine {
                 });
                 all_parents.push((target, parents));
                 if let Some(p) = &ctx.progress {
-                    #[allow(clippy::cast_precision_loss)]
                     p.report(
                         all_parents.len() as f64 / variables.len().max(1) as f64,
                         "discovery.ci",
@@ -683,12 +672,9 @@ impl PcmciEngine {
         Ok((all_parents, iterations, ci_tests))
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn mci_all(
         &self,
-        frame: &LaggedFrame,
-        variables: &[VariableId],
-        compiled: &CompiledConstraints,
+        search: LaggedSearch<'_>,
         all_parents: &[TargetParents],
         scored: &mut Vec<ScoredLink>,
         workspace: &mut DiscoveryWorkspace,
@@ -700,9 +686,7 @@ impl PcmciEngine {
             let mut truncated = 0u64;
             for (target, parents) in all_parents {
                 let (batch, trunc) = self.mci_batch_for_target(
-                    frame,
-                    variables,
-                    compiled,
+                    search,
                     *target,
                     parents,
                     all_parents,
@@ -736,9 +720,7 @@ impl PcmciEngine {
                     let mut truncated = 0u64;
                     for (target, parents) in chunk_parents {
                         let (batch, trunc) = engine.mci_batch_for_target(
-                            frame,
-                            variables,
-                            compiled,
+                            search,
                             *target,
                             parents,
                             all_parents,
@@ -780,18 +762,16 @@ impl PcmciEngine {
     ///
     /// Returns the scored links and the number of conditioning columns dropped by the
     /// `MAX_CI_COLS` cap (0 in the common case).
-    #[allow(clippy::too_many_arguments)]
     fn mci_batch_for_target(
         &self,
-        frame: &LaggedFrame,
-        variables: &[VariableId],
-        compiled: &CompiledConstraints,
+        search: LaggedSearch<'_>,
         target: VariableId,
         parents: &[(VariableId, Lag)],
         all_parents: &[TargetParents],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ScoredLink>, u64), DiscoveryError> {
+        let LaggedSearch { frame, variables, compiled } = search;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
         }
@@ -907,18 +887,20 @@ impl PcmciEngine {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// CI test of `link.source ⊥ link.target | cond` on `frame`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     pub(crate) fn ci_statistic(
         &self,
         frame: &LaggedFrame,
-        x: VariableId,
-        x_lag: Lag,
-        y: VariableId,
-        y_lag: Lag,
+        link: LaggedLink,
         cond: &[(VariableId, Lag)],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(f64, f64), DiscoveryError> {
+        let LaggedLink { source: x, source_lag: x_lag, target: y, target_lag: y_lag } = link;
         if 2 + cond.len() > MAX_CI_COLS {
             return Err(DiscoveryError::Unsupported {
                 message: "conditioning set exceeds MAX_CI_COLS",
@@ -1089,34 +1071,32 @@ fn pc_parent_combo(
     parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x).take(cond_size).collect()
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Fold one PC1 outcome for `link` into the candidate's `min_stat` slot, queueing it for
+/// removal (with `combo` as its separating set) when the test accepts independence.
 fn record_pc_parent_outcome(
-    pi: usize,
-    src: VariableId,
-    slag: Lag,
-    target: VariableId,
+    link: LaggedLink,
     outcome: (f64, f64),
     combo: &[(VariableId, Lag)],
     compiled: &CompiledConstraints,
     alpha: f64,
-    min_stat: &mut [f64],
+    min_stat: &mut f64,
     workspace: &mut DiscoveryWorkspace,
 ) {
     let (stat, p) = outcome;
     // Always record |stat| so required edges that fail independence still rank by
     // observed association (not as +∞ / strongest).
-    min_stat[pi] = min_stat[pi].min(stat.abs());
+    *min_stat = min_stat.min(stat.abs());
     // pinned baseline retains links with p <= alpha (independence when p > alpha).
-    if p > alpha {
-        let link =
-            LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS };
-        if !compiled.requires(link) {
-            workspace.removed.push((src, slag));
-            workspace.sepsets.insert((src, slag, target, Lag::CONTEMPORANEOUS), Arc::from(combo));
-        }
+    if p > alpha && !compiled.requires(link) {
+        workspace.removed.push((link.source, link.source_lag));
+        workspace.sepsets.insert(
+            (link.source, link.source_lag, link.target, Lag::CONTEMPORANEOUS),
+            Arc::from(combo),
+        );
     }
 }
 
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 fn resolve_vector_ci(
     base_ci: &Arc<dyn ConditionalIndependence + Send + Sync>,
     base_blocks: &Arc<[Arc<[usize]>]>,

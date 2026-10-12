@@ -20,7 +20,6 @@ use antecedent_identify::IdentifiedEstimand;
 /// and `y_t = 0.9 x_{t-1} + noise`. Both carry independent innovations, so no lagged
 /// column is an exact linear combination of others (a noise-free sinusoid is: every
 /// three of its lags are collinear, which a partial correlation refuses).
-#[allow(clippy::cast_precision_loss)]
 pub(crate) fn driven_xy(n: usize) -> (Vec<f64>, Vec<f64>) {
     let mut state = 0x9E37_79B9_7F4A_7C15_u64;
     let mut noise = move || {

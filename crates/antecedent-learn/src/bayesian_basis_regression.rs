@@ -14,11 +14,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::needless_range_loop,
-    reason = "small dense Gram algebra indexes several buffers by one position"
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;

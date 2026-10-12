@@ -5,8 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::unused_self, clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -306,7 +304,7 @@ impl ValidationSuite {
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
-            out.push(computation_outcome(id, self.run_one(id, problem, workspace, ctx))?);
+            out.push(computation_outcome(id, Self::run_one(id, problem, workspace, ctx))?);
         }
         for custom in &self.custom {
             out.push(custom_outcome(custom.as_ref(), custom.validate(problem, ctx))?);
@@ -354,7 +352,7 @@ impl ValidationSuite {
                             RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
                         )
                     }
-                    _ => self.run_one(id, problem, workspace, ctx)?,
+                    _ => Self::run_one(id, problem, workspace, ctx)?,
                 })
             })();
             out.push(computation_outcome(id, outcome)?);
@@ -420,15 +418,18 @@ impl ValidationSuite {
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
-            out.push(computation_outcome(id, self.run_one_bayesian(id, bayes, ctx))?);
+            out.push(computation_outcome(id, Self::run_one_bayesian(id, bayes, ctx))?);
         }
         // Custom validators need a RefutationProblem; Bayesian path leaves them unused here.
         let _ = &self.custom;
         Ok(out)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     fn run_one(
-        &self,
         id: ValidatorId,
         problem: &RefutationProblem<'_>,
         workspace: &mut EstimationWorkspace,
@@ -667,7 +668,6 @@ impl ValidationSuite {
     }
 
     fn run_one_bayesian(
-        &self,
         id: ValidatorId,
         bayes: &mut BayesianSuiteContext<'_>,
         ctx: &ExecutionContext,
@@ -932,7 +932,7 @@ mod tests {
     fn custom_not_applicable_does_not_abort_the_suite() {
         struct Skip;
         impl CustomEffectValidator for Skip {
-            fn name(&self) -> &str {
+            fn name(&self) -> &'static str {
                 "skip"
             }
             fn validate(
@@ -945,7 +945,7 @@ mod tests {
         }
         struct OkReport;
         impl CustomEffectValidator for OkReport {
-            fn name(&self) -> &str {
+            fn name(&self) -> &'static str {
                 "ok"
             }
             fn validate(

@@ -2,20 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    NoiseReplaceTarget, RefutationProblem, RefutationReport, linear_estimator_no_bootstrap,
-    noise_replace_refute,
+    NoiseReplaceSpec, NoiseReplaceTarget, RefutationProblem, RefutationReport,
+    linear_estimator_no_bootstrap, noise_replace_refute,
 };
 use crate::error::ValidationError;
 
@@ -60,12 +52,14 @@ impl DummyOutcome {
             workspace,
             ctx,
             &self.estimator,
-            self.replicates,
-            self.alpha,
-            NoiseReplaceTarget::Outcome,
-            0xA7E0_0008_0000,
-            "dummy.outcome",
-            "dummy-outcome",
+            &NoiseReplaceSpec {
+                replicates: self.replicates,
+                alpha: self.alpha,
+                target: NoiseReplaceTarget::Outcome,
+                stream_base: 0xA7E0_0008_0000,
+                refuter_id: "dummy.outcome",
+                failure_label: "dummy-outcome",
+            },
         )
     }
 }

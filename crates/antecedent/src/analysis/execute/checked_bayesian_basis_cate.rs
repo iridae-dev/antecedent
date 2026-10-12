@@ -184,12 +184,14 @@ impl CheckedBayesianBasisCateExecution {
             .collect::<Result<_, _>>()?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(
-            &t,
-            &y,
-            &x,
-            covariates.len(),
-            Some(&row_ids),
-            None,
+            &antecedent_learn::BasisData {
+                treatment: &t,
+                outcome: &y,
+                covariates_colmajor: &x,
+                n_covariates: covariates.len(),
+                row_ids: Some(&row_ids),
+                fold_ids: None,
+            },
             BasisTargetPopulation::AllObserved,
             BayesianBasisSpec {
                 prior_sd: self.config.prior_scale,

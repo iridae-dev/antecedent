@@ -18,7 +18,10 @@ pub enum PredictionTask {
 
 /// Capabilities the planner checks before fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct LearnerCapabilities {
     /// Real-valued regression.
     pub regression: bool,

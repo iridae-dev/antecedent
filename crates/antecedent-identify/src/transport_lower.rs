@@ -241,7 +241,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::items_after_statements)]
     fn nested_kernel_round_trip_keeps_free_vars() {
         let mut arena = CausalExprArena::new();
         let formula = TransportFormula::RecursiveFactorization {
@@ -261,6 +260,7 @@ mod tests {
         assert!(bindings.iter().any(|b| b.population.as_ref() == "source"));
         assert!(bindings.iter().any(|b| b.population.as_ref() == "target"));
         let mut saw_kernel = false;
+        #[allow(clippy::items_after_statements, reason = "helper defined next to its single use")]
         fn walk(arena: &CausalExprArena, id: ExprId, saw: &mut bool) {
             match arena.node(id) {
                 ExprNode::Kernel { body, .. } => {

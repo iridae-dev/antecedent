@@ -1188,7 +1188,10 @@ fn panel_slice_template_slices_appended_column() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 fn panel_refit_effect_round_trip_matches_copy_all() {
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: lagged_xy_series(32, 0.1) },

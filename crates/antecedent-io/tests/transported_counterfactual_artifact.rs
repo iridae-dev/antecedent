@@ -11,7 +11,6 @@
 //! `{0: 0.4, 1: 0.4, 2: 0.2}` gives `5.4`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::transported_counterfactual_artifact::{
     AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, ModelWire, PremisesWire,

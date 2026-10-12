@@ -336,10 +336,12 @@ impl NestedCounterfactualOperation {
         let active = nested_counterfactual_with_exo(
             &engine,
             &exo,
-            &control_outer,
-            &active_inner,
-            &self.frozen,
-            self.query.outcome,
+            &antecedent_counterfactual::NestedSpec {
+                outer: &control_outer,
+                inner: &active_inner,
+                frozen: &self.frozen,
+                outcome: self.query.outcome,
+            },
             &mut workspace,
             ctx,
         )
@@ -347,10 +349,12 @@ impl NestedCounterfactualOperation {
         let control = nested_counterfactual_with_exo(
             &engine,
             &exo,
-            &control_outer,
-            &control_inner,
-            &self.frozen,
-            self.query.outcome,
+            &antecedent_counterfactual::NestedSpec {
+                outer: &control_outer,
+                inner: &control_inner,
+                frozen: &self.frozen,
+                outcome: self.query.outcome,
+            },
             &mut workspace,
             ctx,
         )
@@ -819,8 +823,9 @@ pub fn attribute_feature_relevance(
     max_features: usize,
     ctx: &ExecutionContext,
 ) -> Result<Vec<FeatureRelevance>, CausalError> {
-    feature_relevance(model, data, outcome, features, delta, n_samples, max_features, ctx)
-        .map_err(map_attr)
+    let options =
+        antecedent_attribution::FeatureRelevanceOptions { delta, n_samples, max_features };
+    feature_relevance(model, data, outcome, features, &options, ctx).map_err(map_attr)
 }
 
 /// Rank root causes from an attribution result.

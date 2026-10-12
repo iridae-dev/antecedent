@@ -128,7 +128,6 @@ impl PortablePredictor {
 }
 
 impl FittedPredictor for PortablePredictor {
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     fn predict(
         &self,
         x: DesignView<'_>,
@@ -204,7 +203,6 @@ impl FittedPredictor for PortablePredictor {
                             message: "no supported prediction at requested row",
                         });
                     }
-                    #[allow(clippy::cast_precision_loss)]
                     {
                         *value = base + if *average { sum / votes as f64 } else { sum };
                     }
@@ -249,7 +247,6 @@ mod tests {
         let mut x = vec![1.0; n * 2];
         let y: Vec<_> = (0..n)
             .map(|i| {
-                #[allow(clippy::cast_precision_loss)]
                 let v = i as f64 / 10.0;
                 x[n + i] = v;
                 2.0 + v.sin()

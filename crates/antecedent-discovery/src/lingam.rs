@@ -12,15 +12,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_let_else, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -98,6 +89,10 @@ impl DirectLingam {
     /// # Errors
     ///
     /// Data, numerical, or graph failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -705,12 +700,6 @@ mod tests {
         let data = TabularData::new(storage);
         let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
         (data, vars)
-    }
-
-    /// Deterministic standard normal draws from the seeded stream.
-    fn gaussian(n: usize, seed: u64) -> Vec<f64> {
-        let mut rng = antecedent_core::CausalRng::from_seed(seed);
-        (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect()
     }
 
     /// Two Gaussian exogenous errors: their relative order is not identified. The run still

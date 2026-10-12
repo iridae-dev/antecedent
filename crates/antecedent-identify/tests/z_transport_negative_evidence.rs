@@ -2,11 +2,6 @@
 //!
 //! These tests enumerate exogenous states directly. They do not use the
 //! identifier or expression evaluator to calculate any probability.
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    reason = "fixture sizes and indices are small integers well inside f64 and usize range"
-)]
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
@@ -203,7 +198,10 @@ fn full_experiment_catalog(
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One independent SCM fixture checks the full evidence and nonidentification claim.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One independent SCM fixture checks the full evidence and nonidentification claim"
+)]
 fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree_on_do_x() {
     let first = OutcomeMechanism::CopiesObservedTreatment;
     let second = OutcomeMechanism::CopiesTreatmentLatent;

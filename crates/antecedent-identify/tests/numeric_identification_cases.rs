@@ -7,7 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -235,7 +234,6 @@ fn with_parent_joint() -> Vec<f64> {
     joint
 }
 
-#[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
 fn napkin_joint(do_x: Option<usize>) -> Vec<f64> {
     let latent_p = [0.35, 0.7];
     let mut out = vec![0.0; 16];
@@ -268,7 +266,6 @@ fn napkin_joint(do_x: Option<usize>) -> Vec<f64> {
     out
 }
 
-#[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
 fn discriminating_joint(do_t: Option<usize>) -> Vec<f64> {
     // Observed A=0,Q=1,C=2,T=3,Y=4; latents L1,L2 for Q<->C and C<->T.
     let mut out = vec![0.0; 1 << 5];
@@ -509,9 +506,7 @@ fn napkin_identified_expression_matches_enumerated_interventional_ate() {
 
 /// Discriminating-path visibility: `T→Y` is invisible without the path-start
 /// witness `A`, and with it the adjustment functional recovers the SCM ATE.
-#[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 #[test]
-#[allow(clippy::float_cmp, reason = "a refused identification carries an exact zero weight")]
 #[allow(
     clippy::float_cmp,
     reason = "the weights are pinned reference values reproduced bit for bit"

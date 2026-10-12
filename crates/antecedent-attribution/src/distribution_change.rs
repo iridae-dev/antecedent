@@ -20,8 +20,8 @@ use antecedent_model::{
 };
 
 use crate::change_common::{
-    ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation, sample_outcome_law, stream_tag,
-    total_change,
+    ChangeAllocation, ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation,
+    sample_outcome_law, stream_tag, total_change,
 };
 use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
@@ -326,16 +326,13 @@ fn distribution_change_with_mechanisms(
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
-    run_change_allocation(
-        query.outcome,
-        &players,
-        &query.allocation,
-        &mut payoff,
-        total,
-        Arc::from([]),
-        ctx,
-        Some(graph_model),
-    )
+    let request = ChangeAllocation {
+        outcome: query.outcome,
+        players: &players,
+        allocation: &query.allocation,
+        model_for_paths: Some(graph_model),
+    };
+    run_change_allocation(&request, &mut payoff, total, Arc::from([]), ctx)
 }
 
 /// Convenience: Shapley Monte Carlo distribution-change with defaults.
@@ -681,7 +678,10 @@ mod tests {
     /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
     /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
     /// resampled 40-row populations moves the contributions.
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact constants: the values compared are representable results, not measurements"
+    )]
     #[test]
     fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution() {
         let (model, data) = two_period_chain_with_noise();

@@ -4,18 +4,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::field_reassign_with_default,
-    clippy::manual_let_else,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
-)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -371,9 +363,7 @@ impl MechanismRegistry {
             let y = data.float64_cow(var)?;
             slots[gather.child.as_usize()] = fit_family_weighted(
                 assignment.selected,
-                gather,
-                model,
-                data,
+                FitSource { gather, model, data },
                 &y,
                 FaerBackend,
                 &mut ws,
@@ -932,20 +922,26 @@ fn fit_family(
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
-    fit_family_weighted(family, gather, model, data, y, backend, ls_ws, None)
+    fit_family_weighted(family, FitSource { gather, model, data }, y, backend, ls_ws, None)
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Gather plan, model and data one mechanism fit reads its parents from.
+#[derive(Clone, Copy)]
+struct FitSource<'a> {
+    gather: &'a ParentGatherPlan,
+    model: &'a CompiledCausalModel,
+    data: &'a TabularData,
+}
+
 fn fit_family_weighted(
     family: MechanismFamily,
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    source: FitSource<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
     weights: Option<&[f64]>,
 ) -> Result<MechanismSlot, ModelError> {
+    let FitSource { gather, model, data } = source;
     let frame = FitFrame::from_data(gather, model, data, y.len())?;
     fit_frame_family(family, &frame, y, backend, ls_ws, weights)
 }
@@ -1204,6 +1200,10 @@ fn fit_hierarchical_linear(
 /// EB λ is estimated from linear-probability OLS moments and passed to
 /// [`fit_glm_ridge`], which applies the penalty on ordinary (non-separated) data
 /// as well as separated cases (MM-014). Intercept is left unpenalized.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_hierarchical_glm(
     frame: &FitFrame<'_>,
     y: &[f64],
@@ -1328,13 +1328,8 @@ fn fit_lgssm_kalman_em(
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let lg = fit_linear_gaussian(frame, y, backend, ls_ws, 0.0)?;
-    let (intercept, coeffs) = match lg {
-        MechanismSlot::LinearGaussian { intercept, coeffs, .. } => (intercept, coeffs),
-        _ => {
-            return Err(ModelError::Unsupported {
-                message: "lgssm fit requires linear base".into(),
-            });
-        }
+    let MechanismSlot::LinearGaussian { intercept, coeffs, .. } = lg else {
+        return Err(ModelError::Unsupported { message: "lgssm fit requires linear base".into() });
     };
     let mut resid = vec![0.0; y.len()];
     for r in 0..y.len() {
@@ -1489,7 +1484,10 @@ fn fit_linear_gaussian(
     fit_linear_gaussian_weighted(frame, y, backend, ls_ws, ridge, None)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_linear_gaussian_weighted(
     frame: &FitFrame<'_>,
     y: &[f64],
@@ -1651,6 +1649,17 @@ fn basis_design_matrix(
     Ok(x)
 }
 
+/// Column-major design, response, weights and ridge strength of one scaled ridge solve.
+#[derive(Clone, Copy)]
+struct RidgeProblem<'a> {
+    x: &'a [f64],
+    n: usize,
+    ncols: usize,
+    y: &'a [f64],
+    weights: Option<&'a [f64]>,
+    ridge: f64,
+}
+
 /// Weighted ridge least squares on a column-major design, solved on
 /// RMS-normalized columns and un-normalized afterwards.
 ///
@@ -1658,17 +1667,12 @@ fn basis_design_matrix(
 /// identical — and it is what makes a truncated power basis solvable at all: the
 /// raw columns of `z³` and `z·z³` differ in scale by orders of magnitude.
 /// Returns the coefficients on the original column scale and the weighted RSS.
-#[allow(clippy::too_many_arguments)]
 fn solve_scaled_ridge(
-    x: &[f64],
-    n: usize,
-    ncols: usize,
-    y: &[f64],
-    weights: Option<&[f64]>,
-    ridge: f64,
+    problem: &RidgeProblem<'_>,
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<(Vec<f64>, f64), ModelError> {
+    let RidgeProblem { x, n, ncols, y, weights, ridge } = *problem;
     let mut scale = vec![1.0_f64; ncols];
     for (c, s) in scale.iter_mut().enumerate().skip(1) {
         let rms = (x[c * n..c * n + n].iter().map(|v| v * v).sum::<f64>() / n.max(1) as f64).sqrt();
@@ -1722,7 +1726,6 @@ fn basis_ridge_rel(basis: &ParentBasis) -> f64 {
     if basis.knots().iter().any(|k| !k.is_empty()) { SPLINE_CONDITIONING_RIDGE } else { 0.0 }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn fit_linear_basis(
     basis: &ParentBasis,
     frame: &FitFrame<'_>,
@@ -1735,7 +1738,8 @@ fn fit_linear_basis(
     let x = basis_design_matrix(basis, &frame.parents, n)?;
     let ncols = 1 + basis.n_terms();
     let ridge = basis_ridge_rel(basis) * n as f64;
-    let (coeffs, rss) = solve_scaled_ridge(&x, n, ncols, y, weights, ridge, backend, ls_ws)?;
+    let (coeffs, rss) =
+        solve_scaled_ridge(&RidgeProblem { x: &x, n, ncols, y, weights, ridge }, backend, ls_ws)?;
     let sigma = residual_sigma(rss, n, ncols, y);
     Ok(MechanismSlot::LinearBasis {
         intercept: coeffs[0],
@@ -1745,7 +1749,6 @@ fn fit_linear_basis(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn fit_discrete_basis(
     basis: &ParentBasis,
     frame: &FitFrame<'_>,
@@ -2583,6 +2586,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn best_score_prefers_lgssm_over_linear_gaussian_on_lgssm_generated_data() {
         use antecedent_core::CausalRng;
         use antecedent_kernels::standard_normal;
@@ -3158,9 +3165,7 @@ mod tests {
             let gather = compiled.gather_for(DenseNodeId::from_raw(2)).unwrap().clone();
             let slot = fit_family_weighted(
                 MechanismFamily::Discrete,
-                &gather,
-                &compiled,
-                &data,
+                FitSource { gather: &gather, model: &compiled, data: &data },
                 &lever,
                 FaerBackend,
                 &mut LeastSquaresWorkspace::default(),

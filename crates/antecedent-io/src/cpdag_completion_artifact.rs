@@ -709,7 +709,7 @@ impl CpdagCompletionArtifactWire {
             if version == CPDAG_COMPLETION_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [CPDAG_COMPLETION_ARTIFACT_FEATURE] {

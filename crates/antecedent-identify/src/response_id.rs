@@ -59,8 +59,9 @@ use antecedent_graph::{Cpdag, Dag, Pag};
 use crate::envelope::IdentificationEnvelope;
 use crate::error::IdentificationError;
 use crate::generalized::{
-    GeneralizedAdjustmentIdentifier, identify_on_mag_completion, identify_on_mag_completion_mean,
-    invisible_directed_edges, mag_dense_to_var, mag_to_confounded_admg, pag_var_to_dense,
+    AdjustmentBudget, GeneralizedAdjustmentIdentifier, MagTarget, identify_on_mag_completion,
+    identify_on_mag_completion_mean, invisible_directed_edges, mag_dense_to_var,
+    mag_to_confounded_admg, pag_var_to_dense,
 };
 use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
@@ -116,13 +117,9 @@ pub(crate) fn identify_mag_response(
         let y_d = pag_var_to_dense(mag, y)?;
         let mut result = identify_on_mag_completion_mean(
             mag,
-            t,
-            y,
-            t_d,
-            y_d,
+            MagTarget { t, y, t_d, y_d },
             level,
-            max_candidates,
-            max_examinations,
+            AdjustmentBudget { max_candidates, max_examinations },
             query,
         )?;
         if !is_identified(&result) {
@@ -138,14 +135,10 @@ pub(crate) fn identify_mag_response(
     let (active, control) = set_levels(&witness)?;
     let mut result = identify_on_mag_completion(
         mag,
-        t,
-        y,
-        t_d,
-        y_d,
+        MagTarget { t, y, t_d, y_d },
         active.clone(),
         control.clone(),
-        max_candidates,
-        max_examinations,
+        AdjustmentBudget { max_candidates, max_examinations },
     )?;
     if !is_identified(&result) {
         result = identify_admg_response(mag, query)?;
@@ -387,14 +380,15 @@ mod tests {
         assert!(antecedent_graph::is_mag_completion(&mag));
         let adj = identify_on_mag_completion(
             &mag,
-            VariableId::from_raw(0),
-            VariableId::from_raw(2),
-            n(0),
-            n(2),
+            MagTarget {
+                t: VariableId::from_raw(0),
+                y: VariableId::from_raw(2),
+                t_d: n(0),
+                y_d: n(2),
+            },
             Value::f64(1.0),
             Value::f64(0.0),
-            16,
-            1_000_000,
+            AdjustmentBudget { max_candidates: 16, max_examinations: 1_000_000 },
         )
         .unwrap();
         assert_eq!(adj.status, IdentificationStatus::NotIdentified, "{:?}", adj.derivation);

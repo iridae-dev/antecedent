@@ -5,7 +5,6 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::float_cmp,
     reason = "small deterministic numerical fixture"
 )]
 
@@ -13,7 +12,7 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 use antecedent_learn::{
-    BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec, LearnError,
+    BasisData, BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec, LearnError,
     LearnerProvenance, PosteriorPrediction, PosteriorPredictionProvenance, PredictionTask,
 };
 
@@ -44,12 +43,14 @@ fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
     let folds: Vec<u16> = (0..n).map(|i| (i % 5) as u16).collect();
     let result = BayesianBasisGComputation
         .fit(
-            &treatment,
-            &outcome,
-            &z,
-            1,
-            Some(&rows),
-            Some(&folds),
+            &BasisData {
+                treatment: &treatment,
+                outcome: &outcome,
+                covariates_colmajor: &z,
+                n_covariates: 1,
+                row_ids: Some(&rows),
+                fold_ids: Some(&folds),
+            },
             BasisTargetPopulation::AllObserved,
             BayesianBasisSpec { prior_sd: 8.0, n_draws: 600, seed: 17 },
             &ExecutionContext::for_tests(1),
@@ -94,12 +95,14 @@ fn basis_gcomp_refuses_unlicensed_population_and_non_binary_or_degenerate_treatm
     let ctx = ExecutionContext::for_tests(1);
     let spec = BayesianBasisSpec { n_draws: 8, ..Default::default() };
     let other = BayesianBasisGComputation.fit(
-        &treatment,
-        &outcome,
-        &z,
-        1,
-        None,
-        None,
+        &BasisData {
+            treatment: &treatment,
+            outcome: &outcome,
+            covariates_colmajor: &z,
+            n_covariates: 1,
+            row_ids: None,
+            fold_ids: None,
+        },
         BasisTargetPopulation::Other,
         spec,
         &ctx,
@@ -108,12 +111,14 @@ fn basis_gcomp_refuses_unlicensed_population_and_non_binary_or_degenerate_treatm
 
     let continuous_treatment = vec![0.5; treatment.len()];
     let invalid = BayesianBasisGComputation.fit(
-        &continuous_treatment,
-        &outcome,
-        &z,
-        1,
-        None,
-        None,
+        &BasisData {
+            treatment: &continuous_treatment,
+            outcome: &outcome,
+            covariates_colmajor: &z,
+            n_covariates: 1,
+            row_ids: None,
+            fold_ids: None,
+        },
         BasisTargetPopulation::AllObserved,
         spec,
         &ctx,
@@ -122,12 +127,14 @@ fn basis_gcomp_refuses_unlicensed_population_and_non_binary_or_degenerate_treatm
 
     let one_arm = vec![1.0; treatment.len()];
     let degenerate = BayesianBasisGComputation.fit(
-        &one_arm,
-        &outcome,
-        &z,
-        1,
-        None,
-        None,
+        &BasisData {
+            treatment: &one_arm,
+            outcome: &outcome,
+            covariates_colmajor: &z,
+            n_covariates: 1,
+            row_ids: None,
+            fold_ids: None,
+        },
         BasisTargetPopulation::AllObserved,
         spec,
         &ctx,
@@ -208,12 +215,14 @@ fn basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage() 
         let truth = 1.5 + 0.6 * z.iter().sum::<f64>() / n as f64;
         let fit = BayesianBasisGComputation
             .fit(
-                &treatment,
-                &outcome,
-                &z,
-                1,
-                None,
-                None,
+                &BasisData {
+                    treatment: &treatment,
+                    outcome: &outcome,
+                    covariates_colmajor: &z,
+                    n_covariates: 1,
+                    row_ids: None,
+                    fold_ids: None,
+                },
                 BasisTargetPopulation::AllObserved,
                 BayesianBasisSpec { prior_sd: 10.0, n_draws: 299, seed: rep_seed + 7 },
                 &ExecutionContext::for_tests(rep_seed + 9),

@@ -88,7 +88,10 @@ fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 // Wire struct declares four independent graph premises; each flag is its own declaration.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct MediationPremisesWire {
     /// An unmeasured treatment-outcome common cause is declared.
     pub unmeasured_treatment_outcome_confounding: bool,

@@ -30,8 +30,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::fmt;
 
 use antecedent_core::{
@@ -979,7 +977,10 @@ const LINE_BYTES: u64 = std::mem::size_of::<FrontierPoint>() as u64;
 /// # Panics
 ///
 /// Never: one bracketing outcome is recorded per stage before stages are read back.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn z_transport_joint_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,

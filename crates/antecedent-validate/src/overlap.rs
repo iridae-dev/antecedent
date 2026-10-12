@@ -64,7 +64,6 @@ impl OverlapRefuter {
     /// # Errors
     ///
     /// Data failures while building a diagnostic-only propensity fit.
-    #[allow(clippy::float_cmp)] // Exact 0/1 values distinguish the binary treatment contract.
     pub fn refute_with_propensity(
         &self,
         problem: &RefutationProblem<'_>,
@@ -105,7 +104,7 @@ impl OverlapRefuter {
         }
     }
 
-    #[allow(clippy::float_cmp)] // Binary treatment is exactly 0/1.
+    #[allow(clippy::float_cmp, reason = "Binary treatment is exactly 0/1")]
     pub(crate) fn continuous_report(
         &self,
         problem: &RefutationProblem<'_>,

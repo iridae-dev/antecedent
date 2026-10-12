@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use crate::error::StatsError;
 
 /// Soft upper bound for the exact (brute-force) matching path.
@@ -451,7 +443,6 @@ mod tests {
         assert_eq!(far.nearest(&[-1e200], None).unwrap(), None);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,
@@ -479,7 +470,6 @@ mod tests {
         assert!((out[0] - 3e-21).abs() < 1e-33, "{}", out[0]);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

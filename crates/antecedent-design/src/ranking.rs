@@ -327,10 +327,10 @@ impl DesignRanking {
                 .word(e.rank as u64)
                 .real(e.evsi)
                 .real(e.mc_stderr)
-                .word(u64::from(e.replicates))
+                .word(e.replicates)
                 .text(e.integration.as_str())
                 .real(e.evpi)
-                .word(u64::from(e.sample_size))
+                .word(e.sample_size)
                 .real(e.study_cost_amount)
                 .text(&e.study_cost_unit)
                 .opt_real(e.net_value)
@@ -348,8 +348,8 @@ impl DesignRanking {
                 .text(&s.semantic_id)
                 .word(s.rank as u64)
                 .word(u64::from(s.verified_sufficient))
-                .word(u64::from(s.cost.units))
-                .word(u64::from(s.cost.sample_budget));
+                .word(s.cost.units)
+                .word(s.cost.sample_budget);
         }
         hasher.word(u64::from(self.search.truncated));
         let mut unevaluated = self.search.unevaluated_ids.clone();

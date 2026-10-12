@@ -7,12 +7,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::unnecessary_wraps)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -245,7 +243,10 @@ impl BackdoorIdentifier {
         )
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_ate(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -890,7 +891,7 @@ mod tests {
         let y = DenseNodeId::from_raw(1);
         g.insert_directed(t, y).unwrap();
         g.insert_directed(DenseNodeId::from_raw(2), t).unwrap();
-        for i in 2..n + 1 {
+        for i in 2..=n {
             g.insert_directed(DenseNodeId::from_raw(i + 1), DenseNodeId::from_raw(i)).unwrap();
         }
         g.insert_directed(DenseNodeId::from_raw(n + 1), y).unwrap();

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::unreadable_literal, clippy::unnecessary_wraps)]
 #![cfg_attr(
     test,
     allow(
@@ -259,6 +258,10 @@ fn form_xtwx(x_colmajor: &[f64], nrows: usize, ncols: usize, w: &[f64], xtwx: &m
 /// A leverage within this distance of 1 is treated as exactly 1 (HC2/HC3 undefined).
 const LEVERAGE_SATURATION: f64 = 1e-8;
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn hc_meat(
     x_colmajor: &[f64],
     nrows: usize,
@@ -358,6 +361,10 @@ fn leverages(
     h
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
+)]
 fn cluster_meat(
     x_colmajor: &[f64],
     nrows: usize,
@@ -479,6 +486,10 @@ fn newey_west_meat(
 }
 
 /// Newey–West meat restricted to an ordered row subset (panel unit time path).
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
+)]
 fn newey_west_meat_on_rows(
     x_colmajor: &[f64],
     nrows: usize,
@@ -633,7 +644,7 @@ mod tests {
         let groups = [0u32, 0, 1, 1];
         let cov = coefficient_covariance(&x, 4, 2, &e, SandwichKind::Cluster { groups: &groups })
             .unwrap();
-        let expected = [0.841875, -0.48, -0.48, 0.3075];
+        let expected = [0.841_875, -0.48, -0.48, 0.3075];
         for (g, w) in cov.iter().zip(expected) {
             assert!((g - w).abs() < 1e-12, "got {cov:?} expected {expected:?}");
         }
@@ -797,18 +808,31 @@ mod tests {
                 assert!((a - b).abs() < 1e-9, "got {cov:?} expected {expected:?}");
             }
         };
-        check(SandwichKind::Hc0, &[0.553125, -0.253125, -0.253125, 0.14375]);
+        check(SandwichKind::Hc0, &[0.553_125, -0.253_125, -0.253_125, 0.14375]);
         check(SandwichKind::Hc1, &[1.10625, -0.50625, -0.50625, 0.2875]);
         check(
             SandwichKind::Hc2,
-            &[1.766369047619049, -0.8258928571428579, -0.8258928571428581, 0.47321428571428625],
+            &[
+                1.766_369_047_619_049,
+                -0.825_892_857_142_857_9,
+                -0.825_892_857_142_858_1,
+                0.473_214_285_714_286_25,
+            ],
         );
         check(
             SandwichKind::Hc3,
-            &[5.777352607709759, -2.727465986394562, -2.7274659863945616, 1.5688775510204103],
+            &[
+                5.777_352_607_709_759,
+                -2.727_465_986_394_562,
+                -2.727_465_986_394_561_6,
+                1.568_877_551_020_410_3,
+            ],
         );
         check(SandwichKind::Homoskedastic, &[0.65625, -0.28125, -0.28125, 0.1875]);
-        check(SandwichKind::NeweyWest { lag: 1 }, &[0.411875, -0.2084375, -0.2084375, 0.124375]);
+        check(
+            SandwichKind::NeweyWest { lag: 1 },
+            &[0.411_875, -0.208_437_5, -0.208_437_5, 0.124_375],
+        );
     }
 
     #[test]

@@ -10,7 +10,6 @@
 //! `lo = [3,2,1]`, `mid = [2,1,0]`, `hi = [1,0,-1]`; `sigma^2 = 1`, every adjacent-step variance
 //! is `2/3` and every step is `-1`. Calibration (Type I error, coverage, power) is deliberately
 //! NOT measured here.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::categorical_treatment_artifact::{
     CATEGORICAL_HC_ROW_CAP, CATEGORICAL_TREATMENT_ARTIFACT_VERSION,

@@ -1093,7 +1093,7 @@ pub(super) fn decide_charged(
 /// [`ConditionalTransportDecision::Exhausted`] like a stop in any other stage:
 /// its receipt lists the two finished stages as explored and this one as
 /// unevaluated, so a stop is never read as a search that ran out of ideas.
-#[allow(clippy::too_many_arguments)] // The decision's state at the hand-off.
+#[allow(clippy::too_many_arguments, reason = "The decision's state at the hand-off")]
 fn witness_stage(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,

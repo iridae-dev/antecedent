@@ -262,7 +262,7 @@ impl ZTransportArtifactWire {
             if version == Z_TRANSPORT_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         wire.validate_shape()?;

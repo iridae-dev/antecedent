@@ -357,7 +357,6 @@ fn validate_design(design: &AssignmentDesign, n: usize) -> Result<(), StatsError
     }
 }
 
-#[allow(clippy::unnecessary_wraps)]
 fn enumerate_assignments(
     design: &AssignmentDesign,
     n: usize,

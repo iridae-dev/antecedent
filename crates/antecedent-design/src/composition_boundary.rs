@@ -237,7 +237,7 @@ impl ScalarClaim {
 #[derive(Clone, Debug, PartialEq)]
 // The joint law is the large variant; boxing it would change the public pattern
 // `InputSource::JointLaw(artifact)` used by callers and tests.
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant, reason = "built once per call and moved, never stored in bulk")]
 pub enum InputSource {
     /// One mean per coordinate.
     Mean(MeanSource),
@@ -683,7 +683,6 @@ fn refusal(code: &'static str, detail: &str) -> ExternalRefusal {
 impl BoundaryError {
     /// Structured refusal with a registered code and a namespaced detail.
     #[must_use]
-    #[allow(clippy::too_many_lines)]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
@@ -1095,6 +1094,7 @@ fn run_source(
     result.map_err(BoundaryError::Eval)
 }
 
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 fn run_groups(
     contract: &DecisionContract,
     inputs: &[DecisionInput],

@@ -221,7 +221,10 @@ fn contrast_labels(contrast: ContrastLabels<'_>) -> Vec<(String, String)> {
 }
 
 // allow(too_many_lines): flat per-variant label mapping; splitting would obscure the query taxonomy
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
     match query {
         CausalQueryWire::Counterfactual { outcomes, interventions, .. } => vec![
@@ -1082,6 +1085,10 @@ pub fn graph_posterior_atom_identities(
     Ok(atoms)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn posterior_atom_graph_wire(
     posterior: &GraphPosterior,
     index: usize,
@@ -1611,23 +1618,50 @@ pub struct ScoreReuseIdentityWire {
     pub inference_binding: Option<[u8; 32]>,
 }
 
+/// Everything a query-specific score-table key is derived from.
+#[derive(Debug, Clone, Copy)]
+pub struct ScoreTableKey<'a> {
+    /// Identification the scores answer.
+    pub identification: SemanticDigest,
+    /// Data snapshot the nuisances were fitted on.
+    pub data_snapshot: SemanticDigest,
+    /// Row index of the scored rows.
+    pub row_index: &'a [u32],
+    /// Cross-fitting fold of each row.
+    pub fold_ids: &'a [u32],
+    /// Number of folds.
+    pub n_folds: u32,
+    /// Adjustment covariates.
+    pub adjustment_set: &'a [VariableId],
+    /// Provenance tag of the cross-fitted nuisances.
+    pub nuisance_provenance: &'a str,
+    /// Treatment variable.
+    pub treatment: VariableId,
+    /// Additional intervened coordinates.
+    pub intervened: &'a [VariableId],
+    /// Requested bootstrap / shared-draw count.
+    pub bootstrap_replicates: u32,
+    /// Inference binding (estimator configuration, overlap policy, backend).
+    pub inference_binding: SemanticDigest,
+}
+
 impl ScoreReuseIdentityWire {
     /// Query-specific score-table key.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn score_table(
-        identification: SemanticDigest,
-        data_snapshot: SemanticDigest,
-        row_index: &[u32],
-        fold_ids: &[u32],
-        n_folds: u32,
-        adjustment_set: &[VariableId],
-        nuisance_provenance: &str,
-        treatment: VariableId,
-        intervened: &[VariableId],
-        bootstrap_replicates: u32,
-        inference_binding: SemanticDigest,
-    ) -> Self {
+    pub fn score_table(key: &ScoreTableKey<'_>) -> Self {
+        let ScoreTableKey {
+            identification,
+            data_snapshot,
+            row_index,
+            fold_ids,
+            n_folds,
+            adjustment_set,
+            nuisance_provenance,
+            treatment,
+            intervened,
+            bootstrap_replicates,
+            inference_binding,
+        } = *key;
         Self {
             format: IDENTITY_FORMAT,
             kind: "score_table".into(),
@@ -3229,52 +3263,52 @@ mod tests {
         let inference = SemanticDigest::from_bytes([4; 32]);
         let treatment = VariableId::from_raw(0);
         let z = VariableId::from_raw(2);
-        let table = ScoreReuseIdentityWire::score_table(
+        let table = ScoreReuseIdentityWire::score_table(&ScoreTableKey {
             identification,
-            snapshot,
-            &[0, 1, 2, 3],
-            &[0, 1, 0, 1],
-            2,
-            &[z],
-            "crossfit.aipw",
+            data_snapshot: snapshot,
+            row_index: &[0, 1, 2, 3],
+            fold_ids: &[0, 1, 0, 1],
+            n_folds: 2,
+            adjustment_set: &[z],
+            nuisance_provenance: "crossfit.aipw",
             treatment,
-            &[],
-            0,
-            inference,
-        );
+            intervened: &[],
+            bootstrap_replicates: 0,
+            inference_binding: inference,
+        });
         let share = ScoreReuseIdentityWire::batch_share(snapshot, &[0, 1, 0, 1], 2, &[z]);
         let table_digest = score_reuse_digest(&table).unwrap();
         let share_digest = score_reuse_digest(&share).unwrap();
         assert_ne!(table_digest, share_digest);
         assert_eq!(score_reuse_digest(&table).unwrap(), table_digest);
 
-        let other_folds = ScoreReuseIdentityWire::score_table(
+        let other_folds = ScoreReuseIdentityWire::score_table(&ScoreTableKey {
             identification,
-            snapshot,
-            &[0, 1, 2, 3],
-            &[1, 0, 1, 0],
-            2,
-            &[z],
-            "crossfit.aipw",
+            data_snapshot: snapshot,
+            row_index: &[0, 1, 2, 3],
+            fold_ids: &[1, 0, 1, 0],
+            n_folds: 2,
+            adjustment_set: &[z],
+            nuisance_provenance: "crossfit.aipw",
             treatment,
-            &[],
-            0,
-            inference,
-        );
+            intervened: &[],
+            bootstrap_replicates: 0,
+            inference_binding: inference,
+        });
         assert_ne!(score_reuse_digest(&other_folds).unwrap(), table_digest);
-        let other_rows = ScoreReuseIdentityWire::score_table(
+        let other_rows = ScoreReuseIdentityWire::score_table(&ScoreTableKey {
             identification,
-            snapshot,
-            &[0, 1, 2, 4],
-            &[0, 1, 0, 1],
-            2,
-            &[z],
-            "crossfit.aipw",
+            data_snapshot: snapshot,
+            row_index: &[0, 1, 2, 4],
+            fold_ids: &[0, 1, 0, 1],
+            n_folds: 2,
+            adjustment_set: &[z],
+            nuisance_provenance: "crossfit.aipw",
             treatment,
-            &[],
-            0,
-            inference,
-        );
+            intervened: &[],
+            bootstrap_replicates: 0,
+            inference_binding: inference,
+        });
         assert_ne!(score_reuse_digest(&other_rows).unwrap(), table_digest);
 
         let mut other_snapshot = table.clone();

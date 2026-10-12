@@ -1,7 +1,6 @@
 //! `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unknown
 //! versions and the unmeasured calibration coordinate.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::effect_constancy_artifact::{
     DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EFFECT_CONSTANCY_CALIBRATION,

@@ -3,8 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use antecedent_core::ExecutionContext;
 
 use crate::design::{DesignView, RowSelection};

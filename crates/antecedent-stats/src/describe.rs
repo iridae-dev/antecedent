@@ -5,8 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 /// Sample mean and the standard error of the mean, `sqrt(s² / n)` with
 /// `s² = Σ(v − mean)² / (n − 1)`.
 ///
@@ -71,6 +69,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn iid_se_propagates_nan_instead_of_reporting_zero() {
         assert!(iid_se(&[1.0, f64::NAN, 3.0]).is_nan());
         assert!(iid_se(&[f64::NAN, f64::NAN]).is_nan());

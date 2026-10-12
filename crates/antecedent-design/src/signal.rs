@@ -871,7 +871,7 @@ impl ExternalFiniteSignal {
 }
 
 impl DecisionSignal<f64> for ExternalFiniteSignal {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "external_finite_law"
     }
 

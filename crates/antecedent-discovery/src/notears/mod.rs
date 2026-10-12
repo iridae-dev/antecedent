@@ -18,11 +18,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_possible_truncation,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -151,6 +149,10 @@ impl Notears {
     ///
     /// Data, numerical non-convergence / non-finite values, or graph failures.
     /// Fail-closed: never returns an empty soft failure DAG on solver error.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,

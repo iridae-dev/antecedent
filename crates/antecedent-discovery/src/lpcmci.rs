@@ -5,14 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TimeSeriesData;
 use antecedent_stats::FdrAdjustment;

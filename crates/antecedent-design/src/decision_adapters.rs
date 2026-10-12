@@ -449,6 +449,7 @@ pub struct IdentifiedSetDecision {
     pub verdict: IdentifiedVerdict,
 }
 
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 fn enclose(expr: &UtilityExpr, inputs: &[IdentifiedSet<f64>]) -> Result<(f64, f64), AdapterError> {
     let both =
         |a: &UtilityExpr, b: &UtilityExpr| -> Result<((f64, f64), (f64, f64)), AdapterError> {
@@ -672,7 +673,6 @@ fn verdict_over(
 /// missing action, a non-finite or inverted interval, `BayesOverStructures`
 /// (an identified set has no probability law) and criteria that need a
 /// distribution (`ThresholdProbability`, `Quantile`, `ExpectedRegret`).
-#[allow(clippy::too_many_lines)]
 pub fn evaluate_identified_sets(
     contract: &AdmissibleDecisionContract,
     utilities: &[IdentifiedUtility],

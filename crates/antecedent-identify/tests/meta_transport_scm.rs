@@ -1,5 +1,4 @@
 //! Independent finite SCM enumeration for classical meta-transportability.
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -80,7 +79,11 @@ fn enumerate(
     (axes.into_iter().map(|n| u32::try_from(n).unwrap()).collect(), law)
 }
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture exercised end to end; later assertions read locals built above them"
+)]
 fn ordered_three_node_meta_graphs_match_every_target_atom_and_contrast() {
     let ctx = ExecutionContext::for_tests(13);
     let mut branches = std::collections::BTreeSet::new();

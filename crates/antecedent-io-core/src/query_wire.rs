@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -1677,6 +1675,10 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
 /// # Errors
 ///
 /// Unsupported nested fields or missing registry entries.
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 pub fn causal_query_to_wire_with_registry(
     q: &CausalQuery,
     registry: Option<&PopulationRegistry>,
@@ -2088,6 +2090,10 @@ pub fn causal_query_to_wire_with_registry(
 /// # Errors
 ///
 /// Unknown tags or size overflows.
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoError> {
     Ok(match w {
         CausalQueryWire::AverageEffect {

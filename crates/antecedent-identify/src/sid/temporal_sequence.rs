@@ -1004,7 +1004,13 @@ pub fn decide_temporal_transport_sequence(
     )
 }
 
-#[allow(clippy::too_many_arguments)] // The public entry point's premises plus a test hook.
+#[cfg_attr(
+    test,
+    allow(
+        clippy::too_many_arguments,
+        reason = "the test build adds the mid-search cancellation hook; the production signature has seven"
+    )
+)]
 fn decide_inner(
     spec: &TemporalSequenceSpec,
     sequence: &[Value],

@@ -21,8 +21,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_let_else, clippy::needless_pass_by_value)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -102,6 +100,10 @@ impl SharpRdIdentifier {
     /// # Errors
     ///
     /// Query is not an average-effect query, or the design config is invalid.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "public signature takes ownership like its siblings; a borrow would be an API change"
+    )]
     pub fn identify(
         &self,
         query: CausalQuery,
@@ -120,6 +122,10 @@ impl SharpRdIdentifier {
     ///
     /// Query is not an average-effect query, the design config is invalid, or a variable
     /// is not in the graph.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "public signature takes ownership like its siblings; a borrow would be an API change"
+    )]
     pub fn identify_on(
         &self,
         graph: &Dag,

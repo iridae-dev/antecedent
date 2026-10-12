@@ -47,7 +47,6 @@
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_sign_loss,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -170,7 +169,7 @@ fn finite_state(state: f64) -> Result<f64, DesignError> {
 }
 
 impl DecisionSignal<f64> for GaussianMeanSignal {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "gaussian_mean"
     }
 
@@ -222,7 +221,7 @@ fn probability_state(state: f64) -> Result<f64, DesignError> {
 }
 
 impl DecisionSignal<f64> for BinomialSignal {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "binomial"
     }
 
@@ -571,6 +570,10 @@ fn best_gap(gaps: &[f64], n_admissible: usize, weights: &[f64]) -> f64 {
 ///
 /// With `c_a ≤ 0` and a zero line present (the Bayes action), this is the expected
 /// regret reduction of learning the state's preposterior mean with spread `s`.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub(crate) fn expected_max_affine(lines: &[(f64, f64)], s: f64) -> f64 {
     if !(s > 0.0) {
         return lines.iter().map(|&(c, _)| c).fold(f64::NEG_INFINITY, f64::max);

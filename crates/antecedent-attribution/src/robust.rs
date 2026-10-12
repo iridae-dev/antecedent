@@ -135,8 +135,7 @@ pub fn distribution_change_robust(
             comparison_mechs,
             &players,
             outcome_dense,
-            options.n_samples,
-            options.seed,
+            McSampling { n_samples: options.n_samples, seed: options.seed },
             ctx,
         );
         let v0 = payoff.value(0)?;
@@ -375,6 +374,13 @@ struct RobustMechanismPayoff<'a> {
     ctx: &'a ExecutionContext,
 }
 
+/// Monte Carlo sample count and stream seed of a robust mechanism payoff.
+#[derive(Clone, Copy)]
+struct McSampling {
+    n_samples: usize,
+    seed: u64,
+}
+
 impl<'a> RobustMechanismPayoff<'a> {
     fn new(
         template: CompiledCausalModel,
@@ -382,10 +388,10 @@ impl<'a> RobustMechanismPayoff<'a> {
         comparison: CompiledMechanismStore,
         players: &[ComponentId],
         outcome: DenseNodeId,
-        n_samples: usize,
-        seed: u64,
+        sampling: McSampling,
         ctx: &'a ExecutionContext,
     ) -> Self {
+        let McSampling { n_samples, seed } = sampling;
         let n_nodes = template.n_nodes();
         let n_samples = n_samples.max(1);
         let mut node_player = vec![None; n_nodes];
@@ -697,7 +703,13 @@ mod tests {
         let outcome = DenseNodeId::from_raw(1);
         let ctx = ExecutionContext::for_tests(7);
         let mut payoff = RobustMechanismPayoff::new(
-            template, baseline, comparison, &players, outcome, 20_000, 11, &ctx,
+            template,
+            baseline,
+            comparison,
+            &players,
+            outcome,
+            McSampling { n_samples: 20_000, seed: 11 },
+            &ctx,
         );
 
         let v_baseline = payoff.value(0).unwrap();

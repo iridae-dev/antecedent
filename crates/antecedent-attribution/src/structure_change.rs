@@ -30,8 +30,8 @@ use antecedent_model::{
 };
 
 use crate::change_common::{
-    ChangeOptions, STRUCTURE_STREAM, observed_change, run_change_allocation, sample_outcome_law,
-    stream_tag, total_change,
+    ChangeAllocation, ChangeOptions, STRUCTURE_STREAM, observed_change, run_change_allocation,
+    sample_outcome_law, stream_tag, total_change,
 };
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::DifferenceMeasure;
@@ -157,16 +157,14 @@ pub fn structure_change(
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
-    let mut result = run_change_allocation(
-        query.outcome,
-        &players,
-        &query.allocation,
-        &mut payoff,
-        total,
-        Arc::from(unidentified),
-        ctx,
-        Some(baseline_model),
-    )?;
+    let request = ChangeAllocation {
+        outcome: query.outcome,
+        players: &players,
+        allocation: &query.allocation,
+        model_for_paths: Some(baseline_model),
+    };
+    let mut result =
+        run_change_allocation(&request, &mut payoff, total, Arc::from(unidentified), ctx)?;
     result.observed_change = Some(observed);
     Ok(result)
 }
@@ -176,6 +174,10 @@ pub fn structure_change(
 /// # Errors
 ///
 /// See [`structure_change`].
+#[allow(
+    clippy::too_many_arguments,
+    reason = "convenience wrapper that spells out the ChangeAttributionQuery fields it builds"
+)]
 pub fn structure_change_shapley(
     baseline_model: &CompiledCausalModel,
     comparison_model: &CompiledCausalModel,
@@ -272,6 +274,10 @@ fn structure_players(
 }
 
 /// Build a hybrid DAG: comparison parents for set player bits, else baseline.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn hybrid_structure_dag(
     baseline: &Dag,
     comparison: &Dag,
@@ -664,6 +670,10 @@ mod tests {
     /// equality against an inline reimplementation of the old path is the pinned
     /// evidence instead.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn memoized_fits_match_per_coalition_refit() {
         // Two players: baseline x→m, x→y vs comparison z→m, m→y.
         let n = 80usize;

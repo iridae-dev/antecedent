@@ -209,7 +209,6 @@ pub struct KaplanMeierIpcw {
 ///
 /// Invalid inputs, empty risk sets, or censoring survival below `survival_floor` at an
 /// observed event.
-#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
 pub fn kaplan_meier_ipcw(
     time: &[f64],
     event: &[f64],

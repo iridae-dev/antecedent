@@ -5,16 +5,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::needless_range_loop,
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::too_many_arguments
-)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -219,6 +213,14 @@ impl GraphPosterior {
     /// # Errors
     ///
     /// Empty ensemble, length mismatch, non-finite weights, or non-positive mass.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "fail-closed constructor taking each component of the posterior positionally; callers pass arrays they have already built"
+    )]
     pub fn new(
         n_vars: usize,
         weights: impl Into<Arc<[f64]>>,
@@ -450,6 +452,10 @@ pub fn parents_of(mask: u64, n: usize, node: usize) -> Vec<u32> {
 
 /// Whether `mask` encodes a DAG on `n` nodes.
 #[must_use]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn mask_is_dag(mask: u64, n: usize) -> bool {
     let mut parents = vec![Vec::new(); n];
     let mut children = vec![Vec::new(); n];
@@ -943,19 +949,44 @@ pub fn analytic_graph_diagnostics(n_graphs: usize, ess: f64) -> InferenceDiagnos
     }
 }
 
+/// Summary of a graph-structure MCMC run (edge-indicator traces) fed to
+/// [`mcmc_graph_diagnostics`].
+#[derive(Debug, Clone, Copy)]
+pub struct GraphMcmcRun {
+    /// Chains run.
+    pub n_chains: u32,
+    /// Warmup iterations per chain.
+    pub n_warmup: u32,
+    /// Retained draws per chain.
+    pub n_draws: u32,
+    /// Smallest bulk effective sample size over the indicators.
+    pub ess_bulk_min: f64,
+    /// Smallest tail effective sample size over the indicators.
+    pub ess_tail_min: f64,
+    /// Largest split R-hat over the indicators.
+    pub rhat_max: f64,
+    /// Divergent transitions.
+    pub n_divergences: u32,
+    /// Whether the run passed its convergence checks.
+    pub converged: bool,
+    /// Whether every chain made at least one structural move.
+    pub chains_moved: bool,
+}
+
 /// MCMC diagnostics gate for graph chains (edge-indicator traces).
 #[must_use]
-pub fn mcmc_graph_diagnostics(
-    n_chains: u32,
-    n_warmup: u32,
-    n_draws: u32,
-    ess_bulk_min: f64,
-    ess_tail_min: f64,
-    rhat_max: f64,
-    n_divergences: u32,
-    converged: bool,
-    chains_moved: bool,
-) -> InferenceDiagnostics {
+pub fn mcmc_graph_diagnostics(run: &GraphMcmcRun) -> InferenceDiagnostics {
+    let GraphMcmcRun {
+        n_chains,
+        n_warmup,
+        n_draws,
+        ess_bulk_min,
+        ess_tail_min,
+        rhat_max,
+        n_divergences,
+        converged,
+        chains_moved,
+    } = *run;
     InferenceDiagnostics {
         converged,
         iterations: n_draws,
@@ -1182,7 +1213,17 @@ mod tests {
     /// having accepted every move.
     #[test]
     fn mcmc_graph_diagnostics_does_not_fabricate_accept_prob() {
-        let d = mcmc_graph_diagnostics(4, 100, 500, 200.0, 150.0, 1.01, 0, true, true);
+        let d = mcmc_graph_diagnostics(&GraphMcmcRun {
+            n_chains: 4,
+            n_warmup: 100,
+            n_draws: 500,
+            ess_bulk_min: 200.0,
+            ess_tail_min: 150.0,
+            rhat_max: 1.01,
+            n_divergences: 0,
+            converged: true,
+            chains_moved: true,
+        });
         assert_eq!(
             d.mean_accept_prob, None,
             "mean_accept_prob must be None, not a fabricated constant: {:?}",
@@ -1287,7 +1328,6 @@ mod tests {
     }
 
     /// The MCSE of an indicator is `sqrt(p(1-p)/ESS)`; a constant indicator has none.
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

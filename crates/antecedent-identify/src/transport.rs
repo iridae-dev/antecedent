@@ -157,7 +157,6 @@ impl TransportIdentifier {
     ///
     /// The implementation deliberately returns [`TransportIdentification::NotCertified`] rather than claiming
     /// non-transportability when general multi-node c-component recursion is required.
-    #[allow(clippy::too_many_lines)]
     pub fn identify(
         &self,
         diagram: &SelectionDiagram,
@@ -202,7 +201,10 @@ impl TransportIdentifier {
         Self::identify_structural_within(diagram, query, standardizer_subset_budget())
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_structural_within(
         diagram: &SelectionDiagram,
         query: &TransportQuery,

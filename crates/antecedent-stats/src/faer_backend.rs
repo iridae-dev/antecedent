@@ -180,7 +180,6 @@ impl FaerBackend {
 
 #[cfg(test)]
 #[allow(
-    clippy::float_cmp,
     clippy::cast_precision_loss,
     reason = "tests assert exactly representable values (rank counts, copied inputs) and cast small fixture indices"
 )]

@@ -70,8 +70,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::fmt;
 
 use antecedent_core::reason_code;

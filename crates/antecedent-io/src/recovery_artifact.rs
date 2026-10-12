@@ -36,7 +36,7 @@ use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
     RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError, RecoveryLimits,
-    verify_observation_recovery,
+    StoredRecovery, verify_observation_recovery,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -603,7 +603,7 @@ impl RecoveryArtifactWire {
             if version == RECOVERY_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         wire.validate_shape()?;
@@ -701,9 +701,11 @@ impl RecoveryArtifactWire {
             &query,
             &catalog,
             effect.as_ref(),
-            &wire.derivation,
-            &arena,
-            effect_arena.as_ref(),
+            &StoredRecovery {
+                record: &wire.derivation,
+                arena: &arena,
+                effect_arena: effect_arena.as_ref(),
+            },
             limits.decision,
             ctx,
         )

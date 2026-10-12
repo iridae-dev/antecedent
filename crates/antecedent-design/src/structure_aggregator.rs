@@ -195,14 +195,14 @@ impl StructureAggregator {
             return AggregateDecision::NoCandidate;
         }
         match self.kind {
-            AggregateKind::Invariant => self.invariant(facts),
-            AggregateKind::WorstCase => self.worst_case(facts, worst_score),
-            AggregateKind::Bayes => self.bayes(facts, bayes_score),
+            AggregateKind::Invariant => Self::invariant(facts),
+            AggregateKind::WorstCase => Self::worst_case(facts, worst_score),
+            AggregateKind::Bayes => Self::bayes(facts, bayes_score),
             AggregateKind::Report => AggregateDecision::Report,
         }
     }
 
-    fn invariant(&self, facts: &AggregateFacts<'_>) -> AggregateDecision {
+    fn invariant(facts: &AggregateFacts<'_>) -> AggregateDecision {
         if !facts.all_resolved {
             return AggregateDecision::Insufficient(INVARIANCE_UNCHECKED);
         }
@@ -220,21 +220,16 @@ impl StructureAggregator {
     }
 
     fn worst_case(
-        &self,
         facts: &AggregateFacts<'_>,
         worst_score: impl Fn(usize) -> f64,
     ) -> AggregateDecision {
         if !facts.all_resolved {
             return AggregateDecision::Insufficient(WORST_CASE_NEEDS_EVERY_STRUCTURE);
         }
-        self.scored(facts, worst_score, AggregateChoice::WorstCase)
+        Self::scored(facts, worst_score, AggregateChoice::WorstCase)
     }
 
-    fn bayes(
-        &self,
-        facts: &AggregateFacts<'_>,
-        bayes_score: impl Fn(usize) -> f64,
-    ) -> AggregateDecision {
+    fn bayes(facts: &AggregateFacts<'_>, bayes_score: impl Fn(usize) -> f64) -> AggregateDecision {
         if facts.unidentified_mass > 0.0 || facts.unevaluated_mass > 0.0 {
             return AggregateDecision::Insufficient(UNRESOLVED_MASS_CAN_CHANGE_BAYES);
         }
@@ -245,11 +240,10 @@ impl StructureAggregator {
             return AggregateDecision::SupportWithheld;
         }
         let evaluated_mass = facts.evaluated_mass;
-        self.scored(facts, bayes_score, |action| AggregateChoice::Bayes { action, evaluated_mass })
+        Self::scored(facts, bayes_score, |action| AggregateChoice::Bayes { action, evaluated_mass })
     }
 
     fn scored(
-        &self,
         facts: &AggregateFacts<'_>,
         score: impl Fn(usize) -> f64,
         chosen: impl Fn(String) -> AggregateChoice,

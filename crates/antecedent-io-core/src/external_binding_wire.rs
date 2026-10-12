@@ -7,7 +7,6 @@
 
 // Refusals are the cold path of a once-per-binding call, so the large `Err`
 // variant is not worth boxing at every `?`.
-#![allow(clippy::result_large_err)]
 
 use antecedent_contract::{
     BoundExternalClaim, CheckedCausalContract, CheckedEquivalence, ColumnSupport, EquivalenceScope,
@@ -224,6 +223,10 @@ fn malformed(detail: &'static str, message: &str) -> ExternalBindingRefusalWire 
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn quantities(wire: &[ScientificQuantityWire]) -> Result<Vec<ScientificQuantity>, RefusalWire> {
     wire.iter()
         .map(|q| {
@@ -236,6 +239,10 @@ fn quantities(wire: &[ScientificQuantityWire]) -> Result<Vec<ScientificQuantity>
 /// Convert the original contract declaration without performing new identification.
 /// # Errors
 /// Original identification, equivalence or quantity declaration refusal.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWire> {
     Ok(CheckedCausalContract {
         graph_id: wire.graph_id.clone(),
@@ -281,6 +288,10 @@ pub fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, Refus
 /// separately restricts them to attested mean outputs.
 /// # Errors
 /// Original typed declaration, trust, capability or quantity refusal.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn prepare(
     contract: &ContractWire,
     response: &ResponseWire,
@@ -293,6 +304,10 @@ pub fn prepare(
 /// This preserves declared trust; executing mean callbacks separately force attestation.
 /// # Errors
 /// Original quantity, capability, trust or support declaration refusal.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn response_from_wire(response: &ResponseWire) -> Result<ExternalResponse, RefusalWire> {
     let (header, uncertainty) = declare(&Declaration {
         provider: &response.provider,
@@ -460,6 +475,10 @@ pub fn bind_column(
     })
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn artifact_of(
     claim: &BoundExternalClaim,
     causal_contract_id: &str,
@@ -474,6 +493,10 @@ fn artifact_of(
 /// # Errors
 /// Any malformed declaration, failed verification or binding mismatch returns
 /// a structured refusal.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn bind_response(
     contract: &ContractWire,
     response: &ResponseWire,
@@ -496,6 +519,10 @@ pub fn bind_response(
 /// # Errors
 /// Any malformed declaration, program mismatch, failed verification or binding
 /// mismatch returns a structured refusal.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn bind_response_to_program(
     contract: &ContractWire,
     response: &ResponseWire,
@@ -521,6 +548,10 @@ pub const CONTRACT_PREMISES_DOMAIN: &str = "antecedent.external.contract_premise
 /// This does not establish native execution authority.
 /// # Errors
 /// Malformed or oversized premise declarations.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn native_contract_identity(
     graph: &str,
     status: &str,

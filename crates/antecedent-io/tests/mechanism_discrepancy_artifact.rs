@@ -9,7 +9,6 @@
 //! `RSS`). Both covariances are `[[0.63,-0.27],[-0.27,0.18]]`, the summed covariance is twice
 //! that, the difference is `(0.5, 0.5)` and the Wald statistic is `25/6` with df 2, so
 //! `p = exp(-25/12)`.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::mechanism_discrepancy_artifact::{
     MECHANISM_DISCREPANCY_ARTIFACT_VERSION, MECHANISM_DISCREPANCY_CALIBRATION, MeasurementWire,

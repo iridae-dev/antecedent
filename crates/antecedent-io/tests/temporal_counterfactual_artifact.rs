@@ -2,8 +2,6 @@
 //! through the container, a recomputing consumer that replays both worlds, resealed-mutation
 //! refusals against a retained identity (action time, unit history, snapshot, mechanism fit)
 //! and unknown versions.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
-#![allow(clippy::cast_precision_loss, reason = "small deterministic fixtures")]
 
 use antecedent_core::ExecutionContext;
 use antecedent_io::temporal_counterfactual_artifact::{

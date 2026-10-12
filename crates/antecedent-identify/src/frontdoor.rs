@@ -16,8 +16,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
@@ -124,6 +122,10 @@ impl FrontDoorIdentifier {
         )
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_ate(
         &self,
         prepared: &PreparedIdentificationGraph,

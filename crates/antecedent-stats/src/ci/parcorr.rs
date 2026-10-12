@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless, clippy::trivially_copy_pass_by_ref, clippy::unused_self)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{
     KernelImpl, ParCorrMode, ParCorrQuery, partial_correlation_batch, select_impl,
@@ -27,6 +18,10 @@ use crate::error::StatsError;
 
 /// Map [`KernelPolicy`] to the `ParCorr` batch mode (no arch-SIMD path).
 #[must_use]
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
     match select_impl(policy) {
         KernelImpl::Scalar => ParCorrMode::Native,
@@ -40,6 +35,14 @@ pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
 ///, not from state on this type.
 #[derive(Clone, Debug, Default)]
 pub struct PartialCorrelation;
+
+/// A partial-correlation statistic with its sample size and the query it answers.
+#[derive(Debug, Clone, Copy)]
+struct PartialCorrelationStat {
+    r: f64,
+    n: usize,
+    query: CiQuery,
+}
 
 impl PartialCorrelation {
     /// Construct.
@@ -95,10 +98,8 @@ impl PartialCorrelation {
             });
         };
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
-        self.interpret(
-            r,
-            n,
-            ci_query,
+        Self::interpret(
+            PartialCorrelationStat { r, n, query: ci_query },
             significance,
             ConfidenceMethod::default(),
             columns,
@@ -108,18 +109,15 @@ impl PartialCorrelation {
     }
 
     /// Map a partial-correlation statistic to a [`CiResult`] under `significance`.
-    #[allow(clippy::too_many_arguments)]
     fn interpret(
-        &self,
-        r: f64,
-        n: usize,
-        query: CiQuery,
+        stat: PartialCorrelationStat,
         significance: SignificanceMethod,
         confidence: ConfidenceMethod,
         columns: &[&[f64]],
         z_flat: &[usize],
         ctx: &ExecutionContext,
     ) -> Result<CiResult, StatsError> {
+        let PartialCorrelationStat { r, n, query } = stat;
         let df = (n as f64) - 2.0 - (query.z_len as f64);
         match significance {
             SignificanceMethod::Analytic => {
@@ -203,10 +201,8 @@ impl ConditionalIndependenceTest for PartialCorrelation {
                 });
                 continue;
             };
-            results.push(self.interpret(
-                r,
-                n,
-                *q,
+            results.push(Self::interpret(
+                PartialCorrelationStat { r, n, query: *q },
                 request.significance,
                 request.confidence,
                 request.columns,
@@ -263,6 +259,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn collinear_conditioning_does_not_claim_independence() {
         let n = 40usize;
         let z: Vec<_> = (0..n).map(|i| (i as f64) * 0.2).collect();
@@ -369,7 +369,6 @@ mod tests {
         assert_eq!(alone.results[0].p_value.to_bits(), second.results[1].p_value.to_bits());
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

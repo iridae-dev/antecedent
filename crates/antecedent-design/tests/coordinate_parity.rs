@@ -22,7 +22,6 @@
 //!   python/tests/test_coordinate_lifecycle.py -k regenerate_python_fixtures`
 //! * Rust consumer of the Python-built files: `cargo test -p antecedent-design --test
 //!   coordinate_parity -- --ignored consume_python_fixtures`
-#![allow(clippy::float_cmp, reason = "exact hand-derived values")]
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

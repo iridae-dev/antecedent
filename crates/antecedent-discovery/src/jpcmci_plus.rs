@@ -9,15 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::match_same_arms, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -31,7 +22,7 @@ use antecedent_stats::{
 use crate::constraints::{
     ContextKind, DiscoveryConstraints, JpcmciNodeRole, SpaceDummyCiMode, TimeDummyCiMode,
 };
-use crate::engine::{DiscoveryWorkspace, PcmciEngine};
+use crate::engine::{DiscoveryWorkspace, LaggedSearch, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::{
     cpdag_evidence_from_oriented, symmetrize_contemporaneous_links, threshold_scored_links,
@@ -94,6 +85,10 @@ impl JpcmciPlus {
     /// # Errors
     ///
     /// Empty multi-env, pooling / engine / orientation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &MultiEnvironmentData,
@@ -281,9 +276,7 @@ impl JpcmciPlus {
         };
         let (ctx_scored, ctx_sep, ctx_tests, trunc_a) = contemp_mci_phase(
             &engine,
-            frame,
-            &phase2_vars,
-            &compiled2,
+            LaggedSearch { frame, variables: &phase2_vars, compiled: &compiled2 },
             &lagged_parents,
             workspace,
             ctx,
@@ -327,9 +320,7 @@ impl JpcmciPlus {
             };
             let (scored, dum_sep, dum_tests, t) = contemp_mci_phase(
                 &engine3,
-                frame,
-                &all_vars,
-                &compiled3,
+                LaggedSearch { frame, variables: &all_vars, compiled: &compiled3 },
                 &lagged_parents,
                 workspace,
                 ctx,
@@ -370,9 +361,7 @@ impl JpcmciPlus {
         };
         let (sys_scored, sys_sep, sys_tests, trunc_c) = contemp_mci_phase(
             &engine4,
-            frame,
-            &all_vars,
-            &compiled4,
+            LaggedSearch { frame, variables: &all_vars, compiled: &compiled4 },
             &lagged_parents,
             workspace,
             ctx,
@@ -612,6 +601,10 @@ fn orient_exogenous_links(
         .collect()
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "arms are kept separate so each documented case stays visible"
+)]
 fn cpdag_from_jpcmci_links(
     links: &[ScoredLink],
     system: &[VariableId],

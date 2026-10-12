@@ -69,6 +69,7 @@ pub enum CodecError {
 impl CodecError {
     /// Map onto [`IoError`] using `layout` as the convert message for a layout
     /// mismatch. File and section bounds are both [`IoError::TooLarge`].
+    #[must_use]
     pub fn into_io(self, layout: &'static str) -> IoError {
         match self {
             Self::MissingArtifactId => IoError::Convert("missing artifact id".into()),
@@ -83,6 +84,7 @@ impl CodecError {
     /// or corrupt container is `Decode`, either size bound is
     /// `LimitsExceeded("artifact bytes")`, and a foreign layout is
     /// `Malformed("unsupported container layout")`.
+    #[must_use]
     pub fn into_check(self) -> ArtifactCheckError {
         match self {
             Self::MissingArtifactId => ArtifactCheckError::Encode("missing artifact id".into()),

@@ -6,15 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
@@ -136,6 +127,10 @@ impl Ges {
     /// # Errors
     ///
     /// Data, score, graph, or screening failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -193,23 +188,21 @@ impl Ges {
 
         let max_parents = self.constraints.max_parents.unwrap_or(n_vars.saturating_sub(1));
         let max_subset = max_parents.min(self.max_subset.unwrap_or(12));
+        let search = GesSearch {
+            data: &score_data,
+            max_parents,
+            max_subset,
+            screen: screen.as_ref(),
+            constraints: &self.constraints,
+            variables,
+        };
 
         // Forward equivalence search (Insert).
         loop {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let Some(best) = best_insert(
-                &cpdag,
-                &score_data,
-                &mut cache,
-                max_parents,
-                max_subset,
-                screen.as_ref(),
-                &self.constraints,
-                variables,
-            )?
-            else {
+            let Some(best) = best_insert(&cpdag, search, &mut cache)? else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -223,17 +216,7 @@ impl Ges {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let Some(best) = best_reverse(
-                &cpdag,
-                &score_data,
-                &mut cache,
-                max_parents,
-                max_subset,
-                screen.as_ref(),
-                &self.constraints,
-                variables,
-            )?
-            else {
+            let Some(best) = best_reverse(&cpdag, search, &mut cache)? else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -248,15 +231,7 @@ impl Ges {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let Some(best) = best_delete(
-                &cpdag,
-                &score_data,
-                &mut cache,
-                max_subset,
-                &self.constraints,
-                variables,
-            )?
-            else {
+            let Some(best) = best_delete(&cpdag, search, &mut cache)? else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -705,16 +680,23 @@ fn for_each_subset(items: &[DenseNodeId], max_k: usize, mut visit: impl FnMut(&[
     }
 }
 
-fn best_insert(
-    cpdag: &Cpdag,
-    data: &GraphScoreData,
-    cache: &mut LocalScoreCache,
+/// The score data and limits GES operator searches read.
+#[derive(Clone, Copy)]
+struct GesSearch<'a> {
+    data: &'a GraphScoreData,
     max_parents: usize,
     max_subset: usize,
-    screen: Option<&HashSet<(u32, u32)>>,
-    constraints: &DiscoveryConstraints,
-    variables: &[VariableId],
+    screen: Option<&'a HashSet<(u32, u32)>>,
+    constraints: &'a DiscoveryConstraints,
+    variables: &'a [VariableId],
+}
+
+fn best_insert(
+    cpdag: &Cpdag,
+    search: GesSearch<'_>,
+    cache: &mut LocalScoreCache,
 ) -> Result<Option<OpCand>, DiscoveryError> {
+    let GesSearch { data, max_parents, max_subset, screen, constraints, variables } = search;
     let n = cpdag.node_count();
     let mut best: Option<OpCand> = None;
     for xi in 0..n {
@@ -766,12 +748,10 @@ fn best_insert(
 
 fn best_delete(
     cpdag: &Cpdag,
-    data: &GraphScoreData,
+    search: GesSearch<'_>,
     cache: &mut LocalScoreCache,
-    max_subset: usize,
-    constraints: &DiscoveryConstraints,
-    variables: &[VariableId],
 ) -> Result<Option<OpCand>, DiscoveryError> {
+    let GesSearch { data, max_subset, constraints, variables, .. } = search;
     let mut best: Option<OpCand> = None;
     let mut edges = cpdag.edges();
     edges.sort_unstable_by_key(|edge| (edge.a.raw(), edge.b.raw()));
@@ -813,14 +793,10 @@ fn best_delete(
 
 fn best_reverse(
     cpdag: &Cpdag,
-    data: &GraphScoreData,
+    search: GesSearch<'_>,
     cache: &mut LocalScoreCache,
-    max_parents: usize,
-    max_subset: usize,
-    screen: Option<&HashSet<(u32, u32)>>,
-    constraints: &DiscoveryConstraints,
-    variables: &[VariableId],
 ) -> Result<Option<ReverseCand>, DiscoveryError> {
+    let GesSearch { data, max_parents, max_subset, screen, constraints, variables } = search;
     let mut best: Option<ReverseCand> = None;
     let mut edges = cpdag.edges();
     edges.sort_unstable_by_key(|edge| (edge.a.raw(), edge.b.raw()));
@@ -1172,17 +1148,16 @@ mod tests {
             var_fingerprint: vars.len() as u64,
             penalty_fingerprint: 40,
         });
-        let best = best_insert(
-            &cpdag,
-            &score,
-            &mut cache,
-            1,
-            12,
-            None,
-            &DiscoveryConstraints::default(),
-            &vars,
-        )
-        .unwrap();
+        let constraints = DiscoveryConstraints::default();
+        let search = GesSearch {
+            data: &score,
+            max_parents: 1,
+            max_subset: 12,
+            screen: None,
+            constraints: &constraints,
+            variables: &vars,
+        };
+        let best = best_insert(&cpdag, search, &mut cache).unwrap();
         assert!(
             best.is_none(),
             "an insert whose scored parent set exceeds max_parents must be skipped"

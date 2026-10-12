@@ -2,22 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_lossless,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::doc_markdown,
-    clippy::trivially_copy_pass_by_ref
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -858,9 +842,9 @@ mod tests {
 
         // Rounded so symbols recur: distinct continuous values would each be a singleton
         // category, leaving `SymbolicCmi` no permutation support.
-        let x: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).sin().round()).collect();
-        let y: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).cos().round()).collect();
-        let z: Vec<f64> = (0..60).map(|i| (i as f64 * 0.11).sin().round()).collect();
+        let x: Vec<f64> = (0..60).map(|i| (f64::from(i) * 0.3).sin().round()).collect();
+        let y: Vec<f64> = (0..60).map(|i| (f64::from(i) * 0.3).cos().round()).collect();
+        let z: Vec<f64> = (0..60).map(|i| (f64::from(i) * 0.11).sin().round()).collect();
         let cols: [&[f64]; 3] = [&x, &y, &z];
         let z_flat = [2usize];
         let mut ws = CiWorkspace::default();

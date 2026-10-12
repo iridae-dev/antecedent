@@ -103,6 +103,10 @@ pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, Pr
     Ok(terms)
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub(crate) fn validate_design(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -193,28 +197,41 @@ const SEPARATION_ROW_SHARE: f64 = 0.10;
 /// with certainty.
 const SEPARATION_CERTAINTY: f64 = 1e-8;
 
-/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation);
+/// Output and working buffers of [`accumulate_likelihood`].
+pub(crate) struct LikelihoodScratch<'a> {
+    /// Gradient output (`ncols`).
+    pub grad: &'a mut [f64],
+    /// Negative-Hessian output (`ncols²`).
+    pub neg_hess: &'a mut [f64],
+    /// Linear predictor per row (`nrows`).
+    pub eta: &'a mut [f64],
+    /// Working weights per row (`nrows`).
+    pub work_w: &'a mut [f64],
+}
+
+/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (`grad_inf`, separation);
 /// the separation flag (at least [`SEPARATION_ROW_SHARE`] of the weighted rows fitted with
 /// certainty on their observed side) is evaluated only when `want_hessian` is set.
 ///
-/// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
+/// `gaussian_sigma2` scales the `GaussianIdentity` working weights / scores (`1/σ²`). Other
 /// likelihoods ignore it.
 ///
 /// `want_hessian: false` skips the O(n·p²) curvature accumulation entirely
 /// (leaving `neg_hess` zeroed); the gradient is bit-identical either way. HMC
 /// leapfrog steps read only the gradient, so they use the cheap form.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn accumulate_likelihood(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     beta: &[f64],
-    grad: &mut [f64],
-    neg_hess: &mut [f64],
-    eta: &mut [f64],
-    work_w: &mut [f64],
+    scratch: LikelihoodScratch<'_>,
     gaussian_sigma2: f64,
     want_hessian: bool,
 ) -> Result<(f64, bool), ProbError> {
+    let LikelihoodScratch { grad, neg_hess, eta, work_w } = scratch;
     let nrows = design.nrows;
     let ncols = design.ncols;
     grad.fill(0.0);
@@ -306,6 +323,10 @@ fn glm_observation_terms(
     }
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn log_posterior_value(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -386,10 +407,12 @@ mod tests {
                     family,
                     design,
                     &[0.0],
-                    &mut grad,
-                    &mut hess,
-                    &mut eta,
-                    &mut work,
+                    LikelihoodScratch {
+                        grad: &mut grad,
+                        neg_hess: &mut hess,
+                        eta: &mut eta,
+                        work_w: &mut work,
+                    },
                     1.0,
                     true,
                 )
@@ -456,10 +479,12 @@ mod tests {
             BayesLikelihood::GaussianIdentity,
             design,
             &[0.0],
-            &mut grad,
-            &mut hessian,
-            &mut eta,
-            &mut work,
+            LikelihoodScratch {
+                grad: &mut grad,
+                neg_hess: &mut hessian,
+                eta: &mut eta,
+                work_w: &mut work,
+            },
             1e-20,
             true,
         )
@@ -610,10 +635,12 @@ mod tests {
                 BayesLikelihood::BernoulliLogit,
                 design,
                 &[30.0],
-                &mut grad,
-                &mut hess,
-                &mut eta,
-                &mut work,
+                LikelihoodScratch {
+                    grad: &mut grad,
+                    neg_hess: &mut hess,
+                    eta: &mut eta,
+                    work_w: &mut work,
+                },
                 1.0,
                 want_hessian,
             )
@@ -647,10 +674,12 @@ mod tests {
                 BayesLikelihood::BernoulliLogit,
                 design,
                 &[0.0],
-                &mut grad,
-                &mut hess,
-                &mut eta,
-                &mut work,
+                LikelihoodScratch {
+                    grad: &mut grad,
+                    neg_hess: &mut hess,
+                    eta: &mut eta,
+                    work_w: &mut work,
+                },
                 1.0,
                 true,
             )

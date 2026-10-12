@@ -2,16 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, Intervention, VariableId};
@@ -267,7 +257,6 @@ impl KdeDoSampler {
 /// The treatment mechanism's density cannot be evaluated at all (e.g. an unfitted slot):
 /// propagated rather than swallowed, since a bare kernel fallback would not be the
 /// requested importance-weighted estimate.
-#[allow(clippy::too_many_arguments)]
 fn confounded_ipw_weights(
     model: &CompiledCausalModel,
     data: &TabularData,

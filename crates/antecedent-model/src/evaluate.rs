@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -709,7 +707,10 @@ mod tests {
     /// with `y ≈ 5` and small `obs_std`, giving a hugely negative log-lik regardless of fit
     /// quality, while the fixed scoring reflects the (small) one-step predictive residual.
     #[test]
-    #[allow(clippy::many_single_char_names)]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn evaluate_lgssm_model_loglik_uses_predictive_mean_not_raw_value() {
         use antecedent_core::CausalRng;
         use antecedent_kernels::standard_normal;

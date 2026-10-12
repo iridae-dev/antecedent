@@ -729,7 +729,7 @@ fn decide_set(
         };
         decisions.push(ScenarioDecision { scenario: scenario.clone(), outcome });
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)] // At most 720 completions.
+            #[allow(clippy::cast_precision_loss, reason = "At most 720 completions")]
             progress.report(decisions.len() as f64 / total as f64, "cpdag completions");
         }
     }

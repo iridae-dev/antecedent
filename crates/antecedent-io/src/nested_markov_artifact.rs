@@ -578,7 +578,7 @@ impl NestedMarkovArtifactWire {
             if version == NESTED_MARKOV_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         let unsupported = NestedMarkovArtifactError::UnsupportedSemantics;

@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::float_cmp,
         clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -135,12 +133,11 @@ impl GlmOptions {
 }
 
 /// Convergence / iteration diagnostics from a GLM fit.
+#[derive(Clone, Debug)]
 #[allow(
     clippy::struct_excessive_bools,
-    reason = "each flag is an independent, separately documented fit verdict, part of the public result shape"
+    reason = "independent diagnostic flags, each a distinct verdict"
 )]
-#[derive(Clone, Debug)]
-#[allow(clippy::struct_excessive_bools)] // independent diagnostic flags, each a distinct verdict
 pub struct GlmFit {
     /// Coefficient vector.
     pub coefficients: Vec<f64>,
@@ -246,6 +243,10 @@ fn eta_at(x_colmajor: &[f64], nrows: usize, ncols: usize, beta: &[f64], row: usi
 }
 
 /// Poisson deviance at `β` (log link).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64]) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut deviance = 0.0;
@@ -284,6 +285,10 @@ impl BinomialDiagnostics {
     }
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn binomial_diagnostics_at(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -336,6 +341,10 @@ fn validate_glm_shape(design: GlmDesignRef<'_>) -> Result<(), StatsError> {
 }
 
 /// NB2 deviance at `β` with fixed dispersion `α` (log link).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn negbin_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], alpha: f64) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let theta = 1.0 / alpha;
@@ -423,6 +432,10 @@ fn fit_poisson(
 /// working response for one row. `data_start` initialises `η₀ = ln(y + 0.5)` (count
 /// families, which diverge from `β = 0` at ordinary magnitudes) instead of `η₀ = 0`.
 /// Returns `(β, iterations, converged)`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn irls_fit(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -503,7 +516,6 @@ fn fit_logistic(
 
 /// Deviance and separation diagnostics for an unpenalized binomial IRLS result, with the
 /// optional ridge refit when the fitted probabilities saturate.
-#[allow(clippy::too_many_arguments)]
 fn finish_binomial(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -584,6 +596,10 @@ fn fit_probit(
 }
 
 /// NB2 IRLS with fixed, `MoM`, or nested-MLE dispersion α (`Var = μ + α μ²`).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_negbin(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -1092,6 +1108,14 @@ fn weighted_gram_is_full_rank(
     invert_square(&gram, ncols).is_some()
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_multinomial_fisher(
     design: MultinomialDesignRef<'_>,
     options: &GlmOptions,
@@ -1224,6 +1248,10 @@ fn fit_multinomial_fisher(
 /// Baseline-category softmax probabilities for row `r`: `η₀ = 0`, `ηⱼ = x·βⱼ` for
 /// `j = 1..K-1`, computed against the maximum `η` so the exponentials cannot overflow.
 /// `η₀ = 0` is always a candidate for the maximum, so the normaliser is at least 1.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn softmax_row(
     design: MultinomialDesignRef<'_>,
     beta_free: &[f64],
@@ -1270,10 +1298,6 @@ fn multinomial_diagnostics_at(
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::float_cmp,
-    reason = "tests assert exactly representable values and copied inputs, not measurements"
-)]
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
@@ -1503,6 +1527,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn negbin_nested_mle_recovers_overdispersion() {
         // Intercept-only NB2 with known α≈0.5 via gamma-poisson mixture (deterministic spikes).
         let n = 400usize;
@@ -1543,6 +1571,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn negbin_nested_mle_recovers_alpha_above_two() {
         // Heavy overdispersion so NestedMle Newton enters θ = 1/α < 0.5 (trigamma reflection).
         let n = 500usize;
@@ -1742,6 +1774,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn multinomial_intercept_only_three_class() {
         let n = 90usize;
         let x = vec![1.0; n];
@@ -1821,6 +1857,10 @@ mod tests {
     /// deviance must match a direct recalculation from those returned coefficients
     /// (not the pre-update iterate used inside the working-response pass).
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn glm_deviance_matches_returned_coefficients_at_max_iter_one() {
         let n = 40usize;
         let mut x = vec![0.0; n * 2];

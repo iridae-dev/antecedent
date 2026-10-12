@@ -97,7 +97,10 @@ pub struct SequentialDrInputs<'a> {
 /// Return one full-history augmentation score per subject for calibration.
 /// Scores alone do not establish independent nuisance fitting or an interval
 /// claim; callers must keep the Q ownership contract separate.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn evaluate_sequential_dr_value_with_subject_scores(
     outcomes: &[f64],
     histories: &SubjectHistories<'_>,

@@ -183,7 +183,7 @@ fn evalue_sample(problem: &RefutationProblem<'_>) -> Result<EvalueSample, Valida
     })
 }
 
-#[allow(clippy::float_cmp)] // Exact 0/1 coding is the binary-outcome contract.
+#[allow(clippy::float_cmp, reason = "Exact 0/1 coding is the binary-outcome contract")]
 fn is_binary(outcome: &[f64]) -> bool {
     !outcome.is_empty() && outcome.iter().all(|&y| y == 0.0 || y == 1.0)
 }
@@ -257,7 +257,6 @@ fn residual_sd(sample: &EvalueSample) -> Result<Option<f64>, ValidationError> {
     let fit = FaerBackend
         .least_squares(&design, n, p, &sample.outcome, &mut LeastSquaresWorkspace::default())
         .map_err(ValidationError::from)?;
-    #[allow(clippy::cast_precision_loss)]
     let sd = (fit.rss / (n - p) as f64).sqrt();
     // A residual SD at rounding-error level relative to the outcome's own spread is zero for
     // every purpose here: the ratio `ATE / sd` would be an artefact of floating point.
@@ -281,7 +280,6 @@ fn binary_risk_ratios(
         &problem.query.active,
         &problem.query.control,
     )?;
-    #[allow(clippy::cast_precision_loss)]
     let n = sample.outcome.len() as f64;
     let mean_y = sample.outcome.iter().sum::<f64>() / n;
     let mean_t = sample.treatment.iter().sum::<f64>() / n;

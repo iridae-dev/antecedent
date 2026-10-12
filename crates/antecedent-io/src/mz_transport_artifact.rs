@@ -542,16 +542,13 @@ impl MzTransportArtifactWire {
         };
         wire.premises_digest = wire.expected_premises_digest()?;
         wire.validate_shape()?;
-        check_uncertainty(
-            input.functional,
-            input.data,
-            input.requests,
-            input.limits,
-            &wire.uncertainty,
-            &wire.results,
-            allow_interval,
-            ctx,
-        )?;
+        let problem = IntervalProblem {
+            functional: input.functional,
+            data: input.data,
+            requests: input.requests,
+            limits: input.limits,
+        };
+        check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
         Ok(wire)
     }
 
@@ -628,7 +625,7 @@ impl MzTransportArtifactWire {
             if version == MZ_TRANSPORT_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         wire.validate_shape()?;
@@ -787,16 +784,13 @@ impl MzTransportArtifactWire {
         }
         let producer_limits =
             ExactEvaluationLimits { operations: wire.operation_limit, depth: wire.depth_limit };
-        check_uncertainty(
-            &functional,
-            &data,
-            &requests,
-            producer_limits,
-            &wire.uncertainty,
-            &wire.results,
-            allow_interval,
-            ctx,
-        )?;
+        let problem = IntervalProblem {
+            functional: &functional,
+            data: &data,
+            requests: &requests,
+            limits: producer_limits,
+        };
+        check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
         Ok(ConsumedMzTransport { functional, data, requests, distributions, contrasts, wire })
     }
 
@@ -837,6 +831,15 @@ fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
     SearchLimits { operations: receipt.operations_limit, depth: receipt.depth_limit }
 }
 
+/// The functional, transport data and requests an interval is bookkept for.
+#[derive(Clone, Copy)]
+struct IntervalProblem<'a> {
+    functional: &'a BoundMzTransportFunctional,
+    data: &'a ExactTransportData,
+    requests: &'a [Assignment],
+    limits: ExactEvaluationLimits,
+}
+
 /// Re-derive the interval bookkeeping and check the stored one against it.
 ///
 /// Exact laws are point-only. Counted laws without an estimator run carry the
@@ -845,17 +848,14 @@ fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
 /// estimator run carries its seed and replicate spec and must recompute bit
 /// for bit, but only when `allow_interval` (calibration and tests): otherwise
 /// any carried interval is refused before anything else is decided.
-#[allow(clippy::too_many_arguments)]
 fn check_uncertainty(
-    functional: &BoundMzTransportFunctional,
-    data: &ExactTransportData,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
+    problem: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     results: &[MzTransportPointWire],
     allow_interval: bool,
     ctx: &ExecutionContext,
 ) -> Result<(), IoError> {
+    let IntervalProblem { functional, data, .. } = *problem;
     if !allow_interval {
         refuse_unlicensed_interval(stored)?;
     }
@@ -875,19 +875,15 @@ fn check_uncertainty(
             bad("closed interval route bookkeeping")
         };
     };
-    recompute_interval(functional, data, requests, limits, stored, seed, results, ctx)
+    recompute_interval(problem, stored, seed, results, ctx)
 }
 
 /// Recompute a stored internal estimator run bit for bit. Without the
 /// `calibration-internal` feature the estimator is not linked and the interval
 /// route stays refused.
 #[cfg(not(any(test, feature = "calibration-internal")))]
-#[allow(clippy::too_many_arguments)]
 fn recompute_interval(
-    _: &BoundMzTransportFunctional,
-    _: &ExactTransportData,
-    _: &[Assignment],
-    _: ExactEvaluationLimits,
+    _: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     _: u64,
     _: &[MzTransportPointWire],
@@ -897,17 +893,14 @@ fn recompute_interval(
 }
 
 #[cfg(any(test, feature = "calibration-internal"))]
-#[allow(clippy::too_many_arguments)]
 fn recompute_interval(
-    functional: &BoundMzTransportFunctional,
-    data: &ExactTransportData,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
+    problem: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     seed: u64,
     results: &[MzTransportPointWire],
     ctx: &ExecutionContext,
 ) -> Result<(), IoError> {
+    let IntervalProblem { functional, data, requests, limits } = *problem;
     let bad = |what| Err(MzTransportArtifactError::UncertaintyMismatch(what).into());
     let (Some(coverage), true) = (
         stored.coverage_target,

@@ -466,6 +466,10 @@ impl LearnedContinuousArtifactWire {
     ///
     /// # Errors
     /// The first failing check, as a typed [`LearnedContinuousArtifactError`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+    )]
     pub fn verify(
         &self,
         limits: LearnedContinuousConsumeLimits,

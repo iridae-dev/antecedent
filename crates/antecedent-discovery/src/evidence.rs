@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value)]
 #![cfg_attr(
     test,
     allow(
@@ -225,6 +224,10 @@ pub fn graph_evidence_from_scored(
 /// # Errors
 ///
 /// Propagates lag-node registration failures.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "public signature takes ownership like its siblings; a borrow would be an API change"
+)]
 pub fn graph_evidence_from_scored_with_sepsets(
     links: Vec<ScoredLink>,
     sepsets: &PcSepsets,

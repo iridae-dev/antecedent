@@ -23,8 +23,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
@@ -46,6 +44,19 @@ use crate::result::{
 pub struct EfficientBackdoorIdentifier {
     /// Shared search limits / forbidden variables.
     pub config: AdjustmentSearchConfig,
+}
+
+/// The adjustment set a search settled on and how it got there.
+#[derive(Clone, Copy)]
+struct EfficientChoice<'a> {
+    /// Candidate sets; the first is reported.
+    chosen: &'a [Vec<DenseNodeId>],
+    /// Separation tests run.
+    examined: u64,
+    /// Selection rule, recorded in the derivation.
+    rule: &'a str,
+    /// Whether enumeration hit `max_results`.
+    truncated: bool,
 }
 
 impl EfficientBackdoorIdentifier {
@@ -112,6 +123,10 @@ impl EfficientBackdoorIdentifier {
         self.identify_ate(prepared, ate, query.clone(), workspace)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_ate(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -157,10 +172,12 @@ impl EfficientBackdoorIdentifier {
                 query,
                 prepared,
                 dag,
-                &[o_set],
-                examined,
-                "optimal (O-set)",
-                false,
+                &EfficientChoice {
+                    chosen: &[o_set],
+                    examined,
+                    rule: "optimal (O-set)",
+                    truncated: false,
+                },
             );
         }
 
@@ -212,10 +229,13 @@ impl EfficientBackdoorIdentifier {
                 query,
                 prepared,
                 dag,
-                &[constructive],
-                examined,
-                "ancestral set (candidate pool over max_candidates; valid, not minimum-cardinality)",
-                false,
+                &EfficientChoice {
+                    chosen: &[constructive],
+                    examined,
+                    rule: "ancestral set (candidate pool over max_candidates; valid, not \
+                           minimum-cardinality)",
+                    truncated: false,
+                },
             );
         }
 
@@ -271,10 +291,13 @@ impl EfficientBackdoorIdentifier {
                 query,
                 prepared,
                 dag,
-                &[constructive],
-                examined,
-                "ancestral set (examination budget exhausted; valid, not minimum-cardinality)",
-                false,
+                &EfficientChoice {
+                    chosen: &[constructive],
+                    examined,
+                    rule: "ancestral set (examination budget exhausted; valid, not \
+                           minimum-cardinality)",
+                    truncated: false,
+                },
             )?;
             result.diagnostics.push(crate::result::search_bounded_diagnostic(
                 crate::backdoor::BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
@@ -302,20 +325,19 @@ impl EfficientBackdoorIdentifier {
             })
         });
         let best = vec![valid.into_iter().next().expect("non-empty")];
-        Self::finish(ate, query, prepared, dag, &best, examined, "min_cardinality", truncated)
+        let choice =
+            EfficientChoice { chosen: &best, examined, rule: "min_cardinality", truncated };
+        Self::finish(ate, query, prepared, dag, &choice)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn finish(
         ate: &AverageEffectQuery,
         query: CausalQuery,
         prepared: &PreparedIdentificationGraph,
         dag: &antecedent_graph::Dag,
-        chosen: &[Vec<DenseNodeId>],
-        examined: u64,
-        rule: &str,
-        truncated: bool,
+        choice: &EfficientChoice<'_>,
     ) -> Result<IdentificationResult, IdentificationError> {
+        let EfficientChoice { chosen, examined, rule, truncated } = *choice;
         let z = &chosen[0];
         let vars: Vec<VariableId> =
             z.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;

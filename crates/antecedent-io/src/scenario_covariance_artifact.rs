@@ -118,7 +118,7 @@ fn unknown_dependence(message: &str) -> IoError {
     }
 }
 
-#[allow(clippy::cast_precision_loss)] // Row counts are far below 2^53.
+#[allow(clippy::cast_precision_loss, reason = "Row counts are far below 2^53")]
 const fn to_f64(n: usize) -> f64 {
     n as f64
 }
@@ -289,7 +289,6 @@ struct ContrastRow {
     event: bool,
 }
 
-#[allow(clippy::too_many_arguments)] // The six declared fields of the functional.
 fn adjusted_estimator(
     table: &RowTableWire,
     treatment: &str,
@@ -703,7 +702,7 @@ impl ScenarioCovarianceArtifactWire {
             if version == SCENARIO_COVARIANCE_ARTIFACT_VERSION {
                 Ok(())
             } else {
-                Err(IoError::UnsupportedVersion { version: version })
+                Err(IoError::UnsupportedVersion { version })
             }
         })?;
         if wire.required_features != [SCENARIO_COVARIANCE_ARTIFACT_FEATURE] {

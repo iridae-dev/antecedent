@@ -1,5 +1,4 @@
 //! Numerical oracle independent of symbolic ID: enumerate latent binary SCMs.
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -184,7 +183,6 @@ fn three_node_selection_graphs_with_pre_treatment_ancestor_agree_with_full_exper
     three_node_selection_sweep(1);
 }
 
-#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
 fn three_node_selection_sweep(x: u32) {
     // Domain: all 64 ordered three-node ADMGs × 8 selection patterns × 3
     // independent Bernoulli latent-SCM parameterizations. Truth is the target
@@ -213,7 +211,8 @@ fn every_treatment_position_and_joint_interventions_agree_with_the_oracle() {
     }
 }
 
-#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
+#[allow(clippy::too_many_lines, reason = "Independent exhaustive oracle and provider construction")]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, f64)]) {
     let ctx = ExecutionContext::for_tests(42);
     let edges = [(0usize, 1usize), (0, 2), (1, 2)];
@@ -461,6 +460,7 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
 
 /// Laws for X -> M -> Y with X <-> M, where only Y's mechanism differs in the target.
 /// Returns the source `do(x)` worlds over (M, Y) and one observational joint over (X, M, Y).
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactDiscreteLaw> {
     let binary =
         |i| DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0), Value::Int64(1)]) };
@@ -521,6 +521,7 @@ fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactD
 }
 
 #[test]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn two_population_district_recursion_fails_truth_under_kernel_population_substitution() {
     use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
     const TARGET_Y_SHIFT: f64 = 0.25;
@@ -1033,7 +1034,11 @@ fn four_node_weight(
     model.base + model.parent_w * parents + model.shared_w * shared + selection_shift
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture exercised end to end; later assertions read locals built above them"
+)]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn four_node_formula_matches_scm(
     proof: &antecedent_identify::ClassicalTransportDerivation,
     catalog: &EvidenceCatalog,
@@ -1187,7 +1192,10 @@ fn four_node_free_row(values: usize, mask: usize) -> usize {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture exercised end to end; later assertions read locals built above them"
+)]
 fn four_node_frontdoor_matches_independent_parameterizations() {
     let mut graph = Admg::with_variables(4);
     graph.insert_directed(d(0), d(1)).unwrap();
@@ -1297,7 +1305,6 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
     }
 }
 
-#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 #[test]
 #[allow(
     clippy::too_many_lines,
@@ -1442,7 +1449,11 @@ fn four_node_graph_parameter_sweep_matches_target_interventions() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // Keep independently enumerated joint truth and its contrasts together.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep independently enumerated joint truth and its contrasts together"
+)]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn six_node_recursive_districts_match_joint_latent_scm_truth() {
     let mut graph = Admg::with_variables(6);
     for offset in [0, 3] {
@@ -1658,6 +1669,7 @@ fn confounded_treatment_with_selected_parent() -> (SelectionDiagram, ClassicalTr
 }
 
 #[test]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn irrelevant_selection_upstream_of_the_treatment_is_direct_transport_at_the_root() {
     let (diagram, query) = confounded_treatment_with_selected_parent();
     let ctx = ExecutionContext::for_tests(22);

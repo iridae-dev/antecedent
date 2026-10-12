@@ -4,9 +4,6 @@
 //! route stays closed; this artifact is internal and records calibration `unmeasured`.
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
 )]
 

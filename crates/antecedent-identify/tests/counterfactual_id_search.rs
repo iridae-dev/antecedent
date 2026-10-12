@@ -9,11 +9,8 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::cast_precision_loss,
-    clippy::float_cmp,
     clippy::type_complexity,
-    clippy::too_many_lines,
     clippy::needless_range_loop,
-    clippy::result_large_err,
     reason = "test fixtures: small exact indices, levels and enumerated probabilities; exact bit comparisons are the assertion"
 )]
 

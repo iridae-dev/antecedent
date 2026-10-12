@@ -391,7 +391,10 @@ fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError>
 /// `mixed_search.bounds_exceeded`; `mixed_search.invalid_query` for a malformed
 /// query, graph or catalog; `mixed_search.posterior_as_law` when a model
 /// artifact is offered as an experimental law.
-#[allow(clippy::too_many_lines)] // One linear classification of every regime, in exclusion order.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear classification of every regime, in exclusion order"
+)]
 pub fn validate_mixed_source_query(
     graph: &Admg,
     query: &MixedSourceQuery,
@@ -1130,7 +1133,6 @@ impl<'g> Engine<'g> {
     /// 3 insertion, rule 2 both ways, and product. The two deletion rules are
     /// checker-only (see the module docs). Each attempted application charges
     /// the budget.
-    #[allow(clippy::too_many_lines)] // One linear pass over the frozen rule set, in order.
     fn expand(
         &mut self,
         search: &mut SharedSearch<'_>,
@@ -1608,7 +1610,7 @@ fn unary_rule_holds(
 /// stay inside the quantity, and every input step must name an eligible catalog
 /// distribution with its recorded source identity. The last step must answer the
 /// query. A relaxed (missing-joint) input is accepted only when `allow_relaxed`.
-#[allow(clippy::too_many_lines)] // One pass over the ten rules of the frozen set.
+#[allow(clippy::too_many_lines, reason = "One pass over the ten rules of the frozen set")]
 fn check_steps(
     graph: &Admg,
     query: &MixedSourceQuery,
@@ -2069,7 +2071,10 @@ fn named_route_error(error: &IdentificationError) -> IdentificationError {
 
 /// Run the theorem-scoped routes. `Some` is a final decision (a route identifies,
 /// or the budget stopped); `None` continues to the rule search.
-#[allow(clippy::too_many_lines)] // One linear pass over the named stages and their outcomes.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass over the named stages and their outcomes"
+)]
 fn named_routes(
     graph: &Admg,
     query: &MixedSourceQuery,
@@ -2776,7 +2781,10 @@ mod tests {
     /// the resulting expression is evaluated by the exact provider and compared
     /// with the truth. This covers rules the identified-query sweeps rarely reach.
     #[test]
-    #[allow(clippy::too_many_lines)] // One fixture, one closure, one comparison per quantity.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "One fixture, one closure, one comparison per quantity"
+    )]
     fn every_derived_quantity_matches_the_enumerated_model() {
         use antecedent_expr::{
             Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
@@ -3095,7 +3103,10 @@ mod tests {
     /// `P(y | do(d), z)` the test also requires the search's accepted applications
     /// to equal the checker's for the searched rules.
     #[test]
-    #[allow(clippy::too_many_lines)] // One enumeration of graphs, premises, rules and levels.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "One enumeration of graphs, premises, rules and levels"
+    )]
     fn every_accepted_rule_instance_holds_in_the_enumerated_model() {
         let ctx = ExecutionContext::for_tests(1);
         let mut state = 0x0BAD_5EED_u64;

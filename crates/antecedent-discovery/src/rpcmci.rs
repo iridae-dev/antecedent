@@ -7,7 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -397,6 +396,10 @@ impl Rpcmci {
 
 /// Effective-row mask: keep sample `i` (raw time `i + max_lag`) only when the full
 /// lag window `t-max_lag..=t` lies in `regime`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn regime_window_mask(
     assignments: &RegimeAssignment,
     regime: RegimeId,
@@ -444,6 +447,10 @@ struct RegimeEquation {
 /// single time point and shatter the lag windows regime discovery needs. A regime is scored
 /// only if every one of its equations is identified on the rows currently assigned to it;
 /// returns `None` when fewer than two regimes qualify.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 fn reassign_by_lagged_residual(
     data: &TimeSeriesData,
     variables: &[VariableId],

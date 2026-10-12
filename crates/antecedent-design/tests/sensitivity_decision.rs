@@ -11,7 +11,6 @@
 //! * no robust action: an effect whose range is `[-1, 2]` at every `gamma` against a status
 //!   quo of 0 (the best action depends on where the range sits), and three actions that
 //!   each lead at one of three points.
-#![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{DecisionCriterion, StructuralPolicy};

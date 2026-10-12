@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -324,6 +323,14 @@ impl PredictiveCheckReport {
     /// Atoms with non-positive weight, and atoms whose `kind` differs from the first
     /// contributing atom, are dropped. Returns `None` when nothing contributes.
     #[must_use]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
         if items.iter().any(|(weight, _)| !weight.is_finite()) {
             return None;
@@ -950,6 +957,10 @@ impl ResidualTracker {
     }
 
     /// Record the fitted means of the current draw (before observation noise is added).
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn set_means(&mut self, fitted: &[f64]) {
         self.mu.copy_from_slice(fitted);
         let mean = fitted.iter().sum::<f64>() / fitted.len() as f64;
@@ -960,6 +971,10 @@ impl ResidualTracker {
         }
     }
 
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn statistics(&mut self, y: &[f64]) -> [f64; 4] {
         for i in 0..y.len() {
             self.residual[i] = (y[i] - self.mu[i]) / self.scale[i];
@@ -1940,6 +1955,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn ppc_catches_variance_misspecification_mean_ok() {
         // Defect C regression: construct data whose outcome mean is exactly zero
         // but has large residual spread (SD ~5), so a model whose replicates have
@@ -3256,6 +3275,14 @@ impl SimulationBasedCalibration {
     ///
     /// Fit failures; [`ValidationError::NotApplicable`] when the configuration or estimator
     /// cannot satisfy the rank theorem (see the type docs).
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     pub fn check(
         &self,
         estimator: &BayesianGComputationAte,
@@ -3539,6 +3566,10 @@ impl PosteriorCalibrationOnSyntheticScm {
     /// # Errors
     ///
     /// Fit failures.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     pub fn check(
         &self,
         estimator: &BayesianGComputationAte,

@@ -286,7 +286,10 @@ fn target_attestation(attach: &ExternalEstimateAttach) -> DiagnosticWire {
     }
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
 fn receipt_contract(
     attach: &ExternalEstimateAttach,
     body: &AnalysisResultWire,

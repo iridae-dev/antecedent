@@ -20,7 +20,6 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -58,7 +57,7 @@ pub use distribution_change::{
     distribution_change_with_fit_uncertainty, distribution_change_with_row_weights,
 };
 pub use error::AttributionError;
-pub use feature_relevance::feature_relevance;
+pub use feature_relevance::{FeatureRelevanceOptions, feature_relevance};
 pub use mechanism_change::{MechanismChangeMethod, detect_mechanism_changes};
 pub use path::path_decompose;
 pub use population::{multi_env_series, resolve_multi_env_rows, resolve_rows, subset_table};

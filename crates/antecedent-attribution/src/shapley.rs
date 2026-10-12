@@ -65,7 +65,6 @@ impl ShapleyEstimate {
     #[must_use]
     pub fn into_contributions(self) -> Vec<ComponentContribution> {
         let stderrs = self.component_mc_stderr;
-        #[allow(clippy::cast_precision_loss)]
         let df = self.budget.samples.saturating_sub(1) as f64;
         let t_crit = student_t_ppf(0.975, df);
         self.players
@@ -215,6 +214,14 @@ fn evaluate_coalition<P: CoalitionPayoff>(
 /// # Errors
 ///
 /// Size limits, empty players, or payoff failures.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn estimate_shapley<P: CoalitionPayoff>(
     players: &[ComponentId],
     config: &ShapleyConfig,
@@ -257,7 +264,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                         return Err(AttributionError::Cancelled);
                     }
                     if let Some(p) = &ctx.progress {
-                        #[allow(clippy::cast_precision_loss)]
                         p.report(mask as f64 / n_coalitions as f64, "shapley");
                     }
                     table.push(eval(mask, payoff, &mut cache, &mut budget)?);
@@ -288,7 +294,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                         return Err(AttributionError::Cancelled);
                     }
                     if let Some(p) = &ctx.progress {
-                        #[allow(clippy::cast_precision_loss)]
                         p.report(mask as f64 / n_coalitions as f64, "shapley");
                     }
                     let v_s = eval(mask, payoff, &mut cache, &mut budget)?;
@@ -345,7 +350,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     a.push(x);
                 }
                 if let Some(p) = &ctx.progress {
-                    #[allow(clippy::cast_precision_loss)]
                     p.report(completed as f64 / n_samples as f64, "shapley");
                 }
             }

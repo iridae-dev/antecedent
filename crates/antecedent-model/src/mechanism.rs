@@ -4,7 +4,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -77,6 +76,10 @@ fn categorical_noise(noise: f64) -> Result<f64, ModelError> {
 /// # Errors
 ///
 /// Unsupported / vacant slot.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn sample_noise_column(
     slot: &MechanismSlot,
     n_rows: usize,
@@ -130,6 +133,10 @@ pub fn sample_noise_column(
 /// # Errors
 ///
 /// Shape / vacant.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn evaluate_column(
     slot: &MechanismSlot,
     parents: ParentBatch<'_>,
@@ -283,6 +290,10 @@ pub fn evaluate_column(
 /// # Errors
 ///
 /// Coefficient / parent arity mismatch, or out-of-range parent access.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn basis_mean_column(
     intercept: f64,
     basis: &ParentBasis,
@@ -313,7 +324,11 @@ pub(crate) fn basis_mean_column(
 }
 
 /// Softmax probabilities of a [`MechanismSlot::DiscreteBasis`] at one row.
-#[allow(clippy::too_many_arguments)] // row index plus three reused scratch buffers
+#[allow(clippy::too_many_arguments, reason = "row index plus three reused scratch buffers")]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn basis_softmax_row_probs(
     basis: &ParentBasis,
     logits: &[f64],
@@ -355,7 +370,14 @@ fn basis_softmax_row_probs(
 /// # Errors
 ///
 /// Out-of-range parent column access.
-#[allow(clippy::too_many_arguments)] // GP dual-form params, threaded through from the fitted slot.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "GP dual-form params, threaded through from the fitted slot"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn gp_predictive_mean_column(
     length_scale: f64,
     variance: f64,
@@ -419,6 +441,10 @@ pub fn infer_noise_column(
 /// # Errors
 ///
 /// Unsupported family or shape.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn infer_noise_column_rng(
     slot: &MechanismSlot,
     value: &[f64],
@@ -613,6 +639,10 @@ fn infer_discrete_posterior_noise(
 /// uniformly from the CDF bin of the observed category — the posterior of the
 /// noise given the value. One owner, shared by the parent-conditional
 /// [`MechanismSlot::Discrete`] and [`MechanismSlot::DiscreteBasis`] paths.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn categorical_inverse_cdf_draw(
     support: &[f64],
     row_probs: &[f64],
@@ -652,6 +682,10 @@ fn categorical_inverse_cdf_draw(
 /// # Errors
 ///
 /// Shape / vacant.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub fn log_prob_column(
     slot: &MechanismSlot,
     values: &[f64],
@@ -866,6 +900,10 @@ pub fn log_prob_column(
 /// # Errors
 ///
 /// Mechanism errors.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn sample_column(
     slot: &MechanismSlot,
     parents: ParentBatch<'_>,
@@ -904,6 +942,10 @@ pub fn sample_column(
     }
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn softmax_row_probs(
     logits: &[f64],
     k: usize,

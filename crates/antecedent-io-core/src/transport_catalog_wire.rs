@@ -267,7 +267,7 @@ impl EvidenceCatalogWire {
     ///
     /// # Errors
     /// Invalid tags, coordinates, assignments, or catalog dependencies.
-    #[allow(clippy::too_many_lines)] // Explicit exhaustive decoding of the durable schema.
+    #[allow(clippy::too_many_lines, reason = "Explicit exhaustive decoding of the durable schema")]
     pub fn to_catalog(&self) -> Result<EvidenceCatalog, IoError> {
         let invalid = || IoError::Convert("invalid transport catalog tag or domain".into());
         let ids = |v: &[u32]| v.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
@@ -394,7 +394,7 @@ impl EvidenceCatalogWire {
     }
 }
 
-#[allow(clippy::needless_pass_by_value)] // Result::map_err consumes its error.
+#[allow(clippy::needless_pass_by_value, reason = "Result::map_err consumes its error")]
 fn convert(error: QueryError) -> IoError {
     IoError::Convert(error.to_string())
 }
