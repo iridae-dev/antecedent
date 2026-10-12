@@ -56,7 +56,13 @@ pub struct DSeparationWorkspace {
     /// Conditioning set membership.
     pub conditioning: BitSet,
     /// Undirected adjacency for the moral graph (only ancestral nodes).
+    ///
+    /// Neighbor order is insertion order. [`Self::undirected_member`] is the same
+    /// relation as a bitset so duplicate edges are rejected without scanning the list.
     pub undirected: Vec<Vec<DenseNodeId>>,
+    /// Membership of [`Self::undirected`], one bitset per node. Kept in lockstep
+    /// by [`Self::prepare`] and [`add_undirected`].
+    pub(crate) undirected_member: Vec<BitSet>,
     /// BFS visited.
     pub visited: BitSet,
     /// BFS frontier / predecessor scratch.
@@ -116,6 +122,40 @@ impl DSeparationWorkspace {
         false
     }
 
+    /// Whether any target is reachable from any source over [`Self::undirected`],
+    /// avoiding [`Self::conditioning`].
+    ///
+    /// The moral graph holds only ancestral nodes. Sources and targets that sit in
+    /// the conditioning set are not expanded; the caller decides whether that makes
+    /// the query ill-posed.
+    pub(crate) fn moral_reaches_any(&mut self, sources: &[DenseNodeId], targets: &BitSet) -> bool {
+        self.visited.clear();
+        self.frontier.clear();
+        for &source in sources {
+            if self.conditioning.contains(source) || self.visited.contains(source) {
+                continue;
+            }
+            if targets.contains(source) {
+                return true;
+            }
+            self.visited.insert(source);
+            self.frontier.push(source);
+        }
+        while let Some(u) = self.frontier.pop() {
+            for &v in &self.undirected[u.as_usize()] {
+                if self.conditioning.contains(v) || self.visited.contains(v) {
+                    continue;
+                }
+                if targets.contains(v) {
+                    return true;
+                }
+                self.visited.insert(v);
+                self.frontier.push(v);
+            }
+        }
+        false
+    }
+
     /// Prepare for a DAG with `n` nodes.
     pub fn prepare(&mut self, n: usize) {
         self.ancestral.resize(n);
@@ -124,6 +164,15 @@ impl DSeparationWorkspace {
         self.undirected.resize(n, Vec::new());
         for adj in &mut self.undirected {
             adj.clear();
+        }
+        if self.undirected_member.len() < n {
+            self.undirected_member.resize_with(n, || BitSet::with_len(n));
+        } else {
+            self.undirected_member.truncate(n);
+        }
+        for member in &mut self.undirected_member {
+            member.resize(n);
+            member.clear();
         }
         self.frontier.clear();
         self.pred.clear();
@@ -265,7 +314,7 @@ impl Dag {
                     continue;
                 }
                 if ws.ancestral.contains(c) {
-                    add_undirected(&mut ws.undirected, u, c);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, u, c);
                 }
             }
             // Moral edges: marry parents connected by visible edges into u.
@@ -282,7 +331,7 @@ impl Dag {
                         continue;
                     }
                     if ws.ancestral.contains(b) {
-                        add_undirected(&mut ws.undirected, a, b);
+                        add_undirected(&mut ws.undirected, &mut ws.undirected_member, a, b);
                     }
                 }
             }
@@ -294,16 +343,27 @@ impl Dag {
 }
 
 /// Insert the undirected edge `a - b` into `adj` once, preserving insertion order.
-pub(crate) fn add_undirected(adj: &mut [Vec<DenseNodeId>], a: DenseNodeId, b: DenseNodeId) {
+///
+/// `member[i]` is the set of neighbors already stored in `adj[i]`. The bitset
+/// replaces a linear scan of the adjacency list; the list itself stays the
+/// iteration order witnesses depend on.
+pub(crate) fn add_undirected(
+    adj: &mut [Vec<DenseNodeId>],
+    member: &mut [BitSet],
+    a: DenseNodeId,
+    b: DenseNodeId,
+) {
     if a == b {
         return;
     }
     let ai = a.as_usize();
     let bi = b.as_usize();
-    if !adj[ai].contains(&b) {
+    if !member[ai].contains(b) {
+        member[ai].insert(b);
         adj[ai].push(b);
     }
-    if !adj[bi].contains(&a) {
+    if !member[bi].contains(a) {
+        member[bi].insert(a);
         adj[bi].push(a);
     }
 }

@@ -4,11 +4,12 @@
 
 use crate::admg::Admg;
 use crate::dsep::{
-    DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult, add_undirected,
+    add_undirected, DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult,
 };
 use crate::error::GraphError;
 use crate::pag::{ClassMembers, Pag};
 use crate::types::DenseNodeId;
+use crate::workspace::BitSet;
 
 // --- ADMG m-separation (ancestral moralization) ---
 
@@ -37,6 +38,52 @@ impl Admg {
             return Ok(false);
         }
         Ok(self.m_sep_bool(x, y, z, ws))
+    }
+
+    /// Whether every node in `sources` is m-separated from every node in `targets`
+    /// given `z`.
+    ///
+    /// One moral graph of `An(sources ∪ targets ∪ z)` and one multi-source search,
+    /// which is the set form of the same ancestral-moralization criterion as
+    /// [`Self::is_m_separated`]. Empty `sources` or `targets` is vacuously separated.
+    /// A shared endpoint, or a conditioning node that is itself an endpoint, is not
+    /// separated, matching the pairwise query.
+    ///
+    /// # Errors
+    ///
+    /// Unknown node ids.
+    pub fn is_m_separated_sets(
+        &self,
+        sources: &[DenseNodeId],
+        targets: &[DenseNodeId],
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) -> Result<bool, GraphError> {
+        for &node in sources.iter().chain(targets).chain(z) {
+            self.validate_node_pub(node)?;
+        }
+        if sources.is_empty() || targets.is_empty() {
+            return Ok(true);
+        }
+        let mut target_set = BitSet::with_len(self.node_count());
+        for &target in targets {
+            target_set.try_insert(target)?;
+        }
+        for &source in sources {
+            if target_set.contains(source) || z.iter().any(|&node| node == source) {
+                return Ok(false);
+            }
+        }
+        for &target in targets {
+            if z.iter().any(|&node| node == target) {
+                return Ok(false);
+            }
+        }
+        let mut seeds = Vec::with_capacity(sources.len() + targets.len());
+        seeds.extend_from_slice(sources);
+        seeds.extend_from_slice(targets);
+        self.build_moral_of_seeds(&seeds, z, ws);
+        Ok(!ws.moral_reaches_any(sources, &target_set))
     }
 
     /// m-separation with witness.
@@ -118,6 +165,16 @@ impl Admg {
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) {
+        self.build_moral_of_seeds(&[x, y], z, ws);
+    }
+
+    /// Ancestral closure of `seeds ∪ z`, then moralize directed + bidirected edges.
+    fn build_moral_of_seeds(
+        &self,
+        seeds: &[DenseNodeId],
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) {
         let n = self.node_count();
         ws.prepare(n);
         ws.conditioning.clear();
@@ -125,9 +182,9 @@ impl Admg {
             ws.conditioning.insert(v);
         }
 
-        // Ancestral set of {x, y} ∪ z (directed ancestors).
-        ws.frontier.push(x);
-        ws.frontier.push(y);
+        // Ancestral set of seeds ∪ z (directed ancestors).
+        ws.frontier.clear();
+        ws.frontier.extend_from_slice(seeds);
         ws.frontier.extend_from_slice(z);
         self.ancestors_of(&ws.frontier, &mut ws.ancestral, &mut ws.graph_ws);
         ws.frontier.clear();
@@ -146,12 +203,12 @@ impl Admg {
             }
             for &c in self.children(u) {
                 if ws.ancestral.contains(c) {
-                    add_undirected(&mut ws.undirected, u, c);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, u, c);
                 }
             }
             for &b in self.bidirected_neighbors(u) {
                 if b.raw() > u.raw() && ws.ancestral.contains(b) {
-                    add_undirected(&mut ws.undirected, u, b);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, u, b);
                 }
             }
         }
@@ -187,7 +244,7 @@ impl Admg {
             }
             for (ai, &a) in clique.iter().enumerate() {
                 for &b in &clique[ai + 1..] {
-                    add_undirected(&mut ws.undirected, a, b);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, a, b);
                 }
             }
             for &u in &clique {
@@ -209,10 +266,37 @@ mod tests {
         let mut g = Admg::with_variables(2);
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let mut ws = DSeparationWorkspace::default();
-        assert!(
-            !g.is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
-                .unwrap()
-        );
+        assert!(!g
+            .is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
+            .unwrap());
+    }
+
+    #[test]
+    fn set_separation_matches_every_pair() {
+        // Collider 0 -> 2 <- 1, plus 2 -> 3. An extra descendant must not
+        // open the collider when the set query is the empty conditioning set.
+        let mut g = Admg::with_variables(4);
+        let n = |i| DenseNodeId::from_raw(i);
+        g.insert_directed(n(0), n(2)).unwrap();
+        g.insert_directed(n(1), n(2)).unwrap();
+        g.insert_directed(n(2), n(3)).unwrap();
+        let mut ws = DSeparationWorkspace::default();
+        let cases: &[(&[DenseNodeId], &[DenseNodeId], &[DenseNodeId])] = &[
+            (&[n(0)], &[n(1)], &[]),
+            (&[n(0)], &[n(1)], &[n(2)]),
+            (&[n(0), n(1)], &[n(3)], &[]),
+            (&[n(0)], &[n(3)], &[n(2)]),
+            (&[n(0)], &[n(0)], &[]),
+            (&[], &[n(1)], &[]),
+            (&[n(3)], &[], &[n(2)]),
+        ];
+        for &(sources, targets, z) in cases {
+            let sets = g.is_m_separated_sets(sources, targets, z, &mut ws).unwrap();
+            let pairwise = sources.iter().all(|&source| {
+                targets.iter().all(|&target| g.is_m_separated(source, target, z, &mut ws).unwrap())
+            });
+            assert_eq!(sets, pairwise, "sources={sources:?} targets={targets:?} z={z:?}");
+        }
     }
 
     #[test]

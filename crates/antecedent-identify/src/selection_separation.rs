@@ -24,8 +24,8 @@
 
 use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId};
 
-use crate::IdentificationError;
 use crate::enum_masks::for_each_mask_of_size;
+use crate::IdentificationError;
 
 /// `D_{X̄}` over a vertex set, with one selection node per applicable target.
 pub(crate) struct MutilatedSelection {
@@ -70,14 +70,9 @@ impl MutilatedSelection {
         conditions: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) -> Result<bool, IdentificationError> {
-        for &selection in &self.selection_nodes {
-            for &outcome in outcomes {
-                if !self.graph.is_m_separated(selection, outcome, conditions, ws)? {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
+        self.graph
+            .is_m_separated_sets(&self.selection_nodes, outcomes, conditions, ws)
+            .map_err(IdentificationError::from)
     }
 }
 
@@ -399,18 +394,16 @@ mod tests {
         x.insert(d(0));
         let selection = MutilatedSelection::build(&graph, &v, &x, &[d(2)]).unwrap();
         let conditions = [d(0), d(2)];
-        assert!(
-            selection
-                .separates(&[d(1)], &conditions, &mut DSeparationWorkspace::default())
-                .unwrap()
-        );
+        assert!(selection
+            .separates(&[d(1)], &conditions, &mut DSeparationWorkspace::default())
+            .unwrap());
         assert!(independently_separated(&graph, &v, &x, &[d(2)], &[d(1)], &[d(2)]));
         // Without the intervention the same path is open.
         let none = BitSet::with_len(3);
         let open = MutilatedSelection::build(&graph, &v, &none, &[d(2)]).unwrap();
-        assert!(
-            !open.separates(&[d(1)], &conditions, &mut DSeparationWorkspace::default()).unwrap()
-        );
+        assert!(!open
+            .separates(&[d(1)], &conditions, &mut DSeparationWorkspace::default())
+            .unwrap());
         assert!(!independently_separated(&graph, &v, &none, &[d(2)], &[d(1)], &[d(0), d(2)]));
     }
 
