@@ -37,13 +37,6 @@ pub struct ForeignF64Buffer {
     len: usize,
 }
 
-impl Drop for ForeignF64Buffer {
-    fn drop(&mut self) {
-        // Touch owner so clippy/rustc know it is semantically used for lifetime.
-        let _ = Arc::as_ptr(&self.owner);
-    }
-}
-
 /// Type-erased owner that keeps foreign memory valid.
 pub trait ForeignBufferOwner: Send + Sync + std::fmt::Debug {}
 
@@ -69,6 +62,9 @@ impl ForeignF64Buffer {
     /// Borrow as a slice.
     #[must_use]
     pub fn as_slice(&self) -> &[f64] {
+        // Read the owner so the foreign allocation is an actual use, not only a
+        // field the drop glue happens to free.
+        let _keep_alive = Arc::strong_count(&self.owner);
         if self.len == 0 {
             return &[];
         }
