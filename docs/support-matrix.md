@@ -36,8 +36,8 @@ but the current matrix has no active allowlist entries.
 | Meaningful remainder | 2511 | Combinations that could in principle be a claim |
 | Licensed | 717 | Staged path plus the row's recorded evidence contract and limitations |
 | `allowed_unlicensed` compatibility entries | 0 | Retained wire value; the release gate requires this count to remain zero |
-| Refused — reason on file | 1698 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
-| Refused — no reason on file | 96 | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_closed.toml` rule |
+| Refused — reason on file | 1794 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — no reason on file | 0 | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_closed.toml` rule |
 
 Do not read "717 / 4320" as coverage. Read: **717 cells
 carry their recorded evidence contracts**; no cells run through the retained
@@ -193,6 +193,9 @@ row here yet.
 - queries ∈ {AverageDerivative, PointDerivative, Elasticity, SemiElasticity, DirectionalDerivative, ResponseJacobian} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} — Graph-posterior temporal derivatives on a TemporalDag are not licensed.
 - queries ∈ {Counterfactual, InterventionalDistribution, NestedCounterfactualEffect, PathSpecificEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} — Graph-posterior temporal cross-world effects on a TemporalDag are not licensed.
 - queries ∈ {Counterfactual, InterventionalDistribution, NestedCounterfactualEffect, PathSpecificEffect} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — Temporal cross-world effects are point-only; cheap and full are not licensed.
+- queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ validations ∈ {cheap, full} — Graph-posterior temporal derivatives on TemporalCpdag and TemporalPag are licensed at validation none. Derivative-native cheap/full validation is not implemented; ATE refuters do not apply.
+- queries ∈ {Counterfactual, InterventionalDistribution, NestedCounterfactualEffect, PathSpecificEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ validations ∈ {cheap, full} — Graph-posterior temporal cross-world effects on TemporalCpdag and TemporalPag are point-only; cheap and full are not licensed.
+- queries ∈ {TemporalConditionalPulse, TemporalConditionalSustained} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ validations ∈ {cheap, full} — Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed.
 
 ## `allowed_unlicensed` compatibility entries
 

@@ -984,6 +984,69 @@
         "full"
       ],
       "reason": "Temporal cross-world effects are point-only; cheap and full are not licensed."
+    },
+    {
+      "queries": [
+        "AverageDerivative",
+        "DirectionalDerivative",
+        "Elasticity",
+        "PointDerivative",
+        "ResponseJacobian",
+        "SemiElasticity"
+      ],
+      "graph_classes": [
+        "TemporalCpdag",
+        "TemporalPag"
+      ],
+      "structures": [
+        "graph_posterior"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Graph-posterior temporal derivatives on TemporalCpdag and TemporalPag are licensed at validation none. Derivative-native cheap/full validation is not implemented; ATE refuters do not apply."
+    },
+    {
+      "queries": [
+        "Counterfactual",
+        "InterventionalDistribution",
+        "NestedCounterfactualEffect",
+        "PathSpecificEffect"
+      ],
+      "graph_classes": [
+        "TemporalCpdag",
+        "TemporalPag"
+      ],
+      "structures": [
+        "graph_posterior"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Graph-posterior temporal cross-world effects on TemporalCpdag and TemporalPag are point-only; cheap and full are not licensed."
+    },
+    {
+      "queries": [
+        "TemporalConditionalPulse",
+        "TemporalConditionalSustained"
+      ],
+      "graph_classes": [
+        "TemporalCpdag",
+        "TemporalPag"
+      ],
+      "structures": [
+        "graph_posterior"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
     }
   ],
   "allowed_rules": [],

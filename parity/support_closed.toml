@@ -306,6 +306,27 @@ structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "Temporal cross-world effects are point-only; cheap and full are not licensed."
 
+[[closed]]
+queries = ["AverageDerivative", "DirectionalDerivative", "Elasticity", "PointDerivative", "ResponseJacobian", "SemiElasticity"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior temporal derivatives on TemporalCpdag and TemporalPag are licensed at validation none. Derivative-native cheap/full validation is not implemented; ATE refuters do not apply."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior temporal cross-world effects on TemporalCpdag and TemporalPag are point-only; cheap and full are not licensed."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+
 # -- promotion records (parity/promotion.toml): sub-cell contrasts a
 # record keeps closed. The support axes cannot name a contrast, so these rows are
 # [[closed_contrast]], not [[closed]]: the support-matrix gates read only
