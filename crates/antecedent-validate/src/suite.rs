@@ -699,12 +699,11 @@ impl ValidationSuite {
         match id {
             ValidatorId::PriorPredictive => {
                 let owned;
-                let check = match &self.arms.prior_predictive {
-                    Some(check) => check,
-                    None => {
-                        owned = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
-                        &owned
-                    }
+                let check = if let Some(check) = &self.arms.prior_predictive {
+                    check
+                } else {
+                    owned = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                    &owned
                 };
                 let prior = bayes.estimator.prior_in_force(bayes.prepared.design.ncols);
                 let rep = check.check_with_prior(bayes.prepared, &prior, ctx)?;
@@ -714,12 +713,11 @@ impl ValidationSuite {
             }
             ValidatorId::PosteriorPredictive => {
                 let owned;
-                let check = match &self.arms.posterior_predictive {
-                    Some(check) => check,
-                    None => {
-                        owned = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
-                        &owned
-                    }
+                let check = if let Some(check) = &self.arms.posterior_predictive {
+                    check
+                } else {
+                    owned = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                    &owned
                 };
                 let rep = check.check_with_context(bayes.prepared, bayes.posterior, ctx)?;
                 Ok(ValidationOutcome::Report(
@@ -732,12 +730,11 @@ impl ValidationSuite {
                 // A stored grid replaces that choice, including which axis it perturbs.
                 // An empty slot still builds `for_estimator`.
                 let owned;
-                let sens = match &self.arms.prior_sensitivity {
-                    Some(sens) => sens,
-                    None => {
-                        owned = PriorSensitivity::for_estimator(bayes.estimator);
-                        &owned
-                    }
+                let sens = if let Some(sens) = &self.arms.prior_sensitivity {
+                    sens
+                } else {
+                    owned = PriorSensitivity::for_estimator(bayes.estimator);
+                    &owned
                 };
                 let (summary, _posts) = sens.evaluate_in_force(
                     bayes.estimator,
