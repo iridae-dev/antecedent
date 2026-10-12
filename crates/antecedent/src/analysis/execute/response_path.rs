@@ -2947,10 +2947,7 @@ impl ClassResponseAtoms {
                 self.structural_atoms[case_index].value = response_identified_value(&response);
                 self.weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
             }
-            Err(err)
-                if err.to_string().contains("discrete level cap")
-                    || err.to_string().contains("continuous") =>
-            {
+            Err(err) if is_discrete_plug_in_limit(&err) => {
                 // Identified by ID, unevaluable with the discrete plug-in.
                 // Keep the mass out of the mix and refuse a subset SE.
                 self.unestimated_id_mass += weight;
@@ -2960,6 +2957,15 @@ impl ClassResponseAtoms {
 
         Ok(())
     }
+}
+
+/// Whether `err` says the discrete plug-in cannot evaluate this completion: a variable
+/// past the level cap, or a continuous column the plug-in cannot encode. The estimate crate
+/// reports both as untyped refusals, so the classification reads the rendered message in
+/// this one place; every other error propagates.
+fn is_discrete_plug_in_limit(err: &CausalError) -> bool {
+    let message = err.to_string();
+    message.contains("discrete level cap") || message.contains("continuous")
 }
 
 /// The class-aware response mixed over completions, with the values its disclosures read.

@@ -25,6 +25,7 @@ use super::{
     compile_logical_temporal_effect_classified, compile_logical_temporal_response, gcm_query_vars,
     reject_dag_only_on_pag, validate_static_pair,
 };
+use super::dispatch::wire_pair;
 
 fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
     study
@@ -330,8 +331,9 @@ impl super::Study {
         q: &AverageEffectQuery,
         graph: &Dag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_static_pair();
-        self.ensure_rd_config_present(&estimator)?;
+        let (identifier_id, estimator_id) = self.resolve_static_ids();
+        self.ensure_rd_config_present(estimator_id)?;
+        let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
         compile_logical_static_ate(StaticAteCompileInput {
             data,
             graph,
@@ -518,8 +520,9 @@ impl super::Study {
         q: &AverageEffectQuery,
         pag: &Pag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_pag_pair();
-        reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
+        let (identifier_id, estimator_id) = self.resolve_pag_ids();
+        reject_dag_only_on_pag(&self.graph, identifier_id)?;
+        let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
         compile_logical_static_pag_ate(StaticPagAteCompileInput {
             data,
             pag,
@@ -1168,11 +1171,9 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         let admg = mixed_admg(self)?;
         if admg_has_bidirected(&admg) {
-            let (identifier, estimator) = self.resolve_admg_pair();
-            validate_static_pair(
-                identifier.parse::<IdentifierId>()?,
-                estimator.parse::<EstimatorId>()?,
-            )?;
+            let (identifier_id, estimator_id) = self.resolve_admg_ids();
+            validate_static_pair(identifier_id, estimator_id)?;
+            let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
             q.validate()?;
             let record = antecedent_contract::LogicalAnalysisPlanRecord {
                 plan_id: Arc::from("static_admg_ate"),
@@ -1193,8 +1194,9 @@ impl super::Study {
             logical.compile_physical(ctx)
         } else {
             let dag = admg_without_latents_to_dag(&admg)?;
-            let (identifier, estimator) = self.resolve_static_pair();
-            self.ensure_rd_config_present(&estimator)?;
+            let (identifier_id, estimator_id) = self.resolve_static_ids();
+            self.ensure_rd_config_present(estimator_id)?;
+            let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
             let logical = compile_logical_static_ate(StaticAteCompileInput {
                 data,
                 graph: &dag,
@@ -1328,8 +1330,9 @@ pub(crate) fn compile_logical_admg_response(
     validation_suite: Option<Arc<str>>,
     study: &super::Study,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    let (identifier, estimator) = study.resolve_admg_pair();
-    validate_static_pair(identifier.parse::<IdentifierId>()?, estimator.parse::<EstimatorId>()?)?;
+    let (identifier_id, estimator_id) = study.resolve_admg_ids();
+    validate_static_pair(identifier_id, estimator_id)?;
+    let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
     query.validate()?;
     let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
         CausalError::Compile { message: "response query has no treatment/outcome pair".into() }

@@ -27,6 +27,11 @@ pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "response queries only",
 );
 
+/// The wire names of a typed identifier/estimator pair, as plan records carry them.
+pub(super) fn wire_pair((identifier, estimator): (IdentifierId, EstimatorId)) -> (Arc<str>, Arc<str>) {
+    (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+}
+
 impl super::Study {
     /// The estimator the caller selected, or `None` for a builder placeholder.
     ///
@@ -270,8 +275,8 @@ impl super::Study {
                 });
             }
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_), GraphClass::Pag) => {
-                let (identifier, _) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
+                let (identifier, _) = self.resolve_pag_ids();
+                reject_dag_only_on_pag(&self.graph, identifier)?;
             }
             _ => {}
         }
@@ -329,13 +334,28 @@ impl super::Study {
         default_identifier: IdentifierId,
         default_estimator: EstimatorId,
     ) -> (Arc<str>, Arc<str>) {
-        let identifier = self.identifier.unwrap_or(default_identifier);
-        let estimator = self.estimator.unwrap_or(default_estimator);
-        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+        wire_pair(self.resolve_id_est_ids(default_identifier, default_estimator))
+    }
+
+    /// [`Self::resolve_id_est_pair`] as typed ids.
+    fn resolve_id_est_ids(
+        &self,
+        default_identifier: IdentifierId,
+        default_estimator: EstimatorId,
+    ) -> (IdentifierId, EstimatorId) {
+        (
+            self.identifier.unwrap_or(default_identifier),
+            self.estimator.unwrap_or(default_estimator),
+        )
     }
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     pub(super) fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_static_ids())
+    }
+
+    /// [`Self::resolve_static_pair`] as typed ids.
+    pub(super) fn resolve_static_ids(&self) -> (IdentifierId, EstimatorId) {
         let identifier = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
         let estimator = if identifier == IdentifierId::GeneralId {
             self.estimator
@@ -346,17 +366,22 @@ impl super::Study {
         } else {
             self.estimator.unwrap_or(DEFAULT_ESTIMATOR_ID)
         };
-        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+        (identifier, estimator)
     }
 
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
     pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_pag_ids())
+    }
+
+    /// [`Self::resolve_pag_pair`] as typed ids.
+    pub(super) fn resolve_pag_ids(&self) -> (IdentifierId, EstimatorId) {
         let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianGcomp
         } else {
             DEFAULT_PAG_ESTIMATOR_ID
         };
-        self.resolve_id_est_pair(DEFAULT_PAG_IDENTIFIER_ID, estimator)
+        self.resolve_id_est_ids(DEFAULT_PAG_IDENTIFIER_ID, estimator)
     }
 
     /// Incomplete TemporalCpdag/Pag pulse: envelope identifier + temporal linear estimator.
@@ -373,29 +398,39 @@ impl super::Study {
     /// A same-tier bidirected clique must not kick a licensed AIPW study onto the
     /// functional-effect identifier.
     pub(super) fn resolve_admg_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_admg_ids())
+    }
+
+    /// [`Self::resolve_admg_pair`] as typed ids.
+    pub(super) fn resolve_admg_ids(&self) -> (IdentifierId, EstimatorId) {
         if self
             .tiered
             .as_ref()
             .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
         {
-            self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
+            self.resolve_id_est_ids(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
         } else {
             let identifier = self.identifier.unwrap_or(DEFAULT_ADMG_IDENTIFIER_ID);
             let estimator = self.caller_selected_estimator().unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
-            (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+            (identifier, estimator)
         }
     }
 
     /// Resolve identifier/estimator for `ConditionalEffect`.
     pub(super) fn resolve_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_conditional_ids())
+    }
+
+    /// [`Self::resolve_conditional_pair`] as typed ids.
+    pub(super) fn resolve_conditional_ids(&self) -> (IdentifierId, EstimatorId) {
         let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
         } else {
             DEFAULT_CONDITIONAL_ESTIMATOR_ID
         };
         (
-            Arc::from(self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID).as_str()),
-            Arc::from(self.caller_selected_estimator().unwrap_or(estimator).as_str()),
+            self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID),
+            self.caller_selected_estimator().unwrap_or(estimator),
         )
     }
 
@@ -458,16 +493,19 @@ impl super::Study {
 
     /// Resolve identifier/estimator for Cpdag/Pag `ConditionalEffect`.
     pub(super) fn resolve_class_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_class_conditional_ids())
+    }
+
+    /// [`Self::resolve_class_conditional_pair`] as typed ids.
+    pub(super) fn resolve_class_conditional_ids(&self) -> (IdentifierId, EstimatorId) {
         let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
         } else {
             EstimatorId::ConditionalLinearAdjustment
         };
         (
-            Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
-            Arc::from(
-                self.estimator_spec.as_deref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
-            ),
+            self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID),
+            self.estimator_spec.as_deref().map_or(estimator, crate::EstimatorSpec::id),
         )
     }
 
@@ -481,11 +519,12 @@ impl super::Study {
         (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
-    pub(super) fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), CausalError> {
-        if matches!(
-            estimator.parse::<EstimatorId>()?,
-            EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear
-        ) && self.rd.is_none()
+    pub(super) fn ensure_rd_config_present(
+        &self,
+        estimator: EstimatorId,
+    ) -> Result<(), CausalError> {
+        if matches!(estimator, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)
+            && self.rd.is_none()
         {
             return Err(CausalError::Compile {
                 message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),

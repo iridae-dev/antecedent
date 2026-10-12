@@ -1298,8 +1298,7 @@ impl super::Study {
             return self.execute_bayesian(data, graph, &query.inner, physical, None, ctx);
         }
         let started = Instant::now();
-        let (identifier, _) = self.resolve_conditional_pair();
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let (identifier_id, _) = self.resolve_conditional_ids();
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query.inner), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
@@ -1376,9 +1375,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identifier, estimator) = self.resolve_class_conditional_pair();
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = self.resolve_class_conditional_ids();
         match self.graph.class() {
             GraphClass::Pag => {
                 let pag = physical.static_pag().ok_or_else(|| CausalError::Compile {
