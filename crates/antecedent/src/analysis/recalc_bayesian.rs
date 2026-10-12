@@ -1,6 +1,7 @@
 //! Retained, native-issued Bayesian posterior projections under the shared planner.
 //! Calibrated joint-transport publication remains a separate closed route.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use super::recalc_common::{Fields, dag_from_edges, float_bytes, literal, table_from_columns};
 use super::recalc_receipt::{DecisionValue, RecalcReceipt, RecalcRunError, UtilitySpec};
 use crate::BayesianConfig;
 use antecedent_core::{VariableId, recalc::RecalcPlan};
@@ -156,30 +157,11 @@ fn empirical_quantile(ordered: &[f64], probability: f64) -> f64 {
 
 impl BayesianRequest {
     fn data(&self) -> Result<antecedent_data::TabularData, RecalcRunError> {
-        antecedent_data::TabularData::from_f64_columns(
-            self.columns
-                .iter()
-                .map(|(name, values)| (name.as_str(), values.as_slice()))
-                .collect::<Vec<_>>(),
-        )
-        .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_data"))
+        table_from_columns(&self.columns)
+            .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_data"))
     }
     fn graph(&self) -> Result<antecedent_graph::Dag, RecalcRunError> {
-        let n = u32::try_from(self.columns.len())
-            .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_graph"))?;
-        let mut graph = antecedent_graph::Dag::with_variables(n);
-        let mut edges = self.edges.clone();
-        edges.sort_unstable();
-        edges.dedup();
-        for (from, to) in edges {
-            graph
-                .insert_directed(
-                    antecedent_graph::DenseNodeId::from_raw(from),
-                    antecedent_graph::DenseNodeId::from_raw(to),
-                )
-                .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_graph"))?;
-        }
-        Ok(graph)
+        dag_from_edges(self.columns.len(), &self.edges, "recalc.bayesian_invalid_graph")
     }
     fn study(&self, data: antecedent_data::TabularData) -> Result<crate::Study, RecalcRunError> {
         let builder = crate::Study::tabular(data)
@@ -370,8 +352,13 @@ impl BayesianSession {
     }
 }
 
-fn bayesian_literal(label: &str, text: &str) -> antecedent_core::recalc::StageIdentity {
-    antecedent_core::recalc::StageIdentity::of(label, &[text.as_bytes()])
+impl BayesianModel {
+    const fn tag(self) -> &'static str {
+        match self {
+            Self::Gaussian => "gaussian",
+            Self::QuadraticBasis => "quadratic_basis",
+        }
+    }
 }
 impl BayesianRequest {
     /// Semantic identity of the causal claim, actual input, posterior and draw projection.
@@ -389,17 +376,14 @@ impl BayesianRequest {
         ids.set(Stage::Graph, StageIdentity::of("bayesian.graph_schema.v1", &graph_parts));
         ids.set(
             Stage::Query,
-            bayesian_literal(
-                "bayesian.query.v1",
-                &format!(
-                    "binary.mean:{}:{}:{:?}",
-                    self.treatment.raw(),
-                    self.outcome.raw(),
-                    self.model,
-                ),
-            ),
+            Fields::new()
+                .text("binary.mean")
+                .word(u64::from(self.treatment.raw()))
+                .word(u64::from(self.outcome.raw()))
+                .text(self.model.tag())
+                .identity("bayesian.query.v1"),
         );
-        ids.set(Stage::Regime, bayesian_literal("bayesian.regime.v1", "static.binary.0_1"));
+        ids.set(Stage::Regime, literal("bayesian.regime.v1", "static.binary.0_1"));
         ids.set(
             Stage::Evidence,
             StageIdentity::of(
@@ -410,14 +394,14 @@ impl BayesianRequest {
                 ],
             ),
         );
-        ids.set(Stage::SourcePopulation, bayesian_literal("bayesian.source.v1", "all_observed"));
-        ids.set(Stage::TargetPopulation, bayesian_literal("bayesian.target.v1", "all_observed"));
-        ids.set(Stage::RowDesign, bayesian_literal("bayesian.rows.v1", "checked.complete_cases"));
-        ids.set(Stage::TreatmentGrid, bayesian_literal("bayesian.grid.v1", "binary.0_1"));
+        ids.set(Stage::SourcePopulation, literal("bayesian.source.v1", "all_observed"));
+        ids.set(Stage::TargetPopulation, literal("bayesian.target.v1", "all_observed"));
+        ids.set(Stage::RowDesign, literal("bayesian.rows.v1", "checked.complete_cases"));
+        ids.set(Stage::TreatmentGrid, literal("bayesian.grid.v1", "binary.0_1"));
         let mut raw = Vec::new();
         for (name, values) in &self.columns {
             raw.push(name.as_bytes().to_vec());
-            raw.push(values.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect());
+            raw.push(float_bytes(values));
         }
         ids.set(
             Stage::DataSnapshot,
@@ -426,43 +410,39 @@ impl BayesianRequest {
                 &raw.iter().map(Vec::as_slice).collect::<Vec<_>>(),
             ),
         );
-        // Prior artifact bytes are hashed directly instead of Debug-formatting
-        // an arbitrarily large hexadecimal representation.
-        let config = format!(
-            "{:?}:{:?}:{}:{}:{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}",
-            self.inference.backend,
-            self.inference.likelihood,
-            self.inference.n_draws,
-            self.inference.n_draws_explicit,
-            self.inference.prior_scale.to_bits(),
-            self.inference.prior,
-            self.inference.prior_mapping,
-            self.inference.external_compose,
-            self.inference.prior_artifact.is_some(),
-            ctx.rng.master_seed(),
-            ctx.adaptive_draws,
-        );
+        // The binding digests the prior artifact's bytes and the resolved prior contents;
+        // the artifact bytes themselves are also a separate part.
+        let adaptive = ctx.adaptive_draws;
+        let config = Fields::new()
+            .wire(&super::contract_identity::bayesian_binding(&self.inference))
+            .flag(self.inference.n_draws_explicit)
+            .real(self.inference.prior_scale)
+            .flag(self.inference.prior_artifact.is_some())
+            .word(ctx.rng.master_seed())
+            .flag(adaptive.enabled)
+            .len(adaptive.min_draws)
+            .real(adaptive.quantile_width_rel_epsilon)
+            .real(adaptive.ess_target)
+            .into_bytes();
         ids.set(
             Stage::LearnerFoldsRng,
             StageIdentity::of(
                 "bayesian.inference.v1",
-                &[config.as_bytes(), self.inference.prior_artifact.as_deref().unwrap_or(&[])],
+                &[config.as_slice(), self.inference.prior_artifact.as_deref().unwrap_or(&[])],
             ),
         );
-        ids.set(Stage::Identification, bayesian_literal("bayesian.proof.v1", "checked.backdoor"));
-        ids.set(
-            Stage::ScoreArtifact,
-            bayesian_literal("bayesian.posterior.v1", "native.issued.aligned"),
-        );
+        ids.set(Stage::Identification, literal("bayesian.proof.v1", "checked.backdoor"));
+        ids.set(Stage::ScoreArtifact, literal("bayesian.posterior.v1", "native.issued.aligned"));
         ids.set(
             Stage::Law,
-            bayesian_literal("bayesian.summary.v1", &format!("{:?}", self.summary)),
+            Fields::new()
+                .real(self.summary.lower_probability)
+                .real(self.summary.upper_probability)
+                .real(self.summary.threshold)
+                .identity("bayesian.summary.v1"),
         );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
-        ids.set(
-            Stage::Decision,
-            bayesian_literal("bayesian.decision.v1", "net_benefit.posterior_mean"),
-        );
+        ids.set(Stage::Decision, literal("bayesian.decision.v1", "net_benefit.posterior_mean"));
         ids
     }
 }

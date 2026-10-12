@@ -4,6 +4,7 @@
 #[path = "recalc_temporal_studentized.rs"]
 mod studentized;
 
+use super::recalc_common::Fields;
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
     decide,
@@ -247,7 +248,7 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
         .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence").into())
 }
 fn source_identity(r: &TemporalRequest) -> StageIdentity {
-    id("temporal.source", &format!("{}:{:?}:{:?}", r.snapshot_id, r.period, r.units))
+    Fields::new().text(&r.snapshot_id).wire(&r.period).wire(&r.units).identity("temporal.source")
 }
 /// Stage identities bind full history/unit ownership, window, lag alignment and initial law.
 #[must_use]
@@ -261,13 +262,13 @@ pub fn temporal_request_identities(r: &TemporalRequest, ctx: &ExecutionContext) 
     bidirected.dedup();
     ids.set(
         Stage::Graph,
-        id(
-            "temporal.graph",
-            &format!(
-                "{edges:?}:{bidirected:?}:{}:{:?}:{:?}",
-                r.horizon, r.lag_alignment, r.selection_targets
-            ),
-        ),
+        Fields::new()
+            .pairs(&edges)
+            .pairs(&bidirected)
+            .len(r.horizon)
+            .bytes(&r.lag_alignment)
+            .ids(&r.selection_targets)
+            .identity("temporal.graph"),
     );
     ids.set(Stage::Query, id("temporal.source_query", "joint(S0,Y)|do(A1,A2)"));
     ids.set(Stage::Regime, id("temporal.regime", "whole.sequence.source0.target1"));
@@ -278,34 +279,32 @@ pub fn temporal_request_identities(r: &TemporalRequest, ctx: &ExecutionContext) 
     ids.set(Stage::SourcePopulation, id("temporal.population", "source"));
     ids.set(
         Stage::TargetPopulation,
-        id(
-            "temporal.target",
-            &format!("{}:{:?}", r.initial_state_id, r.initial_state.map(f64::to_bits)),
-        ),
+        Fields::new().text(&r.initial_state_id).reals(&r.initial_state).identity("temporal.target"),
     );
     ids.set(Stage::DataSnapshot, source_identity(r));
     ids.set(
         Stage::RowDesign,
-        id(
-            "temporal.rows",
-            &format!(
-                "{:?}:{:?}",
-                r.period,
-                r.units
+        Fields::new()
+            .wire(&r.period)
+            .wire(
+                &r.units
                     .iter()
                     .map(|u| (u.unit_id, u.histories.iter().map(|h| h.time_id).collect::<Vec<_>>()))
-                    .collect::<Vec<_>>()
-            ),
-        ),
+                    .collect::<Vec<_>>(),
+            )
+            .identity("temporal.rows"),
     );
-    ids.set(Stage::TreatmentGrid, id("temporal.actions", &format!("{:?}", r.functional)));
+    ids.set(Stage::TreatmentGrid, Fields::new().wire(&r.functional).identity("temporal.actions"));
     ids.set(
         Stage::LearnerFoldsRng,
-        id("temporal.fit", &format!("empirical.joint.whole.unit:{}", ctx.rng.master_seed())),
+        Fields::new()
+            .text("empirical.joint.whole.unit")
+            .word(ctx.rng.master_seed())
+            .identity("temporal.fit"),
     );
     ids.set(
         Stage::Utility,
-        id("temporal.utility", &format!("{:?}", [r.benefit_per_unit.to_bits(), r.cost.to_bits()])),
+        Fields::new().real(r.benefit_per_unit).real(r.cost).identity("temporal.utility"),
     );
     for (stage, label) in [
         (Stage::Identification, "checked.whole.sequence"),

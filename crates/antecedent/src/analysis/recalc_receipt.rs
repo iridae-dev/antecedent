@@ -53,6 +53,7 @@ use crate::graph::{Dag, DenseNodeId};
 use super::builder::RefuteSuite;
 use super::execute::Study;
 use super::prepared::PreparedStudy;
+use super::recalc_common::{float_bytes, identity, literal};
 
 fn to_u64(value: usize) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
@@ -615,19 +616,6 @@ pub struct RecalcRequest {
     pub utility: UtilitySpec,
 }
 
-fn f64_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
-}
-
-fn digest(label: &str, parts: &[Vec<u8>]) -> StageIdentity {
-    let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
-    StageIdentity::of(label, &refs)
-}
-
-fn literal(label: &str, text: &str) -> StageIdentity {
-    StageIdentity::of(label, &[text.as_bytes()])
-}
-
 fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
     let mut out = b"aipw.v1".to_vec();
     out.extend_from_slice(&estimator.bootstrap_replicates.to_le_bytes());
@@ -789,7 +777,7 @@ impl RecalcRequest {
         let mut data_parts = Vec::new();
         for (name, values) in &self.columns {
             data_parts.push(name.as_bytes().to_vec());
-            data_parts.push(f64_bytes(values));
+            data_parts.push(float_bytes(values));
         }
         let rows = self.columns.first().map_or(0, |(_, v)| v.len());
         let folds = to_u64(DEFAULT_AIPW_FOLDS);
@@ -798,13 +786,13 @@ impl RecalcRequest {
             |t| {
                 let parents: Vec<u8> =
                     t.depends_on.iter().flat_map(|v| v.raw().to_le_bytes()).collect();
-                digest("target_population", &[f64_bytes(&t.weights), parents])
+                identity("target_population", &[float_bytes(&t.weights), parents])
             },
         );
         let mut ids = StageIdentities::new();
         ids.set(
             Stage::Graph,
-            digest("graph", &[to_u64(self.columns.len()).to_le_bytes().to_vec(), edge_bytes]),
+            identity("graph", &[to_u64(self.columns.len()).to_le_bytes().to_vec(), edge_bytes]),
         );
         ids.set(
             Stage::Query,
@@ -814,12 +802,12 @@ impl RecalcRequest {
         ids.set(Stage::Evidence, literal("evidence", "observational.no_external"));
         ids.set(Stage::SourcePopulation, literal("source_population", "all_observed"));
         ids.set(Stage::TargetPopulation, target);
-        ids.set(Stage::DataSnapshot, digest("data_snapshot", &data_parts));
+        ids.set(Stage::DataSnapshot, identity("data_snapshot", &data_parts));
         ids.set(Stage::RowDesign, literal("row_design", &format!("complete_case.rows={rows}")));
         ids.set(Stage::TreatmentGrid, literal("treatment_grid", "binary.0_1"));
         ids.set(
             Stage::LearnerFoldsRng,
-            digest(
+            identity(
                 "learner_folds_rng",
                 &[
                     estimator_identity_bytes(&self.estimator),
@@ -830,7 +818,10 @@ impl RecalcRequest {
         );
         ids.set(
             Stage::Utility,
-            digest("utility", &[f64_bytes(&[self.utility.benefit_per_unit, self.utility.cost])]),
+            identity(
+                "utility",
+                &[float_bytes(&[self.utility.benefit_per_unit, self.utility.cost])],
+            ),
         );
         ids.set(Stage::Identification, literal("identification", "backdoor.prepared"));
         ids.set(Stage::ScoreArtifact, literal("score_artifact", "crossfit_aipw.scores"));

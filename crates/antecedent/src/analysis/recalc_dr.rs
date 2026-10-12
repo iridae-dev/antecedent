@@ -2,16 +2,19 @@
 //! Model-point CATE prediction is distinct from marginal score inference.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::PreparedStudy;
+use super::recalc_common::{
+    Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,
+};
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
     TargetWeights, UtilitySpec, decide,
 };
 use crate::estimator_spec::EstimatorSpec;
-use crate::graph::{Dag, DenseNodeId};
+use crate::graph::Dag;
 use crate::{RefuteSuite, Study, StudyResult};
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
-    Stage, StageIdentities, StageIdentity, StageStatus,
+    Stage, StageIdentities, StageStatus,
 };
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -99,12 +102,6 @@ pub struct DrRequest {
     /// Net benefit rule.
     pub utility: UtilitySpec,
 }
-fn literal(label: &str, value: &str) -> StageIdentity {
-    StageIdentity::of(label, &[value.as_bytes()])
-}
-fn floats(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
-}
 impl DrRequest {
     /// Own identity of every causal, physical and decision stage.
     #[must_use]
@@ -113,15 +110,12 @@ impl DrRequest {
         ids.set(Stage::Graph, super::recalc_cell::graph_identity(self.columns.len(), &self.edges));
         ids.set(
             Stage::Query,
-            literal(
-                "dr.query",
-                &format!(
-                    "binary.mean:{}:{}:{}",
-                    self.treatment,
-                    self.outcome,
-                    self.estimator.family()
-                ),
-            ),
+            Fields::new()
+                .text("binary.mean")
+                .word(u64::from(self.treatment))
+                .word(u64::from(self.outcome))
+                .text(self.estimator.family())
+                .identity("dr.query"),
         );
         ids.set(Stage::Regime, literal("dr.regime", "static.binary.0_1"));
         ids.set(Stage::Evidence, literal("dr.evidence", "observational.no_external"));
@@ -130,12 +124,9 @@ impl DrRequest {
         let mut parts = Vec::new();
         for (name, values) in &self.columns {
             parts.push(name.as_bytes().to_vec());
-            parts.push(floats(values));
+            parts.push(float_bytes(values));
         }
-        ids.set(
-            Stage::DataSnapshot,
-            StageIdentity::of("dr.snapshot", &parts.iter().map(Vec::as_slice).collect::<Vec<_>>()),
-        );
+        ids.set(Stage::DataSnapshot, identity("dr.snapshot", &parts));
         ids.set(
             Stage::RowDesign,
             literal(
@@ -146,10 +137,10 @@ impl DrRequest {
         ids.set(Stage::TreatmentGrid, literal("dr.grid", "binary.0_1"));
         ids.set(
             Stage::LearnerFoldsRng,
-            StageIdentity::of(
-                "dr.config",
-                &[format!("{:?}", self.estimator).as_bytes(), &ctx.rng.master_seed().to_le_bytes()],
-            ),
+            Fields::new()
+                .wire(&super::contract_identity::estimator_spec_identity(&self.estimator.spec()))
+                .word(ctx.rng.master_seed())
+                .identity("dr.config"),
         );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
         ids.set(
@@ -165,27 +156,11 @@ impl DrRequest {
         ids
     }
     fn graph(&self) -> Result<Dag, RecalcRunError> {
-        let n = u32::try_from(self.columns.len())
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
-        let mut graph = Dag::with_variables(n);
-        let mut edges = self.edges.clone();
-        edges.sort_unstable();
-        edges.dedup();
-        for (a, b) in edges {
-            graph
-                .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
-        }
-        Ok(graph)
+        dag_from_edges(self.columns.len(), &self.edges, "recalc.invalid_graph")
     }
     fn data(&self) -> Result<TabularData, RecalcRunError> {
-        TabularData::from_f64_columns(
-            self.columns
-                .iter()
-                .map(|(name, values)| (name.as_str(), values.as_slice()))
-                .collect::<Vec<(&str, &[f64])>>(),
-        )
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+        table_from_columns(&self.columns)
+            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
     }
     fn study(&self, data: TabularData) -> Result<Study, RecalcRunError> {
         Ok(Study::tabular(data)
