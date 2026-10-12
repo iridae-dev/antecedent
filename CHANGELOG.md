@@ -15,6 +15,7 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 - External-refusal JSON from the Python bindings carries the missing capability, and declared-size refusals use one message and reason code.
 - The cross-world closed form is fitted by pivoted QR, and Bayesian IV and RD draw from the shared Gaussian sampler, so their draws differ for a given seed.
 - The artifact container, wire types, canonical digests and estimator-free artifacts move to the new `antecedent-io-core` crate, which sits below the estimators. `antecedent-io` keeps the estimator-bound artifacts and re-exports the core at its root, so every public path and artifact byte is unchanged.
+- The sealed and one-shot temporal effect, class-effect and mediation routes share one fit-and-assemble implementation each, so a prepared click and a one-shot run cannot differ. Mediation mechanism fits and block bootstraps draw from independent streams keyed by the master seed, horizon and mechanism instead of additive seed offsets, so Bayesian mediation draws and mediation bootstrap standard errors change for a given seed. A conditional temporal effect with refuters requested is refused on the sealed route as on the one-shot route; sealed mediation results gain the horizon-dependence and multi-horizon status notes, the natural-contrast restriction on Bayesian posteriors and sorted adjustment keys; diagnostics order, the sustained-window note and class-envelope provenance names follow one convention.
 
 ## 2.3.0
 
