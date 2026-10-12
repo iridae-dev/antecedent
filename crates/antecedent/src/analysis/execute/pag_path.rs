@@ -8,7 +8,7 @@ use super::{
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, OverlapPolicy, Pag,
     PhysicalExecutionPlan, PriorSet, RefutationRun, RefuteSuite, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StaticEstimateInput,
     StaticEstimateWorkspaces, Strategy, StudyResult, TabularData, VariableId,
     credible_scalar_uncertainty, effect_from_posterior, elapsed_ns,
     envelope_se_omission_diagnostic, envelope_to_identification_result, estimate_static_effect,
@@ -527,13 +527,15 @@ impl super::Study {
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             let estimate = estimate_static_effect(
                 &case_spec,
-                data,
-                &estimand,
-                query,
+                StaticEstimateInput {
+                    data: data,
+                    estimand: &estimand,
+                    query: query,
+                    bootstrap_replicates: self.bootstrap_replicates,
+                    overlap_policy: self.overlap_policy,
+                    population_registry: self.population_registry.as_ref(),
+                },
                 case.result.required_assumptions.clone(),
-                self.bootstrap_replicates,
-                self.overlap_policy,
-                self.population_registry.as_ref(),
                 ctx,
                 &mut case_ws,
             )?;
@@ -724,13 +726,15 @@ impl super::Study {
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             let estimate = estimate_static_effect(
                 &case_spec,
-                data,
-                &estimand,
-                query,
+                StaticEstimateInput {
+                    data: data,
+                    estimand: &estimand,
+                    query: query,
+                    bootstrap_replicates: self.bootstrap_replicates,
+                    overlap_policy: self.overlap_policy,
+                    population_registry: self.population_registry.as_ref(),
+                },
                 case.result.required_assumptions.clone(),
-                self.bootstrap_replicates,
-                self.overlap_policy,
-                self.population_registry.as_ref(),
                 ctx,
                 &mut case_ws,
             )?;

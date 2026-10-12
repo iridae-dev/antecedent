@@ -362,6 +362,27 @@ pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'stat
     estimator_data(estimator).provenance
 }
 
+/// The data, estimand, query and estimator settings a static estimate runs against.
+///
+/// `bootstrap_replicates`, `overlap_policy` and `population_registry` configure a fresh
+/// estimator built from an [`EstimatorId`]; a caller-configured [`EstimatorSpec`] variant
+/// carries its own and ignores them.
+#[derive(Clone, Copy)]
+pub struct StaticEstimateInput<'a> {
+    /// Estimation data.
+    pub data: &'a TabularData,
+    /// Identified estimand to estimate.
+    pub estimand: &'a IdentifiedEstimand,
+    /// Average-effect query the estimand answers.
+    pub query: &'a AverageEffectQuery,
+    /// Bootstrap replicates applied to a default-built estimator.
+    pub bootstrap_replicates: u32,
+    /// Overlap policy applied to a default-built estimator, when set.
+    pub overlap_policy: Option<OverlapPolicy>,
+    /// Population registry attached to a default-built estimator.
+    pub population_registry: Option<&'a PopulationRegistry>,
+}
+
 /// Run a frequentist static estimator by strategy spec (excludes `rd.sharp` / `bayesian.gcomp`).
 ///
 /// [`EstimatorSpec::Default`] builds a fresh estimator and applies
@@ -376,29 +397,16 @@ pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'stat
 /// Unknown estimator or estimation failure.
 pub fn estimate_static_effect(
     spec: &EstimatorSpec,
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
+    input: StaticEstimateInput<'_>,
     assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    overlap_policy: Option<OverlapPolicy>,
-    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
+    let StaticEstimateInput { data, estimand, query, .. } = input;
     match spec {
-        EstimatorSpec::Default(id) => estimate_static_effect_default(
-            *id,
-            data,
-            estimand,
-            query,
-            assumptions,
-            bootstrap_replicates,
-            overlap_policy,
-            population_registry,
-            ctx,
-            workspaces,
-        ),
+        EstimatorSpec::Default(id) => {
+            estimate_static_effect_default(*id, input, assumptions, ctx, workspaces)
+        }
         EstimatorSpec::LinearAdjustmentAte(cfg) => {
             let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
             cfg.fit(&prep, &mut workspaces.linear, ctx, assumptions).map_err(est_err)
@@ -463,16 +471,19 @@ pub fn estimate_static_effect(
 /// behavior).
 fn estimate_static_effect_default(
     estimator: EstimatorId,
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
+    input: StaticEstimateInput<'_>,
     assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    overlap_policy: Option<OverlapPolicy>,
-    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
+    let StaticEstimateInput {
+        data,
+        estimand,
+        query,
+        bootstrap_replicates,
+        overlap_policy,
+        population_registry,
+    } = input;
     match estimator {
         EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
@@ -608,16 +619,19 @@ fn estimate_static_effect_default(
 /// An id with no attachable bootstrap, preparation failure, or bootstrap failure.
 pub fn attach_static_bootstrap(
     estimator: EstimatorId,
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
+    input: StaticEstimateInput<'_>,
     point: EffectEstimate,
-    bootstrap_replicates: u32,
-    overlap_policy: Option<OverlapPolicy>,
-    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
+    let StaticEstimateInput {
+        data,
+        estimand,
+        query,
+        bootstrap_replicates,
+        overlap_policy,
+        population_registry,
+    } = input;
     match estimator {
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();

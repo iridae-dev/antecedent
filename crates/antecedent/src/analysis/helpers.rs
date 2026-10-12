@@ -568,17 +568,24 @@ pub(crate) fn attach_score_functional_grid(
     Ok((estimate, diagnostics))
 }
 
+/// The data, query and estimand an average-effect functional is computed for.
+#[derive(Clone, Copy)]
+pub(crate) struct AverageTarget<'a> {
+    pub(crate) data: &'a TabularData,
+    pub(crate) query: &'a AverageEffectQuery,
+    pub(crate) estimand: &'a IdentifiedEstimand,
+}
+
 /// Build scores on original `Y` and attach the exceedance grid when licensed.
 pub(crate) fn attach_average_functional_grid(
     estimate: EffectEstimate,
-    data: &TabularData,
-    query: &AverageEffectQuery,
-    estimand: &IdentifiedEstimand,
+    target: AverageTarget<'_>,
     extra_diagnostics: &mut Vec<Diagnostic>,
     estimator_id: crate::strategy_table::EstimatorId,
     study: &super::execute::Study,
     fold_seed: u64,
 ) -> Result<EffectEstimate, CausalError> {
+    let AverageTarget { data, query, estimand } = target;
     if estimator_id != crate::strategy_table::EstimatorId::Aipw
         || !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
     {

@@ -13,11 +13,11 @@ use super::{
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, StaticEstimateWorkspaces, Strategy,
-    Study, StudyResult, TabularData, bayesian_gcomp, effect_from_posterior, elapsed_ns,
-    envelope_se_omission_diagnostic, estimate_static_effect, mass_fields, mix_static_envelope_se,
-    mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, provenance_ids,
-    resolve_posterior_status, static_aligned_influence,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, StaticEstimateInput,
+    StaticEstimateWorkspaces, Strategy, Study, StudyResult, TabularData, bayesian_gcomp,
+    effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic, estimate_static_effect,
+    mass_fields, mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
+    overlap_diagnostic, provenance_ids, resolve_posterior_status, static_aligned_influence,
 };
 use crate::analysis::prepared::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
@@ -269,13 +269,15 @@ fn evaluate_class_atom_frequentist(
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             estimate_static_effect(
                 &case_spec,
-                data,
-                estimand,
-                query,
+                StaticEstimateInput {
+                    data: data,
+                    estimand: estimand,
+                    query: query,
+                    bootstrap_replicates: study.bootstrap_replicates,
+                    overlap_policy: study.overlap_policy,
+                    population_registry: study.population_registry.as_ref(),
+                },
                 atom.identification.required_assumptions.clone(),
-                study.bootstrap_replicates,
-                study.overlap_policy,
-                study.population_registry.as_ref(),
                 ctx,
                 &mut case_ws,
             )?

@@ -9,8 +9,8 @@ use super::{
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
     InferenceMode, Instant, Intervention, LinearAdjustmentAte, OverlapPolicy,
     PhysicalExecutionPlan, RdWorkspace, RefutationRun, RefuteSuite, SharpRdConfig,
-    SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateWorkspaces, Strategy,
-    StudyResult, TableView, TabularData, bayesian_draw_count, bayesian_gcomp, elapsed_ns,
+    SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateInput, StaticEstimateWorkspaces,
+    Strategy, StudyResult, TableView, TabularData, bayesian_draw_count, bayesian_gcomp, elapsed_ns,
     envelope_se_omission_diagnostic, envelope_to_identification_result_for, estimate_static_effect,
     identification_from_cache_or, identification_status_ok_for_case, identify_cpdag, identify_pag,
     identify_static, identify_static_query, identify_static_query_with_rd, mix_static_envelope_se,
@@ -379,13 +379,16 @@ impl super::Study {
         } else {
             estimate_static_effect(
                 &estimator_spec,
-                &data_est,
-                &estimand_est,
-                &query_est,
+                StaticEstimateInput {
+                    data: &data_est,
+                    estimand: &estimand_est,
+                    query: &query_est,
+                    // Point stage: no bootstrap.
+                    bootstrap_replicates: 0,
+                    overlap_policy: self.overlap_policy,
+                    population_registry: self.population_registry.as_ref(),
+                },
                 assumptions,
-                0, // point stage: no bootstrap
-                self.overlap_policy,
-                self.population_registry.as_ref(),
                 ctx,
                 &mut estimate_ws,
             )?
@@ -530,13 +533,15 @@ impl super::Study {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
                 let filled = crate::strategy_table::attach_static_bootstrap(
                     estimator_id,
-                    &data_est,
-                    &estimand_est,
-                    &query_est,
+                    StaticEstimateInput {
+                        data: &data_est,
+                        estimand: &estimand_est,
+                        query: &query_est,
+                        bootstrap_replicates: self.bootstrap_replicates,
+                        overlap_policy: self.overlap_policy,
+                        population_registry: self.population_registry.as_ref(),
+                    },
                     point,
-                    self.bootstrap_replicates,
-                    self.overlap_policy,
-                    self.population_registry.as_ref(),
                     ctx,
                     &mut estimate_ws,
                 )?;
@@ -596,9 +601,7 @@ impl super::Study {
         extra_diagnostics.extend(na_diagnostics);
         let estimate = super::super::helpers::attach_average_functional_grid(
             estimate,
-            data,
-            query,
-            &estimand,
+            super::super::helpers::AverageTarget { data: data, query: query, estimand: &estimand },
             &mut extra_diagnostics,
             estimator_id,
             self,
@@ -1552,22 +1555,22 @@ impl super::Study {
             self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id));
         let estimate = estimate_static_effect(
             &spec,
-            &data_est,
-            &estimand,
-            query,
+            StaticEstimateInput {
+                data: &data_est,
+                estimand: &estimand,
+                query: query,
+                bootstrap_replicates: self.bootstrap_replicates,
+                overlap_policy: self.overlap_policy,
+                population_registry: self.population_registry.as_ref(),
+            },
             identification.required_assumptions.clone(),
-            self.bootstrap_replicates,
-            self.overlap_policy,
-            self.population_registry.as_ref(),
             ctx,
             &mut ws,
         )?;
         let mut extra_diagnostics = Vec::new();
         let estimate = super::super::helpers::attach_average_functional_grid(
             estimate,
-            data,
-            query,
-            &estimand,
+            super::super::helpers::AverageTarget { data: data, query: query, estimand: &estimand },
             &mut extra_diagnostics,
             estimator_id,
             self,
@@ -1662,13 +1665,15 @@ impl super::Study {
             let mut ws = StaticEstimateWorkspaces::default();
             let estimate = estimate_static_effect(
                 &spec,
-                &data_est,
-                estimand,
-                query,
+                StaticEstimateInput {
+                    data: &data_est,
+                    estimand: estimand,
+                    query: query,
+                    bootstrap_replicates: self.bootstrap_replicates,
+                    overlap_policy: self.overlap_policy,
+                    population_registry: self.population_registry.as_ref(),
+                },
                 identification.required_assumptions.clone(),
-                self.bootstrap_replicates,
-                self.overlap_policy,
-                self.population_registry.as_ref(),
                 ctx,
                 &mut ws,
             )?;

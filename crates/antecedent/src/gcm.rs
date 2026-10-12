@@ -806,11 +806,34 @@ pub fn attribute_paths(
     path_decompose(model, sources, outcome, max_paths, max_len, ctx).map_err(map_attr)
 }
 
-/// Feature relevance under interventions.
+/// Feature relevance under interventions, with the sampling options as one value.
 ///
 /// # Errors
 ///
 /// Sampling failures.
+pub fn attribute_feature_relevance_with(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    outcome: VariableId,
+    features: &[VariableId],
+    options: &antecedent_attribution::FeatureRelevanceOptions,
+    ctx: &ExecutionContext,
+) -> Result<Vec<FeatureRelevance>, CausalError> {
+    feature_relevance(model, data, outcome, features, options, ctx).map_err(map_attr)
+}
+
+/// Feature relevance under interventions.
+///
+/// Positional form of [`attribute_feature_relevance_with`], kept for the Python binding's
+/// keyword arguments.
+///
+/// # Errors
+///
+/// Sampling failures.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "positional form of attribute_feature_relevance_with, which the Python binding calls with its keyword arguments"
+)]
 pub fn attribute_feature_relevance(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -823,7 +846,7 @@ pub fn attribute_feature_relevance(
 ) -> Result<Vec<FeatureRelevance>, CausalError> {
     let options =
         antecedent_attribution::FeatureRelevanceOptions { delta, n_samples, max_features };
-    feature_relevance(model, data, outcome, features, &options, ctx).map_err(map_attr)
+    attribute_feature_relevance_with(model, data, outcome, features, &options, ctx)
 }
 
 /// Rank root causes from an attribution result.

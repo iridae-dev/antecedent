@@ -16,12 +16,13 @@ use super::{
     Pag, PhysicalExecutionPlan, PosteriorMassSummary, PosteriorPredictiveCheck,
     PredictiveCheckReport, PreparedBayesianProblem, PriorPredictiveCheck, PriorSet, RefutationRun,
     RefuteSuite, ResponseValue, SUSTAINED_LINEAR_SEM, StaticAteCompileInput,
-    StaticCpdagResponseCompileInput, StaticEstimateWorkspaces, StaticPagResponseCompileInput,
-    StaticResponseCompileInput, Strategy, StructuralAggregationPolicy, StudyResult, TableView,
-    TabularData, TemporalAtomDesign, TemporalDag, TemporalEffectQuery, TemporalLinearAdjustment,
-    TemporalMediationEstimate, TemporalRefutation, TimeSeriesData, ValidationSink, ValidationSuite,
-    ValidatorId, VariableId, WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp,
-    bayesian_temporal_gcomp, compile_logical_static_ate, compile_logical_static_cpdag_response,
+    StaticCpdagResponseCompileInput, StaticEstimateInput, StaticEstimateWorkspaces,
+    StaticPagResponseCompileInput, StaticResponseCompileInput, Strategy,
+    StructuralAggregationPolicy, StudyResult, TableView, TabularData, TemporalAtomDesign,
+    TemporalDag, TemporalEffectQuery, TemporalLinearAdjustment, TemporalMediationEstimate,
+    TemporalRefutation, TimeSeriesData, ValidationSink, ValidationSuite, ValidatorId, VariableId,
+    WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp,
+    compile_logical_static_ate, compile_logical_static_cpdag_response,
     compile_logical_static_pag_response, compile_logical_static_response,
     compile_logical_temporal_effect_classified, compile_logical_temporal_response,
     effect_from_posterior, elapsed_ns, envelope_mass_diagnostic, envelope_refute_atoms,
@@ -1324,17 +1325,21 @@ impl super::Study {
             } else {
                 estimate_static_effect(
                     &case_spec,
-                    data,
-                    &atom.estimand,
-                    query,
+                    StaticEstimateInput {
+                        data: data,
+                        estimand: &atom.estimand,
+                        query: query,
+                        bootstrap_replicates: checked
+                            .map_or(self.bootstrap_replicates, |operation| {
+                                operation.bootstrap_replicates()
+                            }),
+                        overlap_policy: checked
+                            .map_or(self.overlap_policy, |operation| Some(operation.overlap())),
+                        population_registry: checked
+                            .and_then(|operation| operation.population_registry())
+                            .or(self.population_registry.as_ref()),
+                    },
                     atom.identification.required_assumptions.clone(),
-                    checked.map_or(self.bootstrap_replicates, |operation| {
-                        operation.bootstrap_replicates()
-                    }),
-                    checked.map_or(self.overlap_policy, |operation| Some(operation.overlap())),
-                    checked
-                        .and_then(|operation| operation.population_registry())
-                        .or(self.population_registry.as_ref()),
                     inner,
                     &mut case_ws,
                 )
@@ -3149,13 +3154,15 @@ fn static_envelope_atom_correlation(
             let mut ws = StaticEstimateWorkspaces::default();
             estimate_static_effect(
                 &crate::estimator_spec::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
-                data,
-                &atom.estimand,
-                query,
+                StaticEstimateInput {
+                    data: data,
+                    estimand: &atom.estimand,
+                    query: query,
+                    bootstrap_replicates: 0,
+                    overlap_policy: None,
+                    population_registry: None,
+                },
                 antecedent_core::AssumptionSet::default(),
-                0,
-                None,
-                None,
                 ctx,
                 &mut ws,
             )

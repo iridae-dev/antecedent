@@ -98,7 +98,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
 #[test]
 fn propensity_workspace_reused_estimate_into_overlap() {
     use antecedent::strategy_table::{
-        EstimatorId, StaticEstimateWorkspaces, estimate_static_effect,
+        EstimatorId, StaticEstimateInput, StaticEstimateWorkspaces, estimate_static_effect,
     };
     use antecedent::{RefuteSuite, Study};
     use antecedent_estimate::OverlapPolicy;
@@ -121,13 +121,15 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let mut ws = StaticEstimateWorkspaces::default();
     let _ = estimate_static_effect(
         &EstimatorSpec::Default(EstimatorId::PropensityWeighting),
-        &data,
-        &estimand,
-        &query,
+        StaticEstimateInput {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            bootstrap_replicates: 10,
+            overlap_policy: Some(OverlapPolicy::require_diagnostics()),
+            population_registry: None,
+        },
         estimate.as_effect().unwrap().provenance.assumptions.clone(),
-        10,
-        Some(OverlapPolicy::require_diagnostics()),
-        None,
         &ExecutionContext::for_tests(3),
         &mut ws,
     )
@@ -159,13 +161,15 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let mut ws2 = StaticEstimateWorkspaces::default();
     let aipw = estimate_static_effect(
         &EstimatorSpec::Default(EstimatorId::Aipw),
-        &data,
-        &estimand,
-        &query,
+        StaticEstimateInput {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            bootstrap_replicates: 0,
+            overlap_policy: None,
+            population_registry: None,
+        },
         estimate.as_effect().unwrap().provenance.assumptions.clone(),
-        0,
-        None,
-        None,
         &ExecutionContext::for_tests(4),
         &mut ws2,
     )
