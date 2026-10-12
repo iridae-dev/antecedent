@@ -24,14 +24,12 @@ use std::sync::Arc;
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CancellationToken, ExecutionContext, is_blank};
-use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use crate::candidate::CandidateDesign;
-use crate::decision::{DecisionProblem, DecisionProblemId, DecisionTable, evaluate_decision};
+use crate::decision::{DecisionProblem, DecisionTable, evaluate_decision};
 use crate::error::DesignError;
-use crate::objective::DesignObjective;
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
-use crate::ranker::{DecisionRegistry, DesignEvaluationContext, DesignRankConfig, DesignRanker};
+use crate::ranker::{DesignRankConfig, DesignRanker};
 use crate::result::ScoreEvaluation;
 use crate::signal::{
     ExternalDecisionValues, PreparedLaw, SignalError, SignalProvider, SignalReceipt,
@@ -469,7 +467,7 @@ struct Evaluated {
     receipt: SignalReceipt,
 }
 
-fn likelihood_value<A: Clone>(
+fn likelihood_value<A>(
     problem: &DecisionProblem<A, f64>,
     prior: &DecisionPrior<f64>,
     signal: &Arc<dyn DecisionSignal<f64>>,
@@ -477,58 +475,34 @@ fn likelihood_value<A: Clone>(
     request: &EvsiRequest,
     ctx: &ExecutionContext,
 ) -> Result<(f64, IntegrationReport, f64, f64, usize), EvsiError> {
-    let registry = DecisionRegistry {
-        problems: vec![Some(DecisionProblem {
-            actions: problem.actions.clone(),
-            utility: Arc::clone(&problem.utility),
-            constraints: problem.constraints.clone(),
-            chance_threshold: problem.chance_threshold,
-        })],
-        prior: prior.clone(),
-        signal: Arc::clone(signal),
-    };
-    let graphs =
-        WeightedGraphSamples::new(vec![1.0], vec![GraphIdentFlag::Identified], vec![0_u64])
-            .map_err(|e| DesignError::Prob(format!("{e:?}")))?;
-    let eval = DesignEvaluationContext {
-        graphs: &graphs,
-        effect_width: None,
-        model_loglik: None,
-        decisions: Some(&registry),
-        query_id_unlock: None,
-        env_id_unlock: None,
-        identified_under_intervention: None,
-        graph_features: None,
-    };
-    let ranking = DesignRanker::new().with_config(request.rank_config.clone()).rank(
-        &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
-        std::slice::from_ref(&candidate.design),
-        &eval,
-        ctx,
-    )?;
-    let top =
-        ranking.ranked.first().ok_or_else(|| EvsiError::Unscored(candidate.semantic_id.clone()))?;
+    let ranker = DesignRanker::new().with_config(request.rank_config.clone());
+    ranker.validate_config()?;
     let analysis = PreposteriorAnalysis::new(problem, prior, signal.as_ref())?;
-    let integration = match top.evaluation {
+    let scored = ranker
+        .score_decision_candidate(&analysis, &candidate.design, ctx)?
+        .ok_or_else(|| EvsiError::Unscored(candidate.semantic_id.clone()))?;
+    // One candidate has no pair to resolve, so the adaptive loop always stops on its own
+    // minimum-batch test.
+    let integration = match scored.evaluation {
         ScoreEvaluation::Exact => IntegrationReport {
             method: IntegrationMethod::Exact,
             replicates: 0,
             stderr: 0.0,
             ess: None,
             converged: true,
-            early_stopped: ranking.early_stopped,
+            early_stopped: true,
         },
         ScoreEvaluation::MonteCarlo => IntegrationReport {
             method: IntegrationMethod::MonteCarlo,
-            replicates: top.monte_carlo.samples,
-            stderr: top.monte_carlo.stderr,
-            ess: Some(top.monte_carlo.samples as f64),
-            converged: top.monte_carlo.stderr <= request.mc_error_tolerance,
-            early_stopped: ranking.early_stopped,
+            replicates: scored.samples,
+            stderr: scored.stderr,
+            ess: Some(scored.samples as f64),
+            converged: scored.stderr <= request.mc_error_tolerance,
+            early_stopped: true,
         },
     };
     Ok((
-        top.score,
+        scored.score,
         integration,
         analysis.expected_value_of_perfect_information(),
         analysis.prior_expected_utility(),

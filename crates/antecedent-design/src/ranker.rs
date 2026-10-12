@@ -28,6 +28,9 @@ use crate::objective::DesignObjective;
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
 use crate::result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
 
+/// Stream index of a ranking's shared CRN draws within [`StreamDomain::Design`].
+const RANK_STREAM: u64 = 0xD351_0611;
+
 /// Hard resource limits applied before scoring (violations are recorded, not silent).
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DesignConstraints {
@@ -305,6 +308,11 @@ impl DesignRanker {
         if ctx_eval.graphs.n_samples == 0 {
             return Err(DesignError::EmptyPosterior);
         }
+        self.validate_config()
+    }
+
+    /// Reject a batch schedule that cannot draw anything.
+    pub(crate) fn validate_config(&self) -> Result<(), DesignError> {
         if self.config.max_batches == 0 || self.config.batch_size == 0 {
             return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
         }
@@ -357,7 +365,7 @@ impl DesignRanker {
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();
         let mut early_stopped = false;
-        let mut rng = ctx.rng.stream_for(StreamDomain::Design, 0xD351_0611);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Design, RANK_STREAM);
         // Per-ranking constants of the scoring channels, built once rather than per draw.
         let channels = ScoringChannels::new(objective, ctx_eval);
 
@@ -413,6 +421,61 @@ impl DesignRanker {
         }
 
         Ok(ScoringRun { draws, n_samples, budget, early_stopped })
+    }
+
+    /// The score [`Self::rank`] assigns one candidate under a decision objective, computed
+    /// from an analysis the caller already prepared.
+    ///
+    /// Draws the same CRN stream and takes the same adaptive batches as a one-candidate
+    /// `rank` over a single-graph posterior, so the numbers are identical; it only skips
+    /// the graph-posterior scaffolding and the second preparation of the analysis.
+    ///
+    /// Returns `None` when the signal declares no sample size for the candidate. The caller
+    /// has run [`Self::validate_config`].
+    ///
+    /// # Errors
+    ///
+    /// A failing signal likelihood.
+    pub(crate) fn score_decision_candidate<O>(
+        &self,
+        analysis: &PreposteriorAnalysis<'_, O>,
+        candidate: &CandidateDesign,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<DecisionCandidateScore>, DesignError> {
+        let Some(n) = analysis.signal().sample_size(candidate) else {
+            return Ok(None);
+        };
+        if let Some(exact) = analysis.exact_evsi(n)? {
+            return Ok(Some(DecisionCandidateScore {
+                score: exact,
+                evaluation: ScoreEvaluation::Exact,
+                stderr: 0.0,
+                samples: 1,
+            }));
+        }
+        let mut rng = ctx.rng.stream_for(StreamDomain::Design, RANK_STREAM);
+        let min_batches = self.config.min_batches.max(1);
+        let max_batches = self.config.max_batches.max(min_batches);
+        let mut acc = Welford::new();
+        for batch_i in 0..max_batches {
+            for _ in 0..self.config.batch_size {
+                // One posterior graph: the categorical draw still advances the stream.
+                sample_categorical(&mut rng, &[1.0]).ok_or(DesignError::EmptyPosterior)?;
+                let crn_seed = rng.next_u64();
+                acc.push(analysis.sample_evsi(n, &mut CausalRng::from_seed(crn_seed))?);
+            }
+            // A single candidate has no pair to resolve: the stopping test passes as soon
+            // as the minimum batches are in.
+            if batch_i + 1 >= min_batches || ctx.cancellation.is_cancelled() {
+                break;
+            }
+        }
+        Ok(Some(DecisionCandidateScore {
+            score: acc.mean(),
+            evaluation: ScoreEvaluation::MonteCarlo,
+            stderr: acc.stderr_of_mean(),
+            samples: acc.count(),
+        }))
     }
 
     /// Turn per-candidate draws into a sorted, CI-annotated [`DesignRanking`].
@@ -1182,6 +1245,16 @@ fn unmapped_decision_candidate<O>(
             signal.name()
         )),
     })
+}
+
+/// One candidate's decision-objective score (see
+/// [`DesignRanker::score_decision_candidate`]).
+pub(crate) struct DecisionCandidateScore {
+    pub score: f64,
+    pub evaluation: ScoreEvaluation,
+    pub stderr: f64,
+    /// Monte Carlo replicates drawn (one for an exact score).
+    pub samples: u64,
 }
 
 /// Per-candidate preposterior scoring: the design's sample size and, where
@@ -2279,5 +2352,46 @@ mod tests {
             .expect("rank");
         assert_eq!(ranking.budget.samples, 16);
         assert_eq!(ranking.budget.evaluations, 32);
+    }
+
+    /// The direct single-candidate score is exactly what a one-candidate `rank` over a
+    /// one-graph posterior returns, for exact and Monte Carlo signals alike.
+    #[test]
+    fn direct_decision_score_matches_a_one_candidate_rank() {
+        let single =
+            WeightedGraphSamples::new(vec![1.0], vec![GraphIdentFlag::Identified], vec![0_u64])
+                .unwrap();
+        let signals: [Arc<dyn crate::preposterior::DecisionSignal<f64>>; 2] = [
+            Arc::new(crate::preposterior::BinomialSignal),
+            Arc::new(crate::preposterior::GaussianMeanSignal::new(0.25).unwrap()),
+        ];
+        for signal in signals {
+            let registry = coin_registry(signal);
+            let candidate = sampling(6, 0);
+            let ctx = ExecutionContext::for_tests(17);
+            let ranking = fixed_ranker()
+                .rank(
+                    &DesignObjective::ReduceDecisionRegret {
+                        decision: DecisionProblemId::from_raw(0),
+                    },
+                    std::slice::from_ref(&candidate),
+                    &decision_eval(&single, &registry),
+                    &ctx,
+                )
+                .expect("rank");
+            let top = &ranking.ranked[0];
+            let problem = registry.problems[0].as_ref().unwrap();
+            let analysis =
+                PreposteriorAnalysis::new(problem, &registry.prior, registry.signal.as_ref())
+                    .unwrap();
+            let direct = fixed_ranker()
+                .score_decision_candidate(&analysis, &candidate, &ctx)
+                .unwrap()
+                .expect("licensed");
+            assert_eq!(direct.score.to_bits(), top.score.to_bits());
+            assert_eq!(direct.stderr.to_bits(), top.monte_carlo.stderr.to_bits());
+            assert_eq!(direct.evaluation, top.evaluation);
+            assert_eq!(direct.samples, top.monte_carlo.samples);
+        }
     }
 }
