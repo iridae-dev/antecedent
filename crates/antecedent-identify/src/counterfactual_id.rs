@@ -252,11 +252,32 @@ impl CounterfactualIdRefusal {
 /// The graph and the variable levels a decision is made on, canonical: edges
 /// sorted and deduplicated, bidirected edges oriented `(low, high)`, levels as
 /// IEEE bits in the declared order (`-0.0` is `0.0`).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct CounterfactualIdProblem {
     levels: Vec<Vec<u64>>,
     directed: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
+    /// Kahn order of `directed`. Omitted from [`Eq`] and [`Hash`], which stay the
+    /// edge and level identity the canonical text already records.
+    topo: Vec<u32>,
+}
+
+impl PartialEq for CounterfactualIdProblem {
+    fn eq(&self, other: &Self) -> bool {
+        self.levels == other.levels
+            && self.directed == other.directed
+            && self.bidirected == other.bidirected
+    }
+}
+
+impl Eq for CounterfactualIdProblem {}
+
+impl std::hash::Hash for CounterfactualIdProblem {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.levels.hash(state);
+        self.directed.hash(state);
+        self.bidirected.hash(state);
+    }
 }
 
 impl CounterfactualIdProblem {
@@ -319,11 +340,11 @@ impl CounterfactualIdProblem {
             bidirected.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
         bidirected.sort_unstable();
         bidirected.dedup();
-        let problem = Self { levels: canonical_levels, directed, bidirected };
-        if problem.topological_order().is_none() {
+        let Some(topo) = crate::cross_world::topological_order(canonical_levels.len(), &directed)
+        else {
             return Err(CounterfactualIdRefusal::graph("the directed edges contain a cycle"));
-        }
-        Ok(problem)
+        };
+        Ok(Self { levels: canonical_levels, directed, bidirected, topo })
     }
 
     /// The problem of an ADMG whose dense node `i` is the static variable `i`.
@@ -416,8 +437,8 @@ impl CounterfactualIdProblem {
         self.directed.iter().filter(|e| e.1 == variable).map(|e| e.0).collect()
     }
 
-    fn topological_order(&self) -> Option<Vec<u32>> {
-        crate::cross_world::topological_order(self.levels.len(), &self.directed)
+    fn topological_order(&self) -> &[u32] {
+        &self.topo
     }
 
     fn confounded(&self, a: u32, b: u32) -> bool {
@@ -890,7 +911,6 @@ fn decide_under(
             }
             parents
         },
-        topo: problem.topological_order().unwrap_or_default(),
         search,
         next_symbol: 0,
         retained_bytes: 0,
@@ -1114,12 +1134,14 @@ struct CgNode {
 struct Cg {
     nodes: Vec<CgNode>,
     bidirected: Vec<Vec<usize>>,
+    /// Bidirected components, computed once. [`Self::record`] clones this into the artifact.
+    districts: Vec<Vec<usize>>,
 }
 
 impl Cg {
     /// Bidirected-connected components, each ascending, ordered by smallest member.
-    fn districts(&self) -> Vec<Vec<usize>> {
-        components_by(self.nodes.len(), |i| self.bidirected[i].iter().copied())
+    fn districts(&self) -> &[Vec<usize>] {
+        &self.districts
     }
 
     /// Strict ancestors of `node` (the graph is acyclic).
@@ -1147,7 +1169,7 @@ impl Cg {
                 })
                 .collect(),
             bidirected,
-            districts: self.districts(),
+            districts: self.districts.clone(),
         }
     }
 }
@@ -1156,7 +1178,6 @@ struct Engine<'p, 'c> {
     problem: &'p CounterfactualIdProblem,
     prepared: PreparedAdmg,
     parents: Vec<Vec<u32>>,
-    topo: Vec<u32>,
     search: SharedSearch<'c>,
     next_symbol: u32,
     /// Live bytes of the finished terms (their arenas), charged with every step.
@@ -1211,9 +1232,8 @@ impl Engine<'_, '_> {
         if depth == 0 && self.first_graph.is_none() {
             self.first_graph = Some(cg.record());
         }
-        let districts = cg.districts();
-        if districts.len() > 1 {
-            return self.line_five(&cg, &districts, depth);
+        if cg.districts().len() > 1 {
+            return self.line_five(&cg, cg.districts(), depth);
         }
         self.single_district(&cg, depth)
     }
@@ -1490,7 +1510,8 @@ impl Engine<'_, '_> {
     fn make_cg(&mut self, event: &[Atom], depth: usize) -> Result<Option<Cg>, Halt> {
         // Disjoint borrows: the budget is charged while the graph's parents and
         // order are read, so neither is copied per call.
-        let Engine { problem, parents: graph_parents, topo, search, retained_bytes, .. } = self;
+        let Engine { problem, parents: graph_parents, search, retained_bytes, .. } = self;
+        let topo = problem.topological_order();
         let problem: &CounterfactualIdProblem = problem;
         let n = problem.node_count();
         let worlds: Vec<BTreeMap<u32, CfValue>> =
@@ -1648,7 +1669,8 @@ impl Engine<'_, '_> {
                 }
             }
         }
-        Ok(Some(Cg { nodes, bidirected }))
+        let districts = components_by(nodes.len(), |i| bidirected[i].iter().copied());
+        Ok(Some(Cg { nodes, bidirected, districts }))
     }
 }
 
@@ -1730,7 +1752,6 @@ mod tests {
             parents: (0..problem.node_count())
                 .map(|v| problem.parents(u32::try_from(v).unwrap()))
                 .collect(),
-            topo: problem.topological_order().unwrap(),
             search: SharedSearch::new(budget),
             next_symbol: 0,
             retained_bytes: 0,

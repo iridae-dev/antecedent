@@ -222,10 +222,38 @@ pub(crate) fn kahn_order(
     (order.len() == n).then_some(order)
 }
 
-/// Whether the directed graph is acyclic (Kahn count).
+/// Whether the directed graph is acyclic (Kahn count, without retaining the order).
 #[must_use]
 pub fn is_dag(parents: &[Vec<DenseNodeId>], children: &[Vec<DenseNodeId>]) -> bool {
-    kahn_order(parents, children).is_some()
+    if parents.len() != children.len() {
+        return false;
+    }
+    let n = parents.len();
+    let mut indeg = vec![0u32; n];
+    for (i, p) in parents.iter().enumerate() {
+        let Ok(degree) = u32::try_from(p.len()) else {
+            return false;
+        };
+        indeg[i] = degree;
+    }
+    let mut ready: Vec<DenseNodeId> = indeg
+        .iter()
+        .enumerate()
+        .filter(|&(_, &degree)| degree == 0)
+        .map(|(i, _)| DenseNodeId::from_index(i))
+        .collect();
+    let mut placed = 0usize;
+    while let Some(node) = ready.pop() {
+        placed += 1;
+        for &child in &children[node.as_usize()] {
+            let left = &mut indeg[child.as_usize()];
+            *left -= 1;
+            if *left == 0 {
+                ready.push(child);
+            }
+        }
+    }
+    placed == n
 }
 
 #[cfg(test)]
