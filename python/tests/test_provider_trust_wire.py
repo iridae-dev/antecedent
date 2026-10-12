@@ -56,7 +56,7 @@ def test_aliases_parse_to_the_canonical_wire() -> None:
         for alias in aliases:
             assert ProviderTrust(alias) is ProviderTrust(canonical)
             assert ProviderTrust(alias).value == canonical
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not a valid ProviderTrust"):
         ProviderTrust("native")
 
 

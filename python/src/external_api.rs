@@ -117,12 +117,12 @@ impl PyExternalColumnClaimArtifact {
     }
 
     /// Whether `values` is exactly the column this claim was bound to.
-    fn covers(&self, values: PyReadonlyArray1<'_, f64>) -> PyResult<bool> {
+    fn covers(&self, values: PyReadonlyArray1<'_, f64>) -> bool {
         let view = values.as_array();
-        Ok(match view.as_slice() {
+        match view.as_slice() {
             Some(slice) => self.artifact.covers(slice),
             None => self.artifact.covers(&view.to_vec()),
-        })
+        }
     }
 
     fn export<'py>(&self, py: Python<'py>, artifact_id: &str) -> PyResult<Bound<'py, PyBytes>> {

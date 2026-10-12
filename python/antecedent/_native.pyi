@@ -5780,6 +5780,7 @@ def consume_smoothed_dose(
     max_memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+
 class ProviderVerificationReceipt:
     @staticmethod
     def verify(requests_json: str) -> tuple[ProviderVerificationReceipt | None, str | None]: ...
