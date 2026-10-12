@@ -228,7 +228,7 @@ impl<'a> SeriesCall<'a> {
         }
     }
 
-    /// The study's TemporalDag, or `lost` when it has none.
+    /// The study's `TemporalDag`, or `lost` when it has none.
     pub(super) fn temporal_dag(
         &self,
         lost: SeriesRefusal,

@@ -288,50 +288,6 @@ impl RefutationRun<'_> {
     }
 }
 
-/// Positional form of [`RefutationRun::reports`], kept for the sealed-operation
-/// call sites under `prepared/` until that module is restructured onto the struct.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "positional shim over RefutationRun for the prepared/ call sites that have not moved yet"
-)]
-pub(crate) fn run_refuters(
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
-    estimate: &EffectEstimate,
-    workspace: &mut EstimationWorkspace,
-    propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
-    ctx: &ExecutionContext,
-    suite: RefuteSuite,
-    estimator: &str,
-    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
-    temporal: Option<antecedent_validate::TemporalRefitContext<'_>>,
-) -> Result<(Vec<RefutationReport>, Vec<Diagnostic>), CausalError> {
-    RefutationRun { data, estimand, query, estimate, suite, estimator, custom, temporal }
-        .reports(workspace, propensity, ctx)
-}
-
-/// Positional form of [`RefutationRun::plugin_level`], kept for the sealed-operation
-/// call sites under `prepared/` until that module is restructured onto the struct.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "positional shim over RefutationRun for the prepared/ call sites that have not moved yet"
-)]
-pub(crate) fn run_plugin_level_refuters(
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
-    estimate: &EffectEstimate,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-    suite: RefuteSuite,
-    estimator: &str,
-    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
-) -> Result<(Vec<RefutationReport>, Vec<Diagnostic>), CausalError> {
-    RefutationRun { data, estimand, query, estimate, suite, estimator, custom, temporal: None }
-        .plugin_level(workspace, ctx)
-}
-
 pub(crate) fn effect_from_posterior(
     posterior: &CausalPosterior,
 ) -> Result<EffectEstimate, CausalError> {

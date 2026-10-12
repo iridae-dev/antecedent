@@ -65,7 +65,7 @@ pub(in crate::analysis) fn conditional_class_proof_is_complete<G>(
 /// Prepare-time TemporalCpdag/Pag envelope (completions + unfold indexers).
 #[derive(Clone, Debug)]
 pub(crate) struct CachedTemporalClassIdentification {
-    /// Generalized-adjustment envelope over TemporalDag completions.
+    /// Generalized-adjustment envelope over `TemporalDag` completions.
     pub envelope: Arc<antecedent_identify::TemporalClassEnvelope>,
     /// Functional-specific certificates for every requested response or mediation horizon.
     pub by_horizon: Vec<(u32, Arc<antecedent_identify::TemporalClassEnvelope>)>,

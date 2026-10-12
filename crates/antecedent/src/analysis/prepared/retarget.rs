@@ -414,19 +414,14 @@ impl PreparedStudy {
                     identification_status: cache.identification.status,
                     estimate: antecedent_core::ResponseIdentification::PointIdentified(
                         antecedent_core::ResponseValue::Scalar(
-                            result
-                                .estimate
-                                .as_effect()
-                                .map(|effect| effect.ate)
-                                .unwrap_or(f64::NAN),
+                            result.estimate.as_effect().map_or(f64::NAN, |effect| effect.ate),
                         ),
                     ),
                     uncertainty: antecedent_core::ResponseUncertainty::Scalar {
                         standard_error: result
                             .estimate
                             .as_effect()
-                            .map(|effect| effect.se_analytic())
-                            .unwrap_or(f64::NAN),
+                            .map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
                         lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
                             effect.ate
                                 - crate::result::reported_se_interval_z() * effect.se_analytic()

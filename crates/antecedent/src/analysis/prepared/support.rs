@@ -147,8 +147,6 @@ pub(super) fn overlay_prepared_score_functional(
     Ok(())
 }
 
-/// Identification schedule of a sequence plan: `(variable, lag, optional level)` per step.
-
 pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
         // Refuse here what every estimate click would refuse, before the

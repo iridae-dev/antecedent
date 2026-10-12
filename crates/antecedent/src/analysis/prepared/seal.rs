@@ -359,7 +359,7 @@ impl Study {
     }
 
     /// Seal a temporal graph-posterior response over its frozen atoms and
-    /// per-atom proofs (TemporalDag, TemporalCpdag, or TemporalPag atoms).
+    /// per-atom proofs (`TemporalDag`, `TemporalCpdag`, or `TemporalPag` atoms).
     pub(super) fn seal_temporal_graph_posterior_response(
         analysis: &Study,
         plan: &Arc<PhysicalExecutionPlan>,

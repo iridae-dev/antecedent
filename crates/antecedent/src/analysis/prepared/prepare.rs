@@ -36,7 +36,7 @@ impl Study {
     /// - tabular [`CausalQuery::Response`] and [`CausalQuery::ConditionalEffect`]
     ///   on a supplied [`GraphClass::Dag`], [`GraphClass::Cpdag`],
     ///   [`GraphClass::Pag`], or [`GraphClass::Admg`] (joint Response also on a
-    ///   CoDetermined tier closure)
+    ///   `CoDetermined` tier closure)
     /// - tabular [`CausalQuery::Distribution`] on a supplied [`GraphClass::Dag`]
     ///   or [`GraphClass::Admg`] (ADMG: unconditional, validation none)
     /// - tabular [`CausalQuery::PathSpecific`], static [`CausalQuery::Mediation`],
@@ -50,8 +50,8 @@ impl Study {
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step or
     ///   multi-step Sustained) on a supplied DBN graph posterior
     /// - series temporal [`CausalQuery::Response`] on a supplied DBN graph
-    ///   posterior (TemporalDag atoms; MeanCurve none, one-coordinate
-    ///   InterventionResponse none/cheap/full)
+    ///   posterior (`TemporalDag` atoms; `MeanCurve` none, one-coordinate
+    ///   `InterventionResponse` none/cheap/full)
     /// - scalar-horizon series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
     ///   supplied [`GraphClass::TemporalDag`] or [`GraphClass::TemporalCpdag`]
     ///   (horizon-specific `I(h)`)
@@ -392,11 +392,11 @@ impl Study {
             }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
-                    self.prepare_static_identification(&plan)?.map(Arc::new);
+                    self.prepare_static_identification(plan)?.map(Arc::new);
                 analysis.pag_identification_cache =
-                    self.prepare_pag_identification(&plan)?.map(Arc::new);
+                    self.prepare_pag_identification(plan)?.map(Arc::new);
                 analysis.cpdag_identification_cache =
-                    self.prepare_cpdag_identification(&plan)?.map(Arc::new);
+                    self.prepare_cpdag_identification(plan)?.map(Arc::new);
             }
             (
                 DataInput::Panel(_),
@@ -417,7 +417,7 @@ impl Study {
                 None,
             ) => {
                 analysis.identification_cache =
-                    self.prepare_static_identification(&plan)?.map(Arc::new);
+                    self.prepare_static_identification(plan)?.map(Arc::new);
             }
             (_, _, None) => {
                 analysis.temporal_identification_cache =

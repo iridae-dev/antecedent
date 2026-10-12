@@ -594,7 +594,7 @@ impl PreparedStudy {
         Arc::make_mut(&mut self.analysis.config).stage_sink = sink;
     }
 
-    /// Whether estimates of this handle stream identify → estimate_point →
+    /// Whether estimates of this handle stream identify → `estimate_point` →
     /// uncertainty → validate stage payloads.
     ///
     /// Stages describe one identification and one scalar effect estimate. They

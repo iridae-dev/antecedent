@@ -9,7 +9,7 @@ use super::{
 };
 use crate::analysis::builder::{DataInput, RefuteSuite};
 use crate::analysis::execute::Study;
-use crate::analysis::helpers::{project_for_ate_estimate, run_refuters};
+use crate::analysis::helpers::{RefutationRun, project_for_ate_estimate};
 use crate::analysis::route_guards::series_input;
 use crate::analysis::stage::{STAGE_VALIDATE, StageClock};
 use crate::error::CausalError;
@@ -199,7 +199,7 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// Schema mismatch, missing AverageEffect query, cancel, or validator failures.
+    /// Schema mismatch, missing `AverageEffect` query, cancel, or validator failures.
     pub fn refute(
         &self,
         prior: &StudyResult,
@@ -309,19 +309,17 @@ impl PreparedStudy {
         let effect = prior.estimate.as_effect().ok_or_else(|| CausalError::Compile {
             message: "second-click refuters require an effect estimate".into(),
         })?;
-        let (reports, na_diagnostics) = run_refuters(
-            &data_est,
-            &estimand_est,
-            &query_est,
-            effect,
-            &mut workspace,
-            None,
-            ctx,
+        let (reports, na_diagnostics) = RefutationRun {
+            data: &data_est,
+            estimand: &estimand_est,
+            query: &query_est,
+            estimate: effect,
             suite,
-            estimator.as_str(),
-            &self.analysis.custom_validators,
-            None,
-        )?;
+            estimator: estimator.as_str(),
+            custom: &self.analysis.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut workspace, None, ctx)?;
         clock.finish(STAGE_VALIDATE);
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 

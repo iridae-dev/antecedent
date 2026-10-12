@@ -178,12 +178,6 @@ mod graph_posterior_target;
 mod helpers;
 mod identification_cache;
 mod latency;
-#[allow(
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::doc_markdown,
-    reason = "prepared/ is being restructured on its own branch; its items take their own scoped allows or splits there"
-)]
 mod prepared;
 mod route_guards;
 mod stage;

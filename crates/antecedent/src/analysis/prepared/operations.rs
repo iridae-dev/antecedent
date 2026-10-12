@@ -6,8 +6,8 @@ use crate::accepted::GraphClass;
 use crate::analysis::builder::RefuteSuite;
 use crate::analysis::execute::CheckedStaticCommon;
 use crate::analysis::helpers::{
-    AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
-    run_plugin_level_refuters, run_refuters,
+    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, project_for_ate_estimate,
+    provenance_pair,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
@@ -261,19 +261,17 @@ impl CheckedFunctionalEffectOperation {
         let (refutations, extra) = if self.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
-            run_refuters(
+            RefutationRun {
                 data,
-                &self.cache.estimand,
-                &self.query,
-                &estimate,
-                &mut refute_ws,
-                None,
-                ctx,
-                self.refute,
-                self.estimator.as_str(),
-                &[],
-                None,
-            )?
+                estimand: &self.cache.estimand,
+                query: &self.query,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: self.estimator.as_str(),
+                custom: &[],
+                temporal: None,
+            }
+            .reports(&mut refute_ws, None, ctx)?
         };
         diagnostics.extend(extra);
         let n_draws =
@@ -668,17 +666,17 @@ impl CheckedAdmgResponseCurveOperation {
                 OverlapPolicy::ExplicitOverride,
             );
             let mut refute_ws = EstimationWorkspace::default();
-            let (reports, refute_diags) = run_plugin_level_refuters(
+            let (reports, refute_diags) = RefutationRun {
                 data,
-                &first.estimand,
-                &AverageEffectQuery::binary_ate(treatment, outcome),
-                &plugin_estimate,
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                self.estimator.as_str(),
-                &[],
-            )?;
+                estimand: &first.estimand,
+                query: &AverageEffectQuery::binary_ate(treatment, outcome),
+                estimate: &plugin_estimate,
+                suite: self.refute,
+                estimator: self.estimator.as_str(),
+                custom: &[],
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?;
             refutations = reports;
             diagnostics.extend(refute_diags);
         }
@@ -818,7 +816,7 @@ pub(crate) struct CheckedAipwOperation {
     pub(super) query: AverageEffectQuery,
     pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) common: Arc<CheckedStaticCommon>,
-    /// Tier closure used to justify adjustment when this is a CoDetermined route.
+    /// Tier closure used to justify adjustment when this is a `CoDetermined` route.
     pub(super) tiered_background: Option<antecedent_graph::TieredBackground>,
 }
 
@@ -928,19 +926,17 @@ impl CheckedAipwOperation {
             (Vec::new(), Vec::new())
         } else {
             let mut estimate_workspace = EstimationWorkspace::default();
-            let (reports, diagnostics) = run_refuters(
+            let (reports, diagnostics) = RefutationRun {
                 data,
-                &self.cache.estimand,
-                &self.query,
-                &estimate,
-                &mut estimate_workspace,
-                Some(&mut workspace.propensity),
-                ctx,
-                self.refute,
-                self.estimator.as_str(),
-                &[],
-                None,
-            )?;
+                estimand: &self.cache.estimand,
+                query: &self.query,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: self.estimator.as_str(),
+                custom: &[],
+                temporal: None,
+            }
+            .reports(&mut estimate_workspace, Some(&mut workspace.propensity), ctx)?;
             (reports, diagnostics)
         };
         let mut diagnostics = self.cache.identification.diagnostics.clone();
@@ -1318,19 +1314,17 @@ impl CheckedLinearOperation {
             (Vec::new(), Vec::new())
         } else {
             let mut propensity = antecedent_stats::PropensityWorkspace::default();
-            let (reports, diagnostics) = run_refuters(
-                &data_est,
-                &estimand_est,
-                &query_est,
-                &estimate,
-                &mut workspace,
-                Some(&mut propensity),
-                ctx,
-                self.refute,
-                self.estimator.as_str(),
-                &[],
-                None,
-            )?;
+            let (reports, diagnostics) = RefutationRun {
+                data: &data_est,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: self.estimator.as_str(),
+                custom: &[],
+                temporal: None,
+            }
+            .reports(&mut workspace, Some(&mut propensity), ctx)?;
             (reports, diagnostics)
         };
         let mut extra_diagnostics: Vec<antecedent_core::Diagnostic> =

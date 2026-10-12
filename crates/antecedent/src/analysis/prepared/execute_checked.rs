@@ -13,7 +13,7 @@ use crate::analysis::checked_propensity::{
     CheckedPropensityOperation, CheckedPropensityProcedure, CheckedPropensityUncertainty,
 };
 use crate::analysis::helpers::{
-    AssembleArgs, assemble_result, overlap_diagnostic, provenance_pair, run_refuters,
+    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, provenance_pair,
 };
 use crate::analysis::{CheckedConditionalOperation, ConditionalProcedure};
 use crate::error::CausalError;
@@ -515,19 +515,17 @@ impl PreparedStudy {
             } else {
                 let mut workspace = EstimationWorkspace::default();
                 let mut propensity = antecedent_stats::PropensityWorkspace::default();
-                let (reports, diagnostics) = run_refuters(
+                let (reports, diagnostics) = RefutationRun {
                     data,
-                    &estimand,
+                    estimand: &estimand,
                     query,
-                    &estimate,
-                    &mut workspace,
-                    Some(&mut propensity),
-                    ctx,
-                    self.analysis.refute,
-                    estimator_id.as_str(),
-                    &self.analysis.custom_validators,
-                    None,
-                )?;
+                    estimate: &estimate,
+                    suite: self.analysis.refute,
+                    estimator: estimator_id.as_str(),
+                    custom: &self.analysis.custom_validators,
+                    temporal: None,
+                }
+                .reports(&mut workspace, Some(&mut propensity), ctx)?;
                 (reports, diagnostics)
             };
         let mut diagnostics = identification.diagnostics.clone();
@@ -616,19 +614,17 @@ impl PreparedStudy {
             } else {
                 let mut workspace = EstimationWorkspace::default();
                 let mut propensity = antecedent_stats::PropensityWorkspace::default();
-                let (reports, diagnostics) = run_refuters(
+                let (reports, diagnostics) = RefutationRun {
                     data,
-                    metadata.estimand,
-                    metadata.query,
-                    &estimate,
-                    &mut workspace,
-                    Some(&mut propensity),
-                    ctx,
-                    metadata.refute,
-                    metadata.estimator.as_str(),
-                    &[],
-                    None,
-                )?;
+                    estimand: metadata.estimand,
+                    query: metadata.query,
+                    estimate: &estimate,
+                    suite: metadata.refute,
+                    estimator: metadata.estimator.as_str(),
+                    custom: &[],
+                    temporal: None,
+                }
+                .reports(&mut workspace, Some(&mut propensity), ctx)?;
                 (reports, diagnostics)
             };
         let mut diagnostics = metadata.identification.diagnostics.clone();

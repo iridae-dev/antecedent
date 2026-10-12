@@ -497,7 +497,7 @@ impl Study {
         }
     }
 
-    /// Identify once per requested horizon at prepare for temporal response or TemporalEffect.
+    /// Identify once per requested horizon at prepare for temporal response or `TemporalEffect`.
     pub(super) fn prepare_temporal_identification(
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
@@ -631,7 +631,7 @@ impl Study {
         )?))
     }
 
-    /// Cross-fitted AIPW scores of the marginal ATE a DML, DR-Learner or CausalForest plan
+    /// Cross-fitted AIPW scores of the marginal ATE a DML, DR-Learner or `CausalForest` plan
     /// reports (the estimator's own out-of-fold nuisances and fold plan, so a retarget under
     /// uniform weights returns the route's point). `None` where the route keeps no such
     /// table: a partially linear score, trimming, a non-mean functional or a non-`AllObserved`
@@ -867,7 +867,7 @@ impl Study {
                         outcome: *outcome,
                         adjustment: &cache.estimand.adjustment_set,
                         functional: &query.outcome_functional,
-                        continuous: continuous,
+                        continuous,
                     },
                     antecedent_estimate::SharedCellInputs {
                         fold_ids: fold_ids.as_deref(),
