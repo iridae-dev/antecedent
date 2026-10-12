@@ -416,8 +416,6 @@ impl core::clone::Clone for antecedent::result::SurvivalDifferenceBand
 impl core::clone::Clone for antecedent::review::PendingCpdagReview
 impl core::clone::Clone for antecedent::review::PendingGraphReview
 impl core::clone::Clone for antecedent::strategy_table::UnknownStrategy
-impl core::clone::Clone for antecedent::support_matrix_data::LicensedCell
-impl core::clone::Clone for antecedent::support_matrix_data::NaRule
 impl core::cmp::Eq for antecedent::ActionConstraint
 impl core::cmp::Eq for antecedent::ActionStatus
 impl core::cmp::Eq for antecedent::ArmCount
@@ -1168,8 +1166,6 @@ impl core::fmt::Debug for antecedent::result::SurvivalDifferenceBand
 impl core::fmt::Debug for antecedent::review::PendingCpdagReview
 impl core::fmt::Debug for antecedent::review::PendingGraphReview
 impl core::fmt::Debug for antecedent::strategy_table::UnknownStrategy
-impl core::fmt::Debug for antecedent::support_matrix_data::LicensedCell
-impl core::fmt::Debug for antecedent::support_matrix_data::NaRule
 impl core::fmt::Display for antecedent::BatchRetargetError
 impl core::fmt::Display for antecedent::CausalError
 impl core::fmt::Display for antecedent::CompileCause
@@ -1258,8 +1254,6 @@ impl core::marker::Copy for antecedent::cross_world::CrossWorldOptions
 impl core::marker::Copy for antecedent::discovery::GraphMcmcSchedule
 impl core::marker::Copy for antecedent::gcm::NestedOutcomeMechanism
 impl core::marker::Copy for antecedent::result::IntervalBinding
-impl core::marker::Copy for antecedent::support_matrix_data::LicensedCell
-impl core::marker::Copy for antecedent::support_matrix_data::NaRule
 impl core::marker::Freeze for antecedent::ActionConstraint [auto]
 impl core::marker::Freeze for antecedent::ActionOutcome [auto]
 impl core::marker::Freeze for antecedent::ActionSpec [auto]
@@ -1626,8 +1620,6 @@ impl core::marker::Freeze for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Freeze for antecedent::review::PendingCpdagReview [auto]
 impl core::marker::Freeze for antecedent::review::PendingGraphReview [auto]
 impl core::marker::Freeze for antecedent::strategy_table::UnknownStrategy [auto]
-impl core::marker::Freeze for antecedent::support_matrix_data::LicensedCell [auto]
-impl core::marker::Freeze for antecedent::support_matrix_data::NaRule [auto]
 impl core::marker::Send for antecedent::AcceptedGraph [auto]
 impl core::marker::Send for antecedent::ActionConstraint [auto]
 impl core::marker::Send for antecedent::ActionOutcome [auto]
@@ -1997,8 +1989,6 @@ impl core::marker::Send for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Send for antecedent::review::PendingCpdagReview [auto]
 impl core::marker::Send for antecedent::review::PendingGraphReview [auto]
 impl core::marker::Send for antecedent::strategy_table::UnknownStrategy [auto]
-impl core::marker::Send for antecedent::support_matrix_data::LicensedCell [auto]
-impl core::marker::Send for antecedent::support_matrix_data::NaRule [auto]
 impl core::marker::StructuralPartialEq for antecedent::ActionConstraint
 impl core::marker::StructuralPartialEq for antecedent::ActionOutcome
 impl core::marker::StructuralPartialEq for antecedent::ActionSpec
@@ -2569,8 +2559,6 @@ impl core::marker::Sync for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Sync for antecedent::review::PendingCpdagReview [auto]
 impl core::marker::Sync for antecedent::review::PendingGraphReview [auto]
 impl core::marker::Sync for antecedent::strategy_table::UnknownStrategy [auto]
-impl core::marker::Sync for antecedent::support_matrix_data::LicensedCell [auto]
-impl core::marker::Sync for antecedent::support_matrix_data::NaRule [auto]
 impl core::marker::Unpin for antecedent::AcceptedGraph [auto]
 impl core::marker::Unpin for antecedent::ActionConstraint [auto]
 impl core::marker::Unpin for antecedent::ActionOutcome [auto]
@@ -2940,8 +2928,6 @@ impl core::marker::Unpin for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Unpin for antecedent::review::PendingCpdagReview [auto]
 impl core::marker::Unpin for antecedent::review::PendingGraphReview [auto]
 impl core::marker::Unpin for antecedent::strategy_table::UnknownStrategy [auto]
-impl core::marker::Unpin for antecedent::support_matrix_data::LicensedCell [auto]
-impl core::marker::Unpin for antecedent::support_matrix_data::NaRule [auto]
 impl core::ops::deref::Deref for antecedent::PreparedStudy
 impl core::ops::deref::Deref for antecedent::Study
 impl core::ops::deref::DerefMut for antecedent::PreparedStudy
@@ -3298,8 +3284,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::SurvivalDif
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::review::PendingCpdagReview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::review::PendingGraphReview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::strategy_table::UnknownStrategy [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::support_matrix_data::LicensedCell [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::support_matrix_data::NaRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::AcceptedGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ActionConstraint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ActionOutcome [auto]
@@ -3653,8 +3637,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::result::SurvivalDiffer
 impl core::panic::unwind_safe::UnwindSafe for antecedent::review::PendingCpdagReview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::review::PendingGraphReview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::strategy_table::UnknownStrategy [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::support_matrix_data::LicensedCell [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::support_matrix_data::NaRule [auto]
 impl core::str::traits::FromStr for antecedent::CellFamilyContrast
 impl core::str::traits::FromStr for antecedent::EstimatorId
 impl core::str::traits::FromStr for antecedent::IdentifierId
@@ -3714,26 +3696,8 @@ impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::Arri
 impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::ArrivalRequest
 impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::ArrivalWork
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::PreflightInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticAteCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticCpdagAteCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticCpdagResponseCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticDistributionCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticPagAteCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticPagResponseCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticPathSpecificCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::StaticResponseCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::TemporalClassEffectCompileInput<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::PreflightInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticAteCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticCpdagAteCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticCpdagResponseCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticDistributionCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticPagAteCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticPagResponseCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticPathSpecificCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::StaticResponseCompileInput<'a> [auto]
-impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::planner::TemporalClassEffectCompileInput<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::clone::Clone for antecedent::GraphRef<'a>
 impl<'a> core::clone::Clone for antecedent::PreflightInput<'a>
@@ -3742,15 +3706,6 @@ impl<'a> core::clone::Clone for antecedent::SequenceEndpoints<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::closed_pilots::JointBayesianRequest<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticAteCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticCpdagAteCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticCpdagResponseCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticDistributionCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticPagAteCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticPagResponseCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticPathSpecificCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::StaticResponseCompileInput<'a>
-impl<'a> core::clone::Clone for antecedent::planner::TemporalClassEffectCompileInput<'a>
 impl<'a> core::clone::Clone for antecedent::strategy_table::StaticEstimateInput<'a>
 impl<'a> core::cmp::Eq for antecedent::ScreenUnits<'a>
 impl<'a> core::cmp::PartialEq for antecedent::ScreenUnits<'a>
@@ -3760,15 +3715,6 @@ impl<'a> core::fmt::Debug for antecedent::ScreenUnits<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::closed_pilots::JointBayesianRequest<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticAteCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticCpdagAteCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticCpdagResponseCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticDistributionCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticPagAteCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticPagResponseCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticPathSpecificCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::StaticResponseCompileInput<'a>
-impl<'a> core::fmt::Debug for antecedent::planner::TemporalClassEffectCompileInput<'a>
 impl<'a> core::marker::Copy for antecedent::GraphRef<'a>
 impl<'a> core::marker::Copy for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Copy for antecedent::SequenceEndpoints<'a>
@@ -3783,15 +3729,6 @@ impl<'a> core::marker::Freeze for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticAteCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticCpdagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticCpdagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticDistributionCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticPagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticPagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticPathSpecificCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::StaticResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::planner::TemporalClassEffectCompileInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent::PreflightInput<'a> [auto]
@@ -3800,15 +3737,6 @@ impl<'a> core::marker::Send for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticAteCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticCpdagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticCpdagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticDistributionCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticPagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticPagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticPathSpecificCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::StaticResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Send for antecedent::planner::TemporalClassEffectCompileInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Sync for antecedent::GraphRef<'a> [auto]
@@ -3818,15 +3746,6 @@ impl<'a> core::marker::Sync for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticAteCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticCpdagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticCpdagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticDistributionCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticPagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticPagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticPathSpecificCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::StaticResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::planner::TemporalClassEffectCompileInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::PreflightInput<'a> [auto]
@@ -3835,15 +3754,6 @@ impl<'a> core::marker::Unpin for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticAteCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticCpdagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticCpdagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticDistributionCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticPagAteCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticPagResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticPathSpecificCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::StaticResponseCompileInput<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::planner::TemporalClassEffectCompileInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::ScreenUnits<'a> [auto]
@@ -3905,17 +3815,6 @@ impl<S> core::marker::Sync for antecedent::PreparedStudy<S> where S: core::marke
 impl<S> core::marker::Unpin for antecedent::PreparedStudy<S> where S: core::marker::Unpin [auto]
 impl<S> core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedStudy<S> where S: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<S> core::panic::unwind_safe::UnwindSafe for antecedent::PreparedStudy<S> where S: core::panic::unwind_safe::UnwindSafe [auto]
-impl<T: 'static> core::iter::traits::collect::IntoIterator for antecedent::support_matrix_data::StaticTable<T>
-impl<T: 'static> core::ops::deref::Deref for antecedent::support_matrix_data::StaticTable<T>
-impl<T: core::clone::Clone + 'static> core::clone::Clone for antecedent::support_matrix_data::StaticTable<T>
-impl<T: core::fmt::Debug + 'static> core::fmt::Debug for antecedent::support_matrix_data::StaticTable<T>
-impl<T: core::marker::Copy + 'static> core::marker::Copy for antecedent::support_matrix_data::StaticTable<T>
-impl<T> core::marker::Freeze for antecedent::support_matrix_data::StaticTable<T> [auto]
-impl<T> core::marker::Send for antecedent::support_matrix_data::StaticTable<T> [auto]
-impl<T> core::marker::Sync for antecedent::support_matrix_data::StaticTable<T> [auto]
-impl<T> core::marker::Unpin for antecedent::support_matrix_data::StaticTable<T> [auto]
-impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent::support_matrix_data::StaticTable<T> [auto]
-impl<T> core::panic::unwind_safe::UnwindSafe for antecedent::support_matrix_data::StaticTable<T> [auto]
 macro antecedent::compile_reason!
 macro antecedent::support_reason!
 macro antecedent::unsupported_reason!
@@ -5403,62 +5302,6 @@ pub field antecedent::planner::PhysicalExecutionPlan::record: antecedent_contrac
 pub field antecedent::planner::PhysicalExecutionPlan::resolved_static_graph: core::option::Option<antecedent_graph::dag::Dag>
 pub field antecedent::planner::PhysicalExecutionPlan::resolved_static_pag: core::option::Option<antecedent_graph::pag::Pag>
 pub field antecedent::planner::PhysicalExecutionPlan::resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>
-pub field antecedent::planner::StaticAteCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticAteCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticAteCompileInput::graph: &'a antecedent_graph::dag::Dag
-pub field antecedent::planner::StaticAteCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticAteCompileInput::query: &'a antecedent_core::query::average::AverageEffectQuery
-pub field antecedent::planner::StaticAteCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticCpdagAteCompileInput::cpdag: &'a antecedent_graph::cpdag::Cpdag
-pub field antecedent::planner::StaticCpdagAteCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticCpdagAteCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticCpdagAteCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticCpdagAteCompileInput::query: &'a antecedent_core::query::average::AverageEffectQuery
-pub field antecedent::planner::StaticCpdagAteCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticCpdagResponseCompileInput::cpdag: &'a antecedent_graph::cpdag::Cpdag
-pub field antecedent::planner::StaticCpdagResponseCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticCpdagResponseCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticCpdagResponseCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticCpdagResponseCompileInput::query: &'a antecedent_core::query::response::ResponseQuery
-pub field antecedent::planner::StaticCpdagResponseCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticDistributionCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticDistributionCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticDistributionCompileInput::graph: &'a antecedent_graph::dag::Dag
-pub field antecedent::planner::StaticDistributionCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticDistributionCompileInput::query: &'a antecedent_core::query::distribution::InterventionalDistributionQuery
-pub field antecedent::planner::StaticDistributionCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticPagAteCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticPagAteCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticPagAteCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticPagAteCompileInput::pag: &'a antecedent_graph::pag::Pag
-pub field antecedent::planner::StaticPagAteCompileInput::query: &'a antecedent_core::query::average::AverageEffectQuery
-pub field antecedent::planner::StaticPagAteCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticPagResponseCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticPagResponseCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticPagResponseCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticPagResponseCompileInput::pag: &'a antecedent_graph::pag::Pag
-pub field antecedent::planner::StaticPagResponseCompileInput::query: &'a antecedent_core::query::response::ResponseQuery
-pub field antecedent::planner::StaticPagResponseCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticPathSpecificCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticPathSpecificCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticPathSpecificCompileInput::graph: &'a antecedent_graph::dag::Dag
-pub field antecedent::planner::StaticPathSpecificCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticPathSpecificCompileInput::query: &'a antecedent_core::query::distribution::PathSpecificEffectQuery
-pub field antecedent::planner::StaticPathSpecificCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::StaticResponseCompileInput::data: &'a antecedent_data::dataset::TabularData
-pub field antecedent::planner::StaticResponseCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticResponseCompileInput::graph: &'a antecedent_graph::dag::Dag
-pub field antecedent::planner::StaticResponseCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::StaticResponseCompileInput::query: &'a antecedent_core::query::response::ResponseQuery
-pub field antecedent::planner::StaticResponseCompileInput::validation_suite: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent::planner::TemporalClassEffectCompileInput::data: &'a antecedent_data::dataset::TimeSeriesData
-pub field antecedent::planner::TemporalClassEffectCompileInput::data_classification: antecedent_contract::plan::DataClassification
-pub field antecedent::planner::TemporalClassEffectCompileInput::estimator: alloc::sync::Arc<str>
-pub field antecedent::planner::TemporalClassEffectCompileInput::identifier: alloc::sync::Arc<str>
-pub field antecedent::planner::TemporalClassEffectCompileInput::nodes: &'a [antecedent_core::node::NodeRef]
-pub field antecedent::planner::TemporalClassEffectCompileInput::plan_id: &'static str
-pub field antecedent::planner::TemporalClassEffectCompileInput::query: &'a antecedent_core::query::temporal::TemporalEffectQuery
-pub field antecedent::planner::TemporalClassEffectCompileInput::split: core::option::Option<antecedent_data::split::DiscoveryEstimationSplit>
 pub field antecedent::result::InterferenceInference::from_exposed_clusters: usize
 pub field antecedent::result::InterferenceInference::from_exposed_units: usize
 pub field antecedent::result::InterferenceInference::graphless_support_status: core::option::Option<antecedent::CellStatus>
@@ -5513,19 +5356,6 @@ pub field antecedent::strategy_table::StaticEstimateInput::query: &'a antecedent
 pub field antecedent::strategy_table::UnknownStrategy::expected: &'static [&'static str]
 pub field antecedent::strategy_table::UnknownStrategy::got: alloc::string::String
 pub field antecedent::strategy_table::UnknownStrategy::kind: &'static str
-pub field antecedent::support_matrix_data::LicensedCell::estimators: &'static [&'static str]
-pub field antecedent::support_matrix_data::LicensedCell::graph_class: &'static str
-pub field antecedent::support_matrix_data::LicensedCell::inference: &'static str
-pub field antecedent::support_matrix_data::LicensedCell::query: &'static str
-pub field antecedent::support_matrix_data::LicensedCell::route_estimator: core::option::Option<&'static str>
-pub field antecedent::support_matrix_data::LicensedCell::structure: &'static str
-pub field antecedent::support_matrix_data::LicensedCell::validation: &'static str
-pub field antecedent::support_matrix_data::NaRule::graph_classes: core::option::Option<&'static [&'static str]>
-pub field antecedent::support_matrix_data::NaRule::inferences: core::option::Option<&'static [&'static str]>
-pub field antecedent::support_matrix_data::NaRule::queries: core::option::Option<&'static [&'static str]>
-pub field antecedent::support_matrix_data::NaRule::reason: &'static str
-pub field antecedent::support_matrix_data::NaRule::structures: core::option::Option<&'static [&'static str]>
-pub field antecedent::support_matrix_data::NaRule::validations: core::option::Option<&'static [&'static str]>
 pub fn <antecedent::AcceptedGraph>::const fn version(&self) -> u32
 pub fn <antecedent::AcceptedGraph>::fn accept<R: antecedent::IntoAccepted>(review: R) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::AcceptedGraph>::fn admg(g: antecedent_graph::admg::Admg) -> Self
@@ -5613,7 +5443,7 @@ pub fn <antecedent::CausalError>::fn peeled(&self) -> &Self
 pub fn <antecedent::CausalError>::fn reason_code(&self) -> core::option::Option<&str>
 pub fn <antecedent::CausalError>::fn refusal_fields(&self) -> core::option::Option<alloc::borrow::Cow<'_, antecedent_estimate::error::RefusalFields>>
 pub fn <antecedent::CausalError>::fn rejected(cause: impl core::convert::Into<antecedent::CompileCause>) -> Self
-pub fn <antecedent::CausalError>::fn review_required(kind: impl core::convert::Into<alloc::string::String>, algorithm: core::option::Option<impl core::convert::Into<alloc::string::String>>, pending_edge_count: usize, pending_edges: impl core::convert::Into<alloc::sync::Arc<[antecedent::error::PendingEdge]>>, message: impl core::convert::Into<alloc::string::String>, hint: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent::CausalError>::fn review_required(kind: antecedent::ReviewKind, algorithm: core::option::Option<impl core::convert::Into<alloc::string::String>>, pending_edge_count: usize, pending_edges: impl core::convert::Into<alloc::sync::Arc<[antecedent::error::PendingEdge]>>, message: impl core::convert::Into<alloc::string::String>, hint: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::CausalError>::fn review_required_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::CellFamilyContrast>::const fn as_str(self) -> &'static str
 pub fn <antecedent::CellStatus>::const fn allowlist_parent(self) -> core::option::Option<&'static str>
@@ -5897,7 +5727,7 @@ pub fn <antecedent::PreparedStudy>::fn refresh_multi_env(&mut self, data: antece
 pub fn <antecedent::PreparedStudy>::fn refresh_panel(&mut self, data: antecedent_data::panel::PanelData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refresh_series(&mut self, data: antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refute(&self, prior: &antecedent::StudyResult, data: &antecedent_data::dataset::TabularData, suite: antecedent::RefuteSuite, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
-pub fn <antecedent::PreparedStudy>::fn retarget(&self, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn retarget(&self, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
 pub fn <antecedent::PreparedStudy>::fn score_reuse_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn score_table(&self) -> core::option::Option<&antecedent_estimate::scores::ScoreTable>
@@ -6482,9 +6312,6 @@ pub fn <antecedent::review::PendingGraphReview>::fn finish(self) -> core::result
 pub fn <antecedent::review::PendingGraphReview>::fn graph(&self) -> &antecedent_graph::temporal::TemporalDag
 pub fn <antecedent::review::PendingGraphReview>::fn new(review: antecedent_graph::unfold::TemporalGraphReview) -> Self
 pub fn <antecedent::review::PendingGraphReview>::fn require_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> core::result::Result<Self, antecedent::CausalError>
-pub fn <antecedent::support_matrix_data::StaticTable<T>>::fn is_empty(&self) -> bool
-pub fn <antecedent::support_matrix_data::StaticTable<T>>::fn iter(&self) -> core::slice::iter::Iter<'static, T>
-pub fn <antecedent::support_matrix_data::StaticTable<T>>::fn len(&self) -> usize
 pub fn antecedent::analysis::check_derived_treatment(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::DerivedTreatmentPlan, antecedent::CausalError>
 pub fn antecedent::analysis::classify_inverse_outcome(query: &antecedent::InverseQuery, forward: &antecedent::ForwardEvaluation, actions: &[antecedent::ActionSpec], budget: core::option::Option<f64>, tolerance: f64, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent::InverseOutcomeReport, antecedent::InverseOutcomeError>
 pub fn antecedent::analysis::closed_pilots::joint_bayesian_transport_refusal(request: &antecedent::analysis::closed_pilots::JointBayesianRequest<'_>) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
@@ -6655,19 +6482,6 @@ pub fn antecedent::io::encode_model_bundle_bytes(input: &antecedent_io::model_bu
 pub fn antecedent::io::prior_set_from_posterior_bytes(bytes: &[u8]) -> core::result::Result<antecedent_prob::prior::PriorSet, antecedent::CausalError>
 pub fn antecedent::licensed_neighbors(cell: antecedent::SupportCell) -> alloc::vec::Vec<antecedent_contract::capability::LicensedNeighbor>
 pub fn antecedent::licensed_support_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>
-pub fn antecedent::planner::compile_logical_codetermined_joint(data: &antecedent_data::dataset::TabularData, admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery, validation_suite: core::option::Option<alloc::sync::Arc<str>>, identifier: alloc::sync::Arc<str>, estimator: alloc::sync::Arc<str>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_distribution(input: antecedent::planner::StaticDistributionCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_path_specific(input: antecedent::planner::StaticPathSpecificCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_static_ate(input: antecedent::planner::StaticAteCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_static_cpdag_ate(input: antecedent::planner::StaticCpdagAteCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_static_cpdag_response(input: antecedent::planner::StaticCpdagResponseCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_static_pag_ate(input: antecedent::planner::StaticPagAteCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_static_pag_response(input: antecedent::planner::StaticPagResponseCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_static_response(input: antecedent::planner::StaticResponseCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_temporal_class_effect(input: antecedent::planner::TemporalClassEffectCompileInput<'_>) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_temporal_effect(data: &antecedent_data::dataset::TimeSeriesData, graph: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::temporal::TemporalEffectQuery, split: core::option::Option<antecedent_data::split::DiscoveryEstimationSplit>, review_required: bool) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_temporal_effect_classified(data: &antecedent_data::dataset::TimeSeriesData, graph: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::temporal::TemporalEffectQuery, split: core::option::Option<antecedent_data::split::DiscoveryEstimationSplit>, review_required: bool, data_classification: antecedent_contract::plan::DataClassification) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
-pub fn antecedent::planner::compile_logical_temporal_response(data: &antecedent_data::dataset::TimeSeriesData, graph: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::response::ResponseQuery, review_required: bool) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
 pub fn antecedent::planner::reject_dag_only_on_pag(structure: &antecedent::AcceptedGraph, identifier: antecedent::IdentifierId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str
 pub fn antecedent::result::reported_se_interval_z() -> f64
@@ -6763,11 +6577,7 @@ pub mod antecedent::review
 pub mod antecedent::state
 pub mod antecedent::strategy_table
 pub mod antecedent::support
-pub mod antecedent::support_matrix_data
 pub mod antecedent::validate
-pub static antecedent::support_matrix_data::CLOSED_RULES: antecedent::support_matrix_data::StaticTable<antecedent::support_matrix_data::NaRule>
-pub static antecedent::support_matrix_data::LICENSED: antecedent::support_matrix_data::StaticTable<antecedent::support_matrix_data::LicensedCell>
-pub static antecedent::support_matrix_data::NA_RULES: antecedent::support_matrix_data::StaticTable<antecedent::support_matrix_data::NaRule>
 pub struct antecedent::AcceptedGraph
 pub struct antecedent::AcceptedGraph has private fields
 pub struct antecedent::ActionConstraint
@@ -7135,15 +6945,6 @@ pub struct antecedent::inference::DecodedPriorHydrate
 pub struct antecedent::inference::ExternalComposeSpec
 pub struct antecedent::planner::LogicalAnalysisPlan
 pub struct antecedent::planner::PhysicalExecutionPlan
-pub struct antecedent::planner::StaticAteCompileInput<'a>
-pub struct antecedent::planner::StaticCpdagAteCompileInput<'a>
-pub struct antecedent::planner::StaticCpdagResponseCompileInput<'a>
-pub struct antecedent::planner::StaticDistributionCompileInput<'a>
-pub struct antecedent::planner::StaticPagAteCompileInput<'a>
-pub struct antecedent::planner::StaticPagResponseCompileInput<'a>
-pub struct antecedent::planner::StaticPathSpecificCompileInput<'a>
-pub struct antecedent::planner::StaticResponseCompileInput<'a>
-pub struct antecedent::planner::TemporalClassEffectCompileInput<'a>
 pub struct antecedent::result::InterferenceInference
 pub struct antecedent::result::InterferencePointwiseInterval
 pub struct antecedent::result::StructuralResponseAtom
@@ -7153,10 +6954,6 @@ pub struct antecedent::review::PendingCpdagReview
 pub struct antecedent::review::PendingGraphReview
 pub struct antecedent::strategy_table::StaticEstimateInput<'a>
 pub struct antecedent::strategy_table::UnknownStrategy
-pub struct antecedent::support_matrix_data::LicensedCell
-pub struct antecedent::support_matrix_data::NaRule
-pub struct antecedent::support_matrix_data::StaticTable has private fields
-pub struct antecedent::support_matrix_data::StaticTable<T: 'static>
 pub trait antecedent::IntoAccepted: sealed::Sealed
 pub trait antecedent::IntoGraphInput
 pub trait antecedent::StageResultSink: core::marker::Send + core::marker::Sync
@@ -8566,7 +8363,7 @@ pub variant antecedent::CausalError::Model(antecedent_model::error::ModelError)
 pub variant antecedent::CausalError::NotIdentified { status: antecedent_core::identification::IdentificationStatus, search_capped: bool, message: alloc::string::String }
 pub variant antecedent::CausalError::Rejected(antecedent::CompileFailure)
 pub variant antecedent::CausalError::Resource { message: alloc::string::String }
-pub variant antecedent::CausalError::ReviewRequired { kind: alloc::string::String, algorithm: core::option::Option<alloc::string::String>, pending_edge_count: usize, pending_edges: alloc::sync::Arc<[antecedent::error::PendingEdge]>, message: alloc::string::String, hint: alloc::string::String }
+pub variant antecedent::CausalError::ReviewRequired { kind: antecedent::ReviewKind, algorithm: core::option::Option<alloc::string::String>, pending_edge_count: usize, pending_edges: alloc::sync::Arc<[antecedent::error::PendingEdge]>, message: alloc::string::String, hint: alloc::string::String }
 pub variant antecedent::CausalError::Schema(antecedent_core::error::SchemaError)
 pub variant antecedent::CausalError::SchemaMismatch { detail: alloc::string::String }
 pub variant antecedent::CausalError::Serialization(antecedent_io_core::error::IoError)
