@@ -17,6 +17,7 @@ use antecedent_stats::{
     mean_diff_two_sample, residual_likelihood_ratio,
 };
 
+use crate::change_common::{KERNEL_STREAM, attribution_stream};
 use crate::error::AttributionError;
 use crate::population::subset_table;
 use crate::prep::resolve_population_pair;
@@ -215,7 +216,8 @@ pub fn detect_mechanism_changes_with_correction(
                 (s, p, "classifier_two_sample", None)
             }
             MechanismChangeMethod::KernelTwoSample => {
-                let seed = antecedent_core::derive_stream(0x_4E12_A001, target.as_usize() as u64);
+                let seed =
+                    attribution_stream(ctx, KERNEL_STREAM, target.as_usize() as u64).next_u64();
                 let r = kernel_two_sample_with_permutations(
                     &rb,
                     &rc,
@@ -588,6 +590,41 @@ mod tests {
         assert_eq!(y.n_permutations, Some(999));
         assert!((y.p_value_floor.unwrap() - 0.001).abs() < 1e-15);
         assert!(y.p_value >= 0.001 - 1e-15);
+    }
+
+    /// The kernel null draws from the context's attribution stream: it follows the master
+    /// seed (reproducibly) and the verdict on a real shift is stable across seeds, with
+    /// every p-value inside the same resolution band.
+    #[test]
+    fn kernel_two_sample_follows_the_context_seed_and_agrees_across_seeds() {
+        let (model, data) = two_period_data();
+        let q = MechanismChangeQuery::new(
+            [VariableId::from_raw(1)],
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+            0.05,
+            10,
+        );
+        let run = |seed: u64| {
+            detect_mechanism_changes(
+                &model,
+                &data,
+                &q,
+                MechanismChangeMethod::KernelTwoSample,
+                &ExecutionContext::for_tests(seed),
+            )
+            .unwrap()
+            .remove(0)
+        };
+        let again = run(1);
+        assert_eq!(again.p_value.to_bits(), run(1).p_value.to_bits());
+        for seed in 1..=6u64 {
+            let d = run(seed);
+            assert!(d.changed, "seed {seed}: {d:?}");
+            assert!(d.p_value >= d.p_value_floor.unwrap() - 1e-15);
+            assert!(d.p_value <= 0.01, "seed {seed}: p={}", d.p_value);
+            assert_eq!(d.statistic.to_bits(), again.statistic.to_bits(), "statistic is seed-free");
+        }
     }
 
     #[test]

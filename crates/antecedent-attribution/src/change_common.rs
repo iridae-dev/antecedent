@@ -54,6 +54,13 @@ pub(crate) const STRUCTURE_STREAM: u64 = 0x5C01;
 /// Stream domain of the per-unit Shapley permutation seeds.
 pub(crate) const UNIT_STREAM: u64 = 0x0117;
 
+/// Stream domain of the Shapley permutation sampler.
+pub(crate) const SHAPLEY_STREAM: u64 = 0x5A91;
+/// Stream domain of the robust (fit-uncertainty) linear and mechanism payoffs.
+pub(crate) const ROBUST_STREAM: u64 = 0x80B7;
+/// Stream domain of the kernel two-sample permutation null.
+pub(crate) const KERNEL_STREAM: u64 = 0x4E12;
+
 /// Stream tag for `(domain, seed)`.
 ///
 /// A `SplitMix64` finalizer over the seed shifted by the domain, so streams of different
@@ -63,6 +70,20 @@ pub(crate) const UNIT_STREAM: u64 = 0x0117;
 #[must_use]
 pub(crate) fn stream_tag(domain: u64, seed: u64) -> u64 {
     antecedent_core::mix64(seed.wrapping_add(domain.wrapping_mul(antecedent_core::GOLDEN_GAMMA)))
+}
+
+/// The context's attribution stream for `(domain, seed)`.
+///
+/// Every attribution Monte Carlo arm draws through this one function, so the result
+/// depends on the context's master seed and `domain`s cannot alias through a shared
+/// additive offset.
+#[must_use]
+pub(crate) fn attribution_stream(
+    ctx: &ExecutionContext,
+    domain: u64,
+    seed: u64,
+) -> antecedent_core::CausalRng {
+    ctx.rng.stream_for(StreamDomain::Attribution, stream_tag(domain, seed))
 }
 
 /// Mean and (floored) variance of the outcome under `model`, from `n_samples` ancestral

@@ -7,11 +7,12 @@ use std::convert::Infallible;
 use std::sync::Mutex;
 
 use antecedent_core::{
-    AllocationMethod, CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode,
+    AllocationMethod, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode,
 };
 use antecedent_kernels::shuffle;
 use antecedent_stats::{Welford, student_t_ppf};
 
+use crate::change_common::{SHAPLEY_STREAM, attribution_stream};
 use crate::coalition::{CoalitionCache, CoalitionKey};
 use crate::error::AttributionError;
 use crate::result::{CacheStats, ComponentContribution, ComputeBudget, InteractionTerm};
@@ -452,7 +453,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
         }
         ShapleyMode::MonteCarlo { n_samples } => {
             budget.samples = n_samples as u64;
-            let mut rng = CausalRng::from_seed(config.seed);
+            let mut rng = attribution_stream(ctx, SHAPLEY_STREAM, config.seed);
             // Per-player Welford accumulators over the sampled permutations (stable when a
             // marginal's mean is large relative to its spread).
             let mut acc = vec![Welford::new(); n];
@@ -1118,6 +1119,44 @@ mod tests {
             let err = estimate_shapley(&players, &cfg, &mut game, &ctx_with_threads(4, false))
                 .unwrap_err();
             assert_eq!(err, expected);
+        }
+    }
+
+    /// Permutations are drawn from the context's attribution stream: a given master seed
+    /// reproduces, another master seed gives a different sample, and each stays within
+    /// its own standard error of the exact value.
+    #[test]
+    fn sampled_shapley_follows_the_context_seed_and_converges_to_exact() {
+        let players: Vec<_> = (0..6).map(ComponentId::from_raw).collect();
+        let exact = {
+            let mut game = NoFork(Game::new(6, None));
+            estimate_shapley(
+                &players,
+                &ShapleyConfig::exact(),
+                &mut game,
+                &ctx_with_threads(1, false),
+            )
+            .unwrap()
+        };
+        let cfg = ShapleyConfig::monte_carlo(4_000).with_seed(9);
+        let run = |master: u64| {
+            let mut ctx = ctx_with_threads(1, true);
+            ctx.rng = antecedent_core::RngFactory::from_seed(master);
+            let mut game = NoFork(Game::new(6, None));
+            estimate_shapley(&players, &cfg, &mut game, &ctx).unwrap()
+        };
+        let first = run(1);
+        assert_eq!(bits(&first), bits(&run(1)));
+        assert_ne!(bits(&first), bits(&run(2)));
+        for master in 1..=5u64 {
+            let est = run(master);
+            let stderr = est.component_mc_stderr.as_ref().unwrap();
+            for ((phi, truth), se) in est.values.iter().zip(&exact.values).zip(stderr) {
+                assert!(
+                    (phi - truth).abs() <= 4.0 * se,
+                    "master {master}: {phi} vs exact {truth} (se {se})"
+                );
+            }
         }
     }
 }

@@ -27,6 +27,7 @@ use antecedent_model::{
     MechanismWorkspace, ParentBatch, SelectionPolicy, evaluate_column, sample_noise_column,
 };
 
+use crate::change_common::{ROBUST_STREAM, attribution_stream};
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::mechanism_players;
 use crate::error::AttributionError;
@@ -439,7 +440,7 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
         let n = self.n_samples;
         // Common random numbers: fresh stream from the same seed every call, so
         // only the swapped mechanisms (via `mask`) differ between coalitions.
-        let mut rng = self.ctx.rng.stream(0x526F_6275_7374_4D43_u64.wrapping_add(self.seed));
+        let mut rng = attribution_stream(self.ctx, ROBUST_STREAM, self.seed);
         // Ancestral Monte Carlo walk (`parent_gathers` is aligned with `node_order`,
         // so this iteration is the `node_order` + `gather_for` walk without the O(n)
         // lookups): every node, root or not, draws real noise and is evaluated on it.
