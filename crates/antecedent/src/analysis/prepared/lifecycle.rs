@@ -286,7 +286,6 @@ impl PreparedStudy {
             antecedent_core::DiagnosticSeverity::Info,
             format!("second-click refute suite={suite_label}"),
         ));
-        let _ = clock.wall_time_ns();
         self.stamp_refuted(prior, data, suite, out)
     }
 

@@ -1,6 +1,7 @@
 //! One shared dependency plan for an actual retained native response and attested callbacks.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::native_claims::{NativeDecisionSource, NativeResponseClaim, NativeResponseContext};
+use super::recalc_common::Fields;
 use super::recalc_external::{
     ExternalCallbackError, ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider,
 };
@@ -16,7 +17,7 @@ use antecedent_core::recalc::{
 };
 use antecedent_design::composition_boundary::{
     DecisionInput, NativeExecutionRecord, SupportPolicy, SupportedDecision, TrustEvidence,
-    TrustRequirement, evaluate_with_support,
+    TrustRequirement, UnsupportedActionPolicy, evaluate_with_support,
 };
 use antecedent_design::decision_contract::{DecisionContract, SourceRepresentation};
 use antecedent_design::decision_eval::MeanSource;
@@ -214,16 +215,19 @@ impl CompositeSession {
             }
         }
         let utility = ids.own(Stage::Utility);
+        let policy = Fields::new()
+            .text(match request.support_policy.unsupported {
+                UnsupportedActionPolicy::RequireAllActions => "require_all_actions",
+                UnsupportedActionPolicy::CompareSupported => "compare_supported",
+            })
+            .text(request.support_policy.weakest_support.as_str())
+            .into_bytes();
+        let order = Fields::new().texts(&request.input_order).into_bytes();
         ids.set(
             Stage::Utility,
             StageIdentity::of(
                 "composite.utility.v1",
-                &[
-                    utility.as_bytes(),
-                    identity.as_bytes(),
-                    format!("{:?}", request.support_policy).as_bytes(),
-                    format!("{:?}", request.input_order).as_bytes(),
-                ],
+                &[utility.as_bytes(), identity.as_bytes(), policy.as_slice(), order.as_slice()],
             ),
         );
         ids.set(Stage::Decision, StageIdentity::of("composite.original_support_terminal.v1", &[]));

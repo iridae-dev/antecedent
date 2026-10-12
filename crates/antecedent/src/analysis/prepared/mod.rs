@@ -165,7 +165,6 @@ pub struct SampledPreparedState {
     time_regularity: Option<antecedent_data::SamplingRegularity>,
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
-    /// Checked causal-to-linear lowering retained independently of the builder.
     /// Sealed route selection and its checked operation, or the ordinary dispatcher
     /// for a configuration no sealed operation admits.
     execution: PreparedExecution,

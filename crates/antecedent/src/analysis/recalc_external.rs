@@ -1,11 +1,12 @@
 //! Executed, attested finite mean callbacks under the original shared planner.
 //! Planning never invokes a provider. Metadata establishes no native causal proof or coupling.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use super::recalc_common::Fields;
 use super::recalc_receipt::{Counter, RecalcReceipt, ReceiptRecorder};
 use antecedent_contract::{
-    BoundExternalClaim, CheckedCausalContract, ExternalProgramClaim, ExternalResponse,
-    ExternalResult, ExternalTrustState, ExternalUncertaintyMeaning, ProgramBinding,
-    ProviderObjectIdentity,
+    BoundExternalClaim, CheckedCausalContract, DistributionMeaning, EquivalenceScope,
+    ExternalProgramClaim, ExternalResponse, ExternalResult, ExternalTrustState,
+    ExternalUncertaintyMeaning, ProgramBinding, ProviderObjectIdentity, ScientificQuantity,
 };
 use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{
@@ -336,20 +337,84 @@ fn response_bounded(response: &ExternalResponse) -> bool {
             .chain(&response.header.assumption_ids)
             .all(|text| !text.is_empty() && text.len() <= 256)
 }
+/// Digest of ordered quantity coordinates, by their canonical field encoding.
+fn quantities_digest(quantities: &[ScientificQuantity]) -> [u8; 32] {
+    let mut stream = antecedent_core::CanonicalWriter::new("antecedent.callback.quantities.v1");
+    stream.word(quantities.len() as u64);
+    for quantity in quantities {
+        quantity.write_canonical(&mut stream);
+    }
+    stream.finish()
+}
+const fn meaning_tag(meaning: DistributionMeaning) -> &'static str {
+    match meaning {
+        DistributionMeaning::ParameterPosterior => "parameter_posterior",
+        DistributionMeaning::CausalFunctionalPosterior => "causal_functional_posterior",
+        DistributionMeaning::PosteriorPredictive => "posterior_predictive",
+        DistributionMeaning::InterventionalPredictive => "interventional_predictive",
+        DistributionMeaning::EstimatorSampling => "estimator_sampling",
+        DistributionMeaning::Bootstrap => "bootstrap",
+        DistributionMeaning::EmpiricalOutcome => "empirical_outcome",
+    }
+}
+fn claim_fields(claim: &ExternalProgramClaim) -> Vec<u8> {
+    Fields::new()
+        .text(&claim.contract_id)
+        .text(&claim.graph_id)
+        .text(&claim.declared_identity)
+        .text(&claim.treatment_id)
+        .text(&claim.outcome_id)
+        .text(&claim.population_id)
+        .reals(&claim.doses)
+        .text(&claim.dose_units)
+        .bytes(&quantities_digest(&claim.quantities))
+        .into_bytes()
+}
+fn contract_fields(contract: &CheckedCausalContract) -> Vec<u8> {
+    let mut fields = Fields::new()
+        .text(&contract.graph_id)
+        .text(contract.identification.as_str())
+        .bytes(&quantities_digest(&contract.estimand))
+        .len(contract.accepted_meanings.len());
+    for meaning in &contract.accepted_meanings {
+        fields = fields.text(meaning_tag(*meaning));
+    }
+    fields = fields
+        .texts(&contract.required_evidence_ids)
+        .texts(&contract.required_assumption_ids)
+        .len(contract.equivalences.len());
+    for equivalence in &contract.equivalences {
+        fields = fields.text(&equivalence.graph_id).text(&equivalence.justification_id);
+        fields = match &equivalence.scope {
+            EquivalenceScope::Regime { interventional_regime_id } => {
+                fields.text("regime").text(interventional_regime_id)
+            }
+            EquivalenceScope::ConditionedTreatment { variable_id, value_to_regime } => {
+                let mut fields = fields.text("conditioned_treatment").text(variable_id);
+                fields = fields.len(value_to_regime.len());
+                for (value, regime) in value_to_regime {
+                    fields = fields.text(value).text(regime);
+                }
+                fields
+            }
+        };
+    }
+    fields.into_bytes()
+}
 impl ExternalCallbackRequest {
     /// Full input digest. Validate bounded request before using this method on untrusted inputs.
     #[must_use]
     pub fn digest(&self) -> StageIdentity {
         let mut parts = vec![
-            format!(
-                "{:?}:{:?}:{:?}:{:?}:{:?}",
-                self.program,
-                self.claim,
-                self.contract,
-                self.descriptor,
-                (self.seed, &self.idempotency_key)
-            )
-            .into_bytes(),
+            Fields::new()
+                .text(&self.program.identity())
+                .bytes(&claim_fields(&self.claim))
+                .bytes(&contract_fields(&self.contract))
+                .bytes(self.descriptor.digest().as_bytes())
+                .word(self.seed)
+                .flag(self.idempotency_key.is_some())
+                .text(self.idempotency_key.as_deref().unwrap_or(""))
+                .into_bytes(),
         ];
         for (name, values) in &self.columns {
             parts.push(name.as_bytes().to_vec());

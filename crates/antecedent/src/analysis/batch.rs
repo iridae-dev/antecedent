@@ -512,9 +512,11 @@ impl BatchStudy {
     #[must_use]
     pub fn estimator_fingerprint(&self) -> String {
         match (&self.estimator_spec, self.estimator) {
-            (Some(spec), _) => {
-                format!("{:?}", super::contract_identity::estimator_spec_identity(spec))
-            }
+            (Some(spec), _) => antecedent_io::digest_hex(
+                antecedent_core::IdentityDomain::InferenceBinding,
+                &super::contract_identity::estimator_spec_identity(spec),
+            )
+            .unwrap_or_else(|error| format!("unencodable:{error}")),
             (None, Some(id)) => id.as_str().to_string(),
             (None, None) => "default".to_string(),
         }
@@ -1129,6 +1131,24 @@ fn batch_claim_alignment(
     }
 }
 
+/// Drop every family-level p-value and contrast from `results` and record why on each.
+fn withhold_family_inference(results: &mut [StudyResult], message: &str) {
+    for result in results.iter_mut() {
+        let Some(effect) = result.estimate.as_effect_mut() else {
+            continue;
+        };
+        effect.family.adjusted_p_values = None;
+        effect.family.contrast = None;
+        effect.family.contrast_interval = None;
+        result.diagnostics.push(antecedent_core::Diagnostic::new(
+            "batch.joint_if",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            message,
+        ));
+    }
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "aligns every result's influence to the shared row universe, forms the level covariance, then branches on the declared family contrast; each early exit must also record candidate selection, so the phases share one `results` borrow"
@@ -1189,20 +1209,10 @@ fn attach_batch_family_joint_inference(
     if cell_family {
         match family_contrast {
             None => {
-                for result in results.iter_mut() {
-                    let Some(effect) = result.estimate.as_effect_mut() else {
-                        continue;
-                    };
-                    effect.family.adjusted_p_values = None;
-                    effect.family.contrast = None;
-                    effect.family.contrast_interval = None;
-                    result.diagnostics.push(antecedent_core::Diagnostic::new(
-                        "batch.joint_if",
-                        antecedent_core::DiagnosticKind::Scientific,
-                        antecedent_core::DiagnosticSeverity::Info,
-                        "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
-                    ));
-                }
+                withhold_family_inference(
+                    results,
+                    "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
+                );
                 attach_candidate_selection(results, screen, &[], &[], None);
                 return;
             }
@@ -1212,23 +1222,13 @@ fn attach_batch_family_joint_inference(
                 for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
                     let Some((value, scores)) = cell_family_contrast_claim(result, query, kind)
                     else {
-                        for result in results.iter_mut() {
-                            let Some(effect) = result.estimate.as_effect_mut() else {
-                                continue;
-                            };
-                            effect.family.adjusted_p_values = None;
-                            effect.family.contrast = None;
-                            effect.family.contrast_interval = None;
-                            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                                "batch.joint_if",
-                                antecedent_core::DiagnosticKind::Scientific,
-                                antecedent_core::DiagnosticSeverity::Info,
-                                format!(
-                                    "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
-                                    kind.as_str()
-                                ),
-                            ));
-                        }
+                        withhold_family_inference(
+                            results,
+                            &format!(
+                                "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
+                                kind.as_str()
+                            ),
+                        );
                         attach_candidate_selection(results, screen, &[], &[], None);
                         return;
                     };
@@ -1248,20 +1248,10 @@ fn attach_batch_family_joint_inference(
                 let Ok(contrast_cov) =
                     antecedent_estimate::joint_influence_covariance(&contrast_cols, None)
                 else {
-                    for result in results.iter_mut() {
-                        let Some(effect) = result.estimate.as_effect_mut() else {
-                            continue;
-                        };
-                        effect.family.adjusted_p_values = None;
-                        effect.family.contrast = None;
-                        effect.family.contrast_interval = None;
-                        result.diagnostics.push(antecedent_core::Diagnostic::new(
-                            "batch.joint_if",
-                            antecedent_core::DiagnosticKind::Scientific,
-                            antecedent_core::DiagnosticSeverity::Info,
-                            "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
-                        ));
-                    }
+                    withhold_family_inference(
+                        results,
+                        "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
+                    );
                     attach_candidate_selection(results, screen, &[], &[], None);
                     return;
                 };

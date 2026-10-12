@@ -59,6 +59,7 @@ pub(crate) mod query_license;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;
+mod recalc_common;
 pub mod recalc_design;
 pub mod recalc_dr;
 pub mod recalc_receipt;
