@@ -1260,6 +1260,10 @@ mod tests {
         clippy::too_many_lines,
         reason = "the fixture builds the schema, series and storage inline before the moment assertions"
     )]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the intercept moment is the exact integer row count, summed from ones"
+    )]
     fn nested_direct_moments_solve_to_the_fitted_slope() {
         let n = 80usize;
         let mut b = CausalSchemaBuilder::new();

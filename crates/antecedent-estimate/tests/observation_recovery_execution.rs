@@ -650,6 +650,10 @@ fn binary_posterior_refuses_an_external_power_prior() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "a cell outside the observed support is assigned exactly zero, not a rounded value"
+)]
 fn binary_posterior_consumer_replays_the_pattern_mean() {
     let model = MModel::new(1, 1, &[(1, 0)], &[vec![1]], 21).unwrap();
     let observed = model.observed_law();
