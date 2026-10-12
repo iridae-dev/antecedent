@@ -306,9 +306,7 @@ impl ValidationSuite {
         for &id in &self.validators {
             out.push(computation_outcome(id, Self::run_one(id, problem, workspace, ctx))?);
         }
-        for custom in &self.custom {
-            out.push(custom_outcome(custom.as_ref(), custom.validate(problem, ctx))?);
-        }
+        out.extend(run_custom(&self.custom, |custom| custom.validate(problem, ctx))?);
         Ok(out)
     }
 
@@ -356,9 +354,7 @@ impl ValidationSuite {
             })();
             out.push(computation_outcome(id, outcome)?);
         }
-        for custom in &self.custom {
-            out.push(custom_outcome(custom.as_ref(), custom.validate(problem, ctx))?);
-        }
+        out.extend(run_custom(&self.custom, |custom| custom.validate(problem, ctx))?);
         Ok(out)
     }
 
@@ -415,19 +411,21 @@ impl ValidationSuite {
         bayes: &mut BayesianSuiteContext<'_>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
-        let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
+        // A custom validator needs a refutation problem this context does not carry.
+        // Returning the Bayesian reports and omitting the custom check would hide a
+        // requested validator, so the suite refuses instead.
+        if !self.custom.is_empty() {
+            return Err(ValidationError::NotApplicable {
+                message: "custom validators need a refutation problem; the Bayesian suite refuses to drop them",
+            });
+        }
+        let mut out = Vec::with_capacity(self.validators.len());
         for &id in &self.validators {
             out.push(computation_outcome(id, Self::run_one_bayesian(id, bayes, ctx))?);
         }
-        // Custom validators need a RefutationProblem; Bayesian path leaves them unused here.
-        let _ = &self.custom;
         Ok(out)
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "flat dispatch over validator ids, each arm building and running that validator"
-    )]
     fn run_one(
         id: ValidatorId,
         problem: &RefutationProblem<'_>,
@@ -448,218 +446,20 @@ impl ValidationSuite {
                 "single-regression sensitivity does not describe a composed sequential effect; use the sequential unobserved-common-cause perturbation",
             ));
         }
-        let method = problem.estimand.method_kind().ok();
-        let static_linear = problem.estimand.is_adjustment_shaped()
-            && problem.estimator.is_none_or(|e| {
-                // Conditional's licensed number is the interaction-model scalar at Ē[W].
-                // That is an effect, so the effect suite runs; skipping it because the
-                // estimator id is not `linear.adjustment.ate` is a demotion.
-                matches!(e, "linear.adjustment.ate" | "conditional.linear.adjustment")
-            });
-        let temporal_linear = method
-            == Some(antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded)
-            && problem.temporal.is_some()
-            && problem.estimator.is_none_or(|e| {
-                matches!(e, "temporal.linear.adjustment" | "bayesian.temporal.gcomp")
-            });
-        let linear_ok = static_linear || temporal_linear || problem.effect_refit.is_some();
-        match id {
-            ValidatorId::Placebo => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "PlaceboTreatment requires backdoor.adjustment + linear path \
-                         (or temporal.backdoor.unfolded + temporal linear path)",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &PlaceboTreatment::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::RandomCommonCause => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "RandomCommonCause requires backdoor.adjustment + linear path \
-                         (or temporal.backdoor.unfolded + temporal linear path)",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &RandomCommonCause::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::Bootstrap => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "BootstrapCiCoverage requires backdoor.adjustment + linear path \
-                         (or temporal.backdoor.unfolded + temporal linear path)",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &BootstrapRefute::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::UnobservedCommonCause => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "UnobservedCommonCause requires backdoor.adjustment or temporal.backdoor.unfolded",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &UnobservedCommonCause::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::Overlap => {
-                if problem.temporal.is_some() {
-                    return Ok(na(
-                        id,
-                        "OverlapRefuter not applicable to temporal unfolded designs \
-                         (propensity uses schema adjustment columns)",
-                    ));
-                }
-                overlap_as_outcome(run_validator(&OverlapRefuter::new(), problem, workspace, ctx))
-            }
-            ValidatorId::OverlapRule => {
-                if problem.temporal.is_some() {
-                    return Ok(na(
-                        id,
-                        "OverlapRuleRefuter not applicable to temporal unfolded designs",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &OverlapRuleRefuter::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::DataSubset => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "DataSubsetRefuter requires backdoor.adjustment + linear path \
-                         (or temporal.backdoor.unfolded + temporal linear path)",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &DataSubsetRefuter::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::DummyOutcome => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "DummyOutcome requires backdoor.adjustment + linear path \
-                         (or temporal.backdoor.unfolded + temporal linear path)",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &DummyOutcome::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::EValue => Ok(ValidationOutcome::Report(run_validator(
-                &EValue::new(),
-                problem,
-                workspace,
-                ctx,
-            )?)),
-            ValidatorId::Graph => {
-                // Temporal unfolded adjustment ids are not schema drop-covariate targets.
-                if !static_linear {
-                    return Ok(na(
-                        id,
-                        "DropAdjustmentCovariate requires static backdoor.adjustment + linear path \
-                         (not applicable to temporal unfolded designs)",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &GraphRefuter::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::LinearSensitivity => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "LinearSensitivity requires backdoor.adjustment or temporal.backdoor.unfolded",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &LinearSensitivity::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::PartialLinearSensitivity => {
-                if !linear_ok {
-                    return Ok(na(
-                        id,
-                        "PartialLinearSensitivity requires backdoor.adjustment or temporal.backdoor.unfolded",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &PartialLinearSensitivity::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::NonparametricSensitivity => Ok(ValidationOutcome::Report(run_validator(
-                &NonparametricSensitivity::new(),
-                problem,
-                workspace,
-                ctx,
-            )?)),
-            ValidatorId::Riesz => {
-                if problem.temporal.is_some() {
-                    return Ok(na(
-                        id,
-                        "RieszSensitivity not applicable to temporal unfolded designs",
-                    ));
-                }
-                if !crate::common::binary_treatment(problem)? {
-                    return Ok(na(
-                        id,
-                        "RieszSensitivity requires binary treatment; continuous support is assessed by the overlap validators",
-                    ));
-                }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &RieszSensitivity::new(),
-                    problem,
-                    workspace,
-                    ctx,
-                )?))
-            }
-            ValidatorId::PriorPredictive
-            | ValidatorId::PosteriorPredictive
-            | ValidatorId::PriorSensitivity
-            | ValidatorId::McmcDiagnostics => Ok(na(
+        let Some(entry) = ENTRIES.iter().find(|entry| entry.id == id) else {
+            return Ok(na(
                 id,
                 "Bayesian PPC/prior-sensitivity/MCMC diagnostics require ValidationSuite::run_bayesian with a fitted posterior",
-            )),
+            ));
+        };
+        if let Some(reason) = (entry.gate)(problem)? {
+            return Ok(na(id, reason));
+        }
+        let report = (entry.run)(problem, workspace, ctx);
+        if entry.overlap_failures_are_outcomes {
+            overlap_as_outcome(report)
+        } else {
+            Ok(ValidationOutcome::Report(report?))
         }
     }
 
@@ -679,7 +479,7 @@ impl ValidationSuite {
             }
             ValidatorId::PosteriorPredictive => {
                 let check = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
-                let rep = check.check(bayes.prepared, bayes.posterior)?;
+                let rep = check.check_with_context(bayes.prepared, bayes.posterior, ctx)?;
                 Ok(ValidationOutcome::Report(
                     rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),
                 ))
@@ -717,6 +517,343 @@ impl ValidationSuite {
     pub fn prior_predictive() -> Self {
         Self::new().with(ValidatorId::PriorPredictive)
     }
+}
+
+/// One built-in suite arm: a gate, a default `::new()` runner, and whether a
+/// propensity failure is an outcome rather than a suite abort.
+struct SuiteEntry {
+    id: ValidatorId,
+    gate: fn(&RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError>,
+    run: fn(
+        &RefutationProblem<'_>,
+        &mut EstimationWorkspace,
+        &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError>,
+    overlap_failures_are_outcomes: bool,
+}
+
+fn linear_paths(problem: &RefutationProblem<'_>) -> (bool, bool) {
+    let method = problem.estimand.method_kind().ok();
+    let static_linear = problem.estimand.is_adjustment_shaped()
+        && problem.estimator.is_none_or(|e| {
+            // Conditional's licensed number is the interaction-model scalar at Ē[W].
+            // That is an effect, so the effect suite runs; skipping it because the
+            // estimator id is not `linear.adjustment.ate` is a demotion.
+            matches!(e, "linear.adjustment.ate" | "conditional.linear.adjustment")
+        });
+    let temporal_linear = method == Some(antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded)
+        && problem.temporal.is_some()
+        && problem
+            .estimator
+            .is_none_or(|e| matches!(e, "temporal.linear.adjustment" | "bayesian.temporal.gcomp"));
+    let linear_ok = static_linear || temporal_linear || problem.effect_refit.is_some();
+    (static_linear, linear_ok)
+}
+
+fn allow(_problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    Ok(None)
+}
+
+fn gate_linear(
+    problem: &RefutationProblem<'_>,
+    reason: &'static str,
+) -> Result<Option<&'static str>, ValidationError> {
+    Ok((!linear_paths(problem).1).then_some(reason))
+}
+
+fn gate_static_linear(
+    problem: &RefutationProblem<'_>,
+    reason: &'static str,
+) -> Result<Option<&'static str>, ValidationError> {
+    Ok((!linear_paths(problem).0).then_some(reason))
+}
+
+fn gate_not_temporal(
+    problem: &RefutationProblem<'_>,
+    reason: &'static str,
+) -> Result<Option<&'static str>, ValidationError> {
+    Ok(problem.temporal.is_some().then_some(reason))
+}
+
+fn run_placebo(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&PlaceboTreatment::new(), problem, workspace, ctx)
+}
+fn run_rcc(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&RandomCommonCause::new(), problem, workspace, ctx)
+}
+fn run_bootstrap(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&BootstrapRefute::new(), problem, workspace, ctx)
+}
+fn run_ucc(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&UnobservedCommonCause::new(), problem, workspace, ctx)
+}
+fn run_overlap(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&OverlapRefuter::new(), problem, workspace, ctx)
+}
+fn run_overlap_rule(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&OverlapRuleRefuter::new(), problem, workspace, ctx)
+}
+fn run_subset(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&DataSubsetRefuter::new(), problem, workspace, ctx)
+}
+fn run_dummy(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&DummyOutcome::new(), problem, workspace, ctx)
+}
+fn run_evalue(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&EValue::new(), problem, workspace, ctx)
+}
+fn run_graph(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&GraphRefuter::new(), problem, workspace, ctx)
+}
+fn run_linear(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&LinearSensitivity::new(), problem, workspace, ctx)
+}
+fn run_partial(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&PartialLinearSensitivity::new(), problem, workspace, ctx)
+}
+fn run_nonparametric(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&NonparametricSensitivity::new(), problem, workspace, ctx)
+}
+fn run_riesz(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<RefutationReport, ValidationError> {
+    run_validator(&RieszSensitivity::new(), problem, workspace, ctx)
+}
+
+fn gate_placebo(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "PlaceboTreatment requires backdoor.adjustment + linear path \
+         (or temporal.backdoor.unfolded + temporal linear path)",
+    )
+}
+fn gate_rcc(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "RandomCommonCause requires backdoor.adjustment + linear path \
+         (or temporal.backdoor.unfolded + temporal linear path)",
+    )
+}
+fn gate_bootstrap(
+    problem: &RefutationProblem<'_>,
+) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "BootstrapCiCoverage requires backdoor.adjustment + linear path \
+         (or temporal.backdoor.unfolded + temporal linear path)",
+    )
+}
+fn gate_ucc(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "UnobservedCommonCause requires backdoor.adjustment or temporal.backdoor.unfolded",
+    )
+}
+fn gate_overlap(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_not_temporal(
+        problem,
+        "OverlapRefuter not applicable to temporal unfolded designs \
+         (propensity uses schema adjustment columns)",
+    )
+}
+fn gate_overlap_rule(
+    problem: &RefutationProblem<'_>,
+) -> Result<Option<&'static str>, ValidationError> {
+    gate_not_temporal(problem, "OverlapRuleRefuter not applicable to temporal unfolded designs")
+}
+fn gate_subset(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "DataSubsetRefuter requires backdoor.adjustment + linear path \
+         (or temporal.backdoor.unfolded + temporal linear path)",
+    )
+}
+fn gate_dummy(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "DummyOutcome requires backdoor.adjustment + linear path \
+         (or temporal.backdoor.unfolded + temporal linear path)",
+    )
+}
+fn gate_graph(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_static_linear(
+        problem,
+        "DropAdjustmentCovariate requires static backdoor.adjustment + linear path \
+         (not applicable to temporal unfolded designs)",
+    )
+}
+fn gate_linear_sens(
+    problem: &RefutationProblem<'_>,
+) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "LinearSensitivity requires backdoor.adjustment or temporal.backdoor.unfolded",
+    )
+}
+fn gate_partial(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    gate_linear(
+        problem,
+        "PartialLinearSensitivity requires backdoor.adjustment or temporal.backdoor.unfolded",
+    )
+}
+fn gate_riesz(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
+    if problem.temporal.is_some() {
+        return Ok(Some("RieszSensitivity not applicable to temporal unfolded designs"));
+    }
+    if !crate::common::binary_treatment(problem)? {
+        return Ok(Some(
+            "RieszSensitivity requires binary treatment; continuous support is assessed by the overlap validators",
+        ));
+    }
+    Ok(None)
+}
+
+const ENTRIES: &[SuiteEntry] = &[
+    SuiteEntry {
+        id: ValidatorId::Placebo,
+        gate: gate_placebo,
+        run: run_placebo,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::RandomCommonCause,
+        gate: gate_rcc,
+        run: run_rcc,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::Bootstrap,
+        gate: gate_bootstrap,
+        run: run_bootstrap,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::UnobservedCommonCause,
+        gate: gate_ucc,
+        run: run_ucc,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::Overlap,
+        gate: gate_overlap,
+        run: run_overlap,
+        overlap_failures_are_outcomes: true,
+    },
+    SuiteEntry {
+        id: ValidatorId::OverlapRule,
+        gate: gate_overlap_rule,
+        run: run_overlap_rule,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::DataSubset,
+        gate: gate_subset,
+        run: run_subset,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::DummyOutcome,
+        gate: gate_dummy,
+        run: run_dummy,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::EValue,
+        gate: allow,
+        run: run_evalue,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::Graph,
+        gate: gate_graph,
+        run: run_graph,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::LinearSensitivity,
+        gate: gate_linear_sens,
+        run: run_linear,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::PartialLinearSensitivity,
+        gate: gate_partial,
+        run: run_partial,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::NonparametricSensitivity,
+        gate: allow,
+        run: run_nonparametric,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::Riesz,
+        gate: gate_riesz,
+        run: run_riesz,
+        overlap_failures_are_outcomes: false,
+    },
+];
+
+fn run_custom(
+    custom: &[Arc<dyn CustomEffectValidator>],
+    mut validate: impl FnMut(&dyn CustomEffectValidator) -> Result<RefutationReport, ValidationError>,
+) -> Result<Vec<ValidationOutcome>, ValidationError> {
+    custom.iter().map(|custom| custom_outcome(custom.as_ref(), validate(custom.as_ref()))).collect()
 }
 
 fn custom_outcome(
