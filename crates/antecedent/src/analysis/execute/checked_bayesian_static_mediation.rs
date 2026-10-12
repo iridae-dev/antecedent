@@ -63,80 +63,8 @@ impl CheckedBayesianStaticMediationOperation {
                 message: "checked Bayesian mediation requires a Bayesian configuration".into(),
             });
         };
-        if config.prior.is_some() || config.external_compose.is_some() {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian mediation supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
-            });
-        }
-        if config.prior_artifact.is_some() && config.prior_mapping.is_none() {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian mediation prior artifacts require an explicit coefficient mapping",
-            });
-        }
-        if config.prior_artifact.is_some() {
-            let treatment_name =
-                data.schema().get(query.treatment).map_err(CausalError::rejected)?;
-            let outcome_treatment_slope = format!("coef_{}", treatment_name.name);
-            match config.prior_mapping.as_ref() {
-                Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace) => {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian mediation prior transfer requires an outcome-mechanism functional or named treatment-slope mapping; identical coefficient-subspace mapping can bind both mechanisms",
-                    });
-                }
-                Some(antecedent_io::PriorMapping::NamedParameters { pairs })
-                    if pairs.len() != 1
-                        || pairs[0].0.is_empty()
-                        || pairs[0].1 != outcome_treatment_slope =>
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian mediation prior mapping is ambiguous; declare exactly one source quantity for the outcome-mechanism treatment slope",
-                    });
-                }
-                _ => {}
-            }
-        }
-        if !matches!(
-            study.structure_source,
-            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
-        ) || !matches!(
-            study.refute,
-            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
-        ) || !study.custom_validators.is_empty()
-            || cache.identification.query != study.query
-            || !matches!(
-                cache.identification.status,
-                IdentificationStatus::NonparametricallyIdentified
-                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            )
-            || !cache.identification.estimands.iter().any(|candidate| {
-                candidate.functional == cache.estimand.functional
-                    && candidate.method == cache.estimand.method
-                    && candidate.adjustment_set == cache.estimand.adjustment_set
-                    && candidate.mediators == cache.estimand.mediators
-            })
-            || physical.logical.query != study.query
-            || !physical
-                .binding()
-                .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian mediation proof, procedure, structure, or validation changed after preparation".into(),
-            });
-        }
-        let verified =
-            identify_static_query(IdentifierId::PathSpecificNatural, graph, &study.query)?;
-        let (verified, verified_estimand) =
-            select_claim(verified, EstimatorId::StaticMediationLinear)?;
-        if verified.query != cache.identification.query
-            || verified_estimand.functional != cache.estimand.functional
-            || verified_estimand.method != cache.estimand.method
-            || verified_estimand.adjustment_set != cache.estimand.adjustment_set
-            || verified_estimand.mediators != cache.estimand.mediators
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian mediation proof is not justified by its retained graph".into(),
-            });
-        }
+        ensure_mediation_prior_admitted(config, data, query)?;
+        verify_mediation_proof(study, physical, cache, graph)?;
 
         let program_schema = ProgramSchema::new(
             data.schema()
@@ -271,6 +199,98 @@ impl CheckedBayesianStaticMediationOperation {
             }),
         ))
     }
+}
+
+/// The mechanism-prior configuration Bayesian mediation admits: isotropic priors, or a
+/// prior artifact mapped to exactly the outcome mechanism's treatment slope.
+fn ensure_mediation_prior_admitted(
+    config: &BayesianConfig,
+    data: &TabularData,
+    query: &antecedent_core::MediationQuery,
+) -> Result<(), CausalError> {
+    if config.prior.is_some() || config.external_compose.is_some() {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian mediation supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
+        });
+    }
+    if config.prior_artifact.is_some() && config.prior_mapping.is_none() {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian mediation prior artifacts require an explicit coefficient mapping",
+        });
+    }
+    if config.prior_artifact.is_some() {
+        let treatment_name = data.schema().get(query.treatment).map_err(CausalError::rejected)?;
+        let outcome_treatment_slope = format!("coef_{}", treatment_name.name);
+        match config.prior_mapping.as_ref() {
+            Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace) => {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian mediation prior transfer requires an outcome-mechanism functional or named treatment-slope mapping; identical coefficient-subspace mapping can bind both mechanisms",
+                });
+            }
+            Some(antecedent_io::PriorMapping::NamedParameters { pairs })
+                if pairs.len() != 1
+                    || pairs[0].0.is_empty()
+                    || pairs[0].1 != outcome_treatment_slope =>
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian mediation prior mapping is ambiguous; declare exactly one source quantity for the outcome-mechanism treatment slope",
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// The retained proof, procedure, structure, and validation still match the study, and the
+/// natural-path identification re-derives from the retained graph.
+fn verify_mediation_proof(
+    study: &Study,
+    physical: &PhysicalExecutionPlan,
+    cache: &crate::analysis::prepared::CachedStaticIdentification,
+    graph: &Dag,
+) -> Result<(), CausalError> {
+    if !matches!(
+        study.structure_source,
+        crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+    ) || !matches!(
+        study.refute,
+        RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
+    ) || !study.custom_validators.is_empty()
+        || cache.identification.query != study.query
+        || !matches!(
+            cache.identification.status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        )
+        || !cache.identification.estimands.iter().any(|candidate| {
+            candidate.functional == cache.estimand.functional
+                && candidate.method == cache.estimand.method
+                && candidate.adjustment_set == cache.estimand.adjustment_set
+                && candidate.mediators == cache.estimand.mediators
+        })
+        || physical.logical.query != study.query
+        || !physical
+            .binding()
+            .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)
+    {
+        return Err(CausalError::Compile {
+            message: "Bayesian mediation proof, procedure, structure, or validation changed after preparation".into(),
+        });
+    }
+    let verified = identify_static_query(IdentifierId::PathSpecificNatural, graph, &study.query)?;
+    let (verified, verified_estimand) = select_claim(verified, EstimatorId::StaticMediationLinear)?;
+    if verified.query != cache.identification.query
+        || verified_estimand.functional != cache.estimand.functional
+        || verified_estimand.method != cache.estimand.method
+        || verified_estimand.adjustment_set != cache.estimand.adjustment_set
+        || verified_estimand.mediators != cache.estimand.mediators
+    {
+        return Err(CausalError::Compile {
+            message: "Bayesian mediation proof is not justified by its retained graph".into(),
+        });
+    }
+    Ok(())
 }
 
 fn bind_mediation_rows(

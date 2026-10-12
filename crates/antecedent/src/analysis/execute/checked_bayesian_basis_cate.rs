@@ -1,18 +1,17 @@
 //! Sealed Bayesian quadratic-basis conditional-effect execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::bayesian_basis_path::{
+    BasisColumns, BasisEstimatorSettings, BasisRows, basis_posterior,
+};
 use super::{
-    Arc, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag, EffectEstimate,
-    EstimatorId, ExecutionContext, GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData, VariableId,
-    bayesian_draw_count, elapsed_ns, finish_identified_execute_with_context, identify_static,
-    select_claim,
+    Arc, BayesianConfig, CausalError, CausalQuery, Dag, EstimatorId, ExecutionContext, GraphClass,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
+    InferenceMode, Instant, PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData,
+    VariableId, bayesian_draw_count, elapsed_ns, finish_identified_execute_with_context,
+    identify_static, select_claim,
 };
-use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    ConditionalEffectQuery, ParametricAssumption, PriorAssumption,
-};
+use antecedent_core::ConditionalEffectQuery;
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
 
 /// Checked CATE plan for the basis estimator. This initial contract conditions
@@ -156,49 +155,18 @@ impl CheckedBayesianBasisCateExecution {
             });
         }
         let inner = &self.query.inner;
-        let treatment = data.float64_values(inner.treatment)?;
-        let outcome = data.float64_values(inner.outcome)?;
-        let covariates = self
-            .cache
-            .estimand
-            .adjustment_set
-            .iter()
-            .copied()
-            .map(|v| data.float64_values(v))
-            .collect::<Result<Vec<_>, _>>()?;
-        let rows: Vec<_> = (0..data.row_count())
-            .filter(|r| {
-                treatment[*r].is_finite()
-                    && outcome[*r].is_finite()
-                    && covariates.iter().all(|x| x[*r].is_finite())
-            })
-            .collect();
-        if rows.len() < 4 {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.basis.gcomp requires at least four complete observed rows",
-            });
-        }
-        let t: Vec<_> = rows.iter().map(|r| treatment[*r]).collect();
-        let y: Vec<_> = rows.iter().map(|r| outcome[*r]).collect();
-        let x: Vec<_> = covariates.iter().flat_map(|col| rows.iter().map(|r| col[*r])).collect();
-        let row_ids: Vec<u32> = rows
-            .iter()
-            .map(|r| {
-                u32::try_from(*r).map_err(|_| CausalError::Compile {
-                    message: "basis CATE row ID exceeds capacity".into(),
-                })
-            })
-            .collect::<Result<_, _>>()?;
+        let rows = BasisRows::complete(
+            data,
+            BasisColumns {
+                treatment: inner.treatment,
+                outcome: inner.outcome,
+                adjustment_set: &self.cache.estimand.adjustment_set,
+            },
+            "basis CATE row ID exceeds capacity",
+        )?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(
-            &antecedent_learn::BasisData {
-                treatment: &t,
-                outcome: &y,
-                covariates_colmajor: &x,
-                n_covariates: covariates.len(),
-                row_ids: Some(&row_ids),
-                fold_ids: None,
-            },
+            &rows.as_basis_data(),
             BasisTargetPopulation::AllObserved,
             BayesianBasisSpec {
                 prior_sd: self.config.prior_scale,
@@ -208,52 +176,17 @@ impl CheckedBayesianBasisCateExecution {
             ctx,
         )?;
         let n_draws = fit.ate_draws.len();
-        let mut quantities = Vec::with_capacity(rows.len() + 1);
-        quantities.push(antecedent_prob::PosteriorQuantityKind::Effect { name: Arc::from("ate") });
-        quantities.extend(row_ids.iter().map(|row| {
-            antecedent_prob::PosteriorQuantityKind::Effect {
-                name: Arc::from(format!("cate.row.{row}")),
-            }
-        }));
-        let mut columns = Vec::with_capacity((rows.len() + 1) * n_draws);
-        columns.extend_from_slice(&fit.ate_draws);
-        for row in 0..rows.len() {
-            for draw in 0..n_draws {
-                columns.push(fit.predictions.values[draw * 3 * rows.len() + 2 * rows.len() + row]);
-            }
-        }
-        let draws = antecedent_prob::PosteriorDraws::from_column_major(
-            antecedent_prob::PosteriorSchema { quantities: Arc::from(quantities) },
-            n_draws,
-            Arc::<[f64]>::from(columns),
+        let (posterior, estimate) = basis_posterior(
+            &fit,
+            &rows,
+            &self.cache.identification,
+            BasisEstimatorSettings {
+                prior_scale: self.config.prior_scale,
+                treatment_contrast: 1.0,
+                estimator_id: model.estimator_id(),
+            },
+            "Gaussian identity-link outcome regression with quadratic covariate terms and treatment-by-covariate interactions.",
         )?;
-        let summaries = draws.summarize();
-        let mut assumptions = self.cache.identification.required_assumptions.clone();
-        assumptions.push(AssumptionRecord { assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.basis_gcomp.quadratic_outcome"), description: Arc::from("Gaussian identity-link outcome regression with quadratic covariate terms and treatment-by-covariate interactions.") }), source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(model.estimator_id()) }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared });
-        assumptions.push(AssumptionRecord { assumption: Assumption::PriorRestriction(PriorAssumption { id: Arc::from(format!("gaussian_coefficients_isotropic_sd_{}", self.config.prior_scale)), description: Arc::from("Every basis coefficient, including the intercept, has a zero-centered Gaussian prior scaled by residual standard deviation.") }), source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(model.estimator_id()) }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared });
-        let posterior = CausalPosterior {
-            draws,
-            summaries: summaries.clone(),
-            identification: self.cache.identification.status,
-            prior_sensitivity: None,
-            conflict_summary: None,
-            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("conjugate_gaussian"),
-            assumptions: assumptions.clone(),
-            unidentified_mass: 0.0,
-            subsampled_out_mass: 0.0,
-            unevaluable_mass: 0.0,
-            early_stopped: false,
-            treatment_contrast: Some(1.0),
-        };
-        let mut estimate = EffectEstimate::new(
-            summaries.mean[0],
-            summaries.sd[0],
-            assumptions,
-            OverlapPolicy::ExplicitOverride,
-        )
-        .with_n_obs(rows.len() as u64);
-        estimate.heterogeneity.cate =
-            Some(Arc::from((0..rows.len()).map(|r| summaries.mean[r + 1]).collect::<Vec<_>>()));
         let args = IdentifiedExecuteFinish::new(
             &self.physical,
             self.cache.identification.clone(),

@@ -104,37 +104,7 @@ impl CheckedBayesianRobustAteExecution {
                 message: "bayesian.robust_ate uses a Bayesian-bootstrap row law and does not accept coefficient or transferred priors",
             });
         }
-        if identification.average_effect() != Some(&query)
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.functional == estimand.functional
-                    && candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-            })
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian robust ATE estimand is not supplied by its retained proof"
-                    .into(),
-            });
-        }
-        let (checked_identification, checked_estimand) = select_claim(
-            identify_static_query_with_rd(
-                IdentifierId::BackdoorAdjustment,
-                graph,
-                &CausalQuery::AverageEffect(query.clone()),
-                None,
-            )?,
-            EstimatorId::BayesianRobustAte,
-        )?;
-        if checked_identification.status != identification.status
-            || checked_identification.query != identification.query
-            || checked_estimand.functional != estimand.functional
-            || checked_estimand.method != estimand.method
-            || checked_estimand.adjustment_set != estimand.adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian robust ATE proof is not justified by its retained graph".into(),
-            });
-        }
+        verify_robust_ate_proof(graph, &query, identification, estimand)?;
         let options = BayesianRobustAteOptions { draws: config.n_draws, ..Default::default() };
         let input = make_input(data, &query, estimand)?;
         let fold_ids =
@@ -276,6 +246,47 @@ impl CheckedBayesianRobustAteExecution {
         });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
     }
+}
+
+/// The retained identification supplies the query's estimand, and the back-door proof
+/// re-derives the same claim from the retained graph.
+fn verify_robust_ate_proof(
+    graph: &Dag,
+    query: &AverageEffectQuery,
+    identification: &antecedent_identify::IdentificationResult,
+    estimand: &IdentifiedEstimand,
+) -> Result<(), CausalError> {
+    if identification.average_effect() != Some(query)
+        || !identification.estimands.iter().any(|candidate| {
+            candidate.functional == estimand.functional
+                && candidate.method == estimand.method
+                && candidate.adjustment_set == estimand.adjustment_set
+        })
+    {
+        return Err(CausalError::Compile {
+            message: "Bayesian robust ATE estimand is not supplied by its retained proof".into(),
+        });
+    }
+    let (checked_identification, checked_estimand) = select_claim(
+        identify_static_query_with_rd(
+            IdentifierId::BackdoorAdjustment,
+            graph,
+            &CausalQuery::AverageEffect(query.clone()),
+            None,
+        )?,
+        EstimatorId::BayesianRobustAte,
+    )?;
+    if checked_identification.status != identification.status
+        || checked_identification.query != identification.query
+        || checked_estimand.functional != estimand.functional
+        || checked_estimand.method != estimand.method
+        || checked_estimand.adjustment_set != estimand.adjustment_set
+    {
+        return Err(CausalError::Compile {
+            message: "Bayesian robust ATE proof is not justified by its retained graph".into(),
+        });
+    }
+    Ok(())
 }
 
 #[expect(clippy::float_cmp, reason = "the Bernoulli treatment contract requires exact 0/1 coding")]

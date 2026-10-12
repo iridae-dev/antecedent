@@ -3,17 +3,39 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianSuiteContext, CausalError, CausalQuery,
-    Dag, EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass, IdentificationStatus,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
-    InferenceMode, LatencyMode, PhysicalExecutionPlan, PosteriorPredictiveCheck,
-    PriorPredictiveCheck, RefutationRun, RefuteSuite, Strategy, StudyResult, TableView,
-    TabularData, ValidationSuite, ValidatorId, bayesian_gcomp, effect_from_posterior,
-    evaluate_bayesian_prior_sensitivity, finish_identified_execute_with_context, identify_static,
-    project_for_ate_estimate, projection_diagnostic, push_conflict_diagnostics,
-    resolve_bayesian_prior_with_conflict, select_claim, validator_not_applicable_diagnostics,
-    with_conflict_summary, with_prior_sensitivity,
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianSuiteContext, CausalError,
+    CausalPosterior, CausalQuery, Dag, Diagnostic, EstimationWorkspace, EstimatorId,
+    ExecutionContext, GraphClass, IdentificationStatus, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId, InferenceMode, LatencyMode,
+    PhysicalExecutionPlan, PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck,
+    RefutationRun, RefuteSuite, Strategy, StudyResult, TableView, TabularData, ValidationSuite,
+    ValidatorId, bayesian_gcomp, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
+    finish_identified_execute_with_context, identify_static, project_for_ate_estimate,
+    projection_diagnostic, push_conflict_diagnostics, resolve_bayesian_prior_with_conflict,
+    select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
+    with_prior_sensitivity,
 };
+
+/// Fitted point stage state the validate stage reuses.
+struct CheckedBayesianDagAtePoint {
+    fitter: antecedent_estimate::BayesianGComputationAte,
+    prepared: antecedent_estimate::PreparedBayesianProblem,
+    workspace: BayesianGCompWorkspace,
+    posterior: CausalPosterior,
+    estimate: antecedent_estimate::EffectEstimate,
+}
+
+/// Borrowed inputs of the validate stage.
+#[derive(Clone, Copy)]
+struct CheckedBayesianDagAteValidation<'a> {
+    data: &'a TabularData,
+    estimand: &'a antecedent_identify::IdentifiedEstimand,
+    query: &'a antecedent_core::AverageEffectQuery,
+    estimate: &'a antecedent_estimate::EffectEstimate,
+    fitter: &'a antecedent_estimate::BayesianGComputationAte,
+    prepared: &'a antecedent_estimate::PreparedBayesianProblem,
+    status: IdentificationStatus,
+}
 
 /// The causal proof, prior, procedure, validation, and result contract selected
 /// during preparation. Estimation uses this value and current rows only; it
@@ -188,40 +210,27 @@ impl CheckedBayesianDagAteExecution {
         self.validators.iter().map(|validator| Arc::from(validator.name())).collect()
     }
 
-    pub(crate) fn execute(
+    /// Point and uncertainty stages: prepare the design, resolve the prior, fit, and record
+    /// the outcome-model assumption, with the stage clock and events around them.
+    fn estimate_point(
         &self,
-        data: &TabularData,
+        projected: &TabularData,
+        estimand_est: &antecedent_identify::IdentifiedEstimand,
+        query_est: &antecedent_core::AverageEffectQuery,
+        status: IdentificationStatus,
+        clock: &mut super::super::stage::StageClock,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let mut clock = super::super::stage::StageClock::new();
-        let query = self.operation.query();
-        clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
-        let identification = self.operation.identification().clone();
-        let estimand = self.operation.estimand().clone();
-        clock.finish(super::super::stage::STAGE_IDENTIFY);
-        super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Identify {
-                identification: identification.clone(),
-                estimand: estimand.clone(),
-            },
-        );
-        let full_cols = data.schema().len();
-        let (projected, query_est, estimand_est) =
-            project_for_ate_estimate(data, query, &estimand)?;
-        let projected_cols = projected.schema().len();
-
+    ) -> Result<CheckedBayesianDagAtePoint, CausalError> {
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
         let mut fitter = bayesian_gcomp(&self.config, ctx);
         let prepared =
-            fitter.prepare(&projected, &estimand_est, &query_est).map_err(CausalError::from)?;
+            fitter.prepare(projected, estimand_est, query_est).map_err(CausalError::from)?;
         let (prior, conflict) =
             resolve_bayesian_prior_with_conflict(&self.config, &prepared, Some(ctx))?;
         fitter.prior = prior;
         let mut workspace = BayesianGCompWorkspace::default();
-        let mut posterior = fitter
-            .fit(&prepared, identification.status, &mut workspace, ctx)
-            .map_err(CausalError::from)?;
+        let mut posterior =
+            fitter.fit(&prepared, status, &mut workspace, ctx).map_err(CausalError::from)?;
         if let Some(summary) = conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
@@ -246,23 +255,39 @@ impl CheckedBayesianDagAteExecution {
             self.stage_sink.as_ref(),
             &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
         );
-        let mut diagnostics = Vec::new();
-        if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
-            diagnostics.push(projection);
-        }
-        if let Some(conflict) = posterior.conflict_summary.as_ref() {
-            push_conflict_diagnostics(&mut diagnostics, conflict);
-        }
+        Ok(CheckedBayesianDagAtePoint { fitter, prepared, workspace, posterior, estimate })
+    }
 
-        clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
+    /// Validate stage: refutation suite, prior / posterior predictive checks, and under the
+    /// full suite prior sensitivity plus MCMC diagnostics.
+    fn validate(
+        &self,
+        input: &CheckedBayesianDagAteValidation<'_>,
+        mut posterior: CausalPosterior,
+        workspace: &mut BayesianGCompWorkspace,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (CausalPosterior, Vec<antecedent_validate::RefutationReport>, Vec<PredictiveCheckReport>),
+        CausalError,
+    > {
+        let CheckedBayesianDagAteValidation {
+            data,
+            estimand,
+            query,
+            estimate,
+            fitter,
+            prepared,
+            status,
+        } = *input;
         let mut workspace_refute = EstimationWorkspace::default();
         let (mut refutations, not_applicable) = match self.validation {
             RefuteSuite::None => (Vec::new(), Vec::new()),
             suite => RefutationRun {
-                data: &projected,
-                estimand: &estimand_est,
-                query: &query_est,
-                estimate: &estimate,
+                data,
+                estimand,
+                query,
+                estimate,
                 suite,
                 estimator: EstimatorId::BayesianGcomp.as_str(),
                 custom: &self.validators,
@@ -277,15 +302,15 @@ impl CheckedBayesianDagAteExecution {
             const PPC_ALPHA: f64 = 0.05;
             let sims = super::super::latency::predictive_check_sims(self.latency);
             let prior = fitter.prior_in_force(prepared.design.ncols);
-            let prior_rep = PriorPredictiveCheck::for_estimator(&fitter, ctx)
+            let prior_rep = PriorPredictiveCheck::for_estimator(fitter, ctx)
                 .with_n_sims(sims)
-                .check_with_prior(&prepared, &prior, ctx)
+                .check_with_prior(prepared, &prior, ctx)
                 .map_err(CausalError::from)?;
             refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(prior_rep);
-            let posterior_rep = PosteriorPredictiveCheck::for_estimator(&fitter, ctx)
+            let posterior_rep = PosteriorPredictiveCheck::for_estimator(fitter, ctx)
                 .with_n_sims(sims)
-                .check(&prepared, &posterior)
+                .check(prepared, &posterior)
                 .map_err(CausalError::from)?;
             refutations.push(posterior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(posterior_rep);
@@ -293,22 +318,22 @@ impl CheckedBayesianDagAteExecution {
         if self.validation == RefuteSuite::Full {
             let (summary, sensitivity) = evaluate_bayesian_prior_sensitivity(
                 &self.config,
-                &fitter,
-                &prepared,
-                identification.status,
+                fitter,
+                prepared,
+                status,
                 &posterior,
-                &mut workspace,
+                workspace,
                 ctx,
             )?;
             refutations.push(sensitivity.to_report(&summary, estimate.ate));
             posterior = with_prior_sensitivity(posterior, summary);
             let suite = ValidationSuite::new().with(ValidatorId::McmcDiagnostics);
             let mut bayes_context = BayesianSuiteContext::new(
-                &fitter,
-                &prepared,
+                fitter,
+                prepared,
                 &posterior,
-                identification.status,
-                &mut workspace,
+                status,
+                workspace,
                 estimate.ate,
             );
             let outcomes =
@@ -316,6 +341,65 @@ impl CheckedBayesianDagAteExecution {
             refutations.extend(ValidationSuite::reports_only(&outcomes));
             diagnostics.extend(validator_not_applicable_diagnostics(&outcomes));
         }
+        Ok((posterior, refutations, predictive_checks))
+    }
+
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut clock = super::super::stage::StageClock::new();
+        let query = self.operation.query();
+        clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
+        let identification = self.operation.identification().clone();
+        let estimand = self.operation.estimand().clone();
+        clock.finish(super::super::stage::STAGE_IDENTIFY);
+        super::super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Identify {
+                identification: identification.clone(),
+                estimand: estimand.clone(),
+            },
+        );
+        let full_cols = data.schema().len();
+        let (projected, query_est, estimand_est) =
+            project_for_ate_estimate(data, query, &estimand)?;
+        let projected_cols = projected.schema().len();
+
+        let CheckedBayesianDagAtePoint { fitter, prepared, mut workspace, posterior, estimate } =
+            self.estimate_point(
+                &projected,
+                &estimand_est,
+                &query_est,
+                identification.status,
+                &mut clock,
+                ctx,
+            )?;
+        let mut diagnostics = Vec::new();
+        if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
+            diagnostics.push(projection);
+        }
+        if let Some(conflict) = posterior.conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, conflict);
+        }
+
+        clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
+        let (posterior, refutations, predictive_checks) = self.validate(
+            &CheckedBayesianDagAteValidation {
+                data: &projected,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate: &estimate,
+                fitter: &fitter,
+                prepared: &prepared,
+                status: identification.status,
+            },
+            posterior,
+            &mut workspace,
+            &mut diagnostics,
+            ctx,
+        )?;
         clock.finish(super::super::stage::STAGE_VALIDATE);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),

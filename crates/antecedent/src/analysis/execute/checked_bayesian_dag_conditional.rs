@@ -2,20 +2,42 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, BayesianGCompWorkspace, BayesianSuiteContext, CausalError, CausalQuery, Dag,
-    EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass, IdentificationResult,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
-    IdentifierId, InferenceMode, LatencyMode, PhysicalExecutionPlan, PosteriorPredictiveCheck,
-    PriorPredictiveCheck, RefutationRun, RefuteSuite, Strategy, StudyResult, TableView,
-    TabularData, ValidationSuite, ValidatorId, VariableId, bayesian_gcomp, effect_from_posterior,
-    evaluate_bayesian_prior_sensitivity, finish_identified_execute_with_context, identify_static,
-    project_for_ate_estimate, projection_diagnostic, resolve_bayesian_prior_with_conflict,
-    select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
-    with_prior_sensitivity,
+    Arc, BayesianGCompWorkspace, BayesianSuiteContext, CausalError, CausalPosterior, CausalQuery,
+    Dag, Diagnostic, EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedResultContext, IdentifierId, InferenceMode, LatencyMode, PhysicalExecutionPlan,
+    PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck, RefutationRun,
+    RefuteSuite, Strategy, StudyResult, TableView, TabularData, ValidationSuite, ValidatorId,
+    VariableId, bayesian_gcomp, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
+    finish_identified_execute_with_context, identify_static, project_for_ate_estimate,
+    projection_diagnostic, resolve_bayesian_prior_with_conflict, select_claim,
+    validator_not_applicable_diagnostics, with_conflict_summary, with_prior_sensitivity,
 };
 use crate::analysis::prepared::Inspect;
 
 const PPC_ALPHA: f64 = 0.05;
+
+/// Fitted point stage state the validate stage reuses.
+struct CheckedBayesianConditionalPoint {
+    fitter: antecedent_estimate::BayesianGComputationAte,
+    prepared: antecedent_estimate::PreparedBayesianProblem,
+    workspace: BayesianGCompWorkspace,
+    posterior: CausalPosterior,
+    estimate: antecedent_estimate::EffectEstimate,
+}
+
+/// Borrowed inputs of the validate stage.
+#[derive(Clone, Copy)]
+struct CheckedBayesianConditionalValidation<'a> {
+    data: &'a TabularData,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a antecedent_core::AverageEffectQuery,
+    estimate: &'a antecedent_estimate::EffectEstimate,
+    config: &'a crate::inference::BayesianConfig,
+    fitter: &'a antecedent_estimate::BayesianGComputationAte,
+    prepared: &'a antecedent_estimate::PreparedBayesianProblem,
+    status: antecedent_identify::IdentificationStatus,
+}
 
 /// Bayesian CATE target and its checked DAG proof, prior, and validation plan.
 #[derive(Clone)]
@@ -179,6 +201,141 @@ impl CheckedBayesianConditionalOperation {
         &self.query.inner.effect_modifiers
     }
 
+    /// Point and uncertainty stages: prepare the conditional design, resolve the prior, fit,
+    /// and record the outcome-model assumption, with the stage clock and events around them.
+    fn estimate_point(
+        &self,
+        projected: &TabularData,
+        estimand_est: &IdentifiedEstimand,
+        query_est: &antecedent_core::AverageEffectQuery,
+        status: antecedent_identify::IdentificationStatus,
+        clock: &mut super::super::stage::StageClock,
+        ctx: &ExecutionContext,
+    ) -> Result<CheckedBayesianConditionalPoint, CausalError> {
+        let InferenceMode::Bayesian(config) = &self.inference else {
+            unreachable!("checked constructor requires Bayesian inference")
+        };
+        let conditional_est = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
+        let mut fitter = bayesian_gcomp(config, ctx);
+        let prepared = fitter
+            .prepare_conditional(projected, estimand_est, &conditional_est)
+            .map_err(CausalError::from)?;
+        let (prior, conflict) = resolve_bayesian_prior_with_conflict(config, &prepared, Some(ctx))?;
+        fitter.prior = prior;
+        let mut workspace = BayesianGCompWorkspace::default();
+        clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
+        let mut posterior =
+            fitter.fit(&prepared, status, &mut workspace, ctx).map_err(CausalError::from)?;
+        if let Some(summary) = conflict {
+            posterior = with_conflict_summary(posterior, summary);
+        }
+        let likelihood =
+            if fitter.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+                antecedent_prob::BayesLikelihood::GaussianIdentity
+            } else {
+                fitter.likelihood
+            };
+        posterior
+            .assumptions
+            .push(super::bayesian_path::gcomp_outcome_model_assumption(likelihood, true));
+        let estimate = effect_from_posterior(&posterior)?;
+        clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
+        super::super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Point { estimate: estimate.clone() },
+        );
+        clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+        super::super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
+        );
+        Ok(CheckedBayesianConditionalPoint { fitter, prepared, workspace, posterior, estimate })
+    }
+
+    /// Validate stage: refutation suite and prior / posterior predictive checks when the
+    /// suite is on, and under the full suite prior sensitivity plus MCMC diagnostics.
+    fn validate(
+        &self,
+        input: &CheckedBayesianConditionalValidation<'_>,
+        mut posterior: CausalPosterior,
+        workspace: &mut BayesianGCompWorkspace,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (CausalPosterior, Vec<antecedent_validate::RefutationReport>, Vec<PredictiveCheckReport>),
+        CausalError,
+    > {
+        let CheckedBayesianConditionalValidation {
+            data,
+            estimand,
+            query,
+            estimate,
+            config,
+            fitter,
+            prepared,
+            status,
+        } = *input;
+        let mut refutations = Vec::new();
+        let mut predictive_checks = Vec::new();
+        let mut refute_workspace = EstimationWorkspace::default();
+        if self.refute != RefuteSuite::None {
+            let mean_query = {
+                let mut query = query.clone();
+                query.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+                query
+            };
+            let (reports, not_applicable) = RefutationRun {
+                data,
+                estimand,
+                query: &mean_query,
+                estimate,
+                suite: self.refute,
+                estimator: EstimatorId::BayesianConditional.as_str(),
+                custom: &self.validators,
+                temporal: None,
+            }
+            .reports(&mut refute_workspace, None, ctx)?;
+            refutations = reports;
+            diagnostics.extend(not_applicable);
+            let sims = super::super::latency::predictive_check_sims(self.latency);
+            let prior = fitter.prior_in_force(prepared.design.ncols);
+            let prior_rep = PriorPredictiveCheck::for_estimator(fitter, ctx)
+                .with_n_sims(sims)
+                .check_with_prior(prepared, &prior, ctx)
+                .map_err(CausalError::from)?;
+            refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+            predictive_checks.push(prior_rep);
+            let posterior_rep = PosteriorPredictiveCheck::for_estimator(fitter, ctx)
+                .with_n_sims(sims)
+                .check(prepared, &posterior)
+                .map_err(CausalError::from)?;
+            refutations.push(posterior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+            predictive_checks.push(posterior_rep);
+        }
+        if self.refute == RefuteSuite::Full {
+            let (summary, sensitivity) = evaluate_bayesian_prior_sensitivity(
+                config, fitter, prepared, status, &posterior, workspace, ctx,
+            )?;
+            refutations.push(sensitivity.to_report(&summary, estimate.ate));
+            posterior = with_prior_sensitivity(posterior, summary);
+            let suite = ValidationSuite::new().with(ValidatorId::McmcDiagnostics);
+            let mut bayes_context = BayesianSuiteContext::new(
+                fitter,
+                prepared,
+                &posterior,
+                status,
+                workspace,
+                estimate.ate,
+            );
+            let outcomes =
+                suite.run_bayesian(&mut bayes_context, ctx).map_err(CausalError::from)?;
+            refutations.extend(ValidationSuite::reports_only(&outcomes));
+            diagnostics.extend(validator_not_applicable_diagnostics(&outcomes));
+        }
+        Ok((posterior, refutations, predictive_checks))
+    }
+
     pub(crate) fn execute(
         &self,
         data: &TabularData,
@@ -205,110 +362,41 @@ impl CheckedBayesianConditionalOperation {
         let (projected, query_est, estimand_est) =
             project_for_ate_estimate(data, &self.query.inner, &estimand)?;
         let projected_cols = projected.schema().len();
-        let conditional_est = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
-        let mut fitter = bayesian_gcomp(config, ctx);
-        let prepared = fitter
-            .prepare_conditional(&projected, &estimand_est, &conditional_est)
-            .map_err(CausalError::from)?;
-        let (prior, conflict) = resolve_bayesian_prior_with_conflict(config, &prepared, Some(ctx))?;
-        fitter.prior = prior;
-        let mut workspace = BayesianGCompWorkspace::default();
-        clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
-        let mut posterior = fitter
-            .fit(&prepared, identification.status, &mut workspace, ctx)
-            .map_err(CausalError::from)?;
-        if let Some(summary) = conflict {
-            posterior = with_conflict_summary(posterior, summary);
-        }
-        let likelihood =
-            if fitter.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
-                antecedent_prob::BayesLikelihood::GaussianIdentity
-            } else {
-                fitter.likelihood
-            };
-        posterior
-            .assumptions
-            .push(super::bayesian_path::gcomp_outcome_model_assumption(likelihood, true));
-        let estimate = effect_from_posterior(&posterior)?;
-        clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
-        super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Point { estimate: estimate.clone() },
-        );
-        clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-        clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-        super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
-        );
-        let mut refutations = Vec::new();
+        let CheckedBayesianConditionalPoint {
+            fitter,
+            prepared,
+            mut workspace,
+            posterior,
+            estimate,
+        } = self.estimate_point(
+            &projected,
+            &estimand_est,
+            &query_est,
+            identification.status,
+            &mut clock,
+            ctx,
+        )?;
         let mut diagnostics = Vec::new();
         if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
             diagnostics.push(projection);
         }
-        let mut predictive_checks = Vec::new();
         clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
-        let mut refute_workspace = EstimationWorkspace::default();
-        if self.refute != RefuteSuite::None {
-            let mean_query = {
-                let mut query = query_est;
-                query.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
-                query
-            };
-            let (reports, not_applicable) = RefutationRun {
+        let (posterior, refutations, predictive_checks) = self.validate(
+            &CheckedBayesianConditionalValidation {
                 data: &projected,
                 estimand: &estimand_est,
-                query: &mean_query,
+                query: &query_est,
                 estimate: &estimate,
-                suite: self.refute,
-                estimator: EstimatorId::BayesianConditional.as_str(),
-                custom: &self.validators,
-                temporal: None,
-            }
-            .reports(&mut refute_workspace, None, ctx)?;
-            refutations = reports;
-            diagnostics.extend(not_applicable);
-            let sims = super::super::latency::predictive_check_sims(self.latency);
-            let prior = fitter.prior_in_force(prepared.design.ncols);
-            let prior_rep = PriorPredictiveCheck::for_estimator(&fitter, ctx)
-                .with_n_sims(sims)
-                .check_with_prior(&prepared, &prior, ctx)
-                .map_err(CausalError::from)?;
-            refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
-            predictive_checks.push(prior_rep);
-            let posterior_rep = PosteriorPredictiveCheck::for_estimator(&fitter, ctx)
-                .with_n_sims(sims)
-                .check(&prepared, &posterior)
-                .map_err(CausalError::from)?;
-            refutations.push(posterior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
-            predictive_checks.push(posterior_rep);
-        }
-        if self.refute == RefuteSuite::Full {
-            let (summary, sensitivity) = evaluate_bayesian_prior_sensitivity(
                 config,
-                &fitter,
-                &prepared,
-                identification.status,
-                &posterior,
-                &mut workspace,
-                ctx,
-            )?;
-            refutations.push(sensitivity.to_report(&summary, estimate.ate));
-            posterior = with_prior_sensitivity(posterior, summary);
-            let suite = ValidationSuite::new().with(ValidatorId::McmcDiagnostics);
-            let mut bayes_context = BayesianSuiteContext::new(
-                &fitter,
-                &prepared,
-                &posterior,
-                identification.status,
-                &mut workspace,
-                estimate.ate,
-            );
-            let outcomes =
-                suite.run_bayesian(&mut bayes_context, ctx).map_err(CausalError::from)?;
-            refutations.extend(ValidationSuite::reports_only(&outcomes));
-            diagnostics.extend(validator_not_applicable_diagnostics(&outcomes));
-        }
+                fitter: &fitter,
+                prepared: &prepared,
+                status: identification.status,
+            },
+            posterior,
+            &mut workspace,
+            &mut diagnostics,
+            ctx,
+        )?;
         clock.finish(super::super::stage::STAGE_VALIDATE);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
