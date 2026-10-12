@@ -7,7 +7,7 @@ use crate::dsep::{
     DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult, add_undirected,
 };
 use crate::error::GraphError;
-use crate::pag::Pag;
+use crate::pag::{ClassMembers, Pag};
 use crate::types::DenseNodeId;
 use crate::workspace::BitSet;
 
@@ -444,6 +444,7 @@ impl Pag {
         let mut capped = max_paths == 0 || max_len == 0;
         let mut definite_active = None;
         let mut possibly_active = None;
+        let mut memo = crate::pag::DescendantMemo::default();
         let cut = self.walk_simple_paths(x, y, max_len, |path| {
             if examined >= max_paths {
                 capped = true;
@@ -456,7 +457,7 @@ impl Pag {
             }
             // A definite-status path can still be open in some member only: a
             // collider's descendants need not be definite.
-            if possibly_active.is_none() && self.path_possibly_active_given(path, z) {
+            if possibly_active.is_none() && self.path_possibly_active_given(path, z, &mut memo) {
                 possibly_active = Some(path.to_vec());
             }
             true
@@ -498,15 +499,25 @@ impl Pag {
         // The marks leave it open: ask every member. The audit refuses more
         // circle endpoints than it can enumerate, and yields nothing for marks
         // no maximal ancestral graph satisfies; neither is a separation.
-        let Ok(members) = crate::completion::CompletionSampler::new(self.clone(), usize::MAX)
-        else {
-            return Ok(ClassSeparation::Undetermined);
+        let enumerated;
+        let members: &[Admg] = match self.class_members() {
+            ClassMembers::Refused => return Ok(ClassSeparation::Undetermined),
+            ClassMembers::Cached(members) => {
+                enumerated = members;
+                &enumerated
+            }
+            ClassMembers::Uncached => {
+                let Some(members) = self.build_class_members() else {
+                    return Ok(ClassSeparation::Undetermined);
+                };
+                enumerated = members.into();
+                &enumerated
+            }
         };
         let mut ws = DSeparationWorkspace::default();
         let mut verdict = None;
         for member in members {
-            let separated =
-                crate::completion::as_admg(&member.graph).is_m_separated(x, y, z, &mut ws)?;
+            let separated = member.is_m_separated(x, y, z, &mut ws)?;
             if *verdict.get_or_insert(separated) != separated {
                 return Ok(ClassSeparation::Undetermined);
             }
