@@ -33,7 +33,7 @@ use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, DesignColumnMap, DesignColumnRole, FaerBackend,
-    LeastSquaresWorkspace,
+    LeastSquaresFit, LeastSquaresWorkspace, StatsError,
 };
 
 use crate::serial_dependence::{DependenceScope, SerialDependence};
@@ -413,7 +413,8 @@ impl SequentialContrastDesign {
     /// through the contrast gradient), for [`crate::temporal_block::effective_rows`].
     #[must_use]
     pub fn influence(&self) -> Option<Vec<f64>> {
-        self.setup.influence(&mut LeastSquaresWorkspace::default())
+        let full = self.setup.fit_full(&mut LeastSquaresWorkspace::default());
+        self.setup.influence_from(&self.setup.coefficients_of(&full).ok()?)
     }
 
     /// Every mechanism's OLS normal-equation scores on the aligned rows
@@ -421,7 +422,8 @@ impl SequentialContrastDesign {
     /// [`crate::temporal_block::dependence_block_length`].
     #[must_use]
     pub fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
-        self.setup.normal_equation_scores()
+        let full = self.setup.fit_full(&mut LeastSquaresWorkspace::default());
+        self.setup.normal_equation_scores_of(&full)
     }
 
     /// Circular-block length of this contrast's Frequentist block-bootstrap
@@ -429,7 +431,13 @@ impl SequentialContrastDesign {
     /// interval resamples the same blocks.
     #[must_use]
     pub fn block_length(&self) -> usize {
-        self.setup.dependence_block_length(&mut LeastSquaresWorkspace::default())
+        let full = self.setup.fit_full(&mut LeastSquaresWorkspace::default());
+        let influence = self
+            .setup
+            .coefficients_of(&full)
+            .ok()
+            .and_then(|base| self.setup.influence_from(&base));
+        self.setup.dependence_block_length_with(influence.as_deref(), &full)
     }
 }
 
@@ -545,6 +553,11 @@ struct SequentialSetup {
     interaction_at: Vec<Vec<Vec<usize>>>,
     /// Modifier columns at each fitted node's lag, used to recompute `E[W]` on a row map.
     node_modifier_values: Vec<Vec<Vec<f64>>>,
+}
+
+/// Full-sample OLS solves of a [`SequentialSetup`], one per fitted mechanism in fitting order.
+struct FullFit {
+    fits: Vec<(usize, Result<LeastSquaresFit, StatsError>)>,
 }
 
 impl SequentialSetup {
@@ -877,6 +890,40 @@ impl SequentialSetup {
         Ok(coefficients)
     }
 
+    /// Every mechanism's OLS fit on all aligned rows, residuals included, in fitting order.
+    ///
+    /// One solve per mechanism serves the point value, the contrast influence and the
+    /// normal-equation scores of the block length: each of those reads the same fit, so
+    /// none refits.
+    fn fit_full(&self, ls_ws: &mut LeastSquaresWorkspace) -> FullFit {
+        let fits = self
+            .order
+            .iter()
+            .filter_map(|&i| {
+                let design = self.designs[i].as_ref()?;
+                let fit = FaerBackend.least_squares(
+                    &design.matrix,
+                    design.nrows,
+                    design.ncols,
+                    &design.outcome,
+                    ls_ws,
+                );
+                Some((i, fit))
+            })
+            .collect();
+        FullFit { fits }
+    }
+
+    /// Coefficients of every fitted mechanism by node, or the first failed solve.
+    fn coefficients_of(&self, full: &FullFit) -> Result<Vec<Vec<f64>>, EstimationError> {
+        let mut coefficients = vec![Vec::new(); self.node_count];
+        for (i, fit) in &full.fits {
+            let fit = fit.as_ref().map_err(|error| EstimationError::from(error.clone()))?;
+            coefficients[*i].clone_from(&fit.coefficients);
+        }
+        Ok(coefficients)
+    }
+
     /// Point value on all aligned rows, or refit on the row map `rows`. A `Level`
     /// refit also re-reads the factual means of mechanism-free nodes on `rows`.
     fn evaluate(
@@ -975,12 +1022,11 @@ impl SequentialSetup {
     /// over fitted mechanisms `i` with gradient `g_i`, plus, for a `Level`, the root-mean
     /// scores ([`Self::root_mean_scores`]). Both terms are `O_p(1)`: the influence feeds the
     /// block length and the kernel-bias factor as well as the effective-row count, so its
-    /// scale is not immaterial.
-    fn influence(&self, ls_ws: &mut LeastSquaresWorkspace) -> Option<Vec<f64>> {
-        let base = self.fit_ols(None, ls_ws, &mut Vec::new(), &mut Vec::new()).ok()?;
-        let gradient = self.gradient(&base);
+    /// scale is not immaterial. `base` holds the full-sample OLS coefficients by node.
+    fn influence_from(&self, base: &[Vec<f64>]) -> Option<Vec<f64>> {
+        let gradient = self.gradient(base);
         let n = self.n;
-        let mut score = self.root_mean_scores(&base).unwrap_or_else(|| vec![0.0; n]);
+        let mut score = self.root_mean_scores(base).unwrap_or_else(|| vec![0.0; n]);
         for &i in &self.order {
             let Some(design) = &self.designs[i] else {
                 continue;
@@ -1001,29 +1047,32 @@ impl SequentialSetup {
         score.iter().all(|s| s.is_finite()).then_some(score)
     }
 
-    /// [`crate::temporal_block::normal_equation_scores`] of every fitted mechanism.
-    fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
-        self.order
+    /// [`crate::temporal_block::normal_equation_scores_of_residuals`] of every mechanism
+    /// whose solve in `full` succeeded, from the residuals that solve holds.
+    fn normal_equation_scores_of(&self, full: &FullFit) -> Vec<Vec<f64>> {
+        full.fits
             .iter()
-            .filter_map(|&i| self.designs[i].as_ref())
-            .filter_map(|d| {
-                crate::temporal_block::normal_equation_scores(
-                    &d.matrix, d.nrows, d.ncols, &d.outcome,
-                )
+            .filter_map(|(i, fit)| {
+                let design = self.designs[*i].as_ref()?;
+                let fit = fit.as_ref().ok()?;
+                (design.nrows != 0 && design.ncols != 0).then(|| {
+                    crate::temporal_block::normal_equation_scores_of_residuals(
+                        &design.matrix,
+                        design.nrows,
+                        design.ncols,
+                        &fit.residuals,
+                    )
+                })
             })
             .flatten()
             .collect()
     }
 
-    /// [`crate::temporal_block::dependence_block_length`] of the unfolded span over
-    /// the contrast influence plus every mechanism's normal-equation scores.
-    fn dependence_block_length(&self, ls_ws: &mut LeastSquaresWorkspace) -> usize {
-        self.dependence_block_length_with(self.influence(ls_ws).as_deref())
-    }
-
-    /// [`Self::dependence_block_length`] with the contrast influence already computed.
-    fn dependence_block_length_with(&self, influence: Option<&[f64]>) -> usize {
-        let normal = self.normal_equation_scores();
+    /// [`crate::temporal_block::dependence_block_length`] of the unfolded span over the
+    /// contrast influence (already computed) plus every mechanism's normal-equation scores
+    /// from the shared full-sample fit.
+    fn dependence_block_length_with(&self, influence: Option<&[f64]>, full: &FullFit) -> usize {
+        let normal = self.normal_equation_scores_of(full);
         let scores: Vec<&[f64]> =
             influence.into_iter().chain(normal.iter().map(Vec::as_slice)).collect();
         crate::temporal_block::dependence_block_length(self.max_lag as usize + 1, self.n, &scores)
@@ -1391,7 +1440,9 @@ fn estimate_sequential(
         );
         return Ok((effect, Some(posterior)));
     }
-    let point = setup.evaluate(None, &mut ls_ws)?;
+    let full = setup.fit_full(&mut ls_ws);
+    let coefficients = setup.coefficients_of(&full)?;
+    let point = setup.propagate(&coefficients, &setup.factual, None);
     // Circular blocks of consecutive lag-aligned rows (every row keeps its intact
     // unfolded window), every mechanism refit on the same rows, and the replicate
     // SD scaled by the circular-Bartlett fixed-b factor and the kernel-bias
@@ -1403,9 +1454,9 @@ fn estimate_sequential(
     // geometry without rebuilding the design. The lengthening refits every
     // mechanism for its scores and scans each; without replicates no interval
     // is published and the rule length is returned instead.
-    let influence = setup.influence(&mut ls_ws);
+    let influence = setup.influence_from(&coefficients);
     let block_length = if bootstrap_replicates > 0 {
-        setup.dependence_block_length_with(influence.as_deref())
+        setup.dependence_block_length_with(influence.as_deref(), &full)
     } else {
         antecedent_data::circular_block_length(setup.max_lag as usize + 1, setup.n)
     };
@@ -1651,10 +1702,155 @@ mod tests {
         }
         assert!(scores.iter().sum::<f64>().abs() < 1e-9);
         // The level's influence carries the root term on top of the regression scores.
-        let influence = setup.influence(&mut ws).unwrap();
+        let influence = setup.influence_from(&base).unwrap();
         assert_eq!(influence.len(), scores.len());
         assert!(influence.iter().sum::<f64>().abs() < 1e-6, "influence is mean zero");
         let contrast = build(SequentialEval::Contrast { delta: 1.0 });
         assert!(contrast.root_mean_gradient(&base).is_empty());
+    }
+
+    /// The point value, influence and normal-equation scores read one full-sample fit; each is
+    /// bit-identical to the refit it replaces.
+    #[test]
+    fn shared_full_fit_reproduces_the_refits_bitwise() {
+        let (data, graph) = fixture();
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
+        let ctx = ExecutionContext::for_tests(5);
+        for eval in [SequentialEval::Contrast { delta: 1.0 }, SequentialEval::Level] {
+            let setup = SequentialSetup::build(
+                &SequentialProblem {
+                    data: &data,
+                    graph: &graph,
+                    indexer: &id_res.indexer,
+                    estimand: &estimand,
+                },
+                &SequenceTarget {
+                    outcome: VariableId::from_raw(1),
+                    outcome_offset: 0,
+                    overlays: &overlays,
+                },
+                eval,
+                &[],
+                &ctx,
+            )
+            .unwrap();
+            let mut ws = LeastSquaresWorkspace::default();
+            let full = setup.fit_full(&mut ws);
+            let coefficients = setup.coefficients_of(&full).unwrap();
+            let refit = setup.fit_ols(None, &mut ws, &mut Vec::new(), &mut Vec::new()).unwrap();
+            assert_eq!(coefficients, refit);
+            let point = setup.propagate(&coefficients, &setup.factual, None);
+            assert_eq!(point.to_bits(), setup.evaluate(None, &mut ws).unwrap().to_bits());
+            let refit_scores: Vec<Vec<f64>> = setup
+                .order
+                .iter()
+                .filter_map(|&i| setup.designs[i].as_ref())
+                .filter_map(|d| {
+                    crate::temporal_block::normal_equation_scores(
+                        &d.matrix, d.nrows, d.ncols, &d.outcome,
+                    )
+                })
+                .flatten()
+                .collect();
+            let shared_scores = setup.normal_equation_scores_of(&full);
+            assert!(!shared_scores.is_empty());
+            assert_eq!(shared_scores.len(), refit_scores.len());
+            for (shared, refit) in shared_scores.iter().zip(&refit_scores) {
+                assert!(shared.iter().zip(refit).all(|(a, b)| a.to_bits() == b.to_bits()));
+            }
+        }
+    }
+
+    /// Cost of the block-length path of one sequential estimate: the contrast influence plus
+    /// every mechanism's normal-equation scores, on a series long enough for the fits to matter.
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_sequential_block_length_path() {
+        let n = 20_000usize;
+        let ctx = ExecutionContext::for_tests(11);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 3);
+        let mut draw = || 2.0 * rng.next_f64() - 1.0;
+        let z: Vec<f64> = (0..n).map(|_| draw()).collect();
+        let t: Vec<f64> = z.iter().map(|z| 0.5 * z + draw()).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|s| {
+                let at = |v: &[f64], lag: usize| s.checked_sub(lag).map_or(0.0, |i| v[i]);
+                1.0 + 2.0 * at(&t, 1) + 0.8 * at(&t, 2) + 0.5 * at(&z, 1) + 0.3 * draw()
+            })
+            .collect();
+        let data = TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+            1,
+        )
+        .unwrap();
+        let mut graph = TemporalDag::empty();
+        let id = VariableId::from_raw;
+        let mut edge = |from: u32, from_lag: u32, to: u32, to_lag: u32| {
+            let src = ensure_lagged(&mut graph, id(from), Lag::from_raw(from_lag)).unwrap();
+            let dst = ensure_lagged(&mut graph, id(to), Lag::from_raw(to_lag)).unwrap();
+            graph.insert_directed(src, dst).unwrap();
+        };
+        edge(2, 0, 0, 0);
+        edge(0, 1, 1, 0);
+        edge(0, 2, 1, 0);
+        edge(2, 1, 1, 0);
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
+        let setup = SequentialSetup::build(
+            &SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &id_res.indexer,
+                estimand: &estimand,
+            },
+            &SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
+            SequentialEval::Contrast { delta: 1.0 },
+            &[],
+            &ctx,
+        )
+        .unwrap();
+        let mut ws = LeastSquaresWorkspace::default();
+        let reps = 20;
+        let start = std::time::Instant::now();
+        let mut checksum = 0usize;
+        for _ in 0..reps {
+            let full = setup.fit_full(&mut ws);
+            let base = setup.coefficients_of(&full).unwrap();
+            let influence = setup.influence_from(&base);
+            checksum += setup.dependence_block_length_with(influence.as_deref(), &full);
+        }
+        println!(
+            "sequential influence + block length n={n}: {:.3} ms/call (checksum {checksum})",
+            start.elapsed().as_secs_f64() * 1e3 / f64::from(reps)
+        );
     }
 }
