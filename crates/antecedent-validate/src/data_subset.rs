@@ -24,10 +24,11 @@ pub struct DataSubsetRefuter {
     pub replicates: u32,
     /// Fraction of rows kept per replicate.
     pub subset_fraction: f64,
-    /// Pass if the subset ATE distribution is consistent with the same estimator's
-    /// full-sample refit at this significance level (two-sided normal test on the
-    /// replicates, `p >= alpha`). A non-finite replicate is an error, not a verdict. A pass
-    /// is not an informative falsification under OLS.
+    /// Pass if the full-sample refit is a typical draw from the subset-replicate
+    /// distribution (`p >= alpha`). The p-value is the two-sided normal tail of that
+    /// one value under `N(mean, sd)` of the replicates, not a test of the replicate
+    /// mean. A non-finite replicate is an error, not a verdict. A pass is not an
+    /// informative falsification under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -88,7 +89,7 @@ impl DataSubsetRefuter {
             self.replicates,
             EstimationWorkspace::default,
             |problem, refit, workspace, ctx, r| {
-                let stream = 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r));
+                let stream = crate::streams::DATA_SUBSET.wrapping_add(u64::from(r));
                 let data = if is_temporal_series {
                     with_contiguous_row_window(problem.data, self.subset_fraction, ctx, stream)?
                 } else {
@@ -116,8 +117,8 @@ impl DataSubsetRefuter {
             self.alpha,
             |mean_ate, p_value| {
                 format!(
-                    "subset ATE distribution (mean {mean_ate}) is inconsistent with the \
-                     full-sample refit {centre} (p={p_value} < alpha={}) across {}% subsets",
+                    "subset null value {centre} is atypical under the replicate distribution \
+                     (mean {mean_ate}, p={p_value} < alpha={}) across {}% subsets",
                     self.alpha,
                     self.subset_fraction * 100.0
                 )

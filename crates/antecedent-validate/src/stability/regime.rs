@@ -88,7 +88,7 @@ impl RegimeStability {
         for &r in &regimes {
             counts.insert(r, BTreeMap::new());
         }
-        let mut rng = ctx.rng.stream(0x5E61_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_REGIME);
         let mut index_scratch = Vec::new();
         // RPCMCI's nested PCMCI+ materializes lags up to twice its maximum lag: separate blocks
         // by that many missing rows so no lag window mixes two blocks, and so none straddles

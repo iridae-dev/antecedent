@@ -53,7 +53,7 @@ pub fn refute_path(
                     data,
                     fraction,
                     ctx,
-                    subset_stream(0xF012_0000, slot, replicate),
+                    subset_stream(crate::streams::FUNCTIONAL_SUBSET_80, slot, replicate),
                 )?;
                 let prepared = estimator.prepare(
                     &subset,
@@ -132,7 +132,7 @@ pub fn refute_distribution(
                     data,
                     fraction,
                     ctx,
-                    subset_stream(0xF013_0000, slot, replicate),
+                    subset_stream(crate::streams::FUNCTIONAL_SUBSET_50, slot, replicate),
                 )?;
                 let prepared = estimator.prepare(
                     &subset,
@@ -222,8 +222,10 @@ mod tests {
     #[test]
     fn subset_fractions_draw_from_disjoint_streams() {
         // 20 replicates per fraction: no stream id is shared between the 80% and 50% slots.
-        let a: Vec<u64> = (0..20).map(|r| subset_stream(0xF012_0000, 0, r)).collect();
-        let b: Vec<u64> = (0..20).map(|r| subset_stream(0xF012_0000, 1, r)).collect();
+        let a: Vec<u64> =
+            (0..20).map(|r| subset_stream(crate::streams::FUNCTIONAL_SUBSET_80, 0, r)).collect();
+        let b: Vec<u64> =
+            (0..20).map(|r| subset_stream(crate::streams::FUNCTIONAL_SUBSET_80, 1, r)).collect();
         assert!(a.iter().all(|s| !b.contains(s)));
         // The historical 80% streams are unchanged.
         assert_eq!(a[3], 0xF012_0003);

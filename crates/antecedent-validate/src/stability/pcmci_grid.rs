@@ -96,7 +96,7 @@ impl BlockBootstrapStability {
             });
         }
         let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
-        let mut rng = ctx.rng.stream(0x57AB_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_PCMCI);
         let mut index_scratch = Vec::new();
         // PCMCI materializes lags up to twice its maximum lag; that is the separator width that
         // keeps every lag window inside one block (see `gapped_block_bootstrap`).
@@ -299,8 +299,7 @@ pub(crate) fn report_from_counts(
     for (link, c) in counts {
         frequencies.push(LinkStability { link, frequency: f64::from(c) / f64::from(replicates) });
     }
-    frequencies
-        .sort_by(|a, b| b.frequency.partial_cmp(&a.frequency).unwrap_or(std::cmp::Ordering::Equal));
+    frequencies.sort_by(|a, b| b.frequency.total_cmp(&a.frequency));
     DiscoveryStabilityReport { frequencies: Arc::from(frequencies), replicates, block_size }
 }
 

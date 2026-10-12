@@ -76,7 +76,7 @@ impl FalsePositiveCheck {
         let alpha = self.pcmci.engine().constraints.alpha;
         let lags = &self.pcmci.engine().constraints.temporal;
         let family = lagged_link_family(variables.len(), lags.min_lag.raw(), lags.max_lag.raw())?;
-        let mut rng = ctx.rng.stream(0xF41E_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_FALSE_POSITIVE);
         // The surrogates share one stream, drawn in order here; the discovery runs go to the
         // pool.
         let hits_per_run = map_drawn_replicates(

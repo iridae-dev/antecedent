@@ -35,9 +35,12 @@ pub enum PlaceboMode {
 pub struct PlaceboTreatment {
     /// Replicate count (each draw a fresh placebo treatment).
     pub replicates: u32,
-    /// Pass if the placebo ATE distribution is consistent with zero at this significance
-    /// level (two-sided normal test on the replicates, `p >= alpha`). Non-finite
-    /// replicates fail closed. A pass is not an informative falsification under OLS.
+    /// Pass if zero is a typical draw from the replicate distribution at this
+    /// significance level (`p >= alpha`). The p-value is the two-sided normal tail
+    /// of the null value under `N(mean, sd)` of the replicates — a typicality test
+    /// of that one value, not a test of the mean (`sd` is not divided by `√n`).
+    /// Non-finite replicates fail closed. A pass is not an informative falsification
+    /// under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled to avoid nested pools).
     pub estimator: LinearAdjustmentAte,
@@ -84,7 +87,7 @@ impl PlaceboTreatment {
                     replicates: self.replicates,
                     alpha: self.alpha,
                     target: NoiseReplaceTarget::Treatment,
-                    stream_base: 0xA7E0_0001_0000,
+                    stream_base: crate::streams::PLACEBO_REFIT,
                     refuter_id: "placebo.treatment",
                     failure_label: "placebo",
                 },
@@ -118,7 +121,8 @@ impl PlaceboTreatment {
             EstimationWorkspace::default,
             |problem, refit, workspace, ctx, r| {
                 let mut perm = factual.clone();
-                let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
+                let mut rng =
+                    ctx.rng.stream(crate::streams::PLACEBO_SHUFFLE.wrapping_add(u64::from(r)));
                 let mut shuffled = observed.clone();
                 shuffle(&mut rng, &mut shuffled);
                 for (&row, value) in eligible.iter().zip(shuffled) {
@@ -148,8 +152,8 @@ impl PlaceboTreatment {
             self.alpha,
             |mean_ate, p_value| {
                 format!(
-                    "placebo permute ATE distribution (mean {mean_ate}) is inconsistent with zero \
-                     (p={p_value} < alpha={})",
+                    "placebo permute null value 0 is atypical under the replicate distribution \
+                     (mean {mean_ate}, p={p_value} < alpha={})",
                     self.alpha
                 )
             },

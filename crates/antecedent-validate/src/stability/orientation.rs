@@ -96,7 +96,7 @@ impl OrientationStability {
         let mut directed_counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
         let mut undirected_counts: BTreeMap<(VariableId, VariableId), u32> = BTreeMap::new();
         let mut conflict_reps = 0u32;
-        let mut rng = ctx.rng.stream(0x0E1E_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_ORIENTATION);
         let mut index_scratch = Vec::new();
         // PCMCI+ materializes lags up to twice its maximum lag: separate blocks by that many
         // missing rows so no lag window mixes two blocks (see `gapped_block_bootstrap`).
@@ -143,9 +143,7 @@ impl OrientationStability {
                 frequency: f64::from(c) / f64::from(self.replicates),
             });
         }
-        undirected.sort_by(|x, y| {
-            y.frequency.partial_cmp(&x.frequency).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        undirected.sort_by(|x, y| y.frequency.total_cmp(&x.frequency));
         Ok(OrientationStabilityReport {
             directed: directed.frequencies,
             undirected: Arc::from(undirected),

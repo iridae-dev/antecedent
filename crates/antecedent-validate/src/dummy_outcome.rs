@@ -16,8 +16,9 @@ use crate::error::ValidationError;
 pub struct DummyOutcome {
     /// Replicate count (each draw a fresh dummy outcome).
     pub replicates: u32,
-    /// Pass if the dummy-outcome ATE distribution is consistent with zero at this
-    /// significance level (two-sided normal test on the replicates, `p >= alpha`).
+    /// Pass if zero is a typical draw from the replicate distribution (`p >= alpha`).
+    /// The p-value is the two-sided normal tail of that one null value, not a test
+    /// of the replicate mean.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled to avoid nested pools).
     pub estimator: LinearAdjustmentAte,
@@ -56,7 +57,7 @@ impl DummyOutcome {
                 replicates: self.replicates,
                 alpha: self.alpha,
                 target: NoiseReplaceTarget::Outcome,
-                stream_base: 0xA7E0_0008_0000,
+                stream_base: crate::streams::DUMMY_OUTCOME,
                 refuter_id: "dummy.outcome",
                 failure_label: "dummy-outcome",
             },

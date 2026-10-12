@@ -93,7 +93,7 @@ impl SyntheticNullCalibration {
         // Candidate lagged links PCMCI scores under its own lag constraints.
         let lags = &self.pcmci.engine().constraints.temporal;
         let family = lagged_link_family(self.n_vars, lags.min_lag.raw(), lags.max_lag.raw())?;
-        let mut rng = ctx.rng.stream(0x5011_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_NULL);
         // The noise series share one stream, drawn in order here; the discovery runs go to the
         // pool.
         let hits_per_run = map_drawn_replicates(

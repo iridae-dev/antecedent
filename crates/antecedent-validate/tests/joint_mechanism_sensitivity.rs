@@ -52,16 +52,16 @@ struct Model {
     y_values: Vec<f64>,
 }
 
-struct Rng(u64);
+struct Rng(antecedent_core::CausalRng);
 
 impl Rng {
+    fn new(seed: u64) -> Self {
+        // `from_state` keeps the historical SplitMix sequence of the local copy.
+        Self(antecedent_core::CausalRng::from_state(seed))
+    }
+
     fn next(&mut self) -> f64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^= z >> 31;
-        (z >> 11) as f64 / (1u64 << 53) as f64
+        self.0.next_f64()
     }
 
     fn simplex(&mut self, k: usize) -> Vec<f64> {
@@ -378,7 +378,7 @@ fn assert_close(a: f64, b: f64, tol: f64, what: &str) {
 
 #[test]
 fn exact_range_equals_brute_force_vertex_enumeration() {
-    let mut rng = Rng(11);
+    let mut rng = Rng::new(11);
     let mut checked = 0;
     for case in 0..40 {
         let levels = 1 + case % 3;
@@ -479,7 +479,7 @@ fn zero_deviation_reproduces_the_baseline_exactly() {
 
 #[test]
 fn a_single_kernel_factor_is_bit_equal_to_the_one_factor_route() {
-    let mut rng = Rng(5);
+    let mut rng = Rng::new(5);
     for case in 0..30 {
         let model = rng.model(1 + case % 4, 2 + case % 3);
         let fraction = rng.next();
@@ -528,7 +528,7 @@ fn a_single_kernel_factor_is_bit_equal_to_the_one_factor_route() {
 
 #[test]
 fn nested_boxes_give_nested_ranges() {
-    let mut rng = Rng(29);
+    let mut rng = Rng::new(29);
     let mut comparisons = 0;
     for case in 0..60 {
         let model = rng.model(1 + case % 4, 2 + case % 3);
@@ -837,7 +837,7 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
     assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = (512 << 20) + 1)), exceeded);
     assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = u64::MAX)), exceeded);
     // 64 parent levels and 32 outcome categories are admitted; one more refuses.
-    let mut rng = Rng(3);
+    let mut rng = Rng::new(3);
     run(&rng.model(64, 2), &spec(Some(0.1), Some(0.1))).unwrap();
     assert_eq!(refusal(run(&rng.model(65, 2), &spec(Some(0.1), Some(0.1)))), exceeded);
     run(&rng.model(1, 32), &spec(Some(0.1), Some(0.1))).unwrap();
@@ -846,7 +846,7 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
 
 #[test]
 fn law_bounds_refuse_before_the_charged_read_of_the_law() {
-    let mut rng = Rng(5);
+    let mut rng = Rng::new(5);
     // The read of the law is charged one operation per parent level: a
     // one-operation budget stops a 64-level law on its second level ...
     let mut one = spec(Some(0.1), Some(0.1));

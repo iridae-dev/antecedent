@@ -25,10 +25,11 @@ use crate::error::ValidationError;
 pub struct RandomCommonCause {
     /// Replicate count.
     pub replicates: u32,
-    /// Pass if the refit ATE distribution is consistent with the same estimator's
-    /// full-sample refit at this significance level (two-sided normal test on the
-    /// replicates, `p >= alpha`). A non-finite replicate is an error, not a verdict. A pass
-    /// is not an informative falsification under OLS.
+    /// Pass if the full-sample refit is a typical draw from the replicate distribution
+    /// (`p >= alpha`). The p-value is the two-sided normal tail of that one value
+    /// under `N(mean, sd)` of the replicates, not a test of the replicate mean.
+    /// A non-finite replicate is an error, not a verdict. A pass is not an informative
+    /// falsification under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -79,7 +80,11 @@ impl RandomCommonCause {
             self.replicates,
             || (EstimationWorkspace::default(), vec![0.0; n]),
             |problem, refit, (workspace, noise), ctx, r| {
-                fill_gaussian(noise, ctx, 0xA7E0_0002_0000_u64.wrapping_add(u64::from(r)));
+                fill_gaussian(
+                    noise,
+                    ctx,
+                    crate::streams::RANDOM_COMMON_CAUSE.wrapping_add(u64::from(r)),
+                );
                 let (data, new_id) = with_extra_float(
                     problem.data,
                     &format!("__rcc_{r}"),
@@ -113,8 +118,8 @@ impl RandomCommonCause {
             self.alpha,
             |mean_ate, p_value| {
                 format!(
-                    "refit ATE distribution (mean {mean_ate}) is inconsistent with the \
-                     full-sample refit {centre} (p={p_value} < alpha={})",
+                    "refit null value {centre} is atypical under the replicate distribution \
+                     (mean {mean_ate}, p={p_value} < alpha={})",
                     self.alpha
                 )
             },
