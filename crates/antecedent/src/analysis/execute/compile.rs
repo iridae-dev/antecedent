@@ -218,8 +218,8 @@ impl super::Study {
         estimator: &str,
         query_variables: Arc<[VariableId]>,
     ) -> LogicalAnalysisPlan {
-        LogicalAnalysisPlan {
-            record: antecedent_contract::LogicalAnalysisPlanRecord {
+        LogicalAnalysisPlan::unsplit(
+            antecedent_contract::LogicalAnalysisPlanRecord {
                 plan_id: Arc::from(plan_id),
                 data_classification: classification,
                 discovery_algorithm: None,
@@ -229,10 +229,9 @@ impl super::Study {
                 validation_suite: self.validation_suite_id(),
                 query_variables,
             },
-            query: self.query.clone(),
-            split: None,
+            self.query.clone(),
             row_count_hint,
-        }
+        )
     }
 
     fn compile_logical_response_dag(
@@ -386,12 +385,11 @@ impl super::Study {
             validation_suite: self.validation_suite_id(),
             query_variables: Arc::from([treatment, outcome]),
         };
-        let logical = LogicalAnalysisPlan {
+        let logical = LogicalAnalysisPlan::unsplit(
             record,
-            query: CausalQuery::Distribution(q.clone()),
-            split: None,
-            row_count_hint: data.row_count() as u64,
-        };
+            CausalQuery::Distribution(q.clone()),
+            data.row_count() as u64,
+        );
         logical.validate()?;
         Ok(logical)
     }
@@ -1186,12 +1184,11 @@ impl super::Study {
                 validation_suite: self.validation_suite_id(),
                 query_variables: Arc::from([q.treatment, q.outcome]),
             };
-            let logical = LogicalAnalysisPlan {
+            let logical = LogicalAnalysisPlan::unsplit(
                 record,
-                query: CausalQuery::AverageEffect(q.clone()),
-                split: None,
-                row_count_hint: data.row_count() as u64,
-            };
+                CausalQuery::AverageEffect(q.clone()),
+                data.row_count() as u64,
+            );
             logical.validate()?;
             logical.compile_physical(ctx)
         } else {
@@ -1347,12 +1344,11 @@ pub(crate) fn compile_logical_admg_response(
         validation_suite,
         query_variables: Arc::from([treatment, outcome]),
     };
-    let logical = LogicalAnalysisPlan {
+    let logical = LogicalAnalysisPlan::unsplit(
         record,
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
+        CausalQuery::Response(query.clone()),
+        data.row_count() as u64,
+    );
     logical.validate()?;
     Ok(logical)
 }

@@ -1826,8 +1826,8 @@ impl super::Study {
             GraphClass::TemporalPag => "temporal_pag_cross_world",
             _ => "temporal_cpdag_cross_world",
         };
-        let logical = LogicalAnalysisPlan {
-            record: antecedent_contract::LogicalAnalysisPlanRecord {
+        let logical = LogicalAnalysisPlan::unsplit(
+            antecedent_contract::LogicalAnalysisPlanRecord {
                 plan_id: Arc::from(plan_id),
                 data_classification: antecedent_contract::DataClassification::Temporal,
                 discovery_algorithm: Some(
@@ -1842,10 +1842,9 @@ impl super::Study {
                 validation_suite: self.validation_suite_id(),
                 query_variables: Arc::from([treatment, outcome]),
             },
-            query: self.query.clone(),
-            split: None,
-            row_count_hint: data.row_count() as u64,
-        };
+            self.query.clone(),
+            data.row_count() as u64,
+        );
         logical.compile_physical(ctx)
     }
 
