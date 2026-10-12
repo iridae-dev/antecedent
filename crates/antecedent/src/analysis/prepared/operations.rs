@@ -357,6 +357,18 @@ pub(crate) struct CheckedAdmgResponseCurveOperation {
     pub(super) common: Arc<CheckedStaticCommon>,
 }
 
+/// Per-member results of evaluating an ADMG response grid.
+struct MemberEvaluations {
+    means: Vec<f64>,
+    point_status: Vec<antecedent_core::SupportStatus>,
+    member_posteriors: Vec<antecedent_estimate::CausalPosterior>,
+    support_status: antecedent_core::SupportStatus,
+    support_warnings: Vec<antecedent_core::Diagnostic>,
+    freq_bounds: Vec<(f64, f64)>,
+    freq_scalar_se: f64,
+    freq_replicates_ok: u32,
+}
+
 impl CheckedAdmgResponseCurveOperation {
     pub(super) fn sealed_for_direct_execution(&self) -> bool {
         matches!(
@@ -421,6 +433,119 @@ impl CheckedAdmgResponseCurveOperation {
                 message: "retained ADMG response grid/member mapping is incomplete".into(),
             });
         }
+        let MemberEvaluations {
+            means,
+            point_status,
+            member_posteriors,
+            support_status,
+            support_warnings,
+            freq_bounds,
+            freq_scalar_se,
+            freq_replicates_ok,
+        } = self.evaluate_members(ctx)?;
+        let n_draws = member_posteriors
+            .first()
+            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
+        let posterior = self.joint_posterior(member_posteriors)?;
+        let first = self.members.first().expect("nonempty checked member array");
+        let mut support = self.response_support(support_status, point_status, &support_warnings)?;
+        let scalar_intervention = matches!(
+            self.query.functional,
+            antecedent_core::ResponseFunctional::InterventionResponse { .. }
+        );
+        let scalar = if scalar_intervention { means[0] } else { f64::NAN };
+        let freq_uncertainty = self.frequentist_uncertainty(
+            &mut support,
+            &freq_bounds,
+            freq_scalar_se,
+            freq_replicates_ok,
+            means.len(),
+            scalar_intervention,
+        );
+        let response = antecedent_core::CausalResponse {
+            estimand: self.query.functional.clone(),
+            identification_status: first.identification.status,
+            estimate: antecedent_core::ResponseIdentification::PointIdentified(
+                self.response_value(scalar_intervention, scalar, means),
+            ),
+            uncertainty: posterior
+                .as_ref()
+                .and_then(|posterior| credible_response_uncertainty(posterior, scalar_intervention))
+                .or(freq_uncertainty)
+                .unwrap_or(antecedent_core::ResponseUncertainty::None),
+            support,
+            assumptions: first.identification.required_assumptions.clone(),
+            provenance_id: Arc::from("estimate.response.general_id"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        };
+        let mut diagnostics = general_id_diagnostics(first, support_warnings);
+        let (treatment, outcome) =
+            first.query.functional.primary_pair().expect("checked member roles");
+        let refutations =
+            if scalar_intervention && scalar.is_finite() && self.refute != RefuteSuite::None {
+                let (reports, refute_diags) =
+                    self.plugin_level_refutations(data, first, scalar, treatment, outcome, ctx)?;
+                diagnostics.extend(refute_diags);
+                reports
+            } else {
+                Vec::new()
+            };
+        let result = crate::analysis::execute::finish_checked_result(
+            crate::analysis::execute::CheckedResultFinish {
+                common: &self.common,
+                identification: &first.identification,
+                estimand: &first.estimand,
+                estimate: EffectEstimate::new(
+                    f64::NAN,
+                    f64::NAN,
+                    first.identification.required_assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                ),
+                estimate_assumptions: first.prepared.assumptions.clone(),
+                diagnostics,
+                refutations,
+                distribution: None,
+                posterior,
+                treatment,
+                outcome,
+                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+                bootstrap_replicates_requested: Some(0),
+                bootstrap_replicates_ok: None,
+                n_draws,
+                cancelled: false,
+                early_stopped: false,
+                certificate_query: CausalQuery::Response(self.query.clone()),
+                certificate_graph_class: GraphClass::Admg,
+                response: Some(response),
+                mirror_refuted_evalue: false,
+                rebind_bayesian_interval: false,
+            },
+        );
+        Ok(result)
+    }
+
+    /// Point value of the response: the single plug-in level, or the mean surface over the grid.
+    fn response_value(
+        &self,
+        scalar_intervention: bool,
+        scalar: f64,
+        means: Vec<f64>,
+    ) -> antecedent_core::ResponseValue {
+        if scalar_intervention {
+            antecedent_core::ResponseValue::Scalar(scalar)
+        } else {
+            antecedent_core::ResponseValue::Surface {
+                grid: Arc::clone(&self.grid),
+                dimension: 1,
+                mean: Arc::from(means),
+            }
+        }
+    }
+
+    /// Evaluates every grid member under the configured inference mode, in grid order,
+    /// retaining per-member posteriors and the frequentist bootstrap bounds.
+    fn evaluate_members(&self, ctx: &ExecutionContext) -> Result<MemberEvaluations, CausalError> {
         let mut means = Vec::with_capacity(self.members.len());
         let mut point_status = Vec::with_capacity(self.members.len());
         let mut member_posteriors = Vec::new();
@@ -505,11 +630,26 @@ impl CheckedAdmgResponseCurveOperation {
                 }
             }
         }
-        let n_draws = member_posteriors
-            .first()
-            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
-        let posterior = if member_posteriors.is_empty() {
-            None
+        Ok(MemberEvaluations {
+            means,
+            point_status,
+            member_posteriors,
+            support_status,
+            support_warnings,
+            freq_bounds,
+            freq_scalar_se,
+            freq_replicates_ok,
+        })
+    }
+
+    /// Stacks the per-member posterior effect columns into one joint posterior over the
+    /// grid, reusing the first member's posterior as the carrier.
+    fn joint_posterior(
+        &self,
+        mut member_posteriors: Vec<antecedent_estimate::CausalPosterior>,
+    ) -> Result<Option<antecedent_estimate::CausalPosterior>, CausalError> {
+        if member_posteriors.is_empty() {
+            Ok(None)
         } else {
             let n = member_posteriors[0].draws.n_draws;
             let mut columns = Vec::with_capacity(member_posteriors.len());
@@ -547,9 +687,18 @@ impl CheckedAdmgResponseCurveOperation {
             let mut joint = member_posteriors.remove(0);
             joint.draws = draws;
             joint.summaries = summaries;
-            Some(joint)
-        };
-        let first = self.members.first().expect("nonempty checked member array");
+            Ok(Some(joint))
+        }
+    }
+
+    /// Support report for the grid: the worst member status, per-point status, the grid
+    /// range as the query region, and the warnings raised while evaluating members.
+    fn response_support(
+        &self,
+        support_status: antecedent_core::SupportStatus,
+        point_status: Vec<antecedent_core::SupportStatus>,
+        support_warnings: &[antecedent_core::Diagnostic],
+    ) -> Result<antecedent_core::SupportReport, CausalError> {
         let mut support =
             antecedent_estimate::support_from_functional_eval(None).map_err(|error| {
                 CausalError::from(antecedent_estimate::EstimationError::data_msg(error.to_string()))
@@ -561,17 +710,26 @@ impl CheckedAdmgResponseCurveOperation {
             maxima: Arc::from([self.grid.iter().copied().fold(f64::NEG_INFINITY, f64::max)]),
         };
         support.warnings.extend(support_warnings.iter().cloned());
-        let scalar_intervention = matches!(
-            self.query.functional,
-            antecedent_core::ResponseFunctional::InterventionResponse { .. }
-        );
-        let scalar = if scalar_intervention { means[0] } else { f64::NAN };
+        Ok(support)
+    }
+
+    /// Normal interval from the per-member bootstrap SE, published only when every
+    /// member returned one; records the bootstrap-SE support marker when it does.
+    fn frequentist_uncertainty(
+        &self,
+        support: &mut antecedent_core::SupportReport,
+        freq_bounds: &[(f64, f64)],
+        freq_scalar_se: f64,
+        freq_replicates_ok: u32,
+        member_count: usize,
+        scalar_intervention: bool,
+    ) -> Option<antecedent_core::ResponseUncertainty> {
         // Publish the frequentist bootstrap interval only when every member
         // returned a positive-finite SE; otherwise fail open to `None`. The
         // support marker makes the facade report `bootstrap_se` for this band.
-        let freq_uncertainty = if matches!(self.inference, InferenceMode::Frequentist)
+        if matches!(self.inference, InferenceMode::Frequentist)
             && !freq_bounds.is_empty()
-            && freq_bounds.len() == means.len()
+            && freq_bounds.len() == member_count
         {
             support.diagnostics.push(antecedent_core::SupportDiagnostic {
                 id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
@@ -606,112 +764,82 @@ impl CheckedAdmgResponseCurveOperation {
             }
         } else {
             None
-        };
-        let response = antecedent_core::CausalResponse {
-            estimand: self.query.functional.clone(),
-            identification_status: first.identification.status,
-            estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                if scalar_intervention {
-                    antecedent_core::ResponseValue::Scalar(scalar)
-                } else {
-                    antecedent_core::ResponseValue::Surface {
-                        grid: Arc::clone(&self.grid),
-                        dimension: 1,
-                        mean: Arc::from(means),
-                    }
-                },
-            ),
-            uncertainty: posterior
-                .as_ref()
-                .and_then(|posterior| {
-                    if scalar_intervention {
-                        crate::analysis::helpers::credible_scalar_uncertainty(posterior)
-                    } else {
-                        crate::analysis::helpers::credible_pointwise_uncertainty(posterior)
-                    }
-                })
-                .or(freq_uncertainty)
-                .unwrap_or(antecedent_core::ResponseUncertainty::None),
-            support,
-            assumptions: first.identification.required_assumptions.clone(),
-            provenance_id: Arc::from("estimate.response.general_id"),
-            horizon_identification: None,
-            interaction_structurally_zero: false,
-        };
-        let mut diagnostics = first.identification.diagnostics.clone();
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "identify.response.general_id", antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Info,
-            "intervention mean identified by general ID; grid members are evaluated from their retained checked programs",
-        ));
-        diagnostics.extend(support_warnings);
-        let (treatment, outcome) =
-            first.query.functional.primary_pair().expect("checked member roles");
-        let mut refutations = Vec::new();
-        if scalar_intervention && scalar.is_finite() && self.refute != RefuteSuite::None {
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
-                diagnostics.push(antecedent_core::Diagnostic::new(
-                    "refute.evalue.not_a_contrast",
-                    antecedent_core::DiagnosticKind::Scientific,
-                    antecedent_core::DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
-                     cheap runs overlap only and full runs overlap plus sampling-stability of the \
-                     identified intervention mean",
-                ));
-            }
-            let plugin_estimate = EffectEstimate::new(
-                scalar,
-                f64::NAN,
-                first.identification.required_assumptions.clone(),
-                OverlapPolicy::ExplicitOverride,
-            );
-            let mut refute_ws = EstimationWorkspace::default();
-            let (reports, refute_diags) = RefutationRun {
-                data,
-                estimand: &first.estimand,
-                query: &AverageEffectQuery::binary_ate(treatment, outcome),
-                estimate: &plugin_estimate,
-                suite: self.refute,
-                estimator: self.estimator.as_str(),
-                custom: &[],
-                temporal: None,
-            }
-            .plugin_level(&mut refute_ws, ctx)?;
-            refutations = reports;
-            diagnostics.extend(refute_diags);
         }
-        let result = crate::analysis::execute::finish_checked_result(
-            crate::analysis::execute::CheckedResultFinish {
-                common: &self.common,
-                identification: &first.identification,
-                estimand: &first.estimand,
-                estimate: EffectEstimate::new(
-                    f64::NAN,
-                    f64::NAN,
-                    first.identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                estimate_assumptions: first.prepared.assumptions.clone(),
-                diagnostics,
-                refutations,
-                distribution: None,
-                posterior,
-                treatment,
-                outcome,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_requested: Some(0),
-                bootstrap_replicates_ok: None,
-                n_draws,
-                cancelled: false,
-                early_stopped: false,
-                certificate_query: CausalQuery::Response(self.query.clone()),
-                certificate_graph_class: GraphClass::Admg,
-                response: Some(response),
-                mirror_refuted_evalue: false,
-                rebind_bayesian_interval: false,
-            },
+    }
+
+    /// Cheap/full refutations of the plugin intervention level for the scalar response,
+    /// with the diagnostics they raise.
+    fn plugin_level_refutations(
+        &self,
+        data: &TabularData,
+        first: &CheckedFunctionalEffectResponseMember,
+        scalar: f64,
+        treatment: antecedent_core::VariableId,
+        outcome: antecedent_core::VariableId,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (Vec<antecedent_validate::RefutationReport>, Vec<antecedent_core::Diagnostic>),
+        CausalError,
+    > {
+        let mut diagnostics = Vec::new();
+        if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            diagnostics.push(antecedent_core::Diagnostic::new(
+                "refute.evalue.not_a_contrast",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                 cheap runs overlap only and full runs overlap plus sampling-stability of the \
+                 identified intervention mean",
+            ));
+        }
+        let plugin_estimate = EffectEstimate::new(
+            scalar,
+            f64::NAN,
+            first.identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
         );
-        Ok(result)
+        let mut refute_ws = EstimationWorkspace::default();
+        let (reports, refute_diags) = RefutationRun {
+            data,
+            estimand: &first.estimand,
+            query: &AverageEffectQuery::binary_ate(treatment, outcome),
+            estimate: &plugin_estimate,
+            suite: self.refute,
+            estimator: self.estimator.as_str(),
+            custom: &[],
+            temporal: None,
+        }
+        .plugin_level(&mut refute_ws, ctx)?;
+        diagnostics.extend(refute_diags);
+        Ok((reports, diagnostics))
+    }
+}
+
+/// Identification diagnostics of the first member followed by the grid's support warnings.
+fn general_id_diagnostics(
+    first: &CheckedFunctionalEffectResponseMember,
+    support_warnings: Vec<antecedent_core::Diagnostic>,
+) -> Vec<antecedent_core::Diagnostic> {
+    let mut diagnostics = first.identification.diagnostics.clone();
+    diagnostics.push(antecedent_core::Diagnostic::new(
+        "identify.response.general_id",
+        antecedent_core::DiagnosticKind::Scientific,
+        antecedent_core::DiagnosticSeverity::Info,
+        "intervention mean identified by general ID; grid members are evaluated from their retained checked programs",
+    ));
+    diagnostics.extend(support_warnings);
+    diagnostics
+}
+
+/// Credible-interval uncertainty of a response posterior, scalar or pointwise by response shape.
+fn credible_response_uncertainty(
+    posterior: &antecedent_estimate::CausalPosterior,
+    scalar_intervention: bool,
+) -> Option<antecedent_core::ResponseUncertainty> {
+    if scalar_intervention {
+        crate::analysis::helpers::credible_scalar_uncertainty(posterior)
+    } else {
+        crate::analysis::helpers::credible_pointwise_uncertainty(posterior)
     }
 }
 
@@ -870,59 +998,14 @@ impl CheckedAipwOperation {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
         }
-        let lowering = self.preparation.lowering();
-        let active = match &self.query.active {
-            antecedent_core::Intervention::Set { variable, value }
-                if *variable == self.query.treatment =>
-            {
-                value.as_f64()
-            }
-            _ => None,
-        };
-        let control = match &self.query.control {
-            antecedent_core::Intervention::Set { variable, value }
-                if *variable == self.query.treatment =>
-            {
-                value.as_f64()
-            }
-            _ => None,
-        };
-        if self.preparation.target().functional != self.cache.estimand.functional
-            || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
-            || lowering.treatment != self.query.treatment
-            || lowering.outcome != self.query.outcome
-            || active != Some(1.0)
-            || control != Some(0.0)
-        {
-            return Err(CausalError::Compile {
-                message: "prepared AIPW operation disagrees with its checked target or query"
-                    .into(),
-            });
-        }
-        if let Some(background) = &self.tiered_background {
-            let checked = antecedent_identify::identify_tiered(background, &self.query)?;
-            if checked.status != self.cache.identification.status
-                || checked.query != self.cache.identification.query
-                || !checked.estimands.iter().any(|candidate| {
-                    candidate.functional == self.cache.estimand.functional
-                        && candidate.method == self.cache.estimand.method
-                        && candidate.adjustment_set == self.cache.estimand.adjustment_set
-                })
-            {
-                return Err(CausalError::Compile {
-                    message: "retained CoDetermined AIPW closure no longer justifies its target"
-                        .into(),
-                });
-            }
-        }
+        self.check_retained_target()?;
         let mut workspace = antecedent_estimate::AipwWorkspace::default();
         let estimate = self
             .fitter
             .fit_checked(&self.preparation, &mut workspace, ctx)
             .map_err(CausalError::from)?;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
-        let (refutations, mut refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None
-        {
+        let (refutations, refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
             let mut estimate_workspace = EstimationWorkspace::default();
@@ -939,35 +1022,7 @@ impl CheckedAipwOperation {
             .reports(&mut estimate_workspace, Some(&mut workspace.propensity), ctx)?;
             (reports, diagnostics)
         };
-        let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
-        diagnostics.push(if estimate.scores.table.is_some() {
-            antecedent_core::Diagnostic::new(
-                "estimate.aipw.crossfit_scores",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
-            )
-        } else {
-            antecedent_core::Diagnostic::new(
-                "estimate.aipw.full_sample_residualized",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
-            )
-        });
-        diagnostics.append(&mut refute_diagnostics);
-        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
-            diagnostics.push(crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(
-                tier, configured,
-            ));
-        }
+        let diagnostics = self.fit_diagnostics(&estimate, refute_diagnostics);
         let (identify_artifact, identify_operation) =
             crate::strategy_table::identify_provenance_step(self.identifier);
         let (estimate_artifact, estimate_operation) =
@@ -1035,6 +1090,95 @@ impl CheckedAipwOperation {
             &mut result.diagnostics,
         );
         Ok(result)
+    }
+
+    /// Refuses execution when the retained fit or tiered closure no longer matches the
+    /// checked target and query.
+    fn check_retained_target(&self) -> Result<(), CausalError> {
+        let lowering = self.preparation.lowering();
+        let active = match &self.query.active {
+            antecedent_core::Intervention::Set { variable, value }
+                if *variable == self.query.treatment =>
+            {
+                value.as_f64()
+            }
+            _ => None,
+        };
+        let control = match &self.query.control {
+            antecedent_core::Intervention::Set { variable, value }
+                if *variable == self.query.treatment =>
+            {
+                value.as_f64()
+            }
+            _ => None,
+        };
+        if self.preparation.target().functional != self.cache.estimand.functional
+            || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
+            || lowering.treatment != self.query.treatment
+            || lowering.outcome != self.query.outcome
+            || active != Some(1.0)
+            || control != Some(0.0)
+        {
+            return Err(CausalError::Compile {
+                message: "prepared AIPW operation disagrees with its checked target or query"
+                    .into(),
+            });
+        }
+        if let Some(background) = &self.tiered_background {
+            let checked = antecedent_identify::identify_tiered(background, &self.query)?;
+            if checked.status != self.cache.identification.status
+                || checked.query != self.cache.identification.query
+                || !checked.estimands.iter().any(|candidate| {
+                    candidate.functional == self.cache.estimand.functional
+                        && candidate.method == self.cache.estimand.method
+                        && candidate.adjustment_set == self.cache.estimand.adjustment_set
+                })
+            {
+                return Err(CausalError::Compile {
+                    message: "retained CoDetermined AIPW closure no longer justifies its target"
+                        .into(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Diagnostics for a fitted AIPW estimate, in the order the result reports them.
+    fn fit_diagnostics(
+        &self,
+        estimate: &EffectEstimate,
+        refute_diagnostics: Vec<antecedent_core::Diagnostic>,
+    ) -> Vec<antecedent_core::Diagnostic> {
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "exec.identify.cached",
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Info,
+            "identification reused from the prepare-time cache",
+        ));
+        diagnostics.push(if estimate.scores.table.is_some() {
+            antecedent_core::Diagnostic::new(
+                "estimate.aipw.crossfit_scores",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
+            )
+        } else {
+            antecedent_core::Diagnostic::new(
+                "estimate.aipw.full_sample_residualized",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
+            )
+        });
+        diagnostics.extend(refute_diagnostics);
+        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
+            diagnostics.push(crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(
+                tier, configured,
+            ));
+        }
+        diagnostics
     }
 }
 
@@ -1243,17 +1387,7 @@ impl CheckedLinearOperation {
     ) -> Result<StudyResult, CausalError> {
         let mut clock = StageClock::new();
         clock.begin(ctx, STAGE_IDENTIFY, 0.05)?;
-        if self.preparation.source_functional() != self.cache.estimand.functional
-            || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
-            || self.preparation.lowering().treatment != self.query.treatment
-            || self.preparation.lowering().outcome != self.query.outcome
-            || self.preparation.lowering().population != self.query.target_population
-        {
-            return Err(CausalError::Compile {
-                message: "prepared linear adjustment operation disagrees with its checked target"
-                    .into(),
-            });
-        }
+        self.check_checked_target()?;
         clock.finish(STAGE_IDENTIFY);
         crate::analysis::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -1263,94 +1397,11 @@ impl CheckedLinearOperation {
             },
         );
 
-        clock.begin(ctx, STAGE_ESTIMATE_POINT, 0.25)?;
         let mut workspace = EstimationWorkspace::default();
-        let point = if self.default_id {
-            self.fitter
-                .fit_point(
-                    self.preparation.problem(),
-                    &mut workspace,
-                    self.preparation.required_assumptions().clone(),
-                )
-                .map_err(CausalError::from)?
-        } else {
-            self.fitter
-                .fit_checked(&self.preparation, &mut workspace, ctx)
-                .map_err(CausalError::from)?
-        };
-        clock.finish(STAGE_ESTIMATE_POINT);
-        crate::analysis::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &crate::analysis::stage::StageEvent::Point { estimate: point.clone() },
-        );
-
-        clock.begin(ctx, crate::analysis::stage::STAGE_UNCERTAINTY, 0.55)?;
-        let estimate = if self.default_id {
-            self.fitter
-                .attach_bootstrap(self.preparation.problem(), &mut workspace, ctx, point)
-                .map_err(CausalError::from)?
-        } else {
-            point
-        };
-        clock.finish(crate::analysis::stage::STAGE_UNCERTAINTY);
-        crate::analysis::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &crate::analysis::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
-        );
+        let estimate = self.fit_with_stages(&mut clock, &mut workspace, ctx)?;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
-        if cancelled {
-            clock.mark_cancelled();
-        } else {
-            clock.begin(ctx, STAGE_VALIDATE, 0.8)?;
-        }
-        // The checked design was prepared against the original semantic
-        // columns; validation runs on the table narrowed to the columns the
-        // identified target names, as every adjustment route does.
-        let full_cols = data.schema().len();
-        let (data_est, query_est, estimand_est) =
-            project_for_ate_estimate(data, &self.query, &self.cache.estimand)?;
-        let projected_cols = data_est.schema().len();
-        let (refutations, refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None {
-            (Vec::new(), Vec::new())
-        } else {
-            let mut propensity = antecedent_stats::PropensityWorkspace::default();
-            let (reports, diagnostics) = RefutationRun {
-                data: &data_est,
-                estimand: &estimand_est,
-                query: &query_est,
-                estimate: &estimate,
-                suite: self.refute,
-                estimator: self.estimator.as_str(),
-                custom: &[],
-                temporal: None,
-            }
-            .reports(&mut workspace, Some(&mut propensity), ctx)?;
-            (reports, diagnostics)
-        };
-        let mut extra_diagnostics: Vec<antecedent_core::Diagnostic> =
-            crate::analysis::helpers::projection_diagnostic(full_cols, projected_cols)
-                .into_iter()
-                .collect();
-        extra_diagnostics.extend(refute_diagnostics);
-        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
-            extra_diagnostics.push(
-                crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(
-                    tier, configured,
-                ),
-            );
-        }
-        if !cancelled {
-            clock.finish(STAGE_VALIDATE);
-        }
-        if !cancelled {
-            crate::analysis::stage::emit_stage(
-                self.stage_sink.as_ref(),
-                &crate::analysis::stage::StageEvent::Validate {
-                    refutations: refutations.clone(),
-                    predictive_checks: Vec::new(),
-                },
-            );
-        }
+        let (refutations, mut extra_diagnostics) =
+            self.validate_stage(data, &estimate, cancelled, &mut clock, &mut workspace, ctx)?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
@@ -1419,6 +1470,133 @@ impl CheckedLinearOperation {
         result.custom_validator_names = self.custom_validator_names.to_vec();
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
+    }
+
+    /// Refuses execution when the retained fit no longer matches the checked target.
+    fn check_checked_target(&self) -> Result<(), CausalError> {
+        if self.preparation.source_functional() != self.cache.estimand.functional
+            || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
+            || self.preparation.lowering().treatment != self.query.treatment
+            || self.preparation.lowering().outcome != self.query.outcome
+            || self.preparation.lowering().population != self.query.target_population
+        {
+            return Err(CausalError::Compile {
+                message: "prepared linear adjustment operation disagrees with its checked target"
+                    .into(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Point fit then uncertainty attachment, each as its own timed and emitted stage.
+    fn fit_with_stages(
+        &self,
+        clock: &mut StageClock,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, CausalError> {
+        clock.begin(ctx, STAGE_ESTIMATE_POINT, 0.25)?;
+        let point = if self.default_id {
+            self.fitter
+                .fit_point(
+                    self.preparation.problem(),
+                    workspace,
+                    self.preparation.required_assumptions().clone(),
+                )
+                .map_err(CausalError::from)?
+        } else {
+            self.fitter.fit_checked(&self.preparation, workspace, ctx).map_err(CausalError::from)?
+        };
+        clock.finish(STAGE_ESTIMATE_POINT);
+        crate::analysis::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &crate::analysis::stage::StageEvent::Point { estimate: point.clone() },
+        );
+
+        clock.begin(ctx, crate::analysis::stage::STAGE_UNCERTAINTY, 0.55)?;
+        let estimate = if self.default_id {
+            self.fitter
+                .attach_bootstrap(self.preparation.problem(), workspace, ctx, point)
+                .map_err(CausalError::from)?
+        } else {
+            point
+        };
+        clock.finish(crate::analysis::stage::STAGE_UNCERTAINTY);
+        crate::analysis::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &crate::analysis::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
+        );
+        Ok(estimate)
+    }
+
+    /// Validation stage: refutes on the target-projected table and returns the reports
+    /// with the projection, refutation and latency diagnostics, in report order.
+    fn validate_stage(
+        &self,
+        data: &TabularData,
+        estimate: &EffectEstimate,
+        cancelled: bool,
+        clock: &mut StageClock,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (Vec<antecedent_validate::RefutationReport>, Vec<antecedent_core::Diagnostic>),
+        CausalError,
+    > {
+        if cancelled {
+            clock.mark_cancelled();
+        } else {
+            clock.begin(ctx, STAGE_VALIDATE, 0.8)?;
+        }
+        // The checked design was prepared against the original semantic
+        // columns; validation runs on the table narrowed to the columns the
+        // identified target names, as every adjustment route does.
+        let full_cols = data.schema().len();
+        let (data_est, query_est, estimand_est) =
+            project_for_ate_estimate(data, &self.query, &self.cache.estimand)?;
+        let projected_cols = data_est.schema().len();
+        let (refutations, refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None {
+            (Vec::new(), Vec::new())
+        } else {
+            let mut propensity = antecedent_stats::PropensityWorkspace::default();
+            let (reports, diagnostics) = RefutationRun {
+                data: &data_est,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate,
+                suite: self.refute,
+                estimator: self.estimator.as_str(),
+                custom: &[],
+                temporal: None,
+            }
+            .reports(workspace, Some(&mut propensity), ctx)?;
+            (reports, diagnostics)
+        };
+        let mut extra_diagnostics: Vec<antecedent_core::Diagnostic> =
+            crate::analysis::helpers::projection_diagnostic(full_cols, projected_cols)
+                .into_iter()
+                .collect();
+        extra_diagnostics.extend(refute_diagnostics);
+        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
+            extra_diagnostics.push(
+                crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(
+                    tier, configured,
+                ),
+            );
+        }
+        if !cancelled {
+            clock.finish(STAGE_VALIDATE);
+        }
+        if !cancelled {
+            crate::analysis::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                &crate::analysis::stage::StageEvent::Validate {
+                    refutations: refutations.clone(),
+                    predictive_checks: Vec::new(),
+                },
+            );
+        }
+        Ok((refutations, extra_diagnostics))
     }
 }
 
@@ -1506,32 +1684,7 @@ impl CheckedDistributionOperation {
                 message: "ADMG InterventionalDistribution is licensed for unconditional finite-discrete tables; IDC conditionals are a follow-up",
             });
         }
-        let (distribution, posterior) = match &self.inference {
-            InferenceMode::Frequentist => {
-                let mut workspace = antecedent_estimate::FunctionalDistributionWorkspace::default();
-                (
-                    self.fitter
-                        .estimate(&prepared, &[], &mut workspace, ctx)
-                        .map_err(CausalError::from)?,
-                    None,
-                )
-            }
-            InferenceMode::Bayesian(_) => {
-                let n_draws = crate::analysis::execute::functional_bayesian_draws(&self.inference)?
-                    .expect("Bayesian inference selects a draw count");
-                let (distribution, posterior) = self
-                    .fitter
-                    .estimate_bayesian(
-                        &prepared,
-                        &[],
-                        n_draws,
-                        self.cache.identification.status,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                (distribution, Some(posterior))
-            }
-        };
+        let (distribution, posterior) = self.fit_distribution(&prepared, ctx)?;
         let bootstrap_ok = distribution.bootstrap_replicates_ok;
         let cancelled = distribution.bootstrap_cancelled;
         let early_stopped = distribution.bootstrap_early_stopped;
@@ -1559,24 +1712,7 @@ impl CheckedDistributionOperation {
         let outcome = *self.query.outcomes.first().ok_or_else(|| CausalError::Compile {
             message: "distribution query missing outcome".into(),
         })?;
-        let mut diagnostics = self.cache.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.extend(distribution_interval_diagnostics_for_prepared(&distribution));
-        if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
-            &self.cache.identification,
-            &self.cache.estimand,
-        ) {
-            diagnostics.push(diagnostic);
-        }
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
-        if let Some(posterior) = posterior.as_ref() {
-            diagnostics.extend(crate::analysis::execute::posterior_note_diagnostics([posterior]));
-        }
+        let diagnostics = self.result_diagnostics(&estimate, &distribution, posterior.as_ref());
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
@@ -1621,6 +1757,75 @@ impl CheckedDistributionOperation {
             },
         );
         Ok(result)
+    }
+
+    /// Point or Bayesian fit of the prepared interventional distribution, chosen by the
+    /// inference mode; the Bayesian arm also returns its joint posterior.
+    fn fit_distribution(
+        &self,
+        prepared: &antecedent_estimate::PreparedFunctionalDistribution,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (
+            antecedent_estimate::InterventionalDistributionEstimate,
+            Option<antecedent_estimate::CausalPosterior>,
+        ),
+        CausalError,
+    > {
+        match &self.inference {
+            InferenceMode::Frequentist => {
+                let mut workspace = antecedent_estimate::FunctionalDistributionWorkspace::default();
+                Ok((
+                    self.fitter
+                        .estimate(prepared, &[], &mut workspace, ctx)
+                        .map_err(CausalError::from)?,
+                    None,
+                ))
+            }
+            InferenceMode::Bayesian(_) => {
+                let n_draws = crate::analysis::execute::functional_bayesian_draws(&self.inference)?
+                    .expect("Bayesian inference selects a draw count");
+                let (distribution, posterior) = self
+                    .fitter
+                    .estimate_bayesian(
+                        prepared,
+                        &[],
+                        n_draws,
+                        self.cache.identification.status,
+                        ctx,
+                    )
+                    .map_err(CausalError::from)?;
+                Ok((distribution, Some(posterior)))
+            }
+        }
+    }
+
+    /// Diagnostics for a fitted distribution, in the order the result reports them.
+    fn result_diagnostics(
+        &self,
+        estimate: &EffectEstimate,
+        distribution: &antecedent_estimate::InterventionalDistributionEstimate,
+        posterior: Option<&antecedent_estimate::CausalPosterior>,
+    ) -> Vec<antecedent_core::Diagnostic> {
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(distribution_interval_diagnostics_for_prepared(distribution));
+        if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
+            &self.cache.identification,
+            &self.cache.estimand,
+        ) {
+            diagnostics.push(diagnostic);
+        }
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "exec.identify.cached",
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Info,
+            "identification reused from the prepare-time cache",
+        ));
+        if let Some(posterior) = posterior {
+            diagnostics.extend(crate::analysis::execute::posterior_note_diagnostics([posterior]));
+        }
+        diagnostics
     }
 }
 
