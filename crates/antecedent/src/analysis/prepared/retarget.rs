@@ -77,9 +77,8 @@ impl PreparedStudy {
         &self,
         weights: &[f64],
         depends_on: &[antecedent_core::VariableId],
-        ctx: &ExecutionContext,
+        _ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let _ = ctx;
         let table = self.retarget_score_table()?;
         let out = self.retarget_table(table, weights, depends_on)?;
         let inference = table.inference(Some(weights))?;

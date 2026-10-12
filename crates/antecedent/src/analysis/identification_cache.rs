@@ -1,9 +1,6 @@
 //! Prepare-time identification caches for graph-posterior and DBN-posterior
 //! effect, response, and mediation queries.
 //!
-//! Extracted verbatim from `analysis::prepared`; behaviour, ordering, and
-//! numerics are unchanged.
-//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
