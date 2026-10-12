@@ -343,8 +343,10 @@ impl Study {
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
                 let graph = match (self.graph.graph_ref(), plan.static_graph()) {
-                    (GraphRef::Dag(dag), _) => Some(dag.clone()),
-                    (GraphRef::Admg(_) | GraphRef::TemporalAdmg(_), Some(dag)) => Some(dag.clone()),
+                    (GraphRef::Dag(dag), _)
+                    | (GraphRef::Admg(_) | GraphRef::TemporalAdmg(_), Some(dag)) => {
+                        Some(dag.clone())
+                    }
                     _ => None,
                 };
                 let Some(graph) = graph else {

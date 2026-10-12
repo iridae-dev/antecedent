@@ -255,12 +255,12 @@ impl Study {
             (AnalysisRoute::Response, GraphRef::Pag(pag)) => RouteInput::StaticResponsePag {
                 data: tabular(self),
                 query: response_query(self),
-                pag: pag,
+                pag,
             },
             (AnalysisRoute::Response, GraphRef::Cpdag(cpdag)) => RouteInput::StaticResponseCpdag {
                 data: tabular(self),
                 query: response_query(self),
-                cpdag: cpdag,
+                cpdag,
             },
             (AnalysisRoute::Response, GraphRef::Admg(admg))
                 if self.tiered.as_ref().is_some_and(|background| {
@@ -270,7 +270,7 @@ impl Study {
                 RouteInput::CodeterminedJoint {
                     data: tabular(self),
                     query: response_query(self),
-                    admg: admg,
+                    admg,
                 }
             }
             (AnalysisRoute::Response, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
@@ -281,15 +281,13 @@ impl Study {
                 query: average_effect(self),
                 graph: dag,
             },
-            (AnalysisRoute::StaticAte, GraphRef::Pag(pag)) => RouteInput::StaticAtePag {
-                data: tabular(self),
-                query: average_effect(self),
-                pag: pag,
-            },
+            (AnalysisRoute::StaticAte, GraphRef::Pag(pag)) => {
+                RouteInput::StaticAtePag { data: tabular(self), query: average_effect(self), pag }
+            }
             (AnalysisRoute::StaticAte, GraphRef::Cpdag(cpdag)) => RouteInput::StaticAteCpdag {
                 data: tabular(self),
                 query: average_effect(self),
-                cpdag: cpdag,
+                cpdag,
             },
             (AnalysisRoute::StaticAte, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
                 RouteInput::StaticAteMixed { data: tabular(self), query: average_effect(self) }
@@ -315,13 +313,11 @@ impl Study {
             (AnalysisRoute::Conditional, GraphRef::Cpdag(cpdag)) => RouteInput::ConditionalCpdag {
                 data: tabular(self),
                 query: conditional(self),
-                cpdag: cpdag,
+                cpdag,
             },
-            (AnalysisRoute::Conditional, GraphRef::Pag(pag)) => RouteInput::ConditionalPag {
-                data: tabular(self),
-                query: conditional(self),
-                pag: pag,
-            },
+            (AnalysisRoute::Conditional, GraphRef::Pag(pag)) => {
+                RouteInput::ConditionalPag { data: tabular(self), query: conditional(self), pag }
+            }
             (
                 AnalysisRoute::TemporalEffect,
                 GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),

@@ -863,6 +863,7 @@ mod tests {
         assert!(cf.blocker_id().is_some_and(|b| !b.scientific));
     }
 
+    #[test]
     fn validate_cancelled_is_top_level_cancelled_not_validate() {
         let error = CausalError::from(ValidationError::Cancelled);
         assert!(
