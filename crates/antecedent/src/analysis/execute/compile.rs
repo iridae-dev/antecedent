@@ -34,14 +34,6 @@ fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
         .ok_or_else(|| CausalError::Compile { message: "mixed graph required".into() })
 }
 
-fn temporal_response_estimator_id(inference: &InferenceMode) -> &'static str {
-    if inference.is_bayesian() {
-        EstimatorId::TemporalResponseBayesian.as_str()
-    } else {
-        EstimatorId::TemporalResponseGcomp.as_str()
-    }
-}
-
 impl super::Study {
     /// Compile logical plan only (inspectable semantics).
     ///
@@ -466,7 +458,7 @@ impl super::Study {
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let mut plan = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-        plan.record.estimator = Some(Arc::from(temporal_response_estimator_id(&self.inference)));
+        plan.record.estimator = Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
         Ok(plan)
     }
 
@@ -498,7 +490,7 @@ impl super::Study {
         let mut plan =
             compile_logical_temporal_response(panel_compile_series(panel)?, graph, q, false)?;
         plan.record.data_classification = DataClassification::Panel;
-        plan.record.estimator = Some(Arc::from(temporal_response_estimator_id(&self.inference)));
+        plan.record.estimator = Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
         Ok(plan)
     }
 
@@ -1259,7 +1251,7 @@ impl super::Study {
         )?;
         plan.record.data_classification = DataClassification::Panel;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-        plan.record.estimator = Some(Arc::from(temporal_response_estimator_id(&self.inference)));
+        plan.record.estimator = Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
         plan.record.plan_id = Arc::from(match self.graph.class() {
             GraphClass::TemporalCpdag => "panel_cpdag_response",
             GraphClass::TemporalPag => "panel_pag_response",

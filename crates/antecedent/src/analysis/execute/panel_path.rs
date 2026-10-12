@@ -740,15 +740,6 @@ impl super::Study {
         Ok((reports, diagnostics))
     }
 
-    /// Estimator a panel response records: Bayesian or frequentist temporal g-computation.
-    fn panel_response_estimator_id(&self) -> EstimatorId {
-        if self.inference.is_bayesian() {
-            EstimatorId::TemporalResponseBayesian
-        } else {
-            EstimatorId::TemporalResponseGcomp
-        }
-    }
-
     /// Refuses panel response queries outside the licensed slice and returns their temporal spec.
     fn panel_response_temporal_spec(
         query: &ResponseQuery,
@@ -933,7 +924,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    self.panel_response_estimator_id(),
+                    EstimatorId::temporal_response_for(&self.inference),
                 ),
                 treatment,
                 outcome,
@@ -1043,7 +1034,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                Strategy::new(identifier_id, self.panel_response_estimator_id()),
+                Strategy::new(identifier_id, EstimatorId::temporal_response_for(&self.inference)),
                 treatment,
                 outcome,
             )

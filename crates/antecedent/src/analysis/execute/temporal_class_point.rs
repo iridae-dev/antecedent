@@ -404,10 +404,7 @@ impl super::Study {
         let estimate = point_only_estimate(scalar, response.assumptions.clone());
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
-        let estimator_id = match &self.inference {
-            InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
-            InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
-        };
+        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let structural = super::temporal_path::temporal_class_structural_mixture(
             envelope,
             crate::result::StructuralWeightBasis::CompletionEnumeration,
@@ -694,10 +691,7 @@ impl super::Study {
             &pairs,
             chosen,
             (treatment, outcome),
-            match &self.inference {
-                InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
-                InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
-            },
+            EstimatorId::temporal_response_for(&self.inference),
         )?;
         response.identification_status = result.identification.status;
         let mut result = result;

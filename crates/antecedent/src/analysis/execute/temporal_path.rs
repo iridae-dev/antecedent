@@ -964,11 +964,7 @@ impl super::Study {
             (
                 Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                     graph,
-                    if self.inference.is_bayesian() {
-                        EstimatorId::TemporalResponseBayesian
-                    } else {
-                        EstimatorId::TemporalResponseGcomp
-                    },
+                    EstimatorId::temporal_response_for(&self.inference),
                     &crate::analysis::prepared::TemporalResponseIdentificationRequest {
                         treatment,
                         outcome,
@@ -1037,10 +1033,7 @@ impl super::Study {
             },
         )?;
         let scalar = super::response_path::response_scalar_summary(&response).0;
-        let estimator_id = match &self.inference {
-            InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
-            InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
-        };
+        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let estimate = EffectEstimate::new(
             scalar,
             f64::NAN,
@@ -1256,7 +1249,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    self.temporal_response_estimator_id(),
+                    EstimatorId::temporal_response_for(&self.inference),
                 ),
                 treatment,
                 outcome,
@@ -1489,7 +1482,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    self.temporal_response_estimator_id(),
+                    EstimatorId::temporal_response_for(&self.inference),
                 ),
                 treatment,
                 outcome,
@@ -1848,7 +1841,7 @@ impl super::Study {
                 nan_effect(),
                 Strategy::new(
                     IdentifierId::GeneralizedAdjustment,
-                    self.temporal_response_estimator_id(),
+                    EstimatorId::temporal_response_for(&self.inference),
                 ),
                 treatment,
                 outcome,
@@ -1878,15 +1871,6 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
-    }
-
-    /// The temporal response estimator the study's inference mode runs.
-    fn temporal_response_estimator_id(&self) -> EstimatorId {
-        if self.inference.is_bayesian() {
-            EstimatorId::TemporalResponseBayesian
-        } else {
-            EstimatorId::TemporalResponseGcomp
-        }
     }
 
     /// The observation circular-block band over the class atoms of an observed

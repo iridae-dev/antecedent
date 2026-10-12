@@ -100,7 +100,7 @@ impl super::Study {
             (structural_set, conditional),
             (unidentified_mass + failed_mass) == 0.0,
         );
-        let estimator_id = self.class_posterior_estimator_id();
+        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         Ok(self.finish_identified_execute(
@@ -129,15 +129,6 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
-    }
-
-    /// The temporal response estimator the study's inference mode runs.
-    fn class_posterior_estimator_id(&self) -> EstimatorId {
-        if self.inference.is_bayesian() {
-            EstimatorId::TemporalResponseBayesian
-        } else {
-            EstimatorId::TemporalResponseGcomp
-        }
     }
 
     /// Whether the prepared handle retains an identification for this posterior.

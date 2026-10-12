@@ -117,7 +117,7 @@ impl super::Study {
         let temporal = self.licensed_dbn_posterior_spec(gp, query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let estimator_id = self.dbn_posterior_estimator_id();
+        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let (identified, identify_cached) =
             self.dbn_response_posterior_identification(gp, &vars, query, ctx)?;
         let inputs = DbnPosteriorInputs { data, query, temporal, treatment, outcome, ctx };
@@ -207,15 +207,6 @@ impl super::Study {
         ))
     }
 
-    /// The estimator the study's inference mode runs for a temporal response.
-    fn dbn_posterior_estimator_id(&self) -> EstimatorId {
-        if self.inference.is_bayesian() {
-            EstimatorId::TemporalResponseBayesian
-        } else {
-            EstimatorId::TemporalResponseGcomp
-        }
-    }
-
     /// The prepared DBN-posterior identification, built from the posterior
     /// when the study carries no cache.
     fn dbn_response_posterior_identification(
@@ -235,7 +226,7 @@ impl super::Study {
                         gp,
                         vars,
                         query,
-                        self.dbn_posterior_estimator_id(),
+                        EstimatorId::temporal_response_for(&self.inference),
                         ctx,
                     )?,
                 ),
