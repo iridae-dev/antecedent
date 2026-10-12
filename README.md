@@ -2,135 +2,122 @@
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
-**Antecedent is a high-assurance causal inference compiler:** it turns a causal question and declared structural and evidential assumptions into a typed executable contract, runs an estimator only when that contract permits it, and returns a durable scientific claim with its identification, uncertainty, support, assumptions, and provenance attached.
+**Antecedent is a causal inference compiler for Python and Rust.** Declare a causal question, a graph or study design, and the available evidence. Antecedent checks whether those declarations support the question, executes a compatible estimator, and returns an answer with its assumptions, diagnostics, uncertainty, limits and provenance attached.
+
+Those declarations stay with the result when you reuse an analysis, make a decision, rank a study, or export an artifact for another system to consume.
 
 ```mermaid
-flowchart TD
-    Q["Question and declared knowledge<br/>intervention • population • structure • evidence"]
-    C["Compile"]
-    K["Causal contract<br/>identification • support • uncertainty • assumptions"]
-    E["Execute<br/>data • estimator • learners • compute resources"]
-    R["Causal claim<br/>answer • provenance • limits • identity • obligations"]
-    O["Reuse • export • compose"]
-    Q --> C --> K --> E --> R --> O
+flowchart LR
+    Q["Question + assumptions + evidence"]
+    C["Checked causal contract"]
+    E["Estimation + diagnostics"]
+    R["Answer + provenance + limits"]
+    O["Reuse, decide, rank, export"]
+    Q --> C --> E --> R --> O
 ```
 
-Antecedent prevents the meaning declared at the start of an analysis from disappearing by the time a result reaches another person or system.
+See the [2.4.0 release notes](docs/release-notes/v2.4.0.md) for the changes from 2.3.0. The last tagged release is [2.3.0](docs/release-notes/v2.3.0.md).
 
-## The Antecedent workflow
+## Install
 
-Antecedent covers the full causal workflow—discovery, graph review, identification, frequentist and Bayesian estimation, validation, interventions, temporal analysis, counterfactuals, attribution, design, state, and durable artifacts:
+Install for Python **3.11 or later**:
+
+```bash
+python -m pip install --upgrade antecedent
+```
+
+Install for Rust **1.85 or later**:
+
+```bash
+cargo add antecedent
+```
+
+The [contributing guide](CONTRIBUTING.md) covers source builds, the repository toolchain and development conventions. The Python installation includes NumPy and the CPU-native neural nuisance learner; optional Rust learner features are described in the [capability guide](docs/capabilities.md).
+
+## Run an analysis
+
+This example simulates a randomized treatment with an effect of two outcome units:
 
 ```python
+import numpy as np
 import antecedent as ant
 
+rng = np.random.default_rng(17)
+z = rng.normal(size=160)
+treatment = rng.binomial(1, 0.5, size=160).astype(float)
+data = {
+    "treatment": treatment,
+    "outcome": 2 * treatment + z + rng.normal(size=160),
+    "z": z,
+}
+graph = [("treatment", "outcome"), ("z", "outcome")]
 query = ant.AverageEffect("treatment", "outcome")
-identification = ant.identify(graph=graph, query=query, names=list(data))
-result = identification.estimate(data)
+
+result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
+print("Answer:", result.answer.kind, result.answer.value)
+print("Calibration:", result.calibration.status)
 report = result.inspect().to_dict()
-reused = result.study.refresh(new_data)
+print("Identification:", report["identification"]["summary"])
+
+# Reuse the same question, graph and settings with a new data snapshot.
+new_data = {**data, "outcome": data["outcome"] + treatment}
+updated = result.study.refresh(new_data)
+print("Updated effect:", updated.answer.value)
+
+# Export the scientific result and inspect the consumer's acceptance report.
 loaded = ant.load(result.export())
+print("Artifact acceptance:", loaded.acceptance.status)
 ```
 
-It also provides native prediction and transport foundations for that workflow.
+The estimate should be close to two, and the updated estimate one unit larger. The small bootstrap budget keeps the example quick; read the calibration status before treating an interval as measured. A successful analysis checks compatibility with your declared assumptions, not whether those assumptions are true. Loading restores the result and its acceptance report, not a live study or its dataset.
 
-**Learner-backed estimation.** DML, DR-Learner, and honest causal-forest paths use fold-local nuisance fitting, held-out diagnostics, learner provenance, overlap checks, and explicit limits. The standard Python wheel includes the CPU-native `NeuralNet` nuisance learner. CATE predictions are not pointwise confidence intervals.
+Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](docs/rust-quickstart.md), or [worked examples](examples/README.md). From a source checkout, the Rust example runs with:
 
-```python
-from antecedent.estimators import DML, DRLearner, CausalForest
-
-query = ant.AverageEffect("treatment", "outcome")
-dml = ant.analyze(data, graph=graph, query=query, estimator=DML(learner="auto", folds=5))
-# fold-local nuisances: dml.estimate.outcome_oof_r2, .learner_provenance
-
-dr = ant.analyze(data, graph=graph, query=query, estimator=DRLearner(learner="ridge"))
-# dr.estimate.cate is a vector of predictions, not a pointwise interval
-
-forest = ant.analyze(
-    data, graph=graph, query=query, estimator=CausalForest()
-)
-# forest.estimate.cate_leaf_dispersion; cate_se stays unset
+```bash
+cargo run -p antecedent --example ate_quickstart
 ```
 
-**Structural transport.** Population identity, evidence regimes, available experiments, sampling, and selected mechanisms are explicit. A formula can be identified yet unavailable to evaluate when a required joint law or provider is absent.
+## What you can do
 
-```python
-query = ant.transport.Transport(
-    ant.AverageEffect("treatment", "outcome"),
-    target="target",
-    evidence=ant.transport.Evidence(
-        source=ant.transport.Source(
-            "trial",
-            kind="experimental",
-            interventions=["treatment"],
-            sampling="independent",
-        ),
-        target_sampling="representative_sample",
-    ),
-)
-identification = ant.identify(graph=graph, query=query)
-# transportable formula is not yet an estimate
-result = identification.estimate(ant.transport.StatisticalTransportData(...))
-# missing regime samples leave the functional unavailable
-```
+| Task | Where to start |
+| --- | --- |
+| Identify and estimate effects from a declared graph | [Supported analyses](docs/supported-analyses.md), [Python options](docs/python-options.md) |
+| Analyze randomized experiments, policies, quasi-experiments, survival or longitudinal regimes | [Examples](docs/examples.md), [design-family support](docs/graphless-support-matrix.md) |
+| Fit learner-backed effects with fold-local nuisance models and overlap diagnostics | [Capabilities](docs/capabilities.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md) |
+| Carry effects across populations or evaluate temporal and counterfactual questions | [Population, time and uncertainty](docs/2_3-population-time-uncertainty.md), [transport and counterfactuals](docs/2_3-transport-counterfactuals.md) |
+| Turn a causal result or declared external evidence into a decision | [Result lifecycle](docs/2_3-lifecycle.md), [decisions](docs/2_3-decisions.md), [external evidence](docs/2_3-external-science.md) |
+| Rank the next study by its declared objective, information value and cost | [Study ranking](docs/2_3-design-ranking.md) |
+| Recalculate supported parts of an analysis and inspect what was reused | [Selective recalculation](docs/2_3-recalculation-capabilities.md) |
+| Examine sensitivity, structural scenarios and composed results | [Sensitivity and robustness](docs/2_3-sensitivity-and-robustness.md), [composition](docs/2_3-composition.md) |
 
-## Inverse outcomes, large analyses and structural routes
+The [support matrix](docs/support-matrix.md) defines the supported combinations of question, graph, evidence and inference method. The [capability inventory](docs/capabilities.md) describes available components; each workflow has its own requirements and limits.
 
-Antecedent can work backward from a target mean over interventions you enumerate. Its [inverse-outcome query](docs/guides/inverse-outcome.md) classifies each action against a licensed forward response and keeps unsupported or unevaluated actions visible. The answer is relative to the declared grid and assumptions; it does not infer observational scenarios from an outcome.
+## New in 2.3.0
 
-Large and related analyses use [penalized AIPW propensities](docs/guides/penalized-aipw.md), [configured batches and joint retarget covariance](docs/guides/batch-retarget.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md), and [factorized joint cells with derived-treatment declarations](docs/guides/joint-cells.md). [Preflight diagnostics](docs/guides/preflight-diagnostics.md) expose dependencies and cost before a fit; [matched case-control analysis](docs/guides/matched-case-control.md) reports the conditional odds ratio its sampling design supports.
+- **Analysis to decision to study planning.** Checked handoffs preserve scientific quantities, units, support and original source evidence. Typed study-ranking objectives include structural sufficiency, information and decision value, with a checked Bayesian prior-to-signal adapter.
+- **Reusable results and selective recalculation.** Supported estimation, response, transport, Bayesian, temporal and design workflows retain compatible state. Execution receipts show which work ran and which results were reused.
+- **Measured uncertainty for five additional families.** Joint Bayesian transport, learned joint transport, nested-Markov Bayesian and Fisher inference, dependent temporal intervals, and sampled observation recovery expose method-specific scalar intervals at their validated protocols. Independent consumers replay the original source and check the expected identity.
+- **External evidence and composition.** Finite responses, aligned outcome laws and bounded mean callbacks carry their provider identities and declared trust into supported decisions and artifacts.
 
-It also provides bounded structural transport, sensitivity, study-planning and counterfactual routes. The [transport scope guide](docs/guides/transport-scope.md) and the [release notes](docs/release-notes/v2.2.0.md) state each cell's exact claim and refusal boundary. Sampling intervals without coordinate-matched coverage records remain withheld.
+Read the [release notes](docs/release-notes/v2.3.0.md) for exact scopes and refusals, the [API naming dictionary](docs/api_naming.md) for entry points, and the [changelog](CHANGELOG.md) for earlier releases.
 
-## Design-family studies
+## Read the claim, not just the number
 
-The same lifecycle carries more than observational effects. Design-family studies — randomized experiments (including factorial randomization), held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root. `antecedent.factorial.estimate` is a separate point utility for 2×2 cell means.
+Antecedent keeps identification, empirical support and uncertainty separate:
 
-```python
-design = ant.experiment.ExperimentDesign(
-    assignment=ant.interference.BernoulliAssignment(0.5),
-    realized_assignment="assigned",   # row-aligned inputs may name a data column
-    assignment_units="account_id",
-    outcome_units="account_id",
-)
-result = ant.analyze(data, query=ant.experiment.RandomizedEffect("revenue", design))
-```
+- The graph, design and evidence determine whether the causal question is identified. More observations cannot repair a missing causal assumption.
+- Diagnostics describe the observed data and estimator fit. Passing diagnostics does not prove the causal model.
+- Calibration applies to a named method and execution scope. In `result.calibration`, `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> An implemented interval is not automatically calibrated.
+- Structural and sensitivity ranges describe variation over declared assumptions. They are not sampling confidence intervals. CATE predictions likewise do not imply pointwise confidence intervals.
+- Exported artifacts retain identities and provenance. Their acceptance reports distinguish what an independent consumer verified from what remains declared or cannot be replayed.
 
-On the experiment, policy, regime, and interference queries, row-aligned inputs may be named by a data column; `prepare` resolves those names and freezes the design, and `refresh` reuses that design with outcome-only data. Interval claims for these families are rows of the [graphless support matrix](docs/graphless-support-matrix.md), separate from the geometric matrix; a support license is not a coverage record.
+Support does not imply measured coverage. The [support matrix](docs/support-matrix.md) lists each licensed cell and whether its estimator has a coverage measurement.
 
-Antecedent also supports restricted-experiment (z-transport) identification, a fixed-DAG nested-counterfactual natural direct effect, wider model-scoped Bayesian routes, and an external-provider contract (`antecedent.extensibility.CausalProviderSpec` with a `ProviderRegistry`).
+Unsupported combinations refuse with a reason or return an explicitly partial or unavailable answer. See [guarantees and support](docs/guarantees.md) and [refusals](docs/refusal-and-partial-knowledge.md) for how to interpret those outcomes.
 
-Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
+## Documentation and contribution
 
-## How Antecedent is built
-
-Antecedent does not treat scientific validity as a layer of documentation around code. Its ability to make a causal claim is represented explicitly and checked at runtime. Think of this as **epistemic type safety** — every supported analysis is governed by machine-readable contracts:
-
-- **The support matrix** defines which combinations of query, graph, evidence, inference mode, and validation level are licensed. Anything outside that surface fails closed.
-- **Oracles and parity evidence** record what establishes correctness for an implementation or composition. The presence of an algorithm in the codebase does not, by itself, license its use.
-- **Provenance** records how a claim was produced: the causal contract, estimator path, assumptions, evidence, implementation identity, and relevant execution metadata.
-- **Calibration status travels with the result.** An interval or uncertainty statement carries its calibration scope and evidence rather than being presented as an unqualified guarantee.
-- **Unsupported or unverified cases remain explicit.** Antecedent prefers `unavailable`, `partial`, or refusal over silently widening the claim.
-
-The result distinguishes **implemented**, **tested**, **licensed**, and **scientifically justified** instead of collapsing them into “the function ran.” It means that Antecedent will fail closed (with a reason) if asked to do something unlicensed. That can sound restrictive until you realize that the restriction **is part of the product**.
-
-In most statistical software:
-
-```
-function exists → try to run it
-```
-
-In Antecedent:
-
-```
-algorithm exists ≠ this causal claim is licensed
-```
-
-We believe this approach is critical when causal inference is built to exist beyond the notebook as part of composed software systems and agentic workflows.
-
-Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Licensed also does not mean measured. The [support matrix](docs/support-matrix.md) lists each licensed cell and whether its estimator has a coverage measurement.
-
-The [release notes](docs/release-notes/v2.4.0.md) and the [changelog](CHANGELOG.md) record what each version changed. The last tagged release is [2.3.0](docs/release-notes/v2.3.0.md).
+Start at the [documentation index](docs/index.md) for the system model, workflow guides and API references. To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md); commits require a Developer Certificate of Origin sign-off.
 
 ## License
 

@@ -51,7 +51,7 @@ blake3 = { workspace = true }
 
 [dev-dependencies]
 antecedent-test-support = { path = "../antecedent-test-support" }
-antecedent = { version = "2.4.0", path = ".", features = ["calibration-internal"] }
+antecedent = { path = ".", features = ["calibration-internal"] }
 criterion.workspace = true
 ciborium = { workspace = true }
 antecedent-identify = { version = "2.4.0", path = "../antecedent-identify", features = ["test-util"] }
