@@ -107,15 +107,21 @@ impl CheckedContinuousDoseOperation {
                     .map(|(group, dose)| (group.to_string(), *dose))
                     .collect::<Vec<_>>();
                 antecedent_estimate::continuous_dose::fixed_dose_policy_value(
-                    &outcome,
-                    &dose,
-                    &groups,
-                    &density,
-                    &policy,
-                    &reference,
-                    self.query.bandwidth,
-                    self.query.min_local_support,
-                    self.query.density_provenance.as_ref() == "known",
+                    &antecedent_estimate::continuous_dose::DoseRows {
+                        outcome: &outcome,
+                        dose: &dose,
+                        groups: &groups,
+                        density: &density,
+                    },
+                    &antecedent_estimate::continuous_dose::DoseRules {
+                        policy: &policy,
+                        reference: &reference,
+                    },
+                    &antecedent_estimate::continuous_dose::DoseWindow {
+                        bandwidth: self.query.bandwidth,
+                        min_local_support: self.query.min_local_support,
+                        density_known: self.query.density_provenance.as_ref() == "known",
+                    },
                 )
                 .map_err(|message| CausalError::Compile { message })
             })
