@@ -350,7 +350,7 @@ description = "Failed series refresh leaves the handle unchanged"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "compiler"
-evidence_test = "crates/antecedent/src/analysis/prepared.rs"
+evidence_test = "crates/antecedent/src/analysis/prepared/tests/refresh.rs"
 evidence_assertion = "failed_series_refresh_leaves_handle_unchanged"
 notes = "Series refresh atomicity."
 

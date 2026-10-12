@@ -11,4 +11,4 @@ implementation_deviations = [
   "The finite quadrature fixture represents the exact source posterior first two moments; it does not grant interval calibration or upgrade source trust.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-estimate/src/bayesian.rs", "crates/antecedent/tests/dense_prior_hydration.rs", "crates/antecedent/tests/mapped_posterior_transfer.rs"]
+test_sources = ["crates/antecedent-estimate/src/bayesian/hydrate.rs", "crates/antecedent-estimate/src/bayesian/tests.rs", "crates/antecedent/tests/dense_prior_hydration.rs", "crates/antecedent/tests/mapped_posterior_transfer.rs"]

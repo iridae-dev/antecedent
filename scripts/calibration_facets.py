@@ -2071,7 +2071,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "calibration_sha": start,
         **measured,
     }
-    library = "crates/antecedent-estimate/src/calibration_coverage.rs"
+    library = "crates/antecedent-stats/src/calibration_coverage.rs"
     lib = {
         "id": "lib",
         "test": f"{library}::linear_adjustment_analytic_ci_coverage",
@@ -2837,7 +2837,7 @@ def self_test() -> int:
         owed(estimator) == {"tp"},
         "an estimator change owes only the records that use that estimator",
     )
-    other_estimator = {"a" * 40: ["crates/antecedent-estimate/src/bayesian.rs"], "b" * 40: []}
+    other_estimator = {"a" * 40: ["crates/antecedent-estimate/src/bayesian/mod.rs"], "b" * 40: []}
     expect(owed(other_estimator) == set(), "a different estimator's file owes nothing")
     identity = {
         "a" * 40: ["crates/antecedent-identify/src/temporal_backdoor.rs"],

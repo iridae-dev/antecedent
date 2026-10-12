@@ -26,5 +26,5 @@ upstream_implementations_observed = []
 test_sources = [
  "conformance/estimate/glm_adjustment (known-truth recovery fixture carrying an unasserted recorded DoWhy run; exercises gcomp.rs via crates/antecedent-estimate/src/glm_adjustment.rs)",
  "conformance/estimate/glm_adjustment_grid (statsmodels-oracle fixture; exercises gcomp.rs via crates/antecedent-estimate/src/glm_adjustment.rs)",
- "conformance/bayesian/shared_functional_ate (exercises gcomp.rs via crates/antecedent-estimate/src/bayesian.rs bayesian_gcomp path)",
+ "conformance/bayesian/shared_functional_ate (exercises gcomp.rs via crates/antecedent-estimate/src/bayesian/gcomp.rs bayesian_gcomp path)",
 ]

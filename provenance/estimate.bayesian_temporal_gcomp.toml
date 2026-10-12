@@ -21,7 +21,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-estimate/src/bayesian.rs (BayesianTemporalGcomp)",
+ "crates/antecedent-estimate/src/bayesian/gcomp.rs (BayesianTemporalGcomp)",
  "crates/antecedent/tests/bayesian.rs (lag-aligned prepare then BayesianTemporalGcomp::fit)",
  "conformance/bayesian/temporal_pulse",
 ]

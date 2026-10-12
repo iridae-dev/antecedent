@@ -589,7 +589,7 @@ def schema_cases() -> list[bool]:
             "raw_reason_literal",
             {
                 # Before any `#[cfg(test)]`: production code, not a test fixture.
-                "crates/antecedent/src/analysis/prepared.rs": replace(
+                "crates/antecedent/src/analysis/prepared/mod.rs": replace(
                     "\nuse ", '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\nuse '
                 )
             },

@@ -42,7 +42,7 @@ estimator.aipw crates/antecedent-estimate/src/crossfit_aipw.rs
 key estimator.aipw estimator aipw
 estimator.cell_aipw crates/antecedent-estimate/src/cell_aipw.rs
 key estimator.cell_aipw estimator cell.aipw
-estimator.bayesian crates/antecedent-estimate/src/bayesian.rs
+estimator.bayesian crates/antecedent-estimate/src/bayesian/
 estimator.bayesian crates/antecedent-estimate/src/temporal_observed_bayes.rs
 key estimator.bayesian estimator bayesian.*
 key estimator.bayesian estimator conditional.bayesian
@@ -82,7 +82,7 @@ key estimator.response estimator response.riesz_ade
 key estimator.response estimator response.intervention_gcomp
 estimator.temporal_adjustment crates/antecedent-estimate/src/temporal_adjustment.rs
 key estimator.temporal_adjustment estimator temporal.linear.adjustment
-estimator.temporal_response crates/antecedent-estimate/src/temporal_response.rs
+estimator.temporal_response crates/antecedent-estimate/src/temporal_response/
 estimator.temporal_response crates/antecedent-estimate/src/temporal_response_dispersion.rs
 key estimator.temporal_response estimator temporal.response.gcomp
 estimator.temporal_sequential crates/antecedent-estimate/src/temporal_sequential.rs
@@ -251,7 +251,6 @@ allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttributionR
 # counterfactual and attribution operations for the Counterfactual,
 # NestedCounterfactual, AnomalyAttribution and ChangeAttribution `key` queries;
 # a plan for any other query never constructs them.
-allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution CheckedAttributionOperation CheckedCounterfactualOperation CheckedCounterfactualPlan CounterfactualProcedure NestedCounterfactualOperation compile evaluate gcm nested_counterfactual unit_change
 allow mechanism crates/antecedent/src/support.rs ChangeAttribution
 # Cross-world (nested counterfactual) facade evaluation: drives the counterfactual engine over
 # a compiled model; it is not itself a mechanism-fit path, so it is allowed by name here.
@@ -392,7 +391,7 @@ allow design crates/antecedent/src/analysis/closed_pilots.rs antecedent_core inv
 allow design crates/antecedent/src/analysis/compact_export.rs InputSupport antecedent_io
 allow design crates/antecedent/src/analysis/contract_identity.rs antecedent_core antecedent_io
 allow design crates/antecedent/src/analysis/cpdag_scenarios.rs antecedent_core antecedent_io consume_with_limits evaluate export prepare
-allow design crates/antecedent/src/analysis/dbn_mediation_cache_tests.rs antecedent_core build prepare
+allow design crates/antecedent/src/analysis/prepared/tests/dbn_mediation_cache.rs antecedent_core build prepare
 allow design crates/antecedent/src/analysis/derived_treatment.rs DeclaredExclusion antecedent_core invalid names
 allow design crates/antecedent/src/analysis/dose_grid_functional.rs antecedent_io consume evaluate export refusal seal
 allow design crates/antecedent/src/analysis/effect_constancy.rs antecedent_io consume evaluate export refusal seal
@@ -426,7 +425,7 @@ allow design crates/antecedent/src/analysis/execute/checked_static_class_respons
 allow design crates/antecedent/src/analysis/execute/checked_static_mediation.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/checked_survival.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/checked_synthetic_control.rs antecedent_core
-allow design crates/antecedent/src/analysis/execute/checked_temporal_class_effect.rs antecedent_core finish
+allow design crates/antecedent/src/analysis/execute/checked_temporal_class_effect.rs finish
 allow design crates/antecedent/src/analysis/execute/checked_temporal_class_mediation.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/checked_temporal_effect.rs antecedent_core prepare
 allow design crates/antecedent/src/analysis/execute/checked_temporal_mediation.rs antecedent_core build
@@ -470,7 +469,6 @@ allow design crates/antecedent/src/analysis/msm_sensitivity.rs antecedent_core a
 allow design crates/antecedent/src/analysis/mz_transport.rs antecedent_core antecedent_io consume_with_limits evaluate export
 allow design crates/antecedent/src/analysis/nonlinear_mediation.rs antecedent_io consume export refusal seal
 allow design crates/antecedent/src/analysis/preflight.rs antecedent_core finish names prepare refusal
-allow design crates/antecedent/src/analysis/prepared.rs antecedent_core antecedent_io build evaluate finish prepare quantity refusal seal
 allow design crates/antecedent/src/analysis/rank_drop_estimate.rs antecedent_core build names
 allow design crates/antecedent/src/analysis/recalc_cell.rs Utility antecedent_core antecedent_io decide finish invalid quantity seal
 allow design crates/antecedent/src/analysis/recalc_receipt.rs Utility antecedent_core build decide finish prepare
@@ -758,7 +756,29 @@ suite.adjusted_recalc_precision crates/antecedent/tests/adjusted_recalc_precisio
 suite.retained_score_precision crates/antecedent/tests/retained_score_precision.rs
 
 allow design crates/antecedent/src/analysis/conditional_study_ranking.rs StructuralCandidateDeclWire SupportedVerdict Verdict antecedent_core antecedent_design antecedent_io composition_boundary consume decision_eval design_ranking rank_structural seal
+allow design crates/antecedent/src/analysis/execute/randomized_fit.rs antecedent_core
+allow design crates/antecedent/src/analysis/execute/randomized_trial.rs antecedent_core
+allow design crates/antecedent/src/analysis/prepared/estimate.rs antecedent_core
+allow design crates/antecedent/src/analysis/prepared/execute_checked.rs antecedent_core
+allow design crates/antecedent/src/analysis/prepared/info.rs antecedent_core
+allow design crates/antecedent/src/analysis/prepared/lifecycle.rs antecedent_core finish refusal
+allow design crates/antecedent/src/analysis/prepared/mod.rs antecedent_core prepare seal
+allow design crates/antecedent/src/analysis/prepared/operations.rs antecedent_core evaluate finish prepare quantity
+allow design crates/antecedent/src/analysis/prepared/prepare.rs antecedent_core prepare seal
+allow design crates/antecedent/src/analysis/prepared/prepare_identification.rs antecedent_core prepare
+allow design crates/antecedent/src/analysis/prepared/retarget.rs antecedent_core refusal
+allow design crates/antecedent/src/analysis/prepared/seal.rs antecedent_core prepare
+allow design crates/antecedent/src/analysis/prepared/support.rs antecedent_core
 allow mechanism crates/antecedent/src/analysis/conditional_study_ranking.rs canonical decode_parts
+allow mechanism crates/antecedent/src/analysis/prepared/execute_checked.rs unit_change
+allow mechanism crates/antecedent/src/analysis/prepared/execution.rs CheckedAttributionOperation CheckedCounterfactualPlan NestedCounterfactualOperation gcm
+allow mechanism crates/antecedent/src/analysis/prepared/execution_accessors.rs CheckedAttributionOperation NestedCounterfactualOperation gcm nested_counterfactual
+allow mechanism crates/antecedent/src/analysis/prepared/info.rs CheckedCounterfactualOperation NestedCounterfactualOperation gcm nested_counterfactual
+allow mechanism crates/antecedent/src/analysis/prepared/operations.rs evaluate unit_change
+allow mechanism crates/antecedent/src/analysis/prepared/prepare.rs ChangeAttribution CheckedAttributionOperation CheckedCounterfactualOperation CheckedCounterfactualPlan CounterfactualProcedure NestedCounterfactualOperation compile gcm nested_counterfactual
+allow mechanism crates/antecedent/src/analysis/prepared/prepare_identification.rs ChangeAttribution
+allow mechanism crates/antecedent/src/analysis/prepared/retarget.rs unit_change
+allow mechanism crates/antecedent/src/analysis/prepared/support.rs ChangeAttribution
 
 allow design crates/antecedent/src/analysis/recalc_attempt.rs antecedent_core
 
