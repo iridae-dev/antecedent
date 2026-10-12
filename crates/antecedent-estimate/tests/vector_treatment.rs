@@ -19,20 +19,20 @@ use antecedent_estimate::vector_treatment::{
 };
 use antecedent_kernels::erfc;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 const X1: [f64; 6] = [1.0, 0.0, 1.0, 0.0, 0.0, 1.0];
 const X2: [f64; 6] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
 const Y: [f64; 6] = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0];
 const S: f64 = 3.25 / 36.0;
 
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    checks::close_abs_1e9(actual, expected, what);
 }
 
 fn refusal(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn treatment(name: &str, values: &[f64]) -> TreatmentColumn {

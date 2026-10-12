@@ -9,6 +9,9 @@ use antecedent_estimate::{
     parse_matched_estimand, parse_matched_sampling, refuse_matched_interval,
 };
 
+#[path = "common/checks.rs"]
+mod checks;
+
 /// `(case, exposed)` members of one matched set.
 type Set = Vec<(f64, f64)>;
 
@@ -40,10 +43,7 @@ fn repeat(set: &[(f64, f64)], times: usize) -> Vec<Set> {
 }
 
 fn refused(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 /// Independent oracle: the conditional log likelihood written as the probability of the

@@ -24,6 +24,9 @@ use antecedent_estimate::{
 };
 use antecedent_kernels::standard_normal;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 /// `P(cell | z)` for three binary components (cell bit `j` is `t_j`), enumerated by hand: each
 /// row sums to one. Row 0 is `z = 0`, row 1 is `z = 1`.
 fn law_three() -> Vec<Vec<f64>> {
@@ -124,10 +127,7 @@ fn run(
 }
 
 fn refused(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn estimate_of(fit: &FactorizedJointFit, cell: usize) -> f64 {

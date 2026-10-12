@@ -22,15 +22,15 @@ use antecedent_estimate::effect_constancy::CalibrationStatus;
 use antecedent_estimate::vector_treatment::VectorCovariance;
 use antecedent_kernels::erfc;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    checks::close_abs_1e9(actual, expected, what);
 }
 
 fn refusal(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn normal_p(z: f64) -> f64 {

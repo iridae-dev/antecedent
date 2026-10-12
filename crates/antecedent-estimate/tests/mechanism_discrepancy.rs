@@ -26,6 +26,9 @@ use antecedent_estimate::mechanism_discrepancy::{
 };
 use antecedent_kernels::erfc;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 const X: [f64; 4] = [0.0, 1.0, 2.0, 3.0];
 const YS: [f64; 4] = [1.0, 3.0, 2.0, 4.0];
 /// `YS + 0.5 x`: slope shifted by 0.5, intercept unchanged.
@@ -42,14 +45,11 @@ const Y6: [f64; 6] = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0];
 const Y6_TARGET: [f64; 6] = [4.5, 2.5, 6.5, 1.0, 0.0, 5.0];
 
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    checks::close_abs_1e9(actual, expected, what);
 }
 
 fn refusal(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn measurement(protocol: &str, node_unit: &str, parents: &[(&str, &str)]) -> MechanismMeasurement {
