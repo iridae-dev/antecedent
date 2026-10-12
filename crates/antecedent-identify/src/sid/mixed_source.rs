@@ -110,14 +110,14 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
 
-use super::meta::{identify_meta_catalog_metered, MetaSource, MetaTransportQuery};
+use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
 use super::z_transport::{
-    decide_z_transport_reporting, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery,
-    ZTransportSourceSpec,
+    ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery, ZTransportSourceSpec,
+    decide_z_transport_reporting,
 };
 use super::{
-    identify_catalog_transport_metered, CatalogTransportResult, ClassicalTransportQuery,
-    IdentificationError, MzTransportDecision, MzTransportQuery, SearchCharge, SharedSearch,
+    CatalogTransportResult, ClassicalTransportQuery, IdentificationError, MzTransportDecision,
+    MzTransportQuery, SearchCharge, SharedSearch, identify_catalog_transport_metered,
 };
 
 /// Observed variables in the graph.
@@ -1395,11 +1395,7 @@ impl Checker {
             .iter()
             .map(|v| self.variables.iter().position(|w| w == v).ok_or_else(invalid_derivation))
             .collect::<Result<Set, _>>()?;
-        if set.len() == variables.len() {
-            Ok(set)
-        } else {
-            Err(invalid_derivation())
-        }
+        if set.len() == variables.len() { Ok(set) } else { Err(invalid_derivation()) }
     }
 
     /// Ancestors of `seeds` (inclusive) along directed edges not entering `over`.
@@ -3567,7 +3563,7 @@ mod tests {
     /// Completeness against the complete ID algorithm (single observational study).
     mod reference {
         use super::*;
-        use crate::{result::IdentificationStatus, IdIdentifier, IdentificationWorkspace};
+        use crate::{IdIdentifier, IdentificationWorkspace, result::IdentificationStatus};
         use antecedent_core::{
             CausalQuery, Intervention, InterventionalDistributionQuery, SearchBudget, Value,
         };
@@ -3778,23 +3774,24 @@ mod tests {
             }
         }
 
-        /// Seeded generator of the sampled sweeps (a 64-bit LCG; deterministic).
-        pub(super) struct Lcg(pub(super) u64);
+        /// Seeded generator of the sampled sweeps. Draws are the high bits of
+        /// [`antecedent_core::CausalRng`], the workspace SplitMix64.
+        pub(super) struct Lcg(pub(super) antecedent_core::CausalRng);
 
         impl Lcg {
+            pub(super) fn new(seed: u64) -> Self {
+                Self(antecedent_core::CausalRng::from_seed(seed))
+            }
+
             pub(super) fn next(&mut self) -> u64 {
-                self.0 = self
-                    .0
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                self.0 >> 33
+                self.0.next_u64() >> 33
             }
         }
 
         /// `graphs` random ADMGs over `n` nodes (edge density varied per graph so the
         /// sample holds sparse and dense graphs), `per_graph` random queries each.
         pub(super) fn sample(n: usize, graphs: usize, per_graph: usize, seed: u64) -> Tally {
-            let mut rng = Lcg(seed);
+            let mut rng = Lcg::new(seed);
             let mut tally = Tally::default();
             let queries = all_queries(n);
             let nodes = u32::try_from(n).unwrap();

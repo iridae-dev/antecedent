@@ -18,19 +18,16 @@
     reason = "test fixtures: small exact indices, levels and enumerated probabilities; exact bit comparisons are the assertion"
 )]
 
-/// Deterministic generator (splitmix64).
-pub struct Rng(u64);
+/// Deterministic generator. The stream is [`antecedent_core::CausalRng`] restored
+/// from `seed`, the same SplitMix64 step this fixture used to inline.
+pub struct Rng(antecedent_core::CausalRng);
 
 impl Rng {
     pub fn new(seed: u64) -> Self {
-        Self(seed)
+        Self(antecedent_core::CausalRng::from_state(seed))
     }
     pub fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
+        self.0.next_u64()
     }
     pub fn below(&mut self, n: usize) -> usize {
         (self.next_u64() % n as u64) as usize
