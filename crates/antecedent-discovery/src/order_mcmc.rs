@@ -11,11 +11,14 @@
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
+use crate::graph_mcmc::{
+    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
+    run_mask_chain, run_parallel_mask_chains,
+};
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, n_directed_edges, set_edge,
 };
@@ -135,89 +138,30 @@ impl OrderMcmc {
 
         let (traces, sample_masks, rejected) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
-                let mut local_traces = vec![0.0f64; n_draws * n_params];
-                let mut local_samples = Vec::new();
-                let mut local_rej = 0u64;
-                {
-                    let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
-                    let mut cache =
-                        LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
-                            score_family,
-                            n,
-                            score_data.n_rows,
-                        ));
-                    let mut order = initial_order.clone();
-                    let mut mask = initial_mask;
-                    let mut cur = initial_score;
-                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
-                    // others after a random walk over the feasible set. Identical starts make
-                    // R-hat blind to a chain that has not left its initial mode.
-                    if chain > 0 {
-                        for _ in 0..(4 * n_params).min(400) {
-                            let (new_order, new_mask) = propose_order(&order, mask, n, &mut rng);
-                            if let Some(ps) = score_dag_mask(
-                                new_mask,
-                                n,
-                                &score_data,
-                                &mut cache,
-                                prior,
-                                variables,
-                            )
-                            .filter(|s| s.is_finite())
-                            {
-                                order = new_order;
-                                mask = new_mask;
-                                cur = ps - log_topological_order_count(new_mask, n);
-                            }
-                        }
-                    }
-                    let total_steps = n_warmup + n_draws * thin;
-                    let mut kept = 0usize;
-                    for step in 0..total_steps {
-                        if inner.cancellation.is_cancelled() {
-                            break;
-                        }
-                        let (new_order, new_mask) = propose_order(&order, mask, n, &mut rng);
-                        let prop_score =
-                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables)
-                                .map(|score| score - log_topological_order_count(new_mask, n));
-                        let accept = match prop_score {
-                            Some(ps) if ps.is_finite() => {
-                                let log_r = ps - cur;
-                                log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                            }
-                            // Constraint-invalid or non-finite score. A Metropolis rejection of
-                            // a finite score is not counted here.
-                            _ => {
-                                local_rej += 1;
-                                false
-                            }
-                        };
-                        if accept {
-                            if let Some(ps) = prop_score {
-                                order = new_order;
-                                mask = new_mask;
-                                cur = ps;
-                            }
-                        }
-                        if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
-                            let mut p = 0usize;
-                            for i in 0..n {
-                                for j in 0..n {
-                                    if i == j {
-                                        continue;
-                                    }
-                                    local_traces[kept * n_params + p] =
-                                        if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                    p += 1;
-                                }
-                            }
-                            local_samples.push(mask);
-                            kept += 1;
-                        }
-                    }
-                }
-                Ok((local_traces, local_samples, local_rej))
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
+                let mut walker = OrderWalker {
+                    n,
+                    score_data: &score_data,
+                    cache: LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                        score_family,
+                        n,
+                        score_data.n_rows,
+                    )),
+                    prior,
+                    variables,
+                    order: initial_order.clone(),
+                    mask: initial_mask,
+                    cur: initial_score,
+                    pending_order: initial_order.clone(),
+                    pending_mask: initial_mask,
+                };
+                let run = run_mask_chain(
+                    &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
+                    inner,
+                    &mut rng,
+                    &mut walker,
+                )?;
+                Ok((run.traces, run.samples, run.rejected))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -252,6 +196,79 @@ impl GraphPosteriorEngine for OrderMcmc {
     ) -> Result<GraphPosterior, DiscoveryError> {
         let mut ws = DiscoveryWorkspace::default();
         self.run(data, variables, prior, score_family, &mut ws, ctx)
+    }
+}
+
+struct OrderWalker<'a> {
+    n: usize,
+    score_data: &'a GraphScoreData,
+    cache: LocalScoreCache,
+    prior: &'a GraphPrior,
+    variables: &'a [VariableId],
+    order: Vec<usize>,
+    mask: u64,
+    cur: f64,
+    pending_order: Vec<usize>,
+    pending_mask: u64,
+}
+
+impl MaskChain for OrderWalker<'_> {
+    type Sample = u64;
+
+    fn current_score(&self) -> f64 {
+        self.cur
+    }
+
+    fn accept_policy(&self) -> MaskAccept {
+        // A non-finite score is an invalid proposal. A Metropolis rejection of a finite
+        // score is not counted.
+        MaskAccept::FiniteOnlyCounted
+    }
+
+    fn cancel_policy(&self) -> MaskCancel {
+        MaskCancel::Break
+    }
+
+    fn propose(&mut self, rng: &mut CausalRng) -> u64 {
+        let (order, mask) = propose_order(&self.order, self.mask, self.n, rng);
+        self.pending_order = order;
+        self.pending_mask = mask;
+        0
+    }
+
+    fn proposed_score(&mut self) -> Option<f64> {
+        score_dag_mask(
+            self.pending_mask,
+            self.n,
+            self.score_data,
+            &mut self.cache,
+            self.prior,
+            self.variables,
+        )
+        .map(|score| score - log_topological_order_count(self.pending_mask, self.n))
+    }
+
+    fn commit(&mut self, score: f64) {
+        self.order.clone_from(&self.pending_order);
+        self.mask = self.pending_mask;
+        self.cur = score;
+    }
+
+    fn record(&self, row: &mut [f64]) {
+        let mut p = 0usize;
+        for i in 0..self.n {
+            for j in 0..self.n {
+                if i == j {
+                    continue;
+                }
+                row[p] = if has_edge(self.mask, self.n, i, j) { 1.0 } else { 0.0 };
+                p += 1;
+            }
+        }
+    }
+
+    fn sample(&self) -> u64 {
+        self.mask
     }
 }
 
@@ -334,14 +351,8 @@ fn log_topological_order_count(mask: u64, n: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_data::TabularData;
 
     use crate::graph_posterior::GraphPrior;
 
@@ -359,20 +370,6 @@ mod tests {
     }
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["a", "b", "c"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(3);
         let mut a = vec![0.0; n_rows];
         let mut bb = vec![0.0; n_rows];
@@ -382,22 +379,9 @@ mod tests {
             bb[i] = 1.6 * a[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
             c[i] = 1.3 * bb[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(a), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(bb), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(c), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["a", "b", "c"], vec![a, bb, c]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]

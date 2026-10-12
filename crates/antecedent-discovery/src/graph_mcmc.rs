@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
 use crate::error::DiscoveryError;
@@ -83,9 +83,8 @@ pub(crate) fn merge_chain_outputs<S>(
 
 /// Run one worker per chain and merge their outputs.
 ///
-/// Accept/reject stays in the worker. Structure MCMC computes a kernel Hastings
-/// ratio and does not multiply it into the accept step, so this driver must not
-/// either.
+/// Each worker runs [`run_mask_chain`]. That runner applies Hastings factor 1.
+/// Structure MCMC still computes a kernel ratio and does not pass it in.
 pub(crate) fn run_parallel_mask_chains<S, F>(
     ctx: &ExecutionContext,
     n_chains: usize,
@@ -101,6 +100,150 @@ where
     // opens for `i`, and a panic in `worker` propagates with its payload.
     let outputs = ctx.map_indexed(n_chains, |chain, inner| worker(chain, inner))?;
     Ok(merge_chain_outputs(n_draws, n_params, outputs))
+}
+
+/// Schedule for one [`MaskChain`] worker.
+#[derive(Clone, Copy)]
+pub(crate) struct MaskChainPlan {
+    pub chain_index: usize,
+    pub n_warmup: usize,
+    pub n_draws: usize,
+    pub thin: usize,
+    pub n_params: usize,
+}
+
+/// How a missing or non-finite proposal score is treated.
+///
+/// The Metropolis ratio is always `exp(proposed - current)`. No kernel Hastings
+/// factor is multiplied in.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MaskAccept {
+    /// Reject without drawing `u` and without counting the rejection.
+    FiniteOnly,
+    /// Reject without drawing `u`, and count one invalid proposal.
+    FiniteOnlyCounted,
+    /// Missing score: reject. A proposal while the current score is non-finite is
+    /// adopted and is not an accept. Otherwise Metropolis, including a non-finite
+    /// proposal (that draw of `u` is historical unless `proposed - current >= 0`).
+    AdoptIfCurrentNonFinite,
+}
+
+/// Cancellation inside one chain.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MaskCancel {
+    /// Leave the step loop. The caller checks the parent token after the merge.
+    Break,
+    /// Refuse at entry and whenever `step % 64 == 0`.
+    AbortEvery64,
+}
+
+/// One mask sampler: propose, score, commit, record.
+///
+/// Order, structure, and DBN MCMC share [`run_mask_chain`]. Each walker keeps its
+/// own invalid-proposal count and its own accept policy.
+pub(crate) trait MaskChain {
+    type Sample;
+
+    fn current_score(&self) -> f64;
+    fn accept_policy(&self) -> MaskAccept;
+    fn cancel_policy(&self) -> MaskCancel;
+    /// Invalid proposals in this draw. A kernel Hastings ratio is not returned.
+    fn propose(&mut self, rng: &mut CausalRng) -> u64;
+    fn proposed_score(&mut self) -> Option<f64>;
+    fn commit(&mut self, score: f64);
+    fn record(&self, row: &mut [f64]);
+    fn sample(&self) -> Self::Sample;
+}
+
+/// `(extra_rejections, score_to_commit)`.
+fn mask_step(
+    policy: MaskAccept,
+    current: f64,
+    proposed: Option<f64>,
+    rng: &mut CausalRng,
+) -> (u64, Option<f64>) {
+    match policy {
+        MaskAccept::FiniteOnly | MaskAccept::FiniteOnlyCounted => match proposed {
+            Some(ps) if ps.is_finite() => {
+                let log_r = ps - current;
+                let accept = log_r >= 0.0 || rng.next_f64() < log_r.exp();
+                (0, accept.then_some(ps))
+            }
+            _ => (u64::from(matches!(policy, MaskAccept::FiniteOnlyCounted)), None),
+        },
+        MaskAccept::AdoptIfCurrentNonFinite => match proposed {
+            Some(ps) if current.is_finite() => {
+                let log_r = ps - current;
+                let accept = log_r >= 0.0 || rng.next_f64() < log_r.exp();
+                (0, accept.then_some(ps))
+            }
+            Some(ps) => (0, Some(ps)),
+            None => (0, None),
+        },
+    }
+}
+
+/// Traces, retained samples, and invalid proposals from one chain.
+pub(crate) struct MaskChainOutput<S> {
+    pub traces: Vec<f64>,
+    pub samples: Vec<S>,
+    pub rejected: u64,
+}
+
+/// Warm up, then keep thinned draws. Hastings factor is 1.
+///
+/// Chain 0 starts at the walker's state. Later chains take the same
+/// `(4 * n_params).min(400)` finite-score walk the three samplers used.
+pub(crate) fn run_mask_chain<C: MaskChain>(
+    plan: &MaskChainPlan,
+    ctx: &ExecutionContext,
+    rng: &mut CausalRng,
+    chain: &mut C,
+) -> Result<MaskChainOutput<C::Sample>, DiscoveryError> {
+    if matches!(chain.cancel_policy(), MaskCancel::AbortEvery64) && ctx.cancellation.is_cancelled()
+    {
+        return Err(DiscoveryError::Cancelled);
+    }
+    if plan.chain_index > 0 {
+        for _ in 0..(4 * plan.n_params).min(400) {
+            let _rejected = chain.propose(rng);
+            if let Some(ps) = chain.proposed_score().filter(|score| score.is_finite()) {
+                chain.commit(ps);
+            }
+        }
+    }
+    let mut traces = vec![0.0f64; plan.n_draws * plan.n_params];
+    let mut samples = Vec::new();
+    let mut rejected = 0u64;
+    let total_steps = plan.n_warmup + plan.n_draws * plan.thin;
+    let mut kept = 0usize;
+    for step in 0..total_steps {
+        match chain.cancel_policy() {
+            MaskCancel::Break => {
+                if ctx.cancellation.is_cancelled() {
+                    break;
+                }
+            }
+            MaskCancel::AbortEvery64 => {
+                if step % 64 == 0 && ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
+            }
+        }
+        rejected += chain.propose(rng);
+        let (extra, adopt) =
+            mask_step(chain.accept_policy(), chain.current_score(), chain.proposed_score(), rng);
+        rejected += extra;
+        if let Some(score) = adopt {
+            chain.commit(score);
+        }
+        if step >= plan.n_warmup && (step - plan.n_warmup) % plan.thin == 0 && kept < plan.n_draws {
+            chain.record(&mut traces[kept * plan.n_params..(kept + 1) * plan.n_params]);
+            samples.push(chain.sample());
+            kept += 1;
+        }
+    }
+    Ok(MaskChainOutput { traces, samples, rejected })
 }
 
 /// Diagnostics from edge-indicator traces, then optional publish gate.
@@ -264,5 +407,45 @@ mod tests {
         let (d, _) = diagnostics_from_traces(&schedule, &traces, 1, false, "refused").unwrap();
         assert!(!d.converged);
         assert!(d.notes.iter().any(|n| n.starts_with("edge_mcse_max=")));
+    }
+
+    /// An improving move accepts without drawing `u`. Multiplying the structure
+    /// add-move ratio 0.5 would make `0.1 + ln(0.5)` negative and might reject.
+    #[test]
+    fn mask_step_keeps_hastings_factor_one() {
+        let mut used = CausalRng::from_seed(7);
+        let mut untouched = CausalRng::from_seed(7);
+        let (extra, adopt) = mask_step(MaskAccept::FiniteOnly, 0.0, Some(0.1), &mut used);
+        assert_eq!(extra, 0);
+        assert_eq!(adopt, Some(0.1));
+        assert_eq!(used.next_f64().to_bits(), untouched.next_f64().to_bits());
+
+        let mut draw = CausalRng::from_seed(7);
+        let mut expected = CausalRng::from_seed(7);
+        let u = expected.next_f64();
+        let (extra, adopt) = mask_step(MaskAccept::FiniteOnly, 0.0, Some(-1.0), &mut draw);
+        assert_eq!(extra, 0);
+        assert_eq!(adopt.is_some(), u < (-1.0f64).exp());
+        assert_eq!(draw.next_f64().to_bits(), expected.next_f64().to_bits());
+
+        let mut counted = CausalRng::from_seed(3);
+        let mut counted_copy = CausalRng::from_seed(3);
+        let (extra, adopt) = mask_step(MaskAccept::FiniteOnlyCounted, 1.0, None, &mut counted);
+        assert_eq!((extra, adopt), (1, None));
+        let (extra, adopt) = mask_step(MaskAccept::FiniteOnly, 1.0, None, &mut counted_copy);
+        assert_eq!((extra, adopt), (0, None));
+        assert_eq!(counted.next_f64().to_bits(), counted_copy.next_f64().to_bits());
+
+        let mut adopt_rng = CausalRng::from_seed(9);
+        let mut adopt_copy = CausalRng::from_seed(9);
+        let (extra, adopt) =
+            mask_step(MaskAccept::AdoptIfCurrentNonFinite, f64::NAN, Some(2.5), &mut adopt_rng);
+        assert_eq!((extra, adopt), (0, Some(2.5)));
+        let (extra, adopt) =
+            mask_step(MaskAccept::AdoptIfCurrentNonFinite, 0.0, Some(f64::NAN), &mut adopt_rng);
+        assert_eq!(extra, 0);
+        assert!(adopt.is_none());
+        let _ = adopt_copy.next_f64();
+        assert_eq!(adopt_rng.next_f64().to_bits(), adopt_copy.next_f64().to_bits());
     }
 }

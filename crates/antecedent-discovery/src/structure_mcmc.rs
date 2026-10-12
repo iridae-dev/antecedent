@@ -6,11 +6,14 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
+use crate::graph_mcmc::{
+    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
+    run_mask_chain, run_parallel_mask_chains,
+};
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, set_edge,
 };
@@ -140,72 +143,29 @@ impl StructureMcmc {
 
         let (traces, sample_masks, rejected) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
-                let mut local_traces = vec![0.0f64; n_draws * n_params];
-                let mut local_samples = Vec::new();
-                let mut local_rej = 0u64;
-                {
-                    let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
-                    let mut cache =
-                        LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
-                            score_family,
-                            n,
-                            score_data.n_rows,
-                        ));
-                    let mut mask = initial_mask;
-                    let mut cur = initial_score;
-                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
-                    // others after a random walk over the feasible set. Identical starts make
-                    // R-hat blind to a chain that has not left its initial mode.
-                    if chain > 0 {
-                        for _ in 0..(4 * n_params).min(400) {
-                            let (prop, _, _) = propose_structure(mask, n, &pairs, &mut rng);
-                            if let Some(ps) =
-                                score_dag_mask(prop, n, &score_data, &mut cache, prior, variables)
-                                    .filter(|s| s.is_finite())
-                            {
-                                mask = prop;
-                                cur = ps;
-                            }
-                        }
-                    }
-                    let total_steps = n_warmup + n_draws * thin;
-                    let mut kept = 0usize;
-                    for step in 0..total_steps {
-                        if inner.cancellation.is_cancelled() {
-                            break;
-                        }
-                        let (prop, _kernel_ratio, rej_inc) =
-                            propose_structure(mask, n, &pairs, &mut rng);
-                        local_rej += rej_inc;
-                        let prop_score =
-                            score_dag_mask(prop, n, &score_data, &mut cache, prior, variables);
-                        let accept = match prop_score {
-                            Some(ps) if ps.is_finite() => {
-                                // The chain applies Hastings factor 1. The kernel ratio is not 1
-                                // for add/delete (see `structure_kernel_ratio`); folding it in
-                                // would change the sampled graphs for a given seed.
-                                let log_r = ps - cur;
-                                log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                            }
-                            _ => false,
-                        };
-                        if accept {
-                            if let Some(ps) = prop_score {
-                                mask = prop;
-                                cur = ps;
-                            }
-                        }
-                        if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
-                            for (p, &(i, j)) in pairs.iter().enumerate() {
-                                let v = if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                local_traces[kept * n_params + p] = v;
-                            }
-                            local_samples.push(mask);
-                            kept += 1;
-                        }
-                    }
-                }
-                Ok((local_traces, local_samples, local_rej))
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
+                let mut walker = StructureWalker {
+                    n,
+                    pairs: &pairs,
+                    score_data: &score_data,
+                    cache: LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                        score_family,
+                        n,
+                        score_data.n_rows,
+                    )),
+                    prior,
+                    variables,
+                    mask: initial_mask,
+                    cur: initial_score,
+                    pending: initial_mask,
+                };
+                let run = run_mask_chain(
+                    &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
+                    inner,
+                    &mut rng,
+                    &mut walker,
+                )?;
+                Ok((run.traces, run.samples, run.rejected))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -295,6 +255,68 @@ pub(crate) enum StructureMove {
     Reverse,
 }
 
+struct StructureWalker<'a> {
+    n: usize,
+    pairs: &'a [(usize, usize)],
+    score_data: &'a GraphScoreData,
+    cache: LocalScoreCache,
+    prior: &'a GraphPrior,
+    variables: &'a [VariableId],
+    mask: u64,
+    cur: f64,
+    pending: u64,
+}
+
+impl MaskChain for StructureWalker<'_> {
+    type Sample = u64;
+
+    fn current_score(&self) -> f64 {
+        self.cur
+    }
+
+    fn accept_policy(&self) -> MaskAccept {
+        // `propose_structure` still returns the kernel ratio. This policy does not
+        // read it, so add/delete keep Hastings factor 1.
+        MaskAccept::FiniteOnly
+    }
+
+    fn cancel_policy(&self) -> MaskCancel {
+        MaskCancel::Break
+    }
+
+    fn propose(&mut self, rng: &mut CausalRng) -> u64 {
+        let (prop, _kernel_ratio, rejected) = propose_structure(self.mask, self.n, self.pairs, rng);
+        self.pending = prop;
+        rejected
+    }
+
+    fn proposed_score(&mut self) -> Option<f64> {
+        score_dag_mask(
+            self.pending,
+            self.n,
+            self.score_data,
+            &mut self.cache,
+            self.prior,
+            self.variables,
+        )
+    }
+
+    fn commit(&mut self, score: f64) {
+        self.mask = self.pending;
+        self.cur = score;
+    }
+
+    fn record(&self, row: &mut [f64]) {
+        for (p, &(i, j)) in self.pairs.iter().enumerate() {
+            row[p] = if has_edge(self.mask, self.n, i, j) { 1.0 } else { 0.0 };
+        }
+    }
+
+    fn sample(&self) -> u64 {
+        self.mask
+    }
+}
+
 /// Propose add/delete/reverse; returns `(new_mask, kernel Hastings ratio, rejected)`.
 ///
 /// `rejected` counts a proposal that is not a DAG. The ratio is [`structure_kernel_ratio`];
@@ -343,32 +365,12 @@ fn propose_structure(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_data::TabularData;
 
     use crate::graph_posterior::GraphPrior;
 
     fn fork_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["x", "y", "z"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(11);
         let mut x = vec![0.0; n_rows];
         let mut y = vec![0.0; n_rows];
@@ -378,22 +380,9 @@ mod tests {
             y[i] = 1.4 * x[i] + 0.2 * (rng.next_f64() * 2.0 - 1.0);
             z[i] = 1.1 * x[i] + 0.2 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(x), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(y), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(z), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["x", "y", "z"], vec![x, y, z]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]

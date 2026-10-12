@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_graph::{
     DenseNodeId, GraphError, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag,
@@ -23,6 +23,7 @@ use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
+use crate::graph_mcmc::{MaskAccept, MaskCancel, MaskChain, MaskChainPlan, run_mask_chain};
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, SamplingSummary, accumulate_marginals,
     analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
@@ -292,81 +293,27 @@ impl DbnPosterior {
 
         let (traces, samples, rejected) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
-                if inner.cancellation.is_cancelled() {
-                    return Err(DiscoveryError::Cancelled);
-                }
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
-                let mut local_traces = vec![0.0f64; n_draws * n_params];
-                let mut local_samples = Vec::new();
-                let mut rejected = 0u64;
-                let mut cache = target.score_cache();
-                let mut cmask = init_cmask;
-                let mut lmask = init_lmask;
-                let mut cur = init_score;
-                // Overdisperse the starts (chain 0 stays at the required-edge template): identical
-                // starts make R-hat blind to a chain that has not left its initial mode.
-                if chain > 0 {
-                    for _ in 0..(4 * n_params).min(400) {
-                        let (pc, pl, _) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
-                        if let Some(ps) =
-                            score_dbn_template(pc, pl, target, &mut cache).filter(|s| s.is_finite())
-                        {
-                            cmask = pc;
-                            lmask = pl;
-                            cur = ps;
-                        }
-                    }
-                }
-                let total = n_warmup + n_draws;
-                let mut kept = 0usize;
-                for step in 0..total {
-                    if step % 64 == 0 && inner.cancellation.is_cancelled() {
-                        return Err(DiscoveryError::Cancelled);
-                    }
-                    let (pc, pl, rej) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
-                    rejected += rej;
-                    let prop = score_dbn_template(pc, pl, target, &mut cache);
-                    let accept = match prop {
-                        Some(ps) if cur.is_finite() => {
-                            let lr = ps - cur;
-                            lr >= 0.0 || rng.next_f64() < lr.exp()
-                        }
-                        Some(ps) => {
-                            cmask = pc;
-                            lmask = pl;
-                            cur = ps;
-                            false
-                        }
-                        None => false,
-                    };
-                    if accept {
-                        if let Some(ps) = prop {
-                            cmask = pc;
-                            lmask = pl;
-                            cur = ps;
-                        }
-                    }
-                    if step >= n_warmup && kept < n_draws {
-                        let mut idx = 0;
-                        for i in 0..p {
-                            for j in 0..p {
-                                if i == j {
-                                    continue;
-                                }
-                                local_traces[kept * n_params + idx] =
-                                    if has_edge(cmask, p, i, j) { 1.0 } else { 0.0 };
-                                idx += 1;
-                            }
-                        }
-                        for b in 0..n_lag_bits {
-                            local_traces[kept * n_params + idx + b] =
-                                if (lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
-                        }
-                        local_samples.push((cmask, lmask));
-                        kept += 1;
-                    }
-                }
-                Ok((local_traces, local_samples, rejected))
+                let mut walker = DbnWalker {
+                    target,
+                    cache: target.score_cache(),
+                    p,
+                    max_lag,
+                    n_lag_bits,
+                    cmask: init_cmask,
+                    lmask: init_lmask,
+                    cur: init_score,
+                    pending_c: init_cmask,
+                    pending_l: init_lmask,
+                };
+                // `thin` is 1: the historical loop kept every post-warmup step.
+                let run = run_mask_chain(
+                    &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin: 1, n_params },
+                    inner,
+                    &mut rng,
+                    &mut walker,
+                )?;
+                Ok((run.traces, run.samples, run.rejected))
             })?;
 
         let (diagnostics, param_mcse) = diagnostics_from_traces(
@@ -811,6 +758,73 @@ fn accumulate_lagged_marginals(
         }
     }
     out
+}
+
+struct DbnWalker<'a> {
+    target: &'a DbnTarget<'a>,
+    cache: LocalScoreCache,
+    p: usize,
+    max_lag: u32,
+    n_lag_bits: usize,
+    cmask: u64,
+    lmask: u64,
+    cur: f64,
+    pending_c: u64,
+    pending_l: u64,
+}
+
+impl MaskChain for DbnWalker<'_> {
+    type Sample = (u64, u64);
+
+    fn current_score(&self) -> f64 {
+        self.cur
+    }
+
+    fn accept_policy(&self) -> MaskAccept {
+        MaskAccept::AdoptIfCurrentNonFinite
+    }
+
+    fn cancel_policy(&self) -> MaskCancel {
+        MaskCancel::AbortEvery64
+    }
+
+    fn propose(&mut self, rng: &mut CausalRng) -> u64 {
+        let (cmask, lmask, rejected) =
+            propose_dbn(self.cmask, self.lmask, self.p, self.max_lag, rng);
+        self.pending_c = cmask;
+        self.pending_l = lmask;
+        rejected
+    }
+
+    fn proposed_score(&mut self) -> Option<f64> {
+        score_dbn_template(self.pending_c, self.pending_l, self.target, &mut self.cache)
+    }
+
+    fn commit(&mut self, score: f64) {
+        self.cmask = self.pending_c;
+        self.lmask = self.pending_l;
+        self.cur = score;
+    }
+
+    fn record(&self, row: &mut [f64]) {
+        let mut idx = 0;
+        for i in 0..self.p {
+            for j in 0..self.p {
+                if i == j {
+                    continue;
+                }
+                row[idx] = if has_edge(self.cmask, self.p, i, j) { 1.0 } else { 0.0 };
+                idx += 1;
+            }
+        }
+        for b in 0..self.n_lag_bits {
+            row[idx + b] = if (self.lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
+        }
+    }
+
+    fn sample(&self) -> (u64, u64) {
+        (self.cmask, self.lmask)
+    }
 }
 
 fn propose_dbn(
