@@ -1707,9 +1707,8 @@ pub struct CounterfactualIdPoint {
 }
 
 /// A joint law laid out in the problem's variable and level order.
-#[doc(hidden)]
 #[derive(Clone, Debug)]
-pub struct DenseJoint {
+pub(crate) struct DenseJoint {
     /// Levels per variable (values).
     pub levels: Vec<Vec<f64>>,
     /// Row-major probabilities, last variable fastest.
@@ -1769,8 +1768,7 @@ impl DenseJoint {
 ///
 /// `counterfactual_id.invalid_query` when the law's axes are not exactly the
 /// problem's variables with the problem's levels (in any order).
-#[doc(hidden)]
-pub fn dense_joint(
+pub(crate) fn dense_joint(
     problem: &CounterfactualIdProblem,
     law: &ExactDiscreteLaw,
 ) -> Result<DenseJoint, CounterfactualIdRefusal> {
@@ -1949,8 +1947,7 @@ struct TermEvaluator<'j> {
 /// point masses, so a dependence that only a different point mass per cell or
 /// an off-diagonal configuration reveals is not detected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum NullExtension {
+pub(crate) enum NullExtension {
     /// Every value of the conditioned variables equally likely.
     Uniform,
     /// All mass on level `k` of every conditioned variable (its last level

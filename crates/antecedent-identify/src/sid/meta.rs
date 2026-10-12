@@ -32,7 +32,7 @@ pub struct MetaTransportQuery {
 }
 /// Checked representation shared by classical and meta-transport derivations.
 /// The scientific scope is explicit in `evidence_setting` and `sources`.
-pub type CheckedTransportDerivation = ClassicalTransportDerivation;
+pub(crate) type CheckedTransportDerivation = ClassicalTransportDerivation;
 
 impl ClassicalTransportDerivation {
     /// Immutable theorem evidence setting (separate from catalog availability).

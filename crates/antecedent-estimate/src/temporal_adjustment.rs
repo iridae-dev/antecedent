@@ -639,7 +639,7 @@ fn refuse_multi_step_schedule(
 
 /// Marker between a variable name and its lag in temporal coefficient names
 /// (`coef_pressure@lag1`). Names carrying it bind prior transfer by lag.
-pub const TEMPORAL_COEF_LAG_MARKER: &str = "@lag";
+pub(crate) const TEMPORAL_COEF_LAG_MARKER: &str = "@lag";
 
 /// Whether a durable coefficient name carries a temporal lag coordinate.
 #[must_use]

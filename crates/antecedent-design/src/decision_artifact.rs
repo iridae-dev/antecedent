@@ -839,7 +839,7 @@ pub fn result_to_json(
 
 /// BLAKE3 of a mean source's coordinates and means.
 #[must_use]
-pub fn mean_source_digest(source: &MeanSource) -> String {
+pub(crate) fn mean_source_digest(source: &MeanSource) -> String {
     let mut hasher = CanonicalWriter::new("antecedent.decision_mean_source.v1");
     hasher.word(source.coordinates.len() as u64);
     for quantity in &source.coordinates {

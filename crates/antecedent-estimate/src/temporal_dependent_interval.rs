@@ -40,18 +40,18 @@ pub const INTERVAL_MIN_REPLICATES: usize = 20;
 /// Most repeated units a panel may carry.
 pub const INTERVAL_MAX_UNITS: usize = 100_000;
 /// Fewest repeated units an interval is attempted with by default.
-pub const DEFAULT_MIN_UNITS: usize = 20;
+pub(crate) const DEFAULT_MIN_UNITS: usize = 20;
 /// Maximum units for the separately bounded original-score bootstrap-t candidate.
-pub const STUDENTIZED_MAX_UNITS: usize = 4096;
+pub(crate) const STUDENTIZED_MAX_UNITS: usize = 4096;
 /// Inference claim of this engine: dependence is preserved, coverage is not measured.
 pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_unmeasured";
 /// Calibration status of this engine.
 pub const INTERVAL_CALIBRATION_STATUS: &str = "unmeasured";
 
 /// Detail: the public interval route is closed.
-pub const TEMPORAL_INTERVAL_ROUTE_FROZEN: &str = "temporal_interval.route_frozen";
+pub(crate) const TEMPORAL_INTERVAL_ROUTE_FROZEN: &str = "temporal_interval.route_frozen";
 /// Detail: unit ownership, time order or dependence is absent or incompatible.
-pub const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unknown_units";
+pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unknown_units";
 /// Detail: too few repeated units for a dependent interval.
 pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str = "temporal_interval.too_few_units";
 /// Detail: a history the estimator needs has no support.

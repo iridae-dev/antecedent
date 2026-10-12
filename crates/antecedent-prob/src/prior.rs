@@ -1072,7 +1072,7 @@ impl PriorSet {
 
 /// Restriction-id prefix of the absolute-coefficient-scale marker
 /// ([`PriorSet::mark_absolute_coefficient_scale`]).
-pub const ABSOLUTE_COEFFICIENT_SCALE_ID: &str = "absolute_coefficient_scale";
+pub(crate) const ABSOLUTE_COEFFICIENT_SCALE_ID: &str = "absolute_coefficient_scale";
 
 fn absolute_scale_indices(id: &str) -> Option<Vec<usize>> {
     let list = id.strip_prefix(ABSOLUTE_COEFFICIENT_SCALE_ID)?.strip_prefix(':')?;

@@ -290,7 +290,8 @@ impl GaussianMixtureDensity {
 /// # Errors
 ///
 /// Shape mismatch, non-finite input, invalid bandwidth, or a singular local design.
-pub fn gaussian_local_quadratic(
+#[cfg(test)]
+pub(crate) fn gaussian_local_quadratic(
     x: &[f64],
     y: &[f64],
     at: f64,

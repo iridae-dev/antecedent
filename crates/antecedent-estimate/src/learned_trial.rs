@@ -328,7 +328,7 @@ pub fn trial_fold_assignment(input: &TrialAipwInput, folds: usize) -> Vec<u16> {
 /// cohort, and the trial and target samples separately (each keeping its fixed
 /// size) for independent samples.
 #[must_use]
-pub fn bootstrap_groups(input: &TrialAipwInput) -> Vec<Vec<usize>> {
+pub(crate) fn bootstrap_groups(input: &TrialAipwInput) -> Vec<Vec<usize>> {
     let n = input.source.len();
     match input.sampling {
         TrialSampling::NestedCohort => vec![(0..n).collect()],

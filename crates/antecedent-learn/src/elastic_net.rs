@@ -17,7 +17,7 @@ use crate::spec::ElasticNetSpec;
 
 /// Elastic-net regression via coordinate descent.
 #[derive(Clone, Copy, Debug)]
-pub struct ElasticNetLearner {
+pub(crate) struct ElasticNetLearner {
     spec: ElasticNetSpec,
     max_iter: u32,
 }
@@ -36,21 +36,6 @@ impl ElasticNetLearner {
     const fn with_max_iter(mut self, max_iter: u32) -> Self {
         self.max_iter = max_iter;
         self
-    }
-
-    /// Elastic-net factory, or a typed refusal if `task` is not regression.
-    ///
-    /// # Errors
-    ///
-    /// [`LearnError::TaskMismatch`] when `task` is [`PredictionTask::BinaryProbability`].
-    pub fn for_task(task: PredictionTask, spec: ElasticNetSpec) -> Result<Self, LearnError> {
-        match task {
-            PredictionTask::Regression => Ok(Self::new(spec)),
-            PredictionTask::BinaryProbability => Err(LearnError::TaskMismatch {
-                requested: PredictionTask::BinaryProbability,
-                supported: PredictionTask::Regression,
-            }),
-        }
     }
 }
 

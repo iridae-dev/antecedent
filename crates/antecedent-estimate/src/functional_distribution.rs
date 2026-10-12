@@ -71,7 +71,7 @@ const MAX_DISCRETE_LEVELS: usize = 64;
 
 /// Diagnostic code: the functional kept free variables and was averaged over their
 /// supported values (see the module docs).
-pub const FREE_VARIABLES_AVERAGED_CODE: &str = "estimate.functional.free_variables_averaged";
+pub(crate) const FREE_VARIABLES_AVERAGED_CODE: &str = "estimate.functional.free_variables_averaged";
 
 /// Free variables of `functional` that the consumer does not bind (`bound`: outcomes,
 /// interventions, conditioning), sorted by id.

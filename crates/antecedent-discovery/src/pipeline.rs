@@ -33,7 +33,7 @@ pub(crate) fn dense_of(
 
 /// Map lagged `(variable, lag)` pairs — and context nodes as `(variable, 0)` — to dense ids.
 #[must_use]
-pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> {
+pub(crate) fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> {
     let mut node_ids = HashMap::new();
     for (i, node) in nodes.iter().enumerate() {
         match node {
@@ -61,7 +61,7 @@ pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> 
 /// inserted in sorted key order so the winning entry for a pair recorded in both
 /// directions is deterministic (`HashMap` iteration order is not).
 #[must_use]
-pub fn orientation_state_from_sepsets<S: BuildHasher>(
+pub(crate) fn orientation_state_from_sepsets<S: BuildHasher>(
     node_ids: &HashMap<(u32, u32), DenseNodeId, S>,
     sepsets: &PcSepsets,
 ) -> OrientationState {
@@ -85,12 +85,12 @@ pub fn orientation_state_from_sepsets<S: BuildHasher>(
 
 /// Build an [`AlgorithmRecord`] from id + config digest.
 #[must_use]
-pub fn algorithm_record(id: &str, config: impl Into<String>) -> AlgorithmRecord {
+pub(crate) fn algorithm_record(id: &str, config: impl Into<String>) -> AlgorithmRecord {
     AlgorithmRecord { id: Arc::from(id), config: Arc::from(config.into()) }
 }
 
 /// Append a discovery diagnostic.
-pub fn push_diagnostic(
+pub(crate) fn push_diagnostic(
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
     code: &str,
     message: impl Into<String>,
@@ -101,7 +101,7 @@ pub fn push_diagnostic(
 
 /// Copy performance counters and set retained-link count.
 #[must_use]
-pub fn with_links_retained(
+pub(crate) fn with_links_retained(
     mut performance: DiscoveryPerformanceRecord,
     links_retained: usize,
 ) -> DiscoveryPerformanceRecord {

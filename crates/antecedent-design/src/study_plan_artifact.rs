@@ -50,9 +50,9 @@ use crate::study_planner::{
 };
 
 /// Wire schema version.
-pub const STUDY_PLAN_ARTIFACT_VERSION: u32 = 1;
+pub(crate) const STUDY_PLAN_ARTIFACT_VERSION: u32 = 1;
 /// Artifact kind.
-pub const STUDY_PLAN_ARTIFACT_KIND: &str = "study_plan_v1";
+pub(crate) const STUDY_PLAN_ARTIFACT_KIND: &str = "study_plan_v1";
 /// Rule-set identity of the mz-transport route recorded in the premises.
 const MZ_RULE_SET: &str = "trmz.r443.v1";
 

@@ -70,7 +70,7 @@ use crate::se::{AnalyticSeKind, require_clusters};
 use crate::util::{BootstrapSeResult, stats_err};
 
 /// Stable id of the functional-form restriction the product-of-coefficients shortcut relies on.
-pub const LINEAR_PATH_PRODUCT_ASSUMPTION_ID: &str = "frontdoor.linear_path_product";
+pub(crate) const LINEAR_PATH_PRODUCT_ASSUMPTION_ID: &str = "frontdoor.linear_path_product";
 
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;

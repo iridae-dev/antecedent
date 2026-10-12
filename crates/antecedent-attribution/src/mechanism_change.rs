@@ -111,7 +111,7 @@ pub fn detect_mechanism_changes(
     clippy::too_many_lines,
     reason = "fit both sides, test every mechanism, then correct the whole family together; the stages share the per-mechanism results"
 )]
-pub fn detect_mechanism_changes_with_correction(
+pub(crate) fn detect_mechanism_changes_with_correction(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
     query: &MechanismChangeQuery,

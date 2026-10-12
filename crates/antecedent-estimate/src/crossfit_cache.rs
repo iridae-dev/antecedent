@@ -41,7 +41,7 @@ use crate::error::EstimationError;
 
 /// Most `f64`/`u32` values one cache retains across its keys and fitted values
 /// (about 256 MiB). Beyond it, new fits run unshared.
-pub const MAX_RETAINED_VALUES: usize = 1 << 25;
+pub(crate) const MAX_RETAINED_VALUES: usize = 1 << 25;
 
 /// Out-of-fold propensity scores (raw, unclipped), one per complete-case row.
 pub(crate) type PropensitySlot = Option<Arc<[f64]>>;

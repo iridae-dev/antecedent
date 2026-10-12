@@ -26,18 +26,18 @@ const LAW_DIGEST_TAG: &str = "antecedent.estimate.temporal_initial_state.law";
 /// Most support points of an initial-state law.
 pub const INITIAL_STATE_MAX_STATES: usize = 64;
 /// Largest deviation of a law's total mass from one.
-pub const INITIAL_STATE_MASS_TOLERANCE: f64 = 1e-9;
+pub(crate) const INITIAL_STATE_MASS_TOLERANCE: f64 = 1e-9;
 /// The only inference claim of this route.
 pub const INITIAL_STATE_INFERENCE_CLAIM: &str = "point_only";
 
 /// Detail: the initial-state route is closed.
-pub const INITIAL_STATE_ROUTE_FROZEN: &str = "initial_state.route_frozen";
+pub(crate) const INITIAL_STATE_ROUTE_FROZEN: &str = "initial_state.route_frozen";
 /// Detail: only a source law or a point state was supplied for a target-marginal query.
-pub const INITIAL_STATE_TARGET_LAW_MISSING: &str = "initial_state.target_law_missing";
+pub(crate) const INITIAL_STATE_TARGET_LAW_MISSING: &str = "initial_state.target_law_missing";
 /// Detail: more support points than [`INITIAL_STATE_MAX_STATES`].
-pub const INITIAL_STATE_TOO_MANY_STATES: &str = "initial_state.too_many_states";
+pub(crate) const INITIAL_STATE_TOO_MANY_STATES: &str = "initial_state.too_many_states";
 /// Detail: a state with positive target mass has no history support.
-pub const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
+pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
 
 /// The refusal of the public initial-state route until its evidence passes.
 #[must_use]

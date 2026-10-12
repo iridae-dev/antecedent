@@ -23,7 +23,7 @@ use crate::preposterior::DecisionPrior;
 use crate::signal::{NativeBinomialSignal, NativeGaussianMeanSignal, SignalProvider, make_refusal};
 
 /// Largest number of equally weighted draws the adapter produces.
-pub const MAX_PRIOR_RESOLUTION: usize = 1_000_000;
+pub(crate) const MAX_PRIOR_RESOLUTION: usize = 1_000_000;
 
 /// Native future-signal family the candidate study follows.
 #[derive(Clone, Copy, Debug, PartialEq)]

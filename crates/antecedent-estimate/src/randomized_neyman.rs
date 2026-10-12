@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Minimum independently randomized clusters in each arm for a normal interval.
-pub const MIN_CLUSTERS_PER_ARM_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_CLUSTERS_PER_ARM_FOR_INTERVAL: usize = 30;
 use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Minimum independently assigned units in each arm for a complete-design interval.
-pub const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;
 
 /// A completely randomized intention-to-treat contrast.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -54,7 +54,7 @@ pub fn complete_unit_itt(treated: &[f64], control: &[f64]) -> Option<CompleteItt
 }
 
 /// Minimum treated and control units within every block for a blocked interval.
-pub const MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL: usize = 15;
+pub(crate) const MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL: usize = 15;
 
 /// A blocked, completely randomized intention-to-treat contrast.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -105,7 +105,7 @@ pub fn blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> Option<BlockedItt> {
 }
 
 /// Minimum observed units in each factorial cell for pointwise intervals.
-pub const MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL: usize = 30;
 
 /// Main effects and interaction from a fixed-cell 2×2 factorial trial.
 #[derive(Clone, Copy, Debug, PartialEq)]

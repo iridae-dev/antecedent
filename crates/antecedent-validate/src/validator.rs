@@ -95,7 +95,7 @@ impl<'a> PreparedRefutation<'a> {
 /// # Errors
 ///
 /// Propagates prepare/validate failures.
-pub fn run_validator<'a, V>(
+pub(crate) fn run_validator<'a, V>(
     validator: &V,
     problem: &RefutationProblem<'a>,
     workspace: &mut EstimationWorkspace,

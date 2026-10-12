@@ -44,9 +44,9 @@ use antecedent_io_core::wire::ArtifactKind;
 use serde::{Deserialize, Serialize};
 
 /// Artifact kind label of a composition bundle.
-pub const BUNDLE_KIND: &str = "composition_bundle_v1";
+pub(crate) const BUNDLE_KIND: &str = "composition_bundle_v1";
 /// Body format version this module reads and writes.
-pub const BUNDLE_VERSION: u16 = 1;
+pub(crate) const BUNDLE_VERSION: u16 = 1;
 const BODY_SECTION: &str = "bundle.body";
 
 /// Fact key: the law a node supplies or a result rests on.

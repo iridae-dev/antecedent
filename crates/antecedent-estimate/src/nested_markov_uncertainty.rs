@@ -22,7 +22,7 @@ mod internal {
     };
 
     /// Number of free parameters, ordered `a,c0,c1,q20,q21,q40,q41,g00,g01,g10,g11`.
-    pub const PARAMETER_COUNT: usize = 11;
+    pub(crate) const PARAMETER_COUNT: usize = 11;
 
     /// A regular-model approximation awaiting whole-method repeated-sampling calibration.
     #[derive(Clone, Debug, PartialEq)]
@@ -268,5 +268,5 @@ mod internal {
 }
 
 pub use internal::{
-    NestedFisherFunctional, NestedMarkovUncertainty, PARAMETER_COUNT, nested_markov_fisher_internal,
+    NestedFisherFunctional, NestedMarkovUncertainty, nested_markov_fisher_internal,
 };

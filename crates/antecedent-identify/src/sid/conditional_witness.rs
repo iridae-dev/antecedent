@@ -46,7 +46,7 @@ use antecedent_graph::{DenseNodeId, SelectionDiagram};
 
 /// Most enumeration work (law cells times latent configurations times nodes)
 /// a witness may need; larger witnesses are refused before any arithmetic.
-pub const CONDITIONAL_WITNESS_MAX_WORK: u64 = 1 << 22;
+pub(crate) const CONDITIONAL_WITNESS_MAX_WORK: u64 = 1 << 22;
 /// Most levels of one latent variable in a witness.
 pub const CONDITIONAL_WITNESS_MAX_LATENT_LEVELS: usize = 8;
 /// Enumeration work above which the search does not start (the verifier's cap

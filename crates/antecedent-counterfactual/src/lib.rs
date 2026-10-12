@@ -9,7 +9,6 @@ pub mod cross_world;
 pub mod engine;
 pub mod error;
 pub mod temporal_cross_world;
-pub mod trajectory;
 pub mod transported_gate;
 pub mod transported_path_specific;
 
@@ -20,9 +19,6 @@ pub use engine::{
     nested_hard_counterfactual, simultaneous_hard_counterfactual,
 };
 pub use error::CounterfactualError;
-pub use trajectory::{
-    CounterfactualTrajectoryRequest, TrajectoryArm, TrajectoryResult, evaluate_trajectories,
-};
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

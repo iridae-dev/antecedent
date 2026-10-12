@@ -45,15 +45,14 @@ pub use ci::{
     MultivariatePartialCorrelation, OracleCi, PairwiseMultivariateCi, PartialCorrelation,
     PosteriorDependenceCi, PosteriorPredictiveCi, PreparedCiTest, RegressionCi,
     RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
-    analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
-    ensure_alpha_resolvable, nonparametric_permutation_count, pairwise_multivariate_test,
-    permutation_min_p,
+    calibrate_parcorr_like, ci_from_name, ensure_alpha_resolvable,
 };
+#[cfg(test)]
+pub(crate) use cluster::panel_effective_lag;
 pub use cluster::{
     MAX_CLUSTER_DIMENSIONS, bartlett_weight, cluster_meat_scalar, combine_inclusion_exclusion,
     effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks,
-    multiway_subset_sign, newey_west_meat_scalar, panel_effective_lag, panel_hac_meat_matrix,
-    panel_hac_meat_scalar,
+    newey_west_meat_scalar, panel_hac_meat_scalar,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use dcor::distance_correlation;
@@ -64,10 +63,9 @@ pub use design::{
     standardize_columns,
 };
 pub use divergence::{
-    DEFAULT_MECHANISM_PERMUTATIONS, PermutationTestResult, change_point_known_split,
-    change_point_scan, change_point_scan_with_permutations, change_point_two_sample,
+    DEFAULT_MECHANISM_PERMUTATIONS, PermutationTestResult, change_point_two_sample,
     classifier_two_sample, gaussian_kl, kernel_two_sample, kernel_two_sample_with_permutations,
-    likelihood_ratio_permutations, max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7,
+    likelihood_ratio_permutations, max_abs_cusum, mean_diff_two_sample, mean_var,
     residual_likelihood_ratio, sample_std,
 };
 pub use error::{GlmRefusalKind, StatsError};
@@ -77,9 +75,8 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use gam::{
-    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec,
-    compile_additive_design, expand_bspline, fit_gam, fit_gam_weighted, fit_gam_weighted_design,
-    fitted_from_gam, predict_gam,
+    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec, expand_bspline,
+    fit_gam, fit_gam_weighted, fit_gam_weighted_design, predict_gam,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
@@ -87,8 +84,8 @@ pub use glm::{
     fit_multinomial_logit_weighted,
 };
 pub use gram::{
-    accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd,
-    column_is_constant, form_xtx, form_xty, invert_square,
+    accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,
+    form_xty, invert_square,
 };
 pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
@@ -113,8 +110,7 @@ pub use propensity::{
     fit_propensity_in_place, predict_propensity,
 };
 pub use quantile::{
-    MAD_TO_SIGMA, QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted,
-    quantile_sorted,
+    QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted, quantile_sorted,
 };
 pub use regularized::{
     LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column,
@@ -122,18 +118,17 @@ pub use regularized::{
 };
 pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,
-    LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density, gaussian_local_quadratic,
+    LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
-    NORMAL_Q975, chi_square_sf, digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma,
-    normal_ppf, regularized_incomplete_beta, student_t_ppf, student_t_sf, trigamma,
+    NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
+    student_t_ppf, student_t_sf,
 };
 pub use twosls::{
     FirstStageDiagnostics, IvBlocks, TwoSlsFit, anderson_rubin_confidence_set,
-    anderson_rubin_kf_critical, anderson_rubin_statistic, chi2_critical, f_critical, fit_2sls,
-    fit_wls,
+    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls, fit_wls,
 };
 pub use welford::Welford;

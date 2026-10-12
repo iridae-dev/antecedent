@@ -40,39 +40,43 @@ pub mod ridge;
 pub mod spec;
 pub mod transform;
 
-pub use auto::resolve_auto;
+#[cfg(test)]
+pub(crate) use auto::resolve_auto;
 pub use bayesian_basis::{
     BasisData, BasisTargetPopulation, BayesianBasisEffect, BayesianBasisGComputation,
     BayesianBasisSpec,
 };
 pub use bayesian_basis_regression::{
-    BASIS_MAX_DEGREE, BASIS_PIVOT_TOLERANCE, BasisDesign, BasisRegressionPosterior,
-    InformationRank, KnownVarianceBasisRegression, KnownVarianceBasisSpec, PolynomialBasis,
-    information_rank,
+    BASIS_MAX_DEGREE, BasisDesign, BasisRegressionPosterior, InformationRank,
+    KnownVarianceBasisRegression, KnownVarianceBasisSpec, PolynomialBasis, information_rank,
 };
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{
-    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, cross_fit_with_folds,
-    diagnose,
+    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit_with_folds, diagnose,
 };
 pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
-pub use elastic_net::ElasticNetLearner;
 pub use error::LearnError;
 pub use lasso_logistic::LassoLogisticLearner;
 pub use learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
 };
-pub use linear::LinearLearner;
-pub use logistic::{LogisticLearner, RidgeLogisticLearner};
+#[cfg(test)]
+pub(crate) use linear::LinearLearner;
+#[cfg(test)]
+pub(crate) use logistic::LogisticLearner;
+pub use logistic::RidgeLogisticLearner;
 pub use posterior_prediction::{
     PosteriorPrediction, PosteriorPredictionDiagnostics, PosteriorPredictionProvenance,
 };
-pub use ridge::RidgeLearner;
+#[cfg(test)]
+pub(crate) use ridge::RidgeLearner;
+#[cfg(test)]
+pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
-    ElasticNetSpec, FOREST_PROBABILITY_MIN_LEAF, ForestSpec, GbtSpec, LearnerSpec, LinearSpec,
-    LogisticSpec, NeuralSpec, RidgeSpec, require_task, resolve, resolve_for,
+    ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
+    RidgeSpec, resolve, resolve_for,
 };
-pub use transform::{FittedTransformer, Identity, Log1p, TransformerFactory};
+pub use transform::{FittedTransformer, Identity, TransformerFactory};
 
 #[cfg(test)]
 #[allow(

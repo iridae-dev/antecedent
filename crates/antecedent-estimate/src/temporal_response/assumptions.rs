@@ -115,12 +115,13 @@ pub const TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC: &str = "response.temporal_baye
 
 /// Warning code: at least one horizon's `κ̂` could not be estimated (`n` below
 /// `max(8, p+2)`); that horizon's posterior is the untempered iid fit.
-pub const TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE: &str =
+pub(crate) const TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE: &str =
     "response.temporal_bayesian.tempering_inestimable";
 
 /// Warning code: at least one horizon's `κ̂` hit the `n/(p+2)` cap; the
 /// correction there is incomplete and the posterior is still too narrow.
-pub const TEMPORAL_BAYESIAN_TEMPERING_CAPPED: &str = "response.temporal_bayesian.tempering_capped";
+pub(crate) const TEMPORAL_BAYESIAN_TEMPERING_CAPPED: &str =
+    "response.temporal_bayesian.tempering_capped";
 
 pub(super) fn is_tempering_record(record: &AssumptionRecord) -> bool {
     matches!(

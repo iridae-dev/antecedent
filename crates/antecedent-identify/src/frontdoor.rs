@@ -54,7 +54,8 @@ impl Default for FrontDoorSearchConfig {
 /// Diagnostic code of a front-door mediator search that was cut by `max_mediator_set_size`,
 /// the intermediate-pool bound, or `max_results`: a `NotIdentified` carrying it is a search
 /// bound, not a structural refusal.
-pub const FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.frontdoor.search_bounded";
+pub(crate) const FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.frontdoor.search_bounded";
 
 /// Front-door criterion identifier for static DAGs.
 #[derive(Clone, Debug, Default)]

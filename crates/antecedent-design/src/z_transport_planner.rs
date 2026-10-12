@@ -667,7 +667,8 @@ fn target_joint_observational_law(
 /// # Errors
 /// An empty identity, an invalid cost, an empty delta, or a proposed regime the
 /// declared action cannot produce.
-pub fn validate_z_transport_candidate(
+#[cfg(test)]
+pub(crate) fn validate_z_transport_candidate(
     snapshot: &ZTransportFailureSnapshot,
     candidate: &TransportEvidenceCandidate,
 ) -> Result<(), ZTransportPlanningError> {
@@ -739,7 +740,7 @@ fn valid_intervention_values(
 /// # Errors
 /// A snapshot that is not a missing-evidence failure, an invalid candidate, or
 /// a formula the hypothetical catalog does not bind.
-pub fn propose_z_transport_evidence(
+pub(crate) fn propose_z_transport_evidence(
     snapshot: &Arc<ZTransportFailureSnapshot>,
     candidate: &TransportEvidenceCandidate,
 ) -> Result<ZTransportProposal, ZTransportPlanningError> {

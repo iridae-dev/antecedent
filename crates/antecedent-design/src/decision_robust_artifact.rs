@@ -49,7 +49,7 @@ use crate::decision_structural::{AtomEvidence, StructuralAtom};
 const ADMISSIBLE_KIND: &str = "admissible_decision_contract_v1";
 const ROBUST_KIND: &str = "robust_decision_result_v1";
 /// Most atoms, actions, shortfalls or receipts a decoded artifact may list.
-pub const MAX_ROBUST_ITEMS: usize = 65_536;
+pub(crate) const MAX_ROBUST_ITEMS: usize = 65_536;
 
 fn debug_error(error: impl std::fmt::Debug) -> IoError {
     IoError::Convert(format!("{error:?}"))

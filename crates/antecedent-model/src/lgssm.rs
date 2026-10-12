@@ -37,7 +37,7 @@ use crate::error::ModelError;
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
-pub fn sample_lgssm_noise(
+pub(crate) fn sample_lgssm_noise(
     n_rows: usize,
     a: f64,
     process_std: f64,

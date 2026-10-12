@@ -94,23 +94,23 @@ use antecedent_core::ExecutionContext;
 /// Observed-variable limit of the pilot.
 pub const MAX_OBSERVED: usize = 6;
 /// Observed variables of the selected graph.
-pub const PILOT_OBSERVED: usize = 4;
+pub(crate) const PILOT_OBSERVED: usize = 4;
 /// Cells of the binary observational regime.
-pub const CELL_COUNT: usize = 16;
+pub(crate) const CELL_COUNT: usize = 16;
 /// Distance from 0 and 1 below which a fitted probability is a boundary fit.
-pub const BOUNDARY_TOLERANCE: f64 = 1e-9;
+pub(crate) const BOUNDARY_TOLERANCE: f64 = 1e-9;
 /// Default sweep bound.
-pub const DEFAULT_MAX_ITERATIONS: usize = 50_000;
+pub(crate) const DEFAULT_MAX_ITERATIONS: usize = 50_000;
 /// Largest sweep bound a caller may request.
 pub const MAX_ITERATIONS_CAP: usize = 1_000_000;
 /// Default convergence tolerance on the largest parameter change per sweep.
-pub const DEFAULT_TOLERANCE: f64 = 1e-11;
+pub(crate) const DEFAULT_TOLERANCE: f64 = 1e-11;
 /// Cell probabilities must sum to one within this.
-pub const NORMALIZATION_TOLERANCE: f64 = 1e-12;
+pub(crate) const NORMALIZATION_TOLERANCE: f64 = 1e-12;
 /// Detail of the refusal for anything outside the one selected pilot.
-pub const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
+pub(crate) const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
 /// Detail of the refusal of the public interval route.
-pub const ROUTE_FROZEN: &str = "nested_markov.route_frozen";
+pub(crate) const ROUTE_FROZEN: &str = "nested_markov.route_frozen";
 
 const FEASIBLE_TOLERANCE: f64 = 1e-12;
 const CONSTRAINT_TOLERANCE: f64 = 1e-9;
@@ -453,7 +453,9 @@ pub fn constraint_residuals(
 ///
 /// # Errors
 /// `transport_support_failure` for a zero cell.
-pub fn parameters_from_law(law: &[f64; CELL_COUNT]) -> Result<NestedParameters, EstimationError> {
+pub(crate) fn parameters_from_law(
+    law: &[f64; CELL_COUNT],
+) -> Result<NestedParameters, EstimationError> {
     let m = LawMarginals::new(law)?;
     let a = (m.p12[0][0] + m.p12[0][1]) / (m.p12[0][0] + m.p12[0][1] + m.p12[1][0] + m.p12[1][1]);
     let mut c = [0.0; 2];
@@ -1009,7 +1011,7 @@ pub struct ContrastComparison {
 ///
 /// # Errors
 /// As [`plugin_means`].
-pub fn compare_target_contrast(
+pub(crate) fn compare_target_contrast(
     counts: &BinaryCells,
     fit: &NestedMarkovFit,
 ) -> Result<ContrastComparison, EstimationError> {

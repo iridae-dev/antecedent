@@ -15,7 +15,7 @@ use crate::spec::RidgeSpec;
 
 /// Ridge regression via [`fit_ridge`].
 #[derive(Clone, Copy, Debug)]
-pub struct RidgeLearner {
+pub(crate) struct RidgeLearner {
     spec: RidgeSpec,
 }
 
@@ -31,6 +31,7 @@ impl RidgeLearner {
     /// # Errors
     ///
     /// [`LearnError::TaskMismatch`] when `task` is [`PredictionTask::BinaryProbability`].
+    #[cfg(test)]
     pub fn for_task(task: PredictionTask, spec: RidgeSpec) -> Result<Self, LearnError> {
         match task {
             PredictionTask::Regression => Ok(Self { spec }),

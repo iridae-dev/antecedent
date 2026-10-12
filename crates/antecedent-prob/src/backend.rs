@@ -6,7 +6,7 @@ use antecedent_core::{ExecutionContext, Fnv1a64};
 
 use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
-use crate::posterior::{PosteriorDraws, PosteriorSchema};
+use crate::posterior::PosteriorDraws;
 use crate::prior::PriorSet;
 
 /// Likelihood / link for Bayesian GLM.
@@ -208,12 +208,6 @@ fn resize_min(buf: &mut Vec<f64>, need: usize) -> bool {
     } else {
         false
     }
-}
-
-/// Helper: schema for coefficient draws only.
-#[must_use]
-pub fn coefficient_schema(ncols: usize) -> PosteriorSchema {
-    PosteriorSchema::coefficients(ncols)
 }
 
 #[cfg(test)]

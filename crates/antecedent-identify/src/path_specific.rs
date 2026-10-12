@@ -61,7 +61,8 @@ use crate::result::{
 /// Diagnostic code: path enumeration stopped at its budget before the recanting-witness
 /// check could run over the complete path set. The `NotIdentified` it accompanies is a
 /// search bound, not a statement about the graph.
-pub const SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.path_specific.search_bounded";
+#[cfg(test)]
+pub(crate) const SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.path_specific.search_bounded";
 
 /// Path-restricted natural-effect identifier.
 #[derive(Clone, Debug, Default)]

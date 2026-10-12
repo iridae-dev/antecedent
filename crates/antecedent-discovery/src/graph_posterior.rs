@@ -787,7 +787,7 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
 
 /// Contemporaneous `LaggedLink` for dense indices into `variables`.
 #[must_use]
-pub fn static_link(variables: &[VariableId], from: usize, to: usize) -> LaggedLink {
+pub(crate) fn static_link(variables: &[VariableId], from: usize, to: usize) -> LaggedLink {
     LaggedLink {
         source: variables[from],
         source_lag: Lag::CONTEMPORANEOUS,
@@ -798,7 +798,7 @@ pub fn static_link(variables: &[VariableId], from: usize, to: usize) -> LaggedLi
 
 /// Whether constraints forbid directed edge `from → to`.
 #[must_use]
-pub fn edge_forbidden(
+pub(crate) fn edge_forbidden(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
     from: usize,
@@ -826,7 +826,7 @@ pub fn lagged_link(variables: &[VariableId], from: usize, lag: u32, to: usize) -
 /// stores `LaggedLink`s precisely so lag-specific constraints can be written, and callers
 /// that score lagged structure need this variant to honor them.
 #[must_use]
-pub fn lagged_edge_forbidden(
+pub(crate) fn lagged_edge_forbidden(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
     from: usize,
@@ -839,7 +839,7 @@ pub fn lagged_edge_forbidden(
 
 /// Whether constraints require the lagged edge `from_{t−lag} → to_t`.
 #[must_use]
-pub fn lagged_edge_required(
+pub(crate) fn lagged_edge_required(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
     from: usize,
@@ -851,7 +851,7 @@ pub fn lagged_edge_required(
 
 /// Whether constraints require directed edge `from → to`.
 #[must_use]
-pub fn edge_required(
+pub(crate) fn edge_required(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
     from: usize,
@@ -862,7 +862,7 @@ pub fn edge_required(
 
 /// Log prior for a constraint-valid DAG mask (`−∞` encoded as `None` if invalid).
 #[must_use]
-pub fn log_prior_mask(
+pub(crate) fn log_prior_mask(
     mask: u64,
     n: usize,
     prior: &GraphPrior,
@@ -981,7 +981,11 @@ pub fn normalize_log_weights(log_w: &[f64]) -> Result<Vec<f64>, DiscoveryError> 
 
 /// Accumulate edge / orientation marginals from weighted adjacency masks.
 #[must_use]
-pub fn accumulate_marginals(n: usize, weights: &[f64], masks: &[u64]) -> (Vec<f64>, Vec<f64>) {
+pub(crate) fn accumulate_marginals(
+    n: usize,
+    weights: &[f64],
+    masks: &[u64],
+) -> (Vec<f64>, Vec<f64>) {
     let cell = n * n;
     let mut edge = vec![0.0; cell];
     let mut orient = vec![0.0; cell];
@@ -1000,7 +1004,7 @@ pub fn accumulate_marginals(n: usize, weights: &[f64], masks: &[u64]) -> (Vec<f6
 
 /// Analytic diagnostics for exact / closed-form graph posteriors.
 #[must_use]
-pub fn analytic_graph_diagnostics(n_graphs: usize, ess: f64) -> InferenceDiagnostics {
+pub(crate) fn analytic_graph_diagnostics(n_graphs: usize, ess: f64) -> InferenceDiagnostics {
     InferenceDiagnostics {
         converged: true,
         iterations: crate::indexing::dense_u32(n_graphs),
@@ -1102,7 +1106,7 @@ pub fn mcmc_graph_diagnostics(run: &GraphMcmcRun) -> InferenceDiagnostics {
 /// to publish: `0.05` is the standard error of a probability-½ indicator at ESS 100, the
 /// library's per-chain-scale bar. It binds where it matters (the marginals users read) rather
 /// than on the ESS of near-constant indicators, whose error is small at any ESS.
-pub const MAX_EDGE_MCSE: f64 = 0.05;
+pub(crate) const MAX_EDGE_MCSE: f64 = 0.05;
 
 /// Whether graph-MCMC diagnostics are sufficient to publish a posterior.
 ///
@@ -1111,7 +1115,7 @@ pub const MAX_EDGE_MCSE: f64 = 0.05;
 /// Divergences must be zero (not merely reported). Marginal accuracy is enforced separately
 /// on the per-edge MCSE ([`MAX_EDGE_MCSE`]) by the graph-MCMC engines.
 #[must_use]
-pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
+pub(crate) fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     if diagnostics.factorization != HessianFactorization::Mcmc {
         return diagnostics.allows_posterior();
     }
@@ -1133,7 +1137,7 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
 /// # Errors
 ///
 /// When `require_gate` is true and the graph-MCMC diagnostics bar fails.
-pub fn publish_graph_posterior(
+pub(crate) fn publish_graph_posterior(
     mut diagnostics: InferenceDiagnostics,
     require_gate: bool,
     refuse_msg: &'static str,
@@ -1149,7 +1153,7 @@ pub fn publish_graph_posterior(
 
 /// Edge-indicator chain diagnostics.
 #[derive(Clone, Debug)]
-pub struct GraphChainSummary {
+pub(crate) struct GraphChainSummary {
     /// Maximum split R̂ over varying indicators. `∞` when any indicator's chains disagree
     /// without varying within a chain (the clearest non-convergence there is); never
     /// replaced by a finite value from another indicator.
@@ -1171,7 +1175,7 @@ pub struct GraphChainSummary {
 /// to infinity and fail the diagnostics gate spuriously. Indicators that are constant
 /// within every chain but differ between chains are *not* dropped: their R̂ is `∞`.
 #[must_use]
-pub fn graph_chain_summary(
+pub(crate) fn graph_chain_summary(
     traces: &[f64],
     n_chains: usize,
     n_draws: usize,

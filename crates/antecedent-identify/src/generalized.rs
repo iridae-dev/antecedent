@@ -57,7 +57,8 @@ use crate::result::{
 
 /// Diagnostic code of a modifier-constrained adjustment search that spent
 /// `max_examinations` before it finished: identifiability is undecided, not refuted.
-pub const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.conditional.search_bounded";
+pub(crate) const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.conditional.search_bounded";
 
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to

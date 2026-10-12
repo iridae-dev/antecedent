@@ -106,7 +106,7 @@ impl ShapleyEstimate {
 ///
 /// [`AttributionError::ExactShapleyRejected`] when Exact exceeds the limit
 /// without override, or component count exceeds 64 (bitset width).
-pub fn check_shapley_size(
+pub(crate) fn check_shapley_size(
     n_components: usize,
     config: &ShapleyConfig,
 ) -> Result<(), AttributionError> {
@@ -152,7 +152,7 @@ pub fn check_shapley_size(
 /// permutations plans `200 × 65 × 2_000 = 2.6e7`), while an exact override at
 /// `k = 20` (`2^20 × 2_000 ≈ 2.1e9`) or an oversized Monte Carlo schedule is
 /// refused up front instead of silently running for hours.
-pub const MAX_COALITION_SAMPLE_BUDGET: u64 = 100_000_000;
+pub(crate) const MAX_COALITION_SAMPLE_BUDGET: u64 = 100_000_000;
 
 /// Fail-closed guard on the planned sampling volume of a coalition game.
 ///
@@ -532,7 +532,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
 /// # Errors
 ///
 /// Payoff failures.
-pub fn sequential_allocate<P: CoalitionPayoff>(
+pub(crate) fn sequential_allocate<P: CoalitionPayoff>(
     order: &[ComponentId],
     player_index: &dyn Fn(ComponentId) -> Option<usize>,
     payoff: &mut P,

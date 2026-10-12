@@ -99,7 +99,7 @@ pub fn plan_from_response_query(
 /// # Errors
 ///
 /// Empty, nested, stochastic, unlicensed Soft, or ambiguous schedules.
-pub fn plan_temporal_intervention(
+pub(crate) fn plan_temporal_intervention(
     interventions: &[Intervention],
     spec: &TemporalResponseSpec,
 ) -> Result<TemporalInterventionPlan, EstimationError> {

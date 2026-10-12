@@ -32,7 +32,7 @@ use crate::transport_scenarios::SCENARIO_EXACT_PROVIDER;
 /// Provider identity of supplied exact laws.
 pub const TEMPORAL_EXACT_PROVIDER: &str = SCENARIO_EXACT_PROVIDER;
 /// Largest change of an initial-state mass a same-window refresh may carry.
-pub const INITIAL_STATE_TOLERANCE: f64 = 1e-9;
+pub(crate) const INITIAL_STATE_TOLERANCE: f64 = 1e-9;
 /// The only inference claim of this route.
 pub const TEMPORAL_INFERENCE_CLAIM: &str = "point_only";
 

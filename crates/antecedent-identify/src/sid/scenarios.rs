@@ -121,7 +121,7 @@ pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
 /// Registered runtime-refusal code of an unevaluated scenario: the same
 /// `transport_budget_cancel` every transport search reports for a budget
 /// or cancellation stop, never a verdict about the scenario.
-pub const SCENARIO_UNEVALUATED_CODE: &str = reason_code!("transport_budget_cancel");
+pub(crate) const SCENARIO_UNEVALUATED_CODE: &str = reason_code!("transport_budget_cancel");
 
 /// A refused scenario set: a registered top-level reason code and a stable
 /// `scenarios.*` detail.

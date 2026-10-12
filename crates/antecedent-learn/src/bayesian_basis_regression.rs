@@ -28,7 +28,7 @@ use crate::{LearnError, LearnerProvenance};
 /// Highest polynomial degree the basis accepts.
 pub const BASIS_MAX_DEGREE: usize = 6;
 /// Relative pivot at or below which the weighted Gram matrix counts as rank deficient.
-pub const BASIS_PIVOT_TOLERANCE: f64 = 1e-10;
+pub(crate) const BASIS_PIVOT_TOLERANCE: f64 = 1e-10;
 
 /// Per-covariate polynomial basis `x_j, x_j^2, ..., x_j^degree` (no cross terms, no
 /// constant: the intercept is the caller's).

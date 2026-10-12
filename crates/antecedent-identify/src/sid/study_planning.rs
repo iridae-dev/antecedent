@@ -85,7 +85,7 @@ pub const STUDY_PLAN_DEFAULT_LIMITS: SearchLimits = SearchLimits { operations: 2
 /// Memory cap of the plan budget: the default and the maximum.
 pub const STUDY_PLAN_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 /// Largest declared cost of one candidate, so a subset's total never overflows.
-pub const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
+pub(crate) const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
 /// Version of the ranking key: cost units, sample budget, subset size, sorted ids.
 pub const STUDY_PLAN_RANKING: &str = "study_plan_ranking.v1";
 

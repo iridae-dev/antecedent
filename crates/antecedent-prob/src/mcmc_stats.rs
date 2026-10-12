@@ -81,7 +81,13 @@ pub fn mcmc_summary(
 
 /// Maximum rank∪folded R-hat across parameters (`∞` if any fails).
 #[must_use]
-pub fn max_split_rhat(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64 {
+#[cfg(test)]
+pub(crate) fn max_split_rhat(
+    samples: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+) -> f64 {
     if n_chains < 2 || n_draws < 8 || n_params == 0 {
         return f64::INFINITY;
     }

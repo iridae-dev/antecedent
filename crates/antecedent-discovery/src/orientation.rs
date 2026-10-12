@@ -778,7 +778,7 @@ fn is_contemporaneous_node(graph: &TemporalCpdag, id: DenseNodeId) -> bool {
 
 /// Meek R1 restricted to contemporaneous undirected edges (PCMCI+ / pinned baseline).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ContempMeekR1;
+pub(crate) struct ContempMeekR1;
 
 impl OrientationRule<TemporalCpdag> for ContempMeekR1 {
     fn name(&self) -> &'static str {
@@ -829,7 +829,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR1 {
 
 /// Meek R2 restricted to contemporaneous undirected edges (PCMCI+ / pinned baseline).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ContempMeekR2;
+pub(crate) struct ContempMeekR2;
 
 impl OrientationRule<TemporalCpdag> for ContempMeekR2 {
     fn name(&self) -> &'static str {
@@ -880,7 +880,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR2 {
 
 /// Meek R3 restricted to contemporaneous undirected edges (PCMCI+ / pinned baseline).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ContempMeekR3;
+pub(crate) struct ContempMeekR3;
 
 impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
     fn name(&self) -> &'static str {
@@ -938,7 +938,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
 
 /// Meek R4 restricted to contemporaneous undirected edges (PCMCI+).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ContempMeekR4;
+pub(crate) struct ContempMeekR4;
 
 impl OrientationRule<TemporalCpdag> for ContempMeekR4 {
     fn name(&self) -> &'static str {
@@ -1219,7 +1219,7 @@ pub fn run_orientation_to_fixed_point<G: CpdagOps>(
 /// # Errors
 ///
 /// Propagates rule failures.
-pub fn run_static_orientation_to_fixed_point(
+pub(crate) fn run_static_orientation_to_fixed_point(
     graph: &mut Cpdag,
     rules: &[&dyn OrientationRule<Cpdag>],
     state: &mut OrientationState,

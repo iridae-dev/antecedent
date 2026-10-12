@@ -399,7 +399,7 @@ const PSD_TOLERANCE: f64 = crate::util::CORRELATION_PSD_TOLERANCE;
 ///
 /// Empty or ragged draws, or a correlation that is the wrong size, asymmetric,
 /// off the unit diagonal, or not positive semidefinite.
-pub fn couple_mixture_functional_draws(
+pub(crate) fn couple_mixture_functional_draws(
     atoms: &[(f64, &[f64])],
     correlation: &[f64],
     seed: u64,

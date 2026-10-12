@@ -183,13 +183,13 @@ pub enum MechanismTyping {
 
 /// Most distinct values a column not declared discrete may take and still be
 /// typed categorical.
-pub const LOW_CARDINALITY_MAX_LEVELS: usize = 8;
+pub(crate) const LOW_CARDINALITY_MAX_LEVELS: usize = 8;
 
 /// Average rows per level below which a short column is not read as
 /// categorical: a level set seen once or twice per level is a small sample of
 /// a continuous variable, and a categorical fit would restrict counterfactual
 /// support to the handful of values observed.
-pub const LOW_CARDINALITY_MIN_ROWS_PER_LEVEL: usize = 5;
+pub(crate) const LOW_CARDINALITY_MIN_ROWS_PER_LEVEL: usize = 5;
 
 /// Registry of mechanism families.
 #[derive(Clone, Debug)]
@@ -577,7 +577,7 @@ fn classify_node(data: &TabularData, var: VariableId, y: &[f64]) -> MechanismTyp
 const CONSTANT_FAMILY_MAX_RELATIVE_SD: f64 = 1e-6;
 
 /// Folds of the deterministic cross-validation that scores every family.
-pub const MECHANISM_CV_FOLDS: usize = 5;
+pub(crate) const MECHANISM_CV_FOLDS: usize = 5;
 
 /// Seed of the partition behind [`MECHANISM_CV_FOLDS`]. Fixed so the score of a
 /// family is a function of the table alone; not a user-facing random stream.
@@ -1556,7 +1556,7 @@ fn fit_linear_gaussian_weighted(
 /// cross-validated score would say so only after paying for an unstable solve;
 /// refusing is cheaper and the refusal is recorded in
 /// [`MechanismAssignment::failed_families`].
-pub const BASIS_MIN_ROWS_PER_COLUMN: usize = 10;
+pub(crate) const BASIS_MIN_ROWS_PER_COLUMN: usize = 10;
 
 /// Relative rank-deficiency floor for the spline solve, on column-scaled design
 /// columns. Not a smoothing penalty: smoothing comes from the fixed three-knot

@@ -42,7 +42,7 @@ use crate::result::{
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
-pub type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
+pub(crate) type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
 
 /// J-PCMCI+ discovery over [`MultiEnvironmentData`].
 ///

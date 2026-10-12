@@ -8,8 +8,8 @@ use antecedent_core::ExecutionContext;
 
 use super::parcorr_variants::{BlockTest, MultivariatePartialCorrelation};
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    PreparedCiTest, SignificanceMethod,
+    CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest,
+    SignificanceMethod,
 };
 use crate::error::StatsError;
 
@@ -116,25 +116,6 @@ impl ConditionalIndependenceTest for PairwiseMultivariateCi {
     fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
         super::parcorr::block_shuffle_min_p(significance)
     }
-}
-
-/// Convenience: one block-pair test.
-pub fn pairwise_multivariate_test(
-    columns: &[&[f64]],
-    x_cols: &[usize],
-    y_cols: &[usize],
-    z_flat: &[usize],
-    significance: SignificanceMethod,
-    workspace: &mut CiWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<CiResult, StatsError> {
-    MultivariatePartialCorrelation::new().test_blocks(
-        columns,
-        &BlockTest { x_cols, y_cols, z_flat },
-        significance,
-        workspace,
-        ctx,
-    )
 }
 
 #[cfg(test)]

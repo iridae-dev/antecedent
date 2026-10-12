@@ -38,7 +38,6 @@ pub use program::{
 };
 pub use provider::{
     Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
-    GaussianDensityProvider, PosteriorDrawProvider, QuadratureNodes,
 };
 pub use simplify::SimplifyError;
 

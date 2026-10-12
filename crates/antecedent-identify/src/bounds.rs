@@ -63,7 +63,10 @@ pub fn binary_iv_ate_bounds(law: BinaryIvLaw) -> Result<IdentifiedSet<f64>, Iden
 /// same feasibility search used by [`binary_iv_ate_bounds`] finds at least one feasible vertex.
 /// This predicate shares that search rather than re-deriving it, so the two entry points cannot
 /// drift apart.
-pub fn binary_iv_inequality_satisfied(law: BinaryIvLaw) -> Result<bool, IdentificationError> {
+#[cfg(test)]
+pub(crate) fn binary_iv_inequality_satisfied(
+    law: BinaryIvLaw,
+) -> Result<bool, IdentificationError> {
     law.validate()?;
     Ok(feasible_ate_bounds(law).is_some())
 }

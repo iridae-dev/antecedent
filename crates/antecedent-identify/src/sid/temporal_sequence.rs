@@ -48,7 +48,8 @@ pub const TEMPORAL_MAX_OBSERVED: usize = 12;
 pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
 
 /// Detail: a required history has no certified support.
-pub const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str = "temporal_transport.history_outside_support";
+pub(crate) const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str =
+    "temporal_transport.history_outside_support";
 /// Detail: a horizon other than two, a new period, or a changed window.
 pub const TEMPORAL_HORIZON_DETAIL: &str = "temporal_transport.horizon";
 /// Detail: the licensed rules certified nothing.
@@ -56,7 +57,7 @@ pub const TEMPORAL_SEARCH_INCOMPLETE: &str = "temporal_transport.search_incomple
 /// Detail: the shared budget or cancellation stopped the decision.
 pub const TEMPORAL_HISTORY_BUDGET: &str = "temporal_transport.history_budget";
 /// Detail: an interval was requested.
-pub const TEMPORAL_INTERVAL_REQUESTED: &str = "temporal_transport.interval_requested";
+pub(crate) const TEMPORAL_INTERVAL_REQUESTED: &str = "temporal_transport.interval_requested";
 /// Detail: a hard cap was exceeded.
 pub const TEMPORAL_BOUNDS_EXCEEDED: &str = "temporal_transport.bounds_exceeded";
 /// Detail: the unrolled specification is malformed.

@@ -51,9 +51,10 @@ use super::scenarios::{ScenarioOutcome, TransportScenario};
 use super::{BoundTransportFunctional, ClassicalTransportDerivation, Rule, SHedgeRecord};
 
 /// Detail of a report refused because the derivation and its formula disagree.
-pub const INVARIANCE_INCONSISTENT_DETAIL: &str = "scenario_invariance.derivation_inconsistent";
+pub(crate) const INVARIANCE_INCONSISTENT_DETAIL: &str =
+    "scenario_invariance.derivation_inconsistent";
 /// Detail of a report refused because the graph holds a non-static node.
-pub const INVARIANCE_NON_STATIC_DETAIL: &str = "scenario_invariance.non_static_node";
+pub(crate) const INVARIANCE_NON_STATIC_DETAIL: &str = "scenario_invariance.non_static_node";
 
 /// A refused invariance report.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

@@ -2,18 +2,16 @@
 
 use std::sync::Arc;
 
+#[cfg(feature = "calibration-internal")]
+use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
 use antecedent_core::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM,
     VariableId,
 };
-#[cfg(feature = "calibration-internal")]
-use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
 use antecedent_data::TabularData;
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, invert_square,
-};
 #[cfg(feature = "calibration-internal")]
 use antecedent_stats::normal_ppf;
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, invert_square};
 
 use crate::EstimationError;
 

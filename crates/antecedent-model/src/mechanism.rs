@@ -904,7 +904,7 @@ pub fn log_prob_column(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
-pub fn sample_column(
+pub(crate) fn sample_column(
     slot: &MechanismSlot,
     parents: ParentBatch<'_>,
     rng: &mut CausalRng,
@@ -970,24 +970,6 @@ fn softmax_row_probs(
 fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {
     // No probability mass has no category: NaN, not an arbitrary support point.
     categorical_from_u(u, probs).map_or(f64::NAN, |idx| support.get(idx).copied().unwrap_or(0.0))
-}
-
-/// Fill an entire noise batch for all nodes (structural path).
-///
-/// # Errors
-///
-/// Mechanism errors.
-pub fn sample_noise_batch(
-    slots: &[MechanismSlot],
-    n_rows: usize,
-    rng: &mut CausalRng,
-    noise: &mut NoiseBatchMut<'_>,
-) -> Result<(), ModelError> {
-    for (node, slot) in slots.iter().enumerate() {
-        let col = noise.column_mut(node)?;
-        sample_noise_column(slot, n_rows, rng, col)?;
-    }
-    Ok(())
 }
 
 /// Evaluate all nodes in topological order given parents already in `values`

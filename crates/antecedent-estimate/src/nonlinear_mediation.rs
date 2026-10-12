@@ -42,7 +42,7 @@ pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
 /// Interval status: standard errors are reported, public intervals are closed.
 pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";
 /// Replicate-id scheme of the bootstrap.
-pub const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
+pub(crate) const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
 /// Largest outcome polynomial degree.
 pub const NONLINEAR_MEDIATION_MAX_DEGREE: usize = 4;
 /// Largest declared Gauss-Hermite node count (the check evaluates `2n` nodes).

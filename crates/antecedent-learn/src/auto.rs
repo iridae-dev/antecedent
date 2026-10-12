@@ -19,7 +19,8 @@ const SHALLOW_GBT: GbtSpec = GbtSpec { trees: 80, depth: 3, learning_rate: 0.1 }
 /// # Errors
 ///
 /// Empty design, or every candidate fails to fit.
-pub fn resolve_auto(
+#[cfg(test)]
+pub(crate) fn resolve_auto(
     task: PredictionTask,
     x: DesignView<'_>,
     y: TargetView<'_>,
@@ -182,7 +183,7 @@ fn auto_candidates(
 
 /// Capabilities advertised for Auto when no candidate resolved.
 #[must_use]
-pub fn required_for_auto(task: PredictionTask) -> crate::learner::LearnerCapabilities {
+pub(crate) fn required_for_auto(task: PredictionTask) -> crate::learner::LearnerCapabilities {
     let mut cap = crate::learner::LearnerCapabilities::none();
     match task {
         PredictionTask::Regression => cap.regression = true,
@@ -246,10 +247,12 @@ impl FittedPredictor for DropInterceptPredictor {
 ///
 /// `resolve_auto` exposes the selected factory publicly, so this wrapper must make its
 /// fitting behavior agree with the intercept-free OOF comparison used to select it.
+#[cfg(test)]
 struct DropInterceptFactory {
     inner: Box<dyn LearnerFactory>,
 }
 
+#[cfg(test)]
 impl LearnerFactory for DropInterceptFactory {
     fn task(&self) -> PredictionTask {
         self.inner.task()

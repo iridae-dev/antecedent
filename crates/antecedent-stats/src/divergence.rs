@@ -108,7 +108,8 @@ pub use antecedent_kernels::sample_std;
 /// the caller decides what an unavailable quantile means; no substitute value is
 /// invented and non-finite draws are never silently dropped.
 #[must_use]
-pub fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
+#[cfg(test)]
+pub(crate) fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
     if sorted.is_empty() || !p.is_finite() {
         return None;
     }
@@ -360,7 +361,10 @@ const MMD_TIE_TOLERANCE: f64 = 1e-12;
 /// # Errors
 ///
 /// Empty series, `split` at an endpoint, or non-positive residual variance.
-pub fn change_point_known_split(series: &[f64], split: usize) -> Result<(f64, f64), StatsError> {
+pub(crate) fn change_point_known_split(
+    series: &[f64],
+    split: usize,
+) -> Result<(f64, f64), StatsError> {
     if series.len() < 4 || split == 0 || split >= series.len() {
         return Err(StatsError::Shape {
             message: "change_point_known_split requires len≥4 and interior split",
@@ -403,7 +407,8 @@ pub fn change_point_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), Stats
 /// # Errors
 ///
 /// Series shorter than 4.
-pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
+#[cfg(test)]
+pub(crate) fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
     let r = change_point_scan_with_permutations(series, rng_seed, DEFAULT_MECHANISM_PERMUTATIONS)?;
     Ok((r.statistic, r.p_value))
 }
@@ -414,7 +419,8 @@ pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), St
 /// # Errors
 ///
 /// Series shorter than 4, or `n_permutations == 0`.
-pub fn change_point_scan_with_permutations(
+#[cfg(test)]
+pub(crate) fn change_point_scan_with_permutations(
     series: &[f64],
     rng_seed: u64,
     n_permutations: usize,

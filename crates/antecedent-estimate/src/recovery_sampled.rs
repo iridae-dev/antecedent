@@ -59,7 +59,7 @@ pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
 /// Most binary substantive variables (`X ∪ O`) one request may recover.
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
 /// Nominal level of the whole-row `BCa` interval.
-pub const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
+pub(crate) const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
 /// Original source artifact status, distinct from measured-envelope authorization.
 pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
 

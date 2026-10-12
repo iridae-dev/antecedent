@@ -52,25 +52,24 @@ mod surface;
 #[cfg(test)]
 mod tests;
 
-pub use assumptions::{
-    TEMPORAL_BAYESIAN_TEMPERING_CAPPED, TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
-    TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE,
-};
+pub use assumptions::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC;
+#[cfg(test)]
+pub(crate) use band::SIMULTANEOUS_BAND_WITHHELD;
+pub(crate) use band::max_deviation_band_columns;
 pub use band::{
     MaxDeviationBand, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
-    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, SIMULTANEOUS_BAND_WITHHELD,
-    TEMPORAL_RESPONSE_BAND_WITHHELD, clear_simultaneous_band, max_deviation_band,
-    max_deviation_band_columns, publish_simultaneous_band,
+    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, TEMPORAL_RESPONSE_BAND_WITHHELD,
+    clear_simultaneous_band, max_deviation_band, publish_simultaneous_band,
 };
+#[cfg(test)]
+pub(crate) use block::temporal_block_length;
 pub use block::{
-    ResponseBlockLength, TEMPORAL_RESPONSE_BLOCK_CAPPED, TEMPORAL_RESPONSE_BLOCK_LENGTH,
-    TEMPORAL_RESPONSE_EFFECTIVE_ROWS, TEMPORAL_RESPONSE_FEW_REPLICATES,
-    TEMPORAL_RESPONSE_KERNEL_FACTOR, TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY,
-    TEMPORAL_RESPONSE_SHORT_SERIES, block_dispersion_inflation, disclose_response_block_bootstrap,
-    inflate_replicates, temporal_block_length,
+    ResponseBlockLength, TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES,
+    block_dispersion_inflation, disclose_response_block_bootstrap, inflate_replicates,
 };
-pub use bootstrap::{circular_block_positions, circular_block_positions_into};
-pub use plan::{TemporalInterventionPlan, plan_from_response_query, plan_temporal_intervention};
+pub use bootstrap::circular_block_positions_into;
+pub(crate) use plan::plan_temporal_intervention;
+pub use plan::{TemporalInterventionPlan, plan_from_response_query};
 pub use surface::PreparedTemporalSurface;
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.

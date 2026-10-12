@@ -73,9 +73,6 @@ impl AnalyticSeKind {
     }
 }
 
-/// Alias retained for existing linear-adjustment call sites.
-pub type LinearSeKind = AnalyticSeKind;
-
 /// Default ridge λ applied by propensity / GLM estimators on separation.
 ///
 /// Re-export of [`antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION`] (single source of truth).

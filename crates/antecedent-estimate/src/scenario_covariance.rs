@@ -44,9 +44,9 @@ pub const MAX_SCENARIOS: usize = 64;
 /// Most bootstrap replicates one covariance may use.
 pub const MAX_REPLICATES: usize = 2000;
 /// Fewest bootstrap replicates (a covariance needs two).
-pub const MIN_REPLICATES: usize = 2;
+pub(crate) const MIN_REPLICATES: usize = 2;
 /// Fewest rows (one row cannot vary).
-pub const MIN_ROWS: usize = 2;
+pub(crate) const MIN_ROWS: usize = 2;
 /// Most rows the exact enumeration accepts (keeps `n^n` exact in `u128`).
 pub const MAX_EXACT_ROWS: usize = 24;
 /// Largest number of count vectors the exact enumeration will ever visit.
@@ -60,7 +60,7 @@ const PSD_RELATIVE_TOLERANCE: f64 = 1e-9;
 
 /// The boxed per-scenario estimator: a plug-in estimate from per-row multiplicities
 /// (`counts[i]` = times row `i` appears in the resampled multiset).
-pub type RowEstimatorFn = Box<dyn Fn(&[u32]) -> Result<f64, EstimationError> + Send + Sync>;
+pub(crate) type RowEstimatorFn = Box<dyn Fn(&[u32]) -> Result<f64, EstimationError> + Send + Sync>;
 
 /// How a scenario's estimator declares its sample relates to the family's.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

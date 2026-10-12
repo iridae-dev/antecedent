@@ -124,7 +124,7 @@ impl CellDispersion {
 /// Short-series reading of one influence series at block length `block`: the smaller
 /// of its lag-1 AR(1) and block-length Bartlett effective-row readings.
 #[must_use]
-pub fn influence_effective_rows(influence: &[f64], block: usize) -> f64 {
+pub(crate) fn influence_effective_rows(influence: &[f64], block: usize) -> f64 {
     score_effective_rows(&[influence], block)
 }
 

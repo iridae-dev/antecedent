@@ -12,7 +12,7 @@
 //!
 //! * [`TransportRepairFamily`] re-runs the catalog-aware classical transport
 //!   identifier ([`antecedent_identify::identify_catalog_transport`], the same
-//!   call [`crate::plan_transport_evidence`] makes) on a previewed catalog and
+//!   call the transport planner makes) on a previewed catalog and
 //!   re-verifies the derivation with
 //!   [`antecedent_identify::verify_classical_transport`];
 //! * [`BackdoorRepairFamily`] re-runs the back-door identifier on the one joint
@@ -66,7 +66,7 @@ pub const REPAIR_MAX_OPERATIONS: usize = 100_000;
 /// Largest memory cap, in bytes, a repair request may declare.
 pub const REPAIR_MAX_MEMORY_BYTES: u64 = 256 * 1024 * 1024;
 /// Most explored or unevaluated subsets a receipt lists; the total is counted.
-pub const REPAIR_RECEIPT_REGIONS: usize = 1024;
+pub(crate) const REPAIR_RECEIPT_REGIONS: usize = 1024;
 
 /// How a candidate subset fared against the family's theorem checker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

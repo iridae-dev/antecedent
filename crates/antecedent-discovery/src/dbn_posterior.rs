@@ -31,12 +31,12 @@ use crate::graph_posterior::{
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
-pub const DBN_EXACT_MAX_VARS: usize = 4;
+pub(crate) const DBN_EXACT_MAX_VARS: usize = 4;
 /// Max lag for exact DBN enumeration (`max_lag ≤ 2`).
-pub const DBN_EXACT_MAX_LAG: u32 = 2;
+pub(crate) const DBN_EXACT_MAX_LAG: u32 = 2;
 /// Exact enumeration keeps every template. 2^10 masks stay under a few thousand
 /// contemporaneous DAGs times the lag masks; 2^16 (p=4, lag=1) is tens of millions.
-pub const DBN_EXACT_MAX_LAG_BITS: usize = 10;
+pub(crate) const DBN_EXACT_MAX_LAG_BITS: usize = 10;
 
 /// Bounded-lag DBN posterior over a stationary template.
 ///

@@ -34,12 +34,11 @@ pub use do_sampler::{
     DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
 };
 pub use error::ModelError;
-pub use evaluate::{MechanismPredictiveCheck, ModelEvaluationReport, ModelEvaluator};
-pub use lgssm::{kalman_filter, rts_smooth, sample_lgssm_noise};
+pub use evaluate::{ModelEvaluationReport, ModelEvaluator};
+pub use lgssm::{kalman_filter, rts_smooth};
 pub use mechanism::{
     NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,
-    infer_noise_column_rng, log_prob_column, reference_noise, sample_column, sample_noise_batch,
-    sample_noise_column,
+    infer_noise_column_rng, log_prob_column, reference_noise, sample_noise_column,
 };
 pub use model_collection::ModelCollection;
 pub use overlay::{InterventionOverlay, ModelView};
@@ -50,8 +49,8 @@ pub use registry::{
 pub use sample::{
     ConditionEvidence, PredictiveDraws, refuse_cross_family_soft,
     sample_conditional_interventional, sample_interventional, sample_observational,
-    sample_observational_into, sample_posterior_predictive, sample_stochastic,
-    sample_structural_with_overlay, sample_with_overlay, sample_with_overlay_into, soft_to_slot,
+    sample_observational_into, sample_posterior_predictive, sample_stochastic, sample_with_overlay,
+    sample_with_overlay_into, soft_to_slot,
 };
 
 /// Crate version.

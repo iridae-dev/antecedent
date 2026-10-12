@@ -19,7 +19,7 @@ use crate::learner::{
 
 /// Logistic regression via [`fit_glm`] (`BinomialLogit`).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LogisticLearner;
+pub(crate) struct LogisticLearner;
 
 /// Ridge-penalized logistic regression via [`fit_glm_ridge`]: the probability-task form of
 /// a ridge learner. The penalty applies to every non-intercept coefficient; a constant
@@ -50,6 +50,7 @@ impl LogisticLearner {
     /// # Errors
     ///
     /// [`LearnError::TaskMismatch`] when `task` is [`PredictionTask::Regression`].
+    #[cfg(test)]
     pub fn for_task(task: PredictionTask) -> Result<Self, LearnError> {
         match task {
             PredictionTask::BinaryProbability => Ok(Self),

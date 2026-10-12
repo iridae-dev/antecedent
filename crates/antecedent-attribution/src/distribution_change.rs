@@ -8,9 +8,10 @@
 
 use std::sync::Arc;
 
+#[cfg(test)]
+use antecedent_core::VariableId;
 use antecedent_core::{
-    AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, VariableId,
+    AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
@@ -104,7 +105,8 @@ fn validate_distribution_change_query(
 ///
 /// As [`distribution_change`]; fewer than 2 replicates or a level outside `(0, 1)`;
 /// [`AttributionError::Cancelled`] when the context is cancelled.
-pub fn distribution_change_with_fit_uncertainty(
+#[cfg(test)]
+pub(crate) fn distribution_change_with_fit_uncertainty(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
     query: &ChangeAttributionQuery,
@@ -333,26 +335,6 @@ fn distribution_change_with_mechanisms(
         model_for_paths: Some(graph_model),
     };
     run_change_allocation(&request, &mut payoff, total, Arc::from([]), ctx)
-}
-
-/// Convenience: Shapley Monte Carlo distribution-change with defaults.
-///
-/// # Errors
-///
-/// See [`distribution_change`].
-pub fn distribution_change_shapley(
-    graph_model: &CompiledCausalModel,
-    data: &TabularData,
-    outcome: VariableId,
-    baseline: antecedent_core::PopulationSelector,
-    comparison: antecedent_core::PopulationSelector,
-    shapley: ShapleyConfig,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AttributionError> {
-    let query = ChangeAttributionQuery::new(outcome, baseline, comparison)
-        .with_components(AttributionComponents::Mechanisms)
-        .with_allocation(AllocationMethod::Shapley { approximation: shapley });
-    distribution_change(graph_model, data, &query, &DistributionChangeOptions::default(), ctx)
 }
 
 pub(crate) fn mechanism_players(

@@ -7,10 +7,10 @@ use antecedent_core::{
 };
 use antecedent_kernels::{kish_ess, normalize_log_weights, standard_normal};
 
-use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut};
+use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
 use crate::error::ModelError;
-use crate::mechanism::{evaluate_column, sample_column, sample_noise_column};
+use crate::mechanism::sample_column;
 use crate::overlay::{InterventionOverlay, ModelView};
 
 /// Sample `n_rows` observational draws from a fitted model.
@@ -856,75 +856,6 @@ pub fn sample_stochastic(
         }
         _ => Err(ModelError::Unsupported { message: "unknown stochastic policy".into() }),
     }
-}
-
-/// Structural path: sample noise then evaluate with overlays applied post-hoc for hard sets.
-///
-/// # Errors
-///
-/// Mechanism failures, or an overlay with a node both hard-set and shifted
-/// (see [`InterventionOverlay::validate`]).
-pub fn sample_structural_with_overlay(
-    view: &ModelView<'_>,
-    n_rows: usize,
-    rng: &mut CausalRng,
-    ws: &mut MechanismWorkspace,
-) -> Result<(ValueBatch, Vec<f64>), ModelError> {
-    view.overlay.validate()?;
-    let model = view.model;
-    let n_nodes = model.n_nodes();
-    let mut noise_buf = vec![0.0; n_rows * n_nodes];
-    {
-        let mut noise = NoiseBatchMut::new(n_rows, n_nodes, &mut noise_buf)?;
-        for gather in model.parent_gathers.iter() {
-            let idx = gather.child.as_usize();
-            let col = noise.column_mut(idx)?;
-            if view.overlay.hard_set[idx].is_some() || view.overlay.stochastic[idx].is_some() {
-                col.fill(0.0);
-            } else {
-                sample_noise_column(model.mechanisms.get(gather.child), n_rows, rng, col)?;
-            }
-        }
-    }
-    let mut values_buf = vec![0.0; n_rows * n_nodes];
-    let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
-    let overlay = view.overlay.as_ref();
-    let mut parent_buf: Vec<f64> = Vec::new();
-    for gather in model.parent_gathers.iter() {
-        let node = gather.child;
-        let idx = node.as_usize();
-        let need = gather.n_parents().max(1).saturating_mul(n_rows);
-        if parent_buf.len() < need {
-            parent_buf.resize(need, 0.0);
-        }
-        gather.gather(values.values, n_rows, &mut parent_buf);
-        let parents = ParentBatch {
-            n_rows,
-            n_parents: gather.n_parents(),
-            values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
-        };
-        let out = values.column_mut(idx)?;
-        if let Some(v) = overlay.hard_set[idx] {
-            out.fill(v);
-            continue;
-        }
-        if let Some(policy) = &overlay.stochastic[idx] {
-            sample_stochastic(policy, n_rows, rng, out)?;
-            apply_shift(out, overlay.shifts[idx]);
-            continue;
-        }
-        let noise_col = &noise_buf[idx * n_rows..(idx + 1) * n_rows];
-        let slot = if let Some(soft) = &overlay.soft[idx] {
-            let existing = model.mechanisms.get(node);
-            refuse_cross_family_soft(existing, soft)?;
-            soft_to_slot(soft, gather.n_parents())?
-        } else {
-            model.mechanisms.get(node).clone()
-        };
-        evaluate_column(&slot, parents, noise_col, out, ws)?;
-        apply_shift(out, overlay.shifts[idx]);
-    }
-    Ok((values.into_batch(), noise_buf))
 }
 
 #[cfg(test)]

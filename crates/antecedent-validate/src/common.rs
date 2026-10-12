@@ -190,7 +190,7 @@ pub trait EffectRefit: std::fmt::Debug {
 
 /// Refit of a composed estimator on a row map of its lag-aligned rows
 /// (`None` when the fit fails).
-pub type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
+pub(crate) type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
 
 /// A composed temporal estimator prepared for evaluation on lag-aligned rows.
 pub struct AlignedRefit {

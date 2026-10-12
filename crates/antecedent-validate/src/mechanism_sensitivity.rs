@@ -627,7 +627,7 @@ pub enum FixedGraphSensitivityError {
 }
 
 /// Maximum parent-stratum product support for the explicit discrete route.
-pub const FIXED_GRAPH_SENSITIVITY_MAX_STRATA: usize = 1_000_000;
+pub(crate) const FIXED_GRAPH_SENSITIVITY_MAX_STRATA: usize = 1_000_000;
 
 impl fmt::Display for FixedGraphSensitivityError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -593,7 +593,7 @@ fn symbolic_mi_on_rows(xi: &[i32], yi: &[i32], rows: &[usize]) -> f64 {
 /// Rows above which GPDC refuses a *conditional* test: it factorizes a dense `n × n` kernel
 /// (memory `O(n²)`, Cholesky `O(n³)`), so a few thousand rows already take hundreds of MB. The
 /// distance correlation itself is `O(n log n)` and never limits the unconditional test.
-pub const GPDC_ROW_LIMIT: usize = 4_000;
+pub(crate) const GPDC_ROW_LIMIT: usize = 4_000;
 
 /// Conditioning sets whose kernel factorization one batch keeps for reuse.
 const GPDC_FACTOR_CACHE: usize = 2;

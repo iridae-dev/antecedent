@@ -18,14 +18,20 @@ mod tests;
 
 pub use evaluator::{CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator};
 pub use gcomp::{
-    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
-    BayesianTemporalGcomp, PreparedBayesianProblem, coefficient_names_from_design,
+    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
+    PreparedBayesianProblem,
 };
+#[cfg(test)]
+pub(crate) use hydrate::HYDRATED_COEFFICIENT_COVARIANCE_ID;
+#[cfg(test)]
+pub(crate) use hydrate::HYDRATED_COVARIANCE_DROPPED_ID;
+#[cfg(test)]
+pub(crate) use hydrate::hydrate_prior_from_posterior;
+#[cfg(test)]
+pub(crate) use hydrate::hydrate_prior_from_quantity_summaries;
 pub use hydrate::{
-    HYDRATED_COEFFICIENT_COVARIANCE_ID, HYDRATED_COVARIANCE_DROPPED_ID, HydrateMapping,
-    HydrateSource, HydrateTarget, coefficient_covariance_from_draws, hydrate_prior,
-    hydrate_prior_from_coefficient_moments, hydrate_prior_from_posterior,
-    hydrate_prior_from_quantity_summaries,
+    HydrateMapping, HydrateSource, HydrateTarget, coefficient_covariance_from_draws, hydrate_prior,
+    hydrate_prior_from_coefficient_moments,
 };
 
 use std::sync::Arc;
@@ -93,23 +99,23 @@ pub(crate) fn summarize_linear_response_draws(
 
 /// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
 /// is reachable on typical Gaussian GLMs.
-pub const HMC_MIN_DRAWS: usize = 3_000;
+pub(crate) const HMC_MIN_DRAWS: usize = 3_000;
 
 /// Stable prefix of the inference-diagnostics note recorded when [`HMC_MIN_DRAWS`]
 /// raised the requested draw count (`requested=<n> used=<m>`).
-pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
+pub(crate) const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
 
 /// Diagnostics note when `unit_ids` request random-intercept GLS whitening under a
 /// non-Gaussian likelihood. Whitening is a Gaussian linear transform and must not be
 /// applied to count or binary outcomes.
-pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str = "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
+pub(crate) const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str = "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
      GaussianIdentity; unit_ids were ignored for this likelihood";
 
 /// Diagnostics note when `unit_ids` request random-intercept GLS whitening of a
 /// Gaussian fit but whitening cannot apply (fewer than two units, no unit with
 /// repeated rows, or no positive between-unit variance component), so the rows are
 /// fitted as independent.
-pub const RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE: &str = "random_intercept.gls_whiten.fallback_iid: unit_ids were supplied but compound-symmetry GLS \
+pub(crate) const RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE: &str = "random_intercept.gls_whiten.fallback_iid: unit_ids were supplied but compound-symmetry GLS \
      whitening did not apply (degenerate grouping or no positive between-unit variance), so \
      the rows were fitted as independent";
 
@@ -210,7 +216,7 @@ impl CausalPosterior {
 /// # Errors
 ///
 /// `n_draws < 2`.
-pub fn require_bayesian_n_draws(n_draws: usize) -> Result<usize, EstimationError> {
+pub(crate) fn require_bayesian_n_draws(n_draws: usize) -> Result<usize, EstimationError> {
     if n_draws < 2 {
         return Err(EstimationError::stats_msg(format!(
             "Bayesian inference requires n_draws >= 2; got {n_draws} (refusing silent rewrite)"

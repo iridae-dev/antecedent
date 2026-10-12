@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::PopulationSelector;
-use antecedent_data::{MultiEnvironmentData, TableView, TabularData, TimeSeriesData};
+use antecedent_data::{TableView, TabularData};
 
 use crate::error::AttributionError;
 
@@ -51,54 +51,15 @@ fn resolve_rows_n(n: usize, selector: &PopulationSelector) -> Result<Vec<usize>,
     }
 }
 
-/// Resolve a population selector against multi-environment data.
-///
-/// Returns `(env_index, row_indices_within_env)`.
-///
-/// # Errors
-///
-/// Unknown environment or invalid rows.
-pub fn resolve_multi_env_rows(
-    data: &MultiEnvironmentData,
-    selector: &PopulationSelector,
-) -> Result<(usize, Vec<usize>), AttributionError> {
-    match selector {
-        PopulationSelector::Environment { env_index } => {
-            let env = data.environment(*env_index)?;
-            Ok((*env_index, (0..env.row_count()).collect()))
-        }
-        PopulationSelector::All if data.env_count() == 1 => {
-            let env = data.environment(0)?;
-            Ok((0, (0..env.row_count()).collect()))
-        }
-        PopulationSelector::Rows(_) | PopulationSelector::TimeRange { .. }
-            if data.env_count() == 1 =>
-        {
-            let env = data.environment(0)?;
-            Ok((0, resolve_rows_n(env.row_count(), selector)?))
-        }
-        _ => Err(AttributionError::unsupported("cannot resolve selector against multi-env data")),
-    }
-}
-
-/// Borrow a multi-env series by resolved index.
-///
-/// # Errors
-///
-/// Out of range.
-pub fn multi_env_series(
-    data: &MultiEnvironmentData,
-    env_index: usize,
-) -> Result<&TimeSeriesData, AttributionError> {
-    Ok(data.environment(env_index)?)
-}
-
 /// Slice float columns for selected rows into a new owned [`TabularData`].
 ///
 /// # Errors
 ///
 /// Data access failures.
-pub fn subset_table(data: &TabularData, rows: &[usize]) -> Result<TabularData, AttributionError> {
+pub(crate) fn subset_table(
+    data: &TabularData,
+    rows: &[usize],
+) -> Result<TabularData, AttributionError> {
     use std::sync::Arc;
 
     use antecedent_data::column::{Float64Column, ValidityBitmap};

@@ -26,7 +26,7 @@ pub const SIMULTANEOUS_BAND_UPPER: &str = "response.simultaneous_band.upper";
 pub const SIMULTANEOUS_BAND_CRITICAL: &str = "response.simultaneous_band.critical";
 
 /// Warning code when a simultaneous band is not published.
-pub const SIMULTANEOUS_BAND_WITHHELD: &str = "response.simultaneous_band_withheld";
+pub(crate) const SIMULTANEOUS_BAND_WITHHELD: &str = "response.simultaneous_band_withheld";
 
 /// Warning code: a Frequentist temporal response published no band because no
 /// dependence-preserving replicates were available.
@@ -93,7 +93,7 @@ pub fn max_deviation_band(
 /// # Errors
 ///
 /// Same as [`max_deviation_band`].
-pub fn max_deviation_band_columns(
+pub(crate) fn max_deviation_band_columns(
     center: &[f64],
     columns: &[&[f64]],
     level: f64,

@@ -27,7 +27,7 @@ use crate::types::DenseNodeId;
 /// Partial-assignment pruning handles sparse classes (chains, trees) well above
 /// the ~25-edge hang of a blind mask scan. This ceiling only stops fully
 /// unconstrained `2^k` blow-ups; it sits above that practical hang threshold.
-pub const MAX_UNDIRECTED_EDGES: usize = 64;
+pub(crate) const MAX_UNDIRECTED_EDGES: usize = 64;
 
 /// One DAG completion of a CPDAG (MEC member).
 #[derive(Clone, Debug)]

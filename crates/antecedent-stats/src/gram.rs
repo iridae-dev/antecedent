@@ -27,7 +27,7 @@ pub fn form_xty(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], xty: 
 /// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
 ///
 /// Used by incremental OLS sufficient statistics.
-pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
+pub(crate) fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
     for c1 in 0..ncols {
         for c2 in c1..ncols {

@@ -75,9 +75,9 @@ pub const MAX_DESIGN_RANKING_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 /// Largest candidate catalog an artifact may retain (the frozen coordinate bound).
 pub const MAX_RANKING_CANDIDATES: usize = 1024;
 /// Largest number of prior draws or actions an artifact may retain.
-pub const MAX_RANKING_STATES: usize = 65_536;
+pub(crate) const MAX_RANKING_STATES: usize = 65_536;
 /// Largest number of table cells (states times actions or observation values).
-pub const MAX_RANKING_CELLS: usize = 4 * 1024 * 1024;
+pub(crate) const MAX_RANKING_CELLS: usize = 4 * 1024 * 1024;
 
 const BODY_SECTION: &str = "design_ranking_body";
 /// Relative tolerance of a replayed number against the stored one.

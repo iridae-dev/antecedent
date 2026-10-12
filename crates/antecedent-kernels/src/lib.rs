@@ -34,9 +34,9 @@ pub use numeric::{
 pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
-    bayesian_bootstrap_weights, box_muller, categorical_from_u, exp1, fill_standard_normal,
-    sample_categorical, sample_gamma, sample_inv_gamma, shuffle, shuffled_fold_assignment,
-    standard_normal, standard_normal_pair, unbiased_index,
+    bayesian_bootstrap_weights, categorical_from_u, fill_standard_normal, sample_categorical,
+    sample_gamma, sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal,
+    unbiased_index,
 };
 pub use scalar::{kish_ess, sanitize_weight};
 pub use special::{

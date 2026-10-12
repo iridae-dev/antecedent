@@ -54,7 +54,7 @@ pub const VECTOR_TREATMENT_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_
 pub const VECTOR_TREATMENT_MAX_TREATMENTS: usize = 64;
 
 /// Name reserved for the intercept; no column may use it.
-pub const VECTOR_TREATMENT_INTERCEPT: &str = "(intercept)";
+pub(crate) const VECTOR_TREATMENT_INTERCEPT: &str = "(intercept)";
 
 /// Relative tolerance of the Gram--Schmidt rank test.
 const RANK_TOLERANCE: f64 = 1e-10;

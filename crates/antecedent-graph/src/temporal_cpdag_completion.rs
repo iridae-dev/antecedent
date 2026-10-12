@@ -23,7 +23,7 @@ use crate::types::DenseNodeId;
 ///
 /// Matches [`crate::cpdag_completion::MAX_UNDIRECTED_EDGES`]: above the ~25-edge
 /// hang threshold of a blind mask scan; pruning handles sparse classes below it.
-pub const MAX_TEMPORAL_UNDIRECTED_EDGES: usize = 64;
+pub(crate) const MAX_TEMPORAL_UNDIRECTED_EDGES: usize = 64;
 
 /// One [`TemporalDag`] completion of a [`TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -78,7 +78,7 @@ impl TemporalCpdagCompletionSampler {
 
 /// Whether `dag` is a Markov-equivalence member of `cpdag`.
 #[must_use]
-pub fn is_temporal_mec_member(cpdag: &TemporalCpdag, dag: &TemporalDag) -> bool {
+pub(crate) fn is_temporal_mec_member(cpdag: &TemporalCpdag, dag: &TemporalDag) -> bool {
     mec_search::is_mec_member(cpdag, dag, cpdag.nodes() == dag.nodes())
 }
 

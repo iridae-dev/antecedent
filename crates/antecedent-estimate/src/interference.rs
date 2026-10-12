@@ -383,7 +383,8 @@ pub fn estimate_cluster_interference_total_with_inference(
 /// Require the calibrated pointwise cluster interval. This entry point
 /// explicitly refuses thin arms or degenerate between-cluster variation;
 /// callers needing a point estimate may use [`estimate_cluster_interference_total`].
-pub fn estimate_cluster_interference_total_pointwise(
+#[cfg(test)]
+pub(crate) fn estimate_cluster_interference_total_pointwise(
     query: &InterferenceQuery,
     data: &NetworkData,
     assignment: &[bool],

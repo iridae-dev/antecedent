@@ -9,6 +9,7 @@ use antecedent_prob::{
 
 use crate::error::EstimationError;
 
+#[cfg(test)]
 use super::CausalPosterior;
 
 /// Minimum coefficient prior variance when hydrating from a posterior (numerical floor).
@@ -61,7 +62,8 @@ fn effect_functional_bind_col(
 ///
 /// No coefficient columns, non-finite summaries, non-contiguous indices, or
 /// dimension mismatch vs `expected_n_coef`.
-pub fn hydrate_prior_from_quantity_summaries(
+#[cfg(test)]
+pub(crate) fn hydrate_prior_from_quantity_summaries(
     quantities: &[PosteriorQuantityKind],
     mean: &[f64],
     sd: &[f64],
@@ -72,11 +74,11 @@ pub fn hydrate_prior_from_quantity_summaries(
 
 /// Restriction id recorded on a prior hydrated with the source's full
 /// coefficient covariance (dense `V0`).
-pub const HYDRATED_COEFFICIENT_COVARIANCE_ID: &str = "hydrated_coefficient_covariance";
+pub(crate) const HYDRATED_COEFFICIENT_COVARIANCE_ID: &str = "hydrated_coefficient_covariance";
 
 /// Restriction id recorded when a supplied source coefficient covariance could
 /// not be used (not positive definite) and hydration fell back to the diagonal.
-pub const HYDRATED_COVARIANCE_DROPPED_ID: &str = "hydrated_coefficient_covariance_dropped";
+pub(crate) const HYDRATED_COVARIANCE_DROPPED_ID: &str = "hydrated_coefficient_covariance_dropped";
 
 /// Build a Gaussian coefficient [`PriorSet`] from posterior coefficient moments.
 ///
@@ -315,7 +317,8 @@ fn residual_sigma2_for_hydrate(
 /// # Errors
 ///
 /// See [`hydrate_prior_from_coefficient_moments`].
-pub fn hydrate_prior_from_posterior(
+#[cfg(test)]
+pub(crate) fn hydrate_prior_from_posterior(
     posterior: &CausalPosterior,
     expected_n_coef: Option<usize>,
 ) -> Result<PriorSet, EstimationError> {

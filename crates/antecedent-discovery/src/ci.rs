@@ -94,7 +94,7 @@ impl ChunkSchedule {
 ///
 /// [`DiscoveryError::Stats`] when `alpha` is unresolvable;
 /// [`DiscoveryError::Unsupported`] when FDR is requested for a non-frequentist p-value.
-pub fn ensure_ci_decisions_meaningful(
+pub(crate) fn ensure_ci_decisions_meaningful(
     ci: &dyn ConditionalIndependence,
     significance: SignificanceMethod,
     alpha: f64,
@@ -153,7 +153,7 @@ pub(crate) fn fdr_resolution_diagnostic(
 /// # Errors
 ///
 /// [`DiscoveryError::Unsupported`] when the weights do not fit the frame.
-pub fn ensure_ci_fits_frame(
+pub(crate) fn ensure_ci_fits_frame(
     ci: &dyn ConditionalIndependence,
     frame: &antecedent_data::LaggedFrame,
 ) -> Result<(), DiscoveryError> {
@@ -178,7 +178,7 @@ pub fn ensure_ci_fits_frame(
 /// # Errors
 ///
 /// [`DiscoveryError::Unsupported`] when the weight count differs from `n_rows`.
-pub fn ensure_ci_fits_rows(
+pub(crate) fn ensure_ci_fits_rows(
     ci: &dyn ConditionalIndependence,
     n_rows: usize,
 ) -> Result<(), DiscoveryError> {

@@ -97,7 +97,7 @@ pub struct PredictiveCheckReport {
 }
 
 /// Fewest design rows for which the residual-shape axes are computed.
-pub const MIN_RESIDUAL_ROWS: usize = 8;
+pub(crate) const MIN_RESIDUAL_ROWS: usize = 8;
 
 /// A realized residual-shape statistic of a posterior predictive check.
 ///
@@ -3002,7 +3002,7 @@ mod tests {
 /// on every chain), so there are no thresholds to loosen here; a failure names each clause
 /// that failed.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct McmcDiagnosticsCheck;
+pub(crate) struct McmcDiagnosticsCheck;
 
 impl McmcDiagnosticsCheck {
     /// Construct.

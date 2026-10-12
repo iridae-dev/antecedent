@@ -4,7 +4,7 @@
 
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
-use crate::special::{gamma_q, normal_ppf, student_t_ppf};
+use crate::special::student_t_ppf;
 
 /// Fit weighted least squares by row-scaling with `sqrt(weight)`.
 ///
@@ -232,41 +232,6 @@ fn first_stage_f_test(
         anderson_rubin: None,
         uncertainty_withheld: None,
     })
-}
-
-/// χ² critical value `c` with `P(χ²_df > c) = 1 - level` via bisection on [`gamma_q`].
-///
-/// Prefer [`f_critical`] / [`anderson_rubin_kf_critical`] for AR inversion; this remains
-/// for asymptotic χ² comparisons.
-#[must_use]
-pub fn chi2_critical(level: f64, df: usize) -> f64 {
-    if df == 0 || !(level.is_finite() && (0.0..1.0).contains(&level)) {
-        return f64::NAN;
-    }
-    if df == 1 {
-        // Exact: χ²_1 = Z².
-        let z = normal_ppf(0.5 + 0.5 * level);
-        return z * z;
-    }
-    let alpha = 1.0 - level;
-    let a = df as f64 * 0.5;
-    let mut lo = 0.0;
-    let mut hi = (df as f64) + 40.0;
-    while gamma_q(a, hi * 0.5) > alpha {
-        hi *= 2.0;
-        if !hi.is_finite() || hi > 1e14 {
-            return f64::INFINITY;
-        }
-    }
-    for _ in 0..100 {
-        let mid = 0.5 * (lo + hi);
-        if gamma_q(a, mid * 0.5) > alpha {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    0.5 * (lo + hi)
 }
 
 /// Upper `level` critical value of `F(d1, d2)`: `P(F ≤ f) = level`.

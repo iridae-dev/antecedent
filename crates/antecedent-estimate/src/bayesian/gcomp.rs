@@ -13,9 +13,8 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, ConjugateGaussianBackend,
     EffectBatch, GaussianVarianceModel, HmcGlmBackend, HmcOptions, InferenceBackend,
-    InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace, PosteriorDraws,
-    PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema, PriorSet, PriorSpec, ProbError,
-    sample_gaussian_mvn,
+    LaplaceGlmBackend, LaplaceWorkspace, PosteriorDraws, PosteriorEvalWorkspace,
+    PosteriorQuantityKind, PosteriorSchema, PriorSet, PriorSpec, ProbError, sample_gaussian_mvn,
 };
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, DesignColumnRole, FaerBackend, GlmFamily,
@@ -39,27 +38,6 @@ use super::{
     RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE, RANDOM_INTERCEPT_WHITEN_SKIP_NOTE,
     require_bayesian_n_draws,
 };
-
-/// Bayesian linear / GLM mechanism fit (coefficient posterior).
-#[derive(Clone, Debug)]
-pub struct BayesianGlmMechanism {
-    /// Fitted coefficient draws (columnar).
-    pub coefficient_draws: PosteriorDraws,
-    /// Point-estimate coefficients: posterior mode (Laplace) or posterior mean (conjugate, HMC).
-    pub map: Vec<f64>,
-    /// Likelihood used.
-    pub likelihood: BayesLikelihood,
-    /// Diagnostics.
-    pub diagnostics: InferenceDiagnostics,
-    /// Compiled design retained for g-computation.
-    pub design: CompiledDesign,
-    /// Treatment column index in the design.
-    pub treatment_col: usize,
-    /// Active / control levels.
-    pub active: f64,
-    /// Control level.
-    pub control: f64,
-}
 
 /// Which inference backend to use for Bayesian g-computation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1044,7 +1022,7 @@ impl BayesianTemporalGcomp {
 ///
 /// Convention: `intercept`, `coef_{treatment}`, `coef_{covariate}`.
 #[must_use]
-pub fn coefficient_names_from_design(
+pub(crate) fn coefficient_names_from_design(
     design: &CompiledDesign,
     treatment_name: &str,
     covariate_name: impl Fn(VariableId) -> Option<Arc<str>>,

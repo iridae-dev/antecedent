@@ -278,7 +278,7 @@ fn is_ancestral_orientation(g: &Pag) -> bool {
 
 /// Whether a circle-free graph is both ancestral and maximal.
 #[must_use]
-pub fn is_maximal_ancestral_graph(g: &Pag) -> bool {
+pub(crate) fn is_maximal_ancestral_graph(g: &Pag) -> bool {
     if !is_ancestral_orientation(g) {
         return false;
     }

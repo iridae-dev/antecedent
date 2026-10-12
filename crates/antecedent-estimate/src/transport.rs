@@ -588,7 +588,7 @@ pub const fn transport_outcome_kind(error: &antecedent_expr::EvalError) -> Trans
 /// Whether an exact-evaluation failure is a support failure of one replicate
 /// or draw, which a bootstrap counts and skips rather than propagates.
 #[must_use]
-pub const fn is_support_failure(error: &antecedent_expr::EvalError) -> bool {
+pub(crate) const fn is_support_failure(error: &antecedent_expr::EvalError) -> bool {
     matches!(transport_outcome_kind(error), TransportOutcomeKind::SupportFailure)
 }
 
@@ -613,7 +613,7 @@ pub fn refuse_eval(error: &antecedent_expr::EvalError) -> EstimationError {
 
 /// The registered refusal when a transport budget is exhausted.
 #[must_use]
-pub fn refuse_budget(message: impl Into<String>) -> EstimationError {
+pub(crate) fn refuse_budget(message: impl Into<String>) -> EstimationError {
     EstimationError::refused(antecedent_core::reason_code!("transport_budget_cancel"), message)
 }
 
@@ -638,7 +638,7 @@ pub fn refuse_cancelled(
 /// Weight magnitude above which a transport weight counts as extreme in
 /// diagnostics. A tripwire for reporting, not an inferential cutoff — no
 /// trimming or clipping is applied at this value.
-pub const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
+pub(crate) const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
 
 fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOverlapDiagnostic {
     TransportOverlapDiagnostic {

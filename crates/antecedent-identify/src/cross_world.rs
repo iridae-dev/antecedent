@@ -52,7 +52,7 @@ use serde::{Deserialize, Serialize};
 /// Most variables a graph may have under this contract.
 pub const CROSS_WORLD_MAX_NODES: usize = 8;
 /// The contract the witness attests.
-pub const CROSS_WORLD_CONTRACT: &str = "path_specific_two_world_markovian_dag";
+pub(crate) const CROSS_WORLD_CONTRACT: &str = "path_specific_two_world_markovian_dag";
 
 const ASSUMPTIONS: [&str; 4] = [
     "consistency",

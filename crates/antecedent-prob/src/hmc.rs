@@ -196,7 +196,7 @@ fn jittered_step(step_size: f64, rng: &mut CausalRng) -> f64 {
 }
 
 /// Shortest warmup that still leaves a usable slow window for metric adaptation.
-pub const MIN_METRIC_WARMUP: usize = 100;
+pub(crate) const MIN_METRIC_WARMUP: usize = 100;
 
 /// Slow-window schedule of metric adaptation over `n_warmup` iterations, as in Stan: a fast
 /// initial buffer, then windows that double in length (each re-estimating the metric), then a

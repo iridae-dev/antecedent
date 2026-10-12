@@ -71,7 +71,7 @@ use antecedent_prob::ProbError;
 use std::collections::BTreeSet;
 
 /// Route name of the closed public interval route.
-pub const LEARNED_JOINT_ROUTE: &str = "antecedent.transport.learned_joint";
+pub(crate) const LEARNED_JOINT_ROUTE: &str = "antecedent.transport.learned_joint";
 /// Sampler recorded on fits: iid draws from the learn crate's exact Gaussian posterior.
 pub const LEARNED_JOINT_SAMPLER: &str = "learn_conjugate_gaussian_iid";
 /// The provider crate of the outcome mechanism.

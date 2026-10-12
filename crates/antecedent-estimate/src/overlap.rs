@@ -11,7 +11,7 @@ use crate::error::{EstimationError, ExactF64, RefusalFields};
 /// Library-default propensity clip: propensities are clamped into `[0.01, 0.99]` unless a
 /// policy says otherwise. Also the reference bound of the weighted-support gate, which asks how
 /// much target mass sits where a default fit would have re-weighted.
-pub const DEFAULT_PROPENSITY_CLIP: f64 = 0.01;
+pub(crate) const DEFAULT_PROPENSITY_CLIP: f64 = 0.01;
 
 /// Overlap / positivity handling.
 #[derive(Clone, Copy, Debug, PartialEq)]

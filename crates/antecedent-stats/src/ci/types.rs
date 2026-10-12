@@ -77,7 +77,7 @@ pub const DEFAULT_PERMUTATIONS: usize = 49;
 /// and ask for [`SignificanceMethod::BlockShuffle`] with more replicates when the test cannot
 /// resolve it. [`SignificanceMethod::BlockShuffle`] honors the caller's `replicates`.
 #[must_use]
-pub fn nonparametric_permutation_count(significance: SignificanceMethod) -> usize {
+pub(crate) fn nonparametric_permutation_count(significance: SignificanceMethod) -> usize {
     match significance {
         SignificanceMethod::Analytic => DEFAULT_PERMUTATIONS,
         SignificanceMethod::BlockShuffle { replicates, .. } => replicates.max(1) as usize,
@@ -87,7 +87,7 @@ pub fn nonparametric_permutation_count(significance: SignificanceMethod) -> usiz
 /// Smallest p-value an add-one permutation test with `replicates` draws can report:
 /// `1 / (replicates + 1)`.
 #[must_use]
-pub fn permutation_min_p(replicates: usize) -> f64 {
+pub(crate) fn permutation_min_p(replicates: usize) -> f64 {
     1.0 / (replicates as f64 + 1.0)
 }
 
@@ -164,15 +164,6 @@ pub fn reject_unsupported_block_size(
         }
     }
     Ok(())
-}
-
-/// Confidence level for analytic intervals, if requested.
-#[must_use]
-pub fn analytic_confidence_level(confidence: ConfidenceMethod) -> Option<f64> {
-    match confidence {
-        ConfidenceMethod::None => None,
-        ConfidenceMethod::Analytic { level } => Some(level),
-    }
 }
 
 /// Preparation plan for a CI session.

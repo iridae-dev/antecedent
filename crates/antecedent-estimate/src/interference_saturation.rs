@@ -246,7 +246,8 @@ pub fn estimate_saturation_interference(
 /// This keeps a point estimate available through [`estimate_saturation_interference`]
 /// while giving callers that explicitly request interval inference an error with
 /// the precise support condition that failed.
-pub fn estimate_saturation_interference_pointwise(
+#[cfg(test)]
+pub(crate) fn estimate_saturation_interference_pointwise(
     query: &InterferenceQuery,
     data: &NetworkData,
     assignment: &[bool],

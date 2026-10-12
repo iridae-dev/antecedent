@@ -111,7 +111,7 @@ pub const RECOVERY_DEFAULT_LIMITS: RecoveryLimits = RecoveryLimits {
 /// Version of the recovery rule, bound into every derivation.
 pub const RECOVERY_RULE_VERSION: &str = "binary_observation_recovery.v1";
 /// Every witness mechanism probability is `k / WITNESS_SCALE`.
-pub const WITNESS_SCALE: u32 = 60;
+pub(crate) const WITNESS_SCALE: u32 = 60;
 
 /// The label of the missing level of a proxy.
 pub const MISSING_LEVEL: &str = "?";

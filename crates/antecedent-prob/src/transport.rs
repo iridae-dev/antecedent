@@ -19,7 +19,7 @@ use crate::external_prior::{
 use crate::prior::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 
 /// Stable assumption id recorded for each applied transport claim.
-pub const TRANSPORT_ASSUMPTION_ID: &str = "external_transport_prior";
+pub(crate) const TRANSPORT_ASSUMPTION_ID: &str = "external_transport_prior";
 
 /// Caller-convention tag key for population identity on prior-source meta.
 pub const POPULATION_TAG_KEY: &str = "population";
@@ -303,7 +303,7 @@ impl From<TransportError> for ProbError {
 /// concrete tags do. A concrete target with an untagged source (or vice versa)
 /// also requires transport — the library will not silently assume equality.
 #[must_use]
-pub fn populations_require_transport(
+pub(crate) fn populations_require_transport(
     source_population: Option<&str>,
     target_population: Option<&str>,
 ) -> bool {

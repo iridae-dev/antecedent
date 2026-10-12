@@ -110,7 +110,7 @@ pub const ADMG_CONDITIONAL_DEFAULT_LIMITS: SearchLimits =
 /// Memory cap (estimated live-state bytes, cumulative across the stages of one
 /// decision): the default and the maximum. The effective cap is the smaller of
 /// this and the context's hard limit, so it is never absent.
-pub const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
+pub(crate) const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A declared bound: graph size, treatments, conditioned set or search limits.
 const BOUNDS_EXCEEDED: &str = "admg_transport.bounds_exceeded";

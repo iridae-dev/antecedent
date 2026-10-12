@@ -30,7 +30,7 @@ use crate::result::{
 /// Diagnostic code of a back-door search that spent `max_examinations` before it finished
 /// the subset enumeration. A valid set may still be returned; only the choice among sets is
 /// unfinished.
-pub const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.backdoor.search_bounded";
+pub(crate) const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.backdoor.search_bounded";
 
 /// Configuration for adjustment-set enumeration.
 #[derive(Clone, Debug)]

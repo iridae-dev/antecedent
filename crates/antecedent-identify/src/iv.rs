@@ -21,9 +21,9 @@ use crate::result::{
 
 /// Assumption id: the restriction under which the Wald ratio is the average effect
 /// (constant linear effect), or else the complier local effect (monotonicity).
-pub const IV_EFFECT_RESTRICTION_ID: &str = "iv.constant_linear_effect_or_monotonicity";
+pub(crate) const IV_EFFECT_RESTRICTION_ID: &str = "iv.constant_linear_effect_or_monotonicity";
 /// Assumption id: non-zero first stage for one instrument.
-pub const IV_RELEVANCE_ID: &str = "iv.relevance";
+pub(crate) const IV_RELEVANCE_ID: &str = "iv.relevance";
 
 /// Configuration for instrument search.
 #[derive(Clone, Debug)]

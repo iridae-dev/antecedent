@@ -96,7 +96,7 @@ impl ArrowCColumn {
 /// # Errors
 ///
 /// Returns [`DataError::InvalidArgument`] when the FFI pair cannot be decoded.
-pub unsafe fn import_array(
+pub(crate) unsafe fn import_array(
     array: FFI_ArrowArray,
     schema: &FFI_ArrowSchema,
 ) -> Result<ArrayRef, DataError> {

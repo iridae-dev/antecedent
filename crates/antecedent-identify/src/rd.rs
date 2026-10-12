@@ -36,17 +36,17 @@ use crate::error::IdentificationError;
 use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 /// Assumption id: potential-outcome regressions are continuous in `R` at the cutoff.
-pub const RD_CONTINUITY_ID: &str = "rd.continuity";
+pub(crate) const RD_CONTINUITY_ID: &str = "rd.continuity";
 /// Assumption id: units cannot sort themselves across the cutoff.
-pub const RD_NO_MANIPULATION_ID: &str = "rd.no_manipulation";
+pub(crate) const RD_NO_MANIPULATION_ID: &str = "rd.no_manipulation";
 /// Assumption id: treatment is the deterministic threshold rule `T = 1{R ≥ c}`.
-pub const RD_SHARP_ASSIGNMENT_ID: &str = "rd.sharp_assignment";
+pub(crate) const RD_SHARP_ASSIGNMENT_ID: &str = "rd.sharp_assignment";
 /// Diagnostic code: the identified estimand is the effect at the cutoff.
-pub const RD_LOCAL_ESTIMAND_DIAGNOSTIC_CODE: &str = "identify.rd.local_estimand";
+pub(crate) const RD_LOCAL_ESTIMAND_DIAGNOSTIC_CODE: &str = "identify.rd.local_estimand";
 /// Diagnostic code: the graph contradicts the declared design.
-pub const RD_GRAPH_INCOMPATIBLE_DIAGNOSTIC_CODE: &str = "identify.rd.graph_incompatible";
+pub(crate) const RD_GRAPH_INCOMPATIBLE_DIAGNOSTIC_CODE: &str = "identify.rd.graph_incompatible";
 /// Diagnostic code: the requested population is not the one the design speaks for.
-pub const RD_POPULATION_DIAGNOSTIC_CODE: &str = "identify.rd.population_not_identified";
+pub(crate) const RD_POPULATION_DIAGNOSTIC_CODE: &str = "identify.rd.population_not_identified";
 
 /// Configuration for sharp RD identification.
 #[derive(Clone, Copy, Debug, PartialEq)]

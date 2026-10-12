@@ -37,14 +37,14 @@ use crate::splitmix::mix64;
 use crate::util::refuse;
 
 /// Inner cross-validation folds used to choose the penalty when none is declared.
-pub const DEFAULT_RIDGE_INNER_FOLDS: usize = 5;
+pub(crate) const DEFAULT_RIDGE_INNER_FOLDS: usize = 5;
 
 /// Default ridge penalty grid (sum-scale `lambda`, standardized covariates).
 pub const DEFAULT_RIDGE_GRID: [f64; 6] = [1e-2, 1e-1, 1.0, 1e1, 1e2, 1e3];
 
 /// Default lasso penalty grid (sum-scale `lambda`, standardized covariates): from a nearly
 /// unpenalized fit to one that zeroes every slope at moderate sample sizes.
-pub const DEFAULT_LASSO_GRID: [f64; 8] = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0];
+pub(crate) const DEFAULT_LASSO_GRID: [f64; 8] = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0];
 
 /// Largest declared penalty grid.
 const MAX_RIDGE_GRID: usize = 64;

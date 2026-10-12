@@ -199,7 +199,7 @@ pub fn effective_rows(scores: &[f64]) -> f64 {
 /// at lag 1 but slowly decaying. Capped at `n`; a constant series returns `n`;
 /// non-finite scores return `NaN`.
 #[must_use]
-pub fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
+pub(crate) fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
     let n = scores.len();
     if scores.iter().any(|s| !s.is_finite()) {
         return f64::NAN;
@@ -280,7 +280,7 @@ const SCORE_VARIANCE_FLOOR: f64 = 1e-20;
     clippy::cast_sign_loss,
     reason = "both values are ceilings of square roots of positive reals, hence non-negative; the block length is clamped to at least 1 before the cast"
 )]
-pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
+pub(crate) fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     let n = scores.len();
     if n < 8 || scores.iter().any(|s| !s.is_finite()) {
         return None;
@@ -378,7 +378,7 @@ pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[
     reason = "the product ceil(pw * rows^(1/6)) is far below usize::MAX for in-memory series"
 )]
 #[allow(clippy::cast_sign_loss, reason = "both factors are non-negative")]
-pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
+pub(crate) fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
     let pw = scores.iter().filter_map(|s| politis_white_block_length(s)).max().unwrap_or(0);
     (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize
 }
@@ -530,7 +530,7 @@ pub fn kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64 {
 /// instead and take [`circular_fixed_b_scale`]; the two agree to within 1% of
 /// the SE for `b ≤ 0.2` and diverge above (4% at `b = 1/3`).
 #[must_use]
-pub fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
+pub(crate) fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     if rows == 0 {
         return 1.0;
     }

@@ -7,7 +7,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Consistency constant turning a median absolute deviation into a Gaussian σ.
-pub const MAD_TO_SIGMA: f64 = 1.4826;
+pub(crate) const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// Rule that maps a probability to a fractional rank of the sorted sample.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

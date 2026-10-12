@@ -82,8 +82,7 @@ pub use repair::{
     TransportRepairFamily, repair,
 };
 pub use repair_artifact::{
-    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION, RepairArtifactError, RepairConsumeLimits,
-    RepairFamilyRef, RepairReportArtifact,
+    RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReportArtifact,
 };
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
 pub use study_candidate::{
@@ -91,26 +90,21 @@ pub use study_candidate::{
     UnitRules,
 };
 pub use study_plan_artifact::{
-    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
-    StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
-    StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire, StudyPlanPremisesWire,
-    StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
+    StudyBaseFailureWire, StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire,
+    StudyPlanConsumeLimits, StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire,
+    StudyPlanPremisesWire, StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
 };
 pub use study_planner::{
     StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
     StudyPlanProposal, StudyPlanResult, plan_studies,
 };
-pub use transport_planner::{
-    TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
-    TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,
-    plan_transport_evidence,
-};
+pub use transport_planner::TransportEvidenceCandidate;
 pub use z_transport_planner::{
     ZTransportArrival, ZTransportCandidateAssessment, ZTransportCandidateOutcome,
     ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportFailureStatus,
     ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal,
     ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
-    propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
+    snapshot_z_transport_failure,
 };
 
 /// Independently consumed original source diagnostics and semantic mappings.

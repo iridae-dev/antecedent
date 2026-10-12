@@ -20,7 +20,7 @@ pub fn combinations(items: &[(VariableId, Lag)], k: usize) -> Vec<Vec<(VariableI
 /// Invoke `visit` for each lexicographic `k`-combination, writing into `scratch`.
 ///
 /// `visit` returns `false` to stop early. `scratch` is resized to `k` and reused.
-pub fn for_each_combination(
+pub(crate) fn for_each_combination(
     items: &[(VariableId, Lag)],
     k: usize,
     scratch: &mut Vec<(VariableId, Lag)>,
@@ -108,7 +108,8 @@ impl<T: Copy> Iterator for Combinations<'_, T> {
 
 /// Lexicographic combinations of static [`VariableId`]s.
 #[must_use]
-pub fn combinations_vars(items: &[VariableId], k: usize) -> Vec<Vec<VariableId>> {
+#[cfg(test)]
+pub(crate) fn combinations_vars(items: &[VariableId], k: usize) -> Vec<Vec<VariableId>> {
     let mut out = Vec::new();
     for_each_combination_vars(items, k, &mut Vec::new(), |combo| {
         out.push(combo.to_vec());
@@ -118,7 +119,7 @@ pub fn combinations_vars(items: &[VariableId], k: usize) -> Vec<Vec<VariableId>>
 }
 
 /// Invoke `visit` for each lexicographic `k`-combination of static variables.
-pub fn for_each_combination_vars(
+pub(crate) fn for_each_combination_vars(
     items: &[VariableId],
     k: usize,
     scratch: &mut Vec<VariableId>,

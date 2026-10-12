@@ -19,7 +19,7 @@ use antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics;
 use serde::{Deserialize, Serialize};
 
 /// Coordinate order: a, c0, c1, q20, q21, q40, q41, g00, g01, g10, g11.
-pub const PARAMETERS: usize = 11;
+pub(crate) const PARAMETERS: usize = 11;
 /// Retained coordinates followed by do(X2=0), do(X2=1) means and their contrast.
 pub const OUTPUTS: usize = 14;
 /// Frozen posterior column identity, independent of machine byte order.
@@ -42,7 +42,7 @@ pub const COORDINATES: [&str; OUTPUTS] = [
 /// Frozen stream generator and non-additive domain/chain derivation.
 pub const RNG: &str = "causal_splitmix64_top53_rngfactory_bayesian_domain_chain_index_v1";
 /// Maximum retained draws per chain; diagnostics have quadratic lag work.
-pub const MAX_DRAWS: usize = 8192;
+pub(crate) const MAX_DRAWS: usize = 8192;
 /// Immutable algorithm identity, including RNG and diagnostic semantics.
 pub const METHOD: &str = "verma_beta_kernel_conjugate_coordinate_slice_splitmix64_rank_folded_v1";
 

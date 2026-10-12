@@ -71,15 +71,15 @@ use crate::overlap::OverlapPolicy;
 use crate::util::{BootstrapSeResult, stats_err};
 
 /// Largest number of distinct treatment values treated as arms.
-pub const MAX_TREATMENT_LEVELS: usize = 32;
+pub(crate) const MAX_TREATMENT_LEVELS: usize = 32;
 /// Largest per-mediator distinct-value count for which [`FrontDoorOutcomeModel::Auto`]
 /// selects the saturated cell-mean model.
-pub const MAX_SATURATED_MEDIATOR_LEVELS: usize = 16;
+pub(crate) const MAX_SATURATED_MEDIATOR_LEVELS: usize = 16;
 
 /// Stable id of the positivity requirement checked by the saturated model.
-pub const SATURATED_ASSUMPTION_ID: &str = "frontdoor.functional.saturated_cells";
+pub(crate) const SATURATED_ASSUMPTION_ID: &str = "frontdoor.functional.saturated_cells";
 /// Stable id of the arm-linear outcome-model restriction.
-pub const ARM_LINEAR_ASSUMPTION_ID: &str = "frontdoor.functional.arm_linear_outcome";
+pub(crate) const ARM_LINEAR_ASSUMPTION_ID: &str = "frontdoor.functional.arm_linear_outcome";
 
 const ALGORITHM: &str = "frontdoor.functional";
 

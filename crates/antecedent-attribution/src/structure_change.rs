@@ -18,10 +18,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{
-    AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, VariableId,
-};
+#[cfg(test)]
+use antecedent_core::AllocationMethod;
+#[cfg(test)]
+use antecedent_core::AttributionComponents;
+#[cfg(test)]
+use antecedent_core::ShapleyConfig;
+#[cfg(test)]
+use antecedent_core::VariableId;
+use antecedent_core::{ChangeAttributionQuery, ComponentId, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
@@ -167,38 +172,6 @@ pub fn structure_change(
         run_change_allocation(&request, &mut payoff, total, Arc::from(unidentified), ctx)?;
     result.observed_change = Some(observed);
     Ok(result)
-}
-
-/// Convenience: Shapley Monte Carlo structure-change with defaults.
-///
-/// # Errors
-///
-/// See [`structure_change`].
-#[allow(
-    clippy::too_many_arguments,
-    reason = "convenience wrapper that spells out the ChangeAttributionQuery fields it builds"
-)]
-pub fn structure_change_shapley(
-    baseline_model: &CompiledCausalModel,
-    comparison_model: &CompiledCausalModel,
-    data: &TabularData,
-    outcome: VariableId,
-    baseline: antecedent_core::PopulationSelector,
-    comparison: antecedent_core::PopulationSelector,
-    shapley: ShapleyConfig,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AttributionError> {
-    let query = ChangeAttributionQuery::new(outcome, baseline, comparison)
-        .with_components(AttributionComponents::Structure)
-        .with_allocation(AllocationMethod::Shapley { approximation: shapley });
-    structure_change(
-        baseline_model,
-        comparison_model,
-        data,
-        &query,
-        &StructureChangeOptions::default(),
-        ctx,
-    )
 }
 
 fn validate_shared_layout(

@@ -23,7 +23,7 @@ use antecedent_io_core::quantity_wire::{DistributionMeaningWire, ScientificQuant
 use serde::{Deserialize, Serialize};
 
 /// Container kind for a finite rollout/study-update binding.
-pub const ROLLOUT_KIND: &str = "rollout_state_v1";
+pub(crate) const ROLLOUT_KIND: &str = "rollout_state_v1";
 /// Byte bound checked before decoding.
 pub const MAX_ROLLOUT_BYTES: usize = 32 * 1024 * 1024;
 const SECTION: &str = "state_binding.body";

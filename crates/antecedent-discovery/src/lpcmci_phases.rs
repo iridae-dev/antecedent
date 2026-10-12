@@ -890,7 +890,7 @@ pub fn run_lpcmci_algorithm(
 
 /// [`run_lpcmci_algorithm`] over the units of a panel: each unit's lag windows are built inside
 /// that unit and the rows are pooled ([`LaggedFrame::from_panel`]).
-pub fn run_lpcmci_panel(
+pub(crate) fn run_lpcmci_panel(
     engine: &PcmciEngine,
     units: &[TimeSeriesData],
     variables: &[VariableId],

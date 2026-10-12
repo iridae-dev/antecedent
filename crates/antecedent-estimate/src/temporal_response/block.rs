@@ -37,7 +37,7 @@ use super::{
     reason = "ceil(sqrt(n)) of a length is far below usize::MAX"
 )]
 #[allow(clippy::cast_sign_loss, reason = "the square root of a length is non-negative")]
-pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
+pub(crate) fn temporal_block_length(structural_span: usize, n: usize) -> usize {
     let root = (n as f64).sqrt().ceil() as usize;
     structural_span.max(root).min(n).max(1)
 }
@@ -98,7 +98,7 @@ impl ResponseBlockLength {
 pub const TEMPORAL_RESPONSE_BLOCK_LENGTH: &str = "response.temporal.block_length";
 
 /// Warning code: the dependence-aware block lengthening hit the `rows / 3` cap.
-pub const TEMPORAL_RESPONSE_BLOCK_CAPPED: &str = "response.temporal.block_length_capped";
+pub(crate) const TEMPORAL_RESPONSE_BLOCK_CAPPED: &str = "response.temporal.block_length_capped";
 
 /// Warning code: the pointwise band rests on fewer than
 /// [`SIMULTANEOUS_BAND_MIN_REPLICATES`] surviving joint replicates.
@@ -107,20 +107,20 @@ pub const TEMPORAL_RESPONSE_FEW_REPLICATES: &str =
 
 /// Warning code on every temporal response block band: the calibrated dependence scope
 /// and the measured coverage beyond it.
-pub const TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY: &str =
+pub(crate) const TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY: &str =
     "response.temporal.block.persistence_boundary";
 
 /// Support-diagnostic id carrying each published cell's kernel-bias factor (the layout
 /// of the mean; one value for a mixed class band).
-pub const TEMPORAL_RESPONSE_KERNEL_FACTOR: &str = "response.temporal.kernel_bias_factor";
+pub(crate) const TEMPORAL_RESPONSE_KERNEL_FACTOR: &str = "response.temporal.kernel_bias_factor";
 
 /// Support-diagnostic id carrying each published cell's influence effective rows (the
 /// layout of the mean; one value for a mixed class band).
-pub const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_rows";
+pub(crate) const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_rows";
 
 /// Warning code: a published cell's influence has fewer than
 /// [`RESPONSE_SHORT_SERIES_ROWS`] effective rows, so the band may under-cover.
-pub const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
+pub(crate) const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
 
 /// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are from
 /// `crates/antecedent/tests/temporal_response_calibration.rs` (400

@@ -55,7 +55,6 @@ pub use admg::{Admg, CopyLabels};
 pub use antecedent_core::NodeRef;
 pub use completion::{
     CompletionSampler, CompletionValidationReport, PagCompletion, is_mag_completion,
-    is_maximal_ancestral_graph,
 };
 pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_member};
@@ -69,9 +68,7 @@ pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use selection::SelectionDiagram;
 pub use temporal::TemporalDag;
 pub use temporal_admg::TemporalAdmg;
-pub use temporal_cpdag_completion::{
-    TemporalCpdagCompletion, TemporalCpdagCompletionSampler, is_temporal_mec_member,
-};
+pub use temporal_cpdag_completion::{TemporalCpdagCompletion, TemporalCpdagCompletionSampler};
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
 pub use temporal_pag_completion::{TemporalPagCompletion, TemporalPagCompletionSampler};
 pub use tiered::{TieredBackground, WithinTier};

@@ -113,7 +113,7 @@ use crate::error::EstimationError;
 use crate::util::gram;
 
 /// Stable prefix of the inference-diagnostics note recording the tempering factor.
-pub const DEPENDENCE_NOTE_PREFIX: &str = "serial_dependence.long_run_tempering";
+pub(crate) const DEPENDENCE_NOTE_PREFIX: &str = "serial_dependence.long_run_tempering";
 
 /// Assumption id recorded on posteriors fitted under [`SerialDependence::LongRunTempering`].
 pub const DEPENDENCE_ASSUMPTION_ID: &str = "bayes.temporal.long_run_tempering";
@@ -207,7 +207,7 @@ impl DependenceScope {
 
 /// Estimated tempering factor for one design.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct TemperingFactor {
+pub(crate) struct TemperingFactor {
     /// Applied factor `κ̂` (rows weighted `1/κ̂`), after the floor and cap.
     pub kappa: f64,
     /// Combined factor before the floor / cap:
@@ -370,7 +370,7 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
     clippy::too_many_lines,
     reason = "build the candidate directions, factor each under the fitted residual model, then pick the driving combination; the stages share the fit and design"
 )]
-pub fn long_run_tempering_factor(
+pub(crate) fn long_run_tempering_factor(
     design: &CompiledDesign,
     scope: &DependenceScope,
 ) -> Result<TemperingFactor, EstimationError> {

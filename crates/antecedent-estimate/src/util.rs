@@ -200,7 +200,7 @@ impl BootstrapSeResult {
 /// Maximum allowed soft-failure fraction before refusing to report a bootstrap
 /// summary: more than half the attempted replicates failing means the survivors
 /// are not a resample of the estimator.
-pub const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
+pub(crate) const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
 
 /// When a set of bootstrap replicates or posterior draws may be summarized.
 ///

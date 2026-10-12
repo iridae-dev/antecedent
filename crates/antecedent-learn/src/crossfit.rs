@@ -95,7 +95,7 @@ fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
 /// # Errors
 ///
 /// Shape, empty train/valid fold, transformer, or learner failure.
-pub fn cross_fit(
+pub(crate) fn cross_fit(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
     y: TargetView<'_>,

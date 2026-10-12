@@ -88,7 +88,7 @@ pub fn weighted_mean(scores: &[f64], weights: Option<&[f64]>) -> Result<f64, Est
 /// The kernel owner [`antecedent_kernels::kish_ess`] with the additional refusal of negative
 /// weights, which it takes as given.
 #[must_use]
-pub fn kish_n_eff(weights: &[f64]) -> f64 {
+pub(crate) fn kish_n_eff(weights: &[f64]) -> f64 {
     if weights.iter().any(|w| *w < 0.0) {
         return f64::NAN;
     }
@@ -399,7 +399,7 @@ pub fn max_t_critical_with_df_polled(
 ///
 /// For exceedance `P(Y > c)` on an increasing `c` grid. Disclosed by callers.
 #[must_use]
-pub fn monotone_decreasing(values: &[f64]) -> Vec<f64> {
+pub(crate) fn monotone_decreasing(values: &[f64]) -> Vec<f64> {
     if values.is_empty() {
         return Vec::new();
     }

@@ -90,7 +90,7 @@ pub fn factor_obligations(
 ///
 /// # Errors
 /// A query that names no outcome.
-pub fn transport_result_obligations(
+pub(crate) fn transport_result_obligations(
     result: &CatalogTransportResult,
     query: &ClassicalTransportQuery,
     catalog: &EvidenceCatalog,
@@ -130,7 +130,7 @@ pub fn transport_result_obligations(
 ///
 /// # Errors
 /// A factor that reads no variable.
-pub fn z_transport_obligations(
+pub(crate) fn z_transport_obligations(
     snapshot: &ZTransportFailureSnapshot,
     catalog: &EvidenceCatalog,
 ) -> Result<Vec<EvidenceObligation>, EvidenceObligationError> {

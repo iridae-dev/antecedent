@@ -598,7 +598,7 @@ impl SharedDesign {
 
 /// Scalar reference partial correlation.
 #[must_use]
-pub fn partial_correlation_scalar(
+pub(crate) fn partial_correlation_scalar(
     x: &[f64],
     y: &[f64],
     z_cols: &[&[f64]],
@@ -609,7 +609,7 @@ pub fn partial_correlation_scalar(
 
 /// Portable optimized partial correlation (shared Gram, fused Pearson).
 #[must_use]
-pub fn partial_correlation_portable(
+pub(crate) fn partial_correlation_portable(
     x: &[f64],
     y: &[f64],
     z_cols: &[&[f64]],

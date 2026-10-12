@@ -41,7 +41,7 @@ use crate::util::stats_err;
 pub const DEFAULT_AIPW_FOLDS: usize = 5;
 
 /// Provenance tag frozen on the score table.
-pub const AIPW_CROSSFIT_PROVENANCE: &str = "aipw.crossfit.v1";
+pub(crate) const AIPW_CROSSFIT_PROVENANCE: &str = "aipw.crossfit.v1";
 
 /// Build a score table from a prepared propensity problem.
 ///
@@ -479,7 +479,7 @@ fn build_scores_pass(
 
 /// Map an outcome functional to score-table thresholds (`None` = mean).
 #[must_use]
-pub fn thresholds_of(functional: &OutcomeFunctional) -> Vec<Option<f64>> {
+pub(crate) fn thresholds_of(functional: &OutcomeFunctional) -> Vec<Option<f64>> {
     match functional.thresholds() {
         None => vec![None],
         Some(cs) => cs.into_iter().map(Some).collect(),
@@ -508,7 +508,7 @@ pub struct WeightedSupport {
 
 /// Weighted overlap for binary treatment under target weights.
 #[must_use]
-pub fn weighted_support(
+pub(crate) fn weighted_support(
     treatment: &[f64],
     weights: &[f64],
     propensity: Option<&[f64]>,

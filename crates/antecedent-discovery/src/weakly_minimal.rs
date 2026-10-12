@@ -70,7 +70,7 @@ pub fn make_sepset_weakly_minimal(
 }
 
 /// Store a weakly-minimal sepset on [`OrientationState`].
-pub fn store_weakly_minimal_sepset(
+pub(crate) fn store_weakly_minimal_sepset(
     state: &mut OrientationState,
     a: DenseNodeId,
     b: DenseNodeId,

@@ -8,7 +8,7 @@ use crate::orientation::PagOps;
 
 /// Edge pattern: left endpoint, right endpoint (from `from`'s perspective toward `to`).
 #[derive(Clone, Copy, Debug)]
-pub struct EndpointPattern {
+pub(crate) struct EndpointPattern {
     /// Mark at the path-forward source.
     pub at_from: Option<Endpoint>,
     /// Mark at the path-forward target (`None` = any).
@@ -82,7 +82,7 @@ fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> 
 /// `max_paths` was reached, `max_len` pruned a path that had not reached `end`, or
 /// the budget was zero (`max_paths == 0`).
 #[must_use]
-pub fn uncovered_pd_paths_with_budget<G: PagOps>(
+pub(crate) fn uncovered_pd_paths_with_budget<G: PagOps>(
     graph: &G,
     start: DenseNodeId,
     end: DenseNodeId,

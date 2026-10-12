@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 /// Largest Cholesky condition lower bound at which a Laplace covariance is
 /// still published. Beyond ~1/ε the inverse Hessian carries no correct digits.
-pub const MAX_HESSIAN_CONDITION: f64 = 1e14;
+pub(crate) const MAX_HESSIAN_CONDITION: f64 = 1e14;
 
 /// Factorization used for the Laplace covariance / MCMC marker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

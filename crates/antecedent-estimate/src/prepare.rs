@@ -13,7 +13,7 @@ use crate::error::EstimationError;
 /// # Errors
 ///
 /// Unknown method string or incompatible estimand.
-pub fn require_method(
+pub(crate) fn require_method(
     estimand: &IdentifiedEstimand,
     allowed: &[EstimandMethod],
     message: &'static str,
@@ -30,7 +30,7 @@ pub fn require_method(
 /// # Errors
 ///
 /// Incompatible estimand.
-pub fn require_adjustment_shaped(
+pub(crate) fn require_adjustment_shaped(
     estimand: &IdentifiedEstimand,
     message: &'static str,
 ) -> Result<(), EstimationError> {
@@ -41,7 +41,9 @@ pub fn require_adjustment_shaped(
 }
 
 /// Validate an ATE query allowing `AllObserved` / Treated / Untreated targets.
-pub fn validate_ate_query_with_targets(query: &AverageEffectQuery) -> Result<(), EstimationError> {
+pub(crate) fn validate_ate_query_with_targets(
+    query: &AverageEffectQuery,
+) -> Result<(), EstimationError> {
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
         return Err(EstimationError::EffectModifiers);

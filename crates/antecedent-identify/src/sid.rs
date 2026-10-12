@@ -35,7 +35,7 @@ pub mod temporal_sequence;
 mod z_transport;
 pub use conditional::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
-    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS, ADMG_CONDITIONAL_MEMORY_BYTES,
+    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,
     BoundConditionalTransportFunctional, ConditionalObstructionCandidate,
     ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
     ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
@@ -43,14 +43,14 @@ pub use conditional::{
 };
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
 pub use conditional_witness::{
-    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, CONDITIONAL_WITNESS_MAX_WORK, ConditionalWitnessCheck,
-    ConditionalWitnessRecord, WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord,
-    WitnessSearch, search_conditional_witness, verify_conditional_witness,
+    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
+    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
+    search_conditional_witness, verify_conditional_witness,
 };
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
-    CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
-    identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+    MetaSource, MetaTransportQuery, identify_meta_catalog, identify_meta_transport,
+    verify_meta_s_hedge, verify_meta_transport,
 };
 pub use mixed_source::{
     BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
@@ -59,7 +59,7 @@ pub use mixed_source::{
     MixedSearchInspection, MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation,
     MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
     MixedStepRecord, ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
-    mixed_source_rule_names, render_frontier, render_quantity, validate_mixed_source_query,
+    mixed_source_rule_names, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
 pub use mz_transport::{
@@ -72,17 +72,16 @@ pub use mz_transport::{
     validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use study_planning::{
-    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
-    STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
-    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan,
-    StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop,
-    StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
+    STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES,
+    STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan, StudyPlanCandidate,
+    StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop, StudyProposal,
+    StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
     plan_study_additions,
 };
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
-    TwoSourceZTransportDecision, TwoSourceZTransportQuery, Z_TRANSPORT_MAX_CONTROLLABLE,
-    Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError,
+    TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZExperimentFamilyError,
     ZFactorObligation, ZProofOperation, ZTransportBudgetKind, ZTransportDecision,
     ZTransportDerivation, ZTransportDerivationRecord, ZTransportLimitsReceipt,
     ZTransportMissingEvidence, ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind,
@@ -92,7 +91,7 @@ pub use z_transport::{
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_z_transport,
     identify_z_transport_reporting, intervention_ancestral_treatments,
     intervention_levels_conflict, intervention_mutilated_admg, validate_z_experiment_family,
-    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
+    validate_z_transport_query, verify_z_transport_derivation,
 };
 
 /// Theoretical query under the classical family of all source experiments.

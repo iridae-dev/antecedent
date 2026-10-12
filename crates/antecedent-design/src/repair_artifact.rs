@@ -65,17 +65,17 @@ use crate::study_candidate::{
 };
 
 /// Wire schema version.
-pub const REPAIR_ARTIFACT_VERSION: u32 = 1;
+pub(crate) const REPAIR_ARTIFACT_VERSION: u32 = 1;
 /// Artifact kind.
-pub const REPAIR_ARTIFACT_KIND: &str = "repair_search_receipt_v1";
+pub(crate) const REPAIR_ARTIFACT_KIND: &str = "repair_search_receipt_v1";
 /// Largest container, in bytes, a consumer reads.
-pub const MAX_REPAIR_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const MAX_REPAIR_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 /// Most outcomes a stored report may carry: every subset of at most
 /// [`REPAIR_MAX_DEPTH`] of [`REPAIR_MAX_CANDIDATES`] candidates, plus the
 /// refused candidates.
-pub const MAX_REPAIR_OUTCOMES: usize = 4096;
+pub(crate) const MAX_REPAIR_OUTCOMES: usize = 4096;
 /// Most obligations a stored report may carry.
-pub const MAX_REPAIR_OBLIGATIONS: usize = 1024;
+pub(crate) const MAX_REPAIR_OBLIGATIONS: usize = 1024;
 
 const BODY_SECTION: &str = "repair_body";
 

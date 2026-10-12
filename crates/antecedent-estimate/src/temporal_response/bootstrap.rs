@@ -8,20 +8,6 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use super::{band::HORIZON_BOOTSTRAP_STREAM, surface::FittedHorizon};
 
-/// Circular-block resample of `m` positions with block length `block`.
-///
-/// Circular-block resample, the same law as the complete-data surface bootstrap
-/// and the scalar Pulse SEs.
-pub fn circular_block_positions(
-    m: usize,
-    block: usize,
-    rng: &mut antecedent_core::CausalRng,
-) -> Vec<usize> {
-    let mut out = Vec::with_capacity(m);
-    circular_block_positions_into(m, block, rng, &mut out);
-    out
-}
-
 /// Fill `out` with a circular-block resample; reuses `out`'s allocation.
 pub fn circular_block_positions_into(
     m: usize,

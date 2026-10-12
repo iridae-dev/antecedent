@@ -28,7 +28,7 @@ pub(crate) fn full_coalition_mask(n_players: usize) -> Result<u64, AttributionEr
 /// `mask` bits select which components use the comparison (new) mechanism;
 /// `tag` distinguishes baseline-vs-comparison model pairings or path contexts.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct CoalitionKey {
+pub(crate) struct CoalitionKey {
     /// Bitmask of active (comparison) components; supports up to 64 players.
     pub mask: u64,
     /// Caller-defined semantic tag (e.g. outcome dense id, measure id).
@@ -44,7 +44,7 @@ struct CacheEntry {
 
 /// Semantic cache keyed by intervention / substitution state.
 #[derive(Clone, Debug, Default)]
-pub struct CoalitionCache {
+pub(crate) struct CoalitionCache {
     enabled: bool,
     max_bytes: Option<u64>,
     used_bytes: u64,
@@ -86,6 +86,7 @@ impl CoalitionCache {
 
     /// Disabled cache (always miss).
     #[must_use]
+    #[cfg(test)]
     pub fn disabled() -> Self {
         Self::from_policy(CachePolicy::disabled())
     }

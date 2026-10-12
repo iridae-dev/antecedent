@@ -16,7 +16,7 @@ use crate::learner::{
 
 /// Ordinary least squares via [`FaerBackend`].
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LinearLearner;
+pub(crate) struct LinearLearner;
 
 impl LinearLearner {
     /// OLS factory, or a typed refusal if `task` is not regression.
@@ -24,6 +24,7 @@ impl LinearLearner {
     /// # Errors
     ///
     /// [`LearnError::TaskMismatch`] when `task` is [`PredictionTask::BinaryProbability`].
+    #[cfg(test)]
     pub fn for_task(task: PredictionTask) -> Result<Self, LearnError> {
         match task {
             PredictionTask::Regression => Ok(Self),

@@ -352,7 +352,7 @@ fn withheld_bayesian_grid(
 }
 
 /// Joint bootstrap columns aligned to original replicate IDs.
-pub type TransportMeanReplicates = Arc<[(VariableId, Arc<[f64]>)]>;
+pub(crate) type TransportMeanReplicates = Arc<[(VariableId, Arc<[f64]>)]>;
 
 /// Recorded interval row. Failed replicates stay visible.
 #[derive(Clone, Debug, PartialEq)]
@@ -423,7 +423,7 @@ pub fn evaluate_statistical_transport(
 /// Every point retains the same successful replicate IDs; intervals are pointwise.
 /// # Errors
 /// Invalid requests, support failure, cancellation or exceeded resources.
-pub fn evaluate_statistical_transport_grid(
+pub(crate) fn evaluate_statistical_transport_grid(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
     requests: &[Assignment],

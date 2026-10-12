@@ -15,7 +15,7 @@
     )
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, RegimeId, VariableId};
@@ -122,7 +122,7 @@ pub struct RpcmciDiscoveryResult {
 }
 
 /// Default [`Rpcmci::switch_penalty`].
-pub const DEFAULT_SWITCH_PENALTY: f64 = 1.0;
+pub(crate) const DEFAULT_SWITCH_PENALTY: f64 = 1.0;
 
 /// Regime-PCMCI discovery.
 #[derive(Clone, Debug)]
@@ -136,7 +136,7 @@ pub struct Rpcmci {
     /// Cost of one regime switch in the alternating refinement, in units of a variable's
     /// variance.
     pub switch_penalty: f64,
-    /// Optional regime assignment for [`crate::algorithm::DiscoveryAlgorithm`] dispatch.
+    /// Optional regime assignment.
     pub(crate) assignment: Option<RegimeAssignment>,
 }
 
@@ -180,7 +180,7 @@ impl Rpcmci {
         self
     }
 
-    /// Store regime labels for [`crate::algorithm::DiscoveryAlgorithm::discover`].
+    /// Store regime labels.
     #[must_use]
     pub fn with_assignment(mut self, assignment: RegimeAssignment) -> Self {
         self.assignment = Some(assignment);
@@ -667,16 +667,6 @@ pub fn two_regime_half_split(series_len: usize) -> RegimeAssignment {
         .map(|t| if t < mid { RegimeId::from_raw(0) } else { RegimeId::from_raw(1) })
         .collect();
     RegimeAssignment { regimes: Arc::from(regimes) }
-}
-
-/// Count edges per regime (bench / conformance helper).
-#[must_use]
-pub fn regime_edge_counts(graphs: &RegimeGraphCollection) -> BTreeMap<u32, (usize, usize)> {
-    let mut out = BTreeMap::new();
-    for (rid, g) in graphs.graphs.iter() {
-        out.insert(rid.raw(), (g.directed_edge_count(), g.undirected_edge_count()));
-    }
-    out
 }
 
 #[cfg(test)]

@@ -564,7 +564,6 @@ surface_values = ["MixedSourceResult", "MixedSourceQuery", "PreparedMixedSource"
 surface_internal = [
   { name = "mixed_source_rule_names", why = "Frozen-rule-set introspection consumed only by the x9.rule_set.invariance test; re-exported by sid.rs so it cannot be narrowed to pub(crate) from this cell." },
   { name = "render_quantity", why = "Pure display helper (quantity to text) used by the pyo3 proof JSON and the search's own frontier text; not an execution entry point. Re-exported by sid.rs, so it stays pub but hidden." },
-  { name = "render_frontier", why = "Pure display helper for a stopped search's frontier text, used only inside antecedent-identify; re-exported by sid.rs, so it stays pub but hidden." },
   { name = "consume", why = "Default-limits convenience over MixedSourceArtifactWire::consume_with_limits (the routed consumer); no caller outside the io crate." },
   { name = "identify_mixed_source_transport_stage", why = "Native entry wrapped by the public Python function identify_mixed_source_transport (routed); the wrapper owns the documented surface." },
 ]
@@ -1012,7 +1011,6 @@ surface_internal = [
   { name = "smoothed_dose_bootstrap_groups", why = "Resampling units of the closed joint outer bootstrap, shared with the grouping invariance test; builds index lists only." },
   { name = "parse_smoothed_dose_sampling", why = "Sampling-design name parser shared by the pyo3 binding; a pure parse behind the routed prepare surface." },
   { name = "parse_smoothed_dose_target", why = "Target name parser shared by the pyo3 binding; a pure parse behind the routed prepare surface." },
-  { name = "parse_dose_density_provenance", why = "Density provenance parser shared by validation and the menu; a pure parse." },
   { name = "parse_smoothing_kernel", why = "Kernel name parser shared by the pyo3 binding and the artifact query wire; a pure parse." },
   { name = "refuse_smoothed_dose_interval", why = "Builds the cell_not_licensed refusal returned by the closed interval route (PreparedSmoothedDose.interval); constructs an error only." },
   { name = "smoothed_dose_workspace_bytes", why = "Workspace estimate shared by the producer's mandatory memory cap and the antecedent-io consumer's replay limit; a pure size computation." },
@@ -1272,9 +1270,6 @@ surface_pyo3 = ["python/src/counterfactual_id_api.rs"]
 surface_values = ["CounterfactualEvent", "CounterfactualEventQuery", "CounterfactualIdRefusal", "CounterfactualIdProblem", "CfValue", "CfSymbol", "CfTerm", "CounterfactualFunctional", "CounterfactualNodeRecord", "CounterfactualGraphRecord", "CounterfactualObstruction", "CounterfactualIdSearchRecord", "CounterfactualIdShape", "CounterfactualIdDerivation", "CounterfactualIdPoint", "CounterfactualIdArtifactError", "CounterfactualIdWorldWire", "CounterfactualIdQueryWire", "CounterfactualIdAxisWire", "CounterfactualIdLawWire", "CounterfactualIdPointWire", "CounterfactualIdArtifactWire", "CounterfactualIdOptions", "PreparedCounterfactualId", "CounterfactualIdEffect", "CounterfactualIdConsumeLimits", "NativePreparedCounterfactualId", "EffectOnTreated"]
 surface_internal = [
   { name = "evaluate_counterfactual_functional", why = "The exact evaluation of a derivation on a law, called by the routed PreparedCounterfactualId.evaluate (facade) and by the identification tests; hidden so the facade route is the public entry." },
-  { name = "dense_joint", why = "Lays a law out in a problem's variable and level order for the hidden evaluator; no decision or evaluation of its own." },
-  { name = "DenseJoint", why = "Data carrier of dense_joint (a law in problem order) with its marginal and mass helpers; hidden with it." },
-  { name = "NullExtension", why = "The extensions of a conditional on a zero-mass event (uniform, all mass on level k) that the hidden evaluator compares; an internal policy, hidden." },
   { name = "counterfactual_id_data_digest", why = "Digest helper the facade seals and consumes artifacts with (the data identity a caller compares); no execution, hidden so the consume route is the public entry." },
   { name = "counterfactual_id_identity", why = "Premises-digest helper shared by the sealer and the consumer's digest check; no execution, hidden so the consume route is the public entry." },
 ]

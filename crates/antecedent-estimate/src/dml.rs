@@ -25,7 +25,7 @@ use crate::scores::{ScoreColumn, ScoreTable};
 use crate::se::AnalyticSeKind;
 
 /// Provenance tag frozen on a [`DmlAte`] score table (followed by the two learner identities).
-pub const DML_CROSSFIT_PROVENANCE: &str = "dml.crossfit.v1";
+pub(crate) const DML_CROSSFIT_PROVENANCE: &str = "dml.crossfit.v1";
 
 /// Orthogonal score used by [`DmlAte`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

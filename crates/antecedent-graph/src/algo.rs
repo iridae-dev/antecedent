@@ -16,7 +16,7 @@ use crate::workspace::{BitSet, GraphWorkspace};
 
 /// Directed BFS reachability from `from` to `to` over `children`.
 #[must_use]
-pub fn bfs_reaches(
+pub(crate) fn bfs_reaches(
     children: &[Vec<DenseNodeId>],
     from: DenseNodeId,
     to: DenseNodeId,
@@ -193,7 +193,7 @@ pub fn components_by<I: IntoIterator<Item = usize>>(
 
 /// Kahn topological order. Returns `None` if a directed cycle exists.
 #[must_use]
-pub fn kahn_order(
+pub(crate) fn kahn_order(
     parents: &[Vec<DenseNodeId>],
     children: &[Vec<DenseNodeId>],
 ) -> Option<Vec<DenseNodeId>> {

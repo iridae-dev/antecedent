@@ -33,9 +33,9 @@ pub mod unobserved_common_cause;
 pub mod validator;
 
 pub use bayesian_checks::{
-    ExternalAlphaSensitivity, McmcDiagnosticsCheck, PosteriorPredictiveCheck, PredictiveCheckKind,
-    PredictiveCheckReport, PredictiveNoise, PriorPredictiveCheck, PriorSensitivity, SbcReport,
-    SerialDiscrepancy, SimulationBasedCalibration, with_prior_sensitivity,
+    ExternalAlphaSensitivity, PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport,
+    PredictiveNoise, PriorPredictiveCheck, PriorSensitivity, SbcReport, SerialDiscrepancy,
+    SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
@@ -58,14 +58,13 @@ pub use joint_mechanism_sensitivity::{
 };
 pub use mechanism_sensitivity::{
     DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,
-    DiscreteKernelSensitivityResult, FIXED_GRAPH_SENSITIVITY_MAX_STRATA,
-    FixedGraphConditionalMechanismSensitivityResult, FixedGraphMechanismSensitivityResult,
-    FixedGraphMechanismSensitivitySpec, FixedGraphRootMechanismSensitivityResult,
-    FixedGraphSensitivityError, SourceOutcomeKernelRow, SourceParentLawRow, TargetParentLawRow,
-    ZTransportMechanismSensitivityResult, ZTransportSensitivityError,
-    fixed_graph_conditional_mechanism_sensitivity, fixed_graph_mechanism_sensitivity,
-    fixed_graph_root_mechanism_sensitivity, fixed_graph_treatment_level_sensitivity,
-    z_transport_mechanism_sensitivity,
+    DiscreteKernelSensitivityResult, FixedGraphConditionalMechanismSensitivityResult,
+    FixedGraphMechanismSensitivityResult, FixedGraphMechanismSensitivitySpec,
+    FixedGraphRootMechanismSensitivityResult, FixedGraphSensitivityError, SourceOutcomeKernelRow,
+    SourceParentLawRow, TargetParentLawRow, ZTransportMechanismSensitivityResult,
+    ZTransportSensitivityError, fixed_graph_conditional_mechanism_sensitivity,
+    fixed_graph_mechanism_sensitivity, fixed_graph_root_mechanism_sensitivity,
+    fixed_graph_treatment_level_sensitivity, z_transport_mechanism_sensitivity,
 };
 pub use mediation::QueryRefutationPlan;
 pub use msm_sensitivity::{
@@ -89,7 +88,7 @@ pub use stability::{
 };
 pub use suite::{BayesianSuiteContext, ValidationOutcome, ValidationSuite, ValidatorId};
 pub use unobserved_common_cause::UnobservedCommonCause;
-pub use validator::{PreparedRefutation, Validator, run_validator};
+pub use validator::{PreparedRefutation, Validator};
 
 #[cfg(test)]
 mod test_support;

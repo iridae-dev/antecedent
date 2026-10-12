@@ -32,7 +32,7 @@ use crate::error::EstimationError;
 pub const STRUCTURAL_ENVELOPE_INTERPRETATION: &str =
     "range_over_identified_scenarios_not_a_confidence_interval_or_sharp_bound";
 /// How a weighted scenario range may be read.
-pub const WEIGHTED_RANGE_INTERPRETATION: &str = "declared_weight_range_with_unaccounted_mass_at_declared_domain_limits_not_a_confidence_interval";
+pub(crate) const WEIGHTED_RANGE_INTERPRETATION: &str = "declared_weight_range_with_unaccounted_mass_at_declared_domain_limits_not_a_confidence_interval";
 
 /// Range of one outcome's mean across identified scenarios.
 #[derive(Clone, Debug, PartialEq)]

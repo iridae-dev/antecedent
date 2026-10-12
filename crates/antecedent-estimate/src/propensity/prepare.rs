@@ -86,7 +86,7 @@ pub struct PreparedPropensityProblem {
 /// Retains the raw [`PropensityFit`] (coefficients, scores, GLM diagnostics) plus the
 /// clip-adjusted scores actually used for weighting/matching/distance calculations.
 #[derive(Clone, Debug)]
-pub struct PropensityModel {
+pub(crate) struct PropensityModel {
     /// Raw logistic fit (pre-clip scores in `fit.scores`).
     pub fit: PropensityFit,
     /// Clip threshold applied to `clipped_scores`, taken from the overlap policy.

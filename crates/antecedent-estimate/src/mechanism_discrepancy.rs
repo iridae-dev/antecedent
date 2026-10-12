@@ -85,7 +85,7 @@ pub const MECHANISM_DISCREPANCY_INTERCEPT: &str = "(intercept)";
 pub const MECHANISM_DISCREPANCY_MAX_PARENTS: usize = 64;
 
 /// Smallest residual degrees of freedom `n - p` of either population.
-pub const MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF: usize = 2;
+pub(crate) const MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF: usize = 2;
 
 /// Normal quantile `z_{0.975}` (the shared 95% critical value).
 pub const Z_ALPHA_TWO_SIDED_05: f64 = antecedent_stats::NORMAL_Q975;

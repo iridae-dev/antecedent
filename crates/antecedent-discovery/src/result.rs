@@ -17,7 +17,7 @@ use antecedent_graph::{
 pub type LaggedParent = (VariableId, Lag);
 
 /// Key for a directed PC separation event `(source, source_lag, target, target_lag)`.
-pub type SepsetKey = (VariableId, Lag, VariableId, Lag);
+pub(crate) type SepsetKey = (VariableId, Lag, VariableId, Lag);
 
 /// PC separating sets recorded during parent selection.
 pub type PcSepsets = std::collections::HashMap<SepsetKey, std::sync::Arc<[LaggedParent]>>;
@@ -96,10 +96,10 @@ impl EdgeEvidence {
 }
 
 /// PCMCI (lagged) graph evidence.
-pub type DagGraphEvidence = GraphEvidence<TemporalDag>;
+pub(crate) type DagGraphEvidence = GraphEvidence<TemporalDag>;
 
 /// PCMCI+ graph evidence.
-pub type CpdagGraphEvidence = GraphEvidence<TemporalCpdag>;
+pub(crate) type CpdagGraphEvidence = GraphEvidence<TemporalCpdag>;
 
 /// Link with MCI statistic / p-value.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -187,7 +187,7 @@ pub type CpdagDiscoveryResult = DiscoveryResult<TemporalCpdag, TemporalCpdagRevi
 pub type PagDiscoveryResult = DiscoveryResult<TemporalPag, TemporalPagReview>;
 
 /// Graph evidence specialized to a temporal PAG.
-pub type PagGraphEvidence = GraphEvidence<TemporalPag>;
+pub(crate) type PagGraphEvidence = GraphEvidence<TemporalPag>;
 
 /// Build the assumption records implied by a discovery algorithm.
 ///

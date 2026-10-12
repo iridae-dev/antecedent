@@ -11,7 +11,13 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 
-use crate::design::{BasisKind, DesignColumn, DesignColumnMap, DesignColumnRole, RecordedSmooth};
+#[cfg(test)]
+use crate::design::DesignColumn;
+#[cfg(test)]
+use crate::design::DesignColumnMap;
+#[cfg(test)]
+use crate::design::DesignColumnRole;
+use crate::design::{BasisKind, RecordedSmooth};
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
@@ -232,7 +238,8 @@ pub fn expand_bspline(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
-pub fn compile_additive_design(
+#[cfg(test)]
+pub(crate) fn compile_additive_design(
     x_colmajor: &[f64],
     nrows: usize,
     n_raw_cols: usize,
@@ -723,7 +730,8 @@ pub fn predict_gam(
 ///
 /// Prefer this for in-sample checks; [`predict_gam`] re-expands bases for new `x`.
 #[must_use]
-pub fn fitted_from_gam(fit: &GamFit) -> &[f64] {
+#[cfg(test)]
+pub(crate) fn fitted_from_gam(fit: &GamFit) -> &[f64] {
     &fit.fitted
 }
 

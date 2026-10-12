@@ -60,7 +60,7 @@ pub const JOINT_SENSITIVITY_MAX_OPERATIONS: usize = 100_000;
 /// Hard cap on the depth limit (bisection iterations per bracket).
 pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 /// Default memory cap of the shared budget.
-pub const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
+pub(crate) const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
 /// Hard ceiling on a declared memory cap (the shared search default).
 pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
 /// Hard cap on replicates of the (closed) endpoint bootstrap.
@@ -73,20 +73,21 @@ pub const JOINT_SENSITIVITY_MAX_TOLERANCE: f64 = 1e-2;
 /// evaluator's kernel-row tolerance).
 const JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
 /// Optimization method recorded in every receipt.
-pub const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (one-factor kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
+pub(crate) const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (one-factor kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
 /// Interpretation of the reported range.
-pub const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
+pub(crate) const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
 /// The only inference claim the range carries.
 pub const ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// The one sampling composition declared for this cell (closed route).
-pub const JOINT_SENSITIVITY_SAMPLING_METHOD: &str = "conservative_endpoint_percentile_bootstrap";
+pub(crate) const JOINT_SENSITIVITY_SAMPLING_METHOD: &str =
+    "conservative_endpoint_percentile_bootstrap";
 /// The coverage target that composition is measured against.
-pub const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage of psi(delta0) at least nominal for any fixed true deviation delta0 inside the box; exactly the percentile bootstrap at the zero box";
+pub(crate) const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage of psi(delta0) at least nominal for any fixed true deviation delta0 inside the box; exactly the percentile bootstrap at the zero box";
 /// Detail of a budget stop, before the range (a refusal) or during bracketing
 /// (the frontier's unresolved reason).
-pub const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
+pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
 /// Detail of the withheld sampling interval.
-pub const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.interval_withheld";
+pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.interval_withheld";
 
 /// A mechanism factor a caller may ask to perturb.
 ///

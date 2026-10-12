@@ -106,7 +106,7 @@ pub fn normal_ppf(p: f64) -> f64 {
 
 /// Digamma `ψ(z) = d/dz ln Γ(z)` (reflection + asymptotic series).
 #[must_use]
-pub fn digamma(mut z: f64) -> f64 {
+pub(crate) fn digamma(mut z: f64) -> f64 {
     if !(z.is_finite() && z > 0.0) {
         return f64::NAN;
     }
@@ -140,7 +140,7 @@ pub fn digamma(mut z: f64) -> f64 {
 
 /// Trigamma `ψ₁(z) = d²/dz² ln Γ(z)` (reflection + asymptotic series).
 #[must_use]
-pub fn trigamma(mut z: f64) -> f64 {
+pub(crate) fn trigamma(mut z: f64) -> f64 {
     if !(z.is_finite() && z > 0.0) {
         return f64::NAN;
     }
@@ -237,7 +237,7 @@ fn ln_beta(a: f64, b: f64) -> f64 {
 
 /// Regularized incomplete beta `I_x(a, b)`.
 #[must_use]
-pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
+pub(crate) fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     regularized_incomplete_beta_with_complement(x, 1.0 - x, a, b)
 }
 

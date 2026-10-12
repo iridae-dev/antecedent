@@ -115,7 +115,7 @@ pub const SMOOTHED_DOSE_MAX_KNOTS: usize = 8;
 /// The fold scheme recorded on every estimate.
 pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_seeded_source_and_target";
 /// The one supported target of a request.
-pub const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
+pub(crate) const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
 /// Most design rows per quadrature chunk; cancellation is polled once per chunk.
 const CHUNK_DESIGN_ROWS: usize = 1 << 14;
 /// Most design bytes per quadrature chunk; wide designs get fewer rows per chunk.
@@ -165,9 +165,9 @@ pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
 };
 
 /// Point-only status: no interval was requested.
-pub const DOSE_POINT_ONLY: &str = "point_only";
+pub(crate) const DOSE_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub const DOSE_WITHHELD: &str = "withheld";
+pub(crate) const DOSE_WITHHELD: &str = "withheld";
 
 /// The deterministic dose-by-covariate basis the outcome learner is fed:
 /// `[1, t, .., t^degree, (t - k)_+ for each knot, x_1..x_d, b(t) x_j if interactions]`.
@@ -557,8 +557,7 @@ pub fn parse_smoothed_dose_target(name: &str) -> Result<(), EstimationError> {
 ///
 /// # Errors
 /// `route_not_supported` (`dose_response.estimated_dose_density`).
-#[doc(hidden)]
-pub fn parse_dose_density_provenance(name: &str) -> Result<(), EstimationError> {
+pub(crate) fn parse_dose_density_provenance(name: &str) -> Result<(), EstimationError> {
     if name == "known" {
         return Ok(());
     }

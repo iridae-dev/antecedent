@@ -130,13 +130,13 @@ use crate::vector_treatment::DesignSummary;
 pub const LATENT_CLASS_MAX_CLASSES: usize = 4;
 
 /// Most restarts accepted.
-pub const LATENT_CLASS_MAX_RESTARTS: usize = 64;
+pub(crate) const LATENT_CLASS_MAX_RESTARTS: usize = 64;
 
 /// Most covariates accepted.
-pub const LATENT_CLASS_MAX_COVARIATES: usize = 64;
+pub(crate) const LATENT_CLASS_MAX_COVARIATES: usize = 64;
 
 /// Most bootstrap replicates accepted.
-pub const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
+pub(crate) const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
 
 /// Inference claim of the route.
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";

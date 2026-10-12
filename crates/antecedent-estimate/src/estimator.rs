@@ -3,10 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
-use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 
-use crate::adjustment::{EffectEstimate, EstimationWorkspace, PreparedEstimationProblem};
+use crate::adjustment::{EstimationWorkspace, PreparedEstimationProblem};
 use crate::error::EstimationError;
 
 mod sealed {
@@ -54,10 +53,4 @@ pub trait Estimator<D, Q = AverageEffectQuery>: sealed::Sealed {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<Self::Fit, EstimationError>;
-}
-
-/// Tabular ATE estimators that produce [`EffectEstimate`].
-pub trait TabularAteEstimator:
-    Estimator<TabularData, AverageEffectQuery, Fit = EffectEstimate>
-{
 }

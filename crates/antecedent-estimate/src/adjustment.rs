@@ -1205,8 +1205,6 @@ impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
     }
 }
 
-impl crate::estimator::TabularAteEstimator for LinearAdjustmentAte {}
-
 /// Lower one arm of the checked back-door target to its observational g-formula.
 fn observational_adjustment_arm(
     arena: &mut CausalExprArena,

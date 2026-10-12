@@ -74,16 +74,16 @@ pub const LEARNED_CONTINUOUS_BOUNDS: (usize, u32, u32) = (
 /// The fold scheme recorded on every estimate.
 pub const LEARNED_CONTINUOUS_FOLD_SCHEME: &str = "stratified_seeded_source_arm_and_target";
 /// The one supported target of a request.
-pub const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
+pub(crate) const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 
 /// Point-only status: no interval was requested.
-pub const CONTINUOUS_POINT_ONLY: &str = "point_only";
+pub(crate) const CONTINUOUS_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub const CONTINUOUS_WITHHELD: &str = "withheld";
+pub(crate) const CONTINUOUS_WITHHELD: &str = "withheld";
 /// Reason for a point-only estimate.
-pub const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
+pub(crate) const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
 /// Available design-specific analytic influence interval.
-pub const CONTINUOUS_AVAILABLE: &str = "available";
+pub(crate) const CONTINUOUS_AVAILABLE: &str = "available";
 
 /// Overlap thresholds, learner specs, folds and bootstrap request of one estimate.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

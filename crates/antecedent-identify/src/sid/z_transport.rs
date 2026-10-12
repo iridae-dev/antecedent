@@ -46,11 +46,11 @@ pub struct ZTransportQuery {
 }
 
 /// Explicit observed-variable bound for the single-source z-transport contract.
-pub const Z_TRANSPORT_MAX_OBSERVED: usize = 12;
+pub(crate) const Z_TRANSPORT_MAX_OBSERVED: usize = 12;
 /// Explicit bound for controllable variables.
-pub const Z_TRANSPORT_MAX_CONTROLLABLE: usize = 4;
+pub(crate) const Z_TRANSPORT_MAX_CONTROLLABLE: usize = 4;
 /// Largest source-experiment family enumerated for a negative certificate.
-pub const Z_TRANSPORT_MAX_FAMILY_REGIMES: usize = 256;
+pub(crate) const Z_TRANSPORT_MAX_FAMILY_REGIMES: usize = 256;
 
 /// A missing or unsupported part of the declared full-law experiment family.
 #[derive(Clone, Debug, PartialEq)]
@@ -1549,20 +1549,6 @@ impl ZTransportObstruction {
         }
         Ok(checked)
     }
-}
-
-/// Independently replay a structural negative z-transport certificate.
-///
-/// # Errors
-/// The query differs, or `TRz` does not reach the recorded line-11 state.
-pub fn verify_z_transport_obstruction(
-    diagram: &SelectionDiagram,
-    query: &ZTransportQuery,
-    obstruction: &ZTransportObstruction,
-    limits: super::SidLimits,
-    ctx: &antecedent_core::ExecutionContext,
-) -> Result<(), IdentificationError> {
-    verify_z_obstruction_metered(diagram, query, obstruction, super::SidMeter::Limits(limits), ctx)
 }
 
 /// [`verify_z_transport_obstruction`] with its replay charged to `meter`.

@@ -16,7 +16,7 @@ pub fn standard_normal(rng: &mut CausalRng) -> f64 {
 /// Prefer [`fill_standard_normal`] when filling a buffer — it uses both
 /// components and halves RNG consumption vs repeated [`standard_normal`].
 #[must_use]
-pub fn standard_normal_pair(rng: &mut CausalRng) -> (f64, f64) {
+pub(crate) fn standard_normal_pair(rng: &mut CausalRng) -> (f64, f64) {
     let u1 = rng.next_f64();
     let u2 = rng.next_f64();
     box_muller(u1, u2)
@@ -33,7 +33,7 @@ const UNIFORM_RESOLUTION: f64 = 1.0 / 9_007_199_254_740_992.0;
 /// truncated at `|z| <= sqrt(2 * 53 * ln 2) ~ 8.57`, the point the generator's own
 /// resolution cannot reach anyway.
 #[must_use]
-pub fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
+pub(crate) fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
     let r = (-2.0 * u1.max(UNIFORM_RESOLUTION).ln()).sqrt();
     let theta = std::f64::consts::TAU * u2;
     (r * theta.cos(), r * theta.sin())
@@ -42,7 +42,7 @@ pub fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
 /// One standard exponential draw `-ln U`, with `U` floored at `f64::MIN_POSITIVE`
 /// so an exact-zero uniform yields a large finite value instead of `+∞`.
 #[must_use]
-pub fn exp1(rng: &mut CausalRng) -> f64 {
+pub(crate) fn exp1(rng: &mut CausalRng) -> f64 {
     -rng.next_f64().max(f64::MIN_POSITIVE).ln()
 }
 

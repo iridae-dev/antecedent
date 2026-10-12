@@ -803,7 +803,7 @@ pub fn contrast_named(table: &ScoreTable, spec: &str) -> Result<LinearContrast, 
 }
 
 /// Evaluate a named contrast against a supplied (possibly weighted) summary.
-pub fn contrast_from_summary(
+pub(crate) fn contrast_from_summary(
     table: &ScoreTable,
     summary: &ScoreSummary,
     spec: &str,

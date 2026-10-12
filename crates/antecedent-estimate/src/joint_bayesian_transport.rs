@@ -80,7 +80,7 @@ pub const JOINT_TRANSPORT_MAX_DRAWS: usize = 100_000;
 /// Most model parameters (invariant plus every varying block) one fit may declare.
 pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
 /// Route name of the closed public interval route.
-pub const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
+pub(crate) const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
 /// Sampler recorded on exact conjugate fits.
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
 
@@ -1092,7 +1092,7 @@ fn check_unit_ownership(sources: &[SourceData], target: &TargetData) -> Result<(
     clippy::result_large_err,
     reason = "the public refusal type is deliberately rich; no caller or test depends on boxing it"
 )]
-pub fn check_prior_data_overlap(
+pub(crate) fn check_prior_data_overlap(
     priors: &JointPriors,
     sources: &[SourceData],
 ) -> Result<(), JointTransportRefusal> {

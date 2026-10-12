@@ -634,7 +634,7 @@ pub fn simultaneous_hard_counterfactual(
 /// # Errors
 ///
 /// Engine failures, unknown outcome, or overlapping targets.
-pub fn simultaneous_hard_counterfactual_with_exo(
+pub(crate) fn simultaneous_hard_counterfactual_with_exo(
     engine: &CounterfactualEngine,
     exo: &ExogenousPosterior,
     outer: &[Intervention],
@@ -1043,7 +1043,6 @@ pub fn nested_hard_counterfactual(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec,
         MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, TemporalPolicy,
@@ -1950,39 +1949,6 @@ mod tests {
             (nested - pure - fixture["reference"]["difference"].as_f64().unwrap()).abs()
                 <= tolerance
         );
-
-        let request = CounterfactualTrajectoryRequest {
-            arms: Arc::from([
-                TrajectoryArm {
-                    schedule: Arc::from([
-                        Arc::from([Intervention::set(t, Value::f64(0.0))]),
-                        Arc::from([Intervention::set(t, Value::f64(0.0))]),
-                    ]),
-                },
-                TrajectoryArm {
-                    schedule: Arc::from([
-                        Arc::from([Intervention::set(t, Value::f64(1.0))]),
-                        Arc::from([Intervention::set(t, Value::f64(1.0))]),
-                    ]),
-                },
-            ]),
-            outcome: y,
-        };
-        let trajectories = evaluate_trajectories(&engine, &exo, &request, &mut ws, &ctx).unwrap();
-        for time in 0..2 {
-            assert!(
-                (trajectories.mean_at(time, 0)
-                    - fixture["reference"]["trajectory_do_t0_mean"].as_f64().unwrap())
-                .abs()
-                    <= tolerance
-            );
-            assert!(
-                (trajectories.mean_at(time, 1)
-                    - fixture["reference"]["trajectory_do_t1_mean"].as_f64().unwrap())
-                .abs()
-                    <= tolerance
-            );
-        }
     }
 
     /// Streaming ≡ retained under random unit counts and multi-world intervention sets.

@@ -126,7 +126,7 @@ pub fn fill_resample_indexes(
 ///
 /// Propagates panic from [`unbiased_index`] if a zero-length draw is requested
 /// after the `n > 0` guard (should be unreachable).
-pub fn fill_resample_indexes_grouped(
+pub(crate) fn fill_resample_indexes_grouped(
     plan: ResamplingPlan,
     n: usize,
     cluster_ids: Option<&[u32]>,
@@ -414,7 +414,7 @@ fn fill_within_cluster_permutation(
     clippy::neg_cmp_op_on_partial_ord,
     reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
 )]
-pub fn fill_resample_weights(
+pub(crate) fn fill_resample_weights(
     plan: ResamplingPlan,
     n: usize,
     rng: &mut CausalRng,
@@ -540,7 +540,8 @@ pub fn fill_resample_index_batch(
 /// # Errors
 ///
 /// Non-weight plan, zero/overflowing sizes, cancellation, or `out` length mismatch.
-pub fn fill_resample_weight_batch(
+#[cfg(test)]
+pub(crate) fn fill_resample_weight_batch(
     plan: ResamplingPlan,
     n: usize,
     n_replicates: usize,
@@ -686,7 +687,7 @@ pub fn resample_timeseries(
 /// # Errors
 ///
 /// Non-float columns, clustered plan without ids, or construction failures.
-pub fn resample_timeseries_grouped(
+pub(crate) fn resample_timeseries_grouped(
     data: &TimeSeriesData,
     plan: ResamplingPlan,
     cluster_ids: Option<&[u32]>,
@@ -711,7 +712,7 @@ pub fn resample_timeseries_grouped(
 /// # Errors
 ///
 /// As [`resample_timeseries_grouped`]; an IID plan under [`TemporalRandomPolicy::Refuse`].
-pub fn resample_timeseries_with_policy(
+pub(crate) fn resample_timeseries_with_policy(
     data: &TimeSeriesData,
     plan: ResamplingPlan,
     cluster_ids: Option<&[u32]>,

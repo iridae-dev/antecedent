@@ -31,11 +31,12 @@ impl TimeRange {
 
 /// Whether random row splits are allowed on temporal / panel / event data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
-pub enum TemporalRandomPolicy {
+pub(crate) enum TemporalRandomPolicy {
     /// Refuse random IID resampling on temporal-like data (default, §5.6).
     #[default]
     Refuse,
     /// Explicit opt-in for random resampling on temporal / panel / event data.
+    #[cfg(test)]
     Allow,
 }
 
@@ -44,8 +45,11 @@ pub enum TemporalRandomPolicy {
 /// # Errors
 ///
 /// When policy is [`TemporalRandomPolicy::Refuse`].
-pub fn ensure_random_allowed_on_temporal(policy: TemporalRandomPolicy) -> Result<(), DataError> {
+pub(crate) fn ensure_random_allowed_on_temporal(
+    policy: TemporalRandomPolicy,
+) -> Result<(), DataError> {
     match policy {
+        #[cfg(test)]
         TemporalRandomPolicy::Allow => Ok(()),
         TemporalRandomPolicy::Refuse => Err(DataError::InvalidArgument {
             message:

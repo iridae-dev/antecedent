@@ -80,7 +80,7 @@ use antecedent_graph::Admg;
 /// Version of the ordered-response rule, bound into every plan.
 pub const CHAIN_RECOVERY_RULE_VERSION: &str = "ordered_response_recovery_chain.v1";
 /// Every witness mechanism probability is `k / CHAIN_WITNESS_SCALE`.
-pub const CHAIN_WITNESS_SCALE: u32 = 60;
+pub(crate) const CHAIN_WITNESS_SCALE: u32 = 60;
 /// Search limits of one decision.
 pub const CHAIN_RECOVERY_LIMITS: SearchLimits = SearchLimits { operations: 2_000, depth: 8 };
 

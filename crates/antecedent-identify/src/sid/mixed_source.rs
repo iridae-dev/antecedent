@@ -99,7 +99,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt::Write as _;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -2489,17 +2488,6 @@ pub fn bind_mixed_source_catalog(
         catalog: catalog.clone(),
         cited: Arc::from(derivation.cited_regimes()),
     })
-}
-
-/// Write a quantity list for a stopped search, one rendered quantity per line.
-#[must_use]
-#[doc(hidden)]
-pub fn render_frontier(frontier: &[MixedQuantity], names: &[String]) -> String {
-    let mut out = String::new();
-    for quantity in frontier {
-        let _ = writeln!(out, "{}", render_quantity(quantity, names));
-    }
-    out
 }
 
 #[cfg(test)]
