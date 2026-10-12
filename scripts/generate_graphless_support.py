@@ -11,7 +11,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "parity/support_graphless.toml"
-RUST = ROOT / "crates/antecedent-io/src/support_graphless_data.rs"
+RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"
 DOC = ROOT / "docs/graphless-support-matrix.md"
 KEYS = ("family", "design", "method", "inference_claim")
 INTEGER_LIMITS = (

@@ -94,9 +94,9 @@ markers below and compares it. Prose outside those markers is not read.
 | sensitivity.mechanism_discrepancy | max_bytes | 16777216 | `crates/antecedent-io/src/mechanism_discrepancy_artifact.rs` |
 | sensitivity.marginal_structural_model | max_strata | 4096 | `crates/antecedent-validate/src/msm_sensitivity.rs` |
 | sensitivity.marginal_structural_model | max_grid_points | 1024 | `crates/antecedent-validate/src/msm_sensitivity.rs` |
-| recalculation.frozen_scores_artifact | max_bytes | 134217728 | `crates/antecedent-io/src/frozen_scores_artifact.rs` |
-| recalculation.frozen_scores_artifact | max_rows | 2097152 | `crates/antecedent-io/src/frozen_scores_artifact.rs` |
-| recalculation.frozen_scores_artifact | max_columns | 64 | `crates/antecedent-io/src/frozen_scores_artifact.rs` |
+| recalculation.frozen_scores_artifact | max_bytes | 134217728 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
+| recalculation.frozen_scores_artifact | max_rows | 2097152 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
+| recalculation.frozen_scores_artifact | max_columns | 64 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.operation_inventory | max_external_branches | 8 | `crates/antecedent-core/src/recalc.rs` |
 | recalculation.adjusted | max_rows | 100000 | `python/src/recalc_bounds.rs` |
 | recalculation.adjusted | max_columns | 256 | `python/src/recalc_bounds.rs` |

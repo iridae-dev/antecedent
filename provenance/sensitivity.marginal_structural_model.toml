@@ -39,6 +39,6 @@ test_sources = [
   "hand-derived two-stratum binary-outcome example (identified 0.3; bounds [0.04375, 0.4875] at Lambda 2; tipping (2 + sqrt(193))/7) and a three-atom fractional-split example",
   "crates/antecedent-validate/tests/msm_sensitivity.rs",
   "crates/antecedent-io/tests/msm_sensitivity_adapter.rs",
-  "crates/antecedent-design/tests/msm_sensitivity_decision.rs",
+  "crates/antecedent/tests/msm_sensitivity_decision.rs",
   "python/tests/test_msm_sensitivity.py",
 ]

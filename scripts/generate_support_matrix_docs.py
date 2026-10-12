@@ -718,7 +718,7 @@ def attesting_record_ids() -> list[str]:
 
 
 def render_coverage_records() -> str:
-    """`crates/antecedent-io/src/coverage_records_data.rs` from the TOML.
+    """`crates/antecedent-io-core/src/coverage_records_data.rs` from the TOML.
 
     Lives in `antecedent-io` (outside `scripts/calibration_surface.list`), so
     stamping `calibration_sha` never moves the statistical surface it attests.

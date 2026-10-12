@@ -10,7 +10,7 @@ It reads `target/calibration-records/*.log` (written by
 with the SHA of the commit the logs were measured at, rewrites the
 `calibration` / `calibration_reason` pair for each already-bound licensed support
 cell using only its existing record IDs, refreshes estimator rows, and regenerates
-`crates/antecedent-io/src/coverage_records_data.rs`.
+`crates/antecedent-io-core/src/coverage_records_data.rs`.
 
 Every record is measured at each point of its sample-size grid
 (`ANTECEDENT_CALIBRATION_GRID_POINT`, `SampleGrid` in

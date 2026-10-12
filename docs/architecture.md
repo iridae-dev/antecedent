@@ -50,19 +50,25 @@ antecedent-learn         prediction contract: DesignView, LearnerFactory, Fitted
 antecedent-prob          posteriors, priors, graph samples, inference backends
 antecedent-discovery     PC/FCI/GES/LiNGAM/NOTEARS, PCMCI family, Bayesian DAG engines
 antecedent-identify      adjustment, IV, front-door, mediation, ID/IDC, envelopes
-antecedent-io-core       container, codecs, wires, digests, estimator-free artifacts (below estimate)
+antecedent-io-core       container, codecs, wires, digests, the analysis-result consumer, estimator-free artifacts (below estimate)
 antecedent-estimate      frequentist + Bayesian estimators for identified functionals
 antecedent-model         SCMs, mechanisms, intervention overlays, sampling
 antecedent-counterfactual  abduction–action–prediction
 antecedent-attribution   anomaly / distribution / mechanism / path / Shapley
 antecedent-validate      refuters, sensitivity, discovery stability, Bayesian checks
-antecedent-design        EIG / VoI / experiment ranking (computation only)
+antecedent-design        EIG / VoI / experiment ranking (computation only; depends on io-core, never on estimate or validate)
 antecedent-state         incremental caches, invalidation, sufficient statistics
 antecedent-io            estimator-bound artifacts; re-exports antecedent-io-core
 antecedent               facade: Study planner + re-exports
 ```
 
 Dependency edges point downward (no cycles). Facade (`antecedent`) sits on top.
+`antecedent-io-core` holds everything that replays without an estimator,
+including the analysis-result consumer, so `antecedent-design` reads artifacts
+through it and reaches neither `antecedent-estimate` nor `antecedent-validate`;
+`antecedent-io` adds the artifacts whose replay runs an estimator or validator.
+A crate that owns an error type owns its conversion into a lower crate's error
+(`From<EstimationError> for IoError` lives in `antecedent-estimate`).
 `antecedent-estimate` depends on `antecedent-learn` for nuisance
 prediction and never names Forust, SmartCore, or other ML
 providers (ADR 0023).

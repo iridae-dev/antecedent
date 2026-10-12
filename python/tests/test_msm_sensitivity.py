@@ -1,7 +1,7 @@
 """Marginal sensitivity model bounds, tipping point and the sensitivity artifact.
 
 Hand-derived oracles mirror ``crates/antecedent-validate/tests/msm_sensitivity.rs`` and
-``crates/antecedent-design/tests/msm_sensitivity_decision.rs``.
+``crates/antecedent/tests/msm_sensitivity_decision.rs``.
 
 Two strata, binary outcome, exact inputs:
 

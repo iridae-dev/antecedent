@@ -602,28 +602,28 @@ scope_fixture = { path = "crates/antecedent-validate/tests/msm_sensitivity.rs", 
 [[bound]]
 record = "recalculation.frozen_scores_artifact"
 key = "max_bytes"
-implementation = [{ path = "crates/antecedent-io/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
-documentation = [{ path = "crates/antecedent-io/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io/src/frozen_scores_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORES_ARTIFACT_BYTES\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/frozen_scores_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORES_ARTIFACT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
+documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
+guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORES_ARTIFACT_BYTES\\ \\{" }
+refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORES_ARTIFACT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
 
 [[bound]]
 record = "recalculation.frozen_scores_artifact"
 key = "max_rows"
-implementation = [{ path = "crates/antecedent-io/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_ROWS" }]
-documentation = [{ path = "crates/antecedent-io/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_ROWS" }]
-guard = { path = "crates/antecedent-io/src/frozen_scores_artifact.rs", pattern = "if\\ n\\ >\\ MAX_FROZEN_SCORE_ROWS\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/frozen_scores_artifact.rs", pattern = "if\\ n\\ >\\ MAX_FROZEN_SCORE_ROWS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_ROWS" }]
+documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_ROWS" }]
+guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ n\\ >\\ MAX_FROZEN_SCORE_ROWS\\ \\{" }
+refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ n\\ >\\ MAX_FROZEN_SCORE_ROWS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
 
 [[bound]]
 record = "recalculation.frozen_scores_artifact"
 key = "max_columns"
-implementation = [{ path = "crates/antecedent-io/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_COLUMNS" }]
-documentation = [{ path = "crates/antecedent-io/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_COLUMNS" }]
-guard = { path = "crates/antecedent-io/src/frozen_scores_artifact.rs", pattern = "if\\ table\\.columns\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORE_COLUMNS\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/frozen_scores_artifact.rs", pattern = "if\\ table\\.columns\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORE_COLUMNS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_COLUMNS" }]
+documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_COLUMNS" }]
+guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ table\\.columns\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORE_COLUMNS\\ \\{" }
+refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ table\\.columns\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORE_COLUMNS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
 
 [[bound]]

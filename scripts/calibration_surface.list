@@ -264,7 +264,7 @@ allow mechanism crates/antecedent/src/lib.rs gcm
 # Model-bundle byte encode / decode API: runs only when a caller saves or loads
 # a fitted model, never inside a Study execution.
 allow mechanism crates/antecedent/src/io.rs ModelBundle ModelBundleEncode decode_model_bundle encode_model_bundle
-allow mechanism crates/antecedent-io/src/lib.rs ModelBundle ModelBundleEncode ModelBundleHeaderWire ParentBasisWire decode_model_bundle encode_model_bundle mechanism_wire model_bundle result_digest
+allow mechanism crates/antecedent-io/src/lib.rs ModelBundle ModelBundleEncode ModelBundleHeaderWire ParentBasisWire decode_model_bundle encode_model_bundle mechanism_wire model_bundle
 # ArtifactKind::ModelBundle: an enum variant the facet shares by name.
 
 # ---- design: experiment / measurement design ranking -----------------------
@@ -279,12 +279,12 @@ allow design crates/antecedent/src/lib.rs ActionRobustness AdaptedClaims Adapted
 # ---- registry mirrors: generated from parity/*.toml, never measured ---------
 # Tables of record rows and reason-code strings. They decide how a result is
 # labelled and matched, not any number a coverage test counts.
-registry_mirror crates/antecedent-io/src/coverage_records_data.rs
+registry_mirror crates/antecedent-io-core/src/coverage_records_data.rs
 registry_mirror crates/antecedent-core/src/reason_codes_data.rs
 allow registry_mirror crates/antecedent-core/src/reason_code.rs REASON_CODES RUNTIME_REFUSAL_CODES
-allow registry_mirror crates/antecedent-io/src/calibration.rs ATTESTING_RECORD_IDS CoverageGridPoint CoverageRecord FUNCTIONAL_IDENTITY_ALIASES FunctionalIdentityAlias REASON_CODES RECORDS coverage_records_data
-allow registry_mirror crates/antecedent-io/src/contract_section.rs CoverageRecord coverage_records_data
-allow registry_mirror crates/antecedent-io/src/lib.rs coverage_records_data
+allow registry_mirror crates/antecedent-io-core/src/calibration.rs ATTESTING_RECORD_IDS CoverageGridPoint CoverageRecord FUNCTIONAL_IDENTITY_ALIASES FunctionalIdentityAlias REASON_CODES RECORDS coverage_records_data
+allow registry_mirror crates/antecedent-io-core/src/contract_section.rs CoverageRecord coverage_records_data
+allow registry_mirror crates/antecedent-io-core/src/lib.rs coverage_records_data
 allow registry_mirror crates/antecedent/src/lib.rs INTERVAL_METHOD_REASONS RECORDS coverage_records_data
 
 # ---- suites: a suite's own code only reaches the records it emits ----------
@@ -535,11 +535,11 @@ allow mechanism crates/antecedent-design/src/z_transport_planner.rs canonical
 # this family rechecks identification and cannot execute a numerical mechanism.
 allow mechanism crates/antecedent-design/src/z_transport_repair.rs invalid
 allow mechanism crates/antecedent-io/src/admg_conditional_transport_artifact.rs VersionPeek check_bounds evaluate
-allow mechanism crates/antecedent-io/src/analysis_result_artifact.rs ARTIFACT_KIND invalid
+allow mechanism crates/antecedent-io-core/src/analysis_result_artifact.rs ARTIFACT_KIND invalid
 allow mechanism crates/antecedent-io/src/categorical_treatment_artifact.rs ARTIFACT_KIND Canon META_SECTION VersionPeek decode_parts encode_parts identity_diff identity_of
 allow mechanism crates/antecedent-io-core/src/causal_artifact.rs ARTIFACT_KIND
 allow mechanism crates/antecedent-io-core/src/compact_export.rs Canon evaluate invalid
-allow mechanism crates/antecedent-io/src/contract_section.rs result_digest
+allow mechanism crates/antecedent-io-core/src/contract_section.rs result_digest
 allow mechanism crates/antecedent-io-core/src/counterfactual_id_artifact.rs VersionPeek check_bounds
 allow mechanism crates/antecedent-io/src/cpdag_completion_artifact.rs VersionPeek evaluate
 allow mechanism crates/antecedent-io-core/src/cross_world_artifact.rs VersionPeek check_bounds
@@ -549,16 +549,14 @@ allow mechanism crates/antecedent-io/src/effect_constancy_artifact.rs ARTIFACT_K
 allow mechanism crates/antecedent-io-core/src/expr_wire.rs DerivationWire invalid
 allow mechanism crates/antecedent-io-core/src/external_binding_wire.rs RefusalWire
 allow mechanism crates/antecedent-io-core/src/external_claim_artifact.rs ARTIFACT_KIND META_SECTION
-allow mechanism crates/antecedent-io/src/external_estimate.rs result_digest
-allow mechanism crates/antecedent-io/src/frozen_scores_artifact.rs ARTIFACT_KIND META_SECTION VersionPeek check_bounds decode_parts encode_parts
+allow mechanism crates/antecedent-io-core/src/external_estimate.rs result_digest
+allow mechanism crates/antecedent-io-core/src/frozen_scores_artifact.rs ARTIFACT_KIND META_SECTION check_bounds decode_parts encode_parts
 allow mechanism crates/antecedent-io-core/src/identity.rs canonical
 allow mechanism crates/antecedent-io/src/joint_bayesian_transport_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/latent_class_artifact.rs ARTIFACT_KIND META_SECTION VersionPeek canonical decode_parts encode_parts identity_diff
 allow mechanism crates/antecedent-io/src/learned_continuous_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/learned_joint_transport_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/mechanism_discrepancy_artifact.rs ARTIFACT_KIND Canon META_SECTION VersionPeek decode_parts encode_parts identity_diff identity_of
-allow mechanism crates/antecedent-io/src/mixed_source_artifact.rs VersionPeek canonical
-allow mechanism crates/antecedent-io/src/mz_transport_artifact.rs VersionPeek canonical
 allow mechanism crates/antecedent-io/src/nested_markov_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/nonlinear_mediation_artifact.rs ARTIFACT_KIND META_SECTION VersionPeek decode_parts encode_parts identity_diff result_wire
 allow mechanism crates/antecedent-io-core/src/posterior.rs invalid
@@ -567,13 +565,14 @@ allow mechanism crates/antecedent-io/src/recovery_artifact.rs VersionPeek canoni
 allow mechanism crates/antecedent-io/src/recovery_chain_artifact.rs VersionPeek invalid
 allow mechanism crates/antecedent-io/src/sampled_recovery_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/scenario_covariance_artifact.rs VersionPeek invalid
-allow mechanism crates/antecedent-io/src/sensitivity_artifact.rs ARTIFACT_KIND META_SECTION VersionPeek decode_parts encode_parts evaluate identity_diff identity_of
+allow mechanism crates/antecedent-io-core/src/sensitivity_artifact.rs ARTIFACT_KIND META_SECTION decode_parts encode_parts evaluate identity_diff identity_of
 allow mechanism crates/antecedent-io/src/smoothed_dose_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/temporal_initial_state_artifact.rs VersionPeek invalid
 allow mechanism crates/antecedent-io/src/temporal_interval_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/temporal_refresh_artifact.rs VersionPeek
 allow mechanism crates/antecedent-io/src/temporal_transport_artifact.rs VersionPeek evaluate
 allow mechanism crates/antecedent-io-core/src/transport_catalog_wire.rs invalid
+allow mechanism crates/antecedent-io-core/src/transport_query_wire.rs canonical
 allow mechanism crates/antecedent-io/src/transport_scenario_artifact.rs VersionPeek evaluate
 allow mechanism crates/antecedent-io/src/vector_treatment_artifact.rs ARTIFACT_KIND Canon META_SECTION VersionPeek decode_parts encode_parts identity_diff identity_of
 allow mechanism crates/antecedent-io/src/z_transport_artifact.rs VersionPeek evaluate
@@ -608,7 +607,7 @@ allow mechanism crates/antecedent-estimate/src/transport.rs evaluate
 allow mechanism crates/antecedent-estimate/src/transport_scenarios.rs evaluate
 allow mechanism crates/antecedent-estimate/src/vector_treatment.rs invalid
 allow mechanism crates/antecedent-io-core/src/analysis_wire.rs invalid
-allow mechanism crates/antecedent-io-core/src/lib.rs MechanismSlotWire MechanismStoreWire ModelKindWire mechanism_wire mechanisms_from_wire mechanisms_to_wire transported_counterfactual_artifact
+allow mechanism crates/antecedent-io-core/src/lib.rs MechanismSlotWire MechanismStoreWire ModelKindWire mechanism_wire mechanisms_from_wire mechanisms_to_wire result_digest transported_counterfactual_artifact
 allow mechanism crates/antecedent-validate/src/bayesian_checks.rs evaluate
 allow mechanism crates/antecedent-validate/src/joint_mechanism_sensitivity.rs canonical evaluate
 allow mechanism crates/antecedent-validate/src/mechanism_sensitivity.rs evaluate invalid
