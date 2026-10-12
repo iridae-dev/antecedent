@@ -430,13 +430,12 @@ fn source(name: &'static str, controllable: &[usize], targets: &[usize]) -> Sour
 // Differential test: the literal one-exchange reference versus the search.
 // ---------------------------------------------------------------------------
 
-struct Lcg(antecedent_core::CausalRng);
+struct Lcg(u64);
 impl Lcg {
-    fn new(seed: u64) -> Self {
-        Self(antecedent_core::CausalRng::from_seed(seed))
-    }
     fn below(&mut self, bound: u64) -> u64 {
-        (self.0.next_u64() >> 33) % bound
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        (self.0 >> 33) % bound
     }
     fn chance(&mut self, percent: u64) -> bool {
         self.below(100) < percent
@@ -454,7 +453,7 @@ struct Case {
 /// arbitrary bidirected edges, one outcome (the last node), one or two treatments,
 /// sparse controllable sets and selection targets.
 fn generate(seed: u64, count: usize) -> Vec<Case> {
-    let mut rng = Lcg::new(seed);
+    let mut rng = Lcg(seed);
     let mut out = Vec::new();
     while out.len() < count {
         let n = 4 + usize::try_from(rng.below(3)).unwrap();
