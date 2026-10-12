@@ -74,6 +74,11 @@ python3 scripts/generate_calibration_plan.py --check
 
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
+
+# Every published crate's public surface matches parity/public_api/*.txt, so an
+# API change is a reviewed snapshot diff, not a side effect.
+echo "== public API snapshots =="
+bash scripts/gate_public_api.sh
 fi
 
 if [[ "$section" == all || "$section" == promotion ]]; then

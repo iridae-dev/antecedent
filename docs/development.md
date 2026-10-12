@@ -62,10 +62,26 @@ bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
 bash scripts/gate_checked_execution.sh   # every licensed estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
+bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
+
+## Public API snapshots
+
+`scripts/gate_public_api.sh` lists every published crate's public items (paths,
+signatures, fields, variants, trait impls, `#[doc(hidden)]` items included) from
+rustdoc JSON on the pinned toolchain (`RUSTC_BOOTSTRAP=1`, default features) and
+compares the listing with the committed `parity/public_api/<crate>.txt`. Any
+difference fails the gate with a line diff. An intended API change is made
+deliberate by regenerating the snapshots (`bash scripts/gate_public_api.sh
+--write`) and committing the diff, which a reviewer then reads as the API
+change. The gate runs in the `inventory` section of `gate_release.sh`. Keep
+cross-crate plumbing that is not a supported API out of the snapshot by making
+it `pub(crate)`, or, when another workspace crate or a fixture needs it, behind
+a `test-util`-style feature (see `antecedent-identify`) rather than
+`#[doc(hidden)] pub`.
 
 ## Coverage records
 

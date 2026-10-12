@@ -22,6 +22,15 @@ statements in [DCO](DCO). A CLA is not required.
 
 CI rejects commits that lack a valid `Signed-off-by` line.
 
+## Public API changes
+
+The public surface of every published crate is snapshotted in
+`parity/public_api/<crate>.txt` and checked by `scripts/gate_public_api.sh`. A
+change that adds, removes or re-types a public item fails the gate until you
+regenerate the snapshots with `bash scripts/gate_public_api.sh --write` and
+commit the diff, so API changes are always visible in review. Prefer
+`pub(crate)` for items only the crate itself uses.
+
 ## Clean implementation
 
 This project is independently implemented from published papers, specifications,
