@@ -12,7 +12,10 @@
 
 use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
 use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
-use antecedent_stats::{StatsError, chol_solve, cholesky_spd, form_xtx, invert_square};
+use antecedent_stats::{
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, StatsError, chol_solve, cholesky_spd,
+    form_xtx, invert_square,
+};
 
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
@@ -526,6 +529,40 @@ where
         p.report(1.0, "bootstrap");
     }
     Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, false))
+}
+
+/// Coefficients and residuals of one `FaerBackend` least-squares solve.
+pub(crate) struct LsFit {
+    /// Coefficient vector, length `ncols`.
+    pub coefficients: Vec<f64>,
+    /// Residuals, length `nrows`.
+    pub residuals: Vec<f64>,
+    /// Numerical rank.
+    pub rank: usize,
+}
+
+/// Solve `min ||X β − y||` on a column-major design.
+///
+/// The coefficients, residuals, and rank are the backend fit's fields.
+///
+/// # Errors
+///
+/// A stats-layer shape or numerical failure.
+pub(crate) fn ls_fit(
+    backend: FaerBackend,
+    design_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<LsFit, EstimationError> {
+    let fit =
+        backend.least_squares(design_colmajor, nrows, ncols, y, workspace).map_err(stats_err)?;
+    Ok(LsFit {
+        coefficients: fit.coefficients,
+        residuals: fit.residuals,
+        rank: fit.rank,
+    })
 }
 
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.

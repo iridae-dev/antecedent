@@ -21,7 +21,7 @@ use antecedent_core::{
 };
 use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -692,6 +692,41 @@ impl ContrastFit {
 /// three-column mediation regression.
 type OlsColumns = (f64, f64, Vec<f64>, f64, Vec<f64>);
 
+/// Column-major `[1 | lead… | extra…]` and its column count.
+///
+/// `lead` columns are written in order after the intercept. `extra` is appended with
+/// `extend_from_slice`, the same layout the two- and three-column mechanism regressions used.
+fn mediation_design(lead: &[&[f64]], extra: &[&[f64]], n: usize) -> (Vec<f64>, usize) {
+    let lead_cols = 1 + lead.len();
+    let mut design = vec![0.0; n * lead_cols];
+    for i in 0..n {
+        design[i] = 1.0;
+    }
+    for (c, column) in lead.iter().enumerate() {
+        for i in 0..n {
+            design[(c + 1) * n + i] = column[i];
+        }
+    }
+    for column in extra {
+        design.extend_from_slice(column);
+    }
+    (design, lead_cols + extra.len())
+}
+
+/// `(coefficients, design, σ², residuals)` of one intercept-plus-columns mechanism regression.
+fn ols_mechanism(
+    backend: FaerBackend,
+    lead: &[&[f64]],
+    extra: &[&[f64]],
+    y: &[f64],
+) -> Result<(Vec<f64>, Vec<f64>, f64, Vec<f64>), EstimationError> {
+    let n = y.len();
+    let (design, ncols) = mediation_design(lead, extra, n);
+    let (coef, residuals) = ols_fit_with_residuals(backend, &design, ncols, y)?;
+    let sigma2 = ols_sigma2(&design, n, ncols, y, &coef);
+    Ok((coef, design, sigma2, residuals))
+}
+
 /// Returns `(slope_x, intercept, design [1,x], σ², residuals)`.
 fn ols_two_col(
     backend: FaerBackend,
@@ -699,17 +734,7 @@ fn ols_two_col(
     y: &[f64],
     extra: &[&[f64]],
 ) -> Result<OlsColumns, EstimationError> {
-    let n = x.len();
-    let mut design = vec![0.0; n * 2];
-    for i in 0..n {
-        design[i] = 1.0;
-        design[n + i] = x[i];
-    }
-    for column in extra {
-        design.extend_from_slice(column);
-    }
-    let (coef, residuals) = ols_fit_with_residuals(backend, &design, 2 + extra.len(), y)?;
-    let sigma2 = ols_sigma2(&design, n, 2 + extra.len(), y, &coef);
+    let (coef, design, sigma2, residuals) = ols_mechanism(backend, &[x], extra, y)?;
     Ok((coef[1], coef[0], design, sigma2, residuals))
 }
 
@@ -721,18 +746,7 @@ fn ols_three_col(
     y: &[f64],
     extra: &[&[f64]],
 ) -> Result<OlsColumns, EstimationError> {
-    let n = t.len();
-    let mut design = vec![0.0; n * 3];
-    for i in 0..n {
-        design[i] = 1.0;
-        design[n + i] = t[i];
-        design[2 * n + i] = m[i];
-    }
-    for column in extra {
-        design.extend_from_slice(column);
-    }
-    let (coef, residuals) = ols_fit_with_residuals(backend, &design, 3 + extra.len(), y)?;
-    let sigma2 = ols_sigma2(&design, n, 3 + extra.len(), y, &coef);
+    let (coef, design, sigma2, residuals) = ols_mechanism(backend, &[t, m], extra, y)?;
     Ok((coef[1], coef[2], design, sigma2, residuals))
 }
 
@@ -754,9 +768,7 @@ fn ols_fit_with_residuals(
     y: &[f64],
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let mut ws = LeastSquaresWorkspace::default();
-    let fit = backend
-        .least_squares(design_colmajor, y.len(), ncols, y, &mut ws)
-        .map_err(crate::util::stats_err)?;
+    let fit = crate::util::ls_fit(backend, design_colmajor, y.len(), ncols, y, &mut ws)?;
     Ok((fit.coefficients, fit.residuals))
 }
 
@@ -1068,5 +1080,41 @@ mod tests {
         let delta: Vec<f64> =
             psi_a.iter().zip(&psi_b).map(|(a, b)| fit.b * a + fit.a * b).collect();
         assert!(close(&mediated, &delta));
+    }
+
+    #[test]
+    fn shared_mechanism_ols_matches_the_hand_built_design_bit_for_bit() {
+        // y = 1 + 2x, exactly. The shared solver must return those coefficients and the
+        // design the two-column loop used to build by hand.
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let (slope, intercept, design, sigma2, residuals) =
+            ols_two_col(FaerBackend, &x, &y, &[]).unwrap();
+        assert_eq!(intercept.to_bits(), 1.0_f64.to_bits());
+        assert_eq!(slope.to_bits(), 2.0_f64.to_bits());
+        assert_eq!(sigma2.to_bits(), 0.0_f64.to_bits());
+        assert!(residuals.iter().all(|r| r.to_bits() == 0.0_f64.to_bits()));
+        let mut hand = vec![0.0; 8];
+        for i in 0..4 {
+            hand[i] = 1.0;
+            hand[4 + i] = x[i];
+        }
+        assert!(design.iter().zip(&hand).all(|(a, b)| a.to_bits() == b.to_bits()));
+
+        let t = [0.0, 1.0, 0.0, 1.0];
+        let m = [1.0, 2.0, 3.0, 4.0];
+        let outcome = [1.0, 3.0, 3.0, 5.0];
+        let (treatment, mediator, design, _, _) =
+            ols_three_col(FaerBackend, &t, &m, &outcome, &[]).unwrap();
+        let mut hand = vec![0.0; 12];
+        for i in 0..4 {
+            hand[i] = 1.0;
+            hand[4 + i] = t[i];
+            hand[8 + i] = m[i];
+        }
+        let (coef, _) = ols_fit_with_residuals(FaerBackend, &hand, 3, &outcome).unwrap();
+        assert_eq!(treatment.to_bits(), coef[1].to_bits());
+        assert_eq!(mediator.to_bits(), coef[2].to_bits());
+        assert!(design.iter().zip(&hand).all(|(a, b)| a.to_bits() == b.to_bits()));
     }
 }

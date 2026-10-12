@@ -20,7 +20,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_prob::{PosteriorQuantityKind, PriorSet};
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 use std::sync::Arc;
 
 /// Fit parent regressions and propagate the active–control contrast along all
@@ -81,7 +81,7 @@ pub fn estimate_static_mediation(
                 matrix.extend(rows.iter().map(|&r| column[r]));
             }
             let y: Vec<_> = rows.iter().map(|&r| columns[i][r]).collect();
-            let fitted = FaerBackend.least_squares(&matrix, rows.len(), p, &y, ls_ws)?;
+            let fitted = crate::util::ls_fit(FaerBackend, &matrix, rows.len(), p, &y, ls_ws)?;
             if fitted.rank < p {
                 return Err(EstimationError::unsupported("singular static mediation regression"));
             }
