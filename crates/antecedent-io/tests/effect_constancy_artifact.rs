@@ -45,8 +45,11 @@ fn request(parts: Vec<PartitionWire>) -> EffectConstancyRequestWire {
     }
 }
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-9, what);
 }
 
 fn dependent_request() -> EffectConstancyRequestWire {

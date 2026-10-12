@@ -659,14 +659,7 @@ fn values_of(
 }
 
 fn reals_of(bytes: &[u8]) -> Vec<f64> {
-    bytes
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect()
+    crate::artifact_codec::f64s_from_le_bytes(bytes)
 }
 
 /// Encode a metadata section and a values section as a checksummed container.

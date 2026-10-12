@@ -20,10 +20,13 @@ use antecedent_io::transported_counterfactual_artifact::{
     TransportedCounterfactualRequestWire, decode_parts, encode_parts,
 };
 
+#[path = "common/mod.rs"]
+mod common;
+
 const TOL: f64 = 1e-12;
 
 fn close(a: f64, b: f64) {
-    assert!((a - b).abs() < TOL, "{a} != {b}");
+    common::close_below(a, b, TOL);
 }
 
 fn aff(constant: f64, slopes: &[(&str, f64)]) -> AffineWire {

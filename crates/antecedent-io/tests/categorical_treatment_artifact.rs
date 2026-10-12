@@ -19,8 +19,11 @@ use antecedent_io::categorical_treatment_artifact::{
 use antecedent_io::vector_treatment_artifact::AdjustmentColumnRequest;
 use antecedent_kernels::erfc;
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-9, what);
 }
 
 fn normal_p(z: f64) -> f64 {

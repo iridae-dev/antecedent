@@ -26,8 +26,11 @@ const W: [f64; 6] = [0.0, 1.0, 1.0, 0.0, 1.0, 0.0];
 const Y: [f64; 6] = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0];
 const S: f64 = 3.25 / 36.0;
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-9, what);
 }
 
 fn treatment(name: &str, values: &[f64], adjustment: &[&str]) -> TreatmentRequest {

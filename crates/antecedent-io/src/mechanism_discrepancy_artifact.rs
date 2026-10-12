@@ -558,13 +558,14 @@ fn compute(
 
 fn population_of(meta: &PopulationMeta, values: &[f64]) -> PopulationWire {
     let p = meta.measurement.parents.len() + 1;
+    let mut rest = values;
     PopulationWire {
         label: meta.label.clone(),
         measurement: meta.measurement.clone(),
         n: meta.n,
-        xtx: values[..p * p].to_vec(),
-        xty: values[p * p..p * p + p].to_vec(),
-        yty: values[p * p + p],
+        xtx: crate::width::split_reals(&mut rest, p * p).to_vec(),
+        xty: crate::width::split_reals(&mut rest, p).to_vec(),
+        yty: crate::width::split_reals(&mut rest, 1)[0],
     }
 }
 
@@ -581,17 +582,11 @@ fn request_of(
     if numbers.len() != (ws + wt) * 8 {
         return Err(MechanismDiscrepancyArtifactError::Malformed("numbers section length".into()));
     }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
+    let values = crate::width::f64s_from_le_bytes(numbers);
+    let mut rest = values.as_slice();
     Ok(MechanismDiscrepancyRequestWire {
-        source: population_of(&meta.source, &values[..ws]),
-        target: population_of(&meta.target, &values[ws..]),
+        source: population_of(&meta.source, crate::width::split_reals(&mut rest, ws)),
+        target: population_of(&meta.target, crate::width::split_reals(&mut rest, wt)),
         compare_intercept: meta.compare_intercept,
         alpha: meta.alpha,
         power: meta.power,

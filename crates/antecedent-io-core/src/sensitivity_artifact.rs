@@ -1185,12 +1185,9 @@ fn parts_from(meta: &SensitivityMeta, numbers: &[u8]) -> Result<SensitivityParts
     if numbers.len() != count * 8 {
         return Err(invalid_surface("numbers section length differs from the declared shape"));
     }
-    let mut values = numbers.chunks_exact(8).map(|chunk| {
-        let mut word = [0_u8; 8];
-        word.copy_from_slice(chunk);
-        f64::from_le_bytes(word)
-    });
-    let mut take = |len: usize| values.by_ref().take(len).collect::<Vec<f64>>();
+    let decoded = crate::artifact_codec::f64s_from_le_bytes(numbers);
+    let mut rest = decoded.as_slice();
+    let mut take = |len: usize| crate::artifact_codec::split_reals(&mut rest, len).to_vec();
     let grid = take(n);
     let quantities = meta
         .quantities

@@ -405,13 +405,7 @@ fn decode_f64_le(sec: &SectionBytes) -> Result<Vec<f64>, IoError> {
     if sec.data.len() % 8 != 0 {
         return Err(IoError::Convert("draws not multiple of 8".into()));
     }
-    let mut out = Vec::with_capacity(sec.data.len() / 8);
-    for chunk in sec.data.chunks_exact(8) {
-        let mut buf = [0u8; 8];
-        buf.copy_from_slice(chunk);
-        out.push(f64::from_le_bytes(buf));
-    }
-    Ok(out)
+    Ok(crate::width::f64s_from_le_bytes(&sec.data))
 }
 
 #[cfg(test)]

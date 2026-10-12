@@ -578,14 +578,7 @@ impl ExternalClaimArtifact {
         if raw.len() != metadata.identity.quantities.len() * 8 {
             return Err(IoError::Convert("external claim value payload length mismatch".into()));
         }
-        let values = raw
-            .chunks_exact(8)
-            .map(|chunk| {
-                let mut word = [0u8; 8];
-                word.copy_from_slice(chunk);
-                f64::from_le_bytes(word)
-            })
-            .collect();
+        let values = crate::artifact_codec::f64s_from_le_bytes(&raw);
         Self::new(metadata, values)
     }
 }

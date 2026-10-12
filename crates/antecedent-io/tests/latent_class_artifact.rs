@@ -75,8 +75,11 @@ fn request(seed: u64, bootstrap: u32) -> LatentClassRequestWire {
     LatentClassRequestWire { config: config(seed, bootstrap), data: build().data }
 }
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, tolerance: f64, what: &str) {
-    assert!((actual - expected).abs() <= tolerance, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, tolerance, what);
 }
 
 fn seal(seed: u64, bootstrap: u32) -> (LatentClassArtifact, Vec<u8>) {

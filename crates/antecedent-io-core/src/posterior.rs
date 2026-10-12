@@ -286,12 +286,7 @@ pub fn decode_posterior_artifact(
     if draw_sec.data.len() % 8 != 0 {
         return Err(IoError::Convert("posterior.draws not multiple of 8".into()));
     }
-    let mut draws = Vec::with_capacity(draw_sec.data.len() / 8);
-    for chunk in draw_sec.data.chunks_exact(8) {
-        let mut buf = [0u8; 8];
-        buf.copy_from_slice(chunk);
-        draws.push(f64::from_le_bytes(buf));
-    }
+    let draws = crate::artifact_codec::f64s_from_le_bytes(&draw_sec.data);
     validate_posterior_meta(&meta, Some(&draws))?;
     Ok((meta, draws))
 }

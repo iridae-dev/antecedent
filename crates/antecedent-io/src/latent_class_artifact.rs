@@ -379,14 +379,7 @@ fn request_of(
     if expected != Some(numbers.len()) {
         return Err(LatentClassArtifactError::Malformed("data section length".into()));
     }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
+    let values = crate::width::f64s_from_le_bytes(numbers);
     let column = |j: usize| values[j * n..(j + 1) * n].to_vec();
     Ok(LatentClassRequestWire {
         config: meta.config.clone(),

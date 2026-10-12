@@ -94,8 +94,11 @@ fn truth() -> (f64, f64, f64) {
     (nde, nie, nde + nie)
 }
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-8, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-8, what);
 }
 
 fn seal(replicates: u32) -> (NonlinearMediationArtifact, Vec<u8>) {

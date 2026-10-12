@@ -565,14 +565,10 @@ fn request_of(
     if numbers.len() != count * 8 {
         return Err(EffectConstancyArtifactError::Malformed("numbers section length".into()));
     }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
+    let values = crate::width::f64s_from_le_bytes(numbers);
+    let mut rest = values.as_slice();
+    let effects = crate::width::split_reals(&mut rest, k);
+    let errors = crate::width::split_reals(&mut rest, k);
     let partitions = meta
         .partitions
         .iter()
@@ -582,16 +578,13 @@ fn request_of(
             coordinate: p.coordinate.clone(),
             support: p.support.clone(),
             estimand: p.estimand.clone(),
-            effect: values[i],
-            standard_error: values[k + i],
+            effect: effects[i],
+            standard_error: errors[i],
         })
         .collect();
     Ok(EffectConstancyRequestWire {
         partitions,
-        dependence: DependenceWire {
-            kind: meta.dependence.clone(),
-            covariance: values[2 * k..].to_vec(),
-        },
+        dependence: DependenceWire { kind: meta.dependence.clone(), covariance: rest.to_vec() },
         family: meta.family.clone(),
         alpha: meta.alpha,
     })

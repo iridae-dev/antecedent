@@ -648,6 +648,44 @@ fn cbor_value(bytes: &[u8]) -> Result<ciborium::Value, IoError> {
     }
 }
 
+/// Decode little-endian IEEE-754 `f64` words from a section payload.
+///
+/// Each value is copied out of its 8-byte word. A trailing partial word is
+/// not a value; callers that require an exact multiple of eight bytes check
+/// the length themselves.
+#[must_use]
+pub(crate) fn f64s_from_le_bytes(bytes: &[u8]) -> Vec<f64> {
+    let mut values = Vec::with_capacity(bytes.len() / 8);
+    for chunk in bytes.chunks_exact(8) {
+        let mut word = [0_u8; 8];
+        word.copy_from_slice(chunk);
+        values.push(f64::from_le_bytes(word));
+    }
+    values
+}
+
+/// Encode `f64` values as little-endian IEEE-754 words.
+///
+/// Bit patterns are preserved, including the sign of zero and NaN payloads.
+#[must_use]
+pub(crate) fn f64s_to_le_bytes(values: &[f64]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(values.len().saturating_mul(8));
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
+/// Next `len` values of a decoded real section.
+///
+/// The caller has already checked that the section is long enough. A short
+/// slice panics, the same as indexing it.
+pub(crate) fn split_reals<'a>(values: &mut &'a [f64], len: usize) -> &'a [f64] {
+    let (head, tail) = values.split_at(len);
+    *values = tail;
+    head
+}
+
 fn version_of<V: VersionWord>(value: &ciborium::Value) -> Result<V, IoError> {
     #[derive(Deserialize)]
     struct Peek<V> {
@@ -686,4 +724,24 @@ macro_rules! map_artifact_check {
             other => $ty::Malformed(other.to_string()),
         }
     }};
+}
+
+#[cfg(test)]
+mod le_real_tests {
+    use super::{f64s_from_le_bytes, f64s_to_le_bytes};
+
+    #[test]
+    fn le_real_bytes_round_trip_keeps_bits() {
+        let values =
+            [0.0, -0.0, 1.0, -1.5, f64::MIN_POSITIVE, f64::from_bits(0x7ff8_0000_0000_0001)];
+        let bytes = f64s_to_le_bytes(&values);
+        let direct: Vec<u8> = values.iter().flat_map(|value| value.to_le_bytes()).collect();
+        assert_eq!(bytes, direct);
+        let decoded = f64s_from_le_bytes(&bytes);
+        let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&decoded), bits(&values));
+        let mut trailing = bytes;
+        trailing.push(0x7f);
+        assert_eq!(f64s_from_le_bytes(&trailing).len(), values.len());
+    }
 }

@@ -124,7 +124,7 @@ fn u32_bytes(values: &[u32]) -> Vec<u8> {
 }
 
 fn f64_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
+    crate::artifact_codec::f64s_to_le_bytes(values)
 }
 
 fn opt_f64_bytes(value: Option<f64>) -> Vec<u8> {

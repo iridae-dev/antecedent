@@ -574,14 +574,15 @@ impl Replay {
                             .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("rows"))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
+                let mut rest = numbers;
                 Ok(Self::Summary(CategoricalSummary {
                     counts,
                     design: DesignSummary {
                         n_rows: decl.n_rows,
                         first_treatment: 1 + decl.adjustment.len(),
-                        gram: numbers[..p * p].to_vec(),
-                        xty: numbers[p * p..p * p + p].to_vec(),
-                        rss: numbers[p * p + p],
+                        gram: crate::width::split_reals(&mut rest, p * p).to_vec(),
+                        xty: crate::width::split_reals(&mut rest, p).to_vec(),
+                        rss: crate::width::split_reals(&mut rest, 1)[0],
                     },
                 }))
             }

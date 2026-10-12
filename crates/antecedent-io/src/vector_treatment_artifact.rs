@@ -424,12 +424,13 @@ impl Replay {
                 if numbers.len() != p * p + p + 1 {
                     return Err(malformed("numbers section length"));
                 }
+                let mut rest = numbers;
                 Ok(Self::Summary(DesignSummary {
                     n_rows: decl.n_rows,
                     first_treatment: 1 + decl.adjustment.len(),
-                    gram: numbers[..p * p].to_vec(),
-                    xty: numbers[p * p..p * p + p].to_vec(),
-                    rss: numbers[p * p + p],
+                    gram: crate::width::split_reals(&mut rest, p * p).to_vec(),
+                    xty: crate::width::split_reals(&mut rest, p).to_vec(),
+                    rss: crate::width::split_reals(&mut rest, 1)[0],
                 }))
             }
             REPLAY_ROWS => {
@@ -583,18 +584,11 @@ fn identity_diff(
 }
 
 pub(crate) fn reals_to_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    crate::width::f64s_to_le_bytes(values)
 }
 
 pub(crate) fn bytes_to_reals(bytes: &[u8]) -> Vec<f64> {
-    bytes
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect()
+    crate::width::f64s_from_le_bytes(bytes)
 }
 
 struct Computed {

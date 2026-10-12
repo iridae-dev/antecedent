@@ -481,14 +481,7 @@ impl DistributionArtifact {
         if draw_bytes.len() != metadata.shape[0] * metadata.shape[1] * 8 {
             return Err(IoError::Convert("distribution draw payload length mismatch".into()));
         }
-        let draws = draw_bytes
-            .chunks_exact(8)
-            .map(|chunk| {
-                let mut word = [0_u8; 8];
-                word.copy_from_slice(chunk);
-                f64::from_le_bytes(word)
-            })
-            .collect();
+        let draws = crate::artifact_codec::f64s_from_le_bytes(&draw_bytes);
         Self::new(metadata, draws)
     }
 

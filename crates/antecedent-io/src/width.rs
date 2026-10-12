@@ -18,3 +18,35 @@ pub(crate) const fn lossless_u64(value: usize) -> u64 {
     }
     value as u64
 }
+
+/// Little-endian IEEE-754 words. A trailing partial word is omitted.
+///
+/// Same copy as `antecedent_io_core`'s section decoder. It stays crate-private
+/// so the public artifact API does not grow a second real codec.
+#[must_use]
+pub(crate) fn f64s_from_le_bytes(bytes: &[u8]) -> Vec<f64> {
+    let mut values = Vec::with_capacity(bytes.len() / 8);
+    for chunk in bytes.chunks_exact(8) {
+        let mut word = [0_u8; 8];
+        word.copy_from_slice(chunk);
+        values.push(f64::from_le_bytes(word));
+    }
+    values
+}
+
+/// Little-endian IEEE-754 words, including the sign of zero and NaN payloads.
+#[must_use]
+pub(crate) fn f64s_to_le_bytes(values: &[f64]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(values.len().saturating_mul(8));
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
+/// Next `len` values. A short slice panics, the same as indexing it.
+pub(crate) fn split_reals<'a>(values: &mut &'a [f64], len: usize) -> &'a [f64] {
+    let (head, tail) = values.split_at(len);
+    *values = tail;
+    head
+}
