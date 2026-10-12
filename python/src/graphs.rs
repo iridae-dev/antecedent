@@ -826,15 +826,6 @@ pub struct TemporalDag {
 }
 
 impl TemporalDag {
-    #[allow(dead_code)] // reserved for later OO analyze / discovery wiring
-    pub(crate) fn var_index(&self, name: &str) -> PyResult<VariableId> {
-        self.names
-            .iter()
-            .position(|n| n == name)
-            .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
-            .ok_or_else(|| unknown_node(name))
-    }
-
     fn node_label(&self, id: DenseNodeId) -> PyResult<(String, u32)> {
         match self.dag.nodes().get(id.as_usize()) {
             Some(NodeRef::Lagged { variable, lag }) => {

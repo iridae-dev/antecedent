@@ -1685,7 +1685,6 @@ impl super::Study {
                 assumptions: case.result.required_assumptions.clone(),
                 weight,
                 adjustment,
-                horizon,
                 observation_query,
                 kind: ClassObservationKind::Curve,
             });
@@ -2125,7 +2124,6 @@ impl super::Study {
                 assumptions: case.result.required_assumptions.clone(),
                 weight,
                 adjustment,
-                horizon,
                 observation_query,
                 kind: ClassObservationKind::Sequence {
                     dag: Box::new(dag.clone()),
@@ -4042,8 +4040,6 @@ struct ClassObservationAtom {
     assumptions: antecedent_core::AssumptionSet,
     weight: f64,
     adjustment: Vec<VariableId>,
-    #[allow(dead_code)]
-    horizon: u32,
     observation_query: ResponseQuery,
     kind: ClassObservationKind,
 }

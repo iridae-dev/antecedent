@@ -8,8 +8,7 @@
 //!
 //! Trust is never asserted from Python. A [`DecisionInput`] built from artifact
 //! metadata alone is `Unverified`: the only evidence Python can state is `none`
-//! or an external attestation. A native execution record is minted by the
-//! library producer ([`PyTrustEvidence::native`]). A bound external claim that
+//! or an external attestation. A bound external claim that
 //! already retains an exact-request verification receipt is carried into
 //! [`PyTrustEvidence::verified`] by [`composition_input_from_external_claim`];
 //! a caller still cannot mint that receipt.
@@ -147,13 +146,6 @@ pub(crate) struct PyTrustEvidence {
 }
 
 impl PyTrustEvidence {
-    /// Evidence that Antecedent itself executed the route behind an input; for
-    /// library producers only. No Python constructor exists.
-    #[allow(dead_code, reason = "minted by native producers as they adopt the boundary")]
-    pub(crate) fn native(record: NativeExecutionRecord) -> Self {
-        Self { inner: DesignTrust::NativeExecution(record) }
-    }
-
     /// Evidence from an exact-request verification receipt the library issued.
     /// No Python constructor exists; [`composition_input_from_external_claim`] carries
     /// the receipt a bound claim already retained.
