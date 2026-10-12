@@ -161,10 +161,17 @@ for name in ["Frequentist", "Bayesian"]:
 
 for name in stage_queries:
     if name == "TransportQuery":
-        src_path = root / "python/antecedent/transport/_impl.py"
+        src_path = root / "python/antecedent/transport/_impl"
     else:
         src_path = root / "python/antecedent/interference.py"
-    src = src_path.read_text(encoding="utf-8") if src_path.is_file() else ""
+    if src_path.is_dir():
+        src = "\n".join(
+            path.read_text(encoding="utf-8") for path in sorted(src_path.rglob("*.py"))
+        )
+    elif src_path.is_file():
+        src = src_path.read_text(encoding="utf-8")
+    else:
+        src = ""
     if f"class {name}" not in src:
         fail.append(f"{name}: no class {name} in {src_path.relative_to(root)}")
 
