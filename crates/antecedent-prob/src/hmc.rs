@@ -16,7 +16,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext};
 
 use crate::streams::chain_rng;
-use antecedent_kernels::standard_normal;
+use antecedent_kernels::{Welford, standard_normal};
 
 use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
@@ -236,9 +236,9 @@ struct DiagonalMetric {
     inv_mass: Vec<f64>,
     windows: Vec<(usize, usize)>,
     cursor: usize,
-    count: f64,
-    mean: Vec<f64>,
-    m2: Vec<f64>,
+    /// One unit-weight accumulator per coordinate. Every `observe` pushes each
+    /// coordinate, so the masses stay equal to the old shared count.
+    acc: Vec<Welford>,
 }
 
 impl DiagonalMetric {
@@ -248,9 +248,7 @@ impl DiagonalMetric {
             inv_mass: vec![1.0 / hmc.mass; dim],
             windows,
             cursor: 0,
-            count: 0.0,
-            mean: vec![0.0; dim],
-            m2: vec![0.0; dim],
+            acc: vec![Welford::new(); dim],
         }
     }
 
@@ -260,11 +258,8 @@ impl DiagonalMetric {
         if t < start || t >= end {
             return;
         }
-        self.count += 1.0;
-        for (i, &v) in q.iter().enumerate() {
-            let delta = v - self.mean[i];
-            self.mean[i] += delta / self.count;
-            self.m2[i] += delta * (v - self.mean[i]);
+        for (acc, &v) in self.acc.iter_mut().zip(q) {
+            acc.push(v);
         }
     }
 
@@ -277,13 +272,13 @@ impl DiagonalMetric {
             return false;
         }
         self.cursor += 1;
-        let n = self.count;
+        let n = self.acc.first().map_or(0.0, Welford::mass);
         let installed = n >= 3.0 && {
             let weight = n / (n + 5.0);
             let proposal: Vec<f64> = self
-                .m2
+                .acc
                 .iter()
-                .map(|m2| weight * (m2 / (n - 1.0)) + (1.0 - weight) * 1e-3)
+                .map(|acc| weight * (acc.m2() / (n - 1.0)) + (1.0 - weight) * 1e-3)
                 .collect();
             let usable = proposal.iter().all(|v| v.is_finite() && *v > 0.0);
             if usable {
@@ -291,9 +286,9 @@ impl DiagonalMetric {
             }
             usable
         };
-        self.count = 0.0;
-        self.mean.fill(0.0);
-        self.m2.fill(0.0);
+        for acc in &mut self.acc {
+            *acc = Welford::new();
+        }
         installed
     }
 }
@@ -850,13 +845,14 @@ fn pack_and_gate_hmc(
         ess_bulk_min: Some(ess_bulk),
         ess_tail_min: Some(ess_tail),
         rhat_max: Some(rhat_max),
-        n_divergences: Some(stats.n_postwarmup_divergences),
+        n_divergences: None,
         mean_accept_prob: Some(mean_accept),
         n_warmup_divergences: Some(stats.n_warmup_divergences),
-        n_postwarmup_divergences: Some(stats.n_postwarmup_divergences),
+        n_postwarmup_divergences: None,
         max_abs_delta_h: Some(max_dh),
         all_chains_moved: Some(moved),
     };
+    diagnostics.record_postwarmup_divergences(stats.n_postwarmup_divergences);
     diagnostics.converged = diagnostics.mcmc_publication_ok();
 
     if !diagnostics.allows_posterior() {

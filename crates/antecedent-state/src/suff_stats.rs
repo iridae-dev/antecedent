@@ -210,10 +210,6 @@ impl StreamingCovariance {
     /// # Errors
     ///
     /// Dimension mismatch.
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-    )]
     pub fn append(&mut self, x: &[f64]) -> Result<(), StateError> {
         if x.len() != self.dim {
             return Err(StateError::Shape(format!("cov dim {} != {}", x.len(), self.dim)));
@@ -230,22 +226,10 @@ impl StreamingCovariance {
             self.n = next_n;
             return Ok(());
         }
-        // Welford's rank-one scatter update uses the old mean on both axes.
-        // Updating means afterward eliminates two scratch allocations per row
-        // and makes symmetry exact rather than relying on rounded delta2 values.
-        let correction = self.n as f64 / next_n as f64;
-        for i in 0..self.dim {
-            let delta_i = x[i] - self.mean[i];
-            for j in i..self.dim {
-                let value =
-                    self.m2[i * self.dim + j] + delta_i * (x[j] - self.mean[j]) * correction;
-                self.m2[i * self.dim + j] = value;
-                self.m2[j * self.dim + i] = value;
-            }
-        }
-        for (mean, value) in self.mean.iter_mut().zip(x) {
-            *mean += (value - *mean) / next_n as f64;
-        }
+        // Same rank-one update this type has always applied, now shared with the
+        // kernel crate. It is not `Welford::push`: the two evaluation orders can
+        // differ in the last bit of a diagonal entry. Public fields stay the state.
+        antecedent_kernels::update_scatter(&mut self.mean, &mut self.m2, self.n, x);
         self.n = next_n;
         Ok(())
     }
