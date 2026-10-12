@@ -304,16 +304,17 @@ pub(crate) use route_input::{RouteInput, StaticMediationSource};
 mod dbn_mediation_frequentist;
 mod mediation_streams;
 use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
+mod checked_static_response;
 mod dispatch;
 mod identified_set_diagnostics;
 mod pag_path;
 mod panel_path;
 mod response_path;
-pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
-pub(crate) use response_path::{
+pub(crate) use checked_static_response::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
     CheckedStaticDagResponseOperationPremises,
 };
+pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
 mod checked_bayesian_specialist;
 mod checked_bayesian_temporal_class_effect;
@@ -389,13 +390,13 @@ pub use checked_graph_posterior_response::CheckedGraphPosteriorResponseInfo;
 pub use checked_interference::CheckedInterferenceInfo;
 pub use checked_static_class_response::CheckedStaticClassResponseInfo;
 pub use checked_static_mediation::CheckedStaticMediationInfo;
+pub use checked_static_response::{CheckedDerivativeResponseInfo, CheckedStaticDagResponseInfo};
 pub use checked_temporal_class_effect::CheckedTemporalClassEffectInfo;
 pub use checked_temporal_class_mediation::CheckedTemporalClassMediationInfo;
 pub use checked_temporal_effect::CheckedTemporalDagEffectInfo;
 pub use checked_temporal_mediation::CheckedTemporalMediationInfo;
 pub use checked_transport_trial::CheckedTransportTrialInfo;
 pub(crate) use checked_transport_trial::CheckedTransportTrialOperation;
-pub use response_path::{CheckedDerivativeResponseInfo, CheckedStaticDagResponseInfo};
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
 };
