@@ -2279,7 +2279,6 @@ def prepare_cells_batch(
     within_tier: str | None = None,
     family_contrast: str | None = "cell_minus_control",
 ) -> PreparedBatch: ...
-
 def identify_transport(
     graph: Admg,
     selections: list[str],
@@ -3209,7 +3208,6 @@ class TemporalPag:
         edges: list[tuple[str, int, str, int, str, str]],
     ) -> TemporalPag: ...
     def node_count(self) -> int: ...
-
 
 class CausalState:
     def __init__(self, cache_bytes: int = 1_048_576) -> None: ...

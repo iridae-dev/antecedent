@@ -397,7 +397,9 @@ def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
     del builder
     plan = prepared.plan()
     assert plan["compiled_plans"] == 2 and plan["requests"] == [{"x": 0.0}, {"x": 1.0}]
-    assert plan["cited_regimes"] == ["s1", "s2"] and plan["rule_set"] == "mixed_source_proof_rules.v1"
+    assert (
+        plan["cited_regimes"] == ["s1", "s2"] and plan["rule_set"] == "mixed_source_proof_rules.v1"
+    )
     result = json.loads(prepared.estimate())
     assert [risk(r) for r in result["requests"]] == pytest.approx(
         [truth(CHAIN, 0), truth(CHAIN, 1)], abs=1e-12

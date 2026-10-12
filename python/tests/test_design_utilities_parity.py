@@ -21,9 +21,7 @@ from antecedent.transport import advanced as transport
 
 from _repo_text import read_text
 
-EXPECTED = json.loads(
-    read_text(Path(__file__).parent / "fixtures" / "design_utilities.json")
-)
+EXPECTED = json.loads(read_text(Path(__file__).parent / "fixtures" / "design_utilities.json"))
 
 
 def transport_inputs(n):
