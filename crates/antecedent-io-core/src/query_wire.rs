@@ -724,7 +724,7 @@ pub enum CausalQueryWire {
         /// Comparison.
         comparison: PopulationSelectorWire,
         /// Components.
-        components: String,
+        components: AttributionComponentsWire,
         /// Allocation.
         allocation: AllocationMethodWire,
         /// Cap.
@@ -750,7 +750,7 @@ pub enum CausalQueryWire {
         /// Rows.
         unit_rows: Option<Vec<u64>>,
         /// Components.
-        components: String,
+        components: AttributionComponentsWire,
         /// Allocation.
         allocation: AllocationMethodWire,
         /// Cap.
@@ -765,7 +765,7 @@ pub enum CausalQueryWire {
         /// Mediators.
         mediators: Vec<u32>,
         /// Contrast.
-        contrast: String,
+        contrast: MediationContrastWire,
         /// Control.
         control: InterventionWire,
         /// Active.
@@ -1477,6 +1477,103 @@ pub struct InterferenceQueryWire {
     pub probability_draws: u32,
 }
 
+/// Shapley mode tag, stored as the historical snake_case label.
+///
+/// The sample count stays on [`AllocationMethodWire::Shapley::n`].
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ShapleyModeWire {
+    /// Exact enumeration.
+    Exact,
+    /// Monte Carlo coalition sampling.
+    MonteCarlo,
+    /// Random permutation sampling.
+    Permutation,
+}
+
+/// Attribution component set, stored as the historical snake_case label.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AttributionComponentsWire {
+    /// Input changes only.
+    Inputs,
+    /// Mechanism changes only.
+    Mechanisms,
+    /// Graph-structure changes only.
+    Structure,
+    /// Inputs and mechanisms jointly.
+    InputsAndMechanisms,
+    /// Full component set.
+    All,
+}
+
+impl TryFrom<AttributionComponents> for AttributionComponentsWire {
+    type Error = IoError;
+
+    fn try_from(components: AttributionComponents) -> Result<Self, Self::Error> {
+        Ok(match components {
+            AttributionComponents::Inputs => Self::Inputs,
+            AttributionComponents::Mechanisms => Self::Mechanisms,
+            AttributionComponents::Structure => Self::Structure,
+            AttributionComponents::InputsAndMechanisms => Self::InputsAndMechanisms,
+            AttributionComponents::All => Self::All,
+            _ => return Err(IoError::Convert("unsupported AttributionComponents".into())),
+        })
+    }
+}
+
+impl From<AttributionComponentsWire> for AttributionComponents {
+    fn from(components: AttributionComponentsWire) -> Self {
+        match components {
+            AttributionComponentsWire::Inputs => Self::Inputs,
+            AttributionComponentsWire::Mechanisms => Self::Mechanisms,
+            AttributionComponentsWire::Structure => Self::Structure,
+            AttributionComponentsWire::InputsAndMechanisms => Self::InputsAndMechanisms,
+            AttributionComponentsWire::All => Self::All,
+        }
+    }
+}
+
+/// Mediation contrast, stored as the historical snake_case label.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MediationContrastWire {
+    /// Total effect.
+    Total,
+    /// Direct effect.
+    Direct,
+    /// Mediated effect.
+    Mediated,
+    /// Natural direct effect.
+    NaturalDirect,
+    /// Natural indirect effect.
+    NaturalIndirect,
+}
+
+impl From<MediationContrast> for MediationContrastWire {
+    fn from(contrast: MediationContrast) -> Self {
+        match contrast {
+            MediationContrast::Total => Self::Total,
+            MediationContrast::Direct => Self::Direct,
+            MediationContrast::Mediated => Self::Mediated,
+            MediationContrast::NaturalDirect => Self::NaturalDirect,
+            MediationContrast::NaturalIndirect => Self::NaturalIndirect,
+        }
+    }
+}
+
+impl From<MediationContrastWire> for MediationContrast {
+    fn from(contrast: MediationContrastWire) -> Self {
+        match contrast {
+            MediationContrastWire::Total => Self::Total,
+            MediationContrastWire::Direct => Self::Direct,
+            MediationContrastWire::Mediated => Self::Mediated,
+            MediationContrastWire::NaturalDirect => Self::NaturalDirect,
+            MediationContrastWire::NaturalIndirect => Self::NaturalIndirect,
+        }
+    }
+}
+
 /// Allocation method wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -1490,7 +1587,7 @@ pub enum AllocationMethodWire {
     /// Shapley.
     Shapley {
         /// Mode tag.
-        mode: String,
+        mode: ShapleyModeWire,
         /// Mode parameter (samples / permutations).
         n: u64,
         /// Exact component cap.
@@ -1544,51 +1641,6 @@ fn population_from_wire(p: &PopulationSelectorWire) -> Result<PopulationSelector
     })
 }
 
-fn components_to_str(c: AttributionComponents) -> Result<&'static str, IoError> {
-    Ok(match c {
-        AttributionComponents::Inputs => "inputs",
-        AttributionComponents::Mechanisms => "mechanisms",
-        AttributionComponents::Structure => "structure",
-        AttributionComponents::InputsAndMechanisms => "inputs_and_mechanisms",
-        AttributionComponents::All => "all",
-        _ => return Err(IoError::Convert("unsupported AttributionComponents".into())),
-    })
-}
-
-fn components_from_str(s: &str) -> Result<AttributionComponents, IoError> {
-    Ok(match s {
-        "inputs" => AttributionComponents::Inputs,
-        "mechanisms" => AttributionComponents::Mechanisms,
-        "structure" => AttributionComponents::Structure,
-        "inputs_and_mechanisms" => AttributionComponents::InputsAndMechanisms,
-        "all" => AttributionComponents::All,
-        other => {
-            return Err(IoError::Convert(format!("unknown AttributionComponents `{other}`")));
-        }
-    })
-}
-
-fn mediation_contrast_to_str(c: MediationContrast) -> &'static str {
-    match c {
-        MediationContrast::Total => "total",
-        MediationContrast::Direct => "direct",
-        MediationContrast::Mediated => "mediated",
-        MediationContrast::NaturalDirect => "natural_direct",
-        MediationContrast::NaturalIndirect => "natural_indirect",
-    }
-}
-
-fn mediation_contrast_from_str(s: &str) -> Result<MediationContrast, IoError> {
-    Ok(match s {
-        "total" => MediationContrast::Total,
-        "direct" => MediationContrast::Direct,
-        "mediated" => MediationContrast::Mediated,
-        "natural_direct" => MediationContrast::NaturalDirect,
-        "natural_indirect" => MediationContrast::NaturalIndirect,
-        other => return Err(IoError::Convert(format!("unknown MediationContrast `{other}`"))),
-    })
-}
-
 fn allocation_to_wire(a: &AllocationMethod) -> Result<AllocationMethodWire, IoError> {
     Ok(match a {
         AllocationMethod::Sequential { order } => {
@@ -1597,19 +1649,19 @@ fn allocation_to_wire(a: &AllocationMethod) -> Result<AllocationMethodWire, IoEr
         AllocationMethod::PathBased => AllocationMethodWire::PathBased,
         AllocationMethod::Shapley { approximation } => {
             let (mode, n) = match approximation.mode {
-                ShapleyMode::Exact => ("exact", 0u64),
+                ShapleyMode::Exact => (ShapleyModeWire::Exact, 0u64),
                 ShapleyMode::MonteCarlo { n_samples } => {
-                    ("monte_carlo", crate::error::fit_u64(n_samples)?)
+                    (ShapleyModeWire::MonteCarlo, crate::error::fit_u64(n_samples)?)
                 }
                 ShapleyMode::Permutation { n_permutations } => {
-                    ("permutation", crate::error::fit_u64(n_permutations)?)
+                    (ShapleyModeWire::Permutation, crate::error::fit_u64(n_permutations)?)
                 }
                 _ => {
                     return Err(IoError::Convert("unsupported ShapleyMode".into()));
                 }
             };
             AllocationMethodWire::Shapley {
-                mode: mode.into(),
+                mode,
                 n,
                 max_exact_components: crate::error::fit_u64(approximation.max_exact_components)?,
                 allow_exact_override: approximation.allow_exact_override,
@@ -1639,12 +1691,11 @@ fn allocation_from_wire(a: &AllocationMethodWire) -> Result<AllocationMethod, Io
             seed,
         } => {
             let n_usize = usize::try_from(*n).map_err(|_| IoError::TooLarge)?;
-            let mode = match mode.as_str() {
-                "exact" => ShapleyMode::Exact,
-                "monte_carlo" => ShapleyMode::MonteCarlo { n_samples: n_usize },
-                "permutation" => ShapleyMode::Permutation { n_permutations: n_usize },
-                other => {
-                    return Err(IoError::Convert(format!("unknown ShapleyMode `{other}`")));
+            let mode = match mode {
+                ShapleyModeWire::Exact => ShapleyMode::Exact,
+                ShapleyModeWire::MonteCarlo => ShapleyMode::MonteCarlo { n_samples: n_usize },
+                ShapleyModeWire::Permutation => {
+                    ShapleyMode::Permutation { n_permutations: n_usize }
                 }
             };
             AllocationMethod::Shapley {
@@ -1749,7 +1800,7 @@ pub fn causal_query_to_wire_with_registry(
             outcome: q.outcome.raw(),
             baseline: population_to_wire(&q.baseline)?,
             comparison: population_to_wire(&q.comparison)?,
-            components: components_to_str(q.components)?.into(),
+            components: q.components.try_into()?,
             allocation: allocation_to_wire(&q.allocation)?,
             max_components: crate::error::fit_u64(q.max_components)?,
         },
@@ -1771,7 +1822,7 @@ pub fn causal_query_to_wire_with_registry(
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,
-            components: components_to_str(q.components)?.into(),
+            components: q.components.try_into()?,
             allocation: allocation_to_wire(&q.allocation)?,
             max_units: crate::error::fit_u64(q.max_units)?,
         },
@@ -1779,7 +1830,7 @@ pub fn causal_query_to_wire_with_registry(
             treatment: q.treatment.raw(),
             outcome: q.outcome.raw(),
             mediators: vars_to_raw(&q.mediators),
-            contrast: mediation_contrast_to_str(q.contrast).into(),
+            contrast: q.contrast.into(),
             control: InterventionWire::from_domain(&q.control)?,
             active: InterventionWire::from_domain(&q.active)?,
             target_population: TargetPopulationWire::from_domain_with_registry(
@@ -2196,7 +2247,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             outcome: VariableId::from_raw(*outcome),
             baseline: population_from_wire(baseline)?,
             comparison: population_from_wire(comparison)?,
-            components: components_from_str(components)?,
+            components: (*components).into(),
             allocation: allocation_from_wire(allocation)?,
             max_components: usize::try_from(*max_components).map_err(|_| IoError::TooLarge)?,
         }),
@@ -2227,7 +2278,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     })
                     .transpose()?
                     .map(Arc::from),
-                components: components_from_str(components)?,
+                components: (*components).into(),
                 allocation: allocation_from_wire(allocation)?,
                 max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
             })
@@ -2246,7 +2297,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 treatment: VariableId::from_raw(*treatment),
                 outcome: VariableId::from_raw(*outcome),
                 mediators: vars_from_raw(mediators),
-                contrast: mediation_contrast_from_str(contrast)?,
+                contrast: (*contrast).into(),
                 control: control.to_domain(),
                 active: active.to_domain(),
                 target_population: target_population.to_domain()?,
@@ -2990,6 +3041,36 @@ mod tests {
         let back = path_specific_from_wire(&wire).unwrap();
         assert_eq!(back.max_paths, 7);
         assert_eq!(back.max_len, 3);
+    }
+
+    #[test]
+    fn closed_query_codes_encode_as_their_historical_strings() {
+        use crate::convert::assert_cbor_text_code;
+        for (text, value) in [
+            ("exact", ShapleyModeWire::Exact),
+            ("monte_carlo", ShapleyModeWire::MonteCarlo),
+            ("permutation", ShapleyModeWire::Permutation),
+        ] {
+            assert_cbor_text_code(text, &value);
+        }
+        for (text, value) in [
+            ("inputs", AttributionComponentsWire::Inputs),
+            ("mechanisms", AttributionComponentsWire::Mechanisms),
+            ("structure", AttributionComponentsWire::Structure),
+            ("inputs_and_mechanisms", AttributionComponentsWire::InputsAndMechanisms),
+            ("all", AttributionComponentsWire::All),
+        ] {
+            assert_cbor_text_code(text, &value);
+        }
+        for (text, value) in [
+            ("total", MediationContrastWire::Total),
+            ("direct", MediationContrastWire::Direct),
+            ("mediated", MediationContrastWire::Mediated),
+            ("natural_direct", MediationContrastWire::NaturalDirect),
+            ("natural_indirect", MediationContrastWire::NaturalIndirect),
+        ] {
+            assert_cbor_text_code(text, &value);
+        }
     }
 
     #[test]

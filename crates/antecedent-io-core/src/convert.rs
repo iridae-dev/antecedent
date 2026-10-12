@@ -407,6 +407,33 @@ pub fn vars_from_raw(raw: &[u32]) -> Arc<[VariableId]> {
     raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>().into()
 }
 
+/// A unit enum with `rename_all = "snake_case"` encodes as the same CBOR text
+/// as the historical string, and that text decodes back to the variant.
+#[cfg(test)]
+pub(crate) fn assert_cbor_text_code<T>(text: &str, value: &T)
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+{
+    #[derive(serde::Serialize)]
+    struct AsText<'a> {
+        code: &'a str,
+    }
+    #[derive(serde::Serialize)]
+    struct AsEnum<'a, T> {
+        code: &'a T,
+    }
+    #[derive(serde::Deserialize, Debug)]
+    struct Owned<T> {
+        code: T,
+    }
+    let text_bytes = to_cbor(&AsText { code: text }).expect("text cbor");
+    let enum_bytes = to_cbor(&AsEnum { code: value }).expect("enum cbor");
+    assert_eq!(text_bytes, enum_bytes, "{text}");
+    let back: Owned<T> = from_cbor(&text_bytes)
+        .unwrap_or_else(|error| panic!("historical text `{text}` did not decode: {error}"));
+    assert_eq!(&back.code, value);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

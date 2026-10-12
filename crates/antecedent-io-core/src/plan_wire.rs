@@ -13,6 +13,114 @@ use serde::{Deserialize, Serialize};
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 
+/// Data classification, stored as the historical snake_case label.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DataClassificationWire {
+    /// IID tabular.
+    Tabular,
+    /// Temporal / time series.
+    Temporal,
+    /// Panel (unit × time).
+    Panel,
+    /// Multi-environment.
+    MultiEnvironment,
+    /// Irregular event data.
+    Event,
+}
+
+impl From<DataClassification> for DataClassificationWire {
+    fn from(value: DataClassification) -> Self {
+        match value {
+            DataClassification::Tabular => Self::Tabular,
+            DataClassification::Temporal => Self::Temporal,
+            DataClassification::Panel => Self::Panel,
+            DataClassification::MultiEnvironment => Self::MultiEnvironment,
+            DataClassification::Event => Self::Event,
+        }
+    }
+}
+
+impl From<DataClassificationWire> for DataClassification {
+    fn from(value: DataClassificationWire) -> Self {
+        match value {
+            DataClassificationWire::Tabular => Self::Tabular,
+            DataClassificationWire::Temporal => Self::Temporal,
+            DataClassificationWire::Panel => Self::Panel,
+            DataClassificationWire::MultiEnvironment => Self::MultiEnvironment,
+            DataClassificationWire::Event => Self::Event,
+        }
+    }
+}
+
+/// Buffer layout, stored as the historical snake_case label.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BufferMaterializationWire {
+    /// Borrowed without copy.
+    Borrowed,
+    /// Copied to contiguous storage.
+    CopiedContiguous,
+    /// Transposed layout.
+    Transposed,
+    /// Chunked / streaming.
+    Chunked,
+}
+
+impl From<BufferMaterialization> for BufferMaterializationWire {
+    fn from(value: BufferMaterialization) -> Self {
+        match value {
+            BufferMaterialization::Borrowed => Self::Borrowed,
+            BufferMaterialization::CopiedContiguous => Self::CopiedContiguous,
+            BufferMaterialization::Transposed => Self::Transposed,
+            BufferMaterialization::Chunked => Self::Chunked,
+        }
+    }
+}
+
+impl From<BufferMaterializationWire> for BufferMaterialization {
+    fn from(value: BufferMaterializationWire) -> Self {
+        match value {
+            BufferMaterializationWire::Borrowed => Self::Borrowed,
+            BufferMaterializationWire::CopiedContiguous => Self::CopiedContiguous,
+            BufferMaterializationWire::Transposed => Self::Transposed,
+            BufferMaterializationWire::Chunked => Self::Chunked,
+        }
+    }
+}
+
+/// Kernel class, stored as the historical snake_case label.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum KernelSelectionWire {
+    /// Portable scalar reference.
+    Scalar,
+    /// Portable optimized.
+    PortableOptimized,
+    /// External dense backend.
+    DenseBackend,
+}
+
+impl From<KernelSelection> for KernelSelectionWire {
+    fn from(value: KernelSelection) -> Self {
+        match value {
+            KernelSelection::Scalar => Self::Scalar,
+            KernelSelection::PortableOptimized => Self::PortableOptimized,
+            KernelSelection::DenseBackend => Self::DenseBackend,
+        }
+    }
+}
+
+impl From<KernelSelectionWire> for KernelSelection {
+    fn from(value: KernelSelectionWire) -> Self {
+        match value {
+            KernelSelectionWire::Scalar => Self::Scalar,
+            KernelSelectionWire::PortableOptimized => Self::PortableOptimized,
+            KernelSelectionWire::DenseBackend => Self::DenseBackend,
+        }
+    }
+}
+
 /// Logical plan wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -20,7 +128,7 @@ pub struct LogicalAnalysisPlanWire {
     /// Plan id.
     pub plan_id: String,
     /// Data classification.
-    pub data_classification: String,
+    pub data_classification: DataClassificationWire,
     /// Discovery algorithm.
     pub discovery_algorithm: Option<String>,
     /// Graph review required.
@@ -42,9 +150,9 @@ pub struct PhysicalExecutionPlanWire {
     /// Plan id.
     pub plan_id: String,
     /// Materializations.
-    pub materializations: Vec<(String, String)>,
+    pub materializations: Vec<(String, BufferMaterializationWire)>,
     /// Kernels.
-    pub kernels: Vec<(String, String)>,
+    pub kernels: Vec<(String, KernelSelectionWire)>,
     /// Batch size.
     pub batch_size: Option<u64>,
     /// Workspace bytes.
@@ -106,14 +214,7 @@ pub struct ExecutionPerformanceWire {
 pub fn logical_plan_to_wire(p: &LogicalAnalysisPlanRecord) -> LogicalAnalysisPlanWire {
     LogicalAnalysisPlanWire {
         plan_id: p.plan_id.to_string(),
-        data_classification: match p.data_classification {
-            DataClassification::Tabular => "tabular",
-            DataClassification::Temporal => "temporal",
-            DataClassification::Panel => "panel",
-            DataClassification::MultiEnvironment => "multi_environment",
-            DataClassification::Event => "event",
-        }
-        .into(),
+        data_classification: p.data_classification.into(),
         discovery_algorithm: p.discovery_algorithm.as_ref().map(ToString::to_string),
         graph_review_required: p.graph_review_required,
         identifier: p.identifier.as_ref().map(ToString::to_string),
@@ -127,66 +228,20 @@ pub fn logical_plan_to_wire(p: &LogicalAnalysisPlanRecord) -> LogicalAnalysisPla
 ///
 /// # Errors
 ///
-/// Unknown classification.
+/// A classification outside the historical labels fails while the wire is decoded,
+/// so this conversion does not see it.
 pub fn logical_plan_from_wire(
     w: &LogicalAnalysisPlanWire,
 ) -> Result<LogicalAnalysisPlanRecord, IoError> {
     Ok(LogicalAnalysisPlanRecord {
         plan_id: Arc::from(w.plan_id.as_str()),
-        data_classification: match w.data_classification.as_str() {
-            "tabular" => DataClassification::Tabular,
-            "temporal" => DataClassification::Temporal,
-            "panel" => DataClassification::Panel,
-            "multi_environment" => DataClassification::MultiEnvironment,
-            "event" => DataClassification::Event,
-            other => {
-                return Err(IoError::Convert(format!("unknown DataClassification `{other}`")));
-            }
-        },
+        data_classification: w.data_classification.into(),
         discovery_algorithm: w.discovery_algorithm.as_ref().map(|s| Arc::from(s.as_str())),
         graph_review_required: w.graph_review_required,
         identifier: w.identifier.as_ref().map(|s| Arc::from(s.as_str())),
         estimator: w.estimator.as_ref().map(|s| Arc::from(s.as_str())),
         validation_suite: w.validation_suite.as_ref().map(|s| Arc::from(s.as_str())),
         query_variables: vars_from_raw(&w.query_variables),
-    })
-}
-
-fn mat_to_str(m: BufferMaterialization) -> &'static str {
-    match m {
-        BufferMaterialization::Borrowed => "borrowed",
-        BufferMaterialization::CopiedContiguous => "copied_contiguous",
-        BufferMaterialization::Transposed => "transposed",
-        BufferMaterialization::Chunked => "chunked",
-    }
-}
-
-fn mat_from_str(s: &str) -> Result<BufferMaterialization, IoError> {
-    Ok(match s {
-        "borrowed" => BufferMaterialization::Borrowed,
-        "copied_contiguous" => BufferMaterialization::CopiedContiguous,
-        "transposed" => BufferMaterialization::Transposed,
-        "chunked" => BufferMaterialization::Chunked,
-        other => {
-            return Err(IoError::Convert(format!("unknown BufferMaterialization `{other}`")));
-        }
-    })
-}
-
-fn kernel_to_str(k: KernelSelection) -> &'static str {
-    match k {
-        KernelSelection::Scalar => "scalar",
-        KernelSelection::PortableOptimized => "portable_optimized",
-        KernelSelection::DenseBackend => "dense_backend",
-    }
-}
-
-fn kernel_from_str(s: &str) -> Result<KernelSelection, IoError> {
-    Ok(match s {
-        "scalar" => KernelSelection::Scalar,
-        "portable_optimized" => KernelSelection::PortableOptimized,
-        "dense_backend" => KernelSelection::DenseBackend,
-        other => return Err(IoError::Convert(format!("unknown KernelSelection `{other}`"))),
     })
 }
 
@@ -198,9 +253,9 @@ pub fn physical_plan_to_wire(p: &PhysicalExecutionPlanRecord) -> PhysicalExecuti
         materializations: p
             .materializations
             .iter()
-            .map(|(n, m)| (n.to_string(), mat_to_str(*m).into()))
+            .map(|(n, m)| (n.to_string(), (*m).into()))
             .collect(),
-        kernels: p.kernels.iter().map(|(n, k)| (n.to_string(), kernel_to_str(*k).into())).collect(),
+        kernels: p.kernels.iter().map(|(n, k)| (n.to_string(), (*k).into())).collect(),
         batch_size: p.batch_size.map(crate::error::lossless_u64),
         workspace_bytes: p.workspace_bytes,
         estimated_peak_memory_bytes: p.estimated_peak_memory_bytes,
@@ -216,7 +271,8 @@ pub fn physical_plan_to_wire(p: &PhysicalExecutionPlanRecord) -> PhysicalExecuti
 ///
 /// # Errors
 ///
-/// Unknown materialization/kernel tags.
+/// A tag outside the historical labels fails while the wire is decoded.
+/// A batch size that does not fit `usize` is [`IoError::TooLarge`].
 pub fn physical_plan_from_wire(
     w: &PhysicalExecutionPlanWire,
 ) -> Result<PhysicalExecutionPlanRecord, IoError> {
@@ -225,14 +281,14 @@ pub fn physical_plan_from_wire(
         materializations: w
             .materializations
             .iter()
-            .map(|(n, m)| Ok((Arc::from(n.as_str()), mat_from_str(m)?)))
-            .collect::<Result<Vec<_>, IoError>>()?
+            .map(|(n, m)| (Arc::from(n.as_str()), (*m).into()))
+            .collect::<Vec<_>>()
             .into(),
         kernels: w
             .kernels
             .iter()
-            .map(|(n, k)| Ok((Arc::from(n.as_str()), kernel_from_str(k)?)))
-            .collect::<Result<Vec<_>, IoError>>()?
+            .map(|(n, k)| (Arc::from(n.as_str()), (*k).into()))
+            .collect::<Vec<_>>()
             .into(),
         batch_size: w
             .batch_size
@@ -292,5 +348,39 @@ pub fn performance_from_wire(w: &ExecutionPerformanceWire) -> ExecutionPerforman
         cancelled: w.cancelled,
         early_stopped: w.early_stopped,
         bytes_borrowed: w.bytes_borrowed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BufferMaterializationWire, DataClassificationWire, KernelSelectionWire};
+    use crate::convert::assert_cbor_text_code;
+
+    #[test]
+    fn closed_plan_codes_encode_as_their_historical_strings() {
+        for (text, value) in [
+            ("tabular", DataClassificationWire::Tabular),
+            ("temporal", DataClassificationWire::Temporal),
+            ("panel", DataClassificationWire::Panel),
+            ("multi_environment", DataClassificationWire::MultiEnvironment),
+            ("event", DataClassificationWire::Event),
+        ] {
+            assert_cbor_text_code(text, &value);
+        }
+        for (text, value) in [
+            ("borrowed", BufferMaterializationWire::Borrowed),
+            ("copied_contiguous", BufferMaterializationWire::CopiedContiguous),
+            ("transposed", BufferMaterializationWire::Transposed),
+            ("chunked", BufferMaterializationWire::Chunked),
+        ] {
+            assert_cbor_text_code(text, &value);
+        }
+        for (text, value) in [
+            ("scalar", KernelSelectionWire::Scalar),
+            ("portable_optimized", KernelSelectionWire::PortableOptimized),
+            ("dense_backend", KernelSelectionWire::DenseBackend),
+        ] {
+            assert_cbor_text_code(text, &value);
+        }
     }
 }

@@ -386,7 +386,7 @@ mod closed_wire_fields {
         accept_then_reject_unknown::<crate::plan_wire::LogicalAnalysisPlanWire>(
             &serde_json::json!({
                 "plan_id": "p",
-                "data_classification": "public",
+                "data_classification": "tabular",
                 "discovery_algorithm": null,
                 "graph_review_required": false,
                 "identifier": null,
@@ -394,6 +394,22 @@ mod closed_wire_fields {
                 "validation_suite": null,
                 "query_variables": [],
             }),
+        );
+        assert!(
+            serde_json::from_value::<crate::plan_wire::LogicalAnalysisPlanWire>(
+                serde_json::json!({
+                    "plan_id": "p",
+                    "data_classification": "public",
+                    "discovery_algorithm": null,
+                    "graph_review_required": false,
+                    "identifier": null,
+                    "estimator": null,
+                    "validation_suite": null,
+                    "query_variables": [],
+                })
+            )
+            .is_err(),
+            "a classification outside the historical labels is not a plan"
         );
         accept_then_reject_unknown::<crate::trace::DerivationStepWire>(&serde_json::json!({
             "rule": "backdoor",
