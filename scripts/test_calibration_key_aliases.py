@@ -80,12 +80,13 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "primary 2.3.0"):
+            branch = aliases.archived_capture_branch()
+            with self.assertRaisesRegex(ValueError, f"primary {branch}"):
                 aliases.clean_main_source(root)
             (root / ".git").unlink()
             (root / ".git").mkdir()
             with patch.object(aliases.subprocess, "run", side_effect=[
-                subprocess.CompletedProcess([], 0, stdout="2.3.0\n"),
+                subprocess.CompletedProcess([], 0, stdout=f"{branch}\n"),
                 subprocess.CompletedProcess([], 0, stdout=" M dirty.rs\n"),
             ]), self.assertRaisesRegex(ValueError, "clean committed main"):
                 aliases.clean_main_source(root)
@@ -123,14 +124,16 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
                        "normalization_tolerance_bits": "3fb999999999999a", "small_cell_count_bits": "4014000000000000",
                        "treated_level_bits": "3ff0000000000000", "control_level_bits": "0000000000000000"},
         }
+        branch = aliases.archived_capture_branch()
+
         def native_receipt(value: dict) -> dict:
             text = "RECOVERY_IDENTITY_PROOF=" + json.dumps(value) + "\ntest result: ok. 1 passed; 0 failed;\n"
-            return {"version": 1, "source_sha": source, "branch": "2.3.0", "proof": value,
+            return {"version": 1, "source_sha": source, "branch": branch, "proof": value,
                     "log": text, "log_sha256": aliases.sha256(text)}
         raw = {key: value for key, value in original.items() if key not in calibration_facets.NOT_EMITTED}
         raw["functional"] = canonical
         text = "synthetic backend fixture log\n"
-        replay = {"version": 1, "source_sha": source, "branch": "2.3.0", "record_id": aliases.RECORD_ID,
+        replay = {"version": 1, "source_sha": source, "branch": branch, "record_id": aliases.RECORD_ID,
                   "logs": {"recovery.log": {"text": text, "sha256": aliases.sha256(text)}},
                   "raw_main_replay_record": raw}
         # Mock only the physical log backend. Scientific comparison runs the
