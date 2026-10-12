@@ -6,6 +6,8 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 /// Randomized ITT result plus its frozen experiment design identity.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -179,50 +181,65 @@ fn estimate_complier_effect(
 /// CUPED covariate residualization with a known-propensity HT contrast.
 #[pyfunction]
 fn estimate_cuped_effect(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     covariate: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     propensity: PyReadonlyArray1<'_, f64>,
 ) -> PyResult<(f64, f64, f64)> {
-    let fit = antecedent_estimate::randomized_scores::cuped_ht_effect(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &covariate.as_array().iter().copied().collect::<Vec<_>>(),
-        &assignment,
-        &propensity.as_array().iter().copied().collect::<Vec<_>>(),
-    )
-    .map_err(PyValueError::new_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let covariate = covariate.as_array().iter().copied().collect::<Vec<_>>();
+    let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::randomized_scores::cuped_ht_effect(
+            &outcome,
+            &covariate,
+            &assignment,
+            &propensity,
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok((fit.effect, fit.beta, fit.standard_error))
 }
 
 /// Stratified complete-randomization effect with a conservative variance bound.
 #[pyfunction]
 fn estimate_stratified_effect(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     blocks: Vec<String>,
 ) -> PyResult<(f64, f64, f64, usize)> {
-    let fit = antecedent_estimate::randomized_neyman::stratified_neyman_effect(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &assignment,
-        &blocks,
-    )
-    .map_err(PyValueError::new_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::randomized_neyman::stratified_neyman_effect(
+            &outcome,
+            &assignment,
+            &blocks,
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok((fit.effect, fit.variance, fit.minimum_probability, fit.strata))
 }
 
 /// Exact Bernoulli randomization test of the sharp no-effect null.
 #[pyfunction]
 fn exact_randomization_test(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     propensity: PyReadonlyArray1<'_, f64>,
 ) -> PyResult<(f64, f64, usize)> {
-    let fit = antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &assignment,
-        &propensity.as_array().iter().copied().collect::<Vec<_>>(),
-    )
-    .map_err(PyValueError::new_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(
+            &outcome,
+            &assignment,
+            &propensity,
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok((fit.observed, fit.p_value, fit.allocations))
 }
 
@@ -259,6 +276,7 @@ fn estimate_switchback_effect(
 /// OLS ANCOVA treatment coefficient with an HC0 independent-row sandwich SE.
 #[pyfunction]
 fn estimate_ancova_effect(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     covariates: PyReadonlyArray2<'_, f64>,
@@ -269,9 +287,11 @@ fn estimate_ancova_effect(
     let columns = (0..cov.ncols())
         .map(|j| cov.column(j).iter().copied().collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    let refs = columns.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    let fit = antecedent_estimate::ancova::fit_ancova(&outcomes, &assignment, &refs)
-        .map_err(PyValueError::new_err)?;
+    let fit = detach_catch(py, move || {
+        let refs = columns.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        antecedent_estimate::ancova::fit_ancova(&outcomes, &assignment, &refs)
+            .map_err(PyValueError::new_err)
+    })?;
     Ok((fit.effect, fit.hc0_variance.sqrt(), fit.covariate_coefficients, fit.treated, fit.control))
 }
 

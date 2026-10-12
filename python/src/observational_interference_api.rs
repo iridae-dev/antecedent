@@ -11,6 +11,8 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 /// (HT, Hájek, cluster sandwich variance, from units, to units, from clusters,
 /// to clusters, min propensity, max propensity, clusters total).
 type ObservationalExposureResult = (f64, f64, f64, usize, usize, usize, usize, f64, f64, usize);
@@ -18,6 +20,7 @@ type ObservationalExposureResult = (f64, f64, f64, usize, usize, usize, usize, f
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn estimate_observational_network_exposure(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     edges: Vec<(u32, u32, f64)>,
@@ -51,30 +54,32 @@ fn estimate_observational_network_exposure(
             ));
         }
     };
-    let data = TabularData::from_f64_columns([("y", y.as_slice())]).map_err(crate::py_err)?;
-    let network = NetworkData::try_new(
-        data,
-        edges
-            .into_iter()
-            .map(|(from, to, weight)| NetworkEdge { from, to, weight })
-            .collect::<Vec<_>>(),
-    )
-    .map_err(crate::py_err)?;
-    let result = estimate_native(
-        &network,
-        VariableId::from_raw(0),
-        &ObservationalExposureSpec {
-            assignment: &assignment,
-            clusters: &clusters,
-            exposure: &mapping,
-            from: ExposureLevel { own: from_level.0, neighbors: from_level.1 },
-            to: ExposureLevel { own: to_level.0, neighbors: to_level.1 },
-            propensity_from: &from_p,
-            propensity_to: &to_p,
-            propensity_provenance: provenance,
-        },
-    )
-    .map_err(crate::py_err)?;
+    let result = detach_catch(py, move || {
+        let data = TabularData::from_f64_columns([("y", y.as_slice())]).map_err(crate::py_err)?;
+        let network = NetworkData::try_new(
+            data,
+            edges
+                .into_iter()
+                .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+                .collect::<Vec<_>>(),
+        )
+        .map_err(crate::py_err)?;
+        estimate_native(
+            &network,
+            VariableId::from_raw(0),
+            &ObservationalExposureSpec {
+                assignment: &assignment,
+                clusters: &clusters,
+                exposure: &mapping,
+                from: ExposureLevel { own: from_level.0, neighbors: from_level.1 },
+                to: ExposureLevel { own: to_level.0, neighbors: to_level.1 },
+                propensity_from: &from_p,
+                propensity_to: &to_p,
+                propensity_provenance: provenance,
+            },
+        )
+        .map_err(crate::py_err)
+    })?;
     Ok((
         result.horvitz_thompson,
         result.hajek,

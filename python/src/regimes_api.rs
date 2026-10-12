@@ -7,6 +7,8 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
+use crate::detach_catch;
+
 /// Retained sequential randomized regime value with bounded IPW inference.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -73,6 +75,7 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
 /// Point-only Horvitz--Thompson value of a static or dynamic regime.
 #[pyfunction]
 fn evaluate_longitudinal_regime_value(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     treatment: PyReadonlyArray2<'_, bool>,
     regime: PyReadonlyArray2<'_, bool>,
@@ -99,23 +102,31 @@ fn evaluate_longitudinal_regime_value(
             "regime arrays must have matching subject and period dimensions",
         ));
     }
-    let summary = antecedent_estimate::longitudinal_regime::evaluate_regime_value(
-        &y.iter().copied().collect::<Vec<_>>(),
-        &antecedent_estimate::longitudinal_regime::SubjectHistories {
-            treatment: &a.iter().copied().collect::<Vec<_>>(),
-            treatment_probability: &p.iter().copied().collect::<Vec<_>>(),
-            outcome_observed: &r.iter().copied().collect::<Vec<_>>(),
-            censoring_probability: &g.iter().copied().collect::<Vec<_>>(),
-            periods: periods,
-            minimum_probability: f64::EPSILON,
-        },
-        &d.iter().copied().collect::<Vec<_>>(),
-    )
-    .map_err(|message| {
-        PyValueError::new_err(if message.contains("no observed subjects") {
-            "no observed trajectories followed the requested regime"
-        } else {
-            message
+    let y = y.iter().copied().collect::<Vec<_>>();
+    let a = a.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let r = r.iter().copied().collect::<Vec<_>>();
+    let g = g.iter().copied().collect::<Vec<_>>();
+    let d = d.iter().copied().collect::<Vec<_>>();
+    let summary = detach_catch(py, move || {
+        antecedent_estimate::longitudinal_regime::evaluate_regime_value(
+            &y,
+            &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                treatment: &a,
+                treatment_probability: &p,
+                outcome_observed: &r,
+                censoring_probability: &g,
+                periods,
+                minimum_probability: f64::EPSILON,
+            },
+            &d,
+        )
+        .map_err(|message| {
+            PyValueError::new_err(if message.contains("no observed subjects") {
+                "no observed trajectories followed the requested regime"
+            } else {
+                message
+            })
         })
     })?;
     Ok((
@@ -129,6 +140,7 @@ fn evaluate_longitudinal_regime_value(
 /// Plug-in sequential g-formula value for caller-supplied conditional rewards.
 #[pyfunction]
 fn evaluate_sequential_gformula(
+    py: Python<'_>,
     period_outcome_predictions: PyReadonlyArray2<'_, f64>,
     regime_actions: PyReadonlyArray2<'_, bool>,
     treatment_probability: PyReadonlyArray2<'_, f64>,
@@ -172,16 +184,22 @@ fn evaluate_sequential_gformula(
         ));
     }
 
-    let summary = antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
-        &q.iter().copied().collect::<Vec<_>>(),
-        &actions.iter().copied().collect::<Vec<_>>(),
-        &p.iter().copied().collect::<Vec<_>>(),
-        &g.iter().copied().collect::<Vec<_>>(),
-        n,
-        periods,
-        minimum_probability,
-    )
-    .map_err(PyValueError::new_err)?;
+    let q = q.iter().copied().collect::<Vec<_>>();
+    let actions = actions.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let g = g.iter().copied().collect::<Vec<_>>();
+    let summary = detach_catch(py, move || {
+        antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+            &q,
+            &actions,
+            &p,
+            &g,
+            n,
+            periods,
+            minimum_probability,
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok((
         summary.value,
         n,
@@ -193,6 +211,7 @@ fn evaluate_sequential_gformula(
 /// Sequentially augmented regime value from caller-supplied cross-fitted Q predictions.
 #[pyfunction]
 fn evaluate_sequential_doubly_robust(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     outcome_observed: PyReadonlyArray1<'_, bool>,
     observation_history: PyReadonlyArray2<'_, bool>,
@@ -257,23 +276,33 @@ fn evaluate_sequential_doubly_robust(
         ));
     }
 
-    let summary = antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
-        &y.iter().copied().collect::<Vec<_>>(),
-        &antecedent_estimate::longitudinal_regime::SubjectHistories {
-            treatment: &a.iter().copied().collect::<Vec<_>>(),
-            treatment_probability: &p.iter().copied().collect::<Vec<_>>(),
-            outcome_observed: &observed_y.iter().copied().collect::<Vec<_>>(),
-            censoring_probability: &g.iter().copied().collect::<Vec<_>>(),
-            periods: periods,
-            minimum_probability: minimum_probability,
-        },
-        &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
-            actions: &d.iter().copied().collect::<Vec<_>>(),
-            observation_history: &observed.iter().copied().collect::<Vec<_>>(),
-            q_predictions: &q.iter().copied().collect::<Vec<_>>(),
-        },
-    )
-    .map_err(PyValueError::new_err)?;
+    let y = y.iter().copied().collect::<Vec<_>>();
+    let a = a.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let observed_y = observed_y.iter().copied().collect::<Vec<_>>();
+    let g = g.iter().copied().collect::<Vec<_>>();
+    let d = d.iter().copied().collect::<Vec<_>>();
+    let observed = observed.iter().copied().collect::<Vec<_>>();
+    let q = q.iter().copied().collect::<Vec<_>>();
+    let summary = detach_catch(py, move || {
+        antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
+            &y,
+            &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                treatment: &a,
+                treatment_probability: &p,
+                outcome_observed: &observed_y,
+                censoring_probability: &g,
+                periods,
+                minimum_probability,
+            },
+            &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
+                actions: &d,
+                observation_history: &observed,
+                q_predictions: &q,
+            },
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok((
         summary.value,
         n,

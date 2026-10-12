@@ -16,6 +16,7 @@ use antecedent_identify::sid::scenario_invariance::{
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
+use crate::detach_catch;
 use crate::transport_scenario_api::PreparedTransportScenariosStage;
 
 /// `(report json, refusal json)`.
@@ -131,7 +132,7 @@ fn refusal_json(code: &str, detail: &str, message: &str) -> String {
 /// `(report json, refusal json)`. A stage that was not estimated, or an object that
 /// is not a scenario stage, is a refusal value for Python to raise.
 #[pyfunction]
-fn scenario_invariance_report(stage: &Bound<'_, PyAny>) -> PyResult<Payload> {
+fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyResult<Payload> {
     let Ok(stage) = stage.extract::<PyRef<'_, PreparedTransportScenariosStage>>() else {
         return Ok((
             None,
@@ -152,7 +153,7 @@ fn scenario_invariance_report(stage: &Bound<'_, PyAny>) -> PyResult<Payload> {
             )),
         ));
     };
-    match prepared.invariance_report(report) {
+    match detach_catch(py, || Ok(prepared.invariance_report(report)))? {
         Ok(set) => Ok((Some(set_json(names, &set).to_string()), None)),
         Err(EstimationError::Refused { code, message }) => {
             let (detail, text) = message

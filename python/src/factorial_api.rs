@@ -6,6 +6,8 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 #[pyclass(skip_from_py_object)]
 struct FactorialNativeResult {
     #[pyo3(get)]
@@ -30,20 +32,26 @@ struct FactorialNativeResult {
 /// Bernoulli assignment of two binary factors.
 #[pyfunction]
 fn estimate_factorial_2x2(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     factor_a: Vec<bool>,
     factor_b: Vec<bool>,
     probability_a: PyReadonlyArray1<'_, f64>,
     probability_b: PyReadonlyArray1<'_, f64>,
 ) -> PyResult<FactorialNativeResult> {
-    let fit = antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &factor_a,
-        &factor_b,
-        &probability_a.as_array().iter().copied().collect::<Vec<_>>(),
-        &probability_b.as_array().iter().copied().collect::<Vec<_>>(),
-    )
-    .map_err(PyValueError::new_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let probability_a = probability_a.as_array().iter().copied().collect::<Vec<_>>();
+    let probability_b = probability_b.as_array().iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2(
+            &outcome,
+            &factor_a,
+            &factor_b,
+            &probability_a,
+            &probability_b,
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok(FactorialNativeResult {
         cell_means: fit.cell_means,
         cell_support: fit.cell_support,

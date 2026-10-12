@@ -5,6 +5,8 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 /// Simultaneous difference band: times, difference, lower, upper, ok replicates,
 /// and the exact graphless band license (`Some("licensed")`) when the published
 /// band and arm support match a licensed band row.
@@ -89,6 +91,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
     reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
 )]
 fn randomized_survival_ipcw(
+    py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
     event_observed: Vec<bool>,
     treated: Vec<bool>,
@@ -163,23 +166,26 @@ fn randomized_survival_ipcw(
         }
     }
     let event_codes = event_observed.iter().map(|event| i64::from(*event)).collect::<Vec<_>>();
-    let (summary, kernel_minimum_g) =
+    let duration = duration.to_vec();
+    let survival = g.iter().copied().collect::<Vec<_>>();
+    let (summary, kernel_minimum_g) = detach_catch(py, move || {
         antecedent_estimate::survival::randomized_survival_ipcw_summary(
             &antecedent_estimate::survival::SurvivalRows {
-                duration: &duration.to_vec(),
+                duration: &duration,
                 event_code: &event_codes,
                 treated: &treated,
                 delayed_entry: None,
             },
             &antecedent_estimate::survival::KnownCensoring {
                 times: &times,
-                survival: &g.iter().copied().collect::<Vec<_>>(),
+                survival: &survival,
                 minimum_probability,
             },
             tau,
             antecedent_estimate::survival::SurvivalEndpoint::Survival,
         )
-        .map_err(PyValueError::new_err)?;
+        .map_err(PyValueError::new_err)
+    })?;
     debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
     Ok((
         summary.times,
@@ -200,6 +206,7 @@ fn randomized_survival_ipcw(
     reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
 )]
 fn randomized_cumulative_incidence_ipcw(
+    py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
     event_cause: Vec<i64>,
     treated: Vec<bool>,
@@ -280,23 +287,26 @@ fn randomized_cumulative_incidence_ipcw(
             ));
         }
     }
-    let (summary, kernel_minimum_g) =
+    let duration = duration.to_vec();
+    let survival = g.iter().copied().collect::<Vec<_>>();
+    let (summary, kernel_minimum_g) = detach_catch(py, move || {
         antecedent_estimate::survival::randomized_survival_ipcw_summary(
             &antecedent_estimate::survival::SurvivalRows {
-                duration: &duration.to_vec(),
+                duration: &duration,
                 event_code: &event_cause,
                 treated: &treated,
                 delayed_entry: None,
             },
             &antecedent_estimate::survival::KnownCensoring {
                 times: &times,
-                survival: &g.iter().copied().collect::<Vec<_>>(),
+                survival: &survival,
                 minimum_probability,
             },
             tau,
             antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
         )
-        .map_err(PyValueError::new_err)?;
+        .map_err(PyValueError::new_err)
+    })?;
     debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
     Ok((
         summary.times,

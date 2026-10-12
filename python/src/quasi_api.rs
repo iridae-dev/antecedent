@@ -5,6 +5,8 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 /// One staggered event-study effect: cohort, period, event time, estimate,
 /// treated and comparison counts, standard error, clusters.
 type EventTimeEffect = (i64, i64, i64, f64, usize, usize, f64, usize);
@@ -254,20 +256,20 @@ fn difference_in_differences(
 /// balanced panel; reports points and group sizes only.
 #[pyfunction]
 fn group_time_att(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     subjects: Vec<String>,
     periods: Vec<i64>,
     cohorts: Vec<i64>,
     clusters: Vec<String>,
 ) -> PyResult<Vec<GroupTimeAtt>> {
-    let effects = antecedent_estimate::staggered_event_study::group_time_att(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &subjects,
-        &periods,
-        &cohorts,
-        &clusters,
-    )
-    .map_err(PyValueError::new_err)?;
+    let outcome: Vec<f64> = outcome.as_array().iter().copied().collect();
+    let effects = detach_catch(py, move || {
+        antecedent_estimate::staggered_event_study::group_time_att(
+            &outcome, &subjects, &periods, &cohorts, &clusters,
+        )
+        .map_err(PyValueError::new_err)
+    })?;
     Ok(effects
         .into_iter()
         .map(|effect| {

@@ -5,6 +5,8 @@
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 /// One descending frozen-score uplift bin: index, uplift, cost, rows, interval.
 type UpliftBin = (usize, f64, f64, usize, Option<(f64, f64)>);
 /// One conditional contrast: group, action, effect, total and observed rows,
@@ -217,6 +219,7 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_binary_policy(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     actions: Vec<bool>,
@@ -230,25 +233,29 @@ fn evaluate_binary_policy(
     reference_capacity: Option<usize>,
     reference_budget: Option<f64>,
 ) -> PyResult<(f64, f64, f64, f64, f64, f64)> {
-    let fit = antecedent_estimate::policy_value::evaluate_binary_ipw_policy(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &antecedent_estimate::policy_value::BinaryIpwDesign {
-            assignment: &assignment,
-            actions: &actions,
-            propensity: &propensity.as_array().iter().copied().collect::<Vec<_>>(),
-            reference: reference.as_deref(),
-            costs: &costs,
-            reference_costs: reference_costs.as_deref(),
-            available: available.as_deref(),
-        },
-        &antecedent_estimate::policy_value::BinaryPolicyLimits {
-            capacity,
-            budget,
-            reference_capacity,
-            reference_budget,
-        },
-    )
-    .map_err(crate::value_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::policy_value::evaluate_binary_ipw_policy(
+            &outcome,
+            &antecedent_estimate::policy_value::BinaryIpwDesign {
+                assignment: &assignment,
+                actions: &actions,
+                propensity: &propensity,
+                reference: reference.as_deref(),
+                costs: &costs,
+                reference_costs: reference_costs.as_deref(),
+                available: available.as_deref(),
+            },
+            &antecedent_estimate::policy_value::BinaryPolicyLimits {
+                capacity,
+                budget,
+                reference_capacity,
+                reference_budget,
+            },
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok((
         fit.policy_net,
         fit.reference_net,
@@ -267,6 +274,7 @@ fn evaluate_binary_policy(
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_binary_policy_doubly_robust(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     actions: Vec<bool>,
@@ -314,20 +322,24 @@ fn evaluate_binary_policy_doubly_robust(
     if costs.iter().chain(&reference_costs).any(|cost| !cost.is_finite() || *cost < 0.0) {
         return Err(crate::value_err("policy costs must be finite and non-negative"));
     }
-    let scores = antecedent_estimate::policy_value::evaluate_policy_value_scores(
-        &y,
-        &antecedent_estimate::policy_value::BinaryPolicyDesign {
-            assignment: &assignment,
-            actions: &actions,
-            propensity: p.as_slice().unwrap_or(&[]),
-            reference: &reference,
-            costs: &costs,
-            reference_costs: &reference_costs,
-        },
-        &mu0.to_vec(),
-        &mu1.to_vec(),
-    )
-    .map_err(crate::value_err)?;
+    let propensity = p.as_slice().map(<[f64]>::to_vec).unwrap_or_default();
+    let (mu0, mu1) = (mu0.to_vec(), mu1.to_vec());
+    let scores = detach_catch(py, move || {
+        antecedent_estimate::policy_value::evaluate_policy_value_scores(
+            &y,
+            &antecedent_estimate::policy_value::BinaryPolicyDesign {
+                assignment: &assignment,
+                actions: &actions,
+                propensity: &propensity,
+                reference: &reference,
+                costs: &costs,
+                reference_costs: &reference_costs,
+            },
+            &mu0,
+            &mu1,
+        )
+        .map_err(crate::value_err)
+    })?;
     let policy_value = scores.policy_value;
     let reference_value = scores.reference_value;
     let incremental = scores.incremental_value;
@@ -375,6 +387,7 @@ fn evaluate_binary_policy_doubly_robust(
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_multi_action_policy(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assigned: Vec<usize>,
     actions: Vec<usize>,
@@ -389,27 +402,32 @@ fn evaluate_multi_action_policy(
     reference_budget: Option<f64>,
 ) -> PyResult<(f64, f64, f64, f64, f64)> {
     let probabilities = probabilities.as_array();
-    let fit = antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &antecedent_estimate::policy_value::MultiActionIpwDesign {
-            assigned: &assigned,
-            actions: &actions,
-            probabilities: &probabilities.iter().copied().collect::<Vec<_>>(),
-            probability_rows: probabilities.nrows(),
-            action_count: probabilities.ncols(),
-            reference: reference.as_deref(),
-            costs: costs.as_deref(),
-            reference_costs: reference_costs.as_deref(),
-            available: available.as_deref(),
-        },
-        &antecedent_estimate::policy_value::MultiActionLimits {
-            capacities: capacities.as_deref(),
-            reference_capacities: reference_capacities.as_deref(),
-            budget,
-            reference_budget,
-        },
-    )
-    .map_err(crate::value_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let (probability_rows, action_count) = (probabilities.nrows(), probabilities.ncols());
+    let probabilities = probabilities.iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy(
+            &outcome,
+            &antecedent_estimate::policy_value::MultiActionIpwDesign {
+                assigned: &assigned,
+                actions: &actions,
+                probabilities: &probabilities,
+                probability_rows,
+                action_count,
+                reference: reference.as_deref(),
+                costs: costs.as_deref(),
+                reference_costs: reference_costs.as_deref(),
+                available: available.as_deref(),
+            },
+            &antecedent_estimate::policy_value::MultiActionLimits {
+                capacities: capacities.as_deref(),
+                reference_capacities: reference_capacities.as_deref(),
+                budget,
+                reference_budget,
+            },
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok((
         fit.policy_value,
         fit.reference_value,
@@ -422,20 +440,25 @@ fn evaluate_multi_action_policy(
 /// Held-out uplift by precomputed score rank bins under known randomization.
 #[pyfunction]
 fn uplift_by_score(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     score_bin: Vec<usize>,
     propensity: PyReadonlyArray1<'_, f64>,
     bin_count: usize,
 ) -> PyResult<Vec<(usize, f64, f64, usize)>> {
-    let bins = antecedent_estimate::policy_value::uplift_by_score_bin(
-        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
-        &assignment,
-        &score_bin,
-        &propensity.as_array().iter().copied().collect::<Vec<_>>(),
-        bin_count,
-    )
-    .map_err(crate::value_err)?;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
+    let bins = detach_catch(py, move || {
+        antecedent_estimate::policy_value::uplift_by_score_bin(
+            &outcome,
+            &assignment,
+            &score_bin,
+            &propensity,
+            bin_count,
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok(bins.into_iter().map(|bin| (bin.index, bin.effect, bin.standard_error, bin.rows)).collect())
 }
 

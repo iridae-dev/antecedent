@@ -74,6 +74,7 @@ use crate::transport_common::{execution_context, resolve, unframe_named_artifact
 use crate::transport_scenario_api::PreparedTransportScenariosStage;
 use crate::transport_z_api::intervention_assignments;
 use crate::value_err;
+use crate::detach_catch;
 
 /// A result JSON paired with a refusal JSON; exactly one is present.
 type Pair = (Option<String>, Option<String>);
@@ -1359,6 +1360,7 @@ fn robust_verdict_json(verdict: &RobustVerdict) -> Value {
 #[pyo3(signature = (declaration_json, kind, result, binding_json, policy, weights_json=None, expected_causal=None))]
 #[allow(clippy::too_many_lines)]
 fn decide_scenario_claims(
+    py: Python<'_>,
     declaration_json: &str,
     kind: &str,
     result: &Bound<'_, PyAny>,
@@ -1372,7 +1374,7 @@ fn decide_scenario_claims(
     if let Some(text) = weights_json {
         check_size(text)?;
     }
-    let run = || -> Result<String, String> {
+    let run = || -> Result<String, DecisionStop> {
         let contract = admissible_contract_from_json_refusal(declaration_json)
             .map_err(|refusal| external_refusal_json(&refusal))?;
         let policy = policy_from(policy)?;
@@ -1395,7 +1397,11 @@ fn decide_scenario_claims(
                 check_declared_weights(Some(scenarios.as_slice()), weights.as_ref())?;
                 let binding = binding_from(binding_json, names)?;
                 check_causal(&binding, expected_causal)?;
-                scenario_claims(report, &binding, policy, None).map_err(|e| claim_refusal(&e))?
+                detach_catch(py, || {
+                    Ok(scenario_claims(report, &binding, policy, None)
+                        .map_err(|e| claim_refusal(&e)))
+                })
+                .map_err(DecisionStop::Python)??
             }
             "cpdag" => {
                 let completions =
@@ -1404,14 +1410,22 @@ fn decide_scenario_claims(
                 check_declared_weights(None, weights.as_ref())?;
                 let binding = binding_from(binding_json, names)?;
                 check_causal(&binding, expected_causal)?;
-                cpdag_claims(report, &binding, policy, None).map_err(|e| claim_refusal(&e))?
+                detach_catch(py, || {
+                    Ok(cpdag_claims(report, &binding, policy, None).map_err(|e| claim_refusal(&e)))
+                })
+                .map_err(DecisionStop::Python)??
             }
             other => {
-                return Err(invalid_json("scenario_decision.unknown_kind", Some(other.into())));
+                return Err(
+                    invalid_json("scenario_decision.unknown_kind", Some(other.into())).into()
+                );
             }
         };
-        let decision = evaluate_adapted(&contract, &claims.adapted)
-            .map_err(|e| external_refusal_json(&e.to_refusal()))?;
+        let decision = detach_catch(py, || {
+            Ok(evaluate_adapted(&contract, &claims.adapted)
+                .map_err(|e| external_refusal_json(&e.to_refusal())))
+        })
+        .map_err(DecisionStop::Python)??;
         let leaders = atom_leaders(&decision);
         let atoms: Vec<Value> = claims
             .atoms
@@ -1462,10 +1476,24 @@ fn decide_scenario_claims(
         })
         .to_string())
     };
-    Ok(match run() {
-        Ok(json) => (Some(json), None),
-        Err(refusal) => (None, Some(refusal)),
-    })
+    match run() {
+        Ok(json) => Ok((Some(json), None)),
+        Err(DecisionStop::Refusal(refusal)) => Ok((None, Some(refusal))),
+        Err(DecisionStop::Python(error)) => Err(error),
+    }
+}
+
+/// Why a scenario decision stopped: a structured refusal, or an interrupt raised while the native
+/// work had released the GIL.
+enum DecisionStop {
+    Refusal(String),
+    Python(PyErr),
+}
+
+impl From<String> for DecisionStop {
+    fn from(refusal: String) -> Self {
+        Self::Refusal(refusal)
+    }
 }
 
 /// The binding must answer the causal identification the caller expects.

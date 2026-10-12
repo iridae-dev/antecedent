@@ -207,11 +207,11 @@ fn consume_design_ranking(
 /// The structural ordering when no probabilistic model is licensed:
 /// `(ranking json, refusal json)`.
 #[pyfunction]
-fn rank_structural_designs(candidates_json: &str) -> PyResult<ConsumePayload> {
+fn rank_structural_designs(py: Python<'_>, candidates_json: &str) -> PyResult<ConsumePayload> {
     check_size(candidates_json)?;
     let candidates: Vec<StructuralCandidateDeclWire> =
         serde_json::from_str(candidates_json).map_err(|e| invalid_declaration(&e))?;
-    match rank_structural(&candidates) {
+    detach_catch(py, move || match rank_structural(&candidates) {
         Ok(ranking) => {
             let entries: Vec<serde_json::Value> = ranking
                 .structural
@@ -239,7 +239,7 @@ fn rank_structural_designs(candidates_json: &str) -> PyResult<ConsumePayload> {
             ))
         }
         Err(error) => Ok((None, Some(payload_error(&error)?))),
-    }
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

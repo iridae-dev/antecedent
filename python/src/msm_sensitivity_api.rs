@@ -7,6 +7,7 @@
 //! `message`) for the Python layer to raise as its own typed exception. Every number is an
 //! assumption range or an identified value; the sampling interval is withheld.
 use crate::bridge::RefusalJson;
+use crate::detach_catch;
 use antecedent::analysis::msm_sensitivity::{
     ActionUtility, MsmOutcomeLaw, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmStratum, msm_sensitivity, msm_sensitivity_artifact_bytes,
@@ -134,19 +135,22 @@ fn result_json(result: &MsmSensitivityResult) -> Value {
 ))]
 #[doc(hidden)]
 fn msm_sensitivity_run(
+    py: Python<'_>,
     strata: Vec<StratumTuple>,
     lambda_max: f64,
     grid_points: usize,
     decision_threshold: Option<f64>,
     tolerance: f64,
     sampling_composition: Option<String>,
-) -> (Option<String>, Option<String>) {
+) -> PyResult<(Option<String>, Option<String>)> {
     let spec =
         spec_of(lambda_max, grid_points, decision_threshold, tolerance, sampling_composition);
-    match msm_sensitivity(&strata_of(strata), &spec) {
-        Ok(result) => (Some(result_json(&result).to_string()), None),
-        Err(error) => (None, Some(msm_refusal(&error))),
-    }
+    detach_catch(py, move || {
+        Ok(match msm_sensitivity(&strata_of(strata), &spec) {
+            Ok(result) => (Some(result_json(&result).to_string()), None),
+            Err(error) => (None, Some(msm_refusal(&error))),
+        })
+    })
 }
 
 #[derive(Deserialize)]
@@ -181,45 +185,51 @@ fn msm_sensitivity_artifact_run<'py>(
     actions_json: &str,
     causal_contract_id: &str,
     artifact_id: &str,
-) -> (Option<Bound<'py, PyBytes>>, Option<String>) {
+) -> PyResult<(Option<Bound<'py, PyBytes>>, Option<String>)> {
     let effect = match serde_json::from_str::<ScientificQuantityWire>(effect_json)
         .map_err(|e| e.to_string())
         .and_then(quantity_of)
     {
         Ok(effect) => effect,
-        Err(message) => return (None, Some(declaration_refusal(&message))),
+        Err(message) => return Ok((None, Some(declaration_refusal(&message)))),
     };
     let wires: Vec<PointQuantityIn> = match serde_json::from_str(point_quantities_json) {
         Ok(wires) => wires,
-        Err(error) => return (None, Some(declaration_refusal(&error.to_string()))),
+        Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
     };
     let mut points = Vec::with_capacity(wires.len());
     for wire in wires {
         match quantity_of(wire.quantity) {
             Ok(quantity) => points.push((quantity, wire.values)),
-            Err(message) => return (None, Some(declaration_refusal(&message))),
+            Err(message) => return Ok((None, Some(declaration_refusal(&message)))),
         }
     }
     let actions: Vec<ActionUtility> = match serde_json::from_str(actions_json) {
         Ok(actions) => actions,
-        Err(error) => return (None, Some(declaration_refusal(&error.to_string()))),
+        Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
     };
     let spec = spec_of(lambda_max, grid_points, decision_threshold, tolerance, None);
-    let result = match msm_sensitivity(&strata_of(strata), &spec) {
-        Ok(result) => result,
-        Err(error) => return (None, Some(msm_refusal(&error))),
-    };
-    match msm_sensitivity_artifact_bytes(
-        &result,
-        &effect,
-        &points,
-        actions,
-        causal_contract_id,
-        artifact_id,
-    ) {
-        Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
-        Err(error) => (None, Some(io_refusal(&error))),
-    }
+    let (causal_contract_id, artifact_id) = (causal_contract_id.to_owned(), artifact_id.to_owned());
+    let (bytes, refusal) = detach_catch(py, move || {
+        let result = match msm_sensitivity(&strata_of(strata), &spec) {
+            Ok(result) => result,
+            Err(error) => return Ok((None, Some(msm_refusal(&error)))),
+        };
+        Ok(
+            match msm_sensitivity_artifact_bytes(
+                &result,
+                &effect,
+                &points,
+                actions,
+                &causal_contract_id,
+                &artifact_id,
+            ) {
+                Ok(bytes) => (Some(bytes), None),
+                Err(error) => (None, Some(io_refusal(&error))),
+            },
+        )
+    })?;
+    Ok((bytes.map(|bytes| PyBytes::new(py, &bytes)), refusal))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
