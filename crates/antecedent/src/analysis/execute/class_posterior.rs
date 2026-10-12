@@ -7,17 +7,17 @@ use super::atom_mix::{
     drive_posterior_refuters, mix_atom_evals,
 };
 use super::{
-    Arc, AverageEffectQuery, BayesianGCompWorkspace, CausalError, CausalPosterior, CausalQuery,
-    ConditionalLinearAdjustment, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
-    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
-    InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary,
-    RefuteSuite, StaticEstimateWorkspaces, Strategy, Study, StudyResult, TabularData,
-    bayesian_gcomp, effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic,
-    estimate_static_effect, mass_fields, mix_static_envelope_se, mix_weighted_analytic_se,
-    mixed_static_influence, overlap_diagnostic, provenance_ids, resolve_posterior_status,
-    static_aligned_influence,
+    Arc, AtomRefutationPolicy, AverageEffectQuery, BayesianGCompWorkspace, CausalError,
+    CausalPosterior, CausalQuery, ConditionalLinearAdjustment, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
+    EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, StaticEstimateWorkspaces, Strategy,
+    Study, StudyResult, TabularData, bayesian_gcomp, effect_from_posterior, elapsed_ns,
+    envelope_se_omission_diagnostic, estimate_static_effect, mass_fields, mix_static_envelope_se,
+    mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, provenance_ids,
+    resolve_posterior_status, static_aligned_influence,
 };
 use crate::analysis::prepared::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
@@ -186,8 +186,7 @@ impl super::Study {
             query,
             &identified,
             &evals,
-            mixed.policy,
-            estimator_id.as_str(),
+            AtomRefutationPolicy { aggregation: mixed.policy, estimator: estimator_id.as_str() },
             ctx,
         )?;
         diagnostics.extend(refute_diagnostics);
@@ -513,10 +512,10 @@ fn refute_class_graph_posterior(
     query: &AverageEffectQuery,
     identified: &CachedGraphPosteriorIdentification,
     evals: &[ClassAtomEval],
-    policy: StructuralAggregationPolicy,
-    estimator: &str,
+    refutation: AtomRefutationPolicy<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
     if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }

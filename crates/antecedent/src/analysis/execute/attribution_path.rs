@@ -282,10 +282,7 @@ fn execute_checked_counterfactual_plan(
         graph,
         &mechanism_assignments,
         &ite.exogenous,
-        treatment,
-        outcome,
-        active,
-        control,
+        UnitContrast { treatment, outcome, active, control },
     )?;
     let mut ite = ite;
     ite.unit_extrapolative = Some(std::sync::Arc::from(support.extrapolation_flags()));
@@ -478,11 +475,11 @@ impl super::Study {
             GcmFinish {
                 query: CausalQuery::AnomalyAttribution(query.clone()),
                 treatment: outcome,
-                outcome: outcome,
+                outcome,
                 estimate: nan_effect(),
                 slot: GcmSlot::Anomaly(scores.clone()),
                 diagnostics: Vec::new(),
-                identify_cached: identify_cached,
+                identify_cached,
             },
         );
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
@@ -600,10 +597,10 @@ impl super::Study {
                 query: CausalQuery::ChangeAttribution(query.clone()),
                 treatment: query.outcome,
                 outcome: query.outcome,
-                estimate: estimate,
+                estimate,
                 slot: GcmSlot::Change(point_result),
                 diagnostics: Vec::new(),
-                identify_cached: identify_cached,
+                identify_cached,
             },
         );
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
@@ -711,7 +708,7 @@ impl super::Study {
             GcmFinish {
                 query: CausalQuery::MechanismChange(query.clone()),
                 treatment: outcome,
-                outcome: outcome,
+                outcome,
                 estimate: nan_effect(),
                 slot: GcmSlot::Mechanism(detections),
                 diagnostics: Vec::new(),
@@ -1078,6 +1075,15 @@ impl UnitSupport {
     }
 }
 
+/// The treatment, outcome and compared levels of a unit-level attribution contrast.
+#[derive(Clone, Copy)]
+struct UnitContrast {
+    treatment: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+}
+
 /// Flag, per unit, a counterfactual prediction that leaves observed support.
 ///
 /// Every unit is predicted into both arms; the arm it was observed in is
@@ -1100,17 +1106,14 @@ impl UnitSupport {
 ///
 /// Categorical path mechanisms have uniform abducted noise with no residual
 /// scale, so only their covariate cell is checked.
-#[allow(clippy::too_many_arguments)]
 fn unit_support(
     data: &TabularData,
     graph: &Dag,
     assignments: &[crate::gcm::MechanismAssignment],
     exogenous: &crate::gcm::ExogenousPosterior,
-    treatment: VariableId,
-    outcome: VariableId,
-    active: f64,
-    control: f64,
+    contrast: UnitContrast,
 ) -> Result<UnitSupport, CausalError> {
+    let UnitContrast { treatment, outcome, active, control } = contrast;
     let n = data.row_count();
     let observed = data.float64_values(treatment)?;
     let in_active: Vec<bool> =

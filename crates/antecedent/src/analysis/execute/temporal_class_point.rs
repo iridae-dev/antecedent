@@ -9,7 +9,7 @@
 use super::temporal_path::{CrossWorldContrast, DerivativeSpec};
 use super::{
     Arc, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimatorId, ExecutionContext, GraphClass, GraphPosterior,
+    EffectEstimate, EstimatorId, ExecuteRun, ExecutionContext, GraphClass, GraphPosterior,
     IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifiedKeyWeights, InferenceMode, Instant, Intervention,
     OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
@@ -559,16 +559,12 @@ impl super::Study {
             }
         }
         self.finish_posterior_point(
-            started,
+            ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
             pairs,
             chosen,
-            physical,
-            query.treatment,
-            query.outcome,
+            (query.treatment, query.outcome),
             EstimatorId::TemporalLinearAdjustment,
-            identify_cached,
-            ctx,
         )
     }
 
@@ -642,19 +638,15 @@ impl super::Study {
         }
         let mut response = mix_derivative_responses(&responses)?;
         let result = self.finish_posterior_point(
-            started,
+            ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
             pairs,
             chosen,
-            physical,
-            treatment,
-            outcome,
+            (treatment, outcome),
             match &self.inference {
                 InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
                 InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
             },
-            identify_cached,
-            ctx,
         )?;
         response.identification_status = result.identification.status;
         let mut result = result;
@@ -754,23 +746,18 @@ impl super::Study {
             }
         }
         self.finish_posterior_point(
-            started,
+            ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
             pairs,
             chosen,
-            physical,
-            treatment,
-            outcome,
+            (treatment, outcome),
             EstimatorId::TemporalLinearAdjustment,
-            identify_cached,
-            ctx,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn finish_posterior_point(
         &self,
-        started: Instant,
+        run: ExecuteRun<'_>,
         cache: &crate::analysis::prepared::CachedTemporalClassPosteriorIdentification,
         pairs: Vec<(f64, f64)>,
         chosen: Option<(
@@ -781,14 +768,10 @@ impl super::Study {
             crate::result::StructuralResponseMixture,
             IdentificationStatus,
         )>,
-        physical: &PhysicalExecutionPlan,
-        treatment: VariableId,
-        outcome: VariableId,
+        (treatment, outcome): (VariableId, VariableId),
         estimator_id: EstimatorId,
-        identify_cached: bool,
-        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let _ = ctx;
+        let ExecuteRun { physical, started, identify_cached, .. } = run;
         let (assumptions, estimand, mut identification, mut diagnostics, structural, atom_status) =
             chosen.ok_or_else(|| CausalError::Compile {
                 message: format!(
@@ -979,12 +962,12 @@ fn cross_world_endpoints(
         }
         CausalQuery::Counterfactual(q) => {
             let treatment =
-                q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
-                    || CausalError::Unsupported {
+                q.interventions.first().and_then(Intervention::primary_variable).ok_or(
+                    CausalError::Unsupported {
                         message: "temporal counterfactual needs one hard intervention",
                     },
                 )?;
-            let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
+            let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
                 message: "temporal counterfactual needs one outcome",
             })?;
             Ok((
@@ -997,12 +980,12 @@ fn cross_world_endpoints(
         }
         CausalQuery::Distribution(q) => {
             let treatment =
-                q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
-                    || CausalError::Unsupported {
+                q.interventions.first().and_then(Intervention::primary_variable).ok_or(
+                    CausalError::Unsupported {
                         message: "temporal interventional distribution needs one hard intervention",
                     },
                 )?;
-            let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
+            let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
                 message: "temporal interventional distribution needs one outcome",
             })?;
             if !q.conditioning.is_empty() {

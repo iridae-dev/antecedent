@@ -606,14 +606,10 @@ fn classify_graph(route: ExecutableRoute) -> Result<ClassifiedGraph, CausalError
     let selected = carry.estimator_spec.as_ref().map(EstimatorSpec::id);
     refuse_outcome_functional(
         &query,
-        &carry.inference,
+        &mut carry,
         graph_posterior.is_some(),
         graph_class,
-        carry.tiered.as_ref(),
         selected,
-        carry.refute_explicit,
-        &mut carry.refute,
-        &mut carry.refute_default_downgrade,
     )?;
     Ok(ClassifiedGraph {
         spine: Spine { carry, graph, graph_posterior, query },
@@ -626,15 +622,15 @@ fn classify_graph(route: ExecutableRoute) -> Result<ClassifiedGraph, CausalError
 
 fn refuse_outcome_functional(
     query: &CausalQuery,
-    inference: &InferenceMode,
+    carry: &mut Carry,
     graph_posterior: bool,
     graph_class: GraphClass,
-    tiered: Option<&TieredBackground>,
     selected: Option<EstimatorId>,
-    refute_explicit: bool,
-    refute: &mut RefuteSuite,
-    refute_default_downgrade: &mut Option<RefuteSuite>,
 ) -> Result<(), CausalError> {
+    let Carry { inference, tiered, refute_explicit, refute, refute_default_downgrade, .. } = carry;
+    let inference = &*inference;
+    let tiered = tiered.as_ref();
+    let refute_explicit = *refute_explicit;
     let functional = match query {
         CausalQuery::AverageEffect(q) => Some(&q.outcome_functional),
         CausalQuery::ConditionalEffect(q) => Some(&q.inner.outcome_functional),

@@ -6,14 +6,14 @@ use super::{
     AnalyticSeKind, Arc, BayesianGCompWorkspace, BayesianGComputationAte, BootstrapAccounting,
     CausalError, CausalPosterior, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, DiscoveryEstimationSplit, EffectEstimate, EstimationWorkspace, EstimatorId,
-    ExecutionContext, GraphEffectDraws, GraphIdentFlag, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
-    Intervention, ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan,
-    PredictiveCheckReport, PriorSet, RefutationRun, RefuteSuite, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
-    TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
-    TemporalLinearAdjustment, TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
-    apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
+    ExecutionContext, GraphEffectDraws, GraphIdentFlag, IdentificationBasis, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
+    InferenceMode, Instant, Intervention, ObservationSpec, OverlapPolicy, PanelData,
+    PhysicalExecutionPlan, PredictiveCheckReport, PriorSet, RefutationRun, RefuteSuite,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy,
+    StudyResult, TableView, TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery,
+    TemporalIndexer, TemporalLinearAdjustment, TemporalRefitContext, TemporalResponseEstimator,
+    UNFOLDED_LINEAR_SEM, apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
     bootstrap_has_enough_successes, completion_fit_seed, effect_from_posterior, elapsed_ns,
     envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
     identification_status_ok_for_case, identified_set_interval_diagnostics,
@@ -827,8 +827,7 @@ impl super::Study {
             panel,
             &aligned,
             query,
-            aggregate_status,
-            &aggregate_assumptions,
+            IdentificationBasis { status: aggregate_status, assumptions: &aggregate_assumptions },
             &self.inference,
             ctx,
             &mut diagnostics,
@@ -1059,8 +1058,10 @@ impl super::Study {
                         panel,
                         &[&entry],
                         &qh,
-                        case.result.status,
-                        &case.result.required_assumptions,
+                        IdentificationBasis {
+                            status: case.result.status,
+                            assumptions: &case.result.required_assumptions,
+                        },
                         &self.inference,
                         ctx,
                         &mut diagnostics,
@@ -1298,12 +1299,8 @@ impl super::Study {
             let atom = loop {
                 let atom = fit_panel_sequential_atom(
                     panel,
-                    &dag,
-                    indexer,
-                    &estimand,
-                    query,
-                    case.result.status,
-                    &assumptions,
+                    PanelAtomProblem { dag: &dag, indexer, estimand: &estimand, query },
+                    IdentificationBasis { status: case.result.status, assumptions: &assumptions },
                     bayes.as_ref(),
                     seed,
                     ctx,
@@ -1817,17 +1814,16 @@ fn panel_unit_average_bootstrap_note(requested: u32) -> Option<Diagnostic> {
 /// Bayesian inference a caller prior (explicit, artifact or external composition) is
 /// resolved against each unit's design with the series resolver, and its conflict
 /// diagnostics are reported once per distinct message.
-#[allow(clippy::too_many_arguments)]
 fn fit_unit_panel_responses(
     panel: &PanelData,
     entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
     query: &ResponseQuery,
-    status: IdentificationStatus,
-    assumptions: &antecedent_core::AssumptionSet,
+    basis: IdentificationBasis<'_>,
     inference: &InferenceMode,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<Vec<CausalResponse>, CausalError> {
+    let IdentificationBasis { status, assumptions } = basis;
     let span = entries.iter().map(|entry| indexer_span(&entry.indexer)).max().unwrap_or(0);
     refuse_short_panel_units(panel, span)?;
     let identifications: Vec<_> =
@@ -1965,24 +1961,30 @@ impl PanelSequentialAtom {
     }
 }
 
+/// The retained DBN, lag indexer, estimand and query one panel sequential atom fits.
+#[derive(Clone, Copy)]
+struct PanelAtomProblem<'a> {
+    dag: &'a TemporalDag,
+    indexer: &'a TemporalIndexer,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a TemporalEffectQuery,
+}
+
 /// Fit one completion's sequential contrast on every unit's own series.
 ///
 /// A unit that yields a non-finite contrast refuses the completion: the survivor
 /// mean is not the panel effect. Under Bayesian inference each unit draws from its
 /// own stream of `seed`.
-#[allow(clippy::too_many_arguments)]
 fn fit_panel_sequential_atom(
     panel: &PanelData,
-    dag: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    query: &TemporalEffectQuery,
-    status: IdentificationStatus,
-    assumptions: &antecedent_core::AssumptionSet,
+    atom: PanelAtomProblem<'_>,
+    basis: IdentificationBasis<'_>,
     bayes: Option<&BayesianGComputationAte>,
     seed: u64,
     ctx: &ExecutionContext,
 ) -> Result<PanelSequentialAtom, CausalError> {
+    let PanelAtomProblem { dag, indexer, estimand, query } = atom;
+    let IdentificationBasis { status, assumptions } = basis;
     refuse_short_panel_units(panel, indexer_span(indexer))?;
     let mut units = Vec::with_capacity(panel.unit_count());
     let mut unit_ates = Vec::with_capacity(panel.unit_count());

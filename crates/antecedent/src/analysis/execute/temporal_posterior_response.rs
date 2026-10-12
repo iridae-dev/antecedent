@@ -10,15 +10,15 @@ use super::{
     CausalError, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
     EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace,
     EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag, GraphPosterior,
-    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedKeyWeights, IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention,
-    ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, Strategy,
-    StudyResult, TableView, TabularData, TemporalAtomDesign, TemporalEffectQuery,
-    TemporalLinearAdjustment, TemporalRefutation, TemporalResponseEstimator, TimeSeriesData,
-    ValidationSink, VariableId, WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp,
-    bayesian_temporal_gcomp, elapsed_ns, envelope_refute_atoms, identify_cached_diagnostic,
-    provenance_ids, push_conflict_diagnostics,
+    GraphPosteriorScope, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceDiagnostics,
+    InferenceMode, Instant, Intervention, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, Strategy, StudyResult, TableView, TabularData, TemporalAtomDesign,
+    TemporalEffectQuery, TemporalLinearAdjustment, TemporalRefutation, TemporalResponseEstimator,
+    TimeSeriesData, ValidationSink, WeightedGraphSamples, aggregate_effect_envelope,
+    bayesian_gcomp, bayesian_temporal_gcomp, elapsed_ns, envelope_refute_atoms,
+    identify_cached_diagnostic, provenance_ids, push_conflict_diagnostics,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
     resolve_structural_aggregation, run_envelope_bayesian_full_validation,
 };
@@ -452,8 +452,7 @@ impl super::Study {
                 query,
                 &identified,
                 &weighted,
-                gp,
-                &vars,
+                GraphPosteriorScope { posterior: gp, vars: &vars },
                 ctx,
             )?
         } else {
@@ -532,10 +531,10 @@ impl super::Study {
         query: &ResponseQuery,
         identified: &crate::analysis::prepared::CachedDbnPosteriorIdentification,
         weighted: &[(u64, f64, CausalResponse)],
-        gp: &GraphPosterior,
-        vars: &[VariableId],
+        scope: GraphPosteriorScope<'_>,
         ctx: &ExecutionContext,
     ) -> Result<PulseWitnessReports, CausalError> {
+        let GraphPosteriorScope { posterior: gp, vars } = scope;
         let pulse = response_pulse_witness(query)?;
         let ate_query = AverageEffectQuery::binary_ate(pulse.treatment, pulse.outcome);
         let tabular = TabularData::new(data.storage().clone());

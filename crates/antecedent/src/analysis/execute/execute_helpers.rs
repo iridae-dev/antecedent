@@ -1826,6 +1826,27 @@ fn same_predictive_check_inputs(
         && same_fitted_problem(&a.prep, &b.prep)
 }
 
+/// How the per-atom refutations of a graph-posterior class are aggregated and attributed.
+#[derive(Clone, Copy)]
+pub(super) struct AtomRefutationPolicy<'a> {
+    pub(super) aggregation: StructuralAggregationPolicy,
+    pub(super) estimator: &'a str,
+}
+
+/// The posterior and the variables its atoms are rebuilt over.
+#[derive(Clone, Copy)]
+pub(super) struct GraphPosteriorScope<'a> {
+    pub(super) posterior: &'a GraphPosterior,
+    pub(super) vars: &'a [VariableId],
+}
+
+/// The status and assumptions an aggregated identification publishes.
+#[derive(Clone, Copy)]
+pub(super) struct IdentificationBasis<'a> {
+    pub(super) status: IdentificationStatus,
+    pub(super) assumptions: &'a antecedent_core::AssumptionSet,
+}
+
 /// How a Bayesian posterior run is validated: the suite, the inference configuration it
 /// was fitted under, and the estimator each atom's checks are derived from.
 pub(super) struct BayesianValidation<'a> {

@@ -10,15 +10,15 @@ use super::response_path::{
     response_scalar_summary,
 };
 use super::{
-    Arc, AverageEffectQuery, CausalError, CausalResponse, ContinuousResponseEstimator, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimationWorkspace, EstimatorId,
-    ExecutionContext, GraphPosterior, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
-    IdentifierId, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study, StudyResult, TableView,
-    TabularData, VariableId, bayesian_gcomp, elapsed_ns, identification_status_ok_for_case,
-    identify_cached_diagnostic, provenance_ids,
+    Arc, AtomRefutationPolicy, AverageEffectQuery, CausalError, CausalResponse,
+    ContinuousResponseEstimator, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study,
+    StudyResult, TableView, TabularData, VariableId, bayesian_gcomp, elapsed_ns,
+    identification_status_ok_for_case, identify_cached_diagnostic, provenance_ids,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
     resolve_structural_aggregation, response_path,
 };
@@ -221,16 +221,16 @@ impl super::Study {
                     .plugin_level(&mut refute_ws, ctx)?
                 } else {
                     plugin_level_on_class_response_atoms(
+                        self,
                         data,
                         &identified,
                         &evals,
-                        treatment,
-                        outcome,
+                        (treatment, outcome),
                         ctx,
-                        self.refute,
-                        estimator_id.as_str(),
-                        &self.custom_validators,
-                        mixed.policy,
+                        AtomRefutationPolicy {
+                            aggregation: mixed.policy,
+                            estimator: estimator_id.as_str(),
+                        },
                     )?
                 }
             } else if !matches!(self.refute, RefuteSuite::None) {
@@ -673,17 +673,17 @@ fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {
 }
 
 fn plugin_level_on_class_response_atoms(
+    study: &Study,
     data: &TabularData,
     identified: &CachedGraphPosteriorIdentification,
     evals: &[ClassAtomResponseEval],
-    treatment: VariableId,
-    outcome: VariableId,
+    (treatment, outcome): (VariableId, VariableId),
     ctx: &ExecutionContext,
-    suite: RefuteSuite,
-    estimator: &str,
-    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
-    policy: StructuralAggregationPolicy,
+    refutation: AtomRefutationPolicy<'_>,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
+    let suite = study.refute;
+    let custom = &study.custom_validators[..];
     let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
     let mut refute_ws = EstimationWorkspace::default();
     let mut per_atom = Vec::new();

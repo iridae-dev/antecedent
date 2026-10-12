@@ -125,7 +125,7 @@ impl super::Study {
                 data,
                 admg,
                 AdmgResponseLevels {
-                    query: query,
+                    query,
                     level_queries: &[admg_response_single_level(query)?],
                     curve: false,
                 },
@@ -144,7 +144,7 @@ impl super::Study {
                 self.finish_admg_response_levels(
                     data,
                     admg,
-                    AdmgResponseLevels { query: query, level_queries: &level_queries, curve: true },
+                    AdmgResponseLevels { query, level_queries: &level_queries, curve: true },
                     physical,
                     ctx,
                     started,

@@ -8,22 +8,22 @@ use super::atom_mix::{
 };
 use super::sequential_validation::SequentialValidation;
 use super::{
-    Arc, BayesianGCompWorkspace, BayesianGComputationAte, BootstrapAccounting, CausalError,
-    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
-    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
-    InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary,
-    RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, TemporalAtomDesign,
-    TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment, TemporalRefutation,
-    TimeSeriesData, UNFOLDED_LINEAR_SEM, bayesian_gcomp, bayesian_temporal_gcomp,
-    completion_fit_seed, effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic,
-    envelope_se_omits_between_atom_variance, identification_status_ok_for_case,
-    identify_cached_diagnostic, is_multi_step_sustained, mass_fields, mix_weighted_analytic_se,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status, select_estimand,
-    sequential_linear_sem_assumption, shared_block_mixture_message,
-    shared_circular_block_mixture_se, short_series_warning, temporal_class_block_span,
-    temporal_refuter_average,
+    Arc, AtomRefutationPolicy, BayesianGCompWorkspace, BayesianGComputationAte,
+    BootstrapAccounting, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
+    EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalIndexer,
+    TemporalLinearAdjustment, TemporalRefutation, TimeSeriesData, UNFOLDED_LINEAR_SEM,
+    bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
+    elapsed_ns, envelope_se_omission_diagnostic, envelope_se_omits_between_atom_variance,
+    identification_status_ok_for_case, identify_cached_diagnostic, is_multi_step_sustained,
+    mass_fields, mix_weighted_analytic_se, overlap_diagnostic, provenance_ids,
+    resolve_posterior_status, select_estimand, sequential_linear_sem_assumption,
+    shared_block_mixture_message, shared_circular_block_mixture_se, short_series_warning,
+    temporal_class_block_span, temporal_refuter_average,
 };
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
@@ -290,8 +290,7 @@ impl super::Study {
             query,
             &identified,
             &evals,
-            mixed.policy,
-            estimator_id.as_str(),
+            AtomRefutationPolicy { aggregation: mixed.policy, estimator: estimator_id.as_str() },
             ctx,
         )?;
         diagnostics.extend(refute_diagnostics);
@@ -753,10 +752,10 @@ fn refute_temporal_class_graph_posterior(
     query: &TemporalEffectQuery,
     identified: &CachedTemporalClassPosteriorIdentification,
     evals: &[TemporalClassAtomEval],
-    policy: StructuralAggregationPolicy,
-    estimator: &str,
+    refutation: AtomRefutationPolicy<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
     if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }

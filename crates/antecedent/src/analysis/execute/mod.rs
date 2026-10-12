@@ -606,19 +606,15 @@ mod envelope_refuter_target_tests {
     ) -> antecedent_validate::RefutationReport {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let (reports, _) = run_envelope_effect_refuters(
+        let (reports, _) = EnvelopeRefutation {
             data,
-            &query,
-            atoms,
-            &mut EstimationWorkspace::default(),
-            ctx,
-            RefuteSuite::Full,
-            "linear.adjustment.ate",
-            &[],
-            None,
-            None,
-            None,
-        )
+            query: &query,
+            suite: RefuteSuite::Full,
+            estimator: "linear.adjustment.ate",
+            custom: &[],
+            temporal: None,
+        }
+        .run(atoms, &mut EstimationWorkspace::default(), ctx)
         .unwrap();
         reports
             .into_iter()

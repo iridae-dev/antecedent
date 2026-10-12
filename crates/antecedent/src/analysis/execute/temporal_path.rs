@@ -6,10 +6,11 @@ use super::{
     CausalError, CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
     DerivationMeta, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate,
     EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimandMethod,
-    EstimationWorkspace, EstimatorId, ExecutionContext, ExprNode, GraphClass, GraphEffectDraws,
-    GraphIdentFlag, IdentificationEnvelope, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
-    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, MediationRoute,
+    EstimationWorkspace, EstimatorId, ExecuteRun, ExecutionContext, ExprNode, GraphClass,
+    GraphEffectDraws, GraphIdentFlag, IdentificationBasis, IdentificationEnvelope,
+    IdentificationResult, IdentificationStatus, IdentifiedClaim, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
+    InferenceDiagnostics, InferenceMode, Instant, Intervention, MediationRoute,
     ObservationMechanismEstimator, ObservationSpec, OutcomeExprId, OverlapPolicy,
     PhysicalExecutionPlan, PriorSet, RefuteSuite, ResponseFunctional, ResponseIdentification,
     ResponseQuery, ResponseUncertainty, ResponseValue, SEQUENCE_LINEAR_SEM, Strategy, StudyResult,
@@ -934,24 +935,23 @@ impl super::Study {
             .filter(|_| !observed_bayes)
         {
             return self.execute_temporal_sequence_response(
-                data,
-                source_data,
-                graph,
-                query,
-                temporal,
-                &overlays,
-                &aligned,
-                identification,
-                estimand,
-                treatment,
-                outcome,
-                aggregate_status,
-                aggregate_assumptions.clone(),
-                identify_cached,
-                physical,
-                started,
-                ctx,
-                observation_adjusted.as_ref(),
+                SequenceResponseInputs {
+                    data,
+                    source_data,
+                    graph,
+                    query,
+                    temporal,
+                    overlays: &overlays,
+                    aligned: &aligned,
+                    observation_adjusted: observation_adjusted.as_ref(),
+                },
+                IdentifiedClaim { identification, estimand },
+                (treatment, outcome),
+                IdentificationBasis {
+                    status: aggregate_status,
+                    assumptions: &aggregate_assumptions,
+                },
+                ExecuteRun { physical, ctx, started, identify_cached },
             );
         }
 
@@ -997,8 +997,10 @@ impl super::Study {
                     source_data,
                     query,
                     &aligned,
-                    self.observation_options,
-                    self.bootstrap_replicates,
+                    ObservationBootstrap {
+                        options: self.observation_options,
+                        replicates: self.bootstrap_replicates,
+                    },
                     ctx,
                 )? {
                     apply_observation_bootstrap(
@@ -1104,25 +1106,26 @@ impl super::Study {
 
     fn execute_temporal_sequence_response(
         &self,
-        data: &TimeSeriesData,
-        source_data: &TimeSeriesData,
-        graph: &TemporalDag,
-        query: &ResponseQuery,
-        temporal: &antecedent_core::TemporalResponseSpec,
-        overlays: &[antecedent_estimate::SequentialMechanismOverlay],
-        aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
-        treatment: VariableId,
-        outcome: VariableId,
-        aggregate_status: IdentificationStatus,
-        mut assumptions: antecedent_core::AssumptionSet,
-        identify_cached: bool,
-        physical: &PhysicalExecutionPlan,
-        started: Instant,
-        ctx: &ExecutionContext,
-        observation_adjusted: Option<&antecedent_estimate::ObservationAdjustedOutcome>,
+        inputs: SequenceResponseInputs<'_>,
+        claim: IdentifiedClaim,
+        (treatment, outcome): (VariableId, VariableId),
+        basis: IdentificationBasis<'_>,
+        run: ExecuteRun<'_>,
     ) -> Result<StudyResult, CausalError> {
+        let SequenceResponseInputs {
+            data,
+            source_data,
+            graph,
+            query,
+            temporal,
+            overlays,
+            aligned,
+            observation_adjusted,
+        } = inputs;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let IdentificationBasis { status: aggregate_status, assumptions } = basis;
+        let mut assumptions = assumptions.clone();
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
         if self.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "multi-step Sequence overlays require no discovery-estimation split",
@@ -1309,12 +1312,13 @@ impl super::Study {
             let band = bootstrap_sequence_response(
                 source_data,
                 query,
-                graph,
-                overlays,
+                SequenceMechanisms { graph, overlays },
                 outcome,
                 aligned,
-                self.observation_options,
-                self.bootstrap_replicates,
+                ObservationBootstrap {
+                    options: self.observation_options,
+                    replicates: self.bootstrap_replicates,
+                },
                 ctx,
             )?;
             apply_tuple_bootstrap_band(
@@ -1661,14 +1665,16 @@ impl super::Study {
             class_observation_band_applied = apply_class_observation_bootstrap(
                 data,
                 &observation_atoms,
-                &mut structural_atoms,
-                &mut response,
-                &mut diagnostics,
-                cells_per_horizon,
-                n_horizons,
-                apply_class_band,
-                self.observation_options,
-                self.bootstrap_replicates,
+                ClassBootstrapTargets {
+                    structural_atoms: &mut structural_atoms,
+                    response: &mut response,
+                    diagnostics: &mut diagnostics,
+                },
+                ClassBandLayout { cells_per_horizon, n_horizons, apply_class_band },
+                ObservationBootstrap {
+                    options: self.observation_options,
+                    replicates: self.bootstrap_replicates,
+                },
                 ctx,
             )?;
         }
@@ -2051,14 +2057,20 @@ impl super::Study {
             class_observation_band_applied = apply_class_observation_bootstrap(
                 data,
                 &observation_atoms,
-                &mut structural_atoms,
-                &mut response,
-                &mut diagnostics,
-                1,
-                temporal.horizons.len(),
-                apply_class_band,
-                self.observation_options,
-                self.bootstrap_replicates,
+                ClassBootstrapTargets {
+                    structural_atoms: &mut structural_atoms,
+                    response: &mut response,
+                    diagnostics: &mut diagnostics,
+                },
+                ClassBandLayout {
+                    cells_per_horizon: 1,
+                    n_horizons: temporal.horizons.len(),
+                    apply_class_band,
+                },
+                ObservationBootstrap {
+                    options: self.observation_options,
+                    replicates: self.bootstrap_replicates,
+                },
                 ctx,
             )?;
         }
@@ -3737,20 +3749,59 @@ fn class_atom_adjustment(
         .collect()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn apply_class_observation_bootstrap(
-    source: &TimeSeriesData,
-    atoms: &[ClassObservationAtom],
-    structural_atoms: &mut [crate::result::StructuralResponseAtom],
-    response: &mut CausalResponse,
-    diagnostics: &mut Vec<Diagnostic>,
+/// The series, graph and per-horizon retained results a Sequence temporal response runs over.
+struct SequenceResponseInputs<'a> {
+    data: &'a TimeSeriesData,
+    source_data: &'a TimeSeriesData,
+    graph: &'a TemporalDag,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+    aligned: &'a [&'a crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    observation_adjusted: Option<&'a antecedent_estimate::ObservationAdjustedOutcome>,
+}
+
+/// The observation-adjustment bootstrap budget of one temporal response: the
+/// observation estimator options and the replicate count.
+#[derive(Clone, Copy)]
+struct ObservationBootstrap {
+    options: antecedent_estimate::ObservationEstimatorOptions,
+    replicates: u32,
+}
+
+/// The shared mechanism graph and per-horizon overlays of a sequence response.
+#[derive(Clone, Copy)]
+struct SequenceMechanisms<'a> {
+    graph: &'a TemporalDag,
+    overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+}
+
+/// The class-level slots a class observation bootstrap writes into.
+struct ClassBootstrapTargets<'a> {
+    structural_atoms: &'a mut [crate::result::StructuralResponseAtom],
+    response: &'a mut CausalResponse,
+    diagnostics: &'a mut Vec<Diagnostic>,
+}
+
+/// How a class response's cells are laid out over horizons, and whether the class band applies.
+#[derive(Clone, Copy)]
+struct ClassBandLayout {
     cells_per_horizon: usize,
     n_horizons: usize,
     apply_class_band: bool,
-    options: antecedent_estimate::ObservationEstimatorOptions,
-    replicates: u32,
+}
+
+fn apply_class_observation_bootstrap(
+    source: &TimeSeriesData,
+    atoms: &[ClassObservationAtom],
+    targets: ClassBootstrapTargets<'_>,
+    layout: ClassBandLayout,
+    bootstrap: ObservationBootstrap,
     ctx: &ExecutionContext,
 ) -> Result<bool, CausalError> {
+    let ClassBootstrapTargets { structural_atoms, response, diagnostics } = targets;
+    let ClassBandLayout { cells_per_horizon, n_horizons, apply_class_band } = layout;
+    let ObservationBootstrap { options, replicates } = bootstrap;
     if replicates == 0 || atoms.is_empty() {
         return Ok(false);
     }
@@ -4093,15 +4144,14 @@ fn apply_tuple_bootstrap_band(
 /// the replicate pseudo-outcome. Reordering the raw series instead (and rebuilding lags
 /// on the reordered rows) pairs values across block junctions and biases the replicate
 /// slope toward zero.
-#[allow(clippy::too_many_arguments)]
 fn bootstrap_observation_adjusted_temporal_response(
     source: &TimeSeriesData,
     query: &ResponseQuery,
     aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
-    options: antecedent_estimate::ObservationEstimatorOptions,
-    replicates: u32,
+    bootstrap: ObservationBootstrap,
     ctx: &ExecutionContext,
 ) -> Result<Option<ObservationBootstrapBand>, CausalError> {
+    let ObservationBootstrap { options, replicates } = bootstrap;
     if replicates == 0 {
         return Ok(None);
     }
@@ -4131,18 +4181,17 @@ fn bootstrap_observation_adjusted_temporal_response(
 /// the resampled tuples and replaces the outcome-time column with the replicate
 /// pseudo-outcomes (a design that reads the outcome at a nonzero lag is refused); a
 /// complete-data query keeps its recorded outcomes.
-#[allow(clippy::too_many_arguments)]
 fn bootstrap_sequence_response(
     source: &TimeSeriesData,
     query: &ResponseQuery,
-    graph: &TemporalDag,
-    overlays: &[antecedent_estimate::SequentialMechanismOverlay],
+    mechanisms: SequenceMechanisms<'_>,
     outcome: VariableId,
     aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
-    options: antecedent_estimate::ObservationEstimatorOptions,
-    replicates: u32,
+    bootstrap: ObservationBootstrap,
     ctx: &ExecutionContext,
 ) -> Result<ObservationBootstrapBand, CausalError> {
+    let SequenceMechanisms { graph, overlays } = mechanisms;
+    let ObservationBootstrap { options, replicates } = bootstrap;
     let adjustment = contemporaneous_adjustment_variables(aligned);
     let horizons = aligned
         .iter()
@@ -4672,12 +4721,12 @@ impl super::Study {
             }
             CausalQuery::Counterfactual(q) => {
                 let treatment =
-                    q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
-                        || CausalError::Unsupported {
+                    q.interventions.first().and_then(Intervention::primary_variable).ok_or(
+                        CausalError::Unsupported {
                             message: "temporal counterfactual needs one hard intervention",
                         },
                     )?;
-                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
+                let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
                     message: "temporal counterfactual needs one outcome",
                 })?;
                 (
@@ -4693,10 +4742,10 @@ impl super::Study {
                     .interventions
                     .first()
                     .and_then(Intervention::primary_variable)
-                    .ok_or_else(|| CausalError::Unsupported {
+                    .ok_or(CausalError::Unsupported {
                         message: "temporal interventional distribution needs one hard intervention",
                     })?;
-                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
+                let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
                     message: "temporal interventional distribution needs one outcome",
                 })?;
                 if !q.conditioning.is_empty() {

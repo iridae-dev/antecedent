@@ -127,8 +127,7 @@ impl super::Study {
                 self,
                 data,
                 query,
-                mask,
-                gp.n_vars,
+                AtomAdjacency { mask, n_vars: gp.n_vars },
                 &atom.identification,
                 &atom.estimand,
                 inner,
@@ -407,16 +406,23 @@ fn mask_for_atom_key(gp: &GraphPosterior, key: u64) -> Result<u64, CausalError> 
         })
 }
 
+/// An ADMG posterior atom's adjacency bitmask and the variable count it indexes.
+#[derive(Clone, Copy)]
+struct AtomAdjacency {
+    mask: u64,
+    n_vars: usize,
+}
+
 fn estimate_admg_posterior_atom_response(
     study: &Study,
     data: &TabularData,
     query: &ResponseQuery,
-    mask: u64,
-    n_vars: usize,
+    adjacency: AtomAdjacency,
     identification: &IdentificationResult,
     estimand: &IdentifiedEstimand,
     ctx: &ExecutionContext,
 ) -> Result<CausalResponse, CausalError> {
+    let AtomAdjacency { mask, n_vars } = adjacency;
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
     let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
     match &query.functional {

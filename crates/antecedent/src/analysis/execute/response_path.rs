@@ -679,7 +679,7 @@ impl super::Study {
         self.execute_cell_aipw_response(
             data,
             operation.query(),
-            ExecuteRun { physical: physical, ctx: ctx, started: started, identify_cached: true },
+            ExecuteRun { physical, ctx, started, identify_cached: true },
             IdentifiedClaim { identification: identification.clone(), estimand: estimand.clone() },
             Strategy::new(identifier_id, estimator_id),
             Some(table),
@@ -1395,13 +1395,8 @@ impl super::Study {
             return self.execute_cell_aipw_response(
                 data,
                 query,
-                ExecuteRun {
-                    physical: physical,
-                    ctx: ctx,
-                    started: started,
-                    identify_cached: identify_cached,
-                },
-                IdentifiedClaim { identification: identification, estimand: estimand },
+                ExecuteRun { physical, ctx, started, identify_cached },
+                IdentifiedClaim { identification, estimand },
                 Strategy::new(identifier_id, estimator_id),
                 None,
             );
@@ -1611,13 +1606,8 @@ impl super::Study {
         self.execute_cell_aipw_response(
             data,
             query,
-            ExecuteRun {
-                physical: physical,
-                ctx: ctx,
-                started: started,
-                identify_cached: identify_cached,
-            },
-            IdentifiedClaim { identification: identification, estimand: estimand },
+            ExecuteRun { physical, ctx, started, identify_cached },
+            IdentifiedClaim { identification, estimand },
             Strategy::new(identifier_id, estimator_id),
             None,
         )

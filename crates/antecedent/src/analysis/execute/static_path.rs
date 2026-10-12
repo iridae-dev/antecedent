@@ -1225,7 +1225,7 @@ impl super::Study {
                     &query.inner,
                     ClassEnvelopeRun {
                         run: ExecuteRun { physical, ctx, started, identify_cached },
-                        envelope: envelope,
+                        envelope,
                         envelope_diagnostic: envelope_diag,
                     },
                     identification,
@@ -1248,7 +1248,7 @@ impl super::Study {
                 &query.inner,
                 ClassEnvelopeRun {
                     run: ExecuteRun { physical, ctx, started, identify_cached },
-                    envelope: envelope,
+                    envelope,
                     envelope_diagnostic: envelope_diag,
                 },
                 identification,
@@ -1536,12 +1536,7 @@ impl super::Study {
             return self.finish_tiered_unknown(
                 data,
                 query,
-                ExecuteRun {
-                    physical: physical,
-                    ctx: ctx,
-                    started: started,
-                    identify_cached: identify_cached,
-                },
+                ExecuteRun { physical, ctx, started, identify_cached },
                 identification,
                 Strategy::new(identifier_id, estimator_id),
             );
@@ -1634,12 +1629,7 @@ impl super::Study {
         self.finish_tiered_unknown(
             data,
             query,
-            ExecuteRun {
-                physical: physical,
-                ctx: ctx,
-                started: Instant::now(),
-                identify_cached: true,
-            },
+            ExecuteRun { physical, ctx, started: Instant::now(), identify_cached: true },
             identification,
             Strategy::new(identifier_id, estimator_id),
         )
