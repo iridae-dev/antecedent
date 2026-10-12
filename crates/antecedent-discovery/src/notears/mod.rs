@@ -36,7 +36,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
 
-use crate::constraints::{DiscoveryConstraints, forbidden_edge};
+use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::lingam::StaticDagDiscoveryResult;
@@ -201,12 +201,16 @@ impl Notears {
         for i in 0..d {
             frozen[i * d + i] = true;
         }
+        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
         for i in 0..d {
             for j in 0..d {
                 if i == j {
                     continue;
                 }
-                if forbidden_edge(&self.constraints, variables, i, j) {
+                if index.is_forbidden(
+                    &self.constraints,
+                    crate::constraints::contemp_link(variables[i], variables[j]),
+                ) {
                     frozen[i * d + j] = true;
                 }
             }

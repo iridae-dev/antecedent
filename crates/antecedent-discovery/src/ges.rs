@@ -412,10 +412,8 @@ fn forbidden_pair(
         target: va,
         target_lag: Lag::CONTEMPORANEOUS,
     };
-    constraints.is_forbidden(link_ab)
-        || constraints.is_forbidden(link_ba)
-        || constraints.tier_forbids(va, vb)
-        || constraints.tier_forbids(vb, va)
+    // `is_forbidden` already applies `tier_forbids` in both directions.
+    constraints.is_forbidden(link_ab) || constraints.is_forbidden(link_ba)
 }
 
 fn required_pair(

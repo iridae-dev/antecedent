@@ -26,9 +26,8 @@ use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_mcmc::{MaskAccept, MaskCancel, MaskChain, MaskChainPlan, run_mask_chain};
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, SamplingSummary, accumulate_marginals,
-    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
-    lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights,
-    parents_of, set_edge,
+    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_required, lagged_link,
+    log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights, parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -692,6 +691,7 @@ fn score_dbn_template(
     let lp = log_prior_mask(cmask, p, prior, variables)?;
     // Lag edges: apply max-parents including lagged.
     let max_pa = prior.constraints.max_parents.unwrap_or(usize::MAX);
+    let index = crate::constraints::ConstraintIndex::compile(&prior.constraints);
     let mut total = lp;
     for j in 0..p {
         let mut pa: Vec<u32> = parents_of(cmask, p, j);
@@ -703,7 +703,9 @@ fn score_dbn_template(
                 // both endpoints pinned to `Lag::CONTEMPORANEOUS`, so they structurally
                 // cannot see a lag > 0 constraint. Without this, a forbidden `X_{t-1} → Y_t`
                 // was a complete no-op for this engine and could carry posterior mass.
-                if present && lagged_edge_forbidden(&prior.constraints, variables, i, lag, j) {
+                if present
+                    && index.is_forbidden(&prior.constraints, lagged_link(variables, i, lag, j))
+                {
                     return None;
                 }
                 if !present && lagged_edge_required(&prior.constraints, variables, i, lag, j) {

@@ -22,7 +22,7 @@ use crate::graph_mcmc::{
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, n_directed_edges, set_edge,
 };
-use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
+use crate::graph_score::{initial_scored_mask, score_dag_mask_with_parents, tabular_score_data};
 
 /// Order MCMC over topological orders and compatible forward edges.
 #[derive(Clone, Debug)]
@@ -154,6 +154,8 @@ impl OrderMcmc {
                     cur: initial_score,
                     pending_order: initial_order.clone(),
                     pending_mask: initial_mask,
+                    pos_scratch: Vec::with_capacity(n),
+                    parent_scratch: Vec::with_capacity(n),
                 };
                 let run = run_mask_chain(
                     &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
@@ -210,6 +212,8 @@ struct OrderWalker<'a> {
     cur: f64,
     pending_order: Vec<usize>,
     pending_mask: u64,
+    pos_scratch: Vec<usize>,
+    parent_scratch: Vec<u32>,
 }
 
 impl MaskChain for OrderWalker<'_> {
@@ -230,20 +234,26 @@ impl MaskChain for OrderWalker<'_> {
     }
 
     fn propose(&mut self, rng: &mut CausalRng) -> u64 {
-        let (order, mask) = propose_order(&self.order, self.mask, self.n, rng);
-        self.pending_order = order;
-        self.pending_mask = mask;
+        self.pending_mask = propose_order(
+            &self.order,
+            self.mask,
+            self.n,
+            rng,
+            &mut self.pending_order,
+            &mut self.pos_scratch,
+        );
         0
     }
 
     fn proposed_score(&mut self) -> Option<f64> {
-        score_dag_mask(
+        score_dag_mask_with_parents(
             self.pending_mask,
             self.n,
             self.score_data,
             &mut self.cache,
             self.prior,
             self.variables,
+            &mut self.parent_scratch,
         )
         .map(|score| score - log_topological_order_count(self.pending_mask, self.n))
     }
@@ -272,44 +282,52 @@ impl MaskChain for OrderWalker<'_> {
     }
 }
 
-fn propose_order(order: &[usize], mask: u64, n: usize, rng: &mut CausalRng) -> (Vec<usize>, u64) {
-    let mut new_order = order.to_vec();
+fn propose_order(
+    order: &[usize],
+    mask: u64,
+    n: usize,
+    rng: &mut CausalRng,
+    new_order: &mut Vec<usize>,
+    pos: &mut Vec<usize>,
+) -> u64 {
+    new_order.clear();
+    new_order.extend_from_slice(order);
     let mut new_mask = mask;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
         let k = crate::indexing::bounded_index(rng.next_u64(), n - 1);
         new_order.swap(k, k + 1);
-        new_mask = reorient_skeleton(mask, &new_order, n);
+        new_mask = reorient_skeleton(mask, new_order, n, pos);
     } else if u < 0.55 && n >= 3 {
         let a = crate::indexing::bounded_index(rng.next_u64(), n);
         let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
             new_order.swap(a, b);
-            new_mask = reorient_skeleton(mask, &new_order, n);
+            new_mask = reorient_skeleton(mask, new_order, n, pos);
         }
     } else {
         let a = crate::indexing::bounded_index(rng.next_u64(), n);
         let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
-            let pos = position_map(&new_order);
+            fill_position_map(new_order, pos);
             let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
             let on = has_edge(new_mask, n, from, to);
             new_mask = set_edge(new_mask, n, from, to, !on);
         }
     }
-    (new_order, new_mask)
+    new_mask
 }
 
-fn position_map(order: &[usize]) -> Vec<usize> {
-    let mut pos = vec![0; order.len()];
+fn fill_position_map(order: &[usize], pos: &mut Vec<usize>) {
+    pos.clear();
+    pos.resize(order.len(), 0);
     for (p, &node) in order.iter().enumerate() {
         pos[node] = p;
     }
-    pos
 }
 
-fn reorient_skeleton(mask: u64, order: &[usize], n: usize) -> u64 {
-    let pos = position_map(order);
+fn reorient_skeleton(mask: u64, order: &[usize], n: usize, pos: &mut Vec<usize>) -> u64 {
+    fill_position_map(order, pos);
     let mut out = 0u64;
     for a in 0..n {
         for b in a + 1..n {

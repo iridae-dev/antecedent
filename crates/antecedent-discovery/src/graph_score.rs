@@ -10,7 +10,7 @@ use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, Loc
 
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    GraphPrior, GraphPriorTable, edge_required, log_prior_mask, parents_of, set_edge,
+    GraphPrior, GraphPriorTable, edge_required, fill_parents, log_prior_mask, set_edge,
 };
 use crate::pc::collect_float_columns;
 
@@ -72,10 +72,28 @@ pub(crate) fn score_dag_mask(
     prior: &GraphPrior,
     variables: &[VariableId],
 ) -> Option<f64> {
+    let mut parents = Vec::new();
+    score_dag_mask_with_parents(mask, n, data, cache, prior, variables, &mut parents)
+}
+
+/// [`score_dag_mask`] reusing `parents` for every node's parent list.
+///
+/// The stored local score is still keyed by a fresh `Arc` of those indexes, in the
+/// same increasing order [`crate::graph_posterior::parents_of`] produces.
+pub(crate) fn score_dag_mask_with_parents(
+    mask: u64,
+    n: usize,
+    data: &GraphScoreData,
+    cache: &mut LocalScoreCache,
+    prior: &GraphPrior,
+    variables: &[VariableId],
+    parents: &mut Vec<u32>,
+) -> Option<f64> {
     let lp = log_prior_mask(mask, n, prior, variables)?;
     let mut total = lp;
     for node in 0..n {
-        let pa = Arc::from(parents_of(mask, n, node));
+        fill_parents(mask, n, node, parents);
+        let pa = Arc::<[u32]>::from(parents.as_slice());
         let s = cache.local_score(data, crate::indexing::dense_u32(node), &pa).ok()?;
         if !s.is_finite() {
             return None;

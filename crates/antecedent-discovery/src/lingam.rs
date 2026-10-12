@@ -21,7 +21,7 @@ use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, distance_correlation,
 };
 
-use crate::constraints::{DiscoveryConstraints, forbidden_edge};
+use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::pc::collect_float_columns;
@@ -275,6 +275,7 @@ impl DirectLingam {
             kept
         };
 
+        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
         for (pos, &child) in order.iter().enumerate() {
             if pos == 0 {
                 continue;
@@ -282,7 +283,12 @@ impl DirectLingam {
             let preds: Vec<usize> = order[..pos]
                 .iter()
                 .copied()
-                .filter(|&par| !forbidden_edge(&self.constraints, variables, par, child))
+                .filter(|&par| {
+                    !index.is_forbidden(
+                        &self.constraints,
+                        crate::constraints::contemp_link(variables[par], variables[child]),
+                    )
+                })
                 .collect();
             if preds.is_empty() {
                 continue;

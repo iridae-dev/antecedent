@@ -467,16 +467,22 @@ pub fn set_edge(mask: u64, n: usize, from: usize, to: usize, present: bool) -> u
     if present { mask | (1u64 << b) } else { mask & !(1u64 << b) }
 }
 
-/// Parent indices of `node` under `mask`.
+/// Parent indices of `node` under `mask`, in increasing parent index.
 #[must_use]
 pub fn parents_of(mask: u64, n: usize, node: usize) -> Vec<u32> {
     let mut pa = Vec::new();
+    fill_parents(mask, n, node, &mut pa);
+    pa
+}
+
+/// Write parent indices of `node` into `parents`, reusing its allocation.
+pub(crate) fn fill_parents(mask: u64, n: usize, node: usize, parents: &mut Vec<u32>) {
+    parents.clear();
     for p in 0..n {
         if p != node && has_edge(mask, n, p, node) {
-            pa.push(crate::indexing::dense_u32(p));
+            parents.push(crate::indexing::dense_u32(p));
         }
     }
-    pa
 }
 
 /// Whether `mask` encodes a DAG on `n` nodes.
@@ -829,6 +835,10 @@ pub(crate) fn static_link(variables: &[VariableId], from: usize, to: usize) -> L
 
 /// Whether constraints forbid directed edge `from → to`.
 #[must_use]
+#[allow(
+    dead_code,
+    reason = "single-edge predicate; mask scans use ConstraintIndex, which matches this boolean"
+)]
 pub(crate) fn edge_forbidden(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
@@ -836,7 +846,8 @@ pub(crate) fn edge_forbidden(
     to: usize,
 ) -> bool {
     let link = static_link(variables, from, to);
-    constraints.is_forbidden(link) || constraints.tier_forbids(link.source, link.target)
+    // `is_forbidden` already applies `tier_forbids`.
+    constraints.is_forbidden(link)
 }
 
 /// Lagged link `from` at `lag` → `to` contemporaneous.
@@ -857,6 +868,10 @@ pub fn lagged_link(variables: &[VariableId], from: usize, lag: u32, to: usize) -
 /// stores `LaggedLink`s precisely so lag-specific constraints can be written, and callers
 /// that score lagged structure need this variant to honor them.
 #[must_use]
+#[allow(
+    dead_code,
+    reason = "single-edge predicate; lag-mask scans use ConstraintIndex, which matches this boolean"
+)]
 pub(crate) fn lagged_edge_forbidden(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
@@ -865,7 +880,8 @@ pub(crate) fn lagged_edge_forbidden(
     to: usize,
 ) -> bool {
     let link = lagged_link(variables, from, lag, to);
-    constraints.is_forbidden(link) || constraints.tier_forbids(link.source, link.target)
+    // `is_forbidden` already applies `tier_forbids`.
+    constraints.is_forbidden(link)
 }
 
 /// Whether constraints require the lagged edge `from_{t−lag} → to_t`.
@@ -920,6 +936,7 @@ impl GraphPriorTable {
         let mut bit = vec![0u64; n * n];
         let mut forbidden = 0u64;
         let mut required = 0u64;
+        let index = crate::constraints::ConstraintIndex::compile(&prior.constraints);
         for i in 0..n {
             for j in 0..n {
                 if i == j {
@@ -927,7 +944,7 @@ impl GraphPriorTable {
                 }
                 let b = 1u64.checked_shl(edge_bit(n, i, j)).unwrap_or(0);
                 bit[i * n + j] = b;
-                if edge_forbidden(&prior.constraints, variables, i, j) {
+                if index.is_forbidden(&prior.constraints, static_link(variables, i, j)) {
                     forbidden |= b;
                 }
                 if edge_required(&prior.constraints, variables, i, j) {

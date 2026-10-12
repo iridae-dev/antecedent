@@ -17,7 +17,7 @@ use crate::graph_mcmc::{
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, set_edge,
 };
-use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
+use crate::graph_score::{initial_scored_mask, score_dag_mask_with_parents, tabular_score_data};
 
 /// Structure MCMC with single-edge add / delete / reverse proposals.
 #[derive(Clone, Debug)]
@@ -158,6 +158,7 @@ impl StructureMcmc {
                     mask: initial_mask,
                     cur: initial_score,
                     pending: initial_mask,
+                    parent_scratch: Vec::with_capacity(n),
                 };
                 let run = run_mask_chain(
                     &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
@@ -265,6 +266,7 @@ struct StructureWalker<'a> {
     mask: u64,
     cur: f64,
     pending: u64,
+    parent_scratch: Vec<u32>,
 }
 
 impl MaskChain for StructureWalker<'_> {
@@ -291,13 +293,14 @@ impl MaskChain for StructureWalker<'_> {
     }
 
     fn proposed_score(&mut self) -> Option<f64> {
-        score_dag_mask(
+        score_dag_mask_with_parents(
             self.pending,
             self.n,
             self.score_data,
             &mut self.cache,
             self.prior,
             self.variables,
+            &mut self.parent_scratch,
         )
     }
 
