@@ -159,6 +159,9 @@ echo "== calibration backlog and readiness inventories are current =="
 python3 scripts/generate_calibration_backlog.py --check
 python3 scripts/calibration_readiness.py --check
 
+echo "== conformance reference generators =="
+python3 scripts/check_conformance_references.py
+
 echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
 bash scripts/gate_lint_allows.sh
 

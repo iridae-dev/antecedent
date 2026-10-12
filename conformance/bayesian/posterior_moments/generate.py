@@ -3,6 +3,7 @@
 SPDX-License-Identifier: MIT OR Apache-2.0
 """
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -396,4 +397,26 @@ ORACLE = {
     'project': 'NumPy Normal-inverse-gamma posterior equations',
     'generator': 'conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)',
 }
-Path(__file__).with_name('expected.json').write_text(json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n', encoding="utf-8", newline="\n")
+def _values_close(left, right):
+    """Float documents compare with ``np.isclose``, not ``!=``."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return bool(np.isclose(left, right, equal_nan=True))
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(_values_close(left[k], right[k]) for k in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            _values_close(a, b) for a, b in zip(left, right, strict=True)
+        )
+    return left == right
+
+
+_text = json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n'
+_path = Path(__file__).with_name('expected.json')
+if __name__ == '__main__' and '--check' in sys.argv:
+    if not _values_close(json.loads(_path.read_text(encoding='utf-8')), json.loads(_text)):
+        raise SystemExit('expected.json is stale; rerun without --check')
+    print('reference matches expected.json')
+elif __name__ == '__main__':
+    _path.write_text(_text, encoding='utf-8', newline='\n')
