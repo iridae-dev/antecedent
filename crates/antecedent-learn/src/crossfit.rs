@@ -85,6 +85,35 @@ fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
         .then(|| y.iter().map(|&v| u32::from(v == 1.0)).collect())
 }
 
+/// Number of folds in a plan that uses every id in `0..folds` at least once.
+fn complete_fold_count(assignment: &[u16], message: &'static str) -> Result<usize, LearnError> {
+    let folds = usize::from(*assignment.iter().max().unwrap_or(&0)) + 1;
+    if folds < 2 || (0..folds).any(|f| !assignment.iter().any(|v| usize::from(*v) == f)) {
+        return Err(LearnError::Shape { message });
+    }
+    Ok(folds)
+}
+
+/// Scatter each fold's held-out predictions back onto physical rows.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "callers reject row counts above u32::MAX before storing physical indexes as u32"
+)]
+fn scatter_fold_predictions(
+    n: usize,
+    parts: impl IntoIterator<Item = FoldFit>,
+) -> (Vec<f64>, Vec<LearnerProvenance>) {
+    let mut predictions = vec![0.0; n];
+    let mut model_provenance = Vec::new();
+    for part in parts {
+        model_provenance.push(part.provenance);
+        for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
+            predictions[row as usize] = value;
+        }
+    }
+    (predictions, model_provenance)
+}
+
 /// Cross-fit `factory` on `x` / `y`. `y` is physical-aligned.
 ///
 /// Train/valid sets are row-index views over `x`. Fold models are discarded.
@@ -144,24 +173,13 @@ pub fn cross_fit_with_folds(
     if fold_assignment.len() != n || n == 0 || n > u32::MAX as usize {
         return Err(LearnError::Shape { message: "fold plan length != physical rows" });
     }
-    let folds = usize::from(*fold_assignment.iter().max().unwrap_or(&0)) + 1;
-    if folds < 2 || (0..folds).any(|f| !fold_assignment.iter().any(|v| usize::from(*v) == f)) {
-        return Err(LearnError::Shape {
-            message: "cross-fitting needs at least two non-empty folds",
-        });
-    }
+    let folds =
+        complete_fold_count(&fold_assignment, "cross-fitting needs at least two non-empty folds")?;
     let fold_results = ctx.map_indexed(folds, |fold, inner| {
         fit_one_fold(factory, x, y, &fold_assignment, fold as u16, inner, transformer)
     })?;
 
-    let mut predictions = vec![0.0; n];
-    let mut model_provenance = Vec::with_capacity(folds);
-    for result in fold_results {
-        model_provenance.push(result.provenance);
-        for (phys, pred) in result.valid_phys.into_iter().zip(result.preds) {
-            predictions[phys as usize] = pred;
-        }
-    }
+    let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results);
     let validation = diagnose(factory.task(), y.values(), &predictions);
     Ok(CrossFittedPrediction { predictions, fold_assignment, model_provenance, validation })
 }
@@ -305,10 +323,7 @@ pub fn cross_fit_selected(
     {
         return Err(LearnError::Shape { message: "misaligned selected cross-fit inputs" });
     }
-    let folds = usize::from(*fold_assignment.iter().max().unwrap()) + 1;
-    if folds < 2 || (0..folds).any(|f| !fold_assignment.iter().any(|v| usize::from(*v) == f)) {
-        return Err(LearnError::Shape { message: "invalid selected cross-fit folds" });
-    }
+    let folds = complete_fold_count(fold_assignment, "invalid selected cross-fit folds")?;
     let parts = ctx.map_indexed(folds, |fold, inner| {
         let train: Vec<u32> = (0..n)
             .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
@@ -324,14 +339,7 @@ pub fn cross_fit_selected(
         fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
         Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
     })?;
-    let mut predictions = vec![0.0; n];
-    let mut model_provenance = Vec::new();
-    for part in parts {
-        model_provenance.push(part.provenance);
-        for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
-            predictions[row as usize] = value;
-        }
-    }
+    let (predictions, model_provenance) = scatter_fold_predictions(n, parts);
     let observed: Vec<_> =
         y.values().iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
     let predicted: Vec<_> =
