@@ -2590,179 +2590,79 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if !query.effect_modifiers.is_empty() {
-            return self.execute_temporal_class_conditional(data, query, physical, ctx);
-        }
-        if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+        if matches!(self.inference, InferenceMode::Bayesian(_))
+            && query.effect_modifiers.is_empty()
+            && !query.is_multi_step_sustained()
         {
-            return self.execute_temporal_class_sequential(data, query, physical, ctx);
-        }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
             return self.execute_temporal_class_bayesian(data, query, physical, ctx);
         }
-        let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?, false)
-            };
-        let envelope = &bundle.envelope.envelope;
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
-            return Err(CausalError::not_identified(
-                envelope.status,
-                envelope.truncated_completions > 0,
-                "temporal class-aware effect not identified (no identified mass in envelope)",
-            ));
-        }
-        let mut diagnostics =
-            vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
-        let ClassLinearAtoms {
-            values: atom_values,
-            designs,
-            weights,
-            indexers,
-            points,
-            se_items,
-            refute_atoms,
-            primary_estimand,
-            assumptions,
-            weighted_point: weighted_ate,
-            total_weight: total_w,
-        } = fit_class_linear_atoms(
-            data,
-            query,
-            &bundle.envelope,
-            &bundle.envelope.indexers,
-            self.split.as_ref(),
-            ctx,
-        )?;
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "temporal class-aware envelope had no estimable identified cases".into(),
-            });
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "temporal class-aware envelope missing estimand".into(),
-        })?;
-        let block = shared_circular_block_mixture_se(
-            &designs.iter().collect::<Vec<_>>(),
-            &weights,
-            temporal_class_block_span(indexers.iter().copied()),
-            self.bootstrap_replicates,
-            0xC1A5_5E00,
-            ctx,
-        );
-        let identified_set_interval = block
-            .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
-            .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
-        let se_bootstrap = block.se.is_finite().then_some(block.se);
-        let estimate = class_mixture_estimate(
-            weighted_ate / total_w,
-            mix_weighted_analytic_se(se_items),
-            &block,
-            self.bootstrap_replicates,
-            assumptions,
-            ctx,
-        );
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::TemporalEffect(query.clone()),
-        );
-        let tabular = TabularData::new(data.storage().clone());
-        let ate_q = temporal_refuter_average(query);
-        let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
-            &tabular,
-            &ate_q,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            "temporal.linear.adjustment",
-            &self.custom_validators,
-            Some(query),
-            self.split.as_ref(),
-            Some(data.time_index()),
-        )?;
-        diagnostics.extend(na_diagnostics);
-        if se_bootstrap.is_some() {
-            diagnostics.extend(envelope_shared_block_diagnostics(
-                total_w,
-                envelope.unidentified_weight.0,
-                &block,
-            ));
-        } else if designs.len() > 1 {
-            diagnostics.push(envelope_se_omits_between_atom_variance());
-        }
-        diagnostics.extend(
-            identified_set_interval
-                .as_ref()
-                .into_iter()
-                .flat_map(identified_set_interval_diagnostics),
-        );
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        let mut structural = temporal_class_structural_mixture(
-            envelope,
-            crate::result::StructuralWeightBasis::CompletionEnumeration,
-            None,
-            &atom_values,
-        );
-        structural.identified_set_interval = identified_set_interval;
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                identifier_id,
-                EstimatorId::TemporalLinearAdjustment,
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .bootstrap_replicates_ok((self.bootstrap_replicates > 0).then_some(block.completed))
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                ..Default::default()
-            }),
-        ))
+        self.execute_temporal_class_frozen_weights(data, query, physical, ctx)
     }
 
-    pub(super) fn execute_temporal_class_sequential(
+    /// The class routes whose fit and assembly the sealed operation shares:
+    /// conditional point, linear adjustment and sequential g-computation.
+    pub(super) fn execute_temporal_class_frozen_weights(
         &self,
         data: &TimeSeriesData,
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if self.split.is_some() {
-            return Err(CausalError::Unsupported {
-                message: "class-aware multi-step sustained requires no discovery-estimation split",
-            });
-        }
+        use super::temporal_class_effect_core::{
+            TemporalClassEffectInputs, fit_temporal_class_effect,
+        };
         let started = Instant::now();
+        let (identifier_id, bundle, identify_cached) =
+            self.temporal_class_proof(physical, query, ctx)?;
+        let fit = fit_temporal_class_effect(
+            &TemporalClassEffectInputs {
+                data,
+                query,
+                bundle: &bundle,
+                graph_class: self.graph.class(),
+                inference: &self.inference,
+                class_prior: self.class_prior.as_ref(),
+                bootstrap_replicates: self.bootstrap_replicates,
+                split: self.split.as_ref(),
+                refute: self.refute,
+                custom_validators: &self.custom_validators,
+                latency_mode: self.latency_mode,
+            },
+            ctx,
+        )?;
+        let point_only = fit.point_only;
+        let mut identification = envelope_to_identification_result_for(
+            &bundle.envelope.envelope,
+            CausalQuery::TemporalEffect(query.clone()),
+        );
+        identification.status = bundle.envelope.envelope.status;
+        let args = fit.finish_args(
+            physical,
+            identification,
+            &bundle,
+            identifier_id,
+            query,
+            identify_cached,
+            self.graph.version(),
+            elapsed_ns(started),
+        );
+        Ok(super::temporal_effect_core::seal_point_only(
+            point_only,
+            self.finish_identified_execute(args),
+        ))
+    }
+
+    /// The identifier and class proof of a one-shot class effect: the prepared
+    /// cache when present, else a fresh identification.
+    fn temporal_class_proof(
+        &self,
+        physical: &PhysicalExecutionPlan,
+        query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (IdentifierId, crate::analysis::prepared::CachedTemporalClassIdentification, bool),
+        CausalError,
+    > {
         let identifier = physical
             .logical
             .record
@@ -2770,343 +2670,12 @@ impl super::Study {
             .as_deref()
             .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
-        let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?, false)
-            };
-        let envelope = &bundle.envelope.envelope;
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
-            return Err(CausalError::not_identified(
-                envelope.status,
-                envelope.truncated_completions > 0,
-                "temporal class-aware effect not identified (no identified mass in envelope)",
-            ));
-        }
-        let class_masses = self
-            .class_prior
-            .as_ref()
-            .map(|prior| prior.masses_for_envelope(&bundle.envelope))
-            .transpose()?;
-        let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
-            {
-                return Err(CausalError::Unsupported {
-                    message: "multi-step Sequence transfer stays refused on incomplete classes",
-                });
-            }
-            Some(bayesian_gcomp(cfg, ctx))
+        if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
+            Ok((identifier_id, cache.clone(), true))
         } else {
-            None
-        };
-        let mut diagnostics =
-            vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal.sustained_window",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "the contrast propagates through all intervened times on each directed completion; \
-             no last-step collapse; bidirected MAG completions stay unevaluable",
-        ));
-        let mut weights = Vec::new();
-        let mut flags = Vec::new();
-        let mut keys = Vec::new();
-        let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-        let mut per_graph = Vec::new();
-        let mut seq_atoms: Vec<super::sequential_validation::SequentialValidationAtom> = Vec::new();
-        let mut seq_atom_keys = Vec::new();
-        let mut seq_atom_seeds: Vec<u64> = Vec::new();
-        let mut atom_posteriors = std::collections::HashMap::new();
-        let mut primary_estimand = None;
-        let mut unevaluable_weight = 0.0;
-        let mut weighted_ate = 0.0;
-        let mut total_w = 0.0;
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            let key = case.graph.fingerprint();
-            keys.push(key);
-            let weight = class_masses.as_ref().map_or(case.weight.0, |masses| masses[i]);
-            weights.push(weight);
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-            let Some(dag) = case.graph.sequential_dag() else {
-                flags.push(GraphIdentFlag::Unidentified);
-                unevaluable_weight += weight;
-                diagnostics.push(mag_sequential_unevaluable_diagnostic(key));
-                continue;
-            };
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
-                .or_else(|_| {
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
-                })?;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-            }
-            flags.push(GraphIdentFlag::Identified);
-            let mut assumptions = case.result.required_assumptions.clone();
-            assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
-            // Each completion's posterior draws from its own seed stream; a completion
-            // whose fitted mechanisms coincide with an earlier one's is refit on that
-            // completion's seed, so one model carries one posterior.
-            let mut seed = completion_fit_seed(ctx, key);
-            let (estimate, posterior, mechanisms) = loop {
-                let mut mechanisms = Vec::new();
-                let completion_bayes =
-                    bayes.as_ref().map(|est| BayesianGComputationAte { seed, ..est.clone() });
-                let (estimate, posterior) =
-                    antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                        data,
-                        &dag,
-                        indexer,
-                        &estimand,
-                        query,
-                        case.result.status,
-                        assumptions.clone(),
-                        if bayes.is_some() { self.bootstrap_replicates } else { 0 },
-                        completion_bayes.as_ref(),
-                        ctx,
-                        Some(&mut mechanisms),
-                    )
-                    .map_err(CausalError::from)?;
-                let shared_seed = seq_atoms
-                    .iter()
-                    .zip(&seq_atom_seeds)
-                    .find(|(atom, atom_seed)| {
-                        bayes.is_some()
-                            && **atom_seed != seed
-                            && same_fitted_mechanisms(&atom.mechanisms, &mechanisms)
-                    })
-                    .map(|(_, atom_seed)| *atom_seed);
-                match shared_seed {
-                    Some(shared) => seed = shared,
-                    None => break (estimate, posterior, mechanisms),
-                }
-            };
-            seq_atom_seeds.push(seed);
-            atom_values[i] = Some(estimate.ate);
-            weighted_ate += weight * estimate.ate;
-            total_w += weight;
-            if let Some(posterior) = posterior.as_ref() {
-                atom_posteriors.insert(key, posterior.clone());
-                if let Some(col) = posterior.effect_column() {
-                    if let Ok(draws) = posterior.draws.column(col) {
-                        per_graph.push(GraphEffectDraws {
-                            graph_key: key,
-                            effect_draws: Arc::from(draws.to_vec()),
-                        });
-                    }
-                }
-            }
-            seq_atom_keys.push(key);
-            seq_atoms.push(super::sequential_validation::SequentialValidationAtom {
-                weight,
-                graph: dag,
-                indexer: indexer.clone(),
-                estimand,
-                status: case.result.status,
-                estimate,
-                mechanisms,
-            });
+            report_identify_compute(ctx);
+            Ok((identifier_id, self.identify_temporal_class(identifier_id, query)?, false))
         }
-        if seq_atoms.is_empty() {
-            return Err(CausalError::Compile {
-                message: "temporal class-aware multi-step envelope had no evaluable directed \
-                          completions"
-                    .into(),
-            });
-        }
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::TemporalEffect(query.clone()),
-        );
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "temporal class sequential envelope missing estimand".into(),
-        })?;
-        let weight_basis = if class_masses.is_some() {
-            crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
-        } else {
-            crate::result::StructuralWeightBasis::CompletionEnumeration
-        };
-        let mut identified_set_interval = None;
-        if bayes.is_some() {
-            identified_set_interval = posterior_identified_set_interval(
-                seq_atom_keys.iter().filter_map(|key| atom_posteriors.get(key)),
-                data.row_count(),
-                envelope.truncated_completions > 0,
-            );
-        }
-        // Unevaluable (bidirected) completions are flagged unidentified for the
-        // mixture, which never draws from them; their share is reported as
-        // `unevaluable_mass`, not as unidentified mass.
-        let unevaluable_share = unevaluable_weight / weights.iter().sum::<f64>();
-        let (estimate, mut posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            if class_masses.is_some()
-                && envelope.truncated_completions == 0
-                && seq_atoms.iter().any(|atom| atom.weight > 0.0)
-            {
-                let graphs = WeightedGraphSamples::new(weights, flags, keys)
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                let mut mixed = aggregate_effect_envelope(
-                    &graphs,
-                    &per_graph,
-                    InferenceDiagnostics::analytic("temporal_class_sequential"),
-                    EnvelopeOptions::default(),
-                )
-                .map_err(CausalError::from)?;
-                mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
-                (effect_from_posterior(&mixed)?, Some(mixed))
-            } else {
-                diagnostics.push(Diagnostic::new(
-                    "estimate.envelope.response_posterior_not_mixed",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "completion posteriors are retained as atoms; mixing requires caller-supplied \
-                     class mass, positive evaluable mass, and uncapped class scope",
-                ));
-                (nan_effect(), None)
-            }
-        } else if total_w > 0.0 {
-            let SequentialAtomBlock { block, identified_set_interval: interval, se_analytic } =
-                sequential_atom_block(
-                    data,
-                    query,
-                    &seq_atoms,
-                    self.bootstrap_replicates,
-                    envelope.truncated_completions > 0,
-                    ctx,
-                )?;
-            identified_set_interval = interval;
-            let se_bootstrap = block.se.is_finite().then_some(block.se);
-            if se_bootstrap.is_some() {
-                diagnostics.extend(envelope_shared_block_diagnostics(
-                    total_w,
-                    envelope.unidentified_weight.0,
-                    &block,
-                ));
-            } else if seq_atoms.len() > 1 {
-                diagnostics.push(envelope_se_omits_between_atom_variance());
-            }
-            (
-                class_mixture_estimate(
-                    weighted_ate / total_w,
-                    se_analytic,
-                    &block,
-                    self.bootstrap_replicates,
-                    seq_atoms[0].estimate.assumptions.clone(),
-                    ctx,
-                ),
-                None,
-            )
-        } else {
-            (nan_effect(), None)
-        };
-        let (refutations, extra_diagnostics, predictive_checks) = if estimate.ate.is_finite() {
-            super::sequential_validation::validate_sequential(
-                data,
-                query,
-                &seq_atoms,
-                self.refute,
-                &self.custom_validators,
-                bayes.as_ref(),
-                posterior.as_mut(),
-                estimate.ate,
-                ctx,
-                super::super::latency::predictive_check_sims(self.latency_mode),
-            )?
-        } else {
-            let mut reports = Vec::new();
-            let mut extra = Vec::new();
-            let mut checks = Vec::new();
-            for (atom, key) in seq_atoms.iter().zip(&seq_atom_keys) {
-                let (mut local_reports, local_extra, local_checks) =
-                    super::sequential_validation::validate_sequential(
-                        data,
-                        query,
-                        std::slice::from_ref(atom),
-                        self.refute,
-                        &self.custom_validators,
-                        bayes.as_ref(),
-                        atom_posteriors.get_mut(key),
-                        atom.estimate.ate,
-                        ctx,
-                        super::super::latency::predictive_check_sims(self.latency_mode),
-                    )?;
-                for report in &mut local_reports {
-                    report.refuter = Arc::from(format!("completion.{key}.{}", report.refuter));
-                }
-                reports.extend(local_reports);
-                extra.extend(local_extra);
-                checks.extend(local_checks);
-            }
-            (reports, extra, checks)
-        };
-        diagnostics.extend(extra_diagnostics);
-        diagnostics.extend(
-            identified_set_interval
-                .as_ref()
-                .into_iter()
-                .flat_map(identified_set_interval_diagnostics),
-        );
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        let mut structural = temporal_class_structural_mixture(
-            envelope,
-            weight_basis,
-            class_masses.as_deref(),
-            &atom_values,
-        );
-        structural.identified_set_interval = identified_set_interval;
-        for atom in &mut structural.atoms {
-            atom.posterior = atom_posteriors.remove(&atom.graph_key);
-        }
-        let total: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
-        structural.unevaluable_mass = unevaluable_weight / total;
-        structural.unidentified_mass =
-            (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
-        let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                identifier_id,
-                EstimatorId::TemporalSequentialGcomp,
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .bootstrap_replicates_ok(bootstrap_replicates_ok)
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                posterior,
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                predictive_checks,
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal.sequential.gcomp",
-                    "estimate.temporal_class.envelope",
-                )),
-                ..Default::default()
-            }),
-        ))
     }
 
     pub(super) fn execute_temporal_class_bayesian(
@@ -3387,10 +2956,11 @@ impl super::Study {
                 structural_response: Some(structural_response),
                 diagnostics: Some(diagnostics),
                 predictive_checks,
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.bayesian.temporal.gcomp",
-                    "estimate.temporal_class.envelope",
-                )),
+                estimate_provenance: Some(
+                    super::temporal_class_effect_core::class_envelope_provenance(
+                        EstimatorId::BayesianTemporalGcomp,
+                    ),
+                ),
                 ..Default::default()
             }),
         ))

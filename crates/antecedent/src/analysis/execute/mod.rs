@@ -371,6 +371,7 @@ mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;
 mod static_path;
+mod temporal_class_effect_core;
 mod temporal_class_mediation_posterior;
 mod temporal_class_point;
 mod temporal_class_posterior;

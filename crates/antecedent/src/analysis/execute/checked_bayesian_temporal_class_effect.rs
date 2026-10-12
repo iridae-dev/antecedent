@@ -41,7 +41,12 @@ impl super::Study {
         click.split = split.copied();
         click.custom_validators = custom_validators.to_vec();
         if target.query().is_multi_step_sustained() {
-            click.execute_temporal_class_sequential(data, target.query(), operation.physical(), ctx)
+            click.execute_temporal_class_frozen_weights(
+                data,
+                target.query(),
+                operation.physical(),
+                ctx,
+            )
         } else {
             click.execute_temporal_class_bayesian(data, target.query(), operation.physical(), ctx)
         }

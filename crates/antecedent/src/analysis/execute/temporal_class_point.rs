@@ -212,69 +212,6 @@ pub(super) fn assemble_temporal_class_conditional(
 }
 
 impl super::Study {
-    pub(super) fn execute_temporal_class_conditional(
-        &self,
-        data: &TimeSeriesData,
-        query: &TemporalEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.envelope.clone(), true)
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?.envelope, false)
-            };
-        let (estimate, estimand, mut identification, mut diagnostics, structural) =
-            assemble_temporal_class_conditional(
-                data,
-                query,
-                &bundle,
-                self.graph.class(),
-                self.refute,
-                &self.inference,
-                &ctx.kernel_policy,
-            )?;
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        identification.status = bundle.envelope.status;
-        let result = self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                identifier_id,
-                EstimatorId::TemporalLinearAdjustment,
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle,
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                ..Default::default()
-            }),
-        );
-        Ok(clear_interval(result))
-    }
-
     pub(super) fn execute_temporal_class_derivative(
         &self,
         data: &TimeSeriesData,
