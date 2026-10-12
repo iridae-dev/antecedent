@@ -64,190 +64,46 @@ impl CheckedTemporalEffectExecution {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        use super::temporal_effect_core::{
+            TemporalEffectInputs, fit_temporal_effect, plan_completed_to_dag, seal_point_only,
+        };
         let started = Instant::now();
         let op = &self.operation;
-        let query = op.query();
-        let identification = op.identification().clone();
-        let estimand = op.estimand().clone();
-        let indexer = op.indexer();
-        let (identifier_id, estimator_id, suite, bootstrap_replicates) = op.procedure();
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
-
-        let (estimate, refutations, mut diagnostics, bootstrap_replicates_ok) = if query
-            .is_multi_step_sustained()
-        {
-            let mut assumptions = identification.required_assumptions.clone();
-            assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
-            let mut mechanisms = Vec::new();
-            let (estimate, posterior) =
-                    antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                        data, op.graph(), indexer, &estimand, query, identification.status,
-                        assumptions, bootstrap_replicates, None, ctx, Some(&mut mechanisms),
-                    )
-                    .map_err(CausalError::from)?;
-            debug_assert!(posterior.is_none());
-            let atom = super::sequential_validation::SequentialValidationAtom {
-                weight: 1.0,
-                graph: op.graph().clone(),
-                indexer: indexer.clone(),
-                estimand: estimand.clone(),
-                status: identification.status,
-                estimate: estimate.clone(),
-                mechanisms,
-            };
-            let (refutations, mut diagnostics, _) =
-                super::sequential_validation::validate_sequential(
-                    data,
-                    query,
-                    &[atom],
-                    suite,
-                    &[],
-                    None,
-                    None,
-                    estimate.ate,
-                    ctx,
-                    0,
-                )?;
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal.sustained_window",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "the contrast propagates through every intervened time in topological order",
-            ));
-            diagnostics.extend(super::temporal_path::sequential_dependence_se_diagnostics(
-                &estimate,
-                bootstrap_replicates,
-            ));
-            let estimate =
-                estimate.with_block_family(antecedent_estimate::CircularBlockFamily::Sequential);
-            let ok = estimate.bootstrap_replicates_ok;
-            (estimate, refutations, diagnostics, ok)
-        } else if !query.effect_modifiers.is_empty() {
-            if query.effect_modifiers.len() != 1
-                || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
-            {
-                return Err(CausalError::Unsupported {
-                    message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
-                });
-            }
-            let point = antecedent_estimate::temporal_conditional_marginal_effect(
+        let (_, _, suite, bootstrap_replicates) = op.procedure();
+        let inference = InferenceMode::Frequentist;
+        let fit = fit_temporal_effect(
+            &TemporalEffectInputs {
                 data,
-                &estimand,
-                query,
-                indexer,
-                &ctx.kernel_policy,
-                None,
-            )?;
-            let estimate = EffectEstimate::new(
-                point,
-                f64::NAN,
-                identification.required_assumptions.clone(),
-                OverlapPolicy::ExplicitOverride,
-            );
-            let diagnostics = vec![Diagnostic::new(
-                "estimate.temporal.conditional_marginal",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "published value is the one-modifier marginal effect on the unfolded temporal design; no interval is published",
-            )];
-            (estimate, Vec::new(), diagnostics, None)
-        } else {
-            let mut estimator = TemporalLinearAdjustment::new();
-            estimator.inner.bootstrap_replicates = bootstrap_replicates;
-            estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-            let prep = estimator
-                .prepare(data, &estimand, query, indexer, None, &ctx.kernel_policy)
-                .map_err(CausalError::from)?;
-            let (estimate, dependence) = estimator
-                .fit_dependence_honest(
-                    &prep,
-                    indexer,
-                    ctx,
-                    identification.required_assumptions.clone(),
-                )
-                .map_err(CausalError::from)?;
-            let estimate = estimate
-                .with_block_family(antecedent_estimate::CircularBlockFamily::SingleWindow)
-                .with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
-            let tabular = TabularData::new(data.storage().clone());
-            let average = temporal_refuter_average(query);
-            let mut workspace = EstimationWorkspace::default();
-            let temporal_ctx = TemporalRefitContext {
-                indexer,
-                temporal_query: query,
+                graph: op.graph(),
+                query: op.query(),
+                identification: op.identification(),
+                estimand: op.estimand(),
+                indexer: op.indexer(),
+                inference: &inference,
+                checked_bayesian: None,
+                bootstrap_replicates,
+                refute: suite,
+                custom_validators: &[],
                 split: None,
-                kernel_policy: &ctx.kernel_policy,
-                time_index: Some(data.time_index()),
-                panel: None,
-            };
-            let (refutations, mut diagnostics) = run_refuters(
-                &tabular,
-                &estimand,
-                &average,
-                &estimate,
-                &mut workspace,
-                None,
-                ctx,
-                suite,
-                estimator_id.as_str(),
-                &[],
-                Some(temporal_ctx),
-            )?;
-            diagnostics.extend(super::temporal_path::single_window_dependence_se_diagnostics(
-                &estimate,
-                &dependence,
-            ));
-            let ok = estimate.bootstrap_replicates_ok;
-            (estimate, refutations, diagnostics, ok)
-        };
-
-        diagnostics.push(identify_cached_diagnostic());
-        let cancelled = estimate.bootstrap_cancelled;
-        let args = IdentifiedExecuteFinish::new(
+                latency_mode: None,
+                completed_to_dag: plan_completed_to_dag(&self.physical),
+            },
+            ctx,
+        )?;
+        let point_only = fit.point_only;
+        let args = fit.finish_args(
             &self.physical,
-            identification.clone(),
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            query.treatment,
-            query.outcome,
-        )
-        .identify_cached(true)
-        .refutations(refutations)
-        .wall_time_ns(elapsed_ns(started))
-        .bootstrap_replicates_ok(bootstrap_replicates_ok)
-        .cancelled(cancelled)
-        .extras(IdentifiedExecuteExtras {
-            certificate: Some(crate::Identification::Point {
-                result: identification,
-                temporal_indexer: Some(indexer.clone()),
-                strategy: identifier_id,
-                structure_version: self.result_context.graph_version,
-            }),
-            identify_provenance: Some(provenance_ids(
-                "identify.temporal_backdoor",
-                "identify.temporal.backdoor.unfolded",
-            )),
-            estimate_provenance: Some(provenance_ids(
-                if query.is_multi_step_sustained() {
-                    "estimate.temporal_sequential_gcomp"
-                } else {
-                    "estimate.temporal_linear_adjustment"
-                },
-                if query.is_multi_step_sustained() {
-                    "estimate.temporal.sequential.gcomp"
-                } else {
-                    "estimate.temporal.linear.adjustment"
-                },
-            )),
-            diagnostics: Some(diagnostics),
-            ..Default::default()
-        });
-        Ok(super::finish_identified_execute_with_context(&self.result_context, None, args))
+            op.identification().clone(),
+            op.estimand().clone(),
+            op.indexer(),
+            op.query(),
+            true,
+            self.result_context.graph_version,
+            elapsed_ns(started),
+        );
+        Ok(seal_point_only(
+            point_only,
+            super::finish_identified_execute_with_context(&self.result_context, None, args),
+        ))
     }
 }

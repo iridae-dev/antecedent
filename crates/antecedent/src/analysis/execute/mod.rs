@@ -375,6 +375,7 @@ mod temporal_class_mediation_posterior;
 mod temporal_class_point;
 mod temporal_class_posterior;
 mod temporal_class_posterior_response;
+mod temporal_effect_core;
 mod temporal_path;
 mod temporal_posterior_response;
 mod transport_interference_path;
