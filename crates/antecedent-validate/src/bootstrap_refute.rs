@@ -33,7 +33,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// RNG stream base for the aligned-row block replicates.
-const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
+const BOOTSTRAP_REFUTE_STREAM: u64 = crate::streams::BOOTSTRAP_REFUTE;
 
 use std::sync::Arc;
 
@@ -276,15 +276,13 @@ impl BootstrapRefute {
             });
         }
         let n = problem.data.row_count();
-        let mut resample_ids = vec![problem.treatment(), problem.outcome()];
         // Temporal unfolded adjustment ids are dense node ids, not schema columns.
-        if problem.temporal.is_none() {
-            resample_ids.extend_from_slice(&problem.estimand.adjustment_set);
-        } else {
-            // Contemporaneous schema covariates already present in the series/panel table.
+        // Modifiers are columns either way: a missing modifier is not an estimation row.
+        let mut resample_ids = problem.estimation_ids(problem.temporal.is_none());
+        if problem.temporal.is_some() {
             for v in problem.data.schema().variables() {
                 let id = v.id;
-                if id != problem.treatment() && id != problem.outcome() {
+                if !resample_ids.contains(&id) {
                     resample_ids.push(id);
                 }
             }
@@ -305,7 +303,7 @@ impl BootstrapRefute {
                 message: "bootstrap CI coverage requires at least 2 complete-case rows",
             });
         }
-        let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
+        let mut rng = ctx.rng.stream(BOOTSTRAP_REFUTE_STREAM);
         let mut row_idx = vec![0usize; n];
         // AllObserved static OLS: resampling the prepared design rows is the same
         // complete-case bootstrap as rebuilding a table and calling `prepare` again.

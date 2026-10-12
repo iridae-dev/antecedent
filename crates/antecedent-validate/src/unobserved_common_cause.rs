@@ -109,10 +109,7 @@ impl UnobservedCommonCause {
         let n = problem.data.row_count();
         let t0 = float64_full(problem.data, problem.treatment())?;
         let y0 = float64_full(problem.data, problem.outcome())?;
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        if problem.temporal.is_none() {
-            ids.extend_from_slice(&problem.estimand.adjustment_set);
-        }
+        let ids = problem.estimation_ids(problem.temporal.is_none());
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
         let (sd_t, sd_y) = if problem.temporal.is_some() {
             temporal_residual_sd_pair(problem)?
@@ -134,7 +131,11 @@ impl UnobservedCommonCause {
             self.replicates,
             || (EstimationWorkspace::default(), vec![0.0; n]),
             |problem, refit, (workspace, u), ctx, r| {
-                fill_gaussian(u, ctx, 0xA7E0_0006_0000_u64.wrapping_add(u64::from(r)));
+                fill_gaussian(
+                    u,
+                    ctx,
+                    crate::streams::UNOBSERVED_COMMON_CAUSE.wrapping_add(u64::from(r)),
+                );
                 let t: Vec<f64> = t0.iter().zip(&*u).map(|(&t, &u)| t + kt * u).collect();
                 let y: Vec<f64> = y0.iter().zip(&*u).map(|(&y, &u)| y + ky * u).collect();
                 let data = with_replaced_float(problem.data, treatment, Arc::from(t))?;
