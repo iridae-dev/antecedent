@@ -5,6 +5,9 @@
 use std::collections::HashMap;
 
 /// Scratch for residualization and Pearson correlation.
+///
+/// `design` stays public so a caller can check that a batch reused the same
+/// allocation. The Gram, coefficients, and residuals are crate-private.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
     /// Design matrix column-major `[Z…]` (`n * p`). Every column is centered and scaled
@@ -13,13 +16,13 @@ pub struct ParCorrWorkspace {
     /// not a ridge.
     pub design: Vec<f64>,
     /// `XtX` / Gram (`p^2`).
-    pub gram: Vec<f64>,
+    gram: Vec<f64>,
     /// Coefficients of X then Y (`2p`).
-    pub beta: Vec<f64>,
+    beta: Vec<f64>,
     /// Residual of X.
-    pub rx: Vec<f64>,
+    rx: Vec<f64>,
     /// Residual of Y.
-    pub ry: Vec<f64>,
+    ry: Vec<f64>,
     capacity_n: usize,
     capacity_p: usize,
 }

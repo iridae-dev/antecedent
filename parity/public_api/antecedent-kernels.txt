@@ -164,11 +164,7 @@ pub field antecedent_kernels::ParCorrQuery::x: usize
 pub field antecedent_kernels::ParCorrQuery::y: usize
 pub field antecedent_kernels::ParCorrQuery::z_len: usize
 pub field antecedent_kernels::ParCorrQuery::z_start: usize
-pub field antecedent_kernels::ParCorrWorkspace::beta: alloc::vec::Vec<f64>
 pub field antecedent_kernels::ParCorrWorkspace::design: alloc::vec::Vec<f64>
-pub field antecedent_kernels::ParCorrWorkspace::gram: alloc::vec::Vec<f64>
-pub field antecedent_kernels::ParCorrWorkspace::rx: alloc::vec::Vec<f64>
-pub field antecedent_kernels::ParCorrWorkspace::ry: alloc::vec::Vec<f64>
 pub field antecedent_kernels::cholesky::CholeskyRefusal::error: antecedent_kernels::CholeskyError
 pub field antecedent_kernels::cholesky::CholeskyRefusal::ratio: f64
 pub fn <antecedent_kernels::BitMaskView<'a>>::const fn is_empty(self) -> bool
