@@ -21,78 +21,79 @@ use super::{
 use crate::estimator_spec::EstimatorSpec;
 use crate::planner::RouteDefaults;
 
-impl super::Study {
-    #[expect(
-        clippy::float_cmp,
-        reason = "IV query intervention values are exact discrete declared values"
-    )]
-    pub(super) fn execute_static(
-        &self,
-        data: &TabularData,
-        graph: &Dag,
-        query: &AverageEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        execution: &super::super::prepared::PreparedExecution,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let prepared_linear = execution.linear_operation();
-        let prepared_aipw = execution.aipw_operation();
-        let prepared_frontdoor = execution.frontdoor_linear();
-        let bayesian_gcomp_operation = execution.bayesian_gcomp();
-        let prepared_iv = execution.iv();
+/// Borrowed inputs of one static ATE execution, shared by every phase.
+#[derive(Clone, Copy)]
+struct StaticRun<'a> {
+    data: &'a TabularData,
+    graph: &'a Dag,
+    query: &'a AverageEffectQuery,
+    physical: &'a PhysicalExecutionPlan,
+    execution: &'a super::super::prepared::PreparedExecution,
+    ctx: &'a ExecutionContext,
+}
+
+/// Fitters and receipts the checked static routes prepared for the point fit.
+struct StaticCheckedFits {
+    spec: EstimatorSpec,
+    linear: Option<(LinearAdjustmentAte, antecedent_estimate::CheckedLinearAdjustmentAte)>,
+    frontdoor_linear: Option<(
+        antecedent_estimate::FrontDoorTwoStage,
+        antecedent_estimate::CheckedFrontDoorPreparation,
+    )>,
+    frontdoor_functional: Option<(
+        antecedent_estimate::FrontDoorFunctional,
+        antecedent_estimate::CheckedFrontDoorPreparation,
+    )>,
+    wald: Option<(antecedent_estimate::WaldIv, antecedent_estimate::CheckedIvPreparation)>,
+    two_sls: Option<(
+        antecedent_estimate::TwoStageLeastSquares,
+        antecedent_estimate::CheckedIvPreparation,
+    )>,
+}
+
+/// Scratch the point and uncertainty stages of a static ATE share.
+#[derive(Default)]
+struct StaticWorkspaces {
+    estimate: StaticEstimateWorkspaces,
+    frontdoor: antecedent_estimate::FrontDoorWorkspace,
+    iv: antecedent_estimate::TwoStageLeastSquaresWorkspace,
+}
+
+/// State a static ATE execution carries from identification to the result.
+struct StaticAteExecution<'a> {
+    study: &'a super::Study,
+    run: StaticRun<'a>,
+    identifier_id: IdentifierId,
+    estimator_id: EstimatorId,
+    clock: super::super::stage::StageClock,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identify_cached: bool,
+    data_est: TabularData,
+    query_est: AverageEffectQuery,
+    estimand_est: IdentifiedEstimand,
+    full_cols: usize,
+    projected_cols: usize,
+}
+
+impl<'a> StaticAteExecution<'a> {
+    /// Identification stage plus projection of the table to the estimand's columns.
+    fn identify(
+        study: &'a super::Study,
+        run: StaticRun<'a>,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+    ) -> Result<Self, CausalError> {
+        let StaticRun { data, graph, query, ctx, .. } = run;
         let mut clock = super::super::stage::StageClock::new();
-        let (identifier_id, estimator_id) =
-            physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
-
-        // rd.sharp identifies from the declared design, which the graph must agree
-        // with; it has no adjustment search, so it takes its own path.
-        if matches!(estimator_id, EstimatorId::RdSharp) {
-            return self.execute_rd(data, graph, query, physical, ctx);
-        }
-        if matches!(estimator_id, EstimatorId::BayesianIvJointLinear) {
-            return self.execute_bayesian_iv(data, graph, query, physical, ctx);
-        }
-        if matches!(estimator_id, EstimatorId::BayesianRdLocalLinear) {
-            return self.execute_bayesian_rd(data, graph, query, physical, ctx);
-        }
-        if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self.execute_bayesian(
-                data,
-                graph,
-                query,
-                physical,
-                bayesian_gcomp_operation,
-                ctx,
-            );
-        }
-        if matches!(estimator_id, EstimatorId::BayesianBasisGcomp) {
-            return self.execute_bayesian_basis(data, graph, query, physical, ctx);
-        }
-        if matches!(estimator_id, EstimatorId::BayesianRobustAte) {
-            return self.execute_bayesian_robust_ate(data, graph, query, physical, ctx);
-        }
-        if matches!(estimator_id, EstimatorId::FunctionalEffect) {
-            return self.execute_functional_ate(data, graph, query, physical, ctx);
-        }
-        if let Some(background) = self.tiered.clone() {
-            return self.execute_tiered_average(
-                data,
-                query,
-                physical,
-                ctx,
-                &background,
-                Strategy::new(identifier_id, estimator_id),
-            );
-        }
-
         clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query, rd), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, study.identification_cache.as_deref(), || {
                 let rd =
-                    self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
+                    study.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
                 let identification = identify_static_query_with_rd(
                     identifier_id,
                     graph,
@@ -101,10 +102,9 @@ impl super::Study {
                 )?;
                 select_claim(identification, estimator_id)
             })?;
-        let assumptions = identification.required_assumptions.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
+            study.stage_sink.as_ref(),
             &super::super::stage::StageEvent::Identify {
                 identification: identification.clone(),
                 estimand: estimand.clone(),
@@ -119,106 +119,171 @@ impl super::Study {
             &query_est.outcome_functional,
         )?;
         let projected_cols = data_est.schema().len();
+        Ok(Self {
+            study,
+            run,
+            identifier_id,
+            estimator_id,
+            clock,
+            identification,
+            estimand,
+            identify_cached,
+            data_est,
+            query_est,
+            estimand_est,
+            full_cols,
+            projected_cols,
+        })
+    }
 
+    /// Opens the point stage, which refuses to start once cancellation is requested.
+    fn begin_point_stage(&mut self) -> Result<(), CausalError> {
         // Point estimate first (no bootstrap); uncertainty stage fills SE separately.
-        clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
-        if ctx.cancellation.is_cancelled() {
+        self.clock.begin(self.run.ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
+        if self.run.ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled {
                 stage: super::super::stage::STAGE_ESTIMATE_POINT,
             });
         }
-        let mut estimate_ws = StaticEstimateWorkspaces::default();
+        Ok(())
+    }
+
+    /// Selects the estimator spec and prepares each checked receipt the point fit may use.
+    fn prepare_checked(&self) -> Result<StaticCheckedFits, CausalError> {
+        let StaticRun { data, execution, .. } = self.run;
+        let prepared_linear = execution.linear_operation();
+        let prepared_aipw = execution.aipw_operation();
+        let prepared_frontdoor = execution.frontdoor_linear();
+        let prepared_iv = execution.iv();
+        let identification = &self.identification;
         // A prepared checked route has already selected its estimator and bound
         // its configuration. Do not let the copied Study select a competing
         // fitter while executing that retained operation.
-        let estimator_spec = if prepared_linear.is_some()
+        let spec = if prepared_linear.is_some()
             || prepared_aipw.is_some()
             || prepared_frontdoor.is_some()
             || prepared_iv.is_some()
         {
-            EstimatorSpec::Default(estimator_id)
+            EstimatorSpec::Default(self.estimator_id)
         } else {
-            self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id))
+            self.study
+                .estimator_spec
+                .as_deref()
+                .cloned()
+                .unwrap_or(EstimatorSpec::Default(self.estimator_id))
         };
         // Prepare against the original semantic variable IDs. Projection remaps tabular
         // columns, while the identified expression still belongs to the original arena.
-        let checked_linear = if matches!(
-            query.outcome_functional,
-            antecedent_core::OutcomeFunctional::Mean
-        ) && matches!(
-            query.target_population,
-            antecedent_core::TargetPopulation::AllObserved
-        ) {
-            let fitter = match &estimator_spec {
-                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
-                    Some(LinearAdjustmentAte::new())
-                }
-                EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
-                _ => None,
-            };
-            let fitter = prepared_linear.map_or(fitter, |operation| Some(operation.fitter.clone()));
-            fitter
-                    .map(|fitter| {
-                        let checked = match prepared_linear {
-                            Some(operation) => {
-                                if operation.preparation.source_functional() != estimand.functional
-                                    || operation.preparation.target().adjustment_set != estimand.adjustment_set
-                                {
-                                    return Err(CausalError::Compile {
-                                        message: "prepared adjustment lowering disagrees with selected identification".into(),
-                                    });
-                                }
-                                operation.preparation.clone()
-                            }
-                            None => fitter.prepare_checked(data, &identification, 0)?,
-                        };
-                        Ok::<_, CausalError>((fitter, checked))
-                    })
-                    .transpose()?
-        } else {
-            None
-        };
-        let checked_frontdoor_linear = if prepared_frontdoor.is_some() {
+        let linear = self.prepare_checked_linear(&spec)?;
+        let frontdoor_linear = if prepared_frontdoor.is_some() {
             None
         } else {
-            match &estimator_spec {
+            match &spec {
                 EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
                     let fitter = antecedent_estimate::FrontDoorTwoStage::new();
-                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                    Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
                 EstimatorSpec::FrontDoorTwoStage(cfg) => {
                     let fitter = (**cfg).clone();
-                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                    Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
                 _ => None,
             }
         };
-        let checked_frontdoor_functional =
-            if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::FrontDoorFunctional)) {
+        let frontdoor_functional =
+            if matches!(spec, EstimatorSpec::Default(EstimatorId::FrontDoorFunctional)) {
                 // Point stage only: the uncertainty stage below attaches the
                 // study's replicate count, so the estimator's own default must
                 // not bootstrap here.
                 let fitter =
                     antecedent_estimate::FrontDoorFunctional::new().with_bootstrap_replicates(0);
-                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
             } else {
                 None
             };
-        let checked_wald = if prepared_iv.is_some() {
+        let wald = if prepared_iv.is_some() {
             None
         } else {
-            match &estimator_spec {
+            match &spec {
                 EstimatorSpec::Default(EstimatorId::IvWald) => {
                     let fitter = antecedent_estimate::WaldIv::new();
-                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                    Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
                 EstimatorSpec::IvWald(cfg) => {
                     let fitter = (**cfg).clone();
-                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                    Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
                 _ => None,
             }
         };
+        let two_sls = self.prepare_checked_two_sls(&spec)?;
+        Ok(StaticCheckedFits {
+            spec,
+            linear,
+            frontdoor_linear,
+            frontdoor_functional,
+            wald,
+            two_sls,
+        })
+    }
+
+    /// Checked linear-adjustment receipt, taken from the prepared operation when one is retained.
+    fn prepare_checked_linear(
+        &self,
+        spec: &EstimatorSpec,
+    ) -> Result<
+        Option<(LinearAdjustmentAte, antecedent_estimate::CheckedLinearAdjustmentAte)>,
+        CausalError,
+    > {
+        let StaticRun { data, query, execution, .. } = self.run;
+        let prepared_linear = execution.linear_operation();
+        if !(matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved))
+        {
+            return Ok(None);
+        }
+        let fitter = match spec {
+            EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
+                Some(LinearAdjustmentAte::new())
+            }
+            EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
+            _ => None,
+        };
+        let fitter = prepared_linear.map_or(fitter, |operation| Some(operation.fitter.clone()));
+        fitter
+            .map(|fitter| {
+                let checked = match prepared_linear {
+                    Some(operation) => {
+                        if operation.preparation.source_functional() != self.estimand.functional
+                            || operation.preparation.target().adjustment_set
+                                != self.estimand.adjustment_set
+                        {
+                            return Err(CausalError::Compile {
+                                message: "prepared adjustment lowering disagrees with selected identification".into(),
+                            });
+                        }
+                        operation.preparation.clone()
+                    }
+                    None => fitter.prepare_checked(data, &self.identification, 0)?,
+                };
+                Ok::<_, CausalError>((fitter, checked))
+            })
+            .transpose()
+    }
+
+    /// Checked 2SLS receipt for the supported single binary-instrument slice.
+    fn prepare_checked_two_sls(
+        &self,
+        spec: &EstimatorSpec,
+    ) -> Result<
+        Option<(
+            antecedent_estimate::TwoStageLeastSquares,
+            antecedent_estimate::CheckedIvPreparation,
+        )>,
+        CausalError,
+    > {
+        let data = self.run.data;
+        let identification = &self.identification;
         // Route the supported single binary-instrument slice through the checked IV
         // receipt. The generic 2SLS estimator still supports multiple/continuous
         // instruments and adjustment covariates; those designs remain on its ordinary
@@ -228,90 +293,44 @@ impl super::Study {
                 && target.mediators.is_empty()
                 && target.adjustment_set.is_empty()
         });
-        let checked_2sls = if prepared_iv.is_some() || !checked_iv_roles_supported {
-            None
-        } else {
-            match &estimator_spec {
-                EstimatorSpec::Default(EstimatorId::Iv2Sls) => {
-                    let fitter = antecedent_estimate::TwoStageLeastSquares::new();
-                    match fitter.prepare_checked(data, &identification, 0) {
-                        Ok(checked) => Some((fitter, checked)),
-                        Err(antecedent_estimate::EstimationError::Unsupported {
-                            message:
-                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
-                        }) => None,
-                        Err(error) => return Err(error.into()),
-                    }
-                }
-                EstimatorSpec::Iv2Sls(cfg) => {
-                    let fitter = (**cfg).clone();
-                    match fitter.prepare_checked(data, &identification, 0) {
-                        Ok(checked) => Some((fitter, checked)),
-                        Err(antecedent_estimate::EstimationError::Unsupported {
-                            message:
-                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
-                        }) => None,
-                        Err(error) => return Err(error.into()),
-                    }
-                }
-                _ => None,
+        if self.run.execution.iv().is_some() || !checked_iv_roles_supported {
+            return Ok(None);
+        }
+        let fitter = match spec {
+            EstimatorSpec::Default(EstimatorId::Iv2Sls) => {
+                antecedent_estimate::TwoStageLeastSquares::new()
             }
+            EstimatorSpec::Iv2Sls(cfg) => (**cfg).clone(),
+            _ => return Ok(None),
         };
-        let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
-        let mut iv_workspace = antecedent_estimate::TwoStageLeastSquaresWorkspace::default();
+        match fitter.prepare_checked(data, identification, 0) {
+            Ok(checked) => Ok(Some((fitter, checked))),
+            Err(antecedent_estimate::EstimationError::Unsupported {
+                message:
+                    "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+            }) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// Point fit through the retained operation, the checked receipt, or the generic estimator.
+    fn fit_point(
+        &mut self,
+        checked: &StaticCheckedFits,
+        ws: &mut StaticWorkspaces,
+    ) -> Result<EffectEstimate, CausalError> {
+        let StaticRun { query, execution, ctx, .. } = self.run;
+        let prepared_linear = execution.linear_operation();
+        let prepared_aipw = execution.aipw_operation();
+        let prepared_frontdoor = execution.frontdoor_linear();
+        let prepared_iv = execution.iv();
         let mut point = if let Some(operation) = prepared_iv {
-            let (preparation, procedure) = match operation {
-                super::super::prepared::CheckedIvOperation::Wald { preparation, .. } => {
-                    (preparation, "Wald")
-                }
-                super::super::prepared::CheckedIvOperation::TwoSls { preparation, .. } => {
-                    (preparation, "2SLS")
-                }
-            };
-            let lowering = preparation.lowering();
-            let query_active = match &query.active {
-                antecedent_core::Intervention::Set { variable, value }
-                    if *variable == query.treatment =>
-                {
-                    value.as_f64()
-                }
-                _ => None,
-            };
-            let query_control = match &query.control {
-                antecedent_core::Intervention::Set { variable, value }
-                    if *variable == query.treatment =>
-                {
-                    value.as_f64()
-                }
-                _ => None,
-            };
-            if preparation.target().functional != estimand.functional
-                || lowering.treatment != query.treatment
-                || lowering.outcome != query.outcome
-                || lowering.active != query_active.unwrap_or(f64::NAN)
-                || lowering.control != query_control.unwrap_or(f64::NAN)
-            {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "prepared IV {procedure} lowering disagrees with selected identification or query"
-                    ),
-                });
-            }
-            match operation {
-                super::super::prepared::CheckedIvOperation::Wald { fitter, preparation } => {
-                    fitter.fit_checked(preparation, ctx).map_err(CausalError::from)?
-                }
-                super::super::prepared::CheckedIvOperation::TwoSls { fitter, preparation } => {
-                    fitter
-                        .fit_checked(preparation, &mut iv_workspace, ctx)
-                        .map_err(CausalError::from)?
-                }
-            }
-        } else if let Some((fitter, checked)) = &checked_linear {
+            self.fit_prepared_iv(operation, &mut ws.iv)?
+        } else if let Some((fitter, receipt)) = &checked.linear {
             if prepared_linear.is_some_and(|operation| operation.default_id)
                 || (prepared_linear.is_none()
                     && matches!(
-                        estimator_spec,
+                        checked.spec,
                         EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)
                     ))
             {
@@ -320,19 +339,19 @@ impl super::Study {
                 // though the checked receipt retains the same bound design.
                 fitter
                     .fit_point(
-                        checked.problem(),
-                        &mut estimate_ws.linear,
-                        checked.required_assumptions().clone(),
+                        receipt.problem(),
+                        &mut ws.estimate.linear,
+                        receipt.required_assumptions().clone(),
                     )
                     .map_err(CausalError::from)?
             } else {
                 fitter
-                    .fit_checked(checked, &mut estimate_ws.linear, ctx)
+                    .fit_checked(receipt, &mut ws.estimate.linear, ctx)
                     .map_err(CausalError::from)?
             }
         } else if let Some(operation) = prepared_aipw {
-            if operation.preparation.target().functional != estimand.functional
-                || operation.preparation.target().adjustment_set != estimand.adjustment_set
+            if operation.preparation.target().functional != self.estimand.functional
+                || operation.preparation.target().adjustment_set != self.estimand.adjustment_set
             {
                 return Err(CausalError::Compile {
                     message: "prepared AIPW lowering disagrees with selected identification".into(),
@@ -340,57 +359,37 @@ impl super::Study {
             }
             operation
                 .fitter
-                .fit_checked(&operation.preparation, &mut estimate_ws.aipw, ctx)
+                .fit_checked(&operation.preparation, &mut ws.estimate.aipw, ctx)
                 .map_err(CausalError::from)?
         } else if let Some(operation) = prepared_frontdoor {
-            if operation.preparation.target().functional != estimand.functional
-                || operation.preparation.lowering().treatment != query.treatment
-                || operation.preparation.lowering().outcome != query.outcome
-                || operation.preparation.lowering().population != query.target_population
-                || !matches!(
-                    &query.active,
-                    antecedent_core::Intervention::Set { variable, value }
-                        if *variable == query.treatment
-                            && value.as_f64() == Some(operation.preparation.lowering().active)
-                )
-                || !matches!(
-                    &query.control,
-                    antecedent_core::Intervention::Set { variable, value }
-                        if *variable == query.treatment
-                            && value.as_f64() == Some(operation.preparation.lowering().control)
-                )
-            {
-                return Err(CausalError::Compile {
-                    message: "prepared front-door lowering disagrees with selected identification or query".into(),
-                });
-            }
+            self.check_prepared_frontdoor_lowering(operation)?;
             operation
                 .fitter
-                .fit_checked(&operation.preparation, &mut frontdoor_workspace, ctx)
+                .fit_checked(&operation.preparation, &mut ws.frontdoor, ctx)
                 .map_err(CausalError::from)?
-        } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
-            fitter.fit_checked(checked, &mut frontdoor_workspace, ctx).map_err(CausalError::from)?
-        } else if let Some((fitter, checked)) = &checked_frontdoor_functional {
-            fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
-        } else if let Some((fitter, checked)) = &checked_wald {
-            fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
-        } else if let Some((fitter, checked)) = &checked_2sls {
-            fitter.fit_checked(checked, &mut iv_workspace, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, receipt)) = &checked.frontdoor_linear {
+            fitter.fit_checked(receipt, &mut ws.frontdoor, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, receipt)) = &checked.frontdoor_functional {
+            fitter.fit_checked(receipt, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, receipt)) = &checked.wald {
+            fitter.fit_checked(receipt, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, receipt)) = &checked.two_sls {
+            fitter.fit_checked(receipt, &mut ws.iv, ctx).map_err(CausalError::from)?
         } else {
             estimate_static_effect(
-                &estimator_spec,
+                &checked.spec,
                 StaticEstimateInput {
-                    data: &data_est,
-                    estimand: &estimand_est,
-                    query: &query_est,
+                    data: &self.data_est,
+                    estimand: &self.estimand_est,
+                    query: &self.query_est,
                     // Point stage: no bootstrap.
                     bootstrap_replicates: 0,
-                    overlap_policy: self.overlap_policy,
-                    population_registry: self.population_registry.as_ref(),
+                    overlap_policy: self.study.overlap_policy,
+                    population_registry: self.study.population_registry.as_ref(),
                 },
-                assumptions,
+                self.identification.required_assumptions.clone(),
                 ctx,
-                &mut estimate_ws,
+                &mut ws.estimate,
             )?
         };
         // The estimator ran on the projected table, whose columns are renumbered: a score
@@ -399,14 +398,140 @@ impl super::Study {
         // identified estimand and with the prepare-time table of the same plan.
         if let Some(table) = point.scores.table.as_mut() {
             table.treatment = query.treatment;
-            table.adjustment_set = Arc::clone(&estimand.adjustment_set);
+            table.adjustment_set = Arc::clone(&self.estimand.adjustment_set);
         }
-        clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
+        self.clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
+            self.study.stage_sink.as_ref(),
             &super::super::stage::StageEvent::Point { estimate: point.clone() },
         );
+        Ok(point)
+    }
 
+    /// Point fit of a retained checked IV operation after its lowering is matched to the query.
+    #[expect(
+        clippy::float_cmp,
+        reason = "IV query intervention values are exact discrete declared values"
+    )]
+    fn fit_prepared_iv(
+        &self,
+        operation: &super::super::prepared::CheckedIvOperation,
+        iv_workspace: &mut antecedent_estimate::TwoStageLeastSquaresWorkspace,
+    ) -> Result<EffectEstimate, CausalError> {
+        let StaticRun { query, ctx, .. } = self.run;
+        let (preparation, procedure) = match operation {
+            super::super::prepared::CheckedIvOperation::Wald { preparation, .. } => {
+                (preparation, "Wald")
+            }
+            super::super::prepared::CheckedIvOperation::TwoSls { preparation, .. } => {
+                (preparation, "2SLS")
+            }
+        };
+        let lowering = preparation.lowering();
+        let query_active = match &query.active {
+            antecedent_core::Intervention::Set { variable, value }
+                if *variable == query.treatment =>
+            {
+                value.as_f64()
+            }
+            _ => None,
+        };
+        let query_control = match &query.control {
+            antecedent_core::Intervention::Set { variable, value }
+                if *variable == query.treatment =>
+            {
+                value.as_f64()
+            }
+            _ => None,
+        };
+        if preparation.target().functional != self.estimand.functional
+            || lowering.treatment != query.treatment
+            || lowering.outcome != query.outcome
+            || lowering.active != query_active.unwrap_or(f64::NAN)
+            || lowering.control != query_control.unwrap_or(f64::NAN)
+        {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "prepared IV {procedure} lowering disagrees with selected identification or query"
+                ),
+            });
+        }
+        Ok(match operation {
+            super::super::prepared::CheckedIvOperation::Wald { fitter, preparation } => {
+                fitter.fit_checked(preparation, ctx).map_err(CausalError::from)?
+            }
+            super::super::prepared::CheckedIvOperation::TwoSls { fitter, preparation } => {
+                fitter.fit_checked(preparation, iv_workspace, ctx).map_err(CausalError::from)?
+            }
+        })
+    }
+
+    /// Refuses a retained front-door operation whose lowering disagrees with the query.
+    #[expect(
+        clippy::float_cmp,
+        reason = "front-door query intervention values are exact discrete declared values"
+    )]
+    fn check_prepared_frontdoor_lowering(
+        &self,
+        operation: &super::super::prepared::CheckedFrontDoorOperation,
+    ) -> Result<(), CausalError> {
+        let query = self.run.query;
+        if operation.preparation.target().functional != self.estimand.functional
+            || operation.preparation.lowering().treatment != query.treatment
+            || operation.preparation.lowering().outcome != query.outcome
+            || operation.preparation.lowering().population != query.target_population
+            || !matches!(
+                &query.active,
+                antecedent_core::Intervention::Set { variable, value }
+                    if *variable == query.treatment
+                        && value.as_f64() == Some(operation.preparation.lowering().active)
+            )
+            || !matches!(
+                &query.control,
+                antecedent_core::Intervention::Set { variable, value }
+                    if *variable == query.treatment
+                        && value.as_f64() == Some(operation.preparation.lowering().control)
+            )
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "prepared front-door lowering disagrees with selected identification or query"
+                        .into(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Uncertainty stage: fills the bootstrap onto the point estimate where the route allows it.
+    fn attach_uncertainty(
+        &mut self,
+        checked: &StaticCheckedFits,
+        ws: &mut StaticWorkspaces,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, CausalError> {
+        let estimator_id = self.estimator_id;
+        if self.skips_bootstrap_refill() {
+            self.keep_point_as_uncertainty(point)
+        } else if matches!(estimator_id, EstimatorId::FrontDoorTwoStage)
+            && checked.frontdoor_linear.is_some()
+        {
+            self.attach_frontdoor_linear_bootstrap(checked, ws, point)
+        } else if matches!(estimator_id, EstimatorId::FrontDoorFunctional)
+            && checked.frontdoor_functional.is_some()
+        {
+            self.attach_frontdoor_functional_bootstrap(checked, point)
+        } else if matches!(estimator_id, EstimatorId::LinearAdjustmentAte) {
+            self.attach_linear_bootstrap(checked, ws, point)
+        } else {
+            self.attach_generic_bootstrap(ws, point)
+        }
+    }
+
+    /// Whether the facade bootstrap must not refill this route's point estimate.
+    fn skips_bootstrap_refill(&self) -> bool {
+        let study = self.study;
+        let execution = self.run.execution;
+        let prepared_linear = execution.linear_operation();
         // Uncertainty: bootstrap fills (real work when replicates > 0).
         // IV and NN matching must not refill with the facade bootstrap: that
         // bypasses the weak-instrument gate (Wald/2SLS) and publishes an
@@ -414,18 +539,18 @@ impl super::Study {
         // replicate count and already ran it in the point fit, and the double-ML, DR-learner
         // and causal-forest fits take no replicate count: refitting any of them here would
         // reproduce the same estimate at the cost of a second full nuisance fit.
-        let skip_bootstrap_refill = prepared_aipw.is_some()
-            || prepared_frontdoor.is_some()
+        execution.aipw_operation().is_some()
+            || execution.frontdoor_linear().is_some()
             || prepared_linear.is_some_and(|operation| !operation.default_id)
             || prepared_linear.is_some_and(|operation| operation.fitter.bootstrap_replicates == 0)
-            || (prepared_linear.is_none() && self.bootstrap_replicates == 0)
+            || (prepared_linear.is_none() && study.bootstrap_replicates == 0)
             || (prepared_linear.is_none()
-                && self
+                && study
                     .estimator_spec
                     .as_deref()
                     .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_))))
             || matches!(
-                estimator_id,
+                self.estimator_id,
                 EstimatorId::IvWald
                     | EstimatorId::Iv2Sls
                     | EstimatorId::PropensityMatching
@@ -433,167 +558,213 @@ impl super::Study {
                     | EstimatorId::Dml
                     | EstimatorId::DrLearner
                     | EstimatorId::CausalForest
-            );
-        let estimate = if skip_bootstrap_refill {
-            if ctx.cancellation.is_cancelled() {
-                clock.mark_cancelled();
-                point
-            } else {
-                clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-                super::super::stage::emit_stage(
-                    self.stage_sink.as_ref(),
-                    &super::super::stage::StageEvent::Uncertainty { estimate: point.clone() },
-                );
-                point
+            )
+    }
+
+    /// Emits the uncertainty stage for an estimate that already carries its final SE.
+    fn keep_point_as_uncertainty(
+        &mut self,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, CausalError> {
+        let ctx = self.run.ctx;
+        if ctx.cancellation.is_cancelled() {
+            self.clock.mark_cancelled();
+            return Ok(point);
+        }
+        self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+        super::super::stage::emit_stage(
+            self.study.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Uncertainty { estimate: point.clone() },
+        );
+        Ok(point)
+    }
+
+    /// Bootstraps through the checked front-door two-stage receipt.
+    fn attach_frontdoor_linear_bootstrap(
+        &mut self,
+        checked: &StaticCheckedFits,
+        ws: &mut StaticWorkspaces,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, CausalError> {
+        let ctx = self.run.ctx;
+        self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        let (_, receipt) = checked.frontdoor_linear.as_ref().expect("checked above");
+        let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+        fitter.bootstrap_replicates = self.study.bootstrap_replicates;
+        let filled = fitter
+            .attach_bootstrap(receipt.problem(), &mut ws.frontdoor, ctx, point)
+            .map_err(CausalError::from)?;
+        self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+        super::super::stage::emit_stage(
+            self.study.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+        );
+        Ok(filled)
+    }
+
+    /// Bootstraps through the checked functional front-door receipt.
+    fn attach_frontdoor_functional_bootstrap(
+        &mut self,
+        checked: &StaticCheckedFits,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, CausalError> {
+        let ctx = self.run.ctx;
+        self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        let (_, receipt) = checked.frontdoor_functional.as_ref().expect("checked above");
+        let fitter = antecedent_estimate::FrontDoorFunctional::new()
+            .with_bootstrap_replicates(self.study.bootstrap_replicates);
+        let filled =
+            fitter.attach_bootstrap(receipt.problem(), ctx, point).map_err(CausalError::from)?;
+        self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+        super::super::stage::emit_stage(
+            self.study.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+        );
+        Ok(filled)
+    }
+
+    /// Re-prepares the linear adjustment on the warmed OLS workspace and attaches its bootstrap.
+    fn attach_linear_bootstrap(
+        &mut self,
+        checked: &StaticCheckedFits,
+        ws: &mut StaticWorkspaces,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, CausalError> {
+        let ctx = self.run.ctx;
+        let study = self.study;
+        let prepared_linear = self.run.execution.linear_operation();
+        // Reuse warmed OLS workspace: re-prepare + attach bootstrap without refitting point.
+        let cancelled_before = ctx.cancellation.is_cancelled();
+        if cancelled_before {
+            self.clock.mark_cancelled();
+            if let Some(p) = &ctx.progress {
+                p.report(0.55, super::super::stage::STAGE_UNCERTAINTY);
             }
-        } else if matches!(estimator_id, EstimatorId::FrontDoorTwoStage)
-            && checked_frontdoor_linear.is_some()
-        {
-            clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-            let (_, checked) = checked_frontdoor_linear.as_ref().expect("checked above");
-            let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
-            fitter.bootstrap_replicates = self.bootstrap_replicates;
-            let filled = fitter
-                .attach_bootstrap(checked.problem(), &mut frontdoor_workspace, ctx, point)
-                .map_err(CausalError::from)?;
-            clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-            super::super::stage::emit_stage(
-                self.stage_sink.as_ref(),
-                &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-            );
-            filled
-        } else if matches!(estimator_id, EstimatorId::FrontDoorFunctional)
-            && checked_frontdoor_functional.is_some()
-        {
-            clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-            let (_, checked) = checked_frontdoor_functional.as_ref().expect("checked above");
-            let fitter = antecedent_estimate::FrontDoorFunctional::new()
-                .with_bootstrap_replicates(self.bootstrap_replicates);
-            let filled = fitter
-                .attach_bootstrap(checked.problem(), ctx, point)
-                .map_err(CausalError::from)?;
-            clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-            super::super::stage::emit_stage(
-                self.stage_sink.as_ref(),
-                &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-            );
-            filled
-        } else if matches!(estimator_id, EstimatorId::LinearAdjustmentAte) {
-            // Reuse warmed OLS workspace: re-prepare + attach bootstrap without refitting point.
-            let cancelled_before = ctx.cancellation.is_cancelled();
-            if cancelled_before {
-                clock.mark_cancelled();
-                if let Some(p) = &ctx.progress {
-                    p.report(0.55, super::super::stage::STAGE_UNCERTAINTY);
-                }
-                point
-            } else {
-                clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                // A configured linear estimator never reaches here (it bootstrapped in the
-                // point fit), so this is the id-selected default the point stage also used.
-                let mut est = prepared_linear
-                    .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
-                if prepared_linear.is_none() {
-                    est.bootstrap_replicates = self.bootstrap_replicates;
-                    est.overlap = OverlapPolicy::ExplicitOverride;
-                }
-                let prep = if let Some((_, checked)) = &checked_linear {
-                    checked.problem().clone()
-                } else {
-                    est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?
-                };
-                let filled = est
-                    .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
-                    .map_err(CausalError::from)?;
-                let cancelled =
-                    filled.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
-                if cancelled {
-                    clock.mark_cancelled();
-                } else {
-                    clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-                }
-                super::super::stage::emit_stage(
-                    self.stage_sink.as_ref(),
-                    &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-                );
-                filled
-            }
+            return Ok(point);
+        }
+        self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        // A configured linear estimator never reaches here (it bootstrapped in the
+        // point fit), so this is the id-selected default the point stage also used.
+        let mut est = prepared_linear
+            .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
+        if prepared_linear.is_none() {
+            est.bootstrap_replicates = study.bootstrap_replicates;
+            est.overlap = OverlapPolicy::ExplicitOverride;
+        }
+        let prep = if let Some((_, receipt)) = &checked.linear {
+            receipt.problem().clone()
         } else {
-            // Weighting, stratification, AIPW, GLM and front-door: their `fit` is the point fit
-            // plus `attach_bootstrap`, so the uncertainty stage reuses the point estimate.
-            let cancelled_before = ctx.cancellation.is_cancelled();
-            if cancelled_before {
-                clock.mark_cancelled();
-                if let Some(p) = &ctx.progress {
-                    p.report(0.55, super::super::stage::STAGE_UNCERTAINTY);
-                }
-                point
-            } else {
-                clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                let filled = crate::strategy_table::attach_static_bootstrap(
-                    estimator_id,
-                    StaticEstimateInput {
-                        data: &data_est,
-                        estimand: &estimand_est,
-                        query: &query_est,
-                        bootstrap_replicates: self.bootstrap_replicates,
-                        overlap_policy: self.overlap_policy,
-                        population_registry: self.population_registry.as_ref(),
-                    },
-                    point,
-                    ctx,
-                    &mut estimate_ws,
-                )?;
-                let cancelled =
-                    filled.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
-                if cancelled {
-                    clock.mark_cancelled();
-                } else {
-                    clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-                }
-                super::super::stage::emit_stage(
-                    self.stage_sink.as_ref(),
-                    &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
-                );
-                filled
-            }
+            est.prepare(&self.data_est, &self.estimand_est, &self.query_est)
+                .map_err(CausalError::from)?
         };
+        let filled = est
+            .attach_bootstrap(&prep, &mut ws.estimate.linear, ctx, point)
+            .map_err(CausalError::from)?;
+        self.finish_filled_uncertainty(&filled);
+        Ok(filled)
+    }
 
-        let cancelled = estimate.uncertainty.bootstrap.cancelled || clock.cancelled();
+    /// Attaches the strategy-table bootstrap for weighting, stratification, AIPW, GLM and front-door.
+    fn attach_generic_bootstrap(
+        &mut self,
+        ws: &mut StaticWorkspaces,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, CausalError> {
+        let ctx = self.run.ctx;
+        let study = self.study;
+        // Weighting, stratification, AIPW, GLM and front-door: their `fit` is the point fit
+        // plus `attach_bootstrap`, so the uncertainty stage reuses the point estimate.
+        let cancelled_before = ctx.cancellation.is_cancelled();
+        if cancelled_before {
+            self.clock.mark_cancelled();
+            if let Some(p) = &ctx.progress {
+                p.report(0.55, super::super::stage::STAGE_UNCERTAINTY);
+            }
+            return Ok(point);
+        }
+        self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        let filled = crate::strategy_table::attach_static_bootstrap(
+            self.estimator_id,
+            StaticEstimateInput {
+                data: &self.data_est,
+                estimand: &self.estimand_est,
+                query: &self.query_est,
+                bootstrap_replicates: study.bootstrap_replicates,
+                overlap_policy: study.overlap_policy,
+                population_registry: study.population_registry.as_ref(),
+            },
+            point,
+            ctx,
+            &mut ws.estimate,
+        )?;
+        self.finish_filled_uncertainty(&filled);
+        Ok(filled)
+    }
 
-        let (refutations, na_diagnostics) = if cancelled {
-            (Vec::new(), Vec::new())
+    /// Closes the uncertainty stage of a bootstrap-filled estimate and emits it.
+    fn finish_filled_uncertainty(&mut self, filled: &EffectEstimate) {
+        let cancelled =
+            filled.uncertainty.bootstrap.cancelled || self.run.ctx.cancellation.is_cancelled();
+        if cancelled {
+            self.clock.mark_cancelled();
         } else {
-            clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
-            let prop_scratch = match estimator_id {
-                EstimatorId::Aipw => &mut estimate_ws.aipw.propensity,
-                _ => &mut estimate_ws.propensity.propensity,
-            };
-            let (reports, na_diagnostics) = RefutationRun {
-                data: &data_est,
-                estimand: &estimand_est,
-                query: &query_est,
-                estimate: &estimate,
-                suite: self.refute,
-                estimator: estimator_id.as_str(),
-                custom: &self.custom_validators,
-                temporal: None,
-            }
-            .reports(&mut estimate_ws.linear, Some(prop_scratch), ctx)?;
-            clock.finish(super::super::stage::STAGE_VALIDATE);
-            super::super::stage::emit_stage(
-                self.stage_sink.as_ref(),
-                &super::super::stage::StageEvent::Validate {
-                    refutations: reports.clone(),
-                    predictive_checks: Vec::new(),
-                },
-            );
-            (reports, na_diagnostics)
-        };
+            self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+        }
+        super::super::stage::emit_stage(
+            self.study.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+        );
+    }
 
+    /// Validation stage: runs the refutation suite unless the estimate was cancelled.
+    fn validate(
+        &mut self,
+        ws: &mut StaticWorkspaces,
+        estimate: &EffectEstimate,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let ctx = self.run.ctx;
+        let cancelled = estimate.uncertainty.bootstrap.cancelled || self.clock.cancelled();
+        if cancelled {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        self.clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
+        let prop_scratch = match self.estimator_id {
+            EstimatorId::Aipw => &mut ws.estimate.aipw.propensity,
+            _ => &mut ws.estimate.propensity.propensity,
+        };
+        let (reports, na_diagnostics) = RefutationRun {
+            data: &self.data_est,
+            estimand: &self.estimand_est,
+            query: &self.query_est,
+            estimate,
+            suite: self.study.refute,
+            estimator: self.estimator_id.as_str(),
+            custom: &self.study.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut ws.estimate.linear, Some(prop_scratch), ctx)?;
+        self.clock.finish(super::super::stage::STAGE_VALIDATE);
+        super::super::stage::emit_stage(
+            self.study.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Validate {
+                refutations: reports.clone(),
+                predictive_checks: Vec::new(),
+            },
+        );
+        Ok((reports, na_diagnostics))
+    }
+
+    /// Attaches the functional grid and assembles the identified result.
+    fn finish(
+        self,
+        estimate: EffectEstimate,
+        refutations: Vec<antecedent_validate::RefutationReport>,
+        na_diagnostics: Vec<Diagnostic>,
+    ) -> Result<StudyResult, CausalError> {
+        let StaticRun { data, query, physical, ctx, .. } = self.run;
         let mut extra_diagnostics =
-            if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
+            if let Some(d) = projection_diagnostic(self.full_cols, self.projected_cols) {
                 vec![d]
             } else {
                 Vec::new()
@@ -601,35 +772,112 @@ impl super::Study {
         extra_diagnostics.extend(na_diagnostics);
         let estimate = super::super::helpers::attach_average_functional_grid(
             estimate,
-            super::super::helpers::AverageTarget { data: data, query: query, estimand: &estimand },
+            super::super::helpers::AverageTarget { data, query, estimand: &self.estimand },
             &mut extra_diagnostics,
-            estimator_id,
-            self,
+            self.estimator_id,
+            self.study,
             ctx.rng.master_seed(),
         )?;
         let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
         let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
-        Ok(self.finish_identified_execute(
+        Ok(self.study.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
-                identification,
-                estimand,
+                self.identification,
+                self.estimand,
                 estimate,
-                Strategy::new(identifier_id, estimator_id),
+                Strategy::new(self.identifier_id, self.estimator_id),
                 query.treatment,
                 query.outcome,
             )
-            .identify_cached(identify_cached)
+            .identify_cached(self.identify_cached)
             .extra_diagnostics(extra_diagnostics)
             .refutations(refutations)
-            .wall_time_ns(clock.wall_time_ns())
+            .wall_time_ns(self.clock.wall_time_ns())
             .bootstrap_replicates_ok(bootstrap_ok)
-            .cancelled(clock.cancelled())
+            .cancelled(self.clock.cancelled())
             .early_stopped(early_stopped)
             .extras(IdentifiedExecuteExtras {
-                stage_timings_ns: clock.timings(),
+                stage_timings_ns: self.clock.timings(),
                 ..Default::default()
             }),
+        ))
+    }
+}
+
+impl super::Study {
+    pub(super) fn execute_static(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        execution: &super::super::prepared::PreparedExecution,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let run = StaticRun { data, graph, query, physical, execution, ctx };
+        let (identifier_id, estimator_id) =
+            physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
+        if let Some(result) = self.execute_static_specialist(&run, identifier_id, estimator_id) {
+            return result;
+        }
+
+        let mut exec = StaticAteExecution::identify(self, run, identifier_id, estimator_id)?;
+        exec.begin_point_stage()?;
+        let mut workspaces = StaticWorkspaces::default();
+        let checked = exec.prepare_checked()?;
+        let point = exec.fit_point(&checked, &mut workspaces)?;
+        let estimate = exec.attach_uncertainty(&checked, &mut workspaces, point)?;
+        let (refutations, na_diagnostics) = exec.validate(&mut workspaces, &estimate)?;
+        exec.finish(estimate, refutations, na_diagnostics)
+    }
+
+    /// Routes estimators that own a dedicated execution path (rd, Bayesian, functional, tiered).
+    fn execute_static_specialist(
+        &self,
+        run: &StaticRun<'_>,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+    ) -> Option<Result<StudyResult, CausalError>> {
+        let StaticRun { data, graph, query, physical, execution, ctx } = *run;
+        // rd.sharp identifies from the declared design, which the graph must agree
+        // with; it has no adjustment search, so it takes its own path.
+        if matches!(estimator_id, EstimatorId::RdSharp) {
+            return Some(self.execute_rd(data, graph, query, physical, ctx));
+        }
+        if matches!(estimator_id, EstimatorId::BayesianIvJointLinear) {
+            return Some(self.execute_bayesian_iv(data, graph, query, physical, ctx));
+        }
+        if matches!(estimator_id, EstimatorId::BayesianRdLocalLinear) {
+            return Some(self.execute_bayesian_rd(data, graph, query, physical, ctx));
+        }
+        if matches!(estimator_id, EstimatorId::BayesianGcomp) {
+            return Some(self.execute_bayesian(
+                data,
+                graph,
+                query,
+                physical,
+                execution.bayesian_gcomp(),
+                ctx,
+            ));
+        }
+        if matches!(estimator_id, EstimatorId::BayesianBasisGcomp) {
+            return Some(self.execute_bayesian_basis(data, graph, query, physical, ctx));
+        }
+        if matches!(estimator_id, EstimatorId::BayesianRobustAte) {
+            return Some(self.execute_bayesian_robust_ate(data, graph, query, physical, ctx));
+        }
+        if matches!(estimator_id, EstimatorId::FunctionalEffect) {
+            return Some(self.execute_functional_ate(data, graph, query, physical, ctx));
+        }
+        let background = self.tiered.clone()?;
+        Some(self.execute_tiered_average(
+            data,
+            query,
+            physical,
+            ctx,
+            &background,
+            Strategy::new(identifier_id, estimator_id),
         ))
     }
 
@@ -673,59 +921,16 @@ impl super::Study {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalDistribution::new()
         };
-        let prepared = if let Some(operation) = distribution_operation {
-            let checked_arena =
-                antecedent_io::expr_arena_to_wire(operation.prepared().program().arena())
-                    .map_err(CausalError::rejected)?;
-            let claim_arena = antecedent_io::expr_arena_to_wire(&identification.arena)
-                .map_err(CausalError::rejected)?;
-            if operation.query() != query
-                || operation.prepared().estimand.functional != estimand.functional
-                || checked_arena != claim_arena
-            {
-                return Err(CausalError::Compile {
-                    message: "prepared distribution target disagrees with selected identification"
-                        .into(),
-                });
-            }
-            operation.rebind(data)?
-        } else {
-            est.prepare(
-                data,
-                query,
-                &estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-            )
-            .map_err(CausalError::from)?
-        };
-        let (dist, posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            if let InferenceMode::Bayesian(cfg) = &self.inference {
-                if cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                    || cfg.prior.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "functional Bayesian prior transfer requires a declared \
-                                  functional mapping; a backdoor coefficient artifact cannot \
-                                  be applied as an isotropic CPT prior",
-                    });
-                }
-            }
-            let (dist, posterior) = est
-                .estimate_bayesian(
-                    &prepared,
-                    &[],
-                    bayesian_draw_count(&self.inference)?,
-                    identification.status,
-                    ctx,
-                )
-                .map_err(CausalError::from)?;
-            (dist, Some(posterior))
-        } else {
-            let mut ws = FunctionalDistributionWorkspace::default();
-            (est.estimate(&prepared, &[], &mut ws, ctx).map_err(CausalError::from)?, None)
-        };
+        let prepared = Self::prepare_distribution_problem(
+            &est,
+            data,
+            query,
+            &identification,
+            &estimand,
+            distribution_operation,
+        )?;
+        let (dist, posterior) =
+            self.estimate_distribution(&est, &prepared, identification.status, ctx)?;
 
         let estimate = EffectEstimate::from_parts(
             dist.mean,
@@ -798,6 +1003,82 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
+    }
+
+    /// Binds the distribution problem to `data`, through the retained operation when one exists.
+    fn prepare_distribution_problem(
+        est: &FunctionalDistribution,
+        data: &TabularData,
+        query: &antecedent_core::InterventionalDistributionQuery,
+        identification: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
+    ) -> Result<antecedent_estimate::PreparedFunctionalDistribution, CausalError> {
+        if let Some(operation) = distribution_operation {
+            let checked_arena =
+                antecedent_io::expr_arena_to_wire(operation.prepared().program().arena())
+                    .map_err(CausalError::rejected)?;
+            let claim_arena = antecedent_io::expr_arena_to_wire(&identification.arena)
+                .map_err(CausalError::rejected)?;
+            if operation.query() != query
+                || operation.prepared().estimand.functional != estimand.functional
+                || checked_arena != claim_arena
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared distribution target disagrees with selected identification"
+                        .into(),
+                });
+            }
+            operation.rebind(data)
+        } else {
+            est.prepare(
+                data,
+                query,
+                estimand,
+                &identification.arena,
+                identification.required_assumptions.clone(),
+            )
+            .map_err(CausalError::from)
+        }
+    }
+
+    /// Frequentist plug-in or Bayesian posterior estimate of the prepared distribution.
+    fn estimate_distribution(
+        &self,
+        est: &FunctionalDistribution,
+        prepared: &antecedent_estimate::PreparedFunctionalDistribution,
+        status: IdentificationStatus,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (
+            antecedent_estimate::InterventionalDistributionEstimate,
+            Option<antecedent_estimate::CausalPosterior>,
+        ),
+        CausalError,
+    > {
+        if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "functional Bayesian prior transfer requires a declared \
+                              functional mapping; a backdoor coefficient artifact cannot \
+                              be applied as an isotropic CPT prior",
+                });
+            }
+            let (dist, posterior) = est
+                .estimate_bayesian(
+                    prepared,
+                    &[],
+                    bayesian_draw_count(&self.inference)?,
+                    status,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            Ok((dist, Some(posterior)))
+        } else {
+            let mut ws = FunctionalDistributionWorkspace::default();
+            Ok((est.estimate(prepared, &[], &mut ws, ctx).map_err(CausalError::from)?, None))
+        }
     }
 
     /// Identify + plug-in estimate for a path-specific natural effect.
@@ -1204,12 +1485,8 @@ impl super::Study {
         strategy: Strategy,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
-        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
-        let ClassEnvelopeRun {
-            run: ExecuteRun { physical, ctx, started, identify_cached },
-            envelope,
-            envelope_diagnostic: envelope_diag,
-        } = run;
+        let estimator_id = strategy.estimator;
+        let envelope = run.envelope;
         if envelope.unidentified_weight.0 > 1e-12
             && (query.inner.outcome_functional.quantile_level().is_some()
                 || query.inner.outcome_functional.thresholds().is_some())
@@ -1226,11 +1503,7 @@ impl super::Study {
             {
                 return self.execute_pag_nonidentified_prior(
                     &query.inner,
-                    ClassEnvelopeRun {
-                        run: ExecuteRun { physical, ctx, started, identify_cached },
-                        envelope,
-                        envelope_diagnostic: envelope_diag,
-                    },
+                    run,
                     identification,
                     class_tag,
                 );
@@ -1246,99 +1519,44 @@ impl super::Study {
         if matches!(self.inference, InferenceMode::Bayesian(_))
             || matches!(estimator_id, EstimatorId::BayesianConditional)
         {
-            return self.execute_pag_bayesian(
-                data,
-                &query.inner,
-                ClassEnvelopeRun {
-                    run: ExecuteRun { physical, ctx, started, identify_cached },
-                    envelope,
-                    envelope_diagnostic: envelope_diag,
-                },
-                identification,
-                class_tag,
-            );
+            return self.execute_pag_bayesian(data, &query.inner, run, identification, class_tag);
         }
+        self.finish_class_conditional_frequentist(
+            data,
+            query,
+            run,
+            identification,
+            strategy,
+            class_tag,
+        )
+    }
 
+    /// Frequentist pooled conditional effect over the identified atoms of a class envelope.
+    fn finish_class_conditional_frequentist<G>(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::ConditionalEffectQuery,
+        run: ClassEnvelopeRun<'_, G>,
+        identification: IdentificationResult,
+        strategy: Strategy,
+        class_tag: &str,
+    ) -> Result<StudyResult, CausalError> {
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic: envelope_diag,
+        } = run;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
             data,
             query.inner.outcome,
             &query.inner.outcome_functional,
         )?;
         let mut diagnostics = vec![envelope_diag];
-        let mut weighted_ate = 0.0;
-        let mut se_items = Vec::new();
-        let mut atom_ifs = Vec::new();
-        let mut atom_weights = Vec::new();
-        let mut total_w = 0.0;
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut assumptions = antecedent_core::AssumptionSet::default();
-        let mut refute_atoms = Vec::new();
-        let mut grid_atoms = Vec::new();
-        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
-        let est = ConditionalLinearAdjustment::new();
-        for (i, case) in envelope.cases.iter().enumerate() {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                continue;
-            }
-            let estimand = select_estimand(&case.result, estimator_id)?;
-            let mut mean_query = query.clone();
-            mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
-            let estimate =
-                est.estimate(&data_est, &estimand, &mean_query, ctx).map_err(CausalError::from)?;
-            let w = case.weight.0;
-            outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
-            weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic()));
-            if let Some(inf) = estimate
-                .scores
-                .influence
-                .as_deref()
-                .and_then(|inf| static_aligned_influence(data, &query.inner, &estimand, inf))
-            {
-                atom_ifs.push(inf);
-                atom_weights.push(w);
-            }
-            total_w += w;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                assumptions = estimate.provenance.assumptions.clone();
-            }
-            grid_atoms.push((w, estimand.clone()));
-            refute_atoms.push(EnvelopeRefuteAtom {
-                key: i as u64,
-                weight: w,
-                estimand,
-                indexer: None,
-                original: estimate,
-            });
-        }
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: format!("{class_tag} ConditionalEffect envelope had no estimable cases"),
-            });
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: format!("{class_tag} ConditionalEffect envelope missing estimand"),
-        })?;
-        let n_contributing = se_items.len();
-        let se = if atom_ifs.len() == n_contributing {
-            mix_static_envelope_se(&atom_ifs, &atom_weights)
-        } else {
-            mix_weighted_analytic_se(se_items)
-        };
-        let mut estimate = EffectEstimate::new(
-            weighted_ate / total_w,
-            se,
-            assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
-        if atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.scores.influence = Some(inf);
-            }
-        }
+        let atoms =
+            evaluate_conditional_atoms(data, &data_est, query, envelope, estimator_id, ctx)?;
+        let (mut estimate, estimand, n_contributing) = atoms.pooled_estimate(class_tag)?;
+        let ConditionalAtoms { refute_atoms, grid_atoms, outcomes, .. } = atoms;
         if query.inner.outcome_functional.thresholds().is_some()
             || query.inner.outcome_functional.quantile_level().is_some()
         {
@@ -1431,39 +1649,14 @@ impl super::Study {
                 });
             }
         }
-        let (mediation, posterior) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            let est = bayesian_gcomp(cfg, ctx);
-            let decoded = crate::inference::decode_prior_hydrate_source(cfg)?;
-            let bridge = decoded.as_ref().map(|d| antecedent_estimate::MediationPriorBridge {
-                mapping: &d.mapping,
-                quantities: &d.quantities,
-                mean: &d.mean,
-                sd: &d.sd,
-                source_contrast: d.source_contrast,
-            });
-            let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
-                &antecedent_estimate::StaticMediationProblem { data, graph, query, extra: &[] },
-                identification.required_assumptions.clone(),
-                &est,
-                identification.status,
-                bridge,
-                ctx,
-            )?;
-            (mediation, Some(posterior))
-        } else {
-            (
-                antecedent_estimate::estimate_static_mediation(
-                    data,
-                    graph,
-                    query,
-                    identification.required_assumptions.clone(),
-                    self.bootstrap_replicates,
-                    &[],
-                    ctx,
-                )?,
-                None,
-            )
-        };
+        let (mediation, posterior) = self.estimate_static_mediation_total(
+            data,
+            graph,
+            query,
+            identification.required_assumptions.clone(),
+            identification.status,
+            ctx,
+        )?;
         let estimate = mediation.effect.clone();
         let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
         let (cancelled, early_stopped) = (
@@ -1510,6 +1703,57 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
+    }
+
+    /// Frequentist or Bayesian static mediation estimate for the total-effect route.
+    fn estimate_static_mediation_total(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+        query: &antecedent_core::MediationQuery,
+        assumptions: antecedent_core::AssumptionSet,
+        status: IdentificationStatus,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (
+            antecedent_estimate::TemporalMediationEstimate,
+            Option<antecedent_estimate::CausalPosterior>,
+        ),
+        CausalError,
+    > {
+        if let InferenceMode::Bayesian(cfg) = &self.inference {
+            let est = bayesian_gcomp(cfg, ctx);
+            let decoded = crate::inference::decode_prior_hydrate_source(cfg)?;
+            let bridge = decoded.as_ref().map(|d| antecedent_estimate::MediationPriorBridge {
+                mapping: &d.mapping,
+                quantities: &d.quantities,
+                mean: &d.mean,
+                sd: &d.sd,
+                source_contrast: d.source_contrast,
+            });
+            let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
+                &antecedent_estimate::StaticMediationProblem { data, graph, query, extra: &[] },
+                assumptions,
+                &est,
+                status,
+                bridge,
+                ctx,
+            )?;
+            Ok((mediation, Some(posterior)))
+        } else {
+            Ok((
+                antecedent_estimate::estimate_static_mediation(
+                    data,
+                    graph,
+                    query,
+                    assumptions,
+                    self.bootstrap_replicates,
+                    &[],
+                    ctx,
+                )?,
+                None,
+            ))
+        }
     }
 
     pub(super) fn execute_tiered_average(
@@ -1641,21 +1885,16 @@ impl super::Study {
         )
     }
 
-    fn finish_tiered_unknown(
+    /// Fits every canonical scenario estimand of a tiered Unknown envelope.
+    fn evaluate_tiered_scenarios(
         &self,
+        data_est: &TabularData,
         data: &TabularData,
         query: &AverageEffectQuery,
-        run: ExecuteRun<'_>,
-        identification: IdentificationResult,
-        strategy: Strategy,
-    ) -> Result<StudyResult, CausalError> {
-        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
-        let ExecuteRun { physical, ctx, started, identify_cached } = run;
-        let data_est = super::super::helpers::apply_scalar_outcome_functional(
-            data,
-            query.outcome,
-            &query.outcome_functional,
-        )?;
+        identification: &IdentificationResult,
+        estimator_id: EstimatorId,
+        ctx: &ExecutionContext,
+    ) -> Result<TieredScenarios, CausalError> {
         let spec =
             self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id));
         let mut atom_ifs = Vec::new();
@@ -1668,7 +1907,7 @@ impl super::Study {
             let estimate = estimate_static_effect(
                 &spec,
                 StaticEstimateInput {
-                    data: &data_est,
+                    data: data_est,
                     estimand: estimand,
                     query: query,
                     bootstrap_replicates: self.bootstrap_replicates,
@@ -1697,6 +1936,33 @@ impl super::Study {
                 assumptions = estimate.provenance.assumptions;
             }
         }
+        Ok(TieredScenarios { atom_ifs, scenarios, primary, assumptions })
+    }
+
+    fn finish_tiered_unknown(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        run: ExecuteRun<'_>,
+        identification: IdentificationResult,
+        strategy: Strategy,
+    ) -> Result<StudyResult, CausalError> {
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let data_est = super::super::helpers::apply_scalar_outcome_functional(
+            data,
+            query.outcome,
+            &query.outcome_functional,
+        )?;
+        let TieredScenarios { atom_ifs, scenarios, primary, assumptions } = self
+            .evaluate_tiered_scenarios(
+                &data_est,
+                data,
+                query,
+                &identification,
+                estimator_id,
+                ctx,
+            )?;
         let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
         let mut extra_diagnostics = Vec::new();
         let covariance = if refs.len() == scenarios.len() && refs.len() >= 2 {
@@ -1771,6 +2037,126 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras { structural_response, ..Default::default() }),
         ))
+    }
+}
+
+/// Scenario values and aligned influence functions of a tiered Unknown envelope.
+struct TieredScenarios {
+    atom_ifs: Vec<Vec<f64>>,
+    scenarios: Vec<(u64, antecedent_core::ResponseValue)>,
+    primary: Option<IdentifiedEstimand>,
+    assumptions: antecedent_core::AssumptionSet,
+}
+
+/// Per-atom results of a class-aware conditional envelope, accumulated in envelope order.
+struct ConditionalAtoms {
+    weighted_ate: f64,
+    se_items: Vec<(f64, f64)>,
+    atom_ifs: Vec<Vec<f64>>,
+    atom_weights: Vec<f64>,
+    total_w: f64,
+    primary_estimand: Option<IdentifiedEstimand>,
+    assumptions: antecedent_core::AssumptionSet,
+    refute_atoms: Vec<EnvelopeRefuteAtom>,
+    grid_atoms: Vec<(f64, IdentifiedEstimand)>,
+    outcomes: Vec<ClassAtomOutcome>,
+}
+
+/// Fits the conditional linear adjustment on each identified atom of the envelope.
+fn evaluate_conditional_atoms<G>(
+    data: &TabularData,
+    data_est: &TabularData,
+    query: &antecedent_core::ConditionalEffectQuery,
+    envelope: &antecedent_identify::IdentificationEnvelope<G>,
+    estimator_id: EstimatorId,
+    ctx: &ExecutionContext,
+) -> Result<ConditionalAtoms, CausalError> {
+    let mut atoms = ConditionalAtoms {
+        weighted_ate: 0.0,
+        se_items: Vec::new(),
+        atom_ifs: Vec::new(),
+        atom_weights: Vec::new(),
+        total_w: 0.0,
+        primary_estimand: None,
+        assumptions: antecedent_core::AssumptionSet::default(),
+        refute_atoms: Vec::new(),
+        grid_atoms: Vec::new(),
+        outcomes: vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()],
+    };
+    let est = ConditionalLinearAdjustment::new();
+    for (i, case) in envelope.cases.iter().enumerate() {
+        if !identification_status_ok_for_case(case.result.status)
+            || case.result.estimands.is_empty()
+        {
+            continue;
+        }
+        let estimand = select_estimand(&case.result, estimator_id)?;
+        let mut mean_query = query.clone();
+        mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+        let estimate =
+            est.estimate(data_est, &estimand, &mean_query, ctx).map_err(CausalError::from)?;
+        let w = case.weight.0;
+        atoms.outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
+        atoms.weighted_ate += w * estimate.ate;
+        atoms.se_items.push((w, estimate.se_analytic()));
+        if let Some(inf) = estimate
+            .scores
+            .influence
+            .as_deref()
+            .and_then(|inf| static_aligned_influence(data, &query.inner, &estimand, inf))
+        {
+            atoms.atom_ifs.push(inf);
+            atoms.atom_weights.push(w);
+        }
+        atoms.total_w += w;
+        if atoms.primary_estimand.is_none() {
+            atoms.primary_estimand = Some(estimand.clone());
+            atoms.assumptions = estimate.provenance.assumptions.clone();
+        }
+        atoms.grid_atoms.push((w, estimand.clone()));
+        atoms.refute_atoms.push(EnvelopeRefuteAtom {
+            key: i as u64,
+            weight: w,
+            estimand,
+            indexer: None,
+            original: estimate,
+        });
+    }
+    Ok(atoms)
+}
+
+impl ConditionalAtoms {
+    /// Weight-pooled point estimate, primary estimand and contributing-atom count.
+    fn pooled_estimate(
+        &self,
+        class_tag: &str,
+    ) -> Result<(EffectEstimate, IdentifiedEstimand, usize), CausalError> {
+        if !matches!(self.total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: format!("{class_tag} ConditionalEffect envelope had no estimable cases"),
+            });
+        }
+        let estimand = self.primary_estimand.clone().ok_or_else(|| CausalError::Compile {
+            message: format!("{class_tag} ConditionalEffect envelope missing estimand"),
+        })?;
+        let n_contributing = self.se_items.len();
+        let se = if self.atom_ifs.len() == n_contributing {
+            mix_static_envelope_se(&self.atom_ifs, &self.atom_weights)
+        } else {
+            mix_weighted_analytic_se(self.se_items.iter().copied())
+        };
+        let mut estimate = EffectEstimate::new(
+            self.weighted_ate / self.total_w,
+            se,
+            self.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        if self.atom_ifs.len() == n_contributing {
+            if let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
+                estimate.scores.influence = Some(inf);
+            }
+        }
+        Ok((estimate, estimand, n_contributing))
     }
 }
 

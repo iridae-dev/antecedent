@@ -12,11 +12,12 @@ use super::{
     InferenceMode, Instant, Intervention, ObservationMechanismEstimator, ObservationSpec,
     OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun, RefuteSuite,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    Strategy, StudyResult, TableView, TabularData, VariableId, bayesian_gcomp, elapsed_ns,
-    envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
-    functional_cell_unevaluable, identification_from_cache_or, identification_status_ok_for_case,
-    identify_cached_diagnostic, identify_static_query, interactive_subsample_graphs_accounted,
-    provenance_ids, report_identify_compute, resolve_posterior_status, scalar_identified_set,
+    Strategy, StudyResult, TableView, TabularData, VariableId, WeightedGraphSamples,
+    bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
+    envelope_to_identification_result_for, functional_cell_unevaluable,
+    identification_from_cache_or, identification_status_ok_for_case, identify_cached_diagnostic,
+    identify_static_query, interactive_subsample_graphs_accounted, provenance_ids,
+    report_identify_compute, resolve_posterior_status, scalar_identified_set,
     support_from_functional_eval,
 };
 use crate::analysis::prepared::Inspect;
@@ -241,29 +242,7 @@ impl CheckedStaticDagResponseOperation {
     ) -> Result<Self, CausalError> {
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate()?;
-        let curve_grid = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?.into(),
-            ResponseFunctional::InterventionResponse { interventions, .. } => {
-                if interventions.is_empty()
-                    || interventions.iter().any(|intervention| {
-                        matches!(
-                            intervention,
-                            Intervention::Soft { .. } | Intervention::Sequence(_)
-                        )
-                    })
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "checked intervention g-computation requires hard set, shift, or stochastic policies",
-                    });
-                }
-                Arc::from([])
-            }
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "checked static DAG response operation supports MeanCurve or InterventionResponse",
-                });
-            }
-        };
+        let curve_grid = Self::checked_curve_grid(query)?;
         let expected_estimator = match (&query.functional, &inference) {
             (_, InferenceMode::Bayesian(_)) => EstimatorId::ResponseBayesian,
             (ResponseFunctional::MeanCurve { .. }, InferenceMode::Frequentist) => {
@@ -342,6 +321,31 @@ impl CheckedStaticDagResponseOperation {
             inference,
             refute,
         })
+    }
+
+    /// Curve grid a checked static DAG response retains, refusing unsupported functionals.
+    fn checked_curve_grid(query: &ResponseQuery) -> Result<Arc<[f64]>, CausalError> {
+        match &query.functional {
+            ResponseFunctional::MeanCurve { treatment, .. } => Ok(treatment.grid.values()?.into()),
+            ResponseFunctional::InterventionResponse { interventions, .. } => {
+                if interventions.is_empty()
+                    || interventions.iter().any(|intervention| {
+                        matches!(
+                            intervention,
+                            Intervention::Soft { .. } | Intervention::Sequence(_)
+                        )
+                    })
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "checked intervention g-computation requires hard set, shift, or stochastic policies",
+                    });
+                }
+                Ok(Arc::from([]))
+            }
+            _ => Err(CausalError::Unsupported {
+                message: "checked static DAG response operation supports MeanCurve or InterventionResponse",
+            }),
+        }
     }
 
     /// Inference procedure fixed by preparation.
@@ -923,6 +927,137 @@ mod checked_derivative_operation_tests {
     }
 }
 
+/// Treatment coordinates and outcome of a cell.aipw joint-arm query.
+#[derive(Clone, Copy)]
+struct CellAipwTarget<'a> {
+    treatments: &'a [VariableId],
+    outcome: VariableId,
+}
+
+/// Point-identified scalar response of a cell.aipw joint arm.
+fn cell_aipw_response(
+    query: &ResponseQuery,
+    identification: &IdentificationResult,
+    scalar: f64,
+    se: f64,
+    n_treatments: usize,
+    requested_arm: u32,
+) -> CausalResponse {
+    CausalResponse {
+        estimand: query.functional.clone(),
+        identification_status: identification.status,
+        estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(scalar)),
+        uncertainty: ResponseUncertainty::Scalar {
+            standard_error: se,
+            lower: scalar - crate::result::reported_se_interval_z() * se,
+            upper: scalar + crate::result::reported_se_interval_z() * se,
+            level: 0.95,
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
+        },
+        support: antecedent_core::SupportReport {
+            status: antecedent_core::SupportStatus::Supported,
+            query_region: antecedent_core::SupportRegion {
+                minima: Arc::from(
+                    (0..n_treatments)
+                        .map(|j| f64::from((requested_arm >> j) & 1))
+                        .collect::<Vec<_>>(),
+                ),
+                maxima: Arc::from(
+                    (0..n_treatments)
+                        .map(|j| f64::from((requested_arm >> j) & 1))
+                        .collect::<Vec<_>>(),
+                ),
+            },
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            // One scalar answers the whole joint arm: one coordinate, one label (the
+            // summary itself).
+            point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
+        },
+        assumptions: identification.required_assumptions.clone(),
+        provenance_id: Arc::from("estimate.cell.aipw"),
+        horizon_identification: None,
+        interaction_structurally_zero: false,
+    }
+}
+
+/// Borrowed inputs of the plugin-level refutation of a scalar response.
+struct ResponseRefuteInput<'a> {
+    data: &'a TabularData,
+    query: &'a ResponseQuery,
+    estimand: &'a IdentifiedEstimand,
+    estimate: &'a EffectEstimate,
+    scalar: f64,
+    estimator_id: EstimatorId,
+    treatment: VariableId,
+    outcome: VariableId,
+}
+
+/// Borrowed inputs shared by the phases of a graph-posterior response execution.
+#[derive(Clone, Copy)]
+struct GraphPosteriorResponseRun<'a> {
+    data: &'a TabularData,
+    query: &'a ResponseQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &'a ExecutionContext,
+}
+
+/// Atom fits of a graph-posterior response with the masses pooling accounts for.
+struct GraphPosteriorResponseFits {
+    graphs: WeightedGraphSamples,
+    unidentified_mass: f64,
+    subsampled_out_mass: f64,
+    subsample_notes: Vec<Diagnostic>,
+    atoms: Vec<crate::result::StructuralResponseAtom>,
+    weighted: Vec<(u64, f64, CausalResponse)>,
+    estimand: IdentifiedEstimand,
+    failed_mass: f64,
+    atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
+    options: antecedent_estimate::ContinuousResponseOptions,
+}
+
+/// The pooled response of a graph posterior with the values its diagnostics read.
+struct GraphPosteriorPooled {
+    identification: IdentificationResult,
+    conditional: ResponseValue,
+    mixed_if_se: Option<f64>,
+    response: CausalResponse,
+    estimate: EffectEstimate,
+    scalar: f64,
+    standard_error: f64,
+    identified_mass: f64,
+    total_mass: f64,
+    structural_set: Option<antecedent_core::ResponseEnvelope>,
+}
+
+/// Structural atoms of a graph posterior, one per sample, before any fit fills their values.
+fn graph_posterior_structural_atoms(
+    graphs: &WeightedGraphSamples,
+) -> Vec<crate::result::StructuralResponseAtom> {
+    // Atom statuses come from the full ensemble: a subsampled-out atom keeps
+    // its identified status and carries no value.
+    graphs
+        .graph_keys
+        .iter()
+        .zip(graphs.weights.iter())
+        .zip(graphs.identified.iter())
+        .map(|((&graph_key, &weight), flag)| crate::result::StructuralResponseAtom {
+            posterior: None,
+            response: None,
+            graph_key,
+            weight,
+            status: if *flag == GraphIdentFlag::Identified {
+                IdentificationStatus::NonparametricallyIdentified
+            } else {
+                IdentificationStatus::NotIdentified
+            },
+            value: None,
+        })
+        .collect()
+}
+
 impl super::Study {
     pub(super) fn execute_graph_posterior_response(
         &self,
@@ -950,6 +1085,88 @@ impl super::Study {
                 false,
             )
         };
+        let run = GraphPosteriorResponseRun { data, query, treatment, outcome, ctx };
+        let (mut fits, identification) =
+            self.fit_graph_posterior_response_atoms(&run, &identified)?;
+        let pooled = self.pool_graph_posterior_response(&run, &fits, identification)?;
+        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::ResponseBayesian
+        } else {
+            EstimatorId::default_for_response(&query.functional)
+        };
+        let mut diagnostics = self.graph_posterior_response_diagnostics(&fits, &pooled);
+        let (refutations, refute_diags) = self.refute_graph_posterior_response(
+            &run,
+            estimator_id,
+            &fits.estimand,
+            &pooled,
+            &mut diagnostics,
+        )?;
+        diagnostics.extend(refute_diags);
+        diagnostics.extend(std::mem::take(&mut fits.subsample_notes));
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        let GraphPosteriorPooled {
+            identification,
+            conditional,
+            response,
+            estimate,
+            identified_mass,
+            total_mass,
+            structural_set,
+            ..
+        } = pooled;
+        let GraphPosteriorResponseFits {
+            atoms,
+            estimand,
+            unidentified_mass,
+            failed_mass,
+            subsampled_out_mass,
+            ..
+        } = fits;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::BackdoorAdjustment, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                response: Some(response),
+                structural_response: Some(crate::result::StructuralResponseMixture {
+                    weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
+                    atoms,
+                    identified_mass: identified_mass / total_mass,
+                    unidentified_mass: unidentified_mass / total_mass,
+                    unevaluable_mass: failed_mass / total_mass,
+                    subsampled_out_mass: subsampled_out_mass / total_mass,
+                    identified_set: structural_set,
+                    identified_set_interval: None,
+                    conditional_on_identified: Some(conditional),
+                    full_mass_scope: true,
+                    truncated_atoms: 0,
+                }),
+                diagnostics: Some(diagnostics),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Fits each identified atom of the graph posterior and collects the weighted responses.
+    fn fit_graph_posterior_response_atoms(
+        &self,
+        run: &GraphPosteriorResponseRun<'_>,
+        identified: &crate::analysis::prepared::CachedGraphPosteriorIdentification,
+    ) -> Result<(GraphPosteriorResponseFits, IdentificationResult), CausalError> {
+        let GraphPosteriorResponseRun { data, query, ctx, .. } = *run;
         // Same interactive budget as the graph-posterior ATE path: identified
         // atoms left out of the stratified subsample are never fit and never
         // renormalized away; their mass is reported as not evaluated.
@@ -961,27 +1178,7 @@ impl super::Study {
             &mut subsample_notes,
         )?;
         let mut weighted = Vec::new();
-        // Atom statuses come from the full ensemble: a subsampled-out atom keeps
-        // its identified status and carries no value.
-        let mut atoms = identified
-            .graphs
-            .graph_keys
-            .iter()
-            .zip(identified.graphs.weights.iter())
-            .zip(identified.graphs.identified.iter())
-            .map(|((&graph_key, &weight), flag)| crate::result::StructuralResponseAtom {
-                posterior: None,
-                response: None,
-                graph_key,
-                weight,
-                status: if *flag == GraphIdentFlag::Identified {
-                    IdentificationStatus::NonparametricallyIdentified
-                } else {
-                    IdentificationStatus::NotIdentified
-                },
-                value: None,
-            })
-            .collect::<Vec<_>>();
+        let mut atoms = graph_posterior_structural_atoms(&identified.graphs);
         let mut primary = None;
         let mut failed_mass = 0.0;
         // Atom influence columns keep their own complete-case row indices; they
@@ -1054,15 +1251,43 @@ impl super::Study {
             }
             weighted.push((atom.key, weight, response));
         }
-        let (estimand, mut identification) = primary.ok_or_else(|| CausalError::Compile {
+        let (estimand, identification) = primary.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior response has no evaluable identified atom".into(),
         })?;
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        Ok((
+            GraphPosteriorResponseFits {
+                graphs,
+                unidentified_mass,
+                subsampled_out_mass: subsample_drop.mass,
+                subsample_notes,
+                atoms,
+                weighted,
+                estimand,
+                failed_mass,
+                atom_scores,
+                options,
+            },
+            identification,
+        ))
+    }
+
+    /// Pools the atom responses into the published response, estimate and mass accounting.
+    fn pool_graph_posterior_response(
+        &self,
+        run: &GraphPosteriorResponseRun<'_>,
+        fits: &GraphPosteriorResponseFits,
+        mut identification: IdentificationResult,
+    ) -> Result<GraphPosteriorPooled, CausalError> {
+        let GraphPosteriorResponseRun { data, query, .. } = *run;
+        let GraphPosteriorResponseFits { graphs, weighted, atom_scores, options, .. } = fits;
+        let failed_mass = fits.failed_mass;
         let identified_mass = weighted.iter().map(|(_, weight, _)| weight).sum::<f64>();
         let total_mass = graphs.total_weight();
         // The subsampled ensemble flags dropped atoms Unidentified; the full
         // ensemble's unidentified mass is the structural one.
-        let unidentified_mass = identified.graphs.unidentified_mass();
-        let subsampled_out_mass = subsample_drop.mass;
+        let unidentified_mass = fits.unidentified_mass;
+        let subsampled_out_mass = fits.subsampled_out_mass;
         let conditional_values = weighted
             .iter()
             .filter_map(|(_, weight, response)| {
@@ -1144,11 +1369,32 @@ impl super::Study {
             response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            EstimatorId::ResponseBayesian
-        } else {
-            EstimatorId::default_for_response(&query.functional)
-        };
+        Ok(GraphPosteriorPooled {
+            identification,
+            conditional,
+            mixed_if_se,
+            response,
+            estimate,
+            scalar,
+            standard_error,
+            identified_mass,
+            total_mass,
+            structural_set,
+        })
+    }
+
+    /// Mass-accounting and uncertainty diagnostics of a pooled graph-posterior response.
+    fn graph_posterior_response_diagnostics(
+        &self,
+        fits: &GraphPosteriorResponseFits,
+        pooled: &GraphPosteriorPooled,
+    ) -> Vec<Diagnostic> {
+        let GraphPosteriorPooled { conditional, mixed_if_se, identified_mass, total_mass, .. } =
+            pooled;
+        let (identified_mass, total_mass) = (*identified_mass, *total_mass);
+        let (unidentified_mass, failed_mass, subsampled_out_mass) =
+            (fits.unidentified_mass, fits.failed_mass, fits.subsampled_out_mass);
+        let weighted = &fits.weighted;
         let mut diagnostics = vec![
             Diagnostic::new(
                 "estimate.response.graph_posterior",
@@ -1199,6 +1445,21 @@ impl super::Study {
                  are not claimed",
             ));
         }
+        diagnostics
+    }
+
+    /// Plugin-level refutation of a scalar graph-posterior intervention response.
+    fn refute_graph_posterior_response(
+        &self,
+        run: &GraphPosteriorResponseRun<'_>,
+        estimator_id: EstimatorId,
+        estimand: &IdentifiedEstimand,
+        pooled: &GraphPosteriorPooled,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let GraphPosteriorResponseRun { data, query, treatment, outcome, ctx, .. } = *run;
+        let GraphPosteriorPooled { conditional, scalar, standard_error, response, .. } = pooled;
+        let (scalar, standard_error) = (*scalar, *standard_error);
         let plugin_scalar = match &conditional {
             ResponseValue::Scalar(value) => *value,
             _ => scalar,
@@ -1229,7 +1490,7 @@ impl super::Study {
             }
             RefutationRun {
                 data,
-                estimand: &estimand,
+                estimand,
                 query: &ate_query,
                 estimate: &plugin_estimate,
                 suite: self.refute,
@@ -1250,44 +1511,7 @@ impl super::Study {
             }
             (Vec::new(), Vec::new())
         };
-        diagnostics.extend(refute_diags);
-        diagnostics.extend(subsample_notes);
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(IdentifierId::BackdoorAdjustment, estimator_id),
-                treatment,
-                outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                response: Some(response),
-                structural_response: Some(crate::result::StructuralResponseMixture {
-                    weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
-                    atoms,
-                    identified_mass: identified_mass / total_mass,
-                    unidentified_mass: unidentified_mass / total_mass,
-                    unevaluable_mass: failed_mass / total_mass,
-                    subsampled_out_mass: subsampled_out_mass / total_mass,
-                    identified_set: structural_set,
-                    identified_set_interval: None,
-                    conditional_on_identified: Some(conditional),
-                    full_mass_scope: true,
-                    truncated_atoms: 0,
-                }),
-                diagnostics: Some(diagnostics),
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            }),
-        ))
+        Ok((refutations, refute_diags))
     }
 
     /// Identify and estimate a continuous response, including licensed observation correction.
@@ -1301,98 +1525,20 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let binding = physical.binding();
-        let checked_identity = checked_curve
-            .map(|plan| {
-                plan.checked_route(query).map(|(identification, estimand)| {
-                    let (identifier, estimator) = plan.procedure();
-                    (identification.clone(), estimand.clone(), identifier, estimator)
-                })
-            })
-            .transpose()?;
-        let (identifier_id, estimator_id) = match &checked_identity {
-            Some((_, _, identifier, estimator)) => (*identifier, *estimator),
-            None => binding.resolve(RouteDefaults::RESPONSE)?,
-        };
+        let (identification, estimand, identify_cached, identifier_id, estimator_id) =
+            self.identify_static_response(graph, query, physical, checked_curve, ctx)?;
         let cell_aipw = matches!(estimator_id, EstimatorId::CellAipw);
-
-        let (identification, estimand, identify_cached) =
-            if let Some((identification, estimand, _, _)) = checked_identity {
-                (identification, estimand, true)
-            } else {
-                identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                    let identification = identify_static_query(
-                        identifier_id,
-                        graph,
-                        &CausalQuery::Response(query.clone()),
-                    )?;
-                    let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                        CausalError::Compile {
-                            message: "response identifier returned no estimand".into(),
-                        }
-                    })?;
-                    Ok((identification, estimand))
-                })?
-            };
-        if identification
-            .estimands
-            .iter()
-            .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
-        {
-            return Err(CausalError::Unsupported {
-                message: "multi-pair response estimation requires one common adjustment set",
-            });
-        }
 
         if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
             || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
         {
-            let (response, _) =
-                estimate_general_id_response(data, query, &identification, &estimand, 0, ctx)?;
-            let (scalar, standard_error) = response_scalar_summary(&response);
-            let estimate = EffectEstimate::new(
-                scalar,
-                standard_error,
-                response.assumptions.clone(),
-                OverlapPolicy::ExplicitOverride,
+            return self.finish_general_id_response(
+                data,
+                query,
+                ExecuteRun { physical, ctx, started, identify_cached },
+                IdentifiedClaim { identification, estimand },
+                Strategy::new(identifier_id, estimator_id),
             );
-            let (treatment, outcome) = response_primary_pair(&query.functional)?;
-            let mut diagnostics = identification.diagnostics.clone();
-            diagnostics.push(Diagnostic::new(
-                "identify.response.general_id",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "intervention mean identified by Shpitser–Pearl ID; levels are the \
-                 discrete functional.effect plug-in, not an adjustment g-formula",
-            ));
-            if identify_cached {
-                diagnostics.push(identify_cached_diagnostic());
-            }
-            for warning in &response.support.warnings {
-                diagnostics.push(warning.clone());
-            }
-            return Ok(self.finish_identified_execute(
-                IdentifiedExecuteFinish::new(
-                    physical,
-                    identification,
-                    estimand,
-                    estimate,
-                    Strategy::new(identifier_id, estimator_id),
-                    treatment,
-                    outcome,
-                )
-                .wall_time_ns(elapsed_ns(started))
-                .extras(IdentifiedExecuteExtras {
-                    estimate_provenance: Some(provenance_ids(
-                        "estimate.response.general_id",
-                        "estimate.response.general_id",
-                    )),
-                    diagnostics: Some(diagnostics),
-                    response: Some(response),
-                    bootstrap_replicates_requested: Some(None),
-                    ..Default::default()
-                }),
-            ));
         }
 
         if cell_aipw {
@@ -1413,66 +1559,8 @@ impl super::Study {
             &query.outcome_functional,
         )?;
 
-        let mut response_estimator =
-            ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
-        if let Some(options) = &self.response_options {
-            response_estimator.options = options.clone();
-        }
-        let mut response_scores = None;
-        let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
-                && cfg.prior_mapping.is_none()
-                && cfg.prior.is_none()
-            {
-                return Err(CausalError::Unsupported {
-                    message: "Bayesian response prior transfer requires a response-specific \
-                              mapping (dose/intervention coordinate to outcome-regression \
-                              coefficients); incompatible catalogs must not fall back to \
-                              isotropic priors",
-                });
-            }
-            let mut bayes = bayesian_gcomp(cfg, ctx);
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-                let (outcome, treatments) = response_prior_targets(&query.functional)?;
-                let prep = response_estimator
-                    .prepare_linear_response_problem(&data_est, outcome, &treatments)
-                    .map_err(CausalError::from)?;
-                let (resolved, _) =
-                    crate::inference::resolve_bayesian_prior_with_conflict(cfg, &prep, Some(ctx))?;
-                bayes.prior = resolved;
-            } else {
-                bayes.prior.clone_from(&cfg.prior);
-            }
-            response_estimator.estimate_bayesian(
-                &data_est,
-                query,
-                identification.status,
-                identification.required_assumptions.clone(),
-                &bayes,
-                ctx,
-            )
-        } else if query.observation == ObservationSpec::Complete {
-            let (response, scores) = response_estimator
-                .estimate_identified_scored(
-                    &data_est,
-                    query,
-                    identification.status,
-                    identification.required_assumptions.clone(),
-                )
-                .map_err(CausalError::from)?;
-            response_scores = scores;
-            Ok(response)
-        } else {
-            ObservationMechanismEstimator::new(self.observation_options).estimate_mean_curve(
-                &response_estimator,
-                &data_est,
-                query,
-                self.observation_delayed_entry,
-                identification.status,
-                identification.required_assumptions.clone(),
-            )
-        }
-        .map_err(CausalError::from)?;
+        let (response, response_scores) =
+            self.estimate_continuous_response(&data_est, query, &estimand, &identification, ctx)?;
         let (scalar, standard_error) = response_scalar_summary(&response);
         let mut estimate = EffectEstimate::new(
             scalar,
@@ -1486,43 +1574,20 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        let scalar_intervention = scalar.is_finite()
-            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        let (refutations, refute_diags) = if scalar_intervention
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
-        {
-            let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-            let mut refute_ws = EstimationWorkspace::default();
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
-                diagnostics.push(Diagnostic::new(
-                    "refute.evalue.not_a_contrast",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-comp level. cell.aipw cheap uses the cell-versus-control contrast.",
-                ));
-            }
-            RefutationRun {
+        let (refutations, refute_diags) = self.refute_response_plugin_level(
+            ResponseRefuteInput {
                 data,
+                query,
                 estimand: &estimand,
-                query: &ate_query,
                 estimate: &estimate,
-                suite: self.refute,
-                estimator: estimator_id.as_str(),
-                custom: &self.custom_validators,
-                temporal: None,
-            }
-            .plugin_level(&mut refute_ws, ctx)?
-        } else {
-            if !matches!(self.refute, RefuteSuite::None) || !scalar_intervention {
-                diagnostics.push(Diagnostic::new(
-                    "refute.response.skipped",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "scalar ATE refuters are not applicable to a function-valued response",
-                ));
-            }
-            (Vec::new(), Vec::new())
-        };
+                scalar,
+                estimator_id,
+                treatment,
+                outcome,
+            },
+            &mut diagnostics,
+            ctx,
+        )?;
         diagnostics.extend(refute_diags);
         if !scalar.is_finite() {
             // `result.effect` exists for every plan, but a curve, vector, Jacobian or
@@ -1567,6 +1632,251 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
+    }
+
+    /// Resolves the response procedure and its identified claim, refusing mixed adjustment sets.
+    fn identify_static_response(
+        &self,
+        graph: &Dag,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        checked_curve: Option<&super::super::prepared::CheckedStaticResponseCurve>,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (IdentificationResult, IdentifiedEstimand, bool, IdentifierId, EstimatorId),
+        CausalError,
+    > {
+        let binding = physical.binding();
+        let checked_identity = checked_curve
+            .map(|plan| {
+                plan.checked_route(query).map(|(identification, estimand)| {
+                    let (identifier, estimator) = plan.procedure();
+                    (identification.clone(), estimand.clone(), identifier, estimator)
+                })
+            })
+            .transpose()?;
+        let (identifier_id, estimator_id) = match &checked_identity {
+            Some((_, _, identifier, estimator)) => (*identifier, *estimator),
+            None => binding.resolve(RouteDefaults::RESPONSE)?,
+        };
+        let (identification, estimand, identify_cached) =
+            if let Some((identification, estimand, _, _)) = checked_identity {
+                (identification, estimand, true)
+            } else {
+                identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                    let identification = identify_static_query(
+                        identifier_id,
+                        graph,
+                        &CausalQuery::Response(query.clone()),
+                    )?;
+                    let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                        CausalError::Compile {
+                            message: "response identifier returned no estimand".into(),
+                        }
+                    })?;
+                    Ok((identification, estimand))
+                })?
+            };
+        if identification
+            .estimands
+            .iter()
+            .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
+        {
+            return Err(CausalError::Unsupported {
+                message: "multi-pair response estimation requires one common adjustment set",
+            });
+        }
+
+        Ok((identification, estimand, identify_cached, identifier_id, estimator_id))
+    }
+
+    /// Result of a response identified by general ID or the front-door, estimated as a discrete plug-in.
+    fn finish_general_id_response(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        run: ExecuteRun<'_>,
+        claim: IdentifiedClaim,
+        strategy: Strategy,
+    ) -> Result<StudyResult, CausalError> {
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let (response, _) =
+            estimate_general_id_response(data, query, &identification, &estimand, 0, ctx)?;
+        let (scalar, standard_error) = response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let (treatment, outcome) = response_primary_pair(&query.functional)?;
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(Diagnostic::new(
+            "identify.response.general_id",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "intervention mean identified by Shpitser–Pearl ID; levels are the \
+             discrete functional.effect plug-in, not an adjustment g-formula",
+        ));
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        for warning in &response.support.warnings {
+            diagnostics.push(warning.clone());
+        }
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.response.general_id",
+                    "estimate.response.general_id",
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Fits the continuous response on the projected table under the study's inference mode.
+    fn estimate_continuous_response(
+        &self,
+        data_est: &TabularData,
+        query: &ResponseQuery,
+        estimand: &IdentifiedEstimand,
+        identification: &IdentificationResult,
+        ctx: &ExecutionContext,
+    ) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
+        let mut response_estimator =
+            ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+        if let Some(options) = &self.response_options {
+            response_estimator.options = options.clone();
+        }
+        let mut response_scores = None;
+        let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+                && cfg.prior_mapping.is_none()
+                && cfg.prior.is_none()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian response prior transfer requires a response-specific \
+                              mapping (dose/intervention coordinate to outcome-regression \
+                              coefficients); incompatible catalogs must not fall back to \
+                              isotropic priors",
+                });
+            }
+            let mut bayes = bayesian_gcomp(cfg, ctx);
+            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                let (outcome, treatments) = response_prior_targets(&query.functional)?;
+                let prep = response_estimator
+                    .prepare_linear_response_problem(data_est, outcome, &treatments)
+                    .map_err(CausalError::from)?;
+                let (resolved, _) =
+                    crate::inference::resolve_bayesian_prior_with_conflict(cfg, &prep, Some(ctx))?;
+                bayes.prior = resolved;
+            } else {
+                bayes.prior.clone_from(&cfg.prior);
+            }
+            response_estimator.estimate_bayesian(
+                data_est,
+                query,
+                identification.status,
+                identification.required_assumptions.clone(),
+                &bayes,
+                ctx,
+            )
+        } else if query.observation == ObservationSpec::Complete {
+            let (response, scores) = response_estimator
+                .estimate_identified_scored(
+                    data_est,
+                    query,
+                    identification.status,
+                    identification.required_assumptions.clone(),
+                )
+                .map_err(CausalError::from)?;
+            response_scores = scores;
+            Ok(response)
+        } else {
+            ObservationMechanismEstimator::new(self.observation_options).estimate_mean_curve(
+                &response_estimator,
+                data_est,
+                query,
+                self.observation_delayed_entry,
+                identification.status,
+                identification.required_assumptions.clone(),
+            )
+        }
+        .map_err(CausalError::from)?;
+        Ok((response, response_scores))
+    }
+
+    /// Plugin-level refutation of a scalar intervention response; notes why it was skipped otherwise.
+    fn refute_response_plugin_level(
+        &self,
+        input: ResponseRefuteInput<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let ResponseRefuteInput {
+            data,
+            query,
+            estimand,
+            estimate,
+            scalar,
+            estimator_id,
+            treatment,
+            outcome,
+        } = input;
+        let scalar_intervention = scalar.is_finite()
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        let (refutations, refute_diags) = if scalar_intervention
+            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+        {
+            let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+            let mut refute_ws = EstimationWorkspace::default();
+            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+                diagnostics.push(Diagnostic::new(
+                    "refute.evalue.not_a_contrast",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-comp level. cell.aipw cheap uses the cell-versus-control contrast.",
+                ));
+            }
+            RefutationRun {
+                data,
+                estimand,
+                query: &ate_query,
+                estimate,
+                suite: self.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?
+        } else {
+            if !matches!(self.refute, RefuteSuite::None) || !scalar_intervention {
+                diagnostics.push(Diagnostic::new(
+                    "refute.response.skipped",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "scalar ATE refuters are not applicable to a function-valued response",
+                ));
+            }
+            (Vec::new(), Vec::new())
+        };
+        Ok((refutations, refute_diags))
     }
 
     pub(super) fn execute_codetermined_joint_response(
@@ -1617,25 +1927,11 @@ impl super::Study {
         )
     }
 
+    /// Reads the binary joint `Set` levels of a cell.aipw intervention response.
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
-    fn execute_cell_aipw_response(
-        &self,
-        data: &TabularData,
-        query: &ResponseQuery,
-        run: ExecuteRun<'_>,
-        claim: IdentifiedClaim,
-        strategy: Strategy,
-        precomputed_table: Option<antecedent_estimate::ScoreTable>,
-    ) -> Result<StudyResult, CausalError> {
-        let ExecuteRun { physical, ctx, started, identify_cached } = run;
-        let IdentifiedClaim { identification, estimand } = claim;
-        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
-        let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
-        else {
-            return Err(CausalError::Unsupported {
-                message: "cell.aipw is licensed for discrete joint InterventionResponse",
-            });
-        };
+    fn parse_cell_aipw_interventions(
+        interventions: &[Intervention],
+    ) -> Result<(Vec<VariableId>, u32), CausalError> {
         let mut treatments = Vec::new();
         let mut requested_arm = 0u32;
         for (j, iv) in interventions.iter().enumerate() {
@@ -1662,16 +1958,20 @@ impl super::Study {
             treatments.push(*variable);
             requested_arm |= u32::from(level == 1.0) << j;
         }
-        if self.continuous_cell.is_some() {
-            return Err(CausalError::Unsupported {
-                message: antecedent_estimate::POINT_CDE_UNLICENSED,
-            });
-        }
-        if treatments.len() < 2 {
-            return Err(CausalError::Unsupported {
-                message: "cell.aipw requires at least two binary Set interventions",
-            });
-        }
+        Ok((treatments, requested_arm))
+    }
+
+    /// Cell-saturated AIPW score table for the joint arms, unless one was precomputed.
+    fn cell_aipw_score_table(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        target: &CellAipwTarget<'_>,
+        estimand: &IdentifiedEstimand,
+        precomputed_table: Option<antecedent_estimate::ScoreTable>,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_estimate::ScoreTable, CausalError> {
+        let CellAipwTarget { treatments, outcome } = *target;
         let est =
             antecedent_estimate::CellSaturatedAipw::new().with_fold_seed(ctx.rng.master_seed());
         let continuous = None;
@@ -1686,7 +1986,7 @@ impl super::Study {
                 let ids: Vec<_> = treatments
                     .iter()
                     .copied()
-                    .chain(std::iter::once(*outcome))
+                    .chain(std::iter::once(outcome))
                     .chain(estimand.adjustment_set.iter().copied())
                     .collect();
                 let row_index = match data.complete_case_mask(&ids) {
@@ -1713,8 +2013,8 @@ impl super::Study {
             est.fit_scores_with_assignment(
                 data,
                 &antecedent_estimate::CellScoreSpec {
-                    treatments: &treatments,
-                    outcome: *outcome,
+                    treatments: treatments,
+                    outcome: outcome,
                     adjustment: &estimand.adjustment_set,
                     functional: &query.outcome_functional,
                     continuous,
@@ -1726,8 +2026,17 @@ impl super::Study {
             )
             .map_err(CausalError::from)?
         };
-        let (summary, monotone_rearranged, mut functional_diagnostics) =
-            antecedent_estimate::summarize_functional(&table, None)?;
+        Ok(table)
+    }
+
+    /// Level, standard error and influence column of the requested cell.
+    fn cell_aipw_level(
+        table: &antecedent_estimate::ScoreTable,
+        summary: &antecedent_estimate::ScoreSummary,
+        query: &ResponseQuery,
+        requested_arm: u32,
+        functional_diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(f64, f64, Arc<[f64]>), CausalError> {
         let n_thresholds = {
             let mut t: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
             t.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -1769,48 +2078,57 @@ impl super::Study {
         } else {
             (level.value, level.se)
         };
-        let cdf = antecedent_estimate::exceedance_cdf_values(&summary, &table);
         let influence = match quantile {
             Some(q) => Arc::from(q.influence),
             None => Arc::from(table.column(column)?),
         };
-        let response = CausalResponse {
-            estimand: query.functional.clone(),
-            identification_status: identification.status,
-            estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(scalar)),
-            uncertainty: ResponseUncertainty::Scalar {
-                standard_error: se,
-                lower: scalar - crate::result::reported_se_interval_z() * se,
-                upper: scalar + crate::result::reported_se_interval_z() * se,
-                level: 0.95,
-                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                draws: None,
-            },
-            support: antecedent_core::SupportReport {
-                status: antecedent_core::SupportStatus::Supported,
-                query_region: antecedent_core::SupportRegion {
-                    minima: Arc::from(
-                        (0..treatments.len())
-                            .map(|j| f64::from((requested_arm >> j) & 1))
-                            .collect::<Vec<_>>(),
-                    ),
-                    maxima: Arc::from(
-                        (0..treatments.len())
-                            .map(|j| f64::from((requested_arm >> j) & 1))
-                            .collect::<Vec<_>>(),
-                    ),
-                },
-                diagnostics: Vec::new(),
-                warnings: Vec::new(),
-                // One scalar answers the whole joint arm: one coordinate, one label (the
-                // summary itself).
-                point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
-            },
-            assumptions: identification.required_assumptions.clone(),
-            provenance_id: Arc::from("estimate.cell.aipw"),
-            horizon_identification: None,
-            interaction_structurally_zero: false,
+        Ok((scalar, se, influence))
+    }
+
+    fn execute_cell_aipw_response(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        run: ExecuteRun<'_>,
+        claim: IdentifiedClaim,
+        strategy: Strategy,
+        precomputed_table: Option<antecedent_estimate::ScoreTable>,
+    ) -> Result<StudyResult, CausalError> {
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
+        else {
+            return Err(CausalError::Unsupported {
+                message: "cell.aipw is licensed for discrete joint InterventionResponse",
+            });
         };
+        let (treatments, requested_arm) = Self::parse_cell_aipw_interventions(interventions)?;
+        if self.continuous_cell.is_some() {
+            return Err(CausalError::Unsupported {
+                message: antecedent_estimate::POINT_CDE_UNLICENSED,
+            });
+        }
+        if treatments.len() < 2 {
+            return Err(CausalError::Unsupported {
+                message: "cell.aipw requires at least two binary Set interventions",
+            });
+        }
+        let target = CellAipwTarget { treatments: &treatments, outcome: *outcome };
+        let table =
+            self.cell_aipw_score_table(data, query, &target, &estimand, precomputed_table, ctx)?;
+        let (summary, monotone_rearranged, mut functional_diagnostics) =
+            antecedent_estimate::summarize_functional(&table, None)?;
+        let (scalar, se, influence) = Self::cell_aipw_level(
+            &table,
+            &summary,
+            query,
+            requested_arm,
+            &mut functional_diagnostics,
+        )?;
+        let cdf = antecedent_estimate::exceedance_cdf_values(&summary, &table);
+        let response =
+            cell_aipw_response(query, &identification, scalar, se, treatments.len(), requested_arm);
         let score_inference = table.inference(None)?;
         let mut estimate = EffectEstimate::new(
             scalar,
@@ -2097,8 +2415,52 @@ impl super::Study {
             outcome,
             &query.outcome_functional,
         )?;
-        let mut weighted = Vec::new();
-        let mut structural_atoms = envelope
+        let inputs = ClassResponseInputs { data, data_est: &data_est, query, ctx };
+        let atoms = self.evaluate_class_response_atoms(&inputs, envelope)?;
+        let mixed = self.mix_class_response(data, envelope, query, atoms)?;
+        let diagnostics =
+            self.class_response_diagnostics(envelope, envelope_diag, &mixed, identify_cached);
+        let MixedClassResponse {
+            identification,
+            estimand,
+            estimate,
+            response: mixed,
+            structural_response,
+            ..
+        } = mixed;
+
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    Arc::clone(&mixed.provenance_id),
+                    Arc::clone(&mixed.provenance_id),
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(mixed),
+                structural_response: Some(structural_response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Estimates each identified completion of the class envelope, memoising shared fits.
+    fn evaluate_class_response_atoms<G>(
+        &self,
+        inputs: &ClassResponseInputs<'_>,
+        envelope: &antecedent_identify::IdentificationEnvelope<G>,
+    ) -> Result<ClassResponseAtoms, CausalError> {
+        let structural_atoms = envelope
             .cases
             .iter()
             .enumerate()
@@ -2111,11 +2473,15 @@ impl super::Study {
                 value: None,
             })
             .collect::<Vec<_>>();
-        let mut atom_scores = Vec::new();
-        let mut total_w = 0.0;
-        let mut unestimated_id_mass = 0.0;
-        let mut unevaluable_general_id: Option<antecedent_core::CausalResponse> = None;
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut atoms = ClassResponseAtoms {
+            weighted: Vec::new(),
+            structural_atoms,
+            atom_scores: Vec::new(),
+            total_w: 0.0,
+            unestimated_id_mass: 0.0,
+            unevaluable_general_id: None,
+            primary_estimand: None,
+        };
         let mut completion_fits: CompletionFitMemo<(
             CausalResponse,
             Option<antecedent_estimate::ResponseInfluence>,
@@ -2130,41 +2496,13 @@ impl super::Study {
             if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
                 || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
             {
-                match estimate_general_id_response(data, query, &case.result, &estimand, 0, ctx) {
-                    Ok((response, scores)) => {
-                        if matches!(response.estimate, ResponseIdentification::Unidentified { .. })
-                        {
-                            // Required CPT cell was not evaluable: do not mix a number.
-                            unestimated_id_mass += case.weight.0;
-                            if primary_estimand.is_none() {
-                                primary_estimand = Some(estimand);
-                            }
-                            if unevaluable_general_id.is_none() {
-                                unevaluable_general_id = Some(response);
-                            }
-                            continue;
-                        }
-                        let w = case.weight.0;
-                        total_w += w;
-                        if primary_estimand.is_none() {
-                            primary_estimand = Some(estimand);
-                        }
-                        if let Some(scores) = scores {
-                            atom_scores.push((w, scores));
-                        }
-                        structural_atoms[case_index].value = response_identified_value(&response);
-                        weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
-                    }
-                    Err(err)
-                        if err.to_string().contains("discrete level cap")
-                            || err.to_string().contains("continuous") =>
-                    {
-                        // Identified by ID, unevaluable with the discrete plug-in.
-                        // Keep the mass out of the mix and refuse a subset SE.
-                        unestimated_id_mass += case.weight.0;
-                    }
-                    Err(err) => return Err(err),
-                }
+                atoms.add_general_id_case(
+                    inputs,
+                    case_index,
+                    &case.result,
+                    case.weight.0,
+                    estimand,
+                )?;
                 continue;
             }
             // Completions that share an adjustment set, status and assumptions
@@ -2178,74 +2516,105 @@ impl super::Study {
             {
                 (response.clone(), scores.clone())
             } else {
-                let mut response_estimator =
-                    ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
-                if let Some(options) = &self.response_options {
-                    response_estimator.options = options.clone();
-                }
-                let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                    if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
-                        && cfg.prior_mapping.is_none()
-                        && cfg.prior.is_none()
-                    {
-                        return Err(CausalError::Unsupported {
-                            message: "Bayesian class-aware response prior transfer requires a \
-                                      response-specific mapping; mappings are not a class prior \
-                                      and must not fall back to isotropic coefficients",
-                        });
-                    }
-                    let mut bayes = bayesian_gcomp(cfg, ctx);
-                    if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-                        let (outcome, treatments) = response_prior_targets(&query.functional)?;
-                        let prep = response_estimator
-                            .prepare_linear_response_problem(&data_est, outcome, &treatments)
-                            .map_err(CausalError::from)?;
-                        let (resolved, _) = crate::inference::resolve_bayesian_prior_with_conflict(
-                            cfg,
-                            &prep,
-                            Some(ctx),
-                        )?;
-                        bayes.prior = resolved;
-                    } else {
-                        bayes.prior.clone_from(&cfg.prior);
-                    }
-                    (
-                        response_estimator
-                            .estimate_bayesian(
-                                &data_est,
-                                query,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                &bayes,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?,
-                        None,
-                    )
-                } else {
-                    response_estimator
-                        .estimate_identified_scored(
-                            &data_est,
-                            query,
-                            case.result.status,
-                            case.result.required_assumptions.clone(),
-                        )
-                        .map_err(CausalError::from)?
-                };
-                completion_fits.insert(fit_key, (response.clone(), scores.clone()));
-                (response, scores)
+                let fitted = self.fit_class_completion(inputs, &case.result, &estimand)?;
+                completion_fits.insert(fit_key, (fitted.0.clone(), fitted.1.clone()));
+                fitted
             };
             let w = case.weight.0;
-            total_w += w;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand);
+            atoms.total_w += w;
+            if atoms.primary_estimand.is_none() {
+                atoms.primary_estimand = Some(estimand);
             }
             if let Some(scores) = scores {
-                atom_scores.push((w, scores));
+                atoms.atom_scores.push((w, scores));
             }
-            structural_atoms[case_index].value = response_identified_value(&response);
-            weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
+            atoms.structural_atoms[case_index].value = response_identified_value(&response);
+            atoms.weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
         }
+        Ok(atoms)
+    }
+
+    /// Fits one completion's response, frequentist or Bayesian, before the shared-fit memo stores it.
+    fn fit_class_completion(
+        &self,
+        inputs: &ClassResponseInputs<'_>,
+        result: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+    ) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
+        let mut response_estimator =
+            ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+        if let Some(options) = &self.response_options {
+            response_estimator.options = options.clone();
+        }
+        let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+                && cfg.prior_mapping.is_none()
+                && cfg.prior.is_none()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian class-aware response prior transfer requires a \
+                              response-specific mapping; mappings are not a class prior \
+                              and must not fall back to isotropic coefficients",
+                });
+            }
+            let mut bayes = bayesian_gcomp(cfg, inputs.ctx);
+            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                let (outcome, treatments) = response_prior_targets(&inputs.query.functional)?;
+                let prep = response_estimator
+                    .prepare_linear_response_problem(inputs.data_est, outcome, &treatments)
+                    .map_err(CausalError::from)?;
+                let (resolved, _) = crate::inference::resolve_bayesian_prior_with_conflict(
+                    cfg,
+                    &prep,
+                    Some(inputs.ctx),
+                )?;
+                bayes.prior = resolved;
+            } else {
+                bayes.prior.clone_from(&cfg.prior);
+            }
+            (
+                response_estimator
+                    .estimate_bayesian(
+                        inputs.data_est,
+                        inputs.query,
+                        result.status,
+                        result.required_assumptions.clone(),
+                        &bayes,
+                        inputs.ctx,
+                    )
+                    .map_err(CausalError::from)?,
+                None,
+            )
+        } else {
+            response_estimator
+                .estimate_identified_scored(
+                    inputs.data_est,
+                    inputs.query,
+                    result.status,
+                    result.required_assumptions.clone(),
+                )
+                .map_err(CausalError::from)?
+        };
+        Ok((response, scores))
+    }
+
+    /// Mixes the completion responses into the envelope response, estimate and mass accounting.
+    fn mix_class_response<G>(
+        &self,
+        data: &TabularData,
+        envelope: &antecedent_identify::IdentificationEnvelope<G>,
+        query: &ResponseQuery,
+        atoms: ClassResponseAtoms,
+    ) -> Result<MixedClassResponse, CausalError> {
+        let ClassResponseAtoms {
+            mut weighted,
+            structural_atoms,
+            atom_scores,
+            total_w,
+            unestimated_id_mass,
+            unevaluable_general_id,
+            primary_estimand,
+        } = atoms;
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
             if let Some(response) = unevaluable_general_id {
                 // Sole general-ID atom could not evaluate a required cell.
@@ -2307,69 +2676,7 @@ impl super::Study {
             None
         };
         if let Some(scores) = mixed_scores.as_ref() {
-            if matches!(mixed.uncertainty, ResponseUncertainty::None) {
-                let cols: Vec<&[f64]> = scores.columns.iter().map(Vec::as_slice).collect();
-                let cov = antecedent_estimate::joint_influence_covariance(&cols, None)?;
-                let options = self.response_options.clone().unwrap_or_default();
-                let level = options.confidence_level;
-                let value = match &mixed.estimate {
-                    ResponseIdentification::PointIdentified(value)
-                    | ResponseIdentification::PartiallyIdentified(value) => Some(value),
-                    _ => None,
-                };
-                match value {
-                    Some(ResponseValue::Scalar(v)) => {
-                        let se = cov.se(0);
-                        let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
-                        mixed.uncertainty = ResponseUncertainty::Scalar {
-                            standard_error: se,
-                            level,
-                            lower: v - z * se,
-                            upper: v + z * se,
-                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                            draws: None,
-                        };
-                    }
-                    Some(ResponseValue::Surface { mean, .. }) if mean.len() == cov.dim => {
-                        let critical = match options.simultaneous_replicates {
-                            Some(reps) => antecedent_estimate::max_t_critical(
-                                &cov,
-                                level,
-                                reps,
-                                options.multiplier_seed,
-                            )?,
-                            None => antecedent_stats::normal_ppf(0.5 + level / 2.0),
-                        };
-                        let lower = mean
-                            .iter()
-                            .enumerate()
-                            .map(|(j, v)| v - critical * cov.se(j))
-                            .collect();
-                        let upper = mean
-                            .iter()
-                            .enumerate()
-                            .map(|(j, v)| v + critical * cov.se(j))
-                            .collect();
-                        mixed.uncertainty = match options.simultaneous_replicates {
-                            Some(replicates) => ResponseUncertainty::SimultaneousBand {
-                                level,
-                                lower,
-                                upper,
-                                replicates,
-                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                            },
-                            None => ResponseUncertainty::PointwiseBand {
-                                level,
-                                lower,
-                                upper,
-                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                                draws: None,
-                            },
-                        };
-                    }
-                    _ => {}
-                }
-            }
+            self.attach_class_response_band(&mut mixed, scores)?;
         }
         let (scalar, mixed_se) = response_scalar_summary(&mixed);
         let mut estimate = EffectEstimate::new(
@@ -2398,6 +2705,94 @@ impl super::Study {
         if reports_mixed_point {
             attach_response_influence(&mut estimate, mixed_scores.as_ref())?;
         }
+        Ok(MixedClassResponse {
+            identification,
+            estimand,
+            estimate,
+            response: mixed,
+            structural_response,
+            identified_set_unbanded,
+            weighted,
+        })
+    }
+
+    /// Attaches the joint-influence band to a mixed response that published none.
+    fn attach_class_response_band(
+        &self,
+        mixed: &mut CausalResponse,
+        scores: &antecedent_estimate::ResponseInfluence,
+    ) -> Result<(), CausalError> {
+        if matches!(mixed.uncertainty, ResponseUncertainty::None) {
+            let cols: Vec<&[f64]> = scores.columns.iter().map(Vec::as_slice).collect();
+            let cov = antecedent_estimate::joint_influence_covariance(&cols, None)?;
+            let options = self.response_options.clone().unwrap_or_default();
+            let level = options.confidence_level;
+            let value = match &mixed.estimate {
+                ResponseIdentification::PointIdentified(value)
+                | ResponseIdentification::PartiallyIdentified(value) => Some(value),
+                _ => None,
+            };
+            match value {
+                Some(ResponseValue::Scalar(v)) => {
+                    let se = cov.se(0);
+                    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+                    mixed.uncertainty = ResponseUncertainty::Scalar {
+                        standard_error: se,
+                        level,
+                        lower: v - z * se,
+                        upper: v + z * se,
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        draws: None,
+                    };
+                }
+                Some(ResponseValue::Surface { mean, .. }) if mean.len() == cov.dim => {
+                    let critical = match options.simultaneous_replicates {
+                        Some(reps) => antecedent_estimate::max_t_critical(
+                            &cov,
+                            level,
+                            reps,
+                            options.multiplier_seed,
+                        )?,
+                        None => antecedent_stats::normal_ppf(0.5 + level / 2.0),
+                    };
+                    let lower =
+                        mean.iter().enumerate().map(|(j, v)| v - critical * cov.se(j)).collect();
+                    let upper =
+                        mean.iter().enumerate().map(|(j, v)| v + critical * cov.se(j)).collect();
+                    mixed.uncertainty = match options.simultaneous_replicates {
+                        Some(replicates) => ResponseUncertainty::SimultaneousBand {
+                            level,
+                            lower,
+                            upper,
+                            replicates,
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        },
+                        None => ResponseUncertainty::PointwiseBand {
+                            level,
+                            lower,
+                            upper,
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            draws: None,
+                        },
+                    };
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Disclosure diagnostics of a mixed class-aware response.
+    fn class_response_diagnostics<G>(
+        &self,
+        envelope: &antecedent_identify::IdentificationEnvelope<G>,
+        envelope_diag: Diagnostic,
+        mixed_class: &MixedClassResponse,
+        identify_cached: bool,
+    ) -> Vec<Diagnostic> {
+        let MixedClassResponse { response: mixed, estimate, weighted, .. } = mixed_class;
+        let identified_set_unbanded = mixed_class.identified_set_unbanded;
+        let (scalar, _) = response_scalar_summary(mixed);
         let mut diagnostics = vec![envelope_diag];
         if identified_set_unbanded {
             diagnostics.push(Diagnostic::new(
@@ -2471,31 +2866,95 @@ impl super::Study {
         for warning in &mixed.support.warnings {
             diagnostics.push(warning.clone());
         }
-
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(identifier_id, estimator_id),
-                treatment,
-                outcome,
-            )
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                estimate_provenance: Some(provenance_ids(
-                    Arc::clone(&mixed.provenance_id),
-                    Arc::clone(&mixed.provenance_id),
-                )),
-                diagnostics: Some(diagnostics),
-                response: Some(mixed),
-                structural_response: Some(structural_response),
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            }),
-        ))
+        diagnostics
     }
+}
+
+/// Borrowed inputs shared by every completion of a class-aware response.
+#[derive(Clone, Copy)]
+struct ClassResponseInputs<'a> {
+    data: &'a TabularData,
+    data_est: &'a TabularData,
+    query: &'a ResponseQuery,
+    ctx: &'a ExecutionContext,
+}
+
+/// Per-completion results of a class-aware response, in envelope order.
+struct ClassResponseAtoms {
+    weighted: Vec<(u64, f64, CausalResponse)>,
+    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
+    total_w: f64,
+    unestimated_id_mass: f64,
+    unevaluable_general_id: Option<CausalResponse>,
+    primary_estimand: Option<IdentifiedEstimand>,
+}
+
+impl ClassResponseAtoms {
+    /// Adds a completion identified by general ID or the front-door, or accounts its lost mass.
+    fn add_general_id_case(
+        &mut self,
+        inputs: &ClassResponseInputs<'_>,
+        case_index: usize,
+        result: &IdentificationResult,
+        weight: f64,
+        estimand: IdentifiedEstimand,
+    ) -> Result<(), CausalError> {
+        match estimate_general_id_response(
+            inputs.data,
+            inputs.query,
+            result,
+            &estimand,
+            0,
+            inputs.ctx,
+        ) {
+            Ok((response, scores)) => {
+                if matches!(response.estimate, ResponseIdentification::Unidentified { .. }) {
+                    // Required CPT cell was not evaluable: do not mix a number.
+                    self.unestimated_id_mass += weight;
+                    if self.primary_estimand.is_none() {
+                        self.primary_estimand = Some(estimand);
+                    }
+                    if self.unevaluable_general_id.is_none() {
+                        self.unevaluable_general_id = Some(response);
+                    }
+                    return Ok(());
+                }
+                let w = weight;
+                self.total_w += w;
+                if self.primary_estimand.is_none() {
+                    self.primary_estimand = Some(estimand);
+                }
+                if let Some(scores) = scores {
+                    self.atom_scores.push((w, scores));
+                }
+                self.structural_atoms[case_index].value = response_identified_value(&response);
+                self.weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
+            }
+            Err(err)
+                if err.to_string().contains("discrete level cap")
+                    || err.to_string().contains("continuous") =>
+            {
+                // Identified by ID, unevaluable with the discrete plug-in.
+                // Keep the mass out of the mix and refuse a subset SE.
+                self.unestimated_id_mass += weight;
+            }
+            Err(err) => return Err(err),
+        }
+
+        Ok(())
+    }
+}
+
+/// The class-aware response mixed over completions, with the values its disclosures read.
+struct MixedClassResponse {
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    estimate: EffectEstimate,
+    response: CausalResponse,
+    structural_response: crate::result::StructuralResponseMixture,
+    identified_set_unbanded: bool,
+    weighted: Vec<(u64, f64, CausalResponse)>,
 }
 
 /// The uncertainty every contributing completion shares, when they all
@@ -3002,6 +3461,59 @@ mod uncertainty_tests {
     }
 }
 
+/// Normal interval from the front-door plug-in bootstrap SE of a general-ID response, when one is licensed.
+fn general_id_bootstrap_interval(
+    est: &FunctionalEffect,
+    prepared: &antecedent_estimate::PreparedFunctionalEffect,
+    estimate: &ResponseIdentification,
+    support: &mut antecedent_core::SupportReport,
+    bootstrap_replicates: u32,
+    ctx: &ExecutionContext,
+) -> ResponseUncertainty {
+    // The general-ID front-door functional exposes no closed-form influence on
+    // this route, so its frequentist interval is the normal interval formed from
+    // the plug-in bootstrap SE (the same 199-replicate front-door resample the
+    // sibling AverageEffect / InterventionalDistribution ADMG cells use). It is
+    // published only when a positive-finite SE returns; otherwise the route fails
+    // open to `None` rather than panicking.
+    let mut uncertainty = ResponseUncertainty::None;
+    if bootstrap_replicates > 0 {
+        if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(point)) = estimate {
+            let point = *point;
+            let mut ws = FunctionalDistributionWorkspace::default();
+            if let Ok(effect) = est.estimate(prepared, &mut ws, ctx) {
+                if let Some(se) = effect.se_bootstrap() {
+                    if se.is_finite() && se > 0.0 && point.is_finite() {
+                        let z = crate::result::reported_se_interval_z();
+                        uncertainty = ResponseUncertainty::Scalar {
+                            standard_error: se,
+                            lower: point - z * se,
+                            upper: point + z * se,
+                            level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            draws: None,
+                        };
+                        support.diagnostics.push(antecedent_core::SupportDiagnostic {
+                            id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
+                            values: Arc::from([
+                                f64::from(bootstrap_replicates),
+                                f64::from(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0)),
+                            ]),
+                            detail: Arc::from(
+                                "general-ID functional.effect response interval is a normal \
+                                 interval from the front-door plug-in bootstrap SE \
+                                 [requested replicates, successful replicates]",
+                            ),
+                            scope: antecedent_core::DiagnosticScope::Global,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    uncertainty
+}
+
 pub(super) fn estimate_general_id_response(
     data: &TabularData,
     query: &ResponseQuery,
@@ -3078,47 +3590,14 @@ pub(super) fn estimate_general_id_response(
             maxima: Arc::from(levels),
         };
     }
-    // The general-ID front-door functional exposes no closed-form influence on
-    // this route, so its frequentist interval is the normal interval formed from
-    // the plug-in bootstrap SE (the same 199-replicate front-door resample the
-    // sibling AverageEffect / InterventionalDistribution ADMG cells use). It is
-    // published only when a positive-finite SE returns; otherwise the route fails
-    // open to `None` rather than panicking.
-    let mut uncertainty = ResponseUncertainty::None;
-    if bootstrap_replicates > 0 {
-        if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(point)) = &estimate {
-            let point = *point;
-            let mut ws = FunctionalDistributionWorkspace::default();
-            if let Ok(effect) = est.estimate(&prepared, &mut ws, ctx) {
-                if let Some(se) = effect.se_bootstrap() {
-                    if se.is_finite() && se > 0.0 && point.is_finite() {
-                        let z = crate::result::reported_se_interval_z();
-                        uncertainty = ResponseUncertainty::Scalar {
-                            standard_error: se,
-                            lower: point - z * se,
-                            upper: point + z * se,
-                            level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
-                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                            draws: None,
-                        };
-                        support.diagnostics.push(antecedent_core::SupportDiagnostic {
-                            id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
-                            values: Arc::from([
-                                f64::from(bootstrap_replicates),
-                                f64::from(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0)),
-                            ]),
-                            detail: Arc::from(
-                                "general-ID functional.effect response interval is a normal \
-                                 interval from the front-door plug-in bootstrap SE \
-                                 [requested replicates, successful replicates]",
-                            ),
-                            scope: antecedent_core::DiagnosticScope::Global,
-                        });
-                    }
-                }
-            }
-        }
-    }
+    let uncertainty = general_id_bootstrap_interval(
+        &est,
+        &prepared,
+        &estimate,
+        &mut support,
+        bootstrap_replicates,
+        ctx,
+    );
     Ok((
         CausalResponse {
             estimand: query.functional.clone(),
