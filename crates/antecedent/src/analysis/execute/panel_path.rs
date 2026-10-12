@@ -488,6 +488,7 @@ impl super::Study {
             antecedent_estimate::PreparedBayesianProblem,
             Option<PriorSet>,
             u64,
+            IdentificationStatus,
         )> = Vec::new();
         let mut posteriors: Vec<(u64, CausalPosterior)> = Vec::new();
         let mut case_means: Vec<Option<f64>> = vec![None; envelope.cases.len()];
@@ -529,18 +530,38 @@ impl super::Study {
             // posterior.
             let seed = fits
                 .iter()
-                .find(|(_, fitted, prior, _)| {
+                .find(|(_, fitted, prior, _, _)| {
                     *prior == resolved && same_fitted_problem(fitted, &bprep)
                 })
-                .map_or_else(|| completion_fit_seed(ctx, key), |(_, _, _, seed)| *seed);
+                .map_or_else(|| completion_fit_seed(ctx, key), |(_, _, _, seed, _)| *seed);
             bayes.inner.prior.clone_from(&resolved);
             bayes.inner.seed = seed;
-            let mut posterior =
-                bayes.fit(&bprep, case.result.status, &mut ws, ctx).map_err(CausalError::from)?;
-            if let Some(summary) = conflict.as_ref() {
-                push_conflict_diagnostics(&mut diagnostics, summary);
-                posterior = with_conflict_summary(posterior, summary.clone());
-            }
+            // An earlier completion that fitted every input of this fit (the
+            // problem down to its unit ids and labels, the resolved prior, the
+            // seed it shares, and the identification status) already holds
+            // this posterior, conflict summary included: the fit is
+            // deterministic in exactly those inputs.
+            let same_fit = fits.iter().position(|(_, fitted, prior, fitted_seed, status)| {
+                *prior == resolved
+                    && *fitted_seed == seed
+                    && *status == case.result.status
+                    && same_fit_inputs(fitted, &bprep)
+            });
+            let posterior = if let Some(at) = same_fit {
+                if let Some(summary) = conflict.as_ref() {
+                    push_conflict_diagnostics(&mut diagnostics, summary);
+                }
+                posteriors[at].1.clone()
+            } else {
+                let mut posterior = bayes
+                    .fit(&bprep, case.result.status, &mut ws, ctx)
+                    .map_err(CausalError::from)?;
+                if let Some(summary) = conflict.as_ref() {
+                    push_conflict_diagnostics(&mut diagnostics, summary);
+                    posterior = with_conflict_summary(posterior, summary.clone());
+                }
+                posterior
+            };
             envelope_conflict = envelope_conflict.or(conflict);
             let mut atom_estimate = effect_from_posterior(&posterior)?;
             atom_estimate.assumptions = case.result.required_assumptions.clone();
@@ -560,7 +581,7 @@ impl super::Study {
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand);
             }
-            fits.push((key, bprep, resolved, seed));
+            fits.push((key, bprep, resolved, seed, case.result.status));
             posteriors.push((key, posterior));
         }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {

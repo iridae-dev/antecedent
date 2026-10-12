@@ -2372,17 +2372,35 @@ impl super::Study {
                 })
                 .map_or_else(|| completion_fit_seed(ctx, *key), |(_, seed)| *seed);
             atom_seeds.push(seed);
-            bayes.inner.prior = resolved;
+            bayes.inner.prior.clone_from(&resolved);
             bayes.inner.seed = seed;
-            let mut posterior =
-                bayes.fit(&bprep, *status, &mut ws, ctx).map_err(CausalError::from)?;
-            if let Some(summary) = conflict.as_ref() {
-                // A transfer conflict is a per-completion diagnostic. It rides the
-                // atom posterior and the result diagnostics whether or not a class
-                // prior licenses a mixture, and it never changes identification.
-                push_conflict_diagnostics(&mut diagnostics, summary);
-                posterior = with_conflict_summary(posterior, summary.clone());
-            }
+            // An earlier completion that fitted every input of this fit (the problem,
+            // the resolved prior, the seed they share, the identification status)
+            // already holds its posterior, conflict summary included.
+            let earlier =
+                atoms.iter().zip(&atom_seeds).find(|(fit, fitted_seed): &(&EnvelopeAtomFit, _)| {
+                    **fitted_seed == seed
+                        && fit.status == *status
+                        && fit.prior == resolved
+                        && same_fit_inputs(&fit.prep, &bprep)
+                });
+            let posterior = if let Some((fit, _)) = earlier {
+                if let Some(summary) = conflict.as_ref() {
+                    push_conflict_diagnostics(&mut diagnostics, summary);
+                }
+                fit.posterior.clone()
+            } else {
+                let mut posterior =
+                    bayes.fit(&bprep, *status, &mut ws, ctx).map_err(CausalError::from)?;
+                if let Some(summary) = conflict.as_ref() {
+                    // A transfer conflict is a per-completion diagnostic. It rides the
+                    // atom posterior and the result diagnostics whether or not a class
+                    // prior licenses a mixture, and it never changes identification.
+                    push_conflict_diagnostics(&mut diagnostics, summary);
+                    posterior = with_conflict_summary(posterior, summary.clone());
+                }
+                posterior
+            };
             envelope_conflict = envelope_conflict.or(conflict);
             let mean = posterior.summaries.mean.first().copied().unwrap_or_else(|| {
                 posterior
@@ -2409,7 +2427,7 @@ impl super::Study {
                 weight: *weight,
                 estimand: estimand.clone(),
                 indexer: Some(indexer.clone()),
-                prior: bayes.inner.prior.clone(),
+                prior: resolved,
             });
         }
         if atoms.is_empty() {
