@@ -749,8 +749,8 @@ fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects() {
             assert!(homogeneity_diagnostic(&result).is_none(), "{label}");
             let mechanisms = diagnostic(&result, "gcm.counterfactual.mechanisms").unwrap();
             assert!(
-                mechanisms.message.contains("LinearInteractions")
-                    || mechanisms.message.contains("LinearSpline"),
+                mechanisms.message.contains("linear_interactions")
+                    || mechanisms.message.contains("linear_spline"),
                 "{label}: the selection must be auditable: {}",
                 mechanisms.message
             );
@@ -887,7 +887,7 @@ fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity() {
                 .unwrap_or_else(|| panic!("{label}: homogeneity disclosure missing"));
             assert_eq!(disclosure.severity, antecedent_core::DiagnosticSeverity::Warning);
             assert!(
-                disclosure.message.contains("LinearGaussian")
+                disclosure.message.contains("linear_gaussian")
                     && disclosure.message.contains("for y")
                     && disclosure.message.contains("admits no effect modification"),
                 "{label}: {}",

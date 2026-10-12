@@ -267,10 +267,123 @@ pub(crate) fn same_temporal_class_proof(
                         && x.instruments == y.instruments
                         && x.mediators == y.mediators
                         && x.rd_design == y.rd_design
-                        && format!("{:?}", a.result.arena.node(x.functional))
-                            == format!("{:?}", b.result.arena.node(y.functional))
+                        && same_functional(
+                            &a.result.arena,
+                            x.functional,
+                            &b.result.arena,
+                            y.functional,
+                        )
                 })
         })
+}
+
+/// Structural equality of two functionals. Intern ids are arena-local, so Debug
+/// text and `ExprId` equality disagree when the same expression was built in a
+/// different order. Variable sets, interventions, lists, and populations are
+/// compared by content.
+fn same_functional(
+    left: &antecedent_expr::CausalExprArena,
+    left_id: antecedent_expr::ExprId,
+    right: &antecedent_expr::CausalExprArena,
+    right_id: antecedent_expr::ExprId,
+) -> bool {
+    use antecedent_expr::ExprNode;
+    match (left.node(left_id), right.node(right_id)) {
+        (
+            ExprNode::Distribution {
+                variables: left_vars,
+                conditioned_on: left_cond,
+                intervention: left_iv,
+                domain: left_domain,
+                population: left_pop,
+                regime: left_regime,
+            },
+            ExprNode::Distribution {
+                variables: right_vars,
+                conditioned_on: right_cond,
+                intervention: right_iv,
+                domain: right_domain,
+                population: right_pop,
+                regime: right_regime,
+            },
+        ) => {
+            left_domain == right_domain
+                && left_regime == right_regime
+                && left.var_set(*left_vars) == right.var_set(*right_vars)
+                && left.var_set(*left_cond) == right.var_set(*right_cond)
+                && left.intervention_assignments(*left_iv)
+                    == right.intervention_assignments(*right_iv)
+                && left.population(*left_pop) == right.population(*right_pop)
+        }
+        (
+            ExprNode::Kernel {
+                body: left_body,
+                bound: left_bound,
+                population: left_pop,
+                regime: left_regime,
+            },
+            ExprNode::Kernel {
+                body: right_body,
+                bound: right_bound,
+                population: right_pop,
+                regime: right_regime,
+            },
+        ) => {
+            left_regime == right_regime
+                && left.var_set(*left_bound) == right.var_set(*right_bound)
+                && left.population(*left_pop) == right.population(*right_pop)
+                && same_functional(left, *left_body, right, *right_body)
+        }
+        (ExprNode::Product(left_list), ExprNode::Product(right_list)) => {
+            same_expr_list(left, *left_list, right, *right_list)
+        }
+        (
+            ExprNode::SumOut { variables: left_vars, expr: left_expr },
+            ExprNode::SumOut { variables: right_vars, expr: right_expr },
+        )
+        | (
+            ExprNode::IntegralOut { variables: left_vars, expr: left_expr },
+            ExprNode::IntegralOut { variables: right_vars, expr: right_expr },
+        ) => {
+            left.var_set(*left_vars) == right.var_set(*right_vars)
+                && same_functional(left, *left_expr, right, *right_expr)
+        }
+        (
+            ExprNode::Ratio { numerator: left_num, denominator: left_den },
+            ExprNode::Ratio { numerator: right_num, denominator: right_den },
+        ) => {
+            same_functional(left, *left_num, right, *right_num)
+                && same_functional(left, *left_den, right, *right_den)
+        }
+        (
+            ExprNode::Expectation { function: left_fn, distribution: left_dist },
+            ExprNode::Expectation { function: right_fn, distribution: right_dist },
+        ) => left_fn == right_fn && same_functional(left, *left_dist, right, *right_dist),
+        (
+            ExprNode::Contrast { left: left_side, right: left_right, op: left_op },
+            ExprNode::Contrast { left: right_side, right: right_right, op: right_op },
+        ) => {
+            left_op == right_op
+                && same_functional(left, *left_side, right, *right_side)
+                && same_functional(left, *left_right, right, *right_right)
+        }
+        _ => false,
+    }
+}
+
+fn same_expr_list(
+    left: &antecedent_expr::CausalExprArena,
+    left_id: antecedent_expr::ExprListId,
+    right: &antecedent_expr::CausalExprArena,
+    right_id: antecedent_expr::ExprListId,
+) -> bool {
+    let left_list = left.list(left_id);
+    let right_list = right.list(right_id);
+    left_list.len() == right_list.len()
+        && left_list
+            .iter()
+            .zip(right_list)
+            .all(|(left_expr, right_expr)| same_functional(left, *left_expr, right, *right_expr))
 }
 
 #[cfg(test)]

@@ -151,11 +151,11 @@ fn selected_outcome_family(result: &StudyResult, outcome: u32) -> String {
         .find(|d| d.code.as_ref() == "gcm.counterfactual.mechanisms")
         .map(|d| d.message.to_string())
         .unwrap_or_default();
-    let marker = format!("variable: VariableId({outcome}),");
-    text.split("MechanismAssignment {")
+    let marker = format!("variable={outcome};");
+    text.split(" | ")
         .find(|chunk| chunk.contains(&marker))
-        .and_then(|chunk| chunk.split("selected: ").nth(1))
-        .and_then(|rest| rest.split(',').next())
+        .and_then(|chunk| chunk.split("selected=").nth(1))
+        .and_then(|rest| rest.split(';').next())
         .unwrap_or("")
         .trim()
         .to_string()
@@ -319,7 +319,7 @@ fn counterfactual_interaction_bayesian_unit_and_mean_ite_coverage() {
                 b.iter().position(|v| *v == 1.0).expect("a b = 1 unit"),
             ]
         },
-        &["LinearInteractions", "LinearSpline"],
+        &["linear_interactions", "linear_spline"],
         0x110_0CF1,
         &INTERACTION_MEASURED,
     );
@@ -347,7 +347,7 @@ fn counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage() {
         2,
         |data| column(data, "z").iter().map(|z| z.exp()).collect(),
         |_| [0, 1],
-        &["LinearSpline"],
+        &["linear_spline"],
         0x110_0CF2,
         &EXP_MODIFIER_MEASURED,
     );

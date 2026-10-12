@@ -151,6 +151,41 @@ mod checked_counterfactual_plan_tests {
     }
 }
 
+/// Selection record for the mechanisms diagnostic. Family ids and typing labels
+/// are the stable names; fitted coefficients are not part of the identity.
+fn mechanism_audit(assignments: &[crate::gcm::MechanismAssignment]) -> String {
+    assignments
+        .iter()
+        .map(|assignment| {
+            format!(
+                "node={};variable={};selected={};typing={}",
+                assignment.node.raw(),
+                assignment.variable.raw(),
+                assignment.selected.id(),
+                mechanism_typing_label(assignment.typing)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn mechanism_typing_label(typing: antecedent_model::MechanismTyping) -> &'static str {
+    match typing {
+        antecedent_model::MechanismTyping::DeclaredDiscrete => "declared_discrete",
+        antecedent_model::MechanismTyping::LowCardinality => "low_cardinality",
+        antecedent_model::MechanismTyping::Continuous => "continuous",
+    }
+}
+
+/// Historical diagnostic token for a noise-inference kind, not its Debug text.
+fn noise_inference_label(kind: antecedent_counterfactual::NoiseInferenceKind) -> &'static str {
+    match kind {
+        antecedent_counterfactual::NoiseInferenceKind::Invertible => "Invertible",
+        antecedent_counterfactual::NoiseInferenceKind::PosteriorNoise => "PosteriorNoise",
+        antecedent_counterfactual::NoiseInferenceKind::AssumedNoise => "AssumedNoise",
+    }
+}
+
 fn execute_checked_counterfactual_plan(
     plan: &CheckedCounterfactualPlan,
     data: &TabularData,
@@ -166,7 +201,7 @@ fn execute_checked_counterfactual_plan(
     let (treatment, active, control) = binary_cf_interventions(query)?;
     let outcome = query.outcomes[0];
     let (fitted, ite) = plan.operation.execute(data, ctx)?;
-    let assignments = format!("{:?}", fitted.assignments);
+    let assignments = mechanism_audit(&fitted.assignments);
     let mechanism_assignments = fitted.assignments.clone();
     let refit = CounterfactualRefit {
         data,
@@ -219,8 +254,8 @@ fn execute_checked_counterfactual_plan(
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "noise_inference={:?}; control={control}; active={active}",
-                ite.noise_inference
+                "noise_inference={}; control={control}; active={active}",
+                noise_inference_label(ite.noise_inference)
             ),
         ),
         support.support_diagnostic(min, max, pooled_extrapolative),
@@ -389,8 +424,9 @@ fn homogeneity_diagnostics(
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 format!(
-                    "mechanism family {family:?} for {outcome_name} admits no effect \
-                         modification; unit_effects equal the mechanism slope for every unit"
+                    "mechanism family {} for {outcome_name} admits no effect \
+                         modification; unit_effects equal the mechanism slope for every unit",
+                    family.id()
                 ),
             )
             .with_fields([
