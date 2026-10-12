@@ -845,9 +845,7 @@ pub(crate) fn compile_logical_temporal_response(
 fn response_primary_pair(
     functional: &ResponseFunctional,
 ) -> Result<(VariableId, VariableId), CausalError> {
-    functional.primary_pair().ok_or_else(|| CausalError::Compile {
-        message: "response query has no treatment/outcome pair".into(),
-    })
+    crate::analysis::proof_support::require_primary_pair(functional)
 }
 
 /// Temporal effect plan with an explicit data classification (Event / Panel / Temporal).

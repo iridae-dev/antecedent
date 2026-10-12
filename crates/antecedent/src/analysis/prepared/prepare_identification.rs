@@ -550,9 +550,7 @@ impl Study {
                     return Ok(None);
                 };
                 let (treatment, outcome) =
-                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                        message: "response query has no treatment/outcome pair".into(),
-                    })?;
+                    crate::analysis::proof_support::require_primary_pair(&query.functional)?;
                 let schedule = sequence_identification_schedule(query)?;
                 Ok(Some(identify_temporal_response_horizons(
                     graph,

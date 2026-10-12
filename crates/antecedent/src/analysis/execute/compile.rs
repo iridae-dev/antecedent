@@ -1336,9 +1336,8 @@ pub(crate) fn compile_logical_admg_response(
     validate_static_pair(identifier_id, estimator_id)?;
     let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
     query.validate()?;
-    let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
-        CausalError::Compile { message: "response query has no treatment/outcome pair".into() }
-    })?;
+    let (treatment, outcome) =
+        crate::analysis::proof_support::require_primary_pair(&query.functional)?;
     let record = antecedent_contract::LogicalAnalysisPlanRecord {
         plan_id: Arc::from("static_admg_response"),
         data_classification: antecedent_contract::DataClassification::Tabular,

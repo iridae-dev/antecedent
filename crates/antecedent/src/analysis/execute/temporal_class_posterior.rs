@@ -28,6 +28,7 @@ use super::{
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
 };
+use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
 use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
 
 struct TemporalClassFittedDesign {
@@ -143,13 +144,7 @@ impl super::Study {
         ),
     ) -> Vec<Diagnostic> {
         if self.inference.is_bayesian() && posterior_withheld {
-            diagnostics.push(Diagnostic::new(
-                "estimate.graph_posterior.posterior_withheld",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                "aggregate posterior withheld: a graph- or completion-conditional posterior \
-                 does not describe the full weighted target; retained atom posteriors are conditional",
-            ));
+            diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
             "estimate.graph_posterior.temporal_class_envelope",

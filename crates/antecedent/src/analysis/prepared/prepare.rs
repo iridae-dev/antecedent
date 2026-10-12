@@ -371,9 +371,7 @@ impl Study {
                 build_admg_graph_posterior_response_identification_cache(posterior, query, ctx)?
             } else {
                 let (treatment, outcome) =
-                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                        message: "response query has no treatment/outcome pair".into(),
-                    })?;
+                    crate::analysis::proof_support::require_primary_pair(&query.functional)?;
                 build_graph_posterior_identification_cache(
                     posterior,
                     &AverageEffectQuery::binary_ate(treatment, outcome),

@@ -1464,16 +1464,13 @@ impl super::Study {
                 }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        if self.plain_fixed_route()
             && self.inference.is_bayesian()
             && self.estimator == Some(EstimatorId::BayesianConditional)
             && self
                 .identifier
                 .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
             && self.point_validation()
-            && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
                 if !query.inner.effect_modifiers.is_empty() {
@@ -1496,12 +1493,7 @@ impl super::Study {
         route: Option<RouteInput<'_>>,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
-            && self.inference.is_frequentist()
-            && self.custom_validators.is_empty()
-        {
+        if self.plain_fixed_route() && self.inference.is_frequentist() {
             if let Some(RouteInput::StaticMediationDag {
                 data,
                 source: StaticMediationSource::Mediation(_),
@@ -1516,12 +1508,9 @@ impl super::Study {
                 );
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        if self.plain_fixed_route()
             && self.inference.is_frequentist()
             && self.split.is_none()
-            && self.custom_validators.is_empty()
             && self.point_validation()
         {
             if let Some(RouteInput::TemporalEffectDag { data, query, .. }) = route {
@@ -1539,11 +1528,8 @@ impl super::Study {
                 }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        if self.plain_fixed_route()
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
             && self
                 .estimator
                 .is_none_or(|id| id == EstimatorId::temporal_response_for(&self.inference))
@@ -1618,12 +1604,9 @@ impl super::Study {
         route: Option<RouteInput<'_>>,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        if self.plain_fixed_route()
             && self.inference.is_frequentist()
             && self.point_validation()
-            && self.custom_validators.is_empty()
             && self.estimator.is_none_or(|id| id == EstimatorId::ConditionalLinearAdjustment)
         {
             if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
@@ -1637,11 +1620,7 @@ impl super::Study {
                 }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
-            && self.custom_validators.is_empty()
-        {
+        if self.plain_fixed_route() {
             if let Some(RouteInput::StaticResponseDag { data, query, .. }) = route {
                 if query.temporal.is_none()
                     && complete_mean_response(query)
@@ -1812,11 +1791,8 @@ impl super::Study {
         // target and fitted design through the prepared facade.
         let selected_estimator = self.selected_estimator_id();
         let checked_glm = selected_estimator == Some(EstimatorId::GlmAdjustment)
-            && self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+            && self.plain_fixed_route()
             && self.inference.is_frequentist()
-            && self.custom_validators.is_empty()
             && matches!(
                 route,
                 Some(RouteInput::StaticAteDag { query, .. })
@@ -1824,20 +1800,14 @@ impl super::Study {
             );
         let checked_rd = selected_estimator == Some(EstimatorId::RdSharp)
             && self.rd.is_some()
-            && self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+            && self.plain_fixed_route()
             && self.inference.is_frequentist()
-            && self.custom_validators.is_empty()
             && matches!(route, Some(RouteInput::StaticAteDag { .. }));
         let checked_propensity = matches!(
             selected_estimator,
             Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
-        ) && self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        ) && self.plain_fixed_route()
             && self.inference.is_frequentist()
-            && self.custom_validators.is_empty()
             && matches!(
                 route,
                 Some(RouteInput::StaticAteDag { query, .. })
@@ -1985,9 +1955,7 @@ impl super::Study {
                 }
             }
         }
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        if self.plain_fixed_route()
             && self.inference.is_bayesian()
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
             && self.estimator.is_none_or(|id| id == EstimatorId::BayesianGcomp)
@@ -1998,7 +1966,6 @@ impl super::Study {
                 ))
             )
             && self.point_validation_or_placebo()
-            && self.custom_validators.is_empty()
         {
             if let Some(
                 RouteInput::StaticAteCpdag { data, query, .. }
@@ -2076,11 +2043,8 @@ impl super::Study {
         route: Option<RouteInput<'_>>,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.fixed_structure()
+        if self.plain_fixed_route()
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
             && self.observation_delayed_entry.is_none()
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
             && self
@@ -2159,13 +2123,10 @@ impl super::Study {
             Some(EstimatorId::BayesianIvJointLinear | EstimatorId::BayesianRdLocalLinear)
         );
         if specialist_estimator
-            && self.graph_posterior.is_none()
-            && self.tiered.is_none()
+            && self.plain_fixed_route()
             && self.split.is_none()
-            && self.fixed_structure()
             && self.inference.is_bayesian()
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
                 if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
@@ -2188,12 +2149,9 @@ impl super::Study {
         // proof and design columns even for the one-shot facade.
         if self.selection_diagram.is_some()
             && self.transport_trial.is_some()
-            && self.graph_posterior.is_none()
-            && self.tiered.is_none()
+            && self.plain_fixed_route()
             && self.split.is_none()
-            && self.fixed_structure()
             && self.refute == RefuteSuite::None
-            && self.custom_validators.is_empty()
         {
             if let Some(RouteInput::TransportMixed { data, class: GraphClass::Admg, .. }) = route {
                 return self.admit_sealed_tabular(
@@ -2253,12 +2211,9 @@ impl super::Study {
             _ => false,
         };
         if licensed_shape
-            && self.graph_posterior.is_none()
-            && self.tiered.is_none()
+            && self.plain_fixed_route()
             && self.graph.class() == GraphClass::Admg
             && self.graph.as_admg().is_some_and(admg_has_bidirected)
-            && self.fixed_structure()
-            && self.custom_validators.is_empty()
             && self.identifier.is_none_or(|identifier| identifier == IdentifierId::GeneralId)
             && self.estimator.is_none_or(|estimator| estimator == EstimatorId::FunctionalEffect)
         {
@@ -2281,12 +2236,9 @@ impl super::Study {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        if self.graph_posterior.is_none()
-            && self.tiered.is_none()
+        if self.plain_fixed_route()
             && self.graph.class() == GraphClass::Dag
-            && self.fixed_structure()
             && self.inference.is_bayesian()
-            && self.custom_validators.is_empty()
             && self.point_validation()
             && matches!(self.query, CausalQuery::Mediation(_))
         {

@@ -18,6 +18,7 @@ use crate::analysis::prepared::{
     CheckedUnknownTieredAverageOperation, PreparedExecution, checked_aipw_fitter,
     conditional_class_proof_is_complete,
 };
+use crate::analysis::proof_support::EstimandClaim;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::RouteDefaults;
@@ -407,11 +408,7 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                     .identification
                     .estimands
                     .iter()
-                    .position(|candidate| {
-                        candidate.functional == cache.estimand.functional
-                            && candidate.method == cache.estimand.method
-                            && candidate.adjustment_set == cache.estimand.adjustment_set
-                    })
+                    .position(|candidate| candidate.same_claim(&cache.estimand))
                     .ok_or_else(|| CausalError::Compile {
                         message:
                             "selected propensity estimand is absent from its identification product"

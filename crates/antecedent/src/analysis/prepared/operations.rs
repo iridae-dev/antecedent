@@ -10,6 +10,7 @@ use crate::analysis::helpers::{
     provenance_pair,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::proof_supplies;
 use crate::analysis::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -1128,11 +1129,7 @@ impl CheckedAipwOperation {
             let checked = antecedent_identify::identify_tiered(background, &self.query)?;
             if checked.status != self.cache.identification.status
                 || checked.query != self.cache.identification.query
-                || !checked.estimands.iter().any(|candidate| {
-                    candidate.functional == self.cache.estimand.functional
-                        && candidate.method == self.cache.estimand.method
-                        && candidate.adjustment_set == self.cache.estimand.adjustment_set
-                })
+                || !proof_supplies(&checked, &self.cache.estimand)
             {
                 return Err(CausalError::Compile {
                     message: "retained CoDetermined AIPW closure no longer justifies its target"

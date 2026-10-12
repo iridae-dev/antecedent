@@ -19,6 +19,7 @@ use super::{
     overlap_diagnostic, provenance_ids, resolve_posterior_status,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
+use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
 use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
 
 struct AdmgAtomEval {
@@ -206,13 +207,7 @@ impl super::Study {
     fn admg_graph_posterior_diagnostics(&self, mixed: &MixedAdmgPosterior) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
         if self.inference.is_bayesian() && mixed.posterior.is_none() {
-            diagnostics.push(Diagnostic::new(
-                "estimate.graph_posterior.posterior_withheld",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                "aggregate posterior withheld: a graph- or completion-conditional posterior \
-                 does not describe the full weighted target; retained atom posteriors are conditional",
-            ));
+            diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
             "estimate.graph_posterior.admg_functional",

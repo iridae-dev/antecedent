@@ -89,6 +89,15 @@ pub(crate) fn proof_supplies_method_and_functional(
     identification.estimands.iter().any(|candidate| candidate.same_method_and_functional(estimand))
 }
 
+/// [`proof_supplies`] that requires every estimand field to agree.
+#[must_use]
+pub(crate) fn proof_supplies_full(
+    identification: &IdentificationResult,
+    estimand: &IdentifiedEstimand,
+) -> bool {
+    identification.estimands.iter().any(|candidate| candidate.same_full_claim(estimand))
+}
+
 /// Refuse unless the claim re-derived from the retained graph agrees with the
 /// retained one on status, query, and the selected estimand.
 ///
@@ -212,6 +221,7 @@ mod tests {
             assert!(a.same_full_claim(b), "ExprIds from separate arenas must agree");
         }
         assert!(proof_supplies(&second, &first.estimands[0]));
+        assert!(proof_supplies_full(&second, &first.estimands[0]));
         assert!(
             verify_proof_against_graph(
                 &first,

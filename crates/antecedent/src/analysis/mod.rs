@@ -200,7 +200,7 @@ mod identification_cache;
 mod latency;
 mod posterior_binding;
 mod prepared;
-mod proof_support;
+pub(crate) mod proof_support;
 mod route_guards;
 mod stage;
 mod transport_common;

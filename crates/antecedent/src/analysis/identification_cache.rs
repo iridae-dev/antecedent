@@ -896,9 +896,8 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "DBN-posterior response requires TemporalResponseSpec".into(),
     })?;
-    let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
-        CausalError::Compile { message: "response query has no treatment/outcome pair".into() }
-    })?;
+    let (treatment, outcome) =
+        crate::analysis::proof_support::require_primary_pair(&query.functional)?;
     let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;

@@ -12,6 +12,7 @@ use super::{
     identify_static_query, map_mechanism_fit, mechanism_change_detection, nan_effect,
     parametric_scm_identification, provenance_ids, shared_identification_from_cache_or,
 };
+use crate::analysis::proof_support::proof_supplies_full;
 use antecedent_core::StreamDomain;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,14 +99,7 @@ impl CheckedCounterfactualPlan {
                 identification.status,
                 IdentificationStatus::IdentifiedUnderParametricRestrictions
             )
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-                    && candidate.instruments == estimand.instruments
-                    && candidate.mediators == estimand.mediators
-                    && candidate.functional == estimand.functional
-                    && candidate.rd_design == estimand.rd_design
-            })
+            || !proof_supplies_full(identification, estimand)
             || !physical.binding().names(IdentifierId::GcmParametric, EstimatorId::GcmFit)
         {
             return Err(CausalError::Compile { message: "checked counterfactual plan components do not agree on target, inference, identification, or procedure".into() });
