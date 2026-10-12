@@ -9,6 +9,8 @@ from typing import Any
 
 import numpy as np
 
+from .errors import CausalValueError
+
 
 @dataclass(frozen=True, slots=True)
 class EffectPrediction:
@@ -87,13 +89,22 @@ class FittedEffectModel:
         """
         names = tuple(data.columns) if hasattr(data, "columns") else tuple(data)
         if len(set(names)) != len(names):
-            raise ValueError("prediction data has duplicate column names")
+            raise CausalValueError(
+                "prediction data has duplicate column names",
+                reason_code="invalid_argument",
+            )
         missing = set(self.features) - set(names)
         if missing:
-            raise ValueError(f"missing prediction features: {sorted(missing)}")
+            raise CausalValueError(
+                f"missing prediction features: {sorted(missing)}",
+                reason_code="invalid_argument",
+            )
         columns = [_feature_column(data[name], name) for name in self.features]
         if any(c.ndim != 1 or not np.isfinite(c).all() for c in columns):
-            raise ValueError("prediction features must be finite one-dimensional columns")
+            raise CausalValueError(
+                "prediction features must be finite one-dimensional columns",
+                reason_code="invalid_argument",
+            )
         if columns:
             n = len(columns[0])
         elif hasattr(data, "index"):
@@ -101,9 +112,15 @@ class FittedEffectModel:
         elif names:
             n = len(data[names[0]])
         else:
-            raise ValueError("intercept-only prediction needs data with an explicit row count")
+            raise CausalValueError(
+                "intercept-only prediction needs data with an explicit row count",
+                reason_code="invalid_argument",
+            )
         if any(len(c) != n for c in columns):
-            raise ValueError("prediction columns have different lengths")
+            raise CausalValueError(
+                "prediction columns have different lengths",
+                reason_code="invalid_argument",
+            )
         values = self._native.predict([np.ascontiguousarray(c) for c in columns], n)
         return EffectPrediction(tuple(values.tolist()), self.parent_claim)
 

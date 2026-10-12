@@ -43,6 +43,7 @@ from typing import Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._digest import canonical_digest
 from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
@@ -104,8 +105,8 @@ class OutcomeLaw:
     probabilities: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "values", _numbers("values", self.values))
-        object.__setattr__(self, "probabilities", _numbers("probabilities", self.probabilities))
+        coerce_fields(self, values=_numbers("values", self.values))
+        coerce_fields(self, probabilities=_numbers("probabilities", self.probabilities))
 
     @classmethod
     def binary(cls, rate: float) -> OutcomeLaw:
@@ -119,6 +120,42 @@ class OutcomeLaw:
         if not (math.isfinite(rate) and 0.0 <= rate <= 1.0):
             raise CausalValueError(f"rate must be a probability in [0, 1], got {rate!r}")
         return cls((0.0, 1.0), (1.0 - rate, rate))
+
+
+def _column_values(column: Any) -> list[Any]:
+    """A column as a list, using the array's C ``tolist`` when it has one."""
+    if hasattr(column, "tolist"):
+        return list(column.tolist())
+    return list(column)
+
+
+def _as_law(value: Any) -> Any:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return OutcomeLaw.binary(float(value))
+    return value
+
+
+def _strata_from_columns(
+    cls: type,
+    columns: Mapping[str, list[Any]],
+    wanted: tuple[str, ...],
+) -> tuple[Any, ...]:
+    lengths = {len(values) for values in columns.values()}
+    if len(lengths) > 1:
+        raise CausalValueError(f"table columns differ in length: {sorted(lengths)}")
+    count = next(iter(lengths)) if lengths else 0
+    if count == 0:
+        raise CausalValueError("table has no rows")
+    available = sorted(columns)
+    series: list[list[Any]] = []
+    for name in wanted:
+        if name not in columns:
+            raise CausalValueError(f"table has no column {name!r}; columns: {available}")
+        series.append(columns[name])
+    return tuple(
+        cls(series[0][i], series[1][i], _as_law(series[2][i]), _as_law(series[3][i]))
+        for i in range(count)
+    )
 
 
 def _law(name: str, value: object) -> OutcomeLaw:
@@ -156,10 +193,10 @@ class MsmStratum:
             )
         if not (math.isfinite(mass) and 0.0 <= mass <= 1.0):
             raise CausalValueError(f"mass must be a population mass in [0, 1], got {mass!r}")
-        object.__setattr__(self, "mass", mass)
-        object.__setattr__(self, "propensity", propensity)
-        object.__setattr__(self, "treated", _law("treated", self.treated))
-        object.__setattr__(self, "control", _law("control", self.control))
+        coerce_fields(self, mass=mass)
+        coerce_fields(self, propensity=propensity)
+        coerce_fields(self, treated=_law("treated", self.treated))
+        coerce_fields(self, control=_law("control", self.control))
 
     @classmethod
     def table(
@@ -188,44 +225,48 @@ class MsmStratum:
             CausalValueError: a named column is missing, columns differ in length, or the
                 table is empty.
         """
+        wanted = (mass, propensity, treated, control)
+        if (
+            hasattr(table, "columns")
+            and hasattr(table, "__getitem__")
+            and not isinstance(table, Mapping)
+        ):
+            if len(table) == 0:
+                raise CausalValueError("table has no rows")
+            columns = {name: _column_values(table[name]) for name in table.columns}
+            return _strata_from_columns(cls, columns, wanted)
         if hasattr(table, "to_dict") and not isinstance(table, Mapping):
-            rows: list[Mapping[str, Any]] = list(table.to_dict("records"))
-        elif isinstance(table, Mapping):
+            rows = list(table.to_dict("records"))
+            if not rows:
+                raise CausalValueError("table has no rows")
+            columns = {str(key): [row[key] for row in rows] for key in rows[0]}
+            return _strata_from_columns(cls, columns, wanted)
+        if isinstance(table, Mapping):
             columns = {name: list(values) for name, values in table.items()}
-            lengths = {len(values) for values in columns.values()}
-            if len(lengths) > 1:
-                raise CausalValueError(f"table columns differ in length: {sorted(lengths)}")
-            count = lengths.pop() if lengths else 0
-            rows = [{name: values[i] for name, values in columns.items()} for i in range(count)]
-        elif isinstance(table, Sequence) and not isinstance(table, (str, bytes)):
+            return _strata_from_columns(cls, columns, wanted)
+        if isinstance(table, Sequence) and not isinstance(table, (str, bytes)):
             rows = list(table)
             if any(not isinstance(row, Mapping) for row in rows):
                 raise CausalTypeError("table rows must be mappings from column name to value")
-        else:
-            raise CausalTypeError(
-                "table must be a mapping of columns, a sequence of row mappings or a DataFrame"
+            if not rows:
+                raise CausalValueError("table has no rows")
+
+            def cell(row: Mapping[str, Any], name: str) -> Any:
+                if name not in row:
+                    raise CausalValueError(f"table has no column {name!r}; columns: {sorted(row)}")
+                return row[name]
+
+            return tuple(
+                cls(
+                    cell(row, mass),
+                    cell(row, propensity),
+                    _as_law(cell(row, treated)),
+                    _as_law(cell(row, control)),
+                )
+                for row in rows
             )
-        if not rows:
-            raise CausalValueError("table has no rows")
-
-        def cell(row: Mapping[str, Any], name: str) -> Any:
-            if name not in row:
-                raise CausalValueError(f"table has no column {name!r}; columns: {sorted(row)}")
-            return row[name]
-
-        def law(value: Any) -> Any:
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                return OutcomeLaw.binary(float(value))
-            return value
-
-        return tuple(
-            cls(
-                cell(row, mass),
-                cell(row, propensity),
-                law(cell(row, treated)),
-                law(cell(row, control)),
-            )
-            for row in rows
+        raise CausalTypeError(
+            "table must be a mapping of columns, a sequence of row mappings or a DataFrame"
         )
 
     def _wire(self) -> tuple[float, float, list[float], list[float], list[float], list[float]]:

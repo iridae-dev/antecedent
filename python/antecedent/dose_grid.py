@@ -289,7 +289,7 @@ def _column(values: object, what: str) -> list[float]:
         raise CausalTypeError(f"{what} must be a numeric sequence") from error
     if array.ndim != 1:
         raise CausalValueError(f"{what} must be one-dimensional")
-    return [float(x) for x in array]
+    return array.tolist()
 
 
 def _non_finite(what: str) -> DoseGridRefusal:
