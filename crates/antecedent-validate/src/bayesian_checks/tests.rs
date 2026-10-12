@@ -327,10 +327,6 @@ fn prior_sensitivity_external_alpha_pulls_toward_source() {
 }
 
 #[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "one fixture exercised end to end; later assertions read locals built above them"
-)]
 fn ppc_catches_variance_misspecification_mean_ok() {
     // Defect C regression: construct data whose outcome mean is exactly zero
     // but has large residual spread (SD ~5), so a model whose replicates have
