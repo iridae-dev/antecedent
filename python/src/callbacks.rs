@@ -24,17 +24,25 @@ use pyo3::types::{PyDict, PyList};
 
 use crate::interrupt::callback_failure;
 
-/// `inspect` and `numpy.random`, imported once per process rather than once per draw.
-static INSPECT: PyOnceLock<Py<PyModule>> = PyOnceLock::new();
-static NUMPY_RANDOM: PyOnceLock<Py<PyModule>> = PyOnceLock::new();
+/// `inspect.signature` and `numpy.random.default_rng`, resolved once per process.
+///
+/// Each mechanism still asks `signature` about its own `sample_noise`. The
+/// callable objects are not imported again on the next draw.
+static INSPECT_SIGNATURE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static NUMPY_DEFAULT_RNG: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
-fn cached_module<'py>(
-    py: Python<'py>,
-    slot: &PyOnceLock<Py<PyModule>>,
-    name: &str,
-) -> PyResult<Bound<'py, PyModule>> {
-    let module = slot.get_or_try_init(py, || py.import(name).map(|loaded| loaded.unbind()))?;
-    Ok(module.bind(py).clone())
+fn inspect_signature<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    let func = INSPECT_SIGNATURE.get_or_try_init(py, || -> PyResult<_> {
+        Ok(py.import("inspect")?.getattr("signature")?.unbind())
+    })?;
+    Ok(func.bind(py).clone())
+}
+
+fn numpy_default_rng<'py>(py: Python<'py>, seed: u64) -> PyResult<Bound<'py, PyAny>> {
+    let func = NUMPY_DEFAULT_RNG.get_or_try_init(py, || -> PyResult<_> {
+        Ok(py.import("numpy.random")?.getattr("default_rng")?.unbind())
+    })?;
+    func.bind(py).call1((seed,))
 }
 
 /// A mechanism callback must return exactly one value per row; extra values would hide a shape
@@ -58,10 +66,10 @@ fn accepts_rng(obj: &Bound<'_, PyAny>) -> Result<bool, ModelError> {
         message: callback_failure("could not inspect sample_noise", e),
     };
     let method = obj.getattr("sample_noise").map_err(unsupported)?;
-    let Ok(inspect) = cached_module(py, &INSPECT, "inspect") else {
+    let Ok(signature_of) = inspect_signature(py) else {
         return Ok(false);
     };
-    let Ok(signature) = inspect.call_method1("signature", (&method,)) else {
+    let Ok(signature) = signature_of.call1((&method,)) else {
         return Ok(false);
     };
     let parameters = signature.getattr("parameters").map_err(unsupported)?;
@@ -158,9 +166,8 @@ impl DynamicMechanism for PyDynamicMechanism {
             let bound = self.obj.bind(py);
             let out = (if self.accepts_rng(py)? {
                 // The run's seeded stream governs the user's draws through a NumPy generator.
-                let generator = cached_module(py, &NUMPY_RANDOM, "numpy.random")
-                    .and_then(|m| m.call_method1("default_rng", (rng.next_u64(),)))
-                    .map_err(|e| ModelError::Unsupported {
+                let generator =
+                    numpy_default_rng(py, rng.next_u64()).map_err(|e| ModelError::Unsupported {
                         message: callback_failure("failed to seed sample_noise rng", e),
                     })?;
                 let kwargs = PyDict::new(py);
