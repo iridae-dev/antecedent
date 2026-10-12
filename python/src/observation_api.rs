@@ -11,7 +11,6 @@ use antecedent_estimate::{
     ObservationEstimatorOptions, ObservationMechanismEstimator, SelectedOutcomeCorrection,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{columns_to_batch, dag_from_named_edges, detach_catch, py_err};
@@ -321,14 +320,14 @@ fn build_query(
     grid: Arc<[f64]>,
 ) -> PyResult<ResponseQuery> {
     if outcome != args.latent {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "response query outcome must equal the observation mechanism's latent outcome",
         ));
     }
     let treatment = schema.id_of(treatment).map_err(py_err)?;
     let latent = schema.id_of(&args.latent).map_err(py_err)?;
     if treatment == latent {
-        return Err(PyValueError::new_err("treatment and outcome must be distinct"));
+        return Err(crate::value_err("treatment and outcome must be distinct"));
     }
     let functional = ResponseFunctional::MeanCurve {
         outcome: latent,
@@ -345,9 +344,8 @@ pub(crate) fn build_observation(
     latent: VariableId,
 ) -> PyResult<ObservationSpec> {
     let required = |value: &Option<String>, label: &str| -> PyResult<VariableId> {
-        let name = value
-            .as_deref()
-            .ok_or_else(|| PyValueError::new_err(format!("{label} is required")))?;
+        let name =
+            value.as_deref().ok_or_else(|| crate::value_err(format!("{label} is required")))?;
         schema.id_of(name).map_err(py_err)
     };
     let optional = |value: &Option<String>| -> PyResult<Option<VariableId>> {
@@ -383,7 +381,7 @@ pub(crate) fn build_observation(
             observed: required(&args.observed, "observed")?,
             indicator: required(&args.indicator, "indicator")?,
         }),
-        _ => Err(PyValueError::new_err("unknown observation mechanism")),
+        _ => Err(crate::value_err("unknown observation mechanism")),
     }
 }
 
@@ -406,9 +404,9 @@ pub(crate) fn build_assumption(
         "structural" => Ok(ObservationAssumption::Structural(Arc::from(
             args.structural_model
                 .as_deref()
-                .ok_or_else(|| PyValueError::new_err("structural_model is required"))?,
+                .ok_or_else(|| crate::value_err("structural_model is required"))?,
         ))),
-        _ => Err(PyValueError::new_err("unknown observation assumption")),
+        _ => Err(crate::value_err("unknown observation assumption")),
     }
 }
 
@@ -416,7 +414,7 @@ fn parse_correction(value: &str) -> PyResult<SelectedOutcomeCorrection> {
     match value {
         "ipw" => Ok(SelectedOutcomeCorrection::Ipw),
         "aipw" => Ok(SelectedOutcomeCorrection::Aipw),
-        _ => Err(PyValueError::new_err("correction must be 'ipw' or 'aipw'")),
+        _ => Err(crate::value_err("correction must be 'ipw' or 'aipw'")),
     }
 }
 

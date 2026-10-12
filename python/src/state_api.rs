@@ -15,7 +15,6 @@ use antecedent_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, QueryId, VariableId,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
@@ -52,7 +51,7 @@ impl PyCausalState {
         columns: Vec<PyReadonlyArray1<'_, f64>>,
     ) -> PyResult<(Arc<str>, u64, u64)> {
         if names.len() != columns.len() {
-            return Err(PyValueError::new_err("names/columns length mismatch"));
+            return Err(crate::value_err("names/columns length mismatch"));
         }
         let batch = columns_to_batch(&names, &columns)?;
         let nrows = u64::try_from(batch.num_rows()).unwrap_or(u64::MAX);
@@ -136,7 +135,7 @@ impl PyCausalState {
             (Some(names), Some(columns)) => Some(self.store_batch(names, columns)?),
             (None, None) => None,
             _ => {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "replace_data requires both names and columns, or neither",
                 ));
             }
@@ -161,7 +160,7 @@ impl PyCausalState {
         let batch = self
             .retained
             .get(batch_id)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown batch_id `{batch_id}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown batch_id `{batch_id}`")))?;
         let cols: Vec<_> =
             batch.columns.iter().map(|c| PyArray1::from_vec(py, c.clone())).collect();
         Ok((batch.names.clone(), cols))
@@ -172,7 +171,7 @@ impl PyCausalState {
         let batch = self
             .retained
             .get(batch_id)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown batch_id `{batch_id}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown batch_id `{batch_id}`")))?;
         Ok(batch.columns.first().map_or(0, Vec::len))
     }
 
@@ -233,7 +232,7 @@ impl PyCausalState {
             "positivity" => Assumption::Positivity,
             "no_interference" => Assumption::NoInterference,
             other => {
-                return Err(PyValueError::new_err(format!("unknown assumption kind `{other}`")));
+                return Err(crate::value_err(format!("unknown assumption kind `{other}`")));
             }
         };
         self.apply(StateEvent::UpdateAssumption(AssumptionRecord {
@@ -260,7 +259,7 @@ impl PyCausalState {
             .copied()
             .find(|k| !before.contains(k))
             .map(|k| u64::from(k.raw()))
-            .ok_or_else(|| PyValueError::new_err("register_query did not assign an id"))?;
+            .ok_or_else(|| crate::value_err("register_query did not assign an id"))?;
         Ok((ver, qid))
     }
 
@@ -298,7 +297,7 @@ impl PyCausalState {
         if let Some(horizons) = horizons {
             let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(|e| crate::value_err(e.to_string()))?;
             query = query.with_temporal(temporal);
         }
         let before: Vec<_> = self.inner.queries.queries.keys().copied().collect();
@@ -311,7 +310,7 @@ impl PyCausalState {
             .copied()
             .find(|k| !before.contains(k))
             .map(|k| u64::from(k.raw()))
-            .ok_or_else(|| PyValueError::new_err("register_query did not assign an id"))?;
+            .ok_or_else(|| crate::value_err("register_query did not assign an id"))?;
         Ok((ver, qid))
     }
 
@@ -329,9 +328,7 @@ impl PyCausalState {
             .into_iter()
             .map(|(q, fp, bytes)| {
                 let id = u32::try_from(q).map_err(|_| {
-                    pyo3::exceptions::PyValueError::new_err(format!(
-                        "query id {q} does not fit in 32 bits"
-                    ))
+                    crate::value_err(format!("query id {q} does not fit in 32 bits"))
                 })?;
                 Ok((QueryId::from_raw(id), fp, bytes))
             })
@@ -356,7 +353,7 @@ impl PyCausalState {
             .suff_stats
             .ols
             .get_mut(key.as_str())
-            .ok_or_else(|| PyValueError::new_err(format!("unknown ols key `{key}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown ols key `{key}`")))?;
         stats.append_row(&row, y).map_err(py_err)?;
         Ok(())
     }
@@ -368,7 +365,7 @@ impl PyCausalState {
             .suff_stats
             .ols
             .get(key)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown ols key `{key}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown ols key `{key}`")))?;
         let d = PyDict::new(py);
         d.set_item("n", stats.n)?;
         d.set_item("ncols", stats.ncols)?;
@@ -394,7 +391,7 @@ impl PyCausalState {
             .suff_stats
             .cov
             .get_mut(key.as_str())
-            .ok_or_else(|| PyValueError::new_err(format!("unknown cov key `{key}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown cov key `{key}`")))?;
         cov.append(&row).map_err(py_err)?;
         Ok(())
     }
@@ -406,7 +403,7 @@ impl PyCausalState {
             .suff_stats
             .cov
             .get(key)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown cov key `{key}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown cov key `{key}`")))?;
         let d = PyDict::new(py);
         d.set_item("n", cov.n)?;
         d.set_item("dim", cov.dim)?;
@@ -444,7 +441,7 @@ impl PyCausalState {
             .suff_stats
             .particle_filters
             .get_mut(key.as_str())
-            .ok_or_else(|| PyValueError::new_err(format!("unknown particle filter `{key}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown particle filter `{key}`")))?;
         pf.step(y).map_err(py_err)?;
         Ok(())
     }
@@ -456,7 +453,7 @@ impl PyCausalState {
             .suff_stats
             .particle_filters
             .get(key)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown particle filter `{key}`")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown particle filter `{key}`")))?;
         let d = PyDict::new(py);
         d.set_item("n_obs", pf.n_obs)?;
         d.set_item("n_particles", pf.n_particles)?;

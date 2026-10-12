@@ -99,12 +99,11 @@ fn request(
         return Err(invalid("recalc.limits_exceeded", "Bayesian feature count exceeds64"));
     }
     let wire: RequestWire = parse_json(specification, "Bayesian request")?;
-    let locate = |name: &str| {
-        names
-            .iter()
-            .position(|n| n == name)
-            .map(|i| VariableId::from_raw(u32::try_from(i).expect("bounded columns")))
-            .ok_or_else(|| invalid("recalc.bayesian_invalid_query", "unknown role variable"))
+    let locate = |name: &str| -> PyResult<VariableId> {
+        let Some(i) = names.iter().position(|n| n == name) else {
+            return Err(invalid("recalc.bayesian_invalid_query", "unknown role variable"));
+        };
+        Ok(VariableId::from_raw(crate::fit_u32(i)?))
     };
     let treatment = locate(&wire.treatment)?;
     let outcome = locate(&wire.outcome)?;

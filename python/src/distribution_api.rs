@@ -8,14 +8,11 @@ use antecedent_io::distribution_artifact::{
 };
 use numpy::ndarray::Array2;
 use numpy::{PyArray2, PyReadonlyArray2, PyUntypedArrayMethods};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::CausalSerializationError;
-
 fn artifact_error(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
+    crate::serialization_err(error.to_string())
 }
 
 /// Accept canonical and read-compat trust spellings, then store the distribution codec spelling.
@@ -27,7 +24,7 @@ fn normalize_distribution_metadata(metadata_json: &str) -> PyResult<String> {
         return Ok(metadata_json.to_owned());
     };
     let parsed = ProviderTrust::from_wire(&trust)
-        .ok_or_else(|| PyValueError::new_err(format!("unknown distribution trust {trust:?}")))?;
+        .ok_or_else(|| crate::value_err(format!("unknown distribution trust {trust:?}")))?;
     match parsed {
         ProviderTrust::NativeLicensed => {
             return Err(crate::recalc_api::invalid(
@@ -84,7 +81,7 @@ impl PyJointDistributionArtifact {
                 .and_then(|n| n.checked_mul(8))
                 .is_none_or(|bytes| bytes > MAX_DISTRIBUTION_ARTIFACT_BYTES)
         {
-            return Err(PyValueError::new_err("distribution draw array exceeds its bounds"));
+            return Err(crate::value_err("distribution draw array exceeds its bounds"));
         }
         let values = draws.as_array().iter().copied().collect();
         let artifact = DistributionArtifact::new(metadata, values).map_err(artifact_error)?;
@@ -108,7 +105,10 @@ impl PyJointDistributionArtifact {
     #[getter]
     fn semantic(&self) -> PyResult<String> {
         let value = serde_json::to_value(self.artifact.semantic()).map_err(artifact_error)?;
-        Ok(value.as_str().expect("distribution meaning serializes as a string").into())
+        let text = value
+            .as_str()
+            .ok_or_else(|| artifact_error("distribution meaning did not serialize as a string"))?;
+        Ok(text.into())
     }
 
     #[getter]

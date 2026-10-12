@@ -61,7 +61,6 @@ use antecedent_io::distribution_artifact::{DistributionCalibration, Distribution
 use antecedent_io::external_claim_artifact::ExternalClaimTrust;
 use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -103,25 +102,23 @@ fn invalid_json(detail: &str, offending: Option<String>) -> String {
 fn parse_quantity(json: &str) -> PyResult<ScientificQuantity> {
     check_size(json)?;
     let wire: ScientificQuantityWire = serde_json::from_str(json)
-        .map_err(|e| PyValueError::new_err(format!("invalid coordinate: {e}")))?;
-    ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(e.to_owned()))
+        .map_err(|e| crate::value_err(format!("invalid coordinate: {e}")))?;
+    ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(e.to_owned()))
 }
 
 fn parse_quantities(json: &str) -> PyResult<Vec<ScientificQuantity>> {
     check_size(json)?;
     let wires: Vec<ScientificQuantityWire> = serde_json::from_str(json)
-        .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid coordinates: {e}")))?;
     wires
         .into_iter()
-        .map(|wire| {
-            ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(e.to_owned()))
-        })
+        .map(|wire| ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(e.to_owned())))
         .collect()
 }
 
 fn parse_support(name: &str) -> PyResult<SupportStatus> {
     SupportStatus::from_name(name)
-        .ok_or_else(|| PyValueError::new_err(format!("unknown support status {name:?}")))
+        .ok_or_else(|| crate::value_err(format!("unknown support status {name:?}")))
 }
 
 fn parse_requirement(name: &str) -> PyResult<TrustRequirement> {
@@ -129,7 +126,7 @@ fn parse_requirement(name: &str) -> PyResult<TrustRequirement> {
         "unrestricted" => Ok(TrustRequirement::Unrestricted),
         "native" => Ok(TrustRequirement::Native),
         "exact_request_verified" => Ok(TrustRequirement::ExactRequestVerified),
-        other => Err(PyValueError::new_err(format!("unknown trust requirement {other:?}"))),
+        other => Err(crate::value_err(format!("unknown trust requirement {other:?}"))),
     }
 }
 
@@ -173,7 +170,7 @@ impl PyTrustEvidence {
     #[staticmethod]
     fn attested(attestor: &str) -> PyResult<Self> {
         if attestor.trim().is_empty() {
-            return Err(PyValueError::new_err("an attestation names its attestor"));
+            return Err(crate::value_err("an attestation names its attestor"));
         }
         Ok(Self {
             inner: DesignTrust::External(ExternalTrustState::ExternallyAttested {
@@ -381,7 +378,7 @@ fn composition_input_from_native_claim(
     use antecedent::analysis::native_claims::NativeDecisionSource;
     use antecedent_io::external_binding_wire::RefusalWire;
     if contract_json.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("native composition contract exceeds bounds"));
+        return Err(crate::value_err("native composition contract exceeds bounds"));
     }
     let refused = |refusal| -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
         Ok((None, Some(serde_json::to_string(&RefusalWire::from(refusal)).map_err(serialization)?)))
@@ -393,7 +390,7 @@ fn composition_input_from_native_claim(
     let requirement = match contract.source_requirement() {
         Ok(Some(requirement)) => requirement,
         Ok(None) => {
-            return Err(PyValueError::new_err("native composition requires a source criterion"));
+            return Err(crate::value_err("native composition requires a source criterion"));
         }
         Err(error) => return refused(error.to_refusal()),
     };
@@ -588,7 +585,7 @@ fn composition_input_from_external_claim(
         .cloned()
         .map(ScientificQuantity::try_from)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| PyValueError::new_err(error))?;
+        .map_err(|error| crate::value_err(error))?;
     let statuses = identity
         .point_status
         .iter()
@@ -773,7 +770,7 @@ fn parse_unsupported(name: &str) -> PyResult<UnsupportedActionPolicy> {
     match name {
         "compare_supported" => Ok(UnsupportedActionPolicy::CompareSupported),
         "require_all" => Ok(UnsupportedActionPolicy::RequireAllActions),
-        other => Err(PyValueError::new_err(format!("unknown unsupported-action policy {other:?}"))),
+        other => Err(crate::value_err(format!("unknown unsupported-action policy {other:?}"))),
     }
 }
 
@@ -844,8 +841,8 @@ fn functional_from(wire: &FunctionalWire) -> Option<DecisionFunctional> {
 pub(crate) fn parsed_functional(json: &str) -> PyResult<DecisionFunctional> {
     check_size(json)?;
     let wire: FunctionalWire =
-        serde_json::from_str(json).map_err(|error| PyValueError::new_err(error.to_string()))?;
-    functional_from(&wire).ok_or_else(|| PyValueError::new_err("unknown functional"))
+        serde_json::from_str(json).map_err(|error| crate::value_err(error.to_string()))?;
+    functional_from(&wire).ok_or_else(|| crate::value_err("unknown functional"))
 }
 
 /// One functional of one action's utility from one input. A mean or scalar
@@ -863,9 +860,9 @@ fn composition_functional(
     check_size(functional_json)?;
     let weakest = parse_support(weakest_support)?;
     let wire: FunctionalWire = serde_json::from_str(functional_json)
-        .map_err(|e| PyValueError::new_err(format!("invalid functional: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid functional: {e}")))?;
     let functional = functional_from(&wire)
-        .ok_or_else(|| PyValueError::new_err("an unknown or incomplete functional"))?;
+        .ok_or_else(|| crate::value_err("an unknown or incomplete functional"))?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
         Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
@@ -1042,13 +1039,13 @@ struct AtomWire {
 fn composition_check_atoms(atoms_json: &str, combination: &str) -> PyResult<Pair> {
     check_size(atoms_json)?;
     let wires: Vec<AtomWire> = serde_json::from_str(atoms_json)
-        .map_err(|e| PyValueError::new_err(format!("invalid atoms: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid atoms: {e}")))?;
     let combination = match combination {
         "report_each" => AtomCombination::ReportEach,
         "worst_case" => AtomCombination::WorstCase,
         "weighted_by_declared_probabilities" => AtomCombination::WeightedByDeclaredProbabilities,
         other => {
-            return Err(PyValueError::new_err(format!("unknown atom combination {other:?}")));
+            return Err(crate::value_err(format!("unknown atom combination {other:?}")));
         }
     };
     let atoms: Vec<StructuralAtom> = wires

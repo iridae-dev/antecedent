@@ -19,7 +19,6 @@ use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -113,7 +112,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
                 any_of: vec![mode],
                 sampled_needs_error_receipt: false,
             })
-            .map_err(|cause| PyValueError::new_err(format!("{}: {}", cause.code, cause.detail)))?;
+            .map_err(|cause| crate::value_err(format!("{}: {}", cause.code, cause.detail)))?;
         return Ok(match source.source {
             NativeDecisionSource::Mean(source) => ForwardClaim::Means(source),
             NativeDecisionSource::JointLaw(law) => ForwardClaim::Law(law),
@@ -125,13 +124,12 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
     if let Ok(text) = object.extract::<String>() {
         check_size(&text)?;
         let means: MeansIn = serde_json::from_str(&text)
-            .map_err(|e| PyValueError::new_err(format!("invalid mean claim: {e}")))?;
+            .map_err(|e| crate::value_err(format!("invalid mean claim: {e}")))?;
         let coordinates = means
             .coordinates
             .into_iter()
             .map(|wire| {
-                ScientificQuantity::try_from(wire)
-                    .map_err(|e| PyValueError::new_err(String::from(e)))
+                ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(String::from(e)))
             })
             .collect::<PyResult<Vec<_>>>()?;
         return Ok(ForwardClaim::Means(MeanSource {
@@ -143,7 +141,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
             rng_id: means.rng_id,
         }));
     }
-    Err(PyValueError::new_err("a forward claim is a native law artifact or a mean grid"))
+    Err(crate::value_err("a forward claim is a native law artifact or a mean grid"))
 }
 
 /// One scenario or set member: `(id, probability, kind, payload)` where `kind` is
@@ -156,12 +154,12 @@ fn atom_from(object: &Bound<'_, PyAny>) -> PyResult<StructuralAtom> {
         ("evaluated", Some(law)) => match claim_from(&law)? {
             ForwardClaim::Law(artifact) => AtomEvidence::Evaluated(artifact),
             ForwardClaim::Means(_) => {
-                return Err(PyValueError::new_err("a scenario or set member needs a law"));
+                return Err(crate::value_err("a scenario or set member needs a law"));
             }
         },
         ("unidentified", _) => AtomEvidence::Unidentified,
         ("unevaluated", Some(reason)) => AtomEvidence::Unevaluated(reason.extract::<String>()?),
-        _ => return Err(PyValueError::new_err("unknown scenario state")),
+        _ => return Err(crate::value_err("unknown scenario state")),
     };
     Ok(StructuralAtom { id, probability, evidence })
 }
@@ -415,7 +413,7 @@ fn inverse_query_baseline(
     let comparison = match comparison {
         "at_least" => Comparison::AtLeast,
         "at_most" => Comparison::AtMost,
-        other => return Err(PyValueError::new_err(format!("unknown comparison `{other}`"))),
+        other => return Err(crate::value_err(format!("unknown comparison `{other}`"))),
     };
     let points: Vec<BaselinePointIn> = match serde_json::from_str(points_json) {
         Ok(points) => points,

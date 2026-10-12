@@ -13,21 +13,19 @@ use antecedent_prob::{
     compose_external_priors, compose_external_priors_with_alphas,
 };
 use antecedent_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::py_err;
 
-/// Convert any `Display`-able error into a `PyValueError`.
+/// Convert any `Display`-able error into the registered value error.
 ///
-/// Deliberately *not* the crate's `py_err` / `IntoCausalPyErr` mechanism: the
-/// error types converted here (`antecedent_prob`, `antecedent_validate`, `serde_json`,
-/// ...) don't implement `IntoCausalPyErr`, so routing them through it would silently
-/// change the raised exception type. Every call site below was already raising
-/// `PyValueError` before this helper existed; this only removes the repeated closure.
+/// These types (`antecedent_prob`, `antecedent_validate`, `serde_json`, ...) do not
+/// implement `IntoCausalPyErr`. They are invalid input, so they go through
+/// [`crate::value_err`] (the registered `CausalValueError`) rather than the root
+/// `CausalError`.
 pub(crate) fn pyvalue<E: std::fmt::Display>(e: E) -> PyErr {
-    PyValueError::new_err(e.to_string())
+    crate::value_err(e.to_string())
 }
 
 fn role_from_str(s: &str) -> PyResult<DesignVariableRole> {
@@ -36,7 +34,7 @@ fn role_from_str(s: &str) -> PyResult<DesignVariableRole> {
         "outcome" => Ok(DesignVariableRole::Outcome),
         "covariate" => Ok(DesignVariableRole::Covariate),
         "other" => Ok(DesignVariableRole::Other),
-        other => Err(PyValueError::new_err(format!("unknown design role `{other}`"))),
+        other => Err(crate::value_err(format!("unknown design role `{other}`"))),
     }
 }
 
@@ -50,10 +48,8 @@ fn role_to_str(r: DesignVariableRole) -> &'static str {
 }
 
 pub(crate) fn mapping_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorMapping> {
-    let kind: String = d
-        .get_item("kind")?
-        .ok_or_else(|| PyValueError::new_err("mapping requires kind"))?
-        .extract()?;
+    let kind: String =
+        d.get_item("kind")?.ok_or_else(|| crate::value_err("mapping requires kind"))?.extract()?;
     match kind.as_str() {
         "identical_coefficient_subspace" | "IdenticalCoefficientSubspace" => {
             Ok(PriorMapping::IdenticalCoefficientSubspace)
@@ -61,46 +57,46 @@ pub(crate) fn mapping_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorMapping>
         "effect_functional" | "EffectFunctional" => {
             let q: String = d
                 .get_item("source_quantity")?
-                .ok_or_else(|| PyValueError::new_err("EffectFunctional requires source_quantity"))?
+                .ok_or_else(|| crate::value_err("EffectFunctional requires source_quantity"))?
                 .extract()?;
             Ok(PriorMapping::EffectFunctional { source_quantity: q })
         }
         "named_parameters" | "NamedParameters" => {
             let pairs_obj = d
                 .get_item("pairs")?
-                .ok_or_else(|| PyValueError::new_err("NamedParameters requires pairs"))?;
+                .ok_or_else(|| crate::value_err("NamedParameters requires pairs"))?;
             let pairs: Vec<(String, String)> = pairs_obj.extract()?;
             Ok(PriorMapping::NamedParameters { pairs })
         }
-        other => Err(PyValueError::new_err(format!("unknown PriorMapping kind `{other}`"))),
+        other => Err(crate::value_err(format!("unknown PriorMapping kind `{other}`"))),
     }
 }
 
 pub(crate) fn meta_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSourceMeta> {
     let artifact_id: String = d
         .get_item("artifact_id")?
-        .ok_or_else(|| PyValueError::new_err("meta.artifact_id required"))?
+        .ok_or_else(|| crate::value_err("meta.artifact_id required"))?
         .extract()?;
     let estimand_obj =
-        d.get_item("estimand")?.ok_or_else(|| PyValueError::new_err("meta.estimand required"))?;
+        d.get_item("estimand")?.ok_or_else(|| crate::value_err("meta.estimand required"))?;
     let estimand_d = estimand_obj.cast::<PyDict>()?;
     let estimand = EstimandFingerprint::new(
         estimand_d
             .get_item("query_kind")?
-            .ok_or_else(|| PyValueError::new_err("estimand.query_kind required"))?
+            .ok_or_else(|| crate::value_err("estimand.query_kind required"))?
             .extract::<String>()?,
         estimand_d
             .get_item("treatment")?
-            .ok_or_else(|| PyValueError::new_err("estimand.treatment required"))?
+            .ok_or_else(|| crate::value_err("estimand.treatment required"))?
             .extract::<String>()?,
         estimand_d
             .get_item("outcome")?
-            .ok_or_else(|| PyValueError::new_err("estimand.outcome required"))?
+            .ok_or_else(|| crate::value_err("estimand.outcome required"))?
             .extract::<String>()?,
     );
     let identification: String = d
         .get_item("identification")?
-        .ok_or_else(|| PyValueError::new_err("meta.identification required"))?
+        .ok_or_else(|| crate::value_err("meta.identification required"))?
         .extract()?;
     let mut meta = PriorSourceMeta::new(artifact_id, estimand, identification);
 
@@ -115,11 +111,11 @@ pub(crate) fn meta_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSourceMeta>
             let rd = row.cast::<PyDict>()?;
             let name: String = rd
                 .get_item("name")?
-                .ok_or_else(|| PyValueError::new_err("design entry needs name"))?
+                .ok_or_else(|| crate::value_err("design entry needs name"))?
                 .extract()?;
             let role_s: String = rd
                 .get_item("role")?
-                .ok_or_else(|| PyValueError::new_err("design entry needs role"))?
+                .ok_or_else(|| crate::value_err("design entry needs role"))?
                 .extract()?;
             design.push(DesignVariableSummary::new(name, role_from_str(&role_s)?));
         }
@@ -182,9 +178,8 @@ fn prior_catalog_filter<'py>(
     let mut refs = Vec::with_capacity(sources.len());
     for item in sources.iter() {
         let d = item.cast::<PyDict>()?;
-        let meta_obj = d
-            .get_item("meta")?
-            .ok_or_else(|| PyValueError::new_err("source requires meta dict"))?;
+        let meta_obj =
+            d.get_item("meta")?.ok_or_else(|| crate::value_err("source requires meta dict"))?;
         let meta = meta_from_dict(meta_obj.cast::<PyDict>()?)?;
         let artifact = match d.get_item("artifact")? {
             Some(a) if !a.is_none() => {
@@ -199,19 +194,18 @@ fn prior_catalog_filter<'py>(
         });
     }
 
-    let estimand_obj = target
-        .get_item("estimand")?
-        .ok_or_else(|| PyValueError::new_err("target.estimand required"))?;
+    let estimand_obj =
+        target.get_item("estimand")?.ok_or_else(|| crate::value_err("target.estimand required"))?;
     let ed = estimand_obj.cast::<PyDict>()?;
     let estimand = EstimandFingerprint::new(
         ed.get_item("query_kind")?
-            .ok_or_else(|| PyValueError::new_err("estimand.query_kind"))?
+            .ok_or_else(|| crate::value_err("estimand.query_kind"))?
             .extract::<String>()?,
         ed.get_item("treatment")?
-            .ok_or_else(|| PyValueError::new_err("estimand.treatment"))?
+            .ok_or_else(|| crate::value_err("estimand.treatment"))?
             .extract::<String>()?,
         ed.get_item("outcome")?
-            .ok_or_else(|| PyValueError::new_err("estimand.outcome"))?
+            .ok_or_else(|| crate::value_err("estimand.outcome"))?
             .extract::<String>()?,
     );
     let variables: Vec<String> = match target.get_item("variables")? {
@@ -249,11 +243,11 @@ fn prior_catalog_rank<'py>(
         let d = item.cast::<PyDict>()?;
         let status: String = d
             .get_item("status")?
-            .ok_or_else(|| PyValueError::new_err("report.status required"))?
+            .ok_or_else(|| crate::value_err("report.status required"))?
             .extract()?;
         let artifact_id: String = d
             .get_item("artifact_id")?
-            .ok_or_else(|| PyValueError::new_err("report.artifact_id required"))?
+            .ok_or_else(|| crate::value_err("report.artifact_id required"))?
             .extract()?;
         let report = match status.as_str() {
             "compatible" => CompatibilityReport::Compatible { artifact_id },
@@ -277,7 +271,7 @@ fn prior_catalog_rank<'py>(
                 },
             },
             other => {
-                return Err(PyValueError::new_err(format!("unknown report status `{other}`")));
+                return Err(crate::value_err(format!("unknown report status `{other}`")));
             }
         };
         parsed.push(report);
@@ -349,9 +343,7 @@ fn decode_prior_source_meta(py: Python<'_>, bytes: Vec<u8>) -> PyResult<Bound<'_
 
 fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> {
     if mean.len() != variance.len() || mean.is_empty() {
-        return Err(PyValueError::new_err(
-            "prior mean/variance must be non-empty and equal length",
-        ));
+        return Err(crate::value_err("prior mean/variance must be non-empty and equal length"));
     }
     let coef = GaussianCoefficientPrior {
         mean: std::sync::Arc::from(mean.to_vec()),
@@ -365,19 +357,15 @@ fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> 
 
 fn source_from_dict(d: &Bound<'_, PyDict>) -> PyResult<ExternalPriorSource> {
     let id: String =
-        d.get_item("id")?.ok_or_else(|| PyValueError::new_err("source.id required"))?.extract()?;
-    let mean: Vec<f64> = d
-        .get_item("mean")?
-        .ok_or_else(|| PyValueError::new_err("source.mean required"))?
-        .extract()?;
+        d.get_item("id")?.ok_or_else(|| crate::value_err("source.id required"))?.extract()?;
+    let mean: Vec<f64> =
+        d.get_item("mean")?.ok_or_else(|| crate::value_err("source.mean required"))?.extract()?;
     let variance: Vec<f64> = d
         .get_item("variance")?
-        .ok_or_else(|| PyValueError::new_err("source.variance required"))?
+        .ok_or_else(|| crate::value_err("source.variance required"))?
         .extract()?;
-    let alpha: f64 = d
-        .get_item("alpha")?
-        .ok_or_else(|| PyValueError::new_err("source.alpha required"))?
-        .extract()?;
+    let alpha: f64 =
+        d.get_item("alpha")?.ok_or_else(|| crate::value_err("source.alpha required"))?.extract()?;
     let mixture_weight: Option<f64> = match d.get_item("mixture_weight")? {
         None => None,
         Some(v) if v.is_none() => None,
@@ -428,7 +416,7 @@ fn composed_to_dict<'py>(
     let coef = composed
         .prior
         .gaussian_coefficients()
-        .ok_or_else(|| PyValueError::new_err("composed prior missing coefficients"))?;
+        .ok_or_else(|| crate::value_err("composed prior missing coefficients"))?;
     let d = PyDict::new(py);
     d.set_item("mean", coef.mean.as_ref())?;
     d.set_item("variance", coef.variance.as_ref())?;
@@ -490,7 +478,7 @@ fn sources_to_py_list<'py>(
         let coef = s
             .prior
             .gaussian_coefficients()
-            .ok_or_else(|| PyValueError::new_err("source missing coefficients"))?;
+            .ok_or_else(|| crate::value_err("source missing coefficients"))?;
         sd.set_item("mean", coef.mean.as_ref())?;
         sd.set_item("variance", coef.variance.as_ref())?;
         sd.set_item("alpha", s.weight.alpha)?;
@@ -537,7 +525,7 @@ fn compose_transport_path<'py>(
     let pop_owned: Vec<Option<String>> = match source_populations {
         Some(v) => {
             if v.len() != srcs.len() {
-                return Err(PyValueError::new_err("source_populations length must match sources"));
+                return Err(crate::value_err("source_populations length must match sources"));
             }
             v
         }
@@ -552,7 +540,7 @@ fn compose_transport_path<'py>(
         (None, None) => None,
         (Some(e), Some(w)) => Some(TransportAdjustment::new(e, w).map_err(pyvalue)?),
         _ => {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "unit_effects and transport_weights must be provided together",
             ));
         }
@@ -578,7 +566,7 @@ fn compose_transport_path<'py>(
 
     if let Some(c) = conflict {
         let policy_c = conflict_policy_from_dict(Some(c))?
-            .ok_or_else(|| PyValueError::new_err("conflict dict invalid"))?;
+            .ok_or_else(|| crate::value_err("conflict dict invalid"))?;
         let signals = conflict_signals_from_list(conflict_signals, prepared.len())?;
         let (composed2, summary) =
             apply_conflict_and_compose(&prepared, baseline, &policy_c, &signals)
@@ -740,7 +728,7 @@ pub(crate) fn owned_composed_prior_from_dict(
 ) -> PyResult<OwnedComposedPrior> {
     let sources_obj = composed
         .get_item("sources")?
-        .ok_or_else(|| PyValueError::new_err("composed_prior.sources required"))?;
+        .ok_or_else(|| crate::value_err("composed_prior.sources required"))?;
     let sources_list = sources_obj.cast::<PyList>()?;
     let sources = sources_from_list(sources_list)?;
     let alphas_requested: Vec<f64> = match composed.get_item("alphas_requested")? {
@@ -776,7 +764,7 @@ pub(crate) fn apply_owned_composed_prior(
         .sources
         .first()
         .and_then(|s| s.prior.gaussian_coefficients().map(GaussianCoefficientPrior::len))
-        .ok_or_else(|| PyValueError::new_err("composed prior sources empty"))?;
+        .ok_or_else(|| crate::value_err("composed prior sources empty"))?;
     let baseline = PriorSet::weakly_informative(baseline_n);
     let mut prior_composed = compose_external_priors_with_alphas(
         &owned.sources,

@@ -20,11 +20,11 @@ use antecedent::analysis::compact_export::{
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
-use crate::{detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err_code};
 
 /// A bounded-input error carrying the registered `invalid_argument` code.
 fn invalid_argument(message: String) -> PyErr {
-    with_reason_code(value_err(message), antecedent_core::reason_code!("invalid_argument"))
+    value_err_code(antecedent_core::reason_code!("invalid_argument"), message)
 }
 
 /// Largest declaration / query JSON accepted.

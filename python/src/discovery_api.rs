@@ -9,7 +9,6 @@
 use crate::*;
 use antecedent::GraphRef;
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -74,11 +73,11 @@ fn static_dag_graph_edges(names: &[String], dag: &Dag) -> Vec<GraphEdge> {
     dag.edges().map(|e| graph_edge_from_marked(names, dag.nodes(), e)).collect()
 }
 
-fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
+fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> PyResult<Vec<GraphEdge>> {
     let nodes = pag.nodes();
     let mut out = Vec::new();
     for i in 0..pag.node_count() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        let a = DenseNodeId::from_raw(crate::fit_u32(i)?);
         for (b, at_a, at_b) in pag.neighbors(a) {
             if b.raw() < a.raw() {
                 continue;
@@ -90,14 +89,14 @@ fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
             ));
         }
     }
-    out
+    Ok(out)
 }
 
-fn static_pag_graph_edges(names: &[String], pag: &Pag) -> Vec<GraphEdge> {
+fn static_pag_graph_edges(names: &[String], pag: &Pag) -> PyResult<Vec<GraphEdge>> {
     let nodes = pag.nodes();
     let mut out = Vec::new();
     for i in 0..pag.node_count() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        let a = DenseNodeId::from_raw(crate::fit_u32(i)?);
         for (b, at_a, at_b) in pag.neighbors(a) {
             if b.raw() < a.raw() {
                 continue;
@@ -109,7 +108,7 @@ fn static_pag_graph_edges(names: &[String], pag: &Pag) -> Vec<GraphEdge> {
             ));
         }
     }
-    out
+    Ok(out)
 }
 
 fn static_pag_definite_directed_count(pag: &Pag) -> u64 {
@@ -280,7 +279,7 @@ pub(crate) fn accepted_graph_object(
         GraphRef::TemporalPag(g) => {
             Ok(Py::new(py, graphs::TemporalPag { pag: g.clone(), names })?.into_any())
         }
-        _ => Err(PyValueError::new_err("accepted structure has no holdable graph object")),
+        _ => Err(crate::value_err("accepted structure has no holdable graph object")),
     }
 }
 
@@ -305,7 +304,7 @@ impl PcmciDiscoveryResult {
         let (slot, names) = self
             .review
             .as_deref()
-            .ok_or_else(|| PyValueError::new_err("this discovery result retained no review"))?;
+            .ok_or_else(|| crate::value_err("this discovery result retained no review"))?;
         let accepted = match slot {
             ReviewSlot::Dag(r) => crate::accept_dag_review(r.clone(), accept_discovered),
             ReviewSlot::Cpdag(r) => crate::accept_cpdag_review(r.clone(), accept_discovered),
@@ -867,7 +866,7 @@ fn discover_fci(
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
         let directed = static_pag_definite_directed_count(pag);
-        let graph_edges = static_pag_graph_edges(&names, pag);
+        let graph_edges = static_pag_graph_edges(&names, pag)?;
 
         let slot = ReviewSlot::Pag(result.evidence.graph.clone(), result.review.clone());
         Ok(discovery_result_fields(
@@ -925,7 +924,7 @@ fn discover_rfci(
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
         let directed = static_pag_definite_directed_count(pag);
-        let graph_edges = static_pag_graph_edges(&names, pag);
+        let graph_edges = static_pag_graph_edges(&names, pag)?;
 
         let slot = ReviewSlot::Pag(result.evidence.graph.clone(), result.review.clone());
         Ok(discovery_result_fields(
@@ -1060,7 +1059,7 @@ fn discover_lpcmci(
             let pag = &result.evidence.graph;
             let pending = result.review.pending_circles.len() as u64;
             let directed = pag_definite_directed_edge_count(pag);
-            let graph_edges = pag_graph_edges(names, pag);
+            let graph_edges = pag_graph_edges(names, pag)?;
             let slot =
                 ReviewSlot::TemporalPag(result.evidence.graph.clone(), result.review.clone());
             Ok(discovery_result_fields(
@@ -1129,7 +1128,7 @@ fn discover_jpcmci_plus(
     max_cond_size: usize,
 ) -> PyResult<PcmciDiscoveryResult> {
     if env_columns.is_empty() {
-        return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
+        return Err(crate::value_err("discover_jpcmci_plus needs ≥1 environment"));
     }
     let mut batches = Vec::with_capacity(env_columns.len());
     for cols in &env_columns {
@@ -1155,7 +1154,7 @@ fn discover_jpcmci_plus(
         let mut context_ids = Vec::new();
         for cname in &context_names {
             let Some(idx) = names.iter().position(|n| n == cname) else {
-                return Err(PyValueError::new_err(format!(
+                return Err(crate::value_err(format!(
                     "context_names entry '{cname}' not found in names"
                 )));
             };
@@ -1164,7 +1163,7 @@ fn discover_jpcmci_plus(
         let system: Vec<VariableId> =
             all_variables.iter().copied().filter(|v| !context_ids.contains(v)).collect();
         if system.is_empty() {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "discover_jpcmci_plus needs ≥1 system variable after excluding context_names",
             ));
         }
@@ -1242,7 +1241,7 @@ fn discover_rpcmci(
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         if regimes.len() != series.row_count() {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "regimes length {} != series length {}",
                 regimes.len(),
                 series.row_count()
@@ -1251,7 +1250,7 @@ fn discover_rpcmci(
         let assign = RegimeAssignment::try_new(
             regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
         )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        .map_err(|e| crate::value_err(e.to_string()))?;
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -1314,7 +1313,7 @@ fn accept_rpcmci(
     let accepted = detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         if regimes.len() != series.row_count() {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "regimes length {} != series length {}",
                 regimes.len(),
                 series.row_count()
@@ -1323,7 +1322,7 @@ fn accept_rpcmci(
         let assign = RegimeAssignment::try_new(
             regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
         )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        .map_err(|e| crate::value_err(e.to_string()))?;
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -1346,7 +1345,7 @@ fn accept_rpcmci(
             Ok(Py::new(py, graphs::TemporalCpdag { cpdag: cpdag.clone(), names: out_names })?
                 .into_any())
         }
-        _ => Err(PyValueError::new_err("RPCMCI acceptance produced no temporal graph")),
+        _ => Err(crate::value_err("RPCMCI acceptance produced no temporal graph")),
     }
 }
 

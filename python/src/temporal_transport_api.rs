@@ -31,7 +31,7 @@ type CoordinateTuple = (String, String, Option<u32>, Option<String>);
 fn temporal_error(e: IoError) -> PyErr {
     match e {
         IoError::Refused { code, message } if code == reason_code!("invalid_argument") => {
-            crate::with_reason_code(crate::value_err(message), code)
+            crate::value_err_code(code, message)
         }
         other => error(other),
     }

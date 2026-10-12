@@ -11,7 +11,6 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_estimate::estimate_saturation_interference as estimate_native;
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::detach_catch;
@@ -43,7 +42,7 @@ fn estimate_saturation_interference(
         "neighbor_fraction" => ExposureMapping::NeighborFraction,
         "weighted_neighbor_exposure" => ExposureMapping::WeightedNeighborExposure,
         _ => {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "saturation effects support NeighborCount, NeighborFraction, or WeightedNeighborExposure",
             ));
         }
@@ -53,7 +52,7 @@ fn estimate_saturation_interference(
         .any(|v| !v.is_finite() || *v < 0.0)
         || (low_neighbors - high_neighbors).abs() <= 1e-12
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "neighbor exposure levels must be finite, non-negative, and low/high must differ",
         ));
     }

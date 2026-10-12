@@ -8,7 +8,6 @@ use antecedent_estimate::{
     ObservationalExposureSpec, estimate_observational_exposure as estimate_native,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::detach_catch;
@@ -40,7 +39,7 @@ fn estimate_observational_network_exposure(
         "neighbor_fraction" => ExposureMapping::NeighborFraction,
         "weighted_neighbor_exposure" => ExposureMapping::WeightedNeighborExposure,
         _ => {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "observational network exposure requires NeighborCount, NeighborFraction, or WeightedNeighborExposure",
             ));
         }
@@ -49,7 +48,7 @@ fn estimate_observational_network_exposure(
         "known" => ExposurePropensityProvenance::Known,
         "externally_estimated" => ExposurePropensityProvenance::ExternallyEstimated,
         _ => {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "propensity_provenance must be known or externally_estimated",
             ));
         }

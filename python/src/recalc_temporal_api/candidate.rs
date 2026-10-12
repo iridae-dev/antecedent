@@ -299,7 +299,7 @@ fn consume_checked_temporal_interval_candidate(
         parse_json(expected_identity_json, "expected checked temporal interval identity")?;
     crate::detach_catch(py, move || {
         let wire: CandidateWire = antecedent_io::from_cbor(&bytes)
-            .map_err(|cause| crate::CausalSerializationError::new_err(cause.to_string()))?;
+            .map_err(|cause| crate::serialization_err(cause.to_string()))?;
         if wire.version != 1
             || wire.required_features != [FEATURE]
             || wire.calibration != "unmeasured"

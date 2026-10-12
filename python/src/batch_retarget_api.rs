@@ -10,7 +10,6 @@ use antecedent::{
     RetargetClaim, RetargetContrast,
 };
 use antecedent_core::{ExecutionContext, VariableId};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::ate_api::PyPreparedBatch;
@@ -199,10 +198,8 @@ fn report_json(report: &BatchRetargetReport, simultaneous: serde_json::Value) ->
 impl PyPreparedBatch {
     /// The scores a retarget now reads: the last estimate's, else the prepare-time tables.
     fn current_scores(&self) -> PyResult<BatchScores> {
-        let retained = self
-            .last_scores
-            .lock()
-            .map_err(|_| PyValueError::new_err("batch scores lock poisoned"))?;
+        let retained =
+            self.last_scores.lock().map_err(|_| crate::value_err("batch scores lock poisoned"))?;
         Ok(retained.as_ref().map_or_else(|| self.inner.prepared_scores(), |s| s.as_ref().clone()))
     }
 
@@ -211,9 +208,9 @@ impl PyPreparedBatch {
             .names
             .iter()
             .position(|n| n == name)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown depends_on {name}")))?;
+            .ok_or_else(|| crate::value_err(format!("unknown depends_on {name}")))?;
         Ok(VariableId::from_raw(
-            u32::try_from(at).map_err(|_| PyValueError::new_err("too many columns"))?,
+            u32::try_from(at).map_err(|_| crate::value_err("too many columns"))?,
         ))
     }
 }

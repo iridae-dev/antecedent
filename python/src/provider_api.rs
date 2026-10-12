@@ -12,14 +12,13 @@ use antecedent_io::provider_verification_artifact::{
     ProviderVerificationReceiptWire, receipt_from_bytes, receipt_to_bytes,
     verify_execution_requests,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::bridge::{check_declared_len, check_declared_size};
 
 fn value_error(message: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(message.to_string())
+    crate::value_err(message.to_string())
 }
 
 #[pyfunction]

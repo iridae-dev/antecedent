@@ -35,7 +35,7 @@ fn declared_input(
 fn error(e: IoError) -> PyErr {
     match e {
         IoError::Refused { code, message } if code == reason_code!("invalid_argument") => {
-            crate::with_reason_code(crate::value_err(message), code)
+            crate::value_err_code(code, message)
         }
         IoError::Refused { code, message } => crate::refusal(code, message),
         other => crate::value_err(other.to_string()),

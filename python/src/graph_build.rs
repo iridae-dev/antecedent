@@ -8,7 +8,6 @@ use antecedent_data::{
     SamplingRegularity, TableView, TabularData, TimeDummyEncoding, TimeIndex, TimeSeriesData,
 };
 use antecedent_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{CausalDataError, py_err};
@@ -22,7 +21,7 @@ pub(crate) fn require_named_graph_order(
     kind: &str,
 ) -> PyResult<()> {
     if graph_names != data_names {
-        return Err(PyValueError::new_err(format!(
+        return Err(crate::value_err(format!(
             "{kind} variable names must match data column names and order"
         )));
     }
@@ -36,8 +35,7 @@ pub(crate) fn dag_from_named_edges(
     schema: &CausalSchema,
     edges: &[(String, String)],
 ) -> PyResult<Dag> {
-    let n_vars =
-        u32::try_from(schema.len()).map_err(|_| PyValueError::new_err("too many variables"))?;
+    let n_vars = u32::try_from(schema.len()).map_err(|_| crate::value_err("too many variables"))?;
     let mut dag = Dag::with_variables(n_vars);
     for (from, to) in edges {
         let from_id = schema_var_id(schema, from)?;
@@ -97,7 +95,7 @@ pub(crate) fn parse_space_dummy_ci(s: &str) -> PyResult<SpaceDummyCiMode> {
     match s {
         "scalar" | "scalar_one_hot" | "one_hot" => Ok(SpaceDummyCiMode::ScalarOneHot),
         "multivariate" | "multivariate_block" | "block" => Ok(SpaceDummyCiMode::MultivariateBlock),
-        other => Err(PyValueError::new_err(format!(
+        other => Err(crate::value_err(format!(
             "space_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
         ))),
     }
@@ -107,7 +105,7 @@ pub(crate) fn parse_time_dummy_ci(s: &str) -> PyResult<TimeDummyCiMode> {
     match s {
         "scalar" | "scalar_one_hot" | "one_hot" => Ok(TimeDummyCiMode::ScalarOneHot),
         "multivariate" | "multivariate_block" | "block" => Ok(TimeDummyCiMode::MultivariateBlock),
-        other => Err(PyValueError::new_err(format!(
+        other => Err(crate::value_err(format!(
             "time_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
         ))),
     }
@@ -117,7 +115,7 @@ pub(crate) fn parse_time_dummy_encoding(s: &str) -> PyResult<TimeDummyEncoding> 
     match s {
         "integer" | "integer_index" | "index" => Ok(TimeDummyEncoding::IntegerIndex),
         "one_hot" | "onehot" | "oh" => Ok(TimeDummyEncoding::OneHot),
-        other => Err(PyValueError::new_err(format!(
+        other => Err(crate::value_err(format!(
             "time_dummy_encoding must be 'integer' or 'one_hot', got '{other}'"
         ))),
     }

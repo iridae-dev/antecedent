@@ -8,7 +8,6 @@ use antecedent_core::{
     ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
     TemporalPolicy, Value, VariableId,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::py_err;
@@ -192,8 +191,7 @@ impl ResponseAnalysisResult {
         else {
             return Ok(None);
         };
-        let grid =
-            treatment.grid.values().map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let grid = treatment.grid.values().map_err(|error| crate::value_err(error.to_string()))?;
         let named =
             |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
         Ok(Some(
@@ -236,14 +234,14 @@ impl ResponseAnalysisResult {
                 let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
                     quantities.iter().map(Into::into).collect();
                 let json = serde_json::to_string(&wires)
-                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                    .map_err(|error| crate::value_err(error.to_string()))?;
                 Ok((Some(json), None))
             }
             Err(refusal) => {
                 let json = serde_json::to_string(
                     &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
                 )
-                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                .map_err(|error| crate::value_err(error.to_string()))?;
                 Ok((None, Some(json)))
             }
         }
@@ -267,7 +265,7 @@ pub(crate) fn resolve_names(
     names: &[String],
 ) -> PyResult<Vec<VariableId>> {
     if names.is_empty() {
-        return Err(PyValueError::new_err("response variables must not be empty"));
+        return Err(crate::value_err("response variables must not be empty"));
     }
     names.iter().map(|name| schema.id_of(name).map_err(py_err)).collect()
 }
@@ -289,7 +287,7 @@ pub(crate) fn build_functional(
     let scalar = || -> PyResult<(VariableId, VariableId)> {
         match (treatments, outcomes) {
             ([treatment], [outcome]) => Ok((*treatment, *outcome)),
-            _ => Err(PyValueError::new_err(
+            _ => Err(crate::value_err(
                 "this response functional requires one treatment and one outcome",
             )),
         }
@@ -302,7 +300,7 @@ pub(crate) fn build_functional(
                 treatment: antecedent_core::ContinuousDomain::new(
                     treatment,
                     GridSpec::Values(Arc::from(
-                        grid.ok_or_else(|| PyValueError::new_err("grid is required"))?,
+                        grid.ok_or_else(|| crate::value_err("grid is required"))?,
                     )),
                 ),
             })
@@ -317,37 +315,35 @@ pub(crate) fn build_functional(
                 .as_deref()
                 .and_then(|values| values.first())
                 .copied()
-                .ok_or_else(|| PyValueError::new_err("at is required"))?;
+                .ok_or_else(|| crate::value_err("at is required"))?;
             Ok(ResponseFunctional::PointDerivative { outcome, treatment, at: point, order, scale })
         }
         "directional_derivative" => Ok(ResponseFunctional::DirectionalDerivative {
             outcomes: Arc::from(outcomes),
             treatments: Arc::from(treatments),
-            at: Arc::from(at.ok_or_else(|| PyValueError::new_err("at is required"))?),
+            at: Arc::from(at.ok_or_else(|| crate::value_err("at is required"))?),
             direction: Arc::from(
-                direction.ok_or_else(|| PyValueError::new_err("direction is required"))?,
+                direction.ok_or_else(|| crate::value_err("direction is required"))?,
             ),
         }),
         "response_jacobian" => Ok(ResponseFunctional::Jacobian {
             outcomes: Arc::from(outcomes),
             treatments: Arc::from(treatments),
-            at: Arc::from(at.ok_or_else(|| PyValueError::new_err("at is required"))?),
+            at: Arc::from(at.ok_or_else(|| crate::value_err("at is required"))?),
             scale,
         }),
         "intervention_response" => {
             let [outcome] = outcomes else {
-                return Err(PyValueError::new_err(
-                    "InterventionResponse requires exactly one outcome",
-                ));
+                return Err(crate::value_err("InterventionResponse requires exactly one outcome"));
             };
             let kinds = intervention_kinds.ok_or_else(|| {
-                PyValueError::new_err("InterventionResponse requires intervention kinds")
+                crate::value_err("InterventionResponse requires intervention kinds")
             })?;
             let parameters = intervention_parameters.ok_or_else(|| {
-                PyValueError::new_err("InterventionResponse requires intervention parameters")
+                crate::value_err("InterventionResponse requires intervention parameters")
             })?;
             if treatments.len() != kinds.len() || kinds.len() != parameters.len() {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "intervention variables, kinds, and parameters must have equal lengths",
                 ));
             }
@@ -364,7 +360,7 @@ pub(crate) fn build_functional(
                 interventions: Arc::from(interventions),
             })
         }
-        _ => Err(PyValueError::new_err(format!(
+        _ => Err(crate::value_err(format!(
             "response functional {kind:?} is not executable by this estimator"
         ))),
     }
@@ -383,7 +379,7 @@ pub(crate) fn wrap_temporal_sequence_steps(
     let vars: Vec<VariableId> =
         interventions.iter().filter_map(Intervention::primary_variable).collect();
     if vars.len() != interventions.len() {
-        return Err(PyValueError::new_err("each Sequence step must name one treatment variable"));
+        return Err(crate::value_err("each Sequence step must name one treatment variable"));
     }
     let same_var = vars.iter().all(|variable| *variable == vars[0]);
     let unique = {
@@ -393,13 +389,12 @@ pub(crate) fn wrap_temporal_sequence_steps(
         seen.len() == vars.len()
     };
     let offsets: Vec<i32> = if same_var {
-        let n =
-            i32::try_from(vars.len()).map_err(|_| PyValueError::new_err("Sequence is too long"))?;
+        let n = i32::try_from(vars.len()).map_err(|_| crate::value_err("Sequence is too long"))?;
         (0..n).map(|i| origin - (n - 1 - i)).collect()
     } else if unique {
         vec![origin; vars.len()]
     } else {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "Sequence schedule is ambiguous; use one variable for a multi-step policy \
              or distinct variables for a joint single-time policy",
         ));
@@ -426,7 +421,7 @@ fn intervention_from_parts(
         if parameters.len() == count && parameters.iter().all(|value| value.is_finite()) {
             Ok(())
         } else {
-            Err(PyValueError::new_err(format!(
+            Err(crate::value_err(format!(
                 "{kind} intervention requires {count} finite parameter(s)"
             )))
         }
@@ -453,7 +448,7 @@ fn intervention_from_parts(
         }
         "categorical" => {
             if parameters.is_empty() || parameters.iter().any(|value| !value.is_finite()) {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "categorical intervention requires finite probabilities",
                 ));
             }
@@ -477,17 +472,17 @@ fn intervention_from_parts(
         "soft_truncated_shift" => {
             exactly(3)?;
             if parameters[1] > parameters[2] {
-                return Err(PyValueError::new_err("truncated_shift requires lower <= upper"));
+                return Err(crate::value_err("truncated_shift requires lower <= upper"));
             }
             Ok(Intervention::soft(
                 variable,
                 MechanismOverride::named("truncated_shift", parameters),
             ))
         }
-        "soft" | "sequence" => Err(PyValueError::new_err(format!(
+        "soft" | "sequence" => Err(crate::value_err(format!(
             "{kind} interventions require a structural/temporal model and are not estimable by response.intervention_gcomp"
         ))),
-        _ => Err(PyValueError::new_err(format!("unknown intervention kind {kind:?}"))),
+        _ => Err(crate::value_err(format!("unknown intervention kind {kind:?}"))),
     }
 }
 
@@ -497,14 +492,14 @@ pub(crate) fn parse_scale(value: &str) -> PyResult<DerivativeScale> {
         "log_treatment" => Ok(DerivativeScale::LogTreatment),
         "log_outcome" => Ok(DerivativeScale::LogOutcome),
         "log_log" => Ok(DerivativeScale::LogLog),
-        _ => Err(PyValueError::new_err("unknown derivative scale")),
+        _ => Err(crate::value_err("unknown derivative scale")),
     }
 }
 
 pub(crate) fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
     match value {
         "observed" => Ok(DerivativeWeighting::Observed),
-        _ => Err(PyValueError::new_err("the current ADE estimator supports weighting='observed'")),
+        _ => Err(crate::value_err("the current ADE estimator supports weighting='observed'")),
     }
 }
 
@@ -556,7 +551,7 @@ pub(crate) fn response_result(
             | ResponseIdentification::PartiallyIdentified(value) => value_parts(value)?,
             ResponseIdentification::GraphDependent(_)
             | ResponseIdentification::Unidentified { .. } => {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "the continuous-response estimator expected an identified payload",
                 ));
             }
@@ -809,7 +804,7 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
         }
         ResponseValue::Jacobian { outcomes, treatments, values } => {
             if values.len() != outcomes * treatments {
-                return Err(PyValueError::new_err("invalid Jacobian result shape"));
+                return Err(crate::value_err("invalid Jacobian result shape"));
             }
             Ok((
                 Vec::new(),
@@ -818,7 +813,7 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
                 Some(values.chunks(treatments).map(<[f64]>::to_vec).collect()),
             ))
         }
-        ResponseValue::Envelope(_) => Err(PyValueError::new_err(
+        ResponseValue::Envelope(_) => Err(crate::value_err(
             "identified response envelopes use the bounds API, not this point estimator",
         )),
     }

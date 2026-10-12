@@ -39,7 +39,7 @@ fn refused(error: antecedent::CausalError, names: &[String]) -> PyErr {
         return py_err(error);
     }
     if code == "invalid_argument" {
-        return crate::with_reason_code(crate::value_err(message), code);
+        return crate::value_err_code(code, message);
     }
     crate::refusal(code, message)
 }
@@ -103,7 +103,7 @@ fn evaluate_cross_world_edge_contrast(
     seed: u64,
 ) -> PyResult<(String, Vec<u8>)> {
     let mechanism = mechanism_of(mechanism)?;
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let id = |name: &str| {
             data.schema()
@@ -149,7 +149,7 @@ fn consume_cross_world_edge_contrast_artifact(
 ) -> PyResult<(String, Vec<u8>)> {
     detach_catch(py, move || {
         let effect = consume_cross_world_artifact(&artifact, &py_execution_context(seed, 1))
-            .map_err(|e| crate::CausalSerializationError::new_err(e.to_string()))?;
+            .map_err(|e| crate::serialization_err(e.to_string()))?;
         payload(&effect)
     })
 }

@@ -5,7 +5,7 @@
 use crate::bridge::{
     MAX_DECLARED_ARTIFACT_BYTES, check_declared_len, check_declared_size, serialization,
 };
-use crate::{detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use pyo3::prelude::*;
 
 fn invalid_rollout_request(error: serde_json::Error) -> PyErr {
@@ -71,7 +71,7 @@ fn export_rollout(
 
 fn rollout_error(error: antecedent_io::error::IoError) -> PyErr {
     if let antecedent_io::error::IoError::Refused { code, message } = error {
-        with_reason_code(value_err(message), code)
+        value_err_code(code, message)
     } else {
         serialization(error)
     }
@@ -81,6 +81,27 @@ fn rollout_json(
     artifact: &antecedent_design::rollout_artifact::RolloutArtifact,
 ) -> PyResult<String> {
     let chain = artifact.provenance_chain().map_err(rollout_error)?;
+    let mut lineage = Vec::with_capacity(chain.links().len());
+    for link in chain.links() {
+        let digest = chain
+            .digest_of(&link.id)
+            .map_err(|error| serialization(format!("validated link: {error:?}")))?;
+        let mut parent_digests = Vec::with_capacity(link.parents.len());
+        for id in &link.parents {
+            parent_digests.push(
+                chain
+                    .digest_of(id)
+                    .map_err(|error| serialization(format!("validated parent: {error:?}")))?,
+            );
+        }
+        lineage.push(serde_json::json!({
+            "id": link.id,
+            "stage": link.stage.as_str(),
+            "parents": link.parents,
+            "digest": digest,
+            "parent_digests": parent_digests,
+        }));
+    }
     serde_json::to_string(&serde_json::json!({
         "identity": artifact.digest,
         "expectation": artifact.binding,
@@ -91,10 +112,7 @@ fn rollout_json(
             "source":artifact.binding.source,"state":artifact.binding.state,
             "original_diagnostics":artifact.diagnostic_evidence().map_err(rollout_error)?.map(|evidence| evidence.summary()),
             "native_row_origin_verified":false,
-            "lineage":chain.links().iter().map(|link|serde_json::json!({
-                "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":chain.digest_of(&link.id).expect("validated link"),
-                "parent_digests":link.parents.iter().map(|id|chain.digest_of(id).expect("validated parent")).collect::<Vec<_>>()
-            })).collect::<Vec<_>>()
+            "lineage": lineage
         },
         "native_execution_authority": false,
     }))

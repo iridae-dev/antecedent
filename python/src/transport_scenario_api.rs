@@ -39,7 +39,7 @@ fn scenario_error(e: IoError) -> PyErr {
             if code == reason_code!("schema_mismatch")
                 || code == reason_code!("invalid_argument") =>
         {
-            crate::with_reason_code(crate::value_err(message), code)
+            crate::value_err_code(code, message)
         }
         other => error(other),
     }

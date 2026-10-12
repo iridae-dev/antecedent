@@ -14,7 +14,7 @@ use antecedent::analysis::transported_counterfactual::{
 };
 use pyo3::prelude::*;
 
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, with_reason_code};
 
 /// Largest request / identity JSON accepted.
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_DATA_DECLARATION_BYTES;
@@ -22,12 +22,14 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DATA_DECLARATION_BYTES;
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
-fn refusal_json(error: &TransportedCounterfactualArtifactError) -> Option<String> {
-    let refusal = error.refusal()?;
-    Some(
+fn refusal_json(error: &TransportedCounterfactualArtifactError) -> PyResult<Option<String>> {
+    let Some(refusal) = error.refusal() else {
+        return Ok(None);
+    };
+    Ok(Some(
         serde_json::to_string(&refusal)
-            .expect("a refusal of strings and options always serialises"),
-    )
+            .map_err(|cause| crate::serialization_err(cause.to_string()))?,
+    ))
 }
 
 /// A non-refusal failure: a bound, or a corrupt / other-version artifact.
@@ -37,7 +39,7 @@ fn failure(error: &TransportedCounterfactualArtifactError) -> PyErr {
             value_err(format!("transported_counterfactual.limits_exceeded: {what}")),
             antecedent_core::reason_code!("invalid_argument"),
         ),
-        other => CausalSerializationError::new_err(other.to_string()),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 
@@ -66,10 +68,10 @@ fn evaluate_transported_counterfactual(
         Ok(done) => {
             let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
             let report = serde_json::to_string(&done.report())
-                .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                .map_err(|e| crate::serialization_err(e.to_string()))?;
             Ok((Some(report), Some(bytes), None))
         }
-        Err(error) => match refusal_json(&error) {
+        Err(error) => match refusal_json(&error)? {
             Some(json) => Ok((None, None, Some(json))),
             None => Err(failure(&error)),
         },
@@ -103,10 +105,10 @@ fn consume_transported_counterfactual_artifact(
         match TransportedCounterfactual::consume(&artifact, expected.as_ref()) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
-                    .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
                 Ok((Some(report), None))
             }
-            Err(error) => match refusal_json(&error) {
+            Err(error) => match refusal_json(&error)? {
                 Some(json) => Ok((None, Some(json))),
                 None => Err(failure(&error)),
             },

@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use serde_json::{Value, json};
 
 fn error(e: impl std::fmt::Display) -> PyErr {
-    pyo3::exceptions::PyValueError::new_err(e.to_string())
+    crate::value_err(e.to_string())
 }
 
 fn coordinate(
@@ -147,16 +147,16 @@ pub(crate) fn to_json(
                             .map_err(error)?,
                     )
                     .map_err(error)?;
-                    let nodes: Vec<_> = mag
+                    let nodes = mag
                         .nodes()
                         .iter()
                         .map(|node| match node {
-                            antecedent_core::NodeRef::Lagged { variable, lag } => {
-                                json!({"variable":variable.raw(),"offset":-i64::from(lag.raw())})
-                            }
-                            _ => unreachable!("TemporalPag has lagged nodes"),
+                            antecedent_core::NodeRef::Lagged { variable, lag } => Ok(
+                                json!({"variable":variable.raw(),"offset":-i64::from(lag.raw())}),
+                            ),
+                            _ => Err(error("temporal completion node is not lagged")),
                         })
-                        .collect();
+                        .collect::<Result<Vec<_>, _>>()?;
                     Ok(
                         json!({"kind":"temporal_mag","template_graph":graph,"template_coordinates":nodes}),
                     )

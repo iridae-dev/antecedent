@@ -40,7 +40,7 @@ use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
 use crate::recalc_api::refusal_json;
-use crate::{CausalSerializationError, detach_catch, py_err, py_msg, value_err, with_reason_code};
+use crate::{detach_catch, py_err, py_msg, value_err, with_reason_code};
 
 /// `(result json, receipt artifact bytes, refusal json)`.
 type RunPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
@@ -127,7 +127,7 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
 fn artifact_error(error: &FrozenScoresArtifactError) -> PyErr {
     match error {
         FrozenScoresArtifactError::LimitsExceeded(what) => invalid("recalc.limits_exceeded", what),
-        other => CausalSerializationError::new_err(other.to_string()),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 

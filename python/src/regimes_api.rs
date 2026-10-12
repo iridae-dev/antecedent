@@ -3,7 +3,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
@@ -98,7 +97,7 @@ fn evaluate_longitudinal_regime_value(
         || p.dim() != (n, periods)
         || g.dim() != (n, periods)
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "regime arrays must have matching subject and period dimensions",
         ));
     }
@@ -122,7 +121,7 @@ fn evaluate_longitudinal_regime_value(
             &d,
         )
         .map_err(|message| {
-            PyValueError::new_err(if message.contains("no observed subjects") {
+            crate::value_err(if message.contains("no observed subjects") {
                 "no observed trajectories followed the requested regime"
             } else {
                 message
@@ -162,24 +161,24 @@ fn evaluate_sequential_gformula(
         || subject_ids.len() != n
         || fold_ids.len() != n
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "prediction, regime, probability, subject, and fold inputs must have matching non-zero subject-period dimensions",
         ));
     }
     if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 0.5 {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 0.5]"));
+        return Err(crate::value_err("minimum_probability must be finite and in (0, 0.5]"));
     }
     if subject_ids.iter().any(|id| id.trim().is_empty()) {
-        return Err(PyValueError::new_err("subject_ids must be non-empty strings"));
+        return Err(crate::value_err("subject_ids must be non-empty strings"));
     }
     let unique_subjects: HashSet<&str> = subject_ids.iter().map(String::as_str).collect();
     if unique_subjects.len() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "g-formula inputs require one row per unique subject to preserve fold ownership",
         ));
     }
     if fold_ids.iter().any(|&fold| fold < 0) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "fold_ids must be non-negative to preserve subject-level fold ownership",
         ));
     }
@@ -198,7 +197,7 @@ fn evaluate_sequential_gformula(
             periods,
             minimum_probability,
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok((
         summary.value,
@@ -247,31 +246,31 @@ fn evaluate_sequential_doubly_robust(
         || fold_ids.len() != n
         || prediction_fold_ids.len() != n
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "outcome, history, regime, Q, probability, subject, and fold inputs must have matching non-zero dimensions",
         ));
     }
     if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 0.5 {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 0.5]"));
+        return Err(crate::value_err("minimum_probability must be finite and in (0, 0.5]"));
     }
     if subject_ids.iter().any(|id| id.trim().is_empty()) {
-        return Err(PyValueError::new_err("subject_ids must be non-empty strings"));
+        return Err(crate::value_err("subject_ids must be non-empty strings"));
     }
     let unique_subjects: HashSet<&str> = subject_ids.iter().map(String::as_str).collect();
     if unique_subjects.len() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "doubly robust inputs require one row per unique subject to preserve fold ownership",
         ));
     }
     if fold_ids.iter().any(|&fold| fold < 0)
         || fold_ids.iter().zip(&prediction_fold_ids).any(|(fold, owner)| fold != owner)
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "Q prediction fold ownership must match the non-negative subject fold IDs",
         ));
     }
     if !observed_y.iter().any(|&is_observed| is_observed) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "at least one terminal outcome must be observed for sequential augmentation",
         ));
     }
@@ -301,7 +300,7 @@ fn evaluate_sequential_doubly_robust(
                 q_predictions: &q,
             },
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok((
         summary.value,

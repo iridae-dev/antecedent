@@ -14,7 +14,6 @@ use std::sync::Arc;
 use antecedent::{LatencyMode, RefuteSuite, StudyBuilder};
 use antecedent_core::{PopulationRegistry, TargetPopulation};
 use antecedent_validate::CustomEffectValidator;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -60,7 +59,7 @@ impl InferenceSpec {
             prior_scale: item("prior_scale")?
                 .map(|value| value.extract())
                 .transpose()?
-                .ok_or_else(|| PyValueError::new_err("inference requires prior_scale"))?,
+                .ok_or_else(|| crate::value_err("inference requires prior_scale"))?,
             prior_artifact: item("prior_artifact")?.map(|value| value.extract()).transpose()?,
             prior_mapping: item("prior_mapping")?
                 .map(|value| crate::prior_bank::mapping_from_dict(value.cast::<PyDict>()?))
@@ -124,7 +123,7 @@ impl PrepareOptions {
         for (key, _) in dict.iter() {
             let key: String = key.extract()?;
             if !KEYS.contains(&key.as_str()) {
-                return Err(PyValueError::new_err(format!(
+                return Err(crate::value_err(format!(
                     "unknown prepare option {key:?}; expected one of {KEYS:?}"
                 )));
             }
@@ -139,7 +138,7 @@ impl PrepareOptions {
             .map(|value| {
                 let text: String = value.extract()?;
                 LatencyMode::parse(&text).ok_or_else(|| {
-                    PyValueError::new_err(format!(
+                    crate::value_err(format!(
                         "unknown latency={text:?}; use interactive|standard|report"
                     ))
                 })

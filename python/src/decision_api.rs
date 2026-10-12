@@ -31,7 +31,6 @@ use antecedent_design::decision_structural::{
 };
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -119,11 +118,11 @@ fn evaluate_decision_means(
         Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let wires: Vec<ScientificQuantityWire> = serde_json::from_str(coordinates_json)
-        .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid coordinates: {e}")))?;
     let coordinates = wires
         .into_iter()
         .map(|wire| {
-            ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(String::from(e)))
+            ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(String::from(e)))
         })
         .collect::<PyResult<Vec<_>>>()?;
     let source = MeanSource {

@@ -20,7 +20,7 @@ use serde::Deserialize;
 
 use crate::recalc_api::{
     RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
-    refusal_json,
+    refusal_json, refusal_value,
 };
 use crate::recalc_bounds::check_columns;
 use crate::{detach_catch, py_msg};
@@ -104,7 +104,7 @@ fn diagnostic_number(value: f64) -> serde_json::Value {
 fn design_error(error: &DesignRunError) -> String {
     match error {
         DesignRunError::WeakInstrument { point, model_fits, diagnostics } => {
-            let json = refusal_json(
+            let mut wire = refusal_value(
                 antecedent_core::reason_code!("route_not_supported"),
                 "decision",
                 "recalc.iv_decision_unavailable",
@@ -113,8 +113,6 @@ fn design_error(error: &DesignRunError) -> String {
                 &error.to_string(),
                 None,
             );
-            let mut wire: serde_json::Value =
-                serde_json::from_str(&json).expect("internal refusal JSON");
             wire["fields"] = serde_json::json!({"point":point,"model_fits":model_fits,"diagnostics":{
                 "f_statistic":diagnostic_number(diagnostics.f_statistic),"df1":diagnostics.df1,"df2":diagnostics.df2,"partial_r2":diagnostic_number(diagnostics.partial_r2),
                 "anderson_rubin":diagnostics.anderson_rubin.map(|(lower,upper,level)|serde_json::json!({"lower":diagnostic_number(lower),"upper":diagnostic_number(upper),"nominal_level":level})),

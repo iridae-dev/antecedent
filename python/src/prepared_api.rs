@@ -16,7 +16,6 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyModule};
 
@@ -130,7 +129,7 @@ fn parse_identifier(identifier: Option<String>) -> PyResult<Option<IdentifierId>
 /// An unknown estimator or identifier id, as a reason-coded `ValueError`.
 fn unknown_strategy_err(err: antecedent::strategy_table::UnknownStrategy) -> PyErr {
     crate::with_reason_code(
-        PyValueError::new_err(err.to_string()),
+        crate::value_err(err.to_string()),
         antecedent_core::reason_code!("unknown_strategy"),
     )
 }
@@ -242,7 +241,7 @@ fn temporal_effect_query(
     )?;
     if let Some((from, until)) = window {
         if policy != "sustained" {
-            return Err(PyValueError::new_err("window requires policy='sustained'"));
+            return Err(crate::value_err("window requires policy='sustained'"));
         }
         q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
     }
@@ -276,7 +275,7 @@ fn temporal_mediation_query(
         "direct" => MediationContrast::Direct,
         "mediated" | "indirect" => MediationContrast::Mediated,
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "unknown mediation contrast {other:?}; use total|direct|mediated"
             )));
         }
@@ -312,7 +311,7 @@ fn conditional_query(
         inner = inner.with_outcome_functional(functional);
     }
     Ok(CausalQuery::ConditionalEffect(
-        ConditionalEffectQuery::try_new(inner).map_err(|e| PyValueError::new_err(e.to_string()))?,
+        ConditionalEffectQuery::try_new(inner).map_err(|e| crate::value_err(e.to_string()))?,
     ))
 }
 
@@ -382,7 +381,7 @@ fn parse_response_options(
     for (key, _) in dict.iter() {
         let key: String = key.extract()?;
         if !KEYS.contains(&key.as_str()) {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "unknown response option {key:?}; expected one of {KEYS:?}"
             )));
         }
@@ -448,7 +447,7 @@ impl StaticClassGraph {
             require_named_graph_order(&g.names, names, "Admg")?;
             Ok(Self::Admg(g.aligned_to_names(names)?))
         } else {
-            Err(PyValueError::new_err("graph must be a Pag, Cpdag, or Admg"))
+            Err(crate::value_err("graph must be a Pag, Cpdag, or Admg"))
         }
     }
 
@@ -497,26 +496,26 @@ enum FrameData {
 
 impl FrameInput {
     fn ingest(
-        py: Python<'_>,
+        _py: Python<'_>,
         names: &[String],
         columns: Vec<Bound<'_, PyAny>>,
         frame: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let Some(frame) = frame else {
-            return Ok(Self::Series(tabular_from_py_columns(py, names.to_vec(), columns)?.0));
+            return Ok(Self::Series(tabular_from_py_columns(names.to_vec(), columns)?.0));
         };
         let kind: String = frame
             .get_item("kind")?
-            .ok_or_else(|| PyValueError::new_err("frame requires kind"))?
+            .ok_or_else(|| crate::value_err("frame requires kind"))?
             .extract()?;
         let partitions = |key: &str| -> PyResult<Vec<TabularData>> {
             let parts: Vec<Vec<Bound<'_, PyAny>>> = frame
                 .get_item(key)?
-                .ok_or_else(|| PyValueError::new_err(format!("{kind} frame requires {key}")))?
+                .ok_or_else(|| crate::value_err(format!("{kind} frame requires {key}")))?
                 .extract()?;
             parts
                 .into_iter()
-                .map(|cols| Ok(tabular_from_py_columns(py, names.to_vec(), cols)?.0))
+                .map(|cols| Ok(tabular_from_py_columns(names.to_vec(), cols)?.0))
                 .collect()
         };
         match kind.as_str() {
@@ -524,10 +523,10 @@ impl FrameInput {
                 let units = partitions("unit_columns")?;
                 let unit_ids: Vec<u32> = frame
                     .get_item("unit_ids")?
-                    .ok_or_else(|| PyValueError::new_err("panel frame requires unit_ids"))?
+                    .ok_or_else(|| crate::value_err("panel frame requires unit_ids"))?
                     .extract()?;
                 if units.is_empty() || units.len() != unit_ids.len() {
-                    return Err(PyValueError::new_err(
+                    return Err(crate::value_err(
                         "panel frame needs one unit id per non-empty unit",
                     ));
                 }
@@ -536,25 +535,23 @@ impl FrameInput {
             "multi_env" => {
                 let envs = partitions("env_columns")?;
                 if envs.is_empty() {
-                    return Err(PyValueError::new_err("multi_env frame needs ≥1 environment"));
+                    return Err(crate::value_err("multi_env frame needs ≥1 environment"));
                 }
                 Ok(Self::MultiEnv(envs))
             }
             "events" => {
                 let event_times_ns: Vec<i64> = frame
                     .get_item("event_times_ns")?
-                    .ok_or_else(|| PyValueError::new_err("events frame requires event_times_ns"))?
+                    .ok_or_else(|| crate::value_err("events frame requires event_times_ns"))?
                     .extract()?;
                 let align_interval_ns: u64 = frame
                     .get_item("align_interval_ns")?
-                    .ok_or_else(|| {
-                        PyValueError::new_err("events frame requires align_interval_ns")
-                    })?
+                    .ok_or_else(|| crate::value_err("events frame requires align_interval_ns"))?
                     .extract()?;
-                let (data, _) = tabular_from_py_columns(py, names.to_vec(), columns)?;
+                let (data, _) = tabular_from_py_columns(names.to_vec(), columns)?;
                 Ok(Self::Events { data, event_times_ns, align_interval_ns })
             }
-            other => Err(PyValueError::new_err(format!(
+            other => Err(crate::value_err(format!(
                 "unknown frame kind {other:?}; use panel|multi_env|events"
             ))),
         }
@@ -748,7 +745,7 @@ fn insert_reuse_identities(
 fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
     if names != expected {
         return Err(crate::with_reason_code(
-            PyValueError::new_err(format!(
+            crate::value_err(format!(
                 "prepared {op} requires the same column names (order) as prepare"
             )),
             antecedent_core::reason_code!("schema_mismatch"),
@@ -1020,7 +1017,7 @@ impl PyPreparedAnalysis {
         let prior = self
             .last
             .clone()
-            .ok_or_else(|| PyValueError::new_err("call estimate/refresh before refute"))?;
+            .ok_or_else(|| crate::value_err("call estimate/refresh before refute"))?;
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
@@ -1239,7 +1236,7 @@ impl PyPreparedAnalysis {
         let result = self
             .last
             .as_ref()
-            .ok_or_else(|| PyValueError::new_err("estimate before inspecting an execution"))?;
+            .ok_or_else(|| crate::value_err("estimate before inspecting an execution"))?;
         let inner = self.last_study.as_ref().unwrap_or(&self.inner);
         let ctx = py_execution_context_ext(
             self.last_seed,
@@ -1285,7 +1282,7 @@ impl PyPreparedAnalysis {
         let last = self
             .last
             .clone()
-            .ok_or_else(|| PyValueError::new_err("estimate before taking a result snapshot"))?;
+            .ok_or_else(|| crate::value_err("estimate before taking a result snapshot"))?;
         Ok(Self {
             inner: self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner)),
             names: self.names.clone(),
@@ -1760,7 +1757,7 @@ impl PyPreparedAnalysis {
         let query =
             if kind == "mediation" || kind == "counterfactual" || kind == "nested_counterfactual" {
                 if treatments.len() != 1 || outcomes.len() != 1 {
-                    return Err(PyValueError::new_err("one treatment/outcome required"));
+                    return Err(crate::value_err("one treatment/outcome required"));
                 }
                 static_kind_query(
                     data.schema(),
@@ -2076,10 +2073,10 @@ impl PyPreparedAnalysis {
             )?;
             let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
             let origin = -i32::try_from(treatment_lag)
-                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+                .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
             let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(|e| crate::value_err(e.to_string()))?;
             let observation =
                 observation_kind.map(|kind| crate::observation_api::ObservationArgs {
                     kind,
@@ -2768,10 +2765,10 @@ impl PyPreparedAnalysis {
             )?;
             let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
             let origin = -i32::try_from(treatment_lag)
-                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+                .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
             let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(|e| crate::value_err(e.to_string()))?;
             let mut response = ResponseQuery::new(functional).with_temporal(temporal);
             if let Some(population) = req.opts.target_population.clone() {
                 response.target_population = population;
@@ -3107,7 +3104,7 @@ impl PyPreparedAnalysis {
         req.refuse_prior("an interventional distribution")?;
         let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
         if matches!(&class, Some(g) if !matches!(g, StaticClassGraph::Admg(_))) {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "prepare_distribution graph must be an Admg; Pag/Cpdag remain refused",
             ));
         }
@@ -3186,7 +3183,7 @@ impl PyPreparedAnalysis {
         req.refuse_prior("a transport query")?;
         let admg = graph
             .extract::<graphs::Admg>()
-            .map_err(|_| PyValueError::new_err("TransportQuery requires graph=Admg(...)"))?;
+            .map_err(|_| crate::value_err("TransportQuery requires graph=Admg(...)"))?;
         require_named_graph_order(&admg.names, &req.names, "Admg")?;
         let catalog = catalog
             .map(|c| crate::transport_interference_api::parse_catalog(c, &admg))
@@ -3215,9 +3212,7 @@ impl PyPreparedAnalysis {
                 |names| schema_ids(&schema, names),
             )?;
             if let Some(catalog) = catalog {
-                query = query
-                    .with_catalog(catalog)
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                query = query.with_catalog(catalog).map_err(|e| crate::value_err(e.to_string()))?;
             }
             let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
             let trial_spec = antecedent::TransportTrialSpec {
@@ -4323,7 +4318,7 @@ impl PyPreparedAnalysis {
                         .iter()
                         .position(|n| n == name)
                         .map(|i| antecedent_core::VariableId::from_raw(i as u32))
-                        .ok_or_else(|| PyValueError::new_err(format!("unknown depends_on {name}")))
+                        .ok_or_else(|| crate::value_err(format!("unknown depends_on {name}")))
                 })
                 .collect::<PyResult<Vec<_>>>()?;
             let result = inner.retarget(&weights, &schema_ids, &ctx).map_err(py_err)?;
@@ -4362,12 +4357,10 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let consumed = antecedent_io::consume_analysis_result(&artifact).map_err(py_err)?;
-            let section = consumed
-                .contract
-                .and_then(|contract| contract.target_weights)
-                .ok_or_else(|| {
-                    PyValueError::new_err("artifact carries no row-weight retarget to re-execute")
-                })?;
+            let section =
+                consumed.contract.and_then(|contract| contract.target_weights).ok_or_else(
+                    || crate::value_err("artifact carries no row-weight retarget to re-execute"),
+                )?;
             let result = inner.reexecute_retarget(&section, &ctx).map_err(py_err)?;
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
             Ok((mapped, result))
@@ -4395,7 +4388,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(py, names, columns)?.0);
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
         self.click(py, data, false, seed, threads, controls, map_ate)
     }
 
@@ -4415,7 +4408,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<ResponseAnalysisResult> {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(py, names, columns)?.0);
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
         self.click(py, data, false, seed, threads, controls, response_from_study)
     }
 
@@ -4435,7 +4428,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "refresh")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(py, names, columns)?.0);
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
         self.click(py, data, true, seed, threads, controls, map_ate)
     }
 
@@ -4455,7 +4448,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<ResponseAnalysisResult> {
         require_prepared_names(&self.names, &names, "refresh")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(py, names, columns)?.0);
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
         self.click(py, data, true, seed, threads, controls, response_from_study)
     }
 
@@ -4470,7 +4463,7 @@ impl PyPreparedAnalysis {
         let result = self
             .last
             .as_ref()
-            .ok_or_else(|| PyValueError::new_err("estimate before exporting an artifact"))?;
+            .ok_or_else(|| crate::value_err("estimate before exporting an artifact"))?;
         let bytes = if payload == "query" {
             let query = antecedent_io::CausalPayloadWire::Query(Box::new(
                 antecedent_io::causal_query_to_wire_with_registry(
@@ -4489,7 +4482,7 @@ impl PyPreparedAnalysis {
             artifact.write_to(&mut bytes).map_err(py_err)?;
             bytes
         } else if payload != "result" {
-            return Err(PyValueError::new_err("payload must be 'query' or 'result'"));
+            return Err(crate::value_err("payload must be 'query' or 'result'"));
         } else if result.mediation_grid().is_some()
             || result.structural_response.is_some()
             || (result.posterior.is_some() && result.response().is_some())
@@ -4530,9 +4523,9 @@ impl PyPreparedAnalysis {
                 .static_result_wire(self.inner.query(), self.inner.population_registry())
                 .map_err(|e| match e {
                     // An incomplete payload stays the ValueError it always was.
-                    antecedent::CausalError::Compile { message } => PyValueError::new_err(message),
+                    antecedent::CausalError::Compile { message } => crate::value_err(message),
                     antecedent::CausalError::Rejected(failure) => {
-                        PyValueError::new_err(failure.message().to_owned())
+                        crate::value_err(failure.message().to_owned())
                     }
                     other => py_err(other),
                 })?;
@@ -4547,7 +4540,7 @@ impl PyPreparedAnalysis {
             artifact.write_to(&mut bytes).map_err(py_err)?;
             bytes
         } else {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "retained result has no posterior or response artifact payload",
             ));
         };
@@ -4562,9 +4555,10 @@ impl PyPreparedAnalysis {
         artifact_id: &str,
         quantities_json: Option<&str>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let result = self.last.as_ref().ok_or_else(|| {
-            PyValueError::new_err("estimate before exporting a contracted artifact")
-        })?;
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| crate::value_err("estimate before exporting a contracted artifact"))?;
         let ctx = crate::py_execution_context_ext(
             self.last_seed,
             self.last_threads,
@@ -4664,7 +4658,7 @@ impl PyPreparedAnalysis {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "refute")?;
-        let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
+        let (data, _) = tabular_from_arrow_c_objs(names, columns)?;
         self.finish_ate_refute(py, data, suite, seed, threads, cancel)
     }
 
@@ -4765,7 +4759,7 @@ pub(crate) fn response_from_retained(
     ctx: &ExecutionContext,
 ) -> PyResult<ResponseAnalysisResult> {
     let response = result.response().cloned().ok_or_else(|| {
-        PyValueError::new_err("prepared response estimate did not carry a response payload")
+        crate::value_err("prepared response estimate did not carry a response payload")
     })?;
     let name_of = |id: antecedent_core::VariableId| {
         names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
@@ -4815,7 +4809,7 @@ fn static_kind_query(
                 "mediated" => MediationContrast::Mediated,
                 "natural_direct" => MediationContrast::NaturalDirect,
                 "natural_indirect" => MediationContrast::NaturalIndirect,
-                _ => return Err(PyValueError::new_err("unknown static mediation contrast")),
+                _ => return Err(crate::value_err("unknown static mediation contrast")),
             };
             let ms = crate::response_api::resolve_names(schema, mediators)?;
             let mut q = MediationQuery::binary(t, y, Arc::from(ms), contrast);
@@ -4832,7 +4826,7 @@ fn static_kind_query(
         )),
         "nested_counterfactual" => {
             if mediators.len() != 1 {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "nested_counterfactual requires exactly one mediator",
                 ));
             }
@@ -4840,10 +4834,10 @@ fn static_kind_query(
             let q = antecedent_core::NestedCounterfactualQuery::with_levels(
                 t, mediator, y, control, active,
             )
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            .map_err(|error| crate::value_err(error.to_string()))?;
             Ok(CausalQuery::NestedCounterfactual(q))
         }
-        _ => Err(PyValueError::new_err("unsupported static staged kind")),
+        _ => Err(crate::value_err("unsupported static staged kind")),
     }
 }
 
@@ -4861,7 +4855,7 @@ fn extract_temporal_class(
         require_named_graph_order(&g.names, names, "TemporalPag")?;
         Ok(Some(TemporalClassGraph::Pag(g.pag)))
     } else {
-        Err(PyValueError::new_err("class_graph requires TemporalCpdag or TemporalPag"))
+        Err(crate::value_err("class_graph requires TemporalCpdag or TemporalPag"))
     }
 }
 
@@ -4880,7 +4874,7 @@ pub(crate) fn parse_transform_intent(
         "change_physical_policy" => antecedent_contract::TransformIntent::ChangePhysicalPolicy,
         "average_unweighted_class" => antecedent_contract::TransformIntent::AverageUnweightedClass,
         other => {
-            return Err(PyValueError::new_err(format!("unknown transform intent {other:?}")));
+            return Err(crate::value_err(format!("unknown transform intent {other:?}")));
         }
     };
     Ok(intent)

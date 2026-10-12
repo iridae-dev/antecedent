@@ -31,7 +31,7 @@ fn refused(error: antecedent::CausalError) -> PyErr {
         return py_err(error);
     }
     if code == "invalid_argument" {
-        return crate::with_reason_code(crate::value_err(rest), code);
+        return crate::value_err_code(code, rest);
     }
     crate::refusal(code, rest)
 }
@@ -50,7 +50,7 @@ fn artifact_refused(error: &CounterfactualIdArtifactError) -> PyErr {
     let (code, detail) = error.reason();
     let message = format!("{detail}: {error}");
     if code == "invalid_argument" {
-        crate::with_reason_code(crate::value_err(message), code)
+        crate::value_err_code(code, message)
     } else {
         crate::refusal(code, message)
     }

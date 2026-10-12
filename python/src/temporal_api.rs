@@ -9,7 +9,6 @@
 use crate::*;
 use antecedent::StudyBuilder;
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -311,7 +310,7 @@ pub(crate) fn temporal_query_from_policy(
             TemporalEffectQuery::sustained(t_id, y_id, 0, active_level)
         }
         _ => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "unknown temporal policy {policy:?}; use pulse|sustained"
             )));
         }
@@ -376,9 +375,9 @@ pub(crate) fn apply_class_prior(
         (None, Some(pairs)) => {
             Ok(builder.class_prior(antecedent::ClassPrior::from_pairs(pairs).map_err(py_err)?))
         }
-        (Some(_), Some(_)) => Err(PyValueError::new_err(
-            "class prior accepts ordered masses or key/mass pairs, not both",
-        )),
+        (Some(_), Some(_)) => {
+            Err(crate::value_err("class prior accepts ordered masses or key/mass pairs, not both"))
+        }
     }
 }
 
@@ -410,7 +409,7 @@ pub(crate) fn apply_temporal_inference_transfer(
             return Ok(builder.inference(InferenceMode::Frequentist));
         }
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
             )));
         }

@@ -20,7 +20,7 @@ fn export_law_functional_source(
     }
     let functional = crate::composition_api::parsed_functional(functional_json)?;
     let contract = contract_from_json_refusal(contract_json)
-        .map_err(|cause| crate::with_reason_code(crate::value_err(cause.detail), cause.code))?;
+        .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
     let antecedent_design::composition_boundary::InputSource::JointLaw(source) =
         input.inner().source()
     else {
@@ -50,9 +50,9 @@ fn export_law_functional_source(
 }
 fn functional_source_error(error: antecedent_io::IoError) -> PyErr {
     if let antecedent_io::IoError::Refused { code, message } = error {
-        crate::with_reason_code(crate::value_err(message), code)
+        crate::value_err_code(code, message)
     } else {
-        crate::CausalSerializationError::new_err(error.to_string())
+        crate::serialization_err(error.to_string())
     }
 }
 /// Recompute the original finite-law functional from retained rows, semantics and request.
@@ -100,7 +100,7 @@ fn resolve_law_functional_source(
             any_of: vec![SourceRepresentation::JointDraws],
             sampled_needs_error_receipt: false,
         })
-        .map_err(|cause| crate::with_reason_code(crate::value_err(cause.detail), cause.code))?;
+        .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
     let NativeDecisionSource::JointLaw(law) = original.source else {
         return Err(crate::with_reason_code(
             crate::value_err("functional_source.native_source_unavailable"),

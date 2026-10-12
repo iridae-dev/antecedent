@@ -24,8 +24,6 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;
 
-use crate::CausalSerializationError;
-
 const INITIAL_STATE_PREFIX: &[u8] = b"ANTECEDENT-TEMPORAL-INITIAL-STATE\x01";
 const REFRESH_PREFIX: &[u8] = b"ANTECEDENT-TEMPORAL-REFRESH\x01";
 
@@ -62,7 +60,7 @@ fn consume<T>(result: Result<T, IoError>) -> Outcome<T> {
     match result {
         Ok(value) => Ok((Some(value), None)),
         Err(IoError::Refused { code, message }) => Ok((None, Some(refusal_json(code, &message)))),
-        Err(other) => Err(CausalSerializationError::new_err(other.to_string())),
+        Err(other) => Err(crate::serialization_err(other.to_string())),
     }
 }
 
@@ -200,7 +198,7 @@ fn frame(prefix: &[u8], raw: &[u8]) -> Vec<u8> {
 fn unframe<'a>(prefix: &[u8], bytes: &'a [u8], what: &str) -> PyResult<&'a [u8]> {
     bytes
         .strip_prefix(prefix)
-        .ok_or_else(|| CausalSerializationError::new_err(format!("invalid {what} artifact format")))
+        .ok_or_else(|| crate::serialization_err(format!("invalid {what} artifact format")))
 }
 
 /// A prepared target-marginal initial-state result and the window it is valid for.
@@ -218,8 +216,7 @@ impl NativeTemporalInitialState {
 
     /// The initial-state artifact, framed.
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
-        let raw =
-            self.inner.export().map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+        let raw = self.inner.export().map_err(|e| crate::serialization_err(e.to_string()))?;
         Ok(PyBytes::new(py, &frame(INITIAL_STATE_PREFIX, &raw)).unbind())
     }
 
@@ -419,7 +416,7 @@ impl NativeTemporalIntervalCandidate {
         self.wire
             .export()
             .map(|b| PyBytes::new(py, &b))
-            .map_err(|e| CausalSerializationError::new_err(e.to_string()))
+            .map_err(|e| crate::serialization_err(e.to_string()))
     }
 }
 

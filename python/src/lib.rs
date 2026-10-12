@@ -1,10 +1,13 @@
-//! `PyO3` bindings: Arrow load, the prepared-analysis handles, `discover_pcmci`,
-//! `discover_pcmci_plus`, GCM fit/sample/CF.
+//! `PyO3` bindings for the Antecedent extension module (`antecedent._native`).
+//!
+//! Arrow and NumPy ingestion, graph handles, discovery, estimation, and the
+//! prepared-analysis entry points live in the modules below. Unsafe FFI is
+//! confined to [`ffi`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs)]
-#![allow(unsafe_code)] // required by PyO3
+#![deny(clippy::disallowed_methods)]
 #![allow(
     clippy::doc_markdown,
     clippy::needless_pass_by_value,
@@ -42,6 +45,8 @@ mod counterfactual_id_api;
 mod cpdag_scenario_api;
 mod cross_world_api;
 mod decision_api;
+#[allow(dead_code, reason = "signature literals are checked against this table in tests")]
+mod defaults;
 mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
@@ -56,6 +61,7 @@ mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
 mod factorial_api;
+mod ffi;
 mod functional_source_api;
 mod gcm_api;
 mod graph_build;
@@ -155,14 +161,14 @@ pub(crate) fn parse_within_tier(
     within_tier: Option<&str>,
 ) -> PyResult<antecedent_graph::WithinTier> {
     let Some(raw) = within_tier else {
-        return Err(PyValueError::new_err("within_tier is required when tiers are supplied"));
+        return Err(crate::value_err("within_tier is required when tiers are supplied"));
     };
     match raw.to_ascii_lowercase().as_str() {
         "codetermined" => Ok(antecedent_graph::WithinTier::CoDetermined),
         "unknown" => Ok(antecedent_graph::WithinTier::Unknown),
-        other => Err(PyValueError::new_err(format!(
-            "within_tier must be codetermined|unknown, got {other}"
-        ))),
+        other => {
+            Err(crate::value_err(format!("within_tier must be codetermined|unknown, got {other}")))
+        }
     }
 }
 
@@ -226,8 +232,8 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::{
-    ArrowCColumn, DataError, MultiEnvironmentData, TableView, TimeSeriesData,
-    tabular_from_arrow_c_columns, tabular_from_record_batch,
+    DataError, MultiEnvironmentData, TableView, TimeSeriesData, tabular_from_arrow_c_columns,
+    tabular_from_record_batch,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
@@ -246,7 +252,7 @@ use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
-use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyDict;
@@ -380,14 +386,38 @@ fn set_value_error_class(py: Python<'_>, cls: Py<PyAny>) {
 
 /// Invalid input at a native entry point, as the registered `CausalValueError`
 /// (a `CausalValidateError` that is also a `ValueError`).
+///
+/// The message is unchanged. A registered `reason=<code>:` prefix already in
+/// the message is copied onto `reason_code`.
 pub(crate) fn value_err(message: impl AsRef<str>) -> PyErr {
     let message = message.as_ref();
+    attach_reason_from_message(value_error_of(message), message)
+}
+
+/// [`value_err`] with an explicit registered reason code.
+///
+/// The code is an attribute. It is not written into the message.
+pub(crate) fn value_err_code(code: &str, message: impl AsRef<str>) -> PyErr {
+    with_reason_code(value_error_of(message.as_ref()), code)
+}
+
+fn value_error_of(message: &str) -> PyErr {
     Python::attach(|py| {
         VALUE_ERROR_CLASS
             .get(py)
             .and_then(|cls| cls.bind(py).call1((message,)).ok())
             .map_or_else(|| CausalValidateError::new_err(message.to_string()), PyErr::from_value)
     })
+}
+
+/// A serialization failure, as `CausalSerializationError`.
+///
+/// A registered `reason=<code>:` prefix already in the message is copied onto
+/// `reason_code`. The message text is the argument unchanged.
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn serialization_err(message: impl AsRef<str>) -> PyErr {
+    let message = message.as_ref();
+    attach_reason_from_message(CausalSerializationError::new_err(message.to_string()), message)
 }
 
 /// A refusal, as the registered Python class, carrying its `reason=<code>:` prefix.
@@ -495,14 +525,12 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
                 Ok(RefuteSuite::PlaceboAndRcc)
             }
             "none" | "off" | "false" | "0" => Ok(RefuteSuite::None),
-            other => Err(PyValueError::new_err(format!(
+            other => Err(crate::value_err(format!(
                 "unknown refute={other:?}; use True|False|\"full\"|\"placebo\"|\"cheap\"|\"none\""
             ))),
         };
     }
-    Err(PyValueError::new_err(
-        "refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")",
-    ))
+    Err(crate::value_err("refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")"))
 }
 
 // --- Discovery review acceptance helpers -----------------------------------------
@@ -622,9 +650,25 @@ pub(crate) fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
     e.into_antecedent_py_err()
 }
 
+/// A `usize` index that has to cross the binding as a `u32` id.
+///
+/// Failure is an input error. It is not saturated and not zero.
+pub(crate) fn fit_u32(index: usize) -> PyResult<u32> {
+    u32::try_from(index).map_err(|_| value_err(format!("index {index} does not fit in u32")))
+}
+
 /// Fallback for domain errors not covered by [`IntoCausalPyErr`].
+///
+/// Stays a root `CausalError` (these are not invalid-argument failures). A
+/// registered `reason=<code>:` prefix in the message is copied onto `reason_code`.
 pub(crate) fn py_msg(e: impl ToString) -> PyErr {
-    CausalError::new_err(e.to_string())
+    let message = e.to_string();
+    attach_reason_from_message(domain_err(&message), &message)
+}
+
+#[allow(clippy::disallowed_methods)]
+fn domain_err(message: &str) -> PyErr {
+    CausalError::new_err(message.to_string())
 }
 
 /// Convert a Rust panic payload into a typed Python error so panics never cross FFI.
@@ -710,6 +754,16 @@ fn reason_code_in_message(message: &str) -> Option<&str> {
         .map(|(code, _)| code)
 }
 
+/// Copy a registered reason code out of `message` onto `err`, leaving the message as it is.
+fn attach_reason_from_message(err: PyErr, message: &str) -> PyErr {
+    match reason_code_in_message(message)
+        .filter(|code| antecedent_core::reason_code::is_registered(code))
+    {
+        Some(code) => with_reason_code(err, code),
+        None => err,
+    }
+}
+
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
@@ -744,7 +798,7 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
         RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
         RustCausalError::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
-        RustCausalError::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
+        RustCausalError::Serialization(e) => crate::serialization_err(e.to_string()),
         RustCausalError::Data(e) => CausalDataError::new_err(e.to_string()),
         RustCausalError::Graph(e) => CausalGraphError::new_err(e.to_string()),
         RustCausalError::Design(e) => CausalDesignError::new_err(e.to_string()),
@@ -2138,8 +2192,8 @@ pub(crate) struct PerformanceSection {
     bytes_borrowed: Option<u64>,
 }
 
-/// Decoded posterior artifact for Python consumers .
-#[pyclass]
+/// Decoded posterior artifact for Python consumers.
+#[pyclass(frozen)]
 struct PosteriorArtifact {
     #[pyo3(get)]
     n_draws: usize,
@@ -2350,7 +2404,7 @@ impl PosteriorArtifact {
                                 if cur.eq(dt)? {
                                     Ok(arr)
                                 } else {
-                                    Err(PyValueError::new_err(
+                                    Err(crate::value_err(
                                         "Unable to avoid a copy while casting PosteriorArtifact \
                                          dtype; pass copy=True to allow a conversion",
                                     ))
@@ -2365,78 +2419,6 @@ impl PosteriorArtifact {
             },
         }
     }
-
-    /// Zero-copy float64 view of `draws` for `np.asarray` / `memoryview`.
-    unsafe fn __getbuffer__(
-        slf: Bound<'_, Self>,
-        view: *mut pyo3::ffi::Py_buffer,
-        flags: std::os::raw::c_int,
-    ) -> PyResult<()> {
-        use pyo3::exceptions::PyBufferError;
-        use pyo3::ffi;
-        if view.is_null() {
-            return Err(PyBufferError::new_err("View is null"));
-        }
-        if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
-            return Err(PyBufferError::new_err("PosteriorArtifact draws are read-only"));
-        }
-        let borrowed = slf.borrow();
-        let data = borrowed.draws.as_slice();
-        let n =
-            isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
-        let itemsize = isize::try_from(std::mem::size_of::<f64>()).expect("f64 size");
-        let nbytes = n.saturating_mul(itemsize);
-        unsafe {
-            (*view).obj = slf.as_ptr();
-            ffi::Py_INCREF((*view).obj);
-            (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
-            (*view).len = nbytes;
-            (*view).readonly = 1;
-            (*view).itemsize = itemsize;
-            (*view).format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
-                std::ffi::CString::new("d").expect("format").into_raw()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).ndim = 1;
-            (*view).shape = if (flags & ffi::PyBUF_ND) == ffi::PyBUF_ND {
-                let shape = Box::new([n]);
-                Box::into_raw(shape).cast()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).strides = if (flags & ffi::PyBUF_STRIDES) == ffi::PyBUF_STRIDES {
-                let strides = Box::new([itemsize]);
-                Box::into_raw(strides).cast()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).suboffsets = std::ptr::null_mut();
-            (*view).internal = std::ptr::null_mut();
-        }
-        Ok(())
-    }
-
-    #[allow(clippy::unused_self)]
-    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
-        if view.is_null() {
-            return;
-        }
-        unsafe {
-            if !(*view).format.is_null() {
-                drop(std::ffi::CString::from_raw((*view).format));
-                (*view).format = std::ptr::null_mut();
-            }
-            if !(*view).shape.is_null() {
-                drop(Box::from_raw((*view).shape.cast::<[isize; 1]>()));
-                (*view).shape = std::ptr::null_mut();
-            }
-            if !(*view).strides.is_null() {
-                drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
-                (*view).strides = std::ptr::null_mut();
-            }
-        }
-    }
 }
 
 pub(crate) fn columns_to_batch(
@@ -2444,16 +2426,16 @@ pub(crate) fn columns_to_batch(
     columns: &[PyReadonlyArray1<'_, f64>],
 ) -> PyResult<RecordBatch> {
     if names.len() != columns.len() {
-        return Err(PyValueError::new_err("names and columns must have the same length"));
+        return Err(crate::value_err("names and columns must have the same length"));
     }
     if columns.is_empty() {
-        return Err(PyValueError::new_err("at least one column required"));
+        return Err(crate::value_err("at least one column required"));
     }
     let n = columns[0].as_array().len();
     for (i, col) in columns.iter().enumerate() {
         let len = col.as_array().len();
         if len != n {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "column length mismatch: '{}' has length {}, '{}' has length {}",
                 names[0], n, names[i], len
             )));
@@ -2527,20 +2509,11 @@ fn load_float64_columns(
 /// Prefers zero-copy borrow of contiguous float64 value buffers.
 #[pyfunction]
 fn load_float64_arrow_c_columns(
-    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
-        if names.len() != columns.len() {
-            return Err(CausalDataError::new_err("names and columns length mismatch"));
-        }
-        let mut cdi_cols = Vec::with_capacity(columns.len());
-        for (name, obj) in names.into_iter().zip(columns) {
-            let (array, schema) = take_arrow_c_array(py, &obj)?;
-            // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
-            cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
-        }
+        let cdi_cols = ffi::arrow_c_columns(names, columns)?;
         let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
@@ -2555,82 +2528,28 @@ fn load_float64_arrow_c_columns(
     })
 }
 
-/// Extract CDI structs from an object exporting `__arrow_c_array__`.
-fn take_arrow_c_array(
-    py: Python<'_>,
-    obj: &Bound<'_, PyAny>,
-) -> PyResult<(antecedent_data::FfiArrowArray, antecedent_data::FfiArrowSchema)> {
-    use pyo3::types::PyCapsule;
-
-    let export = obj.call_method0("__arrow_c_array__")?;
-    let tuple = export.cast::<pyo3::types::PyTuple>()?;
-    if tuple.len() != 2 {
-        return Err(CausalDataError::new_err(
-            "__arrow_c_array__ must return (schema_capsule, array_capsule)",
-        ));
-    }
-    let schema_cap = tuple.get_item(0)?.cast_into::<PyCapsule>()?;
-    let array_cap = tuple.get_item(1)?.cast_into::<PyCapsule>()?;
-
-    let schema_name = c"arrow_schema";
-    let array_name = c"arrow_array";
-
-    let schema_ptr = schema_cap
-        .pointer_checked(Some(schema_name))?
-        .as_ptr()
-        .cast::<antecedent_data::FfiArrowSchema>();
-    let array_ptr = array_cap
-        .pointer_checked(Some(array_name))?
-        .as_ptr()
-        .cast::<antecedent_data::FfiArrowArray>();
-    if schema_ptr.is_null() || array_ptr.is_null() {
-        return Err(CausalDataError::new_err("null Arrow C Data capsule pointer"));
-    }
-
-    // SAFETY: capsules export valid CDI structs; we move them out and leave released empties
-    // so the capsule destructor is a no-op.
-    let schema = unsafe { std::ptr::read(schema_ptr) };
-    let array = unsafe { std::ptr::read(array_ptr) };
-    unsafe {
-        std::ptr::write(schema_ptr, antecedent_data::FfiArrowSchema::empty());
-        std::ptr::write(array_ptr, antecedent_data::FfiArrowArray::empty());
-    }
-    let _ = py;
-    Ok((array, schema))
-}
-
 pub(crate) fn tabular_from_arrow_c_objs(
-    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent_data::TabularData, u64)> {
-    if names.len() != columns.len() {
-        return Err(CausalDataError::new_err("names and columns length mismatch"));
-    }
-    let mut cdi_cols = Vec::with_capacity(columns.len());
-    for (name, obj) in names.into_iter().zip(columns) {
-        let (array, schema) = take_arrow_c_array(py, &obj)?;
-        // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
-        cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
-    }
+    let cdi_cols = ffi::arrow_c_columns(names, columns)?;
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
 /// NumPy float64 columns or Arrow CDI exporters → owned [`TabularData`].
 pub(crate) fn tabular_from_py_columns(
-    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
     if names.len() != columns.len() {
         // Preserve the pre-unification ValueError for NumPy callers that catch it.
-        return Err(PyValueError::new_err("names and columns must have the same length"));
+        return Err(crate::value_err("names and columns must have the same length"));
     }
     let use_arrow = !columns.is_empty()
         && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
     if use_arrow {
-        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names, columns)?;
+        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(names, columns)?;
         return Ok((data, Some(bytes_borrowed)));
     }
     let mut np = Vec::with_capacity(columns.len());
@@ -2893,10 +2812,11 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     )?;
     dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
     // Propensity overlap default shared by every propensity-score estimator.
-    let antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } =
-        antecedent_estimate::default_propensity_overlap()
-    else {
-        unreachable!("the default propensity overlap policy requires diagnostics");
+    let (clip, trim) = match antecedent_estimate::default_propensity_overlap() {
+        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => (clip, trim),
+        antecedent_estimate::OverlapPolicy::ExplicitOverride => {
+            return Err(value_err("the default propensity overlap policy requires diagnostics"));
+        }
     };
     dict.set_item("overlap_clip", clip)?;
     dict.set_item("overlap_trim", trim)?;

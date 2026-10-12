@@ -27,7 +27,6 @@ use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointSensitivityLimits,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -229,7 +228,7 @@ fn policy_from(name: &str) -> PyResult<StructuralPolicy> {
         "maximin" => StructuralPolicy::Maximin,
         "bayes_over_structures" => StructuralPolicy::BayesOverStructures,
         "report_only" => StructuralPolicy::ReportOnly,
-        other => return Err(PyValueError::new_err(format!("unknown structural policy `{other}`"))),
+        other => return Err(crate::value_err(format!("unknown structural policy `{other}`"))),
     })
 }
 

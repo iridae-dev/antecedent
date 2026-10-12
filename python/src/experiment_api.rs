@@ -3,7 +3,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::detach_catch;
@@ -143,7 +142,7 @@ fn estimate_cuped_effect(
             &assignment,
             &propensity,
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok((fit.effect, fit.beta, fit.standard_error))
 }
@@ -163,7 +162,7 @@ fn estimate_stratified_effect(
             &assignment,
             &blocks,
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok((fit.effect, fit.variance, fit.minimum_probability, fit.strata))
 }
@@ -184,7 +183,7 @@ fn exact_randomization_test(
             &assignment,
             &propensity,
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok((fit.observed, fit.p_value, fit.allocations))
 }
@@ -201,17 +200,17 @@ fn estimate_switchback_effect(
     let p = propensity.as_array();
     let n = y.len();
     if n < 2 || assignment.len() != n || sequences.len() != n || p.len() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "switchback outcome, assignment, sequence, and propensity arrays must align",
         ));
     }
     if sequences.iter().any(|label| label.trim().is_empty()) {
-        return Err(PyValueError::new_err("sequence labels must be non-empty"));
+        return Err(crate::value_err("sequence labels must be non-empty"));
     }
     let ids = sequences.iter().map(String::as_str).collect::<Vec<_>>();
     let fit = antecedent_estimate::switchback::switchback_itt(
         &y.to_vec(), &assignment, &p.to_vec(), &ids,
-    ).ok_or_else(|| PyValueError::new_err(
+    ).ok_or_else(|| crate::value_err(
         "switchback requires finite outcomes, valid probabilities, at least two independent sequences, and global support for both arms",
     ))?;
     let minimum_probability =
@@ -236,7 +235,7 @@ fn estimate_ancova_effect(
     let fit = detach_catch(py, move || {
         let refs = columns.iter().map(Vec::as_slice).collect::<Vec<_>>();
         antecedent_estimate::ancova::fit_ancova(&outcomes, &assignment, &refs)
-            .map_err(PyValueError::new_err)
+            .map_err(crate::value_err)
     })?;
     Ok((fit.effect, fit.hc0_variance.sqrt(), fit.covariate_coefficients, fit.treated, fit.control))
 }

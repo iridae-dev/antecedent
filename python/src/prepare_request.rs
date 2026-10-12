@@ -62,10 +62,10 @@ impl PrepareRequest {
     /// Load tabular columns. Borrowed Arrow bytes are not retained.
     pub(super) fn load_columns(
         &self,
-        py: Python<'_>,
+        _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
-        Ok(crate::tabular_from_py_columns(py, self.names.clone(), columns)?.0)
+        Ok(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
     }
 
     /// Load tabular columns and remember borrowed Arrow bytes.
@@ -74,10 +74,10 @@ impl PrepareRequest {
     /// drops the count, and a later bound estimate clears `bytes_borrowed`.
     pub(super) fn load_columns_recording(
         &mut self,
-        py: Python<'_>,
+        _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
-        let (data, borrowed) = crate::tabular_from_py_columns(py, self.names.clone(), columns)?;
+        let (data, borrowed) = crate::tabular_from_py_columns(self.names.clone(), columns)?;
         self.borrowed_bytes = borrowed;
         Ok(data)
     }

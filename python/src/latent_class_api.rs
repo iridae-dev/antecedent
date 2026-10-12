@@ -14,7 +14,7 @@ use antecedent::analysis::latent_class_effects::{
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, with_reason_code};
 
 /// Largest configuration / identity JSON accepted.
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
@@ -37,7 +37,7 @@ fn failure(error: &LatentClassArtifactError) -> PyErr {
             value_err(format!("latent_class.limits_exceeded: {what}")),
             antecedent_core::reason_code!("invalid_argument"),
         ),
-        other => CausalSerializationError::new_err(other.to_string()),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 
@@ -78,7 +78,7 @@ fn evaluate_latent_class_effects(
         Ok(done) => {
             let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
             let report = serde_json::to_string(&done.report())
-                .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                .map_err(|e| crate::serialization_err(e.to_string()))?;
             Ok((Some(report), Some(bytes), None))
         }
         Err(error) => match refusal_json(&error, "fit") {
@@ -106,7 +106,7 @@ fn consume_latent_class_artifact(
     detach_catch(py, move || match LatentClassEffects::consume(&artifact, expected.as_ref()) {
         Ok(done) => {
             let report = serde_json::to_string(&done.report())
-                .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                .map_err(|e| crate::serialization_err(e.to_string()))?;
             Ok((Some(report), None))
         }
         Err(error) => match refusal_json(&error, "consume") {

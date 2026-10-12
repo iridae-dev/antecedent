@@ -94,7 +94,9 @@ impl CheckedPriorSignal {
                 ));
             }
         }
-        let DecisionPrior::Draws(draws) = &self.adapted.prior else { unreachable!() };
+        let DecisionPrior::Draws(draws) = &self.adapted.prior else {
+            return Err(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument"));
+        };
         request.decision.prior = PriorDeclWire::Draws { states: draws.clone() };
         request.prior_observation_ids.extend(self.observations.iter().cloned());
         request.source_digests.extend(self.source_digests.iter().cloned());
@@ -293,7 +295,12 @@ pub(crate) fn adapt_prior_signal(
             return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
         }
     };
-    let DecisionPrior::Draws(rows) = &adapted.prior else { unreachable!() };
+    let DecisionPrior::Draws(rows) = &adapted.prior else {
+        return Ok((
+            None,
+            Some(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument")),
+        ));
+    };
     if !rows.iter().all(|v| v.is_finite()) || !adapted.diagnostics.pooled_mean.is_finite() {
         return Ok((
             None,

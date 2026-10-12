@@ -21,10 +21,8 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::CausalSerializationError;
-
 fn artifact_error(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
+    crate::serialization_err(error.to_string())
 }
 
 #[pyclass(name = "ExternalClaimArtifact", skip_from_py_object)]

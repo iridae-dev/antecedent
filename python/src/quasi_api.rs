@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::detach_catch;
@@ -228,12 +227,10 @@ fn difference_in_differences(
     let values = outcome.as_array();
     let n = values.len();
     if n == 0 || treated.len() != n || post.len() != n {
-        return Err(PyValueError::new_err(
-            "outcome, treated, and post must have equal non-zero length",
-        ));
+        return Err(crate::value_err("outcome, treated, and post must have equal non-zero length"));
     }
     if values.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
+        return Err(crate::value_err("outcomes must be finite"));
     }
     let mut sum = [0.0; 4];
     let mut count = [0usize; 4];
@@ -244,7 +241,7 @@ fn difference_in_differences(
         count[cell] += 1;
     }
     if count.contains(&0) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "2x2 difference in differences requires observations in all four treatment-by-time cells",
         ));
     }
@@ -268,7 +265,7 @@ fn group_time_att(
         antecedent_estimate::staggered_event_study::group_time_att(
             &outcome, &subjects, &periods, &cohorts, &clusters,
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok(effects
         .into_iter()

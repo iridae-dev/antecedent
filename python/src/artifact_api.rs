@@ -9,13 +9,10 @@ use antecedent_io::{
     encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-
-use crate::CausalSerializationError;
 
 #[pyclass(skip_from_py_object)]
 struct DecodedCausalArtifact {
@@ -88,7 +85,7 @@ fn parse_payload(kind: &str, payload_json: &str) -> PyResult<CausalPayloadWire> 
             ))
         }
         _ => {
-            return Err(CausalSerializationError::new_err(format!(
+            return Err(crate::serialization_err(format!(
                 "unknown causal artifact payload kind {kind:?}"
             )));
         }
@@ -117,9 +114,7 @@ fn encode_causal_artifact<'py>(
     contract_json: Option<&str>,
 ) -> PyResult<Bound<'py, PyBytes>> {
     if contract_json.is_some() && payload_kind != "analysis_result" {
-        return Err(CausalSerializationError::new_err(
-            "a contract belongs to an analysis_result artifact",
-        ));
+        return Err(crate::serialization_err("a contract belongs to an analysis_result artifact"));
     }
     let artifact = if payload_kind == "analysis_result" {
         let result = parse::<antecedent_io::AnalysisResultWire>(payload_json)?;
@@ -388,7 +383,7 @@ impl FittedEffectModel {
             .iter()
             .map(|column| {
                 column.as_slice().map_err(|_| {
-                    PyValueError::new_err("prediction columns must be contiguous float64 arrays")
+                    crate::value_err("prediction columns must be contiguous float64 arrays")
                 })
             })
             .collect::<PyResult<_>>()?;

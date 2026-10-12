@@ -21,7 +21,9 @@ impl PySensitivityArtifact {
     ) -> PyResult<
         Option<std::sync::Arc<antecedent::analysis::sensitivity_source::SourceBackedSensitivity>>,
     > {
-        if let Some(source) = self.source.lock().expect("source cache lock").as_ref() {
+        if let Some(source) =
+            self.source.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref()
+        {
             return Ok(Some(source.clone()));
         }
         let Some(recipe) = self.recipe.clone() else {
@@ -51,13 +53,14 @@ impl PySensitivityArtifact {
             .map_err(source_error)
         })?;
         let source = std::sync::Arc::new(source);
-        *self.source.lock().expect("source cache lock") = Some(source.clone());
+        *self.source.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+            Some(source.clone());
         Ok(Some(source))
     }
 }
 fn source_error(error: IoError) -> PyErr {
     if let IoError::Refused { code, message } = error {
-        crate::with_reason_code(crate::value_err(message), code)
+        crate::value_err_code(code, message)
     } else {
         serialization(error)
     }

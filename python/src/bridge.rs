@@ -47,7 +47,7 @@ pub(crate) fn check_declared_size(text: &str, limit: usize, what: &str) -> PyRes
 
 /// A failure that can only mean the bytes do not describe what they claim.
 pub(crate) fn serialization(e: impl std::fmt::Display) -> PyErr {
-    crate::CausalSerializationError::new_err(e.to_string())
+    crate::serialization_err(e.to_string())
 }
 
 /// The refusal JSON of one coded refusal, as the Python layer reads it.

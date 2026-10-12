@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::bridge::{RefusalJson, check_declared_size};
+use crate::bridge::check_declared_size;
 use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, TargetWeights, UtilitySpec,
     execute_with_receipt,
@@ -29,7 +29,7 @@ use antecedent_io::recalc_receipt_artifact::{
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
-use crate::{CausalSerializationError, detach_catch, py_err, py_msg, value_err, with_reason_code};
+use crate::{detach_catch, py_err, py_msg, value_err, with_reason_code};
 
 /// Largest declaration JSON accepted.
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
@@ -53,6 +53,21 @@ pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str)
         .map_err(|e| invalid("recalc.invalid_declaration", format!("{what}: {e}")))
 }
 
+fn refusal_body(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    offending: Option<&str>,
+    remedy: Option<String>,
+    message: &str,
+    plan: Option<&RecalcPlan>,
+) -> crate::bridge::RefusalJson {
+    crate::bridge::RefusalJson::new(code, stage, detail, message)
+        .offending(offending)
+        .remedy(remedy.as_deref())
+        .field("plan", plan.map(plan_to_wire))
+}
+
 pub(crate) fn refusal_json(
     code: &str,
     stage: &str,
@@ -62,11 +77,21 @@ pub(crate) fn refusal_json(
     message: &str,
     plan: Option<&RecalcPlan>,
 ) -> String {
-    RefusalJson::new(code, stage, detail, message)
-        .offending(offending)
-        .remedy(remedy.as_deref())
-        .field("plan", plan.map(plan_to_wire))
-        .json()
+    refusal_body(code, stage, detail, offending, remedy, message, plan).json()
+}
+
+/// The same refusal as [`refusal_json`], as a value, so a caller can add fields
+/// without parsing the text it just built.
+pub(crate) fn refusal_value(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    offending: Option<&str>,
+    remedy: Option<String>,
+    message: &str,
+    plan: Option<&RecalcPlan>,
+) -> serde_json::Value {
+    refusal_body(code, stage, detail, offending, remedy, message, plan).value()
 }
 
 /// The refusal a refused plan carries: its first refused stage and reason.
@@ -180,7 +205,7 @@ fn consume_recalc_receipt(
                     RecalcReceiptArtifactError::LimitsExceeded(what) => {
                         invalid("recalc.limits_exceeded", what)
                     }
-                    other => CausalSerializationError::new_err(other.to_string()),
+                    other => crate::serialization_err(other.to_string()),
                 }),
             },
         }

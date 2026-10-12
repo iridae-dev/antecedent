@@ -16,7 +16,7 @@ use antecedent::analysis::dose_grid_functional::{
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::{CausalSerializationError, detach_catch, value_err};
+use crate::{detach_catch, value_err};
 
 /// Largest request JSON accepted (the table travels separately).
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
@@ -40,7 +40,7 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
 /// result and both digests.
 fn report_json(done: &DoseGridFunctional) -> PyResult<String> {
     let mut request = serde_json::to_value(done.request())
-        .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+        .map_err(|e| crate::serialization_err(e.to_string()))?;
     if let Some(map) = request.as_object_mut() {
         map.remove("dose");
         map.remove("outcome");
@@ -117,7 +117,7 @@ fn dose_support_labels(
         match dose_support_table(&dose, &points, bandwidth, minimum_local_ess) {
             Ok(table) => {
                 let json = serde_json::to_string(&table)
-                    .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
                 Ok((Some(json), None))
             }
             Err(error) => match refusal_json(&error, "dose_grid") {

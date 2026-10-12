@@ -39,7 +39,6 @@ use antecedent_graph::{
     Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
     TemporalAdmg as RustTemporalAdmg, TemporalDag as RustTemporalDag,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyType};
 
@@ -55,7 +54,7 @@ fn parse_endpoint(s: &str) -> PyResult<Endpoint> {
         "arrow" => Ok(Endpoint::Arrow),
         "circle" => Ok(Endpoint::Circle),
         "conflict" => Ok(Endpoint::Conflict),
-        other => Err(PyValueError::new_err(format!(
+        other => Err(crate::value_err(format!(
             "unknown endpoint mark '{other}' (expected tail|arrow|circle|conflict)"
         ))),
     }
@@ -88,7 +87,7 @@ fn cpdag_mark_str(edge: MarkedEdge) -> &'static str {
 /// user-supplied names checked elsewhere) must uphold this invariant.
 fn check_names_len(names: &[String], node_count: usize) -> PyResult<()> {
     if names.len() != node_count {
-        return Err(PyValueError::new_err(format!(
+        return Err(crate::value_err(format!(
             "names length {} must equal node_count {}",
             names.len(),
             node_count
@@ -102,12 +101,24 @@ fn lagged_node_name(name: &str, lag: u32) -> String {
     if lag == 0 { format!("{name}[t]") } else { format!("{name}[t-{lag}]") }
 }
 
+fn dense_index(index: usize) -> PyResult<u32> {
+    u32::try_from(index)
+        .map_err(|_| CausalGraphError::new_err(format!("node index {index} does not fit in u32")))
+}
+
+fn dense_id(index: usize) -> PyResult<DenseNodeId> {
+    dense_index(index).map(DenseNodeId::from_raw)
+}
+
+fn variable_id(index: usize) -> PyResult<VariableId> {
+    dense_index(index).map(VariableId::from_raw)
+}
+
 fn resolve_name_index(names: &[String], name: &str) -> PyResult<DenseNodeId> {
-    names
-        .iter()
-        .position(|n| n == name)
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32")))
-        .ok_or_else(|| unknown_node(name))
+    match names.iter().position(|n| n == name) {
+        Some(i) => dense_id(i),
+        None => Err(unknown_node(name)),
+    }
 }
 
 fn id_name(names: &[String], id: DenseNodeId) -> PyResult<String> {
@@ -145,7 +156,7 @@ impl Dag {
         names: Vec<String>,
         edges: Vec<(String, String)>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
+        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut dag = RustDag::with_variables(n);
         for (from, to) in &edges {
             let f = resolve_name_index(&names, from)?;
@@ -309,7 +320,7 @@ impl Cpdag {
         directed: Vec<(String, String)>,
         undirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
+        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Cpdag::with_variables(n);
         for (from, to) in &directed {
             let f = resolve_name_index(&names, from)?;
@@ -332,7 +343,7 @@ impl Cpdag {
         names: Vec<String>,
         edges: Vec<(String, String, String)>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
+        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Cpdag::with_variables(n);
         for (from, to, kind) in &edges {
             let f = resolve_name_index(&names, from)?;
@@ -341,7 +352,7 @@ impl Cpdag {
                 "directed" => g.insert_directed(f, t).map_err(py_err)?,
                 "undirected" => g.insert_undirected(f, t).map_err(py_err)?,
                 other => {
-                    return Err(PyValueError::new_err(format!(
+                    return Err(crate::value_err(format!(
                         "unknown edge kind '{other}' (expected directed|undirected)"
                     )));
                 }
@@ -498,7 +509,7 @@ impl Pag {
         names: Vec<String>,
         edges: Vec<(String, String, String, String)>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
+        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Pag::with_variables(n);
         for (a, b, at_a, at_b) in &edges {
             let ia = resolve_name_index(&names, a)?;
@@ -694,7 +705,7 @@ impl Admg {
         directed: Vec<(String, String)>,
         bidirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
+        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Admg::with_variables(n);
         for (from, to) in &directed {
             let f = resolve_name_index(&names, from)?;
@@ -847,7 +858,7 @@ impl TemporalDag {
     fn node_names(&self) -> PyResult<Vec<String>> {
         let mut out = Vec::with_capacity(self.dag.node_count());
         for i in 0..self.dag.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = dense_id(i)?;
             let (name, lag) = self.node_label(id)?;
             out.push(lagged_node_name(&name, lag));
         }
@@ -864,11 +875,10 @@ impl TemporalDag {
         edges: Vec<(String, u32, String, u32)>,
     ) -> PyResult<Self> {
         let var_of = |nm: &str| -> PyResult<VariableId> {
-            names
-                .iter()
-                .position(|n| n == nm)
-                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
-                .ok_or_else(|| unknown_node(nm))
+            match names.iter().position(|n| n == nm) {
+                Some(i) => variable_id(i),
+                None => Err(unknown_node(nm)),
+            }
         };
         let g = crate::temporal_dag_from_lagged_edges(var_of, &edges)?;
         Ok(Self { dag: g, names })
@@ -878,7 +888,7 @@ impl TemporalDag {
     fn nodes(&self) -> PyResult<Vec<(String, u32)>> {
         let mut out = Vec::with_capacity(self.dag.node_count());
         for i in 0..self.dag.node_count() {
-            out.push(self.node_label(DenseNodeId::from_raw(u32::try_from(i).expect("fit")))?);
+            out.push(self.node_label(dense_id(i)?)?);
         }
         Ok(out)
     }
@@ -955,7 +965,7 @@ impl TemporalCpdag {
     fn node_names(&self) -> PyResult<Vec<String>> {
         let mut out = Vec::with_capacity(self.cpdag.node_count());
         for i in 0..self.cpdag.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = dense_id(i)?;
             let (name, lag) = self.node_label(id)?;
             out.push(lagged_node_name(&name, lag));
         }
@@ -975,11 +985,10 @@ impl TemporalCpdag {
     ) -> PyResult<Self> {
         let mut g = antecedent_graph::TemporalCpdag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
-            names
-                .iter()
-                .position(|n| n == nm)
-                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
-                .ok_or_else(|| unknown_node(nm))
+            match names.iter().position(|n| n == nm) {
+                Some(i) => variable_id(i),
+                None => Err(unknown_node(nm)),
+            }
         };
         for (src, slag, tgt, tlag) in &directed {
             let s = ensure_lagged_cpdag(&mut g, var_of(src)?, Lag::from_raw(*slag))?;
@@ -1059,7 +1068,7 @@ impl TemporalPag {
     fn node_names(&self) -> PyResult<Vec<String>> {
         let mut out = Vec::with_capacity(self.pag.node_count());
         for i in 0..self.pag.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = dense_id(i)?;
             let (name, lag) = self.node_label(id)?;
             out.push(lagged_node_name(&name, lag));
         }
@@ -1077,11 +1086,10 @@ impl TemporalPag {
     ) -> PyResult<Self> {
         let mut g = antecedent_graph::TemporalPag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
-            names
-                .iter()
-                .position(|n| n == nm)
-                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
-                .ok_or_else(|| unknown_node(nm))
+            match names.iter().position(|n| n == nm) {
+                Some(i) => variable_id(i),
+                None => Err(unknown_node(nm)),
+            }
         };
         for (a, al, b, bl, at_a, at_b) in &edges {
             let ia = ensure_lagged_pag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
@@ -1144,11 +1152,10 @@ impl TemporalAdmg {
         bidirected: Option<Vec<(String, u32, String, u32)>>,
     ) -> PyResult<Self> {
         let var_of = |nm: &str| -> PyResult<VariableId> {
-            names
-                .iter()
-                .position(|n| n == nm)
-                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
-                .ok_or_else(|| unknown_node(nm))
+            match names.iter().position(|n| n == nm) {
+                Some(i) => variable_id(i),
+                None => Err(unknown_node(nm)),
+            }
         };
         let mut graph = RustTemporalAdmg::empty();
         let ensure =
@@ -1158,7 +1165,7 @@ impl TemporalAdmg {
                 for (i, node) in graph.nodes().iter().enumerate() {
                     if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
                         if *existing == variable && *existing_lag == lag {
-                            return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                            return dense_id(i);
                         }
                     }
                 }
@@ -1191,7 +1198,7 @@ fn ensure_lagged_cpdag(
     for (i, node) in g.nodes().iter().enumerate() {
         if let NodeRef::Lagged { variable: v, lag: l } = node {
             if *v == variable && *l == lag {
-                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                return dense_id(i);
             }
         }
     }
@@ -1206,7 +1213,7 @@ fn ensure_lagged_pag(
     for (i, node) in g.nodes().iter().enumerate() {
         if let NodeRef::Lagged { variable: v, lag: l } = node {
             if *v == variable && *l == lag {
-                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                return dense_id(i);
             }
         }
     }

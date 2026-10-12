@@ -21,7 +21,6 @@ use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 
@@ -137,7 +136,7 @@ impl PyGraphPosterior {
     /// structure; this mirrors the column-order check applied to supplied graphs.
     pub(crate) fn require_bound_to(&self, names: &[String]) -> PyResult<()> {
         if self.names != names || self.n_vars != names.len() {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "GraphPosterior variable names must match data column names and order",
             ));
         }
@@ -213,50 +212,50 @@ impl PyGraphPosterior {
     ) -> PyResult<Self> {
         let n_vars = names.len();
         if adjacency.len() != weights.len() {
-            return Err(PyValueError::new_err("adjacency/weights length mismatch"));
+            return Err(crate::value_err("adjacency/weights length mismatch"));
         }
         if n_vars == 0 {
-            return Err(PyValueError::new_err("from_atoms requires at least one variable"));
+            return Err(crate::value_err("from_atoms requires at least one variable"));
         }
         let edge_bits = n_directed_edges(n_vars);
         if edge_bits > MASK_BITS {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "from_atoms supports at most 8 variables (64-bit adjacency masks)",
             ));
         }
         let kind = parse_atom_kind(atom_kind)?;
         for (index, mask) in adjacency.iter().enumerate() {
             if edge_bits < MASK_BITS && (mask >> edge_bits) != 0 {
-                return Err(PyValueError::new_err(format!(
+                return Err(crate::value_err(format!(
                     "adjacency atom {index} sets edge bits beyond {n_vars} variables"
                 )));
             }
             if kind == GraphPosteriorAtomKind::Dag && !mask_is_dag(*mask, n_vars) {
-                return Err(PyValueError::new_err(format!("adjacency atom {index} is not a DAG")));
+                return Err(crate::value_err(format!("adjacency atom {index} is not a DAG")));
             }
         }
         // `ess` and the default marginals below assume normalized mass; the
         // engine constructor only rejects non-positive totals.
         let total: f64 = weights.iter().sum();
         if total.is_finite() && (total - 1.0).abs() > 1e-9 {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "posterior weights must sum to 1 (got {total}); normalize the atoms first"
             )));
         }
         let cell = n_vars.saturating_mul(n_vars);
         if lag_masks.is_some() && max_lag.is_none() {
-            return Err(PyValueError::new_err("lag_masks require max_lag"));
+            return Err(crate::value_err("lag_masks require max_lag"));
         }
         if let (Some(masks), Some(lag)) = (&lag_masks, max_lag) {
             let lag_bits = usize::try_from(lag).map_err(py_msg)?.saturating_mul(cell);
             if lag == 0 || lag_bits > MASK_BITS {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "lag_masks require 1 <= max_lag and max_lag * n_vars^2 <= 64 bits",
                 ));
             }
             for (index, mask) in masks.iter().enumerate() {
                 if lag_bits < MASK_BITS && (mask >> lag_bits) != 0 {
-                    return Err(PyValueError::new_err(format!(
+                    return Err(crate::value_err(format!(
                         "lag mask atom {index} sets bits beyond max_lag={lag} and {n_vars} variables"
                     )));
                 }
@@ -296,7 +295,7 @@ impl PyGraphPosterior {
             }
             (None, None) => {}
             _ => {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "lagged_edge_marginals and max_lag must be supplied together",
                 ));
             }
@@ -322,10 +321,10 @@ impl PyGraphPosterior {
         ess: Option<f64>,
     ) -> PyResult<Self> {
         if graphs.len() != weights.len() {
-            return Err(PyValueError::new_err("graphs/weights length mismatch"));
+            return Err(crate::value_err("graphs/weights length mismatch"));
         }
         if graphs.is_empty() {
-            return Err(PyValueError::new_err("from_graphs requires at least one atom"));
+            return Err(crate::value_err("from_graphs requires at least one atom"));
         }
         let (kind, adjacency, mark_masks) = pack_static_atoms(&names, &graphs)?;
         Self::from_atoms(
@@ -352,7 +351,7 @@ fn parse_atom_kind(name: &str) -> PyResult<GraphPosteriorAtomKind> {
         "Pag" | "pag" => Ok(GraphPosteriorAtomKind::Pag),
         "Admg" | "admg" => Ok(GraphPosteriorAtomKind::Admg),
         "TemporalAdmg" | "temporal_admg" => Ok(GraphPosteriorAtomKind::TemporalAdmg),
-        other => Err(PyValueError::new_err(format!(
+        other => Err(crate::value_err(format!(
             "atom_kind must be Dag, Cpdag, Pag, or Admg; got {other:?}"
         ))),
     }
@@ -360,7 +359,7 @@ fn parse_atom_kind(name: &str) -> PyResult<GraphPosteriorAtomKind> {
 
 fn require_graph_names(graph_names: &[String], names: &[String], kind: &str) -> PyResult<()> {
     if graph_names != names {
-        return Err(PyValueError::new_err(format!(
+        return Err(crate::value_err(format!(
             "{kind} variable names must match GraphPosterior names and order"
         )));
     }
@@ -412,7 +411,7 @@ fn pack_static_atoms(
         }
         return Ok((GraphPosteriorAtomKind::Admg, adjacency, None));
     }
-    Err(PyValueError::new_err(
+    Err(crate::value_err(
         "from_graphs accepts Dag, Cpdag, Pag, or Admg atoms; temporal class atoms use from_atoms",
     ))
 }
@@ -430,7 +429,7 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
         "none" | "" => Ok(CiSoftWeight::None),
         "bayes_factor" | "bayesfactor" => Ok(CiSoftWeight::BayesFactor),
         "posterior_dependence" | "posteriordependence" => Ok(CiSoftWeight::PosteriorDependence),
-        other => Err(PyValueError::new_err(format!(
+        other => Err(crate::value_err(format!(
             "unknown soft_weight {other:?}; expected none|bayes_factor|posterior_dependence"
         ))),
     }

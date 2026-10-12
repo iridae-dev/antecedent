@@ -350,28 +350,24 @@ impl ObservationRecoveryStage {
                 "sampled_recovery.invalid_input: stage must retain a downstream effect",
             )
         })?;
-        let partial_order: Vec<_> = canonical
+        let partial_order = canonical
             .partially_observed
             .iter()
             .map(|p| {
-                declared
-                    .partially_observed
-                    .iter()
-                    .position(|s| s == p)
-                    .expect("canonicalization preserves roles")
+                declared.partially_observed.iter().position(|s| s == p).ok_or_else(|| {
+                    crate::value_err("canonicalization dropped a declared observation role")
+                })
             })
-            .collect();
-        let full_order: Vec<_> = canonical
+            .collect::<PyResult<Vec<_>>>()?;
+        let full_order = canonical
             .fully_observed
             .iter()
             .map(|p| {
-                declared
-                    .fully_observed
-                    .iter()
-                    .position(|s| s == p)
-                    .expect("canonicalization preserves roles")
+                declared.fully_observed.iter().position(|s| s == p).ok_or_else(|| {
+                    crate::value_err("canonicalization dropped a declared observation role")
+                })
             })
-            .collect();
+            .collect::<PyResult<Vec<_>>>()?;
         let remap = |bits: u8, order: &[usize]| {
             order.iter().enumerate().fold(0u8, |v, (dst, src)| v | (((bits >> src) & 1) << dst))
         };
@@ -581,7 +577,10 @@ impl ObservationRecoveryStage {
             )));
         }
         let RecoveryDecision::Recovered(derivation) = &self.decision else {
-            unreachable!("a nonrecoverable decision refused above");
+            return Err(recovery_err(&RecoveryError::new(
+                RecoveryDetail::NonrecoverableWitness,
+                "recovery decision is not recovered",
+            )));
         };
         let observed = parse_observed(law, &self.graph.names, &self.catalog)?;
         let requests = parse_requests(&self.graph.names, requests)?;

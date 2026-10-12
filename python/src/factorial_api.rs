@@ -3,7 +3,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::detach_catch;
@@ -50,7 +49,7 @@ fn estimate_factorial_2x2(
             &probability_a,
             &probability_b,
         )
-        .map_err(PyValueError::new_err)
+        .map_err(crate::value_err)
     })?;
     Ok(FactorialNativeResult {
         cell_means: fit.cell_means,

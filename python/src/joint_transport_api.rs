@@ -92,7 +92,7 @@ mod enabled {
         }
     }
     fn invalid(detail: &str) -> PyErr {
-        crate::with_reason_code(crate::value_err(detail), reason_code!("invalid_argument"))
+        crate::value_err_code(reason_code!("invalid_argument"), detail)
     }
     fn io(error: antecedent_io::IoError) -> PyErr {
         crate::transport_common::error(error)
@@ -170,17 +170,11 @@ mod enabled {
                 ));
             }
         };
-        let resolve = |name: &str| {
-            graph
-                .names
-                .iter()
-                .position(|n| n == name)
-                .map(|i| {
-                    antecedent_core::VariableId::from_raw(
-                        u32::try_from(i).expect("native graph variable indices fit u32"),
-                    )
-                })
-                .ok_or_else(|| invalid("joint_transport.schema_mismatch"))
+        let resolve = |name: &str| -> PyResult<antecedent_core::VariableId> {
+            let Some(i) = graph.names.iter().position(|n| n == name) else {
+                return Err(invalid("joint_transport.schema_mismatch"));
+            };
+            Ok(antecedent_core::VariableId::from_raw(crate::fit_u32(i)?))
         };
         let treatment = resolve(&request.treatment)?;
         let outcome = resolve(&request.outcome)?;

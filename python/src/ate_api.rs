@@ -12,7 +12,6 @@ use antecedent::AcceptedGraph;
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ResponseQuery, VariableId,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -35,7 +34,7 @@ where
     }
     let (Some(rv), Some(cut), Some(bw)) = (running_variable, cutoff, bandwidth) else {
         return Err(crate::with_reason_code(
-            PyValueError::new_err(
+            crate::value_err(
                 "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
             ),
             antecedent_core::reason_code!("required_option_missing"),
@@ -192,7 +191,7 @@ pub(crate) fn parse_target_population(
     };
     let kind: String = d
         .get_item("kind")?
-        .ok_or_else(|| PyValueError::new_err("target_population requires 'kind'"))?
+        .ok_or_else(|| crate::value_err("target_population requires 'kind'"))?
         .extract()?;
     let kind = kind.to_ascii_lowercase();
     Ok(Some(match kind.as_str() {
@@ -202,14 +201,14 @@ pub(crate) fn parse_target_population(
         "named" => {
             let name: String = d
                 .get_item("name")?
-                .ok_or_else(|| PyValueError::new_err("named target_population requires 'name'"))?
+                .ok_or_else(|| crate::value_err("named target_population requires 'name'"))?
                 .extract()?;
             TargetPopulation::Predicate(PredicateExpr::named(name))
         }
         "rows" => {
             let rows: Vec<usize> = d
                 .get_item("rows")?
-                .ok_or_else(|| PyValueError::new_err("rows target_population requires 'rows'"))?
+                .ok_or_else(|| crate::value_err("rows target_population requires 'rows'"))?
                 .extract()?;
             TargetPopulation::Predicate(PredicateExpr::rows(rows))
         }
@@ -217,13 +216,13 @@ pub(crate) fn parse_target_population(
             let id: u32 = d
                 .get_item("id")?
                 .ok_or_else(|| {
-                    PyValueError::new_err("custom_distribution target_population requires 'id'")
+                    crate::value_err("custom_distribution target_population requires 'id'")
                 })?
                 .extract()?;
             TargetPopulation::CustomDistribution(DistributionRef::from_raw(id))
         }
         other => {
-            return Err(PyValueError::new_err(format!("unknown target_population kind {other:?}")));
+            return Err(crate::value_err(format!("unknown target_population kind {other:?}")));
         }
     }))
 }
@@ -236,35 +235,33 @@ pub(crate) fn parse_outcome_functional(
     };
     let kind: String = d
         .get_item("kind")?
-        .ok_or_else(|| PyValueError::new_err("outcome_functional requires 'kind'"))?
+        .ok_or_else(|| crate::value_err("outcome_functional requires 'kind'"))?
         .extract()?;
     Ok(Some(match kind.to_ascii_lowercase().as_str() {
         "mean" => antecedent_core::OutcomeFunctional::Mean,
         "exceedance" => {
             let threshold: f64 = d
                 .get_item("threshold")?
-                .ok_or_else(|| PyValueError::new_err("exceedance requires 'threshold'"))?
+                .ok_or_else(|| crate::value_err("exceedance requires 'threshold'"))?
                 .extract()?;
             antecedent_core::OutcomeFunctional::exceedance(threshold)
         }
         "exceedance_grid" | "grid" => {
             let thresholds: Vec<f64> = d
                 .get_item("thresholds")?
-                .ok_or_else(|| PyValueError::new_err("exceedance_grid requires 'thresholds'"))?
+                .ok_or_else(|| crate::value_err("exceedance_grid requires 'thresholds'"))?
                 .extract()?;
             antecedent_core::OutcomeFunctional::exceedance_grid(thresholds)
         }
         "quantile" => {
             let tau: f64 = d
                 .get_item("tau")?
-                .ok_or_else(|| PyValueError::new_err("quantile requires 'tau'"))?
+                .ok_or_else(|| crate::value_err("quantile requires 'tau'"))?
                 .extract()?;
             antecedent_core::OutcomeFunctional::quantile(tau)
         }
         other => {
-            return Err(PyValueError::new_err(format!(
-                "unknown outcome_functional kind {other:?}"
-            )));
+            return Err(crate::value_err(format!("unknown outcome_functional kind {other:?}")));
         }
     }))
 }
@@ -291,11 +288,11 @@ pub(crate) fn parse_population_registry(
             if let Ok(spec) = v.cast::<PyDict>() {
                 let weights: Vec<f64> = spec
                     .get_item("weights")?
-                    .ok_or_else(|| PyValueError::new_err("missing weights"))?
+                    .ok_or_else(|| crate::value_err("missing weights"))?
                     .extract()?;
                 let depends: Vec<u32> = spec
                     .get_item("depends_on")?
-                    .ok_or_else(|| PyValueError::new_err("missing depends_on"))?
+                    .ok_or_else(|| crate::value_err("missing depends_on"))?
                     .extract()?;
                 reg.insert_distribution_with_dependence(
                     DistributionRef::from_raw(id),
@@ -318,7 +315,7 @@ fn parse_latency_mode(latency: Option<&str>) -> PyResult<Option<antecedent::Late
     match latency {
         None => Ok(None),
         Some(s) => Ok(Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
-            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+            crate::value_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?)),
     }
 }
@@ -364,7 +361,7 @@ fn parse_batch_estimator_config(
         || parsed.rd_bandwidth.is_some()
         || parsed.rd_se_kind.is_some()
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "estimator_config for rd.sharp does not apply to a batch of average effects",
         ));
     }
@@ -412,16 +409,14 @@ fn compile_batch_study(
     }
     if let Some(id) = identifier {
         batch = batch.identifier(
-            id.parse::<antecedent::IdentifierId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            id.parse::<antecedent::IdentifierId>().map_err(|e| crate::value_err(e.to_string()))?,
         );
     }
     if let Some(spec) = configured_spec {
         batch = batch.estimator_spec(spec);
     } else if let Some(est) = estimator {
         batch = batch.estimator(
-            est.parse::<antecedent::EstimatorId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            est.parse::<antecedent::EstimatorId>().map_err(|e| crate::value_err(e.to_string()))?,
         );
     }
     if let Some(screen) =
@@ -610,7 +605,7 @@ fn analyze_ate_many(
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
@@ -1002,7 +997,7 @@ fn identify_ate_admg(
         if let Some(id) = identifier {
             builder = builder.identifier(
                 id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                    .map_err(|e| crate::value_err(e.to_string()))?,
             );
         }
         let analysis = builder.build().map_err(py_err)?;
@@ -1049,7 +1044,7 @@ fn identify_ate(
         if let Some(id) = identifier {
             builder = builder.identifier(
                 id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                    .map_err(|e| crate::value_err(e.to_string()))?,
             );
         }
         let analysis = builder.build().map_err(py_err)?;
@@ -1076,7 +1071,7 @@ fn structure_var_id(names: &[String], name: &str) -> PyResult<VariableId> {
         .position(|n| n == name)
         .and_then(|i| u32::try_from(i).ok())
         .map(VariableId::from_raw)
-        .ok_or_else(|| PyValueError::new_err(format!("unknown variable {name:?}")))
+        .ok_or_else(|| crate::value_err(format!("unknown variable {name:?}")))
 }
 
 fn structure_query(
@@ -1125,13 +1120,12 @@ fn structure_query(
             })))
         }
         "conditional" | "conditional_effect" => {
-            let modifier = modifier.ok_or_else(|| {
-                PyValueError::new_err("ConditionalEffect identify requires modifier=")
-            })?;
+            let modifier = modifier
+                .ok_or_else(|| crate::value_err("ConditionalEffect identify requires modifier="))?;
             let w_id = structure_var_id(names, modifier)?;
             let inner = AverageEffectQuery::binary_ate(t_id, y_id).with_effect_modifiers([w_id]);
             let cq = ConditionalEffectQuery::try_new(inner)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(|e| crate::value_err(e.to_string()))?;
             Ok(CausalQuery::ConditionalEffect(cq))
         }
         "pulse" | "sustained" | "temporal_effect" => {
@@ -1146,7 +1140,7 @@ fn structure_query(
             )?;
             if let Some((from, until)) = window {
                 if !matches!(query.policy, TemporalPolicy::Sustained { .. }) {
-                    return Err(PyValueError::new_err("window requires a sustained policy"));
+                    return Err(crate::value_err("window requires a sustained policy"));
                 }
                 query.policy = TemporalPolicy::sustained(from, until);
             }
@@ -1167,7 +1161,7 @@ fn structure_query(
                 crate::temporal_license::policy_at_lag(policy.unwrap_or("pulse"), treatment_lag)?;
             query.temporal = Some(
                 TemporalResponseSpec::new(vec![horizon_steps.max(1)], temporal_policy, None)
-                    .map_err(|error| PyValueError::new_err(error.to_string()))?,
+                    .map_err(|error| crate::value_err(error.to_string()))?,
             );
             Ok(CausalQuery::Response(query))
         }
@@ -1183,7 +1177,7 @@ fn structure_query(
                 "direct" => MediationContrast::Direct,
                 "mediated" | "indirect" => MediationContrast::Mediated,
                 other => {
-                    return Err(PyValueError::new_err(format!(
+                    return Err(crate::value_err(format!(
                         "unknown temporal mediation contrast {other}"
                     )));
                 }
@@ -1194,9 +1188,7 @@ fn structure_query(
                     .map_err(py_msg)?,
             ))
         }
-        other => {
-            Err(PyValueError::new_err(format!("identify_structure unknown query kind {other:?}")))
-        }
+        other => Err(crate::value_err(format!("identify_structure unknown query kind {other:?}"))),
     }
 }
 
@@ -1292,7 +1284,7 @@ fn identify_structure(
         } else if let Some(g) = tpag {
             (AcceptedGraph::from(g.pag), g.names)
         } else {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "identify_structure requires a Dag, Cpdag, Pag, TemporalDag, TemporalCpdag, or TemporalPag",
             ));
         };
@@ -1314,7 +1306,9 @@ fn identify_structure(
                 temporal.max_history_lag = max_history_lag;
             }
             CausalQuery::Response(response) if response.temporal.is_some() => {
-                let temporal = response.temporal.as_mut().expect("temporal response");
+                let Some(temporal) = response.temporal.as_mut() else {
+                    return Err(py_msg("temporal response is missing"));
+                };
                 if let Some(horizons) = horizons {
                     *temporal = antecedent_core::TemporalResponseSpec::new(
                         horizons,
@@ -1368,7 +1362,7 @@ fn identify_structure(
         let identification = if let Some(id) = identifier {
             let strategy = id
                 .parse::<antecedent::IdentifierId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(|e| crate::value_err(e.to_string()))?;
             antecedent::identify_with(&structure, &query, strategy).map_err(py_err)?
         } else {
             antecedent::identify(&structure, &query).map_err(py_err)?
@@ -1406,7 +1400,7 @@ fn parse_candidate_screen(
         return Ok(None);
     }
     let screen_id = screen_id.ok_or_else(|| {
-        PyValueError::new_err(
+        crate::value_err(
             "candidate screen requires screen_id, procedure, screen_rows, and estimate_rows",
         )
     })?;
@@ -1416,7 +1410,7 @@ fn parse_candidate_screen(
         "by" => antecedent::CandidateProcedure::BenjaminiYekutieli,
         "unrecorded" => antecedent::CandidateProcedure::Unrecorded,
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "unknown screen procedure {other:?}; use max_t|bh|by|unrecorded"
             )));
         }
@@ -1485,11 +1479,11 @@ impl PyPreparedBatch {
         threads: Option<u32>,
     ) -> PyResult<Vec<AteAnalysisResult>> {
         if names != self.names {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "prepared batch estimate requires the same column names (order) as prepare",
             ));
         }
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
         let inner = std::sync::Arc::clone(&self.inner);
         let (results, scores) = detach_catch(py, move || {
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
@@ -1501,10 +1495,7 @@ impl PyPreparedBatch {
             Ok((results, scores))
         })?;
         // A retarget after this estimate reweights this estimate's rows.
-        *self
-            .last_scores
-            .lock()
-            .map_err(|_| PyValueError::new_err("batch scores lock poisoned"))? =
+        *self.last_scores.lock().map_err(|_| crate::value_err("batch scores lock poisoned"))? =
             Some(std::sync::Arc::new(scores));
         Ok(results)
     }
@@ -1553,7 +1544,7 @@ fn prepare_ate_batch(
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
@@ -1628,7 +1619,7 @@ fn prepare_cells_batch(
     within_tier: Option<String>,
     family_contrast: Option<&str>,
 ) -> PyResult<PyPreparedBatch> {
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_cell_batch_query_specs(queries)?;

@@ -51,7 +51,7 @@ fn derived_treatment_check_json(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let declaration = parse_declaration(declaration)?;
-    let (data, _) = tabular_from_py_columns(py, names, columns)?;
+    let (data, _) = tabular_from_py_columns(names, columns)?;
     let ctx = py_execution_context_cancel(seed, resolve_user_threads(threads), cancel);
     detach_catch(py, move || {
         let plan = check_derived_treatment(&data, &declaration, outcome, &adjustment, &ctx)
@@ -197,7 +197,7 @@ fn factorized_joint_cells_json(
     config.min_cell_ess = min_cell_ess;
     config.normalization_tolerance = normalization_tolerance;
     config.ordering_tolerance_sd = ordering_tolerance_sd;
-    let (data, _) = tabular_from_py_columns(py, names, columns)?;
+    let (data, _) = tabular_from_py_columns(names, columns)?;
     let ctx = py_execution_context_cancel(seed, resolve_user_threads(threads), cancel);
     detach_catch(py, move || {
         let (plan, fit) = estimate_derived_joint_cells(

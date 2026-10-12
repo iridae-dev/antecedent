@@ -20,7 +20,6 @@ use antecedent_contract::ExternalRefusal;
 use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_io::IoError;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -154,7 +153,7 @@ pub(crate) fn supplied_from(text: Option<&str>) -> PyResult<SuppliedSources> {
     };
     check_size(text)?;
     let parsed: SuppliedIn = serde_json::from_str(text)
-        .map_err(|e| PyValueError::new_err(format!("invalid supplied sources: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid supplied sources: {e}")))?;
     let mut supplied = SuppliedSources::default();
     for p in &parsed.providers {
         supplied = supplied.with_provider(&p.provider_id, &p.snapshot_id, &p.request_fingerprint);
@@ -220,12 +219,12 @@ impl PyBundleBuilder {
             return Ok(Some(kind_refusal(kind)));
         };
         let requires: ProviderOrData = serde_json::from_str(requires_json)
-            .map_err(|e| PyValueError::new_err(format!("invalid requirement: {e}")))?;
+            .map_err(|e| crate::value_err(format!("invalid requirement: {e}")))?;
         let facts: BTreeMap<String, String> = match facts_json {
             Some(text) => {
                 check_size(text)?;
                 serde_json::from_str(text)
-                    .map_err(|e| PyValueError::new_err(format!("invalid facts: {e}")))?
+                    .map_err(|e| crate::value_err(format!("invalid facts: {e}")))?
             }
             None => BTreeMap::new(),
         };
@@ -233,7 +232,7 @@ impl PyBundleBuilder {
             Some(text) => {
                 check_size(text)?;
                 serde_json::from_str(text)
-                    .map_err(|e| PyValueError::new_err(format!("invalid inspected values: {e}")))?
+                    .map_err(|e| crate::value_err(format!("invalid inspected values: {e}")))?
             }
             None => Vec::new(),
         };
@@ -264,7 +263,7 @@ impl PyBundleBuilder {
         relationship: &str,
     ) -> PyResult<(Option<String>, Refusal)> {
         let Some(parsed) = EvidenceRelationship::from_name(relationship) else {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "`{relationship}` is not an evidence relationship"
             )));
         };

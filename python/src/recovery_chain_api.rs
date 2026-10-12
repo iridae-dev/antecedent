@@ -20,7 +20,7 @@ use pyo3::types::PyBytes;
 
 use crate::bridge::RefusalJson;
 use crate::transport_common::execution_context;
-use crate::{CausalSerializationError, detach_catch, value_err};
+use crate::{detach_catch, value_err};
 
 type DecidePayload = (Option<String>, Option<Py<PyBytes>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -248,7 +248,10 @@ fn recover_recovery_chain(
                 // A recovered decision with no law: report the plan only.
                 Err(_) => {
                     let ChainRecoveryDecision::Recovered(plan) = decided.decision() else {
-                        unreachable!("only a recovered decision lacks an artifact");
+                        return Err(ChainRecoveryError::new(
+                            ChainRecoveryDetail::InvalidDerivation,
+                            "only a recovered decision lacks an artifact",
+                        ));
                     };
                     let plan = ChainPlanWire::of_plan(plan);
                     let query = ChainQueryWire::from_query(&query);
@@ -293,7 +296,7 @@ fn consume_recovery_chain_artifact(
             Ok(consumed) => Ok((Some(report_of_wire(&consumed.wire)), None)),
             Err(error) => match artifact_refusal_json(&error) {
                 Some(json) => Ok((None, Some(json))),
-                None => Err(CausalSerializationError::new_err(error.to_string())),
+                None => Err(crate::serialization_err(error.to_string())),
             },
         }
     })
