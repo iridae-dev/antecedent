@@ -12,8 +12,8 @@ use super::{
     PhysicalExecutionPlan, RefuteSuite, ResponseQuery, RouteInput, StaticMediationSource, Strategy,
     StudyResult, TableView, TabularData, TimeSeriesData, VariableId, admg_has_bidirected,
     admg_without_latents_to_dag, classify_analysis_route, classify_route, data_modality,
-    graph_posterior_response_supported, reject_dag_only_on_pag, response_functional_is_derivative,
-    temporal_admg_projection,
+    graph_posterior_response_supported, is_class_atom, reject_dag_only_on_pag,
+    response_functional_is_derivative, temporal_admg_projection,
 };
 use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
 use crate::graph::Dag;
@@ -34,16 +34,6 @@ fn route_mismatch() -> CausalError {
     CausalError::Compile {
         message: "execution route does not match the study's data or query kind".into(),
     }
-}
-
-/// Whether a graph-posterior atom is a CPDAG or PAG equivalence class (as opposed to a single
-/// DAG or ADMG), which routes through the class-envelope executors.
-pub(super) const fn is_class_atom(kind: antecedent_discovery::GraphPosteriorAtomKind) -> bool {
-    matches!(
-        kind,
-        antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-            | antecedent_discovery::GraphPosteriorAtomKind::Pag
-    )
 }
 
 /// The wire names of a typed identifier/estimator pair, as plan records carry them.

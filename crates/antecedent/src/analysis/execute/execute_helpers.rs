@@ -27,6 +27,16 @@ pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
     }
 }
 
+/// Whether a graph-posterior atom is a CPDAG or PAG equivalence class (as opposed to a single
+/// DAG or ADMG), which routes through the class-envelope executors.
+pub(crate) const fn is_class_atom(kind: antecedent_discovery::GraphPosteriorAtomKind) -> bool {
+    matches!(
+        kind,
+        antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+            | antecedent_discovery::GraphPosteriorAtomKind::Pag
+    )
+}
+
 /// The first declared target of a GCM query. An empty target list is refused rather than read
 /// as variable 0, which would silently pick the first schema variable.
 fn first_target(

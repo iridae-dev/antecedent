@@ -10,10 +10,8 @@ use super::{
     TemporalEffectQuery, TimeSeriesData, compile_logical_static_ate,
     compile_logical_static_cpdag_response, compile_logical_static_pag_response,
     compile_logical_static_response, compile_logical_temporal_effect_classified,
-    compile_logical_temporal_response,
+    compile_logical_temporal_response, is_class_atom,
 };
-
-use super::dispatch::is_class_atom;
 
 impl super::Study {
     /// Compile path for a supplied graph posterior ([`crate::StudyBuilder::graph_posterior`]).
