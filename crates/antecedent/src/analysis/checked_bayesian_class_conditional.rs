@@ -142,7 +142,7 @@ impl CheckedBayesianClassConditional {
         let proof = match analysis.graph.class() {
             crate::GraphClass::Cpdag => {
                 let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
+                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -150,7 +150,7 @@ impl CheckedBayesianClassConditional {
             }
             crate::GraphClass::Pag => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -216,10 +216,10 @@ impl CheckedBayesianClassConditional {
         click.pag_identification_cache = None;
         match &self.proof {
             ConditionalClassProof::Cpdag { cache, .. } => {
-                click.cpdag_identification_cache = Some(std::sync::Arc::new(cache.clone()));
+                click.cpdag_identification_cache = Some(std::sync::Arc::clone(cache));
             }
             ConditionalClassProof::Pag { cache, .. } => {
-                click.pag_identification_cache = Some(std::sync::Arc::new(cache.clone()));
+                click.pag_identification_cache = Some(std::sync::Arc::clone(cache));
             }
         }
         let mut result = click.execute_class_conditional(data, &self.query, &self.physical, ctx)?;

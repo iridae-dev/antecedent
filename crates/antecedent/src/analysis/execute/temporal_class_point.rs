@@ -253,17 +253,17 @@ impl super::Study {
         };
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
+            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
                 if let Some((_, envelope)) =
                     cache.by_horizon.iter().find(|(horizon, _)| *horizon == probe.horizon_steps)
                 {
-                    (envelope.clone(), true)
+                    (Arc::clone(envelope), true)
                 } else {
-                    (cache.envelope.clone(), true)
+                    (Arc::clone(&cache.envelope), true)
                 }
             } else {
                 report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, &probe)?.envelope, false)
+                (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
             };
         let treatment_offset = probe
             .try_treatment_offset()
@@ -359,7 +359,7 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle,
+                    envelope: Arc::unwrap_or_clone(bundle),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -394,7 +394,7 @@ impl super::Study {
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) = {
             report_identify_compute(ctx);
-            (self.identify_temporal_class(identifier_id, &probe)?.envelope, false)
+            (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
         };
         let treatment_offset = probe
             .try_treatment_offset()
@@ -485,7 +485,7 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle,
+                    envelope: Arc::unwrap_or_clone(bundle),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -1136,11 +1136,11 @@ fn load_class_posterior_cache(
     probe: &TemporalEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<
-    (crate::analysis::prepared::CachedTemporalClassPosteriorIdentification, bool),
+    (Arc<crate::analysis::prepared::CachedTemporalClassPosteriorIdentification>, bool),
     CausalError,
 > {
-    if let Some(cache) = study.temporal_class_posterior_identification_cache.as_deref() {
-        return Ok((cache.clone(), true));
+    if let Some(cache) = study.temporal_class_posterior_identification_cache.as_ref() {
+        return Ok((Arc::clone(cache), true));
     }
     let variables =
         data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
@@ -1151,7 +1151,7 @@ fn load_class_posterior_cache(
         study.max_completions,
         ctx,
     )?;
-    Ok((cache, false))
+    Ok((Arc::new(cache), false))
 }
 
 fn derivative_probe(query: &ResponseQuery) -> Result<TemporalEffectQuery, CausalError> {

@@ -864,17 +864,18 @@ impl super::Study {
         let est = bayesian_gcomp(&cfg, ctx);
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
 
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        gp, query, ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(cache) =
+            self.graph_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, query, ctx,
+                )?),
+                false,
+            )
+        };
         let graphs = identified.graphs.clone();
         let fit_atoms: Vec<_> = identified
             .atoms
@@ -1254,13 +1255,13 @@ impl super::Study {
         let estimator = estimator_id.as_str();
         let (identified, identify_cached) = if let Some(operation) = checked {
             (operation.identification().clone(), true)
-        } else if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-            (cache.clone(), true)
+        } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+            (Arc::clone(cache), true)
         } else {
             (
-                crate::analysis::prepared::build_graph_posterior_identification_cache(
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
                     gp, query, ctx,
-                )?,
+                )?),
                 false,
             )
         };
@@ -1576,13 +1577,13 @@ impl super::Study {
         }
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
+            if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
             } else {
                 (
-                    crate::analysis::prepared::build_dbn_posterior_identification_cache(
+                    Arc::new(crate::analysis::prepared::build_dbn_posterior_identification_cache(
                         gp, &vars, query, ctx,
-                    )?,
+                    )?),
                     false,
                 )
             };
@@ -1849,13 +1850,13 @@ impl super::Study {
         let sequential_bayes = if multi_step { Some(bayesian_gcomp(&cfg, ctx)) } else { None };
 
         let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
+            if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
             } else {
                 (
-                    crate::analysis::prepared::build_dbn_posterior_identification_cache(
+                    Arc::new(crate::analysis::prepared::build_dbn_posterior_identification_cache(
                         gp, &vars, query, ctx,
-                    )?,
+                    )?),
                     false,
                 )
             };
@@ -2370,17 +2371,20 @@ impl super::Study {
         let estimator = bayesian_gcomp(&cfg, ctx);
         require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
 
-        let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) =
+            self.dbn_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
                     crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
                         gp, &vars, query, ctx,
                     )?,
-                    false,
-                )
-            };
+                ),
+                false,
+            )
+        };
         let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
             message: "DBN mediation requires at least one horizon".into(),
         })?;

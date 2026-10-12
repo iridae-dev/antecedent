@@ -21,7 +21,7 @@ impl super::Study {
         bound.tiered = None;
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.temporal_identification_cache = None;
-        bound.temporal_class_identification_cache = Some(Arc::new(operation.bundle().clone()));
+        bound.temporal_class_identification_cache = Some(Arc::clone(operation.bundle()));
         bound.temporal_class_posterior_identification_cache = None;
         bound.dbn_posterior_identification_cache = None;
         bound.inference = operation.inference().clone();

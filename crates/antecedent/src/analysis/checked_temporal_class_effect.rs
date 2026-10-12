@@ -26,7 +26,7 @@ pub(crate) struct CheckedTemporalClassEffectOperation {
     source_graph: AcceptedGraph,
     max_completions: Option<usize>,
     query: TemporalEffectQuery,
-    bundle: CachedTemporalClassIdentification,
+    bundle: Arc<CachedTemporalClassIdentification>,
     identification: IdentificationResult,
     identifier: IdentifierId,
     estimator: EstimatorId,
@@ -134,8 +134,10 @@ impl CheckedTemporalClassEffectOperation {
                         .into(),
             });
         }
-        let bundle =
-            CachedTemporalClassIdentification { envelope: expected, by_horizon: Vec::new() };
+        let bundle = Arc::new(CachedTemporalClassIdentification {
+            envelope: Arc::new(expected),
+            by_horizon: Vec::new(),
+        });
         let envelope = &bundle.envelope.envelope;
         if envelope.cases.is_empty() {
             return Err(CausalError::Compile {
@@ -187,7 +189,7 @@ impl CheckedTemporalClassEffectOperation {
     }
 
     #[must_use]
-    pub(crate) fn bundle(&self) -> &CachedTemporalClassIdentification {
+    pub(crate) fn bundle(&self) -> &Arc<CachedTemporalClassIdentification> {
         &self.bundle
     }
 
@@ -261,10 +263,10 @@ mod tests {
 
     fn empty_bundle() -> CachedTemporalClassIdentification {
         CachedTemporalClassIdentification {
-            envelope: TemporalClassEnvelope {
+            envelope: Arc::new(TemporalClassEnvelope {
                 envelope: IdentificationEnvelope::from_cases(Vec::new()),
                 indexers: Vec::new(),
-            },
+            }),
             by_horizon: Vec::new(),
         }
     }

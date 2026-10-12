@@ -929,19 +929,20 @@ impl super::Study {
         graph_posterior_response_supported(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let identification_query = AverageEffectQuery::binary_ate(treatment, outcome);
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        graph_posterior,
-                        &identification_query,
-                        ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(cache) =
+            self.graph_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    graph_posterior,
+                    &identification_query,
+                    ctx,
+                )?),
+                false,
+            )
+        };
         // Same interactive budget as the graph-posterior ATE path: identified
         // atoms left out of the stratified subsample are never fit and never
         // renormalized away; their mass is reported as not evaluated.

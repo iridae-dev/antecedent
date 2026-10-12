@@ -616,7 +616,8 @@ impl Study {
             _ => return Ok(None),
         };
         let identifier_id = self.identifier.unwrap_or(RouteDefaults::PAG.identifier);
-        let mut bundle = self.identify_temporal_class(identifier_id, &query)?;
+        let mut bundle =
+            std::sync::Arc::unwrap_or_clone(self.identify_temporal_class(identifier_id, &query)?);
         let horizons: &[u32] = match &self.query {
             CausalQuery::Response(response) => {
                 &response.temporal.as_ref().expect("temporal query").horizons
@@ -630,7 +631,7 @@ impl Study {
             let identified = if horizon == query.horizon_steps {
                 bundle.envelope.clone()
             } else {
-                self.identify_temporal_class(identifier_id, &qh)?.envelope
+                self.identify_temporal_class(identifier_id, &qh)?.envelope.clone()
             };
             bundle.by_horizon.push((horizon, identified));
         }

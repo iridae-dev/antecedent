@@ -40,7 +40,7 @@ impl Study {
         let (graph, identification) = match analysis.graph.class() {
             GraphClass::Cpdag => {
                 let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
+                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -51,7 +51,7 @@ impl Study {
             }
             GraphClass::Pag => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -105,7 +105,7 @@ impl Study {
     ) -> Result<Option<CheckedGraphPosteriorEffect>, CausalError> {
         let (Some(posterior), Some(identification), Some(target)) = (
             analysis.graph_posterior.as_ref(),
-            analysis.graph_posterior_identification_cache.as_deref(),
+            analysis.graph_posterior_identification_cache.as_ref(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
         ) else {
             return Ok(None);
@@ -176,7 +176,7 @@ impl Study {
     ) -> Result<Option<CheckedClassGraphPosteriorEffect>, CausalError> {
         let (Some(posterior), Some(identification), Some(target)) = (
             analysis.graph_posterior.as_ref(),
-            analysis.graph_posterior_identification_cache.as_deref(),
+            analysis.graph_posterior_identification_cache.as_ref(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
         ) else {
             return Ok(None);
@@ -221,7 +221,7 @@ impl Study {
     ) -> Result<Option<Box<CheckedBayesianGraphPosteriorAte>>, CausalError> {
         let (Some(posterior), Some(identification), Some(target), InferenceMode::Bayesian(_)) = (
             analysis.graph_posterior.as_ref(),
-            analysis.graph_posterior_identification_cache.as_deref(),
+            analysis.graph_posterior_identification_cache.as_ref(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
             &analysis.inference,
         ) else {
@@ -261,7 +261,7 @@ impl Study {
         let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
             analysis.graph_posterior.as_ref(),
             &analysis.query,
-            analysis.graph_posterior_identification_cache.as_deref(),
+            analysis.graph_posterior_identification_cache.as_ref(),
         ) else {
             return Ok(None);
         };
@@ -312,7 +312,7 @@ impl Study {
         ) = (
             &analysis.data,
             &analysis.query,
-            analysis.temporal_class_identification_cache.as_deref(),
+            analysis.temporal_class_identification_cache.as_ref(),
             analysis.graph.class(),
         )
         else {
@@ -414,7 +414,7 @@ impl Study {
         ) = (
             &analysis.data,
             &analysis.query,
-            analysis.temporal_class_identification_cache.as_deref(),
+            analysis.temporal_class_identification_cache.as_ref(),
             analysis.graph.class(),
             &analysis.inference,
         )
@@ -520,7 +520,7 @@ impl Study {
         let (graph, identification) = match analysis.graph.class() {
             GraphClass::Cpdag => {
                 let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
+                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -531,7 +531,7 @@ impl Study {
             }
             GraphClass::Pag => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -574,7 +574,7 @@ impl Study {
         let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
             analysis.graph_posterior.as_ref(),
             &analysis.query,
-            analysis.graph_posterior_identification_cache.as_deref(),
+            analysis.graph_posterior_identification_cache.as_ref(),
         ) else {
             return Ok(None);
         };

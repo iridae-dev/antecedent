@@ -31,7 +31,7 @@ pub(crate) struct CheckedTemporalClassResponseOperation {
     source_graph: AcceptedGraph,
     max_completions: Option<usize>,
     query: ResponseQuery,
-    bundle: CachedTemporalClassIdentification,
+    bundle: Arc<CachedTemporalClassIdentification>,
     identifier: IdentifierId,
     estimator: EstimatorId,
     inference: InferenceMode,
@@ -63,7 +63,7 @@ impl CheckedTemporalClassResponseOperation {
     pub(crate) fn checked(
         source_graph: AcceptedGraph,
         query: &ResponseQuery,
-        bundle: &CachedTemporalClassIdentification,
+        bundle: &Arc<CachedTemporalClassIdentification>,
         max_completions: Option<usize>,
         inference: &InferenceMode,
         bootstrap_replicates: u32,
@@ -174,7 +174,7 @@ impl CheckedTemporalClassResponseOperation {
             source_graph,
             max_completions,
             query: query.clone(),
-            bundle: bundle.clone(),
+            bundle: Arc::clone(bundle),
             identifier,
             estimator,
             inference: inference.clone(),
@@ -218,7 +218,7 @@ impl CheckedTemporalClassResponseOperation {
     }
 
     #[must_use]
-    pub(crate) fn bundle(&self) -> &CachedTemporalClassIdentification {
+    pub(crate) fn bundle(&self) -> &Arc<CachedTemporalClassIdentification> {
         &self.bundle
     }
 

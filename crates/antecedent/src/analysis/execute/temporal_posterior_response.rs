@@ -118,11 +118,13 @@ impl super::Study {
         } else {
             EstimatorId::TemporalResponseGcomp
         };
-        let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) =
+            self.dbn_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
                     crate::analysis::prepared::build_dbn_posterior_response_identification_cache(
                         gp,
                         &vars,
@@ -130,9 +132,10 @@ impl super::Study {
                         estimator_id,
                         ctx,
                     )?,
-                    false,
-                )
-            };
+                ),
+                false,
+            )
+        };
 
         let mut atoms = identified
             .graphs

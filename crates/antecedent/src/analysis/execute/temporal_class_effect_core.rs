@@ -76,7 +76,7 @@ impl TemporalClassEffectFit {
         .cancelled(self.cancelled)
         .extras(IdentifiedExecuteExtras {
             certificate: Some(crate::Identification::TemporalEnvelope {
-                envelope: bundle.envelope.clone(),
+                envelope: (*bundle.envelope).clone(),
                 strategy: identifier_id,
                 structure_version,
             }),

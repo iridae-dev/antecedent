@@ -164,7 +164,7 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
 
 pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_class_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_class_identification_cache.as_ref()) {
         (Some(RouteInput::TemporalEffectClass { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()

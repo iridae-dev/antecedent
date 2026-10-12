@@ -241,7 +241,7 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
             let class_proof = match graph_class {
                 GraphClass::Cpdag => {
                     let (Some(graph), Some(cache)) =
-                        (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
+                        (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
                     else {
                         return Err(CausalError::Compile {
                             message: "conditional CPDAG preparation lost its graph proof".into(),
@@ -254,7 +254,7 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
                 }
                 GraphClass::Pag => {
                     let (Some(graph), Some(cache)) =
-                        (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                        (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                     else {
                         return Err(CausalError::Compile {
                             message: "conditional PAG preparation lost its graph proof".into(),

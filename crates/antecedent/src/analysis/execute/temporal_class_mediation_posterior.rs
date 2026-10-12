@@ -55,11 +55,13 @@ impl super::Study {
         let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
         witness.horizon_steps = horizon;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) =
+            self.temporal_class_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
                     crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
                         gp,
                         &vars,
@@ -67,9 +69,10 @@ impl super::Study {
                         self.max_completions,
                         ctx,
                     )?,
-                    false,
-                )
-            };
+                ),
+                false,
+            )
+        };
         let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
         let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             evaluate_temporal_class_mediation_atom_frequentist(
@@ -279,11 +282,13 @@ impl super::Study {
         let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
         witness.horizon_steps = horizon;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) =
+            self.temporal_class_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
                     crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
                         gp,
                         &vars,
@@ -291,9 +296,10 @@ impl super::Study {
                         self.max_completions,
                         ctx,
                     )?,
-                    false,
-                )
-            };
+                ),
+                false,
+            )
+        };
         let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             evaluate_temporal_class_mediation_atom_bayesian(
                 self,
@@ -407,7 +413,7 @@ fn evaluate_temporal_class_mediation_atom_frequentist(
     estimator: &TemporalMediationEstimator,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassMediationAtomEval, CausalError> {
-    let mut class_envelope = atom.envelope.clone();
+    let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
     crate::identify_api::refine_temporal_class_identification(
         &mut class_envelope,
         &CausalQuery::Mediation(query.clone()),
@@ -522,7 +528,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
         compose_temporal_mediation, prepare_temporal_mediation_adjusted,
     };
     let bayes = bayesian_gcomp(cfg, ctx);
-    let mut class_envelope = atom.envelope.clone();
+    let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
     crate::identify_api::refine_temporal_class_identification(
         &mut class_envelope,
         &CausalQuery::Mediation(query.clone()),

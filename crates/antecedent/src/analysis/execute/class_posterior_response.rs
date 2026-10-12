@@ -42,17 +42,18 @@ impl super::Study {
         let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
         let witness = response_path::response_witness_ate(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        gp, &witness, ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(cache) =
+            self.graph_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, &witness, ctx,
+                )?),
+                false,
+            )
+        };
         if identified.class_atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "class graph-posterior response: no identified class atoms".into(),

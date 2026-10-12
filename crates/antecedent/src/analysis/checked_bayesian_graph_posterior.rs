@@ -36,7 +36,7 @@ impl CheckedBayesianGraphPosteriorAte {
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         target: GraphPosteriorEffectTarget,
-        identification: CachedGraphPosteriorIdentification,
+        identification: Arc<CachedGraphPosteriorIdentification>,
         inference: InferenceMode,
         procedure: EstimatorSpec,
         physical: PhysicalExecutionPlan,
@@ -72,7 +72,7 @@ impl CheckedBayesianGraphPosteriorAte {
         Ok(Self {
             posterior: Arc::new(posterior),
             target,
-            identification: Arc::new(identification),
+            identification,
             inference,
             procedure,
             physical,
@@ -93,7 +93,7 @@ impl CheckedBayesianGraphPosteriorAte {
     pub(crate) const fn target(&self) -> &GraphPosteriorEffectTarget {
         &self.target
     }
-    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
         &self.identification
     }
     pub(crate) fn inference(&self) -> &InferenceMode {

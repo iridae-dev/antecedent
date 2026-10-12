@@ -239,13 +239,13 @@ impl super::Study {
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<
-        (IdentifierId, crate::analysis::prepared::CachedTemporalClassIdentification, bool),
+        (IdentifierId, Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, bool),
         CausalError,
     > {
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
+            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
             } else {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, query)?, false)
@@ -414,7 +414,7 @@ impl super::Study {
             .cancelled(cancelled)
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
+                    envelope: (*bundle.envelope).clone(),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -663,7 +663,7 @@ impl super::Study {
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
+                    envelope: (*bundle.envelope).clone(),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -1168,7 +1168,7 @@ impl super::Study {
             .extras(IdentifiedExecuteExtras {
                 certificate: primary_envelope.map(|envelope| {
                     crate::Identification::TemporalEnvelope {
-                        envelope,
+                        envelope: Arc::unwrap_or_clone(envelope),
                         strategy: identifier_id,
                         structure_version: self.graph.version(),
                     }
@@ -1417,7 +1417,7 @@ impl super::Study {
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
+                    envelope: (*bundle.envelope).clone(),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),

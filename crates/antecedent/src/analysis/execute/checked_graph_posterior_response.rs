@@ -40,7 +40,7 @@ impl CheckedGraphPosteriorResponse {
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         query: ResponseQuery,
-        identification: CachedGraphPosteriorIdentification,
+        identification: Arc<CachedGraphPosteriorIdentification>,
         physical: PhysicalExecutionPlan,
         identifier: IdentifierId,
         estimator: EstimatorId,
@@ -120,7 +120,7 @@ impl CheckedGraphPosteriorResponse {
         Ok(Self {
             posterior: Arc::new(posterior),
             query,
-            identification: Arc::new(identification),
+            identification,
             physical,
             identifier,
             estimator,
@@ -136,7 +136,7 @@ impl CheckedGraphPosteriorResponse {
     pub(crate) fn query(&self) -> &ResponseQuery {
         &self.query
     }
-    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
         &self.identification
     }
     pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
@@ -171,8 +171,7 @@ impl super::Study {
         bound.data = DataInput::Tabular(data.clone());
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.graph_posterior_identification_cache =
-            Some(Arc::new(operation.identification().clone()));
+        bound.graph_posterior_identification_cache = Some(Arc::clone(operation.identification()));
         bound.inference = operation.inference().clone();
         bound.refute = operation.validation();
         bound.latency_mode = operation.latency_mode();

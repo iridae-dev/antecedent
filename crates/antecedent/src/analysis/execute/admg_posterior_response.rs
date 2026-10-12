@@ -30,8 +30,7 @@ impl super::Study {
         let mut bound = self.clone();
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.graph_posterior_identification_cache =
-            Some(Arc::new(operation.identification().clone()));
+        bound.graph_posterior_identification_cache = Some(Arc::clone(operation.identification()));
         bound.inference = operation.inference().clone();
         bound.refute = operation.validation();
         bound.execute_admg_graph_posterior_response(
@@ -66,14 +65,14 @@ impl super::Study {
         graph_posterior_response_supported(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_deref()
+            self.graph_posterior_identification_cache.as_ref()
         {
-            (cache.clone(), true)
+            (Arc::clone(cache), true)
         } else {
             (
-                    crate::analysis::prepared::build_admg_graph_posterior_response_identification_cache(
+                    Arc::new(crate::analysis::prepared::build_admg_graph_posterior_response_identification_cache(
                         gp, query, ctx,
-                    )?,
+                    )?),
                     false,
                 )
         };

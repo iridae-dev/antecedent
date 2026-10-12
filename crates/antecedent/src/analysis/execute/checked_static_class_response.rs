@@ -184,7 +184,7 @@ impl super::Study {
         bound.custom_validators = Vec::new();
         match operation.identification() {
             StaticClassIdentification::Cpdag(cache) => {
-                bound.cpdag_identification_cache = Some(Arc::new(cache.clone()));
+                bound.cpdag_identification_cache = Some(Arc::clone(cache));
                 bound.pag_identification_cache = None;
                 if bound.graph.as_cpdag().is_none() {
                     return Err(CausalError::Compile {
@@ -193,7 +193,7 @@ impl super::Study {
                 }
             }
             StaticClassIdentification::Pag(cache) => {
-                bound.pag_identification_cache = Some(Arc::new(cache.clone()));
+                bound.pag_identification_cache = Some(Arc::clone(cache));
                 bound.cpdag_identification_cache = None;
                 if operation.physical().static_pag().is_none() {
                     return Err(CausalError::Compile {

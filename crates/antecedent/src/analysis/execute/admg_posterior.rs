@@ -60,7 +60,7 @@ impl super::Study {
         gp: &GraphPosterior,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
-        checked: Option<&CachedGraphPosteriorIdentification>,
+        checked: Option<&Arc<CachedGraphPosteriorIdentification>>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
@@ -79,14 +79,14 @@ impl super::Study {
             });
         }
         let (identified, identify_cached) = if let Some(cache) = checked {
-            (cache.clone(), true)
-        } else if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-            (cache.clone(), true)
+            (Arc::clone(cache), true)
+        } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+            (Arc::clone(cache), true)
         } else {
             (
-                crate::analysis::prepared::build_graph_posterior_identification_cache(
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
                     gp, query, ctx,
-                )?,
+                )?),
                 false,
             )
         };

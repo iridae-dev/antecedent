@@ -485,7 +485,7 @@ impl super::Study {
             .extras(IdentifiedExecuteExtras {
                 certificate: primary_envelope.map(|envelope| {
                     crate::Identification::TemporalEnvelope {
-                        envelope,
+                        envelope: Arc::unwrap_or_clone(envelope),
                         strategy: IdentifierId::GeneralizedAdjustment,
                         structure_version: self.graph.version(),
                     }
@@ -1693,7 +1693,7 @@ impl super::Study {
             .extras(IdentifiedExecuteExtras {
                 certificate: primary_envelope.map(|envelope| {
                     crate::Identification::TemporalEnvelope {
-                        envelope,
+                        envelope: Arc::unwrap_or_clone(envelope),
                         strategy: IdentifierId::GeneralizedAdjustment,
                         structure_version: self.graph.version(),
                     }
@@ -2077,7 +2077,7 @@ impl super::Study {
             .extras(IdentifiedExecuteExtras {
                 certificate: primary_envelope.map(|envelope| {
                     crate::Identification::TemporalEnvelope {
-                        envelope,
+                        envelope: Arc::unwrap_or_clone(envelope),
                         strategy: IdentifierId::GeneralizedAdjustment,
                         structure_version: self.graph.version(),
                     }
@@ -2188,12 +2188,12 @@ impl super::Study {
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<
-        (IdentifierId, crate::analysis::prepared::CachedTemporalClassIdentification, bool),
+        (IdentifierId, Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, bool),
         CausalError,
     > {
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
-        if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-            Ok((identifier_id, cache.clone(), true))
+        if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+            Ok((identifier_id, Arc::clone(cache), true))
         } else {
             report_identify_compute(ctx);
             Ok((identifier_id, self.identify_temporal_class(identifier_id, query)?, false))
@@ -2215,8 +2215,8 @@ impl super::Study {
         };
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
+            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
             } else {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, query)?, false)
@@ -2482,7 +2482,7 @@ impl super::Study {
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
+                    envelope: (*bundle.envelope).clone(),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -2513,15 +2513,18 @@ impl super::Study {
         &self,
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
-    ) -> Result<crate::analysis::prepared::CachedTemporalClassIdentification, CausalError> {
+    ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
+    {
         if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
             if let Some((_, envelope)) =
                 cache.by_horizon.iter().find(|(horizon, _)| *horizon == query.horizon_steps)
             {
-                return Ok(crate::analysis::prepared::CachedTemporalClassIdentification {
-                    envelope: envelope.clone(),
-                    by_horizon: Vec::new(),
-                });
+                return Ok(Arc::new(
+                    crate::analysis::prepared::CachedTemporalClassIdentification {
+                        envelope: Arc::clone(envelope),
+                        by_horizon: Vec::new(),
+                    },
+                ));
             }
         }
         let mut config = antecedent_identify::GeneralizedAdjustmentConfig::default();
@@ -2552,10 +2555,10 @@ impl super::Study {
             &self.query,
             query.horizon_steps,
         )?;
-        Ok(crate::analysis::prepared::CachedTemporalClassIdentification {
-            envelope,
+        Ok(Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
+            envelope: Arc::new(envelope),
             by_horizon: Vec::new(),
-        })
+        }))
     }
 }
 

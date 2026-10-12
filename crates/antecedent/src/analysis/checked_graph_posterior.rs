@@ -51,8 +51,8 @@ pub(crate) enum StaticClassGraph {
 
 #[derive(Clone, Debug)]
 pub(crate) enum StaticClassIdentification {
-    Cpdag(crate::analysis::prepared::CachedCpdagIdentification),
-    Pag(crate::analysis::prepared::CachedPagIdentification),
+    Cpdag(Arc<crate::analysis::prepared::CachedCpdagIdentification>),
+    Pag(Arc<crate::analysis::prepared::CachedPagIdentification>),
 }
 
 impl StaticClassIdentification {
@@ -203,7 +203,7 @@ impl CheckedAdmgGraphPosteriorResponse {
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         query: ResponseQuery,
-        identification: CachedGraphPosteriorIdentification,
+        identification: Arc<CachedGraphPosteriorIdentification>,
         physical: crate::planner::PhysicalExecutionPlan,
         inference: crate::InferenceMode,
         validation: RefuteSuite,
@@ -263,7 +263,7 @@ impl CheckedAdmgGraphPosteriorResponse {
         Ok(Self {
             posterior: Arc::new(posterior),
             query,
-            identification: Arc::new(identification),
+            identification,
             physical,
             inference,
             validation,
@@ -276,7 +276,7 @@ impl CheckedAdmgGraphPosteriorResponse {
     pub(crate) fn query(&self) -> &ResponseQuery {
         &self.query
     }
-    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
         &self.identification
     }
     pub(crate) fn physical(&self) -> &crate::planner::PhysicalExecutionPlan {
@@ -301,7 +301,7 @@ impl CheckedGraphPosteriorEffect {
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         target: GraphPosteriorEffectTarget,
-        identification: CachedGraphPosteriorIdentification,
+        identification: Arc<CachedGraphPosteriorIdentification>,
         procedure: EstimatorSpec,
         bootstrap_replicates: u32,
         overlap: OverlapPolicy,
@@ -351,7 +351,7 @@ impl CheckedGraphPosteriorEffect {
         Ok(Self {
             posterior: Arc::new(posterior),
             target,
-            identification: Arc::new(identification),
+            identification,
             procedure,
             bootstrap_replicates,
             overlap,
@@ -375,7 +375,7 @@ impl CheckedGraphPosteriorEffect {
         &self.target
     }
 
-    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
         &self.identification
     }
 
@@ -554,8 +554,8 @@ mod tests {
         .unwrap()
     }
 
-    fn cache(graphs: &GraphPosterior) -> CachedGraphPosteriorIdentification {
-        CachedGraphPosteriorIdentification {
+    fn cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
+        Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Unidentified; graphs.n_graphs],
@@ -564,7 +564,7 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([]),
-        }
+        })
     }
 
     #[test]
@@ -612,7 +612,7 @@ mod tests {
         );
 
         let mut wrong_cache = cache(&graphs);
-        wrong_cache.graphs.weights = Arc::from([0.5, 0.5]);
+        Arc::make_mut(&mut wrong_cache).graphs.weights = Arc::from([0.5, 0.5]);
         assert!(
             CheckedGraphPosteriorEffect::prepare(
                 graphs,

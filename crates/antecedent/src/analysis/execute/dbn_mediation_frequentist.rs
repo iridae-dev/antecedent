@@ -43,17 +43,20 @@ impl super::Study {
             });
         }
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) =
+            self.dbn_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
                     crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
                         gp, &vars, query, ctx,
                     )?,
-                    false,
-                )
-            };
+                ),
+                false,
+            )
+        };
         let horizon = query.horizons[0];
         let identified = identified.mediation_horizon(horizon)?;
         let mut atoms = identified

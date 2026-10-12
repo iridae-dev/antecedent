@@ -36,17 +36,18 @@ impl super::Study {
         let started = Instant::now();
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
         let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        gp, query, ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(cache) =
+            self.graph_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, query, ctx,
+                )?),
+                false,
+            )
+        };
         if identified.class_atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "class graph-posterior envelope: no identified class atoms".into(),

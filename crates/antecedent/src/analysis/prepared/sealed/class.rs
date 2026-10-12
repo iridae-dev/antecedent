@@ -119,11 +119,11 @@ impl SealedOperation for CheckedStaticClassEffect {
         click_analysis.overlap_policy = Some(self.overlap());
         let result = match (self.graph(), self.identification()) {
             (StaticClassGraph::Cpdag(graph), StaticClassIdentification::Cpdag(cache)) => {
-                click_analysis.cpdag_identification_cache = Some(Arc::new(cache.clone()));
+                click_analysis.cpdag_identification_cache = Some(Arc::clone(cache));
                 click_analysis.execute_cpdag(data, graph, self.query(), self.physical(), ctx)?
             }
             (StaticClassGraph::Pag(graph), StaticClassIdentification::Pag(cache)) => {
-                click_analysis.pag_identification_cache = Some(Arc::new(cache.clone()));
+                click_analysis.pag_identification_cache = Some(Arc::clone(cache));
                 click_analysis.execute_pag(data, graph, self.query(), self.physical(), ctx)?
             }
             _ => {

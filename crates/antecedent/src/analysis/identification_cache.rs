@@ -227,7 +227,7 @@ pub(crate) struct CachedTemporalClassPosteriorAtomIdentification {
     /// Shared estimand when every identified completion agrees.
     pub invariant: Option<IdentifiedEstimand>,
     /// Completions + unfold indexers for this class atom.
-    pub envelope: antecedent_identify::TemporalClassEnvelope,
+    pub envelope: Arc<antecedent_identify::TemporalClassEnvelope>,
     /// Envelope identified weight before posterior mixing.
     pub identified_weight: f64,
     /// Completions whose search was capped.
@@ -1010,7 +1010,7 @@ fn cache_temporal_class_atom(
         invariant: envelope.envelope.invariant.clone(),
         identified_weight: envelope.envelope.identified_weight.0,
         truncated_completions: envelope.envelope.truncated_completions,
-        envelope,
+        envelope: Arc::new(envelope),
     }
 }
 

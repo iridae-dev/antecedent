@@ -46,7 +46,7 @@ impl CheckedClassGraphPosteriorEffect {
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         target: GraphPosteriorEffectTarget,
-        identification: CachedGraphPosteriorIdentification,
+        identification: Arc<CachedGraphPosteriorIdentification>,
         inference: InferenceMode,
         procedure: EstimatorSpec,
         bootstrap_replicates: u32,
@@ -93,7 +93,7 @@ impl CheckedClassGraphPosteriorEffect {
         Ok(Self {
             posterior: Arc::new(posterior),
             target,
-            identification: Arc::new(identification),
+            identification,
             inference,
             procedure,
             bootstrap_replicates,
@@ -127,7 +127,7 @@ impl CheckedClassGraphPosteriorEffect {
     }
 
     #[must_use]
-    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
         &self.identification
     }
 
@@ -334,8 +334,8 @@ mod tests {
         AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
     }
 
-    fn unidentified_cache(graphs: &GraphPosterior) -> CachedGraphPosteriorIdentification {
-        CachedGraphPosteriorIdentification {
+    fn unidentified_cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
+        Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Unidentified; graphs.n_graphs],
@@ -344,10 +344,10 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([]),
-        }
+        })
     }
 
-    fn identified_cpdag_cache(graphs: &GraphPosterior) -> CachedGraphPosteriorIdentification {
+    fn identified_cpdag_cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
         let target = query();
         let envelope = crate::strategy_table::identify_cpdag(
             crate::strategy_table::IdentifierId::GeneralizedAdjustment,
@@ -373,7 +373,7 @@ mod tests {
             identified_weight: envelope.identified_weight.0,
             truncated_completions: envelope.truncated_completions,
         };
-        CachedGraphPosteriorIdentification {
+        Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Identified; graphs.n_graphs],
@@ -382,12 +382,12 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([atom]),
-        }
+        })
     }
 
     fn prepare(
         graphs: GraphPosterior,
-        cache: CachedGraphPosteriorIdentification,
+        cache: Arc<CachedGraphPosteriorIdentification>,
         procedure: EstimatorSpec,
     ) -> Result<CheckedClassGraphPosteriorEffect, CausalError> {
         prepare_with(graphs, GraphPosteriorEffectTarget::Average(query()), cache, procedure)
@@ -396,7 +396,7 @@ mod tests {
     fn prepare_with(
         graphs: GraphPosterior,
         target: GraphPosteriorEffectTarget,
-        cache: CachedGraphPosteriorIdentification,
+        cache: Arc<CachedGraphPosteriorIdentification>,
         procedure: EstimatorSpec,
     ) -> Result<CheckedClassGraphPosteriorEffect, CausalError> {
         let inference = match procedure.id() {
@@ -462,7 +462,7 @@ mod tests {
         let case = atom.cases[0].clone();
         atom.cases = Arc::from([case.clone(), case]);
         atom.identified_weight = 2.0;
-        cache.class_atoms = Arc::from([atom]);
+        Arc::make_mut(&mut cache).class_atoms = Arc::from([atom]);
 
         let operation =
             prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte))
@@ -572,7 +572,7 @@ mod tests {
         );
 
         let mut cache = unidentified_cache(&graphs);
-        cache.graphs.weights = Arc::from([0.5, 0.5]);
+        Arc::make_mut(&mut cache).graphs.weights = Arc::from([0.5, 0.5]);
         assert!(
             prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),)
                 .is_err()
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn refuses_an_identified_sample_without_a_retained_completion_envelope() {
         let graphs = posterior(GraphPosteriorAtomKind::Pag);
-        let cache = CachedGraphPosteriorIdentification {
+        let cache = Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],
@@ -591,7 +591,7 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([]),
-        };
+        });
         assert!(
             prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),)
                 .is_err()

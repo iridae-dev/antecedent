@@ -26,11 +26,11 @@ use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
 pub(crate) enum ConditionalClassProof {
     Cpdag {
         graph: antecedent_graph::Cpdag,
-        cache: crate::analysis::prepared::CachedCpdagIdentification,
+        cache: Arc<crate::analysis::prepared::CachedCpdagIdentification>,
     },
     Pag {
         graph: antecedent_graph::Pag,
-        cache: crate::analysis::prepared::CachedPagIdentification,
+        cache: Arc<crate::analysis::prepared::CachedPagIdentification>,
     },
 }
 

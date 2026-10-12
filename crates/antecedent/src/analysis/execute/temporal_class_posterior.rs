@@ -58,11 +58,13 @@ impl super::Study {
             }
         };
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) =
+            self.temporal_class_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
                     crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
                         gp,
                         &vars,
@@ -70,9 +72,10 @@ impl super::Study {
                         self.max_completions,
                         ctx,
                     )?,
-                    false,
-                )
-            };
+                ),
+                false,
+            )
+        };
         if identified.class_atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "temporal class graph-posterior envelope: no identified class atoms"
