@@ -106,7 +106,11 @@ impl CompletionSampler {
                 message: "PAG completion audit supports at most 16 circle endpoints",
             });
         }
-        let total = 1u64 << sites.len();
+        let total = u32::try_from(sites.len()).ok().and_then(|exp| 1u64.checked_shl(exp)).ok_or(
+            GraphError::InvalidEndpoints {
+                message: "PAG completion audit supports at most 16 circle endpoints",
+            },
+        )?;
         // The global m-separation signature costs one d-separation query per node pair per
         // conditioning subset, so it is exponential in node count where the assignment
         // enumeration above is only exponential in circle sites. Refusing the whole graph on
