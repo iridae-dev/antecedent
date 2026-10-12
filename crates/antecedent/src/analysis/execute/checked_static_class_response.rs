@@ -83,8 +83,7 @@ impl CheckedStaticClassResponse {
         let expected_estimator = EstimatorId::static_response_for(&query.functional, &inference);
         if estimator != expected_estimator
             || identifier != DEFAULT_PAG_IDENTIFIER_ID
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names(identifier, estimator)
         {
             return Err(CausalError::Unsupported {
                 message: "checked class response procedure does not match the sealed plan or inference mode",

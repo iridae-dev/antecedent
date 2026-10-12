@@ -20,6 +20,8 @@ use crate::analysis::prepared::{
 };
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::planner::RouteDefaults;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_core::{CausalQuery, Intervention, OutcomeFunctional, TargetPopulation};
 use antecedent_estimate::OverlapPolicy;
 use antecedent_identify::IdentificationStatus;
@@ -35,8 +37,10 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
         (Some((data, query)), Some(cache), true, true)
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && matches!(query.target_population, TargetPopulation::AllObserved)
-                && plan.logical.record.estimator.as_deref()
-                    == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str()) =>
+                && cx.binding.estimator.is_or(
+                    RouteDefaults::STATIC_ATE.estimator,
+                    EstimatorId::LinearAdjustmentAte,
+                ) =>
         {
             let default_id = !matches!(
                 &source.estimator_spec,
@@ -52,8 +56,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
                 fitter.bootstrap_replicates = analysis.bootstrap_replicates;
             }
             let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
-            let identifier = cx.plan_identifier(crate::strategy_table::DEFAULT_IDENTIFIER)?;
-            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_ESTIMATOR)?;
+            let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
             Some(CheckedLinearOperation {
                 fitter,
                 preparation,
@@ -81,8 +84,7 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && !matches!(query.active, Intervention::Set { variable, .. } if variable != query.treatment)
                 && !matches!(query.control, Intervention::Set { variable, .. } if variable != query.treatment)
-                && plan.logical.record.estimator.as_deref()
-                    == Some(crate::strategy_table::EstimatorId::GlmAdjustment.as_str())
+                && cx.binding.estimator.is(EstimatorId::GlmAdjustment)
                 && analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -113,8 +115,7 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
                 fitter.population_registry.clone_from(&analysis.population_registry);
             }
             let preparation = fitter.prepare(data, &cache.estimand, query)?;
-            let identifier = cx.plan_identifier(crate::strategy_table::DEFAULT_IDENTIFIER)?;
-            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_ESTIMATOR)?;
+            let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
             Some(CheckedGlmAdjustmentOperation {
                 source_query: CausalQuery::AverageEffect(query.clone()),
                 query: query.clone(),
@@ -137,8 +138,7 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
             Some(RouteInput::StaticAteDag { data, query, graph }),
             Some(config),
             InferenceMode::Frequentist,
-        ) if plan.logical.record.estimator.as_deref()
-            == Some(crate::strategy_table::EstimatorId::RdSharp.as_str())
+        ) if cx.binding.estimator.is(EstimatorId::RdSharp)
             && analysis.graph_posterior.is_none()
             && analysis.tiered.is_none()
             && matches!(
@@ -233,10 +233,10 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
                     analysis.refute,
                     RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
                 )
-                && plan.logical.record.estimator.as_deref()
-                    == Some(
-                        crate::strategy_table::EstimatorId::ConditionalLinearAdjustment.as_str(),
-                    ) =>
+                && cx.binding.estimator.is_or(
+                    RouteDefaults::CONDITIONAL.estimator,
+                    EstimatorId::ConditionalLinearAdjustment,
+                ) =>
         {
             let class_proof = match graph_class {
                 GraphClass::Cpdag => {
@@ -376,18 +376,12 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                         | RefuteSuite::Full
                 )
                 && matches!(
-                    plan.logical.record.estimator.as_deref(),
-                    Some("propensity.weighting" | "propensity.matching")
+                    cx.binding.estimator.named(),
+                    Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
                 ) =>
         {
-            let estimator: crate::strategy_table::EstimatorId = plan
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .expect("checked propensity estimator")
-                .parse()?;
-            let identifier = cx.plan_identifier(crate::strategy_table::DEFAULT_IDENTIFIER)?;
+            let estimator = cx.binding.estimator.named().expect("checked propensity estimator");
+            let identifier = cx.binding.identifier_or(RouteDefaults::STATIC_ATE)?;
             let estimand_index = cache
                 .identification
                 .estimands
@@ -467,14 +461,12 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
                     if *variable == query.treatment && value.as_f64() == Some(1.0))
             && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
                     if *variable == query.treatment && value.as_f64() == Some(0.0))
-            && plan.logical.record.estimator.as_deref()
-                == Some(crate::strategy_table::EstimatorId::Aipw.as_str()) =>
+            && cx.binding.estimator.is(EstimatorId::Aipw) =>
         {
             let fitter = checked_aipw_fitter(analysis);
             if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { .. }) {
                 let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
-                let identifier = cx.plan_identifier(crate::strategy_table::DEFAULT_IDENTIFIER)?;
-                let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_ESTIMATOR)?;
+                let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
                 Some(CheckedAipwOperation {
                     fitter,
                     preparation,
@@ -496,7 +488,7 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { analysis, plan, .. } = *cx;
+    let SealContext { analysis, .. } = *cx;
     let sealed = match (
         cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
@@ -505,8 +497,7 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
         (Some((data, query)), Some(cache), InferenceMode::Frequentist)
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && matches!(query.target_population, TargetPopulation::AllObserved)
-                && plan.logical.record.estimator.as_deref()
-                    == Some(crate::strategy_table::EstimatorId::FrontDoorTwoStage.as_str()) =>
+                && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
         {
             let fitter = match &analysis.estimator_spec {
                 Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
@@ -523,47 +514,45 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { analysis, plan, .. } = *cx;
+    let SealContext { analysis, .. } = *cx;
     let sealed = match (
         cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
         &analysis.inference,
     ) {
         (Some((data, _)), Some(cache), InferenceMode::Frequentist) => {
-            let estimator = plan.logical.record.estimator.as_deref().unwrap_or("");
-            match (&analysis.estimator_spec, estimator) {
-                (Some(crate::estimator_spec::EstimatorSpec::IvWald(cfg)), "iv.wald") => {
-                    Some(CheckedIvOperation::Wald {
-                        fitter: (**cfg).clone(),
-                        preparation: (**cfg).prepare_checked(data, &cache.identification, 0)?,
-                    })
-                }
+            match (&analysis.estimator_spec, cx.binding.estimator.named()) {
                 (
-                    None
-                    | Some(crate::estimator_spec::EstimatorSpec::Default(crate::EstimatorId::IvWald)),
-                    "iv.wald",
+                    Some(crate::estimator_spec::EstimatorSpec::IvWald(cfg)),
+                    Some(EstimatorId::IvWald),
+                ) => Some(CheckedIvOperation::Wald {
+                    fitter: (**cfg).clone(),
+                    preparation: (**cfg).prepare_checked(data, &cache.identification, 0)?,
+                }),
+                (
+                    None | Some(crate::estimator_spec::EstimatorSpec::Default(EstimatorId::IvWald)),
+                    Some(EstimatorId::IvWald),
                 ) => {
                     let fitter = antecedent_estimate::WaldIv::new();
                     let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
                     Some(CheckedIvOperation::Wald { fitter, preparation })
                 }
-                (Some(crate::estimator_spec::EstimatorSpec::Iv2Sls(cfg)), "iv.2sls") => {
-                    match (**cfg).prepare_checked(data, &cache.identification, 0) {
-                        Ok(preparation) => Some(CheckedIvOperation::TwoSls {
-                            fitter: (**cfg).clone(),
-                            preparation,
-                        }),
-                        Err(antecedent_estimate::EstimationError::Unsupported {
-                            message:
-                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
-                        }) => None,
-                        Err(error) => return Err(error.into()),
-                    }
-                }
                 (
-                    None
-                    | Some(crate::estimator_spec::EstimatorSpec::Default(crate::EstimatorId::Iv2Sls)),
-                    "iv.2sls",
+                    Some(crate::estimator_spec::EstimatorSpec::Iv2Sls(cfg)),
+                    Some(EstimatorId::Iv2Sls),
+                ) => match (**cfg).prepare_checked(data, &cache.identification, 0) {
+                    Ok(preparation) => {
+                        Some(CheckedIvOperation::TwoSls { fitter: (**cfg).clone(), preparation })
+                    }
+                    Err(antecedent_estimate::EstimationError::Unsupported {
+                        message:
+                            "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                    }) => None,
+                    Err(error) => return Err(error.into()),
+                },
+                (
+                    None | Some(crate::estimator_spec::EstimatorSpec::Default(EstimatorId::Iv2Sls)),
+                    Some(EstimatorId::Iv2Sls),
                 ) => {
                     let fitter = antecedent_estimate::TwoStageLeastSquares::new();
                     match fitter.prepare_checked(data, &cache.identification, 0) {
@@ -601,12 +590,11 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
                 && analysis.graph_posterior.is_none()
                 && analysis.custom_validators.is_empty()
                 && matches!(analysis.refute, RefuteSuite::None)
-                && plan.logical.record.estimator.as_deref()
-                    == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str())
-                && plan.logical.record.identifier.as_deref()
-                    == Some(
-                        crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str(),
-                    )
+                && cx.binding.resolves_to(
+                    RouteDefaults::STATIC_ATE,
+                    IdentifierId::GeneralizedAdjustment,
+                    EstimatorId::LinearAdjustmentAte,
+                )
                 && cache.identification.query == CausalQuery::AverageEffect(query.clone())
                 && cache.identification.estimands.len() == 2 =>
         {

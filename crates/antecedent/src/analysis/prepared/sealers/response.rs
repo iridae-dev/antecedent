@@ -9,6 +9,8 @@ use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{CheckedStaticResponseCurve, PreparedExecution};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::planner::RouteDefaults;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_core::{OutcomeFunctional, TargetPopulation};
 use std::sync::Arc;
 
@@ -36,9 +38,7 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
                         | antecedent_core::ResponseFunctional::Jacobian { .. }
                 ) =>
         {
-            let identifier =
-                cx.plan_identifier(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)?;
-            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)?;
+            let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
             Some(crate::analysis::execute::CheckedDerivativeResponseOperation::checked(
                 analysis.graph.as_dag().expect("checked Dag response"),
                 query,
@@ -85,9 +85,7 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                     ) && (matches!(analysis.inference, InferenceMode::Frequentist)
                         || analysis.refute == RefuteSuite::None)) =>
         {
-            let identifier =
-                cx.plan_identifier(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)?;
-            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)?;
+            let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
             let bayesian = matches!(analysis.inference, InferenceMode::Bayesian(_));
             if bayesian && estimator == crate::strategy_table::EstimatorId::ResponseBayesian
                 || !bayesian
@@ -124,7 +122,7 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { analysis, plan, ctx, .. } = *cx;
+    let SealContext { analysis, ctx, .. } = *cx;
     let sealed = match (cx.route, analysis.identification_cache.as_deref()) {
         (Some(RouteInput::StaticResponseDag { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
@@ -135,9 +133,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                         | crate::support::StructureSource::Accepted
                 ) =>
         {
-            let identifier =
-                cx.plan_identifier(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)?;
-            let estimator = cx.plan_estimator(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)?;
+            let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
             if estimator == crate::strategy_table::EstimatorId::CellAipw
                 && analysis.custom_validators.is_empty()
                 && analysis.shared_batch_design.is_none()
@@ -172,12 +168,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                 && analysis.shared_batch_design.is_none()
                 && analysis.continuous_cell.is_none()
                 && matches!(analysis.inference, InferenceMode::Frequentist)
-                && plan.logical.record.estimator.as_deref()
-                    == Some(crate::strategy_table::EstimatorId::CellAipw.as_str())
-                && plan.logical.record.identifier.as_deref()
-                    == Some(
-                        crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str(),
-                    ) =>
+                && cx.binding.names(IdentifierId::GeneralizedAdjustment, EstimatorId::CellAipw) =>
         {
             let (Some(admg), Some(background)) =
                 (analysis.graph.as_admg(), analysis.tiered.as_ref())
@@ -208,7 +199,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { analysis, plan, .. } = *cx;
+    let SealContext { analysis, .. } = *cx;
     let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_deref()) {
         (Some(query), Some(cache))
             if query.temporal.is_none()
@@ -219,20 +210,7 @@ pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                     antecedent_core::ResponseFunctional::MeanCurve { .. }
                 )
                 && matches!(analysis.inference, InferenceMode::Frequentist)
-                && plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)
-                    == crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER
-                && plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
-                    == crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR =>
+                && cx.binding.runs_defaults(RouteDefaults::RESPONSE) =>
         {
             let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =
                 &query.functional
@@ -249,8 +227,8 @@ pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                 ),
                 identification: cache.identification.clone(),
                 estimand: cache.estimand.clone(),
-                identifier: crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID,
-                estimator: crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR_ID,
+                identifier: RouteDefaults::RESPONSE.identifier,
+                estimator: RouteDefaults::RESPONSE.estimator,
             })
         }
         _ => None,

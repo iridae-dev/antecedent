@@ -106,9 +106,10 @@ impl CheckedStaticClassEffect {
                     | RefuteSuite::PlaceboAndRcc
                     | RefuteSuite::Full
             )
-            || physical.logical.record.identifier.as_deref()
-                != Some(crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(expected_estimator.as_str())
+            || !physical.binding().names(
+                crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+                expected_estimator,
+            )
         {
             return Err(CausalError::Unsupported {
                 message: "checked static class effect has incompatible graph, query, procedure, or validation binding",

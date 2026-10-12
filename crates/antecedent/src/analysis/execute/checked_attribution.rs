@@ -129,9 +129,7 @@ impl CheckedAttributionOperation {
         if study.structure_source != crate::support::StructureSource::Explicit
             || cache.identification.query != target_query
             || physical.logical.query != target_query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::GcmParametric.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names(IdentifierId::GcmParametric, estimator)
         {
             return Err(CausalError::Compile {
                 message: "attribution target, source graph, identification, or estimator does not match the checked operation".into(),

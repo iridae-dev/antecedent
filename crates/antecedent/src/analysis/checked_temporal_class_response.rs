@@ -108,18 +108,7 @@ impl CheckedTemporalClassResponseOperation {
         let identifier = IdentifierId::GeneralizedAdjustment;
         let estimator = EstimatorId::temporal_response_for(inference);
         if physical.logical.query != CausalQuery::Response(query.clone())
-            || physical
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|selected| selected != identifier.as_str())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|selected| selected != estimator.as_str())
+            || !physical.binding().names(identifier, estimator)
         {
             return Err(CausalError::Compile {
                 message:

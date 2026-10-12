@@ -94,10 +94,12 @@ impl Study {
         {
             crate::analysis::execute::report_identify_compute(ctx);
         }
+        let binding = plan.binding();
         let execution = seal_execution(&SealContext {
             source: self,
             analysis: &analysis,
             plan: &plan,
+            binding: &binding,
             ctx,
             route: self.route_input_classified(),
             counterfactual: counterfactual.as_ref(),

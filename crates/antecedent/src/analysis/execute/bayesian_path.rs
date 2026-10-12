@@ -2,6 +2,7 @@
 
 use super::sequential_validation::{SequentialValidationAtom, validate_sequential};
 use super::*;
+use crate::planner::RouteDefaults;
 
 impl super::Study {
     pub(super) fn execute_bayesian(
@@ -14,9 +15,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
-        let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
         let estimator_id =
             if conditional { EstimatorId::BayesianConditional } else { EstimatorId::BayesianGcomp };

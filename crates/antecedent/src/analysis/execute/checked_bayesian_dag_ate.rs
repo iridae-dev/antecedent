@@ -90,10 +90,9 @@ impl CheckedBayesianDagAteExecution {
         if target != operation.query()
             || physical.logical.query != context.query
             || context.graph_class != GraphClass::Dag
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianGcomp.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::BackdoorAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianGcomp)
         {
             return Err(CausalError::Compile {
                 message:

@@ -17,8 +17,6 @@ use super::execute::Study;
 use crate::AcceptedGraph;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::support::StructureSource;
 
 impl Study {
@@ -61,40 +59,6 @@ pub(crate) fn mean_all_observed(
 pub(crate) fn complete_mean_response(query: &ResponseQuery) -> bool {
     query.observation == ObservationSpec::Complete
         && mean_all_observed(&query.outcome_functional, &query.target_population)
-}
-
-/// How a plan-record name is compared against the name a route expects.
-#[derive(Clone, Copy)]
-pub(crate) enum PlanRecordMode<'a> {
-    /// The record must name exactly the expected id.
-    Exact,
-    /// A missing record name reads as this default before comparison.
-    OrDefault(&'a str),
-    /// A missing record name is accepted; a present one must match.
-    IfPresent,
-}
-
-fn plan_name_is(recorded: Option<&str>, expected: &str, mode: PlanRecordMode<'_>) -> bool {
-    match mode {
-        PlanRecordMode::Exact => recorded == Some(expected),
-        PlanRecordMode::OrDefault(default) => recorded.unwrap_or(default) == expected,
-        PlanRecordMode::IfPresent => recorded.is_none_or(|name| name == expected),
-    }
-}
-
-/// Whether the logical plan record names `identifier` and `estimator`, each
-/// compared under its own [`PlanRecordMode`].
-#[must_use]
-pub(crate) fn plan_record_is(
-    plan: &PhysicalExecutionPlan,
-    identifier: IdentifierId,
-    identifier_mode: PlanRecordMode<'_>,
-    estimator: EstimatorId,
-    estimator_mode: PlanRecordMode<'_>,
-) -> bool {
-    let record = &plan.logical.record;
-    plan_name_is(record.identifier.as_deref(), identifier.as_str(), identifier_mode)
-        && plan_name_is(record.estimator.as_deref(), estimator.as_str(), estimator_mode)
 }
 
 /// Whether two accepted graphs are the same class, version, and structure.

@@ -79,10 +79,9 @@ impl CheckedBayesianConditionalOperation {
         if target != &query
             || physical.logical.query != context.query
             || context.graph_class != GraphClass::Dag
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianConditional.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::BackdoorAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianConditional)
             || !matches!(
                 context.structure_source,
                 crate::support::StructureSource::Explicit

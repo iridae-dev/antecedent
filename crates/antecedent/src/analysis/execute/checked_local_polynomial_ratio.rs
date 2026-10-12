@@ -64,8 +64,7 @@ impl CheckedLocalPolynomialRatioOperation {
         let (plan_id, identifier, estimator) = local_polynomial_ratio_plan_ids(query.kink);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id.as_str()
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names_wire(&identifier, &estimator)
         {
             return Err(CausalError::Compile {
                 message: "local ratio design differs from its compiled plan".into(),

@@ -2,6 +2,7 @@
 
 use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
 use super::*;
+use crate::planner::RouteDefaults;
 #[path = "checked_temporal_response.rs"]
 pub(super) mod checked_temporal_response;
 // The identification crate owns the observation-assumption id and text table;
@@ -2190,13 +2191,7 @@ impl super::Study {
         (IdentifierId, crate::analysis::prepared::CachedTemporalClassIdentification, bool),
         CausalError,
     > {
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
             Ok((identifier_id, cache.clone(), true))
         } else {
@@ -2218,13 +2213,7 @@ impl super::Study {
                 message: "temporal class Bayesian execute requires Bayesian inference".into(),
             });
         };
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
             if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
                 (cache.clone(), true)

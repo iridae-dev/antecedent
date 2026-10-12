@@ -1805,10 +1805,14 @@ impl PreparedStudy {
                 .is_some_and(|admg| !crate::analysis::execute::admg_has_bidirected(admg)),
             _ => false,
         };
-        let estimator = self.plan.logical.record.estimator.as_deref();
+        let estimator = self.plan.binding().estimator.named();
         match &analysis.query {
             CausalQuery::AverageEffect(_) => {
-                dag_like && !matches!(estimator, Some("rd.sharp" | "functional.effect"))
+                dag_like
+                    && !matches!(
+                        estimator,
+                        Some(EstimatorId::RdSharp | EstimatorId::FunctionalEffect)
+                    )
             }
             CausalQuery::ConditionalEffect(_) => {
                 analysis.graph.class() == GraphClass::Dag

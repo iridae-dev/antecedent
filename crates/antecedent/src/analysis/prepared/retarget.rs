@@ -395,11 +395,9 @@ impl PreparedStudy {
                 temporal_indexer: None,
                 strategy: self
                     .plan
-                    .logical
-                    .record
+                    .binding()
                     .identifier
-                    .as_deref()
-                    .and_then(|s| s.parse().ok())
+                    .named()
                     .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER_ID),
                 structure_version: self.analysis.graph.version(),
             },

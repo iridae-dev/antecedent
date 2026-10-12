@@ -55,10 +55,9 @@ impl CheckedBayesianBasisCateExecution {
             || physical.logical.query != context.query
             || context.graph_class != GraphClass::Dag
             || !matches!(context.structure_source, crate::support::StructureSource::Explicit)
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianBasisGcomp.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::BackdoorAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianBasisGcomp)
         {
             return Err(CausalError::Compile {
                 message:

@@ -150,7 +150,7 @@ impl CheckedTemporalClassMediationOperation {
             });
         }
         let expected_estimator = EstimatorId::temporal_mediation_for(&study.inference);
-        if physical.logical.record.estimator.as_deref() != Some(expected_estimator.as_str()) {
+        if !physical.binding().estimator.is(expected_estimator) {
             return Err(CausalError::Compile {
                 message:
                     "temporal class mediation estimator differs from its checked physical plan"
@@ -264,7 +264,7 @@ impl CheckedTemporalClassMediationOperation {
         identifier: &str,
     ) -> Result<(), CausalError> {
         if physical.logical.record.plan_id.as_ref() != plan_id
-            || physical.logical.record.identifier.as_deref() != Some(identifier)
+            || !physical.binding().identifier.is_wire(identifier)
         {
             return Err(CausalError::Compile {
                 message: "temporal class mediation plan record differs from its retained proof"

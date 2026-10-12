@@ -82,19 +82,7 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
-            if plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|name| name != identifier.as_str())
-                || plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .is_some_and(|name| name != estimator.as_str())
-            {
+            if !cx.binding.names(identifier, estimator) {
                 None
             } else {
                 let member =
@@ -125,7 +113,7 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { analysis, plan, .. } = *cx;
+    let SealContext { analysis, .. } = *cx;
     let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
         (Some(RouteInput::TemporalEffectDag { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
@@ -143,19 +131,7 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_effect_procedure(query, true);
-            if plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|name| name != identifier.as_str())
-                || plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .is_some_and(|name| name != estimator.as_str())
-            {
+            if !cx.binding.names(identifier, estimator) {
                 None
             } else {
                 let member =
@@ -202,19 +178,7 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
         {
             let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
-            if plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|name| name != identifier.as_str())
-                || plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .is_some_and(|name| name != estimator.as_str())
-            {
+            if !cx.binding.names(identifier, estimator) {
                 None
             } else {
                 let operation = crate::analysis::CheckedTemporalClassEffectOperation::checked(
@@ -271,19 +235,7 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_response_for(&analysis.inference);
-            if plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|selected| selected != identifier.as_str())
-                || plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .is_some_and(|selected| selected != estimator.as_str())
-            {
+            if !cx.binding.names(identifier, estimator) {
                 None
             } else {
                 let temporal = query.temporal.as_ref().expect("guarded temporal response");

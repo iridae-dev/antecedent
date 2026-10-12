@@ -34,19 +34,7 @@ impl CheckedTemporalEffectExecution {
             });
         }
         let (identifier, estimator, _, _) = operation.procedure();
-        if physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .is_some_and(|name| name != identifier.as_str())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|name| name != estimator.as_str())
-        {
+        if !physical.binding().names(identifier, estimator) {
             return Err(CausalError::Compile {
                 message: "temporal effect physical plan disagrees on its checked procedure".into(),
             });

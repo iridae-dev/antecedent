@@ -110,10 +110,9 @@ impl CheckedBayesianStaticMediationOperation {
                     && candidate.mediators == cache.estimand.mediators
             })
             || physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::PathSpecificNatural.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::StaticMediationLinear.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)
         {
             return Err(CausalError::Compile {
                 message: "Bayesian mediation proof, procedure, structure, or validation changed after preparation".into(),

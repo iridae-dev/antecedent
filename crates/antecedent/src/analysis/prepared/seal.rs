@@ -5,9 +5,7 @@
 use crate::accepted::GraphClass;
 use crate::analysis::builder::{DataInput, RefuteSuite};
 use crate::analysis::execute::Study;
-use crate::analysis::route_guards::{
-    PlanRecordMode, complete_mean_response, mean_all_observed, plan_record_is,
-};
+use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
 use crate::analysis::{
     CheckedAdmgGraphPosteriorResponse, CheckedBayesianGraphPosteriorAte,
     CheckedClassGraphPosteriorEffect, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
@@ -15,8 +13,8 @@ use crate::analysis::{
 };
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{DEFAULT_ESTIMATOR, EstimatorId, IdentifierId};
+use crate::planner::{PhysicalExecutionPlan, RouteDefaults};
+use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_core::{AverageEffectQuery, CausalQuery};
 use antecedent_estimate::OverlapPolicy;
 use std::sync::Arc;
@@ -35,13 +33,7 @@ impl Study {
             || !mean_all_observed(&query.outcome_functional, &query.target_population)
             || !analysis.point_validation_or_placebo()
             || !analysis.custom_validators.is_empty()
-            || !plan_record_is(
-                plan,
-                IdentifierId::GeneralizedAdjustment,
-                PlanRecordMode::Exact,
-                expected_estimator,
-                PlanRecordMode::Exact,
-            )
+            || !plan.binding().names(IdentifierId::GeneralizedAdjustment, expected_estimator)
         {
             return Ok(None);
         }
@@ -125,12 +117,10 @@ impl Study {
             (antecedent_discovery::GraphPosteriorAtomKind::Dag, InferenceMode::Frequentist) => {
                 let estimator = target.frequentist_estimator();
                 if !Self::graph_posterior_procedure_is(analysis, estimator)
-                    || !plan_record_is(
-                        plan,
+                    || !plan.binding().resolves_to(
+                        RouteDefaults::STATIC_ATE,
                         IdentifierId::BackdoorAdjustment,
-                        PlanRecordMode::OrDefault(crate::strategy_table::DEFAULT_IDENTIFIER),
                         estimator,
-                        PlanRecordMode::OrDefault(DEFAULT_ESTIMATOR),
                     )
                 {
                     return Ok(None);
@@ -155,12 +145,10 @@ impl Study {
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
                 InferenceMode::Frequentist | InferenceMode::Bayesian(_),
             ) if !target.is_conditional()
-                && plan_record_is(
-                    plan,
+                && plan.binding().resolves_to(
+                    RouteDefaults::ADMG,
                     IdentifierId::GeneralId,
-                    PlanRecordMode::OrDefault(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER),
                     EstimatorId::FunctionalEffect,
-                    PlanRecordMode::OrDefault(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR),
                 ) =>
             {
                 Ok(Some(CheckedGraphPosteriorEffect::prepare(
@@ -209,13 +197,7 @@ impl Study {
             return Ok(None);
         }
         let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
-        if !plan_record_is(
-            plan,
-            identifier,
-            PlanRecordMode::Exact,
-            estimator,
-            PlanRecordMode::Exact,
-        ) {
+        if !plan.binding().names(identifier, estimator) {
             return Ok(None);
         }
         Ok(Some(CheckedClassGraphPosteriorEffect::prepare(
@@ -249,12 +231,10 @@ impl Study {
         if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag
             || !Self::graph_posterior_target_is_sealable(analysis, target.inner())
             || !Self::graph_posterior_procedure_is(analysis, estimator)
-            || !plan_record_is(
-                plan,
+            || !plan.binding().resolves_to(
+                RouteDefaults::STATIC_ATE,
                 IdentifierId::BackdoorAdjustment,
-                PlanRecordMode::OrDefault(crate::strategy_table::DEFAULT_IDENTIFIER),
                 estimator,
-                PlanRecordMode::OrDefault(DEFAULT_ESTIMATOR),
             )
         {
             return Ok(None);
@@ -298,12 +278,10 @@ impl Study {
                 analysis.estimator,
                 None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
             )
-            || !plan_record_is(
-                plan,
+            || !plan.binding().resolves_to(
+                RouteDefaults::ADMG,
                 IdentifierId::GeneralId,
-                PlanRecordMode::OrDefault(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER),
                 EstimatorId::FunctionalEffect,
-                PlanRecordMode::OrDefault(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR),
             )
         {
             return Ok(None);
@@ -449,13 +427,8 @@ impl Study {
         let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
         let estimator = EstimatorId::temporal_effect_procedure(query, true);
         let procedure = EstimatorId::temporal_effect_procedure(query, false);
-        if !plan_record_is(
-            plan,
-            identifier,
-            PlanRecordMode::Exact,
-            estimator,
-            PlanRecordMode::Exact,
-        ) || !analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
+        if !plan.binding().names(identifier, estimator)
+            || !analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
         {
             return Ok(None);
         }
@@ -514,13 +487,8 @@ impl Study {
         };
         let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
         let estimator = EstimatorId::temporal_effect_for(query, &analysis.inference);
-        if !plan_record_is(
-            plan,
-            identifier,
-            PlanRecordMode::IfPresent,
-            estimator,
-            PlanRecordMode::IfPresent,
-        ) || !analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
+        if !plan.binding().names(identifier, estimator)
+            || !analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
         {
             return Ok(None);
         }
@@ -576,20 +544,9 @@ impl Study {
         };
         let expected_estimator =
             EstimatorId::static_response_for(&query.functional, &analysis.inference);
-        let identifier: IdentifierId = plan
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_PAG_IDENTIFIER)
-            .parse()?;
-        let estimator: EstimatorId = plan
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(expected_estimator.as_str())
-            .parse()?;
+        let (identifier, estimator) = plan
+            .binding()
+            .resolve(RouteDefaults { estimator: expected_estimator, ..RouteDefaults::PAG })?;
         if identifier != IdentifierId::GeneralizedAdjustment
             || estimator != expected_estimator
             || analysis.estimator.is_some_and(|selected| selected != estimator)
@@ -650,24 +607,14 @@ impl Study {
         let expected_estimator =
             EstimatorId::static_response_for(&query.functional, &analysis.inference);
         let expected_identifier = if class_atoms {
-            crate::strategy_table::DEFAULT_PAG_IDENTIFIER_ID
+            RouteDefaults::PAG.identifier
         } else {
-            crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID
+            RouteDefaults::RESPONSE.identifier
         };
-        let identifier: IdentifierId = plan
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(expected_identifier.as_str())
-            .parse()?;
-        let estimator: EstimatorId = plan
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(expected_estimator.as_str())
-            .parse()?;
+        let (identifier, estimator) = plan.binding().resolve(RouteDefaults {
+            identifier: expected_identifier,
+            estimator: expected_estimator,
+        })?;
         if identifier != expected_identifier
             || estimator != expected_estimator
             || analysis.estimator.is_some_and(|selected| selected != estimator)

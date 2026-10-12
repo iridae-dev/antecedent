@@ -14,8 +14,8 @@ use crate::analysis::route_guards::series_input;
 use crate::analysis::stage::{STAGE_VALIDATE, StageClock};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::planner::RouteDefaults;
 use crate::result::StudyResult;
-use crate::strategy_table::DEFAULT_ESTIMATOR;
 use antecedent_core::{AverageEffectQuery, CausalQuery, ExecutionContext};
 use antecedent_data::{PanelData, TableView, TabularData, TimeSeriesData};
 use antecedent_estimate::EstimationWorkspace;
@@ -294,7 +294,7 @@ impl PreparedStudy {
             ));
             return self.stamp_refuted(prior, data, suite, out);
         }
-        let estimator = self.plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
+        let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
 
         let (data_est, query_est, estimand_est) =
             project_for_ate_estimate(data, &query, &prior.estimand)?;
@@ -318,7 +318,7 @@ impl PreparedStudy {
             None,
             ctx,
             suite,
-            estimator,
+            estimator.as_str(),
             &self.analysis.custom_validators,
             None,
         )?;

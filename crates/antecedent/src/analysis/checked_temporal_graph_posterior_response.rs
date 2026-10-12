@@ -156,12 +156,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         }
         let estimator = EstimatorId::temporal_response_for(&inference);
         if physical.logical.query != CausalQuery::Response(query.clone())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|selected| selected != estimator.as_str())
+            || !physical.binding().estimator.is(estimator)
         {
             return Err(CausalError::Compile {
                 message: "temporal graph-posterior response plan disagrees with its retained query or estimator".into(),

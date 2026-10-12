@@ -106,9 +106,7 @@ impl CheckedTransportTrialOperation {
             }
         };
         if plan.logical.query != study.query
-            || plan.logical.record.identifier.as_deref()
-                != Some(IdentifierId::TransportSid.as_str())
-            || plan.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !plan.binding().names(IdentifierId::TransportSid, estimator)
         {
             return Err(CausalError::Compile {
                 message: "transport target, certified proof, or selected estimator differs from its checked plan".into(),

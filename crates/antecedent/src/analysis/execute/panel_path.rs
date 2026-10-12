@@ -2,6 +2,7 @@
 
 use super::completion_fit_memo::{CompletionFitMemo, ResponseFitKey};
 use super::*;
+use crate::planner::RouteDefaults;
 use antecedent_core::StreamDomain;
 
 impl super::Study {
@@ -241,13 +242,7 @@ impl super::Study {
         (IdentifierId, crate::analysis::prepared::CachedTemporalClassIdentification, bool),
         CausalError,
     > {
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
             if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
                 (cache.clone(), true)
@@ -942,13 +937,7 @@ impl super::Study {
             });
         }
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(IdentifierId::GeneralizedAdjustment.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let identify_cached = self.temporal_class_cache_covers(&temporal.horizons);
         if self.temporal_class_identification_cache.is_some() && !identify_cached {
             return Err(CausalError::Compile {

@@ -47,10 +47,10 @@ impl CheckedContinuousDoseOperation {
                 .map_err(|error| CausalError::Compile { message: error.to_string() })?;
         }
         if physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::ContinuousDoseExchangeability.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::ContinuousDoseKernel.as_str())
+            || !physical.binding().names(
+                IdentifierId::ContinuousDoseExchangeability,
+                EstimatorId::ContinuousDoseKernel,
+            )
         {
             return Err(CausalError::Compile {
                 message: "continuous-dose design differs from compiled plan".into(),

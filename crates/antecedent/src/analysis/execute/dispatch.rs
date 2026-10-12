@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
+use crate::planner::RouteDefaults;
 
 /// Refusal for a graph-posterior study whose data / query pair has no route.
 pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
@@ -791,18 +792,16 @@ impl super::Study {
             AnalysisRoute::StaticAte => {
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
                 if let Some(background) = self.tiered.clone() {
-                    let identifier =
-                        physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
-                    let estimator =
-                        physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
+                    let (identifier, estimator) =
+                        physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
                     return self.execute_tiered_average(
                         data,
                         q,
                         physical,
                         ctx,
                         &background,
-                        identifier.parse()?,
-                        estimator.parse()?,
+                        identifier,
+                        estimator,
                     );
                 }
                 match self.graph.class() {

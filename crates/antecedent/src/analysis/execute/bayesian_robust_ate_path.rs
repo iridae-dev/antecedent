@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::planner::RouteDefaults;
 use antecedent_estimate::bayesian_robust_ate::{
     BayesianRobustAteInput, BayesianRobustAteOptions, estimate_bayesian_robust_ate,
 };
@@ -42,8 +43,7 @@ impl super::Study {
                 message: "bayesian.robust_ate supports only a binary mean ATE for AllObserved",
             });
         }
-        let identifier: IdentifierId =
-            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER).parse()?;
+        let identifier = physical.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let estimator = EstimatorId::BayesianRobustAte;
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {

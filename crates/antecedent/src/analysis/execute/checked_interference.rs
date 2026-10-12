@@ -183,9 +183,7 @@ impl CheckedInterferenceOperation {
             }
         };
         if physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::InterferenceDesign.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names(IdentifierId::InterferenceDesign, estimator)
         {
             return Err(CausalError::Compile {
                 message: "interference target, fixed design or selected estimator differs from its checked plan".into(),

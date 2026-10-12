@@ -18,6 +18,7 @@ use crate::analysis::helpers::{
 use crate::analysis::{CheckedConditionalOperation, ConditionalProcedure};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::planner::RouteDefaults;
 use crate::result::StudyResult;
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, OutcomeFunctional,
@@ -138,8 +139,11 @@ impl PreparedStudy {
             || !matches!(query.target_population, TargetPopulation::AllObserved)
             || !matches!(query.active, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.active))
             || !matches!(query.control, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.control))
-            || self.plan.logical.record.estimator.as_deref()
-                != Some(crate::strategy_table::EstimatorId::FrontDoorTwoStage.as_str())
+            || !self
+                .plan
+                .binding()
+                .estimator
+                .is(crate::strategy_table::EstimatorId::FrontDoorTwoStage)
             || !matches!(self.analysis.inference, InferenceMode::Frequentist)
         {
             return Err(CausalError::Compile {
@@ -189,7 +193,7 @@ impl PreparedStudy {
             || !matches!(query.target_population, TargetPopulation::AllObserved)
             || !matches!(query.active, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.active))
             || !matches!(query.control, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.control))
-            || self.plan.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !self.plan.binding().estimator.is(estimator)
             || !matches!(self.analysis.inference, InferenceMode::Frequentist)
         {
             return Err(CausalError::Compile {
@@ -234,10 +238,10 @@ impl PreparedStudy {
                     .first()
                     .map_or(operation.estimand.functional, |e| e.functional)
             || operation.estimator != crate::strategy_table::EstimatorId::GlmAdjustment
-            || operation.physical.logical.record.estimator.as_deref()
-                != Some(crate::strategy_table::EstimatorId::GlmAdjustment.as_str())
-            || operation.physical.logical.record.identifier.as_deref()
-                != Some(operation.identifier.as_str())
+            || !operation
+                .physical
+                .binding()
+                .names(operation.identifier, crate::strategy_table::EstimatorId::GlmAdjustment)
             || operation.preparation.method != operation.estimand.method
             || operation.preparation.adjustment_set != operation.estimand.adjustment_set
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
@@ -285,10 +289,10 @@ impl PreparedStudy {
         let lowering = operation.preparation.lowering();
         if operation.estimator != crate::strategy_table::EstimatorId::RdSharp
             || operation.identifier != crate::strategy_table::IdentifierId::RdSharp
-            || operation.physical.logical.record.estimator.as_deref()
-                != Some(crate::strategy_table::EstimatorId::RdSharp.as_str())
-            || operation.physical.logical.record.identifier.as_deref()
-                != Some(crate::strategy_table::IdentifierId::RdSharp.as_str())
+            || !operation.physical.binding().names(
+                crate::strategy_table::IdentifierId::RdSharp,
+                crate::strategy_table::EstimatorId::RdSharp,
+            )
             || operation.graph_class != GraphClass::Dag
             || !matches!(
                 operation.structure_source,
@@ -342,7 +346,7 @@ impl PreparedStudy {
         let retained = operation.context();
         let lowering = operation.lowering();
         if self.analysis.query != retained.source_query
-            || self.plan.logical.record.estimator != retained.physical.logical.record.estimator
+            || self.plan.binding().estimator != retained.physical.binding().estimator
             || lowering.functional != operation.target().functional
             || lowering.treatment != operation.query().treatment
             || lowering.outcome != operation.query().outcome
@@ -393,7 +397,7 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if self.analysis.query != operation.source_query
-            || self.plan.logical.record.estimator != operation.physical.logical.record.estimator
+            || self.plan.binding().estimator != operation.physical.binding().estimator
             || operation.program.mapping().source != operation.estimand.functional
         {
             return Err(CausalError::Compile {
@@ -533,14 +537,7 @@ impl PreparedStudy {
             "identification reused from the checked prepared operation",
         ));
         diagnostics.append(&mut extra_diagnostics);
-        let identifier_id = self
-            .plan
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER)
-            .parse()?;
+        let identifier_id = self.plan.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
         let (identify_artifact, identify_operation) =

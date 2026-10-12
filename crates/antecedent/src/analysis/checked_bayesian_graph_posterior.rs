@@ -59,9 +59,9 @@ impl CheckedBayesianGraphPosteriorAte {
             || query.target_population != antecedent_core::TargetPopulation::AllObserved
             || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
             || procedure.id() != licensed
-            || physical.logical.record.estimator.as_deref() != Some(licensed.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(crate::strategy_table::IdentifierId::BackdoorAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(crate::strategy_table::IdentifierId::BackdoorAdjustment, licensed)
         {
             return Err(CausalError::Unsupported {
                 message: "checked Bayesian graph-posterior ATE has incompatible graph, target, identification, or procedure",

@@ -1,6 +1,7 @@
 //! Retained target and estimation procedure for a static DAG conditional effect.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::planner::RouteDefaults;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -156,22 +157,14 @@ impl CheckedConditionalOperation {
                 StructureSource::Explicit | StructureSource::Accepted
             )
             || !matches!(common.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
-            || common.physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::ConditionalLinearAdjustment.as_str())
+            || !common.physical.binding().estimator.is(EstimatorId::ConditionalLinearAdjustment)
         {
             return Err(compile_error(
                 "conditional target or procedure is outside the checked DAG contract",
             ));
         }
         query.validate().map_err(|e| compile_error(&e.to_string()))?;
-        let identifier: IdentifierId = common
-            .physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER)
-            .parse()?;
+        let identifier = common.physical.binding().identifier_or(RouteDefaults::CONDITIONAL)?;
         let expected_identifier = if class_proof.is_some() {
             IdentifierId::GeneralizedAdjustment
         } else {

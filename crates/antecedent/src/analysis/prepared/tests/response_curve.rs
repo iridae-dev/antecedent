@@ -130,10 +130,12 @@ fn legacy_mean_curve_overlaps_the_static_dag_response_and_yields_to_it() {
     let context = ExecutionContext::for_tests(17);
     let prepared = study(data(0.0), &[-0.5, 0.0, 0.5]).prepare(&context).unwrap();
     let source = study(data(0.0), &[-0.5, 0.0, 0.5]);
+    let binding = prepared.plan.binding();
     let cx = SealContext {
         source: &source,
         analysis: &prepared.analysis,
         plan: &prepared.plan,
+        binding: &binding,
         ctx: &context,
         route: source.route_input_classified(),
         counterfactual: None,

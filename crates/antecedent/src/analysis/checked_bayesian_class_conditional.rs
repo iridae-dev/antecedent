@@ -58,10 +58,9 @@ impl CheckedBayesianClassConditional {
             });
         }
         if physical.logical.query != CausalQuery::ConditionalEffect(query.clone())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianConditional.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::GeneralizedAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianConditional)
             || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
         {
             return Err(compile_error(
@@ -132,10 +131,9 @@ impl CheckedBayesianClassConditional {
             || !analysis.custom_validators.is_empty()
             || query.inner.target_population != TargetPopulation::AllObserved
             || !matches!(query.inner.outcome_functional, OutcomeFunctional::Mean)
-            || plan.logical.record.identifier.as_deref()
-                != Some(IdentifierId::GeneralizedAdjustment.as_str())
-            || plan.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianConditional.as_str())
+            || !plan
+                .binding()
+                .names(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianConditional)
         {
             return Ok(None);
         }

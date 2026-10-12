@@ -63,10 +63,9 @@ impl CheckedRandomizedOperation {
                 .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         }
         if physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::RandomizedDesign.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(RandomizedMethod::of(query).estimator_id().as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::RandomizedDesign, RandomizedMethod::of(query).estimator_id())
         {
             return Err(CausalError::Compile {
                 message: "randomized target or design differs from its compiled plan".into(),

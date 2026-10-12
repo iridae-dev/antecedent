@@ -81,16 +81,13 @@ pub(super) use crate::result::StructuralAggregationPolicy;
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
-    DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR,
-    DEFAULT_DISTRIBUTION_ESTIMATOR_ID, DEFAULT_DISTRIBUTION_IDENTIFIER,
-    DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID,
-    DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID,
-    DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
-    DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_ESTIMATOR, DEFAULT_RESPONSE_IDENTIFIER,
-    DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
-    estimate_provenance_step, estimate_static_effect, identify_admg, identify_admg_query,
-    identify_cpdag, identify_pag, identify_provenance_step, identify_static, identify_static_query,
-    identify_static_query_with_rd, identify_temporal_cpdag_configured,
+    DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
+    DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER_ID,
+    DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
+    DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId,
+    StaticEstimateWorkspaces, estimate_provenance_step, estimate_static_effect, identify_admg,
+    identify_admg_query, identify_cpdag, identify_pag, identify_provenance_step, identify_static,
+    identify_static_query, identify_static_query_with_rd, identify_temporal_cpdag_configured,
     identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
     validate_static_pair,
 };

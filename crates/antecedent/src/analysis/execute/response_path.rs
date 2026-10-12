@@ -2,6 +2,7 @@
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::*;
+use crate::planner::RouteDefaults;
 
 const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
 
@@ -1227,10 +1228,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_RESPONSE_IDENTIFIER);
-        let estimator =
-            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_RESPONSE_ESTIMATOR);
+        let binding = physical.binding();
         let checked_identity = checked_curve
             .map(|plan| {
                 plan.checked_route(query).map(|(identification, estimand)| {
@@ -1239,12 +1237,10 @@ impl super::Study {
                 })
             })
             .transpose()?;
-        let identifier_id: IdentifierId = checked_identity
-            .as_ref()
-            .map_or_else(|| identifier.parse(), |(_, _, identifier, _)| Ok(*identifier))?;
-        let estimator_id: EstimatorId = checked_identity
-            .as_ref()
-            .map_or_else(|| estimator.parse(), |(_, _, _, estimator)| Ok(*estimator))?;
+        let (identifier_id, estimator_id) = match &checked_identity {
+            Some((_, _, identifier, estimator)) => (*identifier, *estimator),
+            None => binding.resolve(RouteDefaults::RESPONSE)?,
+        };
         let cell_aipw = matches!(estimator_id, EstimatorId::CellAipw);
 
         let (identification, estimand, identify_cached) =
@@ -1518,11 +1514,10 @@ impl super::Study {
         let background = self.tiered.as_ref().ok_or_else(|| CausalError::Compile {
             message: "CoDetermined joint execute requires a tiered background".into(),
         })?;
-        let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or("generalized.adjustment");
-        let estimator = physical.logical.record.estimator.as_deref().unwrap_or("cell.aipw");
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults {
+            identifier: IdentifierId::GeneralizedAdjustment,
+            estimator: EstimatorId::CellAipw,
+        })?;
         if estimator_id != EstimatorId::CellAipw {
             return Err(CausalError::Unsupported {
                 message: "CoDetermined joint cells require estimator cell.aipw",
@@ -1928,20 +1923,10 @@ impl super::Study {
             });
         }
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(EstimatorId::default_for_response(&query.functional).as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults {
+            estimator: EstimatorId::default_for_response(&query.functional),
+            ..RouteDefaults::PAG
+        })?;
         match self.graph.class() {
             GraphClass::Pag => {
                 let pag = physical.static_pag().ok_or_else(|| CausalError::Compile {

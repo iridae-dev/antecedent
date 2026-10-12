@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::planner::RouteDefaults;
 
 impl super::Study {
     /// ADMG ATE via general ID + functional plug-in (bidirected case).
@@ -13,23 +14,12 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER);
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
         if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Err(CausalError::Compile {
-                message: format!("ADMG ATE requires estimator functional.effect; got {estimator}"),
+                message: format!(
+                    "ADMG ATE requires estimator functional.effect; got {estimator_id}"
+                ),
             });
         }
 
@@ -57,7 +47,7 @@ impl super::Study {
             None,
             ctx,
             self.refute,
-            estimator,
+            estimator_id.as_str(),
             &self.custom_validators,
             None,
         )?;
@@ -158,24 +148,11 @@ impl super::Study {
         started: Instant,
         curve: bool,
     ) -> Result<StudyResult, CausalError> {
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER);
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
         if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Err(CausalError::Compile {
                 message: format!(
-                    "ADMG response requires estimator functional.effect; got {estimator}"
+                    "ADMG response requires estimator functional.effect; got {estimator_id}"
                 ),
             });
         }
@@ -403,7 +380,7 @@ impl super::Study {
                 &mut refute_ws,
                 ctx,
                 self.refute,
-                estimator,
+                estimator_id.as_str(),
                 &self.custom_validators,
             )?
         } else {
@@ -448,20 +425,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_ESTIMATOR_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
             if let Some(cache) = self.pag_identification_cache.as_deref() {
                 (cache.envelope.clone(), cache.identification.clone(), true)
@@ -616,7 +580,7 @@ impl super::Study {
             &mut refute_ws,
             ctx,
             self.refute,
-            estimator,
+            estimator_id.as_str(),
             &self.custom_validators,
             None,
             self.split.as_ref(),
@@ -665,20 +629,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_ESTIMATOR_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
             if let Some(cache) = self.cpdag_identification_cache.as_deref() {
                 (cache.envelope.clone(), cache.identification.clone(), true)
@@ -831,7 +782,7 @@ impl super::Study {
             &mut refute_ws,
             ctx,
             self.refute,
-            estimator,
+            estimator_id.as_str(),
             &self.custom_validators,
             None,
             self.split.as_ref(),

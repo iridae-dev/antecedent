@@ -15,6 +15,8 @@ use crate::analysis::prepared::{
 };
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::planner::RouteDefaults;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_core::{CausalQuery, Intervention, OutcomeFunctional, TargetPopulation, Value};
 use std::sync::Arc;
 
@@ -22,10 +24,7 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (cx.distribution(), analysis.identification_cache.as_deref()) {
         (Some((data, query)), Some(cache)) => {
-            let identifier =
-                cx.plan_identifier(crate::strategy_table::DEFAULT_DISTRIBUTION_IDENTIFIER)?;
-            let estimator =
-                cx.plan_estimator(crate::strategy_table::DEFAULT_DISTRIBUTION_ESTIMATOR)?;
+            let (identifier, estimator) = cx.binding.resolve(RouteDefaults::DISTRIBUTION)?;
             let mut fitter = antecedent_estimate::FunctionalDistribution::new();
             fitter.bootstrap_replicates = analysis.bootstrap_replicates;
             let prepared = fitter.prepare(
@@ -57,20 +56,11 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
                 && analysis.tiered.is_none()
                 && cache.estimand.method_kind().ok()
                     == Some(antecedent_expr::EstimandMethod::GeneralId)
-                && plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
-                    == crate::strategy_table::IdentifierId::GeneralId.as_str()
-                && plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
-                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && cx.binding.resolves_to(
+                    RouteDefaults::ADMG,
+                    IdentifierId::GeneralId,
+                    EstimatorId::FunctionalEffect,
+                )
                 && matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && matches!(query.target_population, TargetPopulation::AllObserved) =>
         {
@@ -110,20 +100,11 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
                 && analysis.tiered.is_none()
                 && cache.estimand.method_kind().ok()
                     == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
-                && plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_PATH_IDENTIFIER)
-                    == crate::strategy_table::IdentifierId::PathSpecificNatural.as_str()
-                && plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_PATH_ESTIMATOR)
-                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && cx.binding.resolves_to(
+                    RouteDefaults::PATH,
+                    IdentifierId::PathSpecificNatural,
+                    EstimatorId::FunctionalEffect,
+                )
                 && matches!(query.target_population, TargetPopulation::AllObserved) =>
         {
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
@@ -174,20 +155,11 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                             RefuteSuite::Cheap | RefuteSuite::Full,
                         )
                 )
-                && plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
-                    == crate::strategy_table::IdentifierId::GeneralId.as_str()
-                && plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
-                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && cx.binding.resolves_to(
+                    RouteDefaults::ADMG,
+                    IdentifierId::GeneralId,
+                    EstimatorId::FunctionalEffect,
+                )
                 && matches!(
                     query.functional,
                     antecedent_core::ResponseFunctional::MeanCurve { .. }

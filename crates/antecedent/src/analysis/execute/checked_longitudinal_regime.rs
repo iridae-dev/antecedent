@@ -68,9 +68,7 @@ impl CheckedLongitudinalRegimeOperation {
             }
         };
         if physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::RandomizedDesign.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator_id.as_str())
+            || !physical.binding().names(IdentifierId::RandomizedDesign, estimator_id)
         {
             return Err(CausalError::Compile {
                 message: "longitudinal regime query differs from compiled plan".into(),

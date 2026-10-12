@@ -83,18 +83,7 @@ impl CheckedGraphPosteriorResponse {
             if class_atoms { DEFAULT_PAG_IDENTIFIER_ID } else { DEFAULT_RESPONSE_IDENTIFIER_ID };
         if estimator != expected_estimator
             || identifier != expected_identifier
-            || physical
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|name| name != identifier.as_str())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|name| name != estimator.as_str())
+            || !physical.binding().names(identifier, estimator)
         {
             return Err(CausalError::Unsupported {
                 message: "checked graph-posterior response procedure does not match the sealed plan or inference mode",

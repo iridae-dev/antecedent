@@ -41,8 +41,7 @@ impl CheckedTemporalClassEffectExecution {
         if !operation.matches_query(&result_context.query)
             || result_context.query != query
             || physical.logical.query != query
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names(identifier, estimator)
             || result_context.graph_class != operation.graph_class()
             || result_context.graph_version != operation.structure_version()
         {

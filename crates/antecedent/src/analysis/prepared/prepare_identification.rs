@@ -12,8 +12,8 @@ use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{DEFAULT_ESTIMATOR, EstimatorId};
+use crate::planner::{PhysicalExecutionPlan, RouteDefaults};
+use crate::strategy_table::EstimatorId;
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, MediationQuery,
     TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value,
@@ -159,7 +159,7 @@ impl Study {
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
+            EstimatorId, IdentifierId, identify_static, identify_static_query,
             identify_static_query_with_rd, select_claim, select_estimand,
         };
         if let CausalQuery::RandomizedEffect(query) = &self.query {
@@ -210,10 +210,7 @@ impl Study {
                 );
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
-        let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
-        let estimator = plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = plan.binding().resolve(RouteDefaults::STATIC_ATE)?;
         if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear) {
             return Ok(None);
         }
@@ -407,17 +404,10 @@ impl Study {
             CausalQuery::ConditionalEffect(query) => {
                 // Mirrors execute_conditional / execute_bayesian: identifier is
                 // builder-selected or defaults to backdoor; estimator follows inference.
-                use crate::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER;
                 let Some(graph) = self.graph.as_dag().cloned() else {
                     return Ok(None);
                 };
-                let identifier = plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER);
-                let identifier_id: IdentifierId = identifier.parse()?;
+                let identifier_id = plan.binding().identifier_or(RouteDefaults::CONDITIONAL)?;
                 let identification = identify_static(identifier_id, &graph, &query.inner)?;
                 let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
                     EstimatorId::BayesianConditional
@@ -429,16 +419,10 @@ impl Study {
             }
             CausalQuery::PathSpecific(query) => {
                 // Mirrors `execute_path_specific`'s identify+select-estimand step exactly.
-                use crate::strategy_table::{DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_IDENTIFIER};
                 let Some(graph) = self.graph.as_dag().cloned() else {
                     return Ok(None);
                 };
-                let identifier =
-                    plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PATH_IDENTIFIER);
-                let estimator =
-                    plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_PATH_ESTIMATOR);
-                let identifier_id: IdentifierId = identifier.parse()?;
-                let estimator_id: EstimatorId = estimator.parse()?;
+                let (identifier_id, estimator_id) = plan.binding().resolve(RouteDefaults::PATH)?;
                 let cq = CausalQuery::PathSpecific(query.clone());
                 let identification = identify_static_query(identifier_id, &graph, &cq)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
@@ -447,23 +431,8 @@ impl Study {
             CausalQuery::Distribution(query) => {
                 // Mirrors `execute_distribution`.
                 use crate::analysis::execute::DistributionGraph;
-                use crate::strategy_table::{
-                    DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_IDENTIFIER,
-                };
-                let identifier = plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
-                let estimator = plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
-                let identifier_id: IdentifierId = identifier.parse()?;
-                let estimator_id: EstimatorId = estimator.parse()?;
+                let (identifier_id, estimator_id) =
+                    plan.binding().resolve(RouteDefaults::DISTRIBUTION)?;
                 let projected;
                 let graph = if let Some(admg) = self.graph.as_admg() {
                     DistributionGraph::Admg(admg)
@@ -488,7 +457,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedPagIdentification>, CausalError> {
-        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_pag};
+        use crate::strategy_table::identify_pag;
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -499,9 +468,7 @@ impl Study {
         let pag = plan.static_pag().ok_or_else(|| CausalError::Compile {
             message: "PAG prepare missing resolved static PAG".into(),
         })?;
-        let identifier =
-            plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG)?;
         let envelope = if let CausalQuery::Response(response) = &self.query {
             crate::strategy_table::identify_pag_response(identifier_id, pag, response)?
         } else {
@@ -519,7 +486,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedCpdagIdentification>, CausalError> {
-        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_cpdag};
+        use crate::strategy_table::identify_cpdag;
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -530,9 +497,7 @@ impl Study {
         let cpdag = self.graph.as_cpdag().ok_or_else(|| CausalError::Compile {
             message: "CPDAG prepare missing supplied graph".into(),
         })?;
-        let identifier =
-            plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG)?;
         let envelope = if let CausalQuery::Response(response) = &self.query {
             crate::strategy_table::identify_cpdag_response(identifier_id, cpdag, response)?
         } else {
@@ -615,8 +580,6 @@ impl Study {
     pub(super) fn prepare_temporal_class_identification(
         &self,
     ) -> Result<Option<CachedTemporalClassIdentification>, CausalError> {
-        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId};
-
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
         }
@@ -652,8 +615,7 @@ impl Study {
             }
             _ => return Ok(None),
         };
-        let identifier = self.identifier.map_or(DEFAULT_PAG_IDENTIFIER, |id| id.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = self.identifier.unwrap_or(RouteDefaults::PAG.identifier);
         let mut bundle = self.identify_temporal_class(identifier_id, &query)?;
         let horizons: &[u32] = match &self.query {
             CausalQuery::Response(response) => {

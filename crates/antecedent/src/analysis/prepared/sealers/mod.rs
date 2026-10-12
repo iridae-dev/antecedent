@@ -37,8 +37,7 @@ mod temporal;
 use super::{ExecutionKind, PreparedExecution};
 use crate::analysis::execute::{RouteInput, StaticMediationSource, Study};
 use crate::error::CausalError;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{EstimatorId, IdentifierId};
+use crate::planner::{PhysicalExecutionPlan, PlanBinding};
 use antecedent_core::{
     AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, InterventionalDistributionQuery,
     ResponseQuery,
@@ -55,6 +54,8 @@ pub(super) struct SealContext<'a> {
     pub(super) analysis: &'a Study,
     /// The physical plan compiled once for this prepare.
     pub(super) plan: &'a PhysicalExecutionPlan,
+    /// The strategy names `plan` carries, parsed once.
+    pub(super) binding: &'a PlanBinding,
     pub(super) ctx: &'a ExecutionContext,
     /// The data, query and graph payload of `source`, parsed once by the
     /// admission compile ran: `None` is a study no compiled cell covers.
@@ -150,16 +151,6 @@ impl<'a> SealContext<'a> {
             }) => Some(data),
             _ => None,
         }
-    }
-
-    /// The plan record's identifier, or `default` when it names none.
-    pub(super) fn plan_identifier(&self, default: &str) -> Result<IdentifierId, CausalError> {
-        Ok(self.plan.logical.record.identifier.as_deref().unwrap_or(default).parse()?)
-    }
-
-    /// The plan record's estimator, or `default` when it names none.
-    pub(super) fn plan_estimator(&self, default: &str) -> Result<EstimatorId, CausalError> {
-        Ok(self.plan.logical.record.estimator.as_deref().unwrap_or(default).parse()?)
     }
 }
 

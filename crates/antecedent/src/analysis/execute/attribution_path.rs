@@ -100,8 +100,7 @@ impl CheckedCounterfactualPlan {
                     && candidate.functional == estimand.functional
                     && candidate.rd_design == estimand.rd_design
             })
-            || physical.logical.record.identifier.as_deref() != Some("gcm.parametric")
-            || physical.logical.record.estimator.as_deref() != Some("gcm.fit")
+            || !physical.binding().names(IdentifierId::GcmParametric, EstimatorId::GcmFit)
         {
             return Err(CausalError::Compile { message: "checked counterfactual plan components do not agree on target, inference, identification, or procedure".into() });
         }

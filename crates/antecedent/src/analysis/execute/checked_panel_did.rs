@@ -54,8 +54,7 @@ impl CheckedPanelDidOperation {
         let (plan_id, identifier, estimator) = panel_did_plan_ids(query.design);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
-            || physical.logical.record.identifier.as_deref() != Some(identifier)
-            || physical.logical.record.estimator.as_deref() != Some(estimator)
+            || !physical.binding().names_wire(identifier, estimator)
         {
             return Err(CausalError::Compile {
                 message: "panel DiD design differs from its compiled plan".into(),

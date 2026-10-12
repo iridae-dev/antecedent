@@ -70,8 +70,7 @@ impl CheckedSyntheticControlOperation {
         let (plan_id, identifier, estimator) = synthetic_panel_plan_ids(query.method);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
-            || physical.logical.record.identifier.as_deref() != Some(identifier)
-            || physical.logical.record.estimator.as_deref() != Some(estimator)
+            || !physical.binding().names_wire(identifier, estimator)
         {
             return Err(CausalError::Compile {
                 message: "synthetic panel design differs from its compiled plan".into(),

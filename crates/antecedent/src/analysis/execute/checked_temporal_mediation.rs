@@ -68,7 +68,7 @@ impl CheckedTemporalMediationOperation {
             || !matches!(study.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
             || physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != "temporal_mediation"
-            || physical.logical.record.identifier.as_deref() != Some("temporal.mediation")
+            || !physical.binding().identifier.is_wire("temporal.mediation")
         {
             return Err(CausalError::Compile {
                 message: "temporal mediation structure, target, validation, or plan changed after preparation".into(),
@@ -76,7 +76,7 @@ impl CheckedTemporalMediationOperation {
         }
         let inference = match &study.inference {
             InferenceMode::Frequentist => {
-                if physical.logical.record.estimator.as_deref() != Some("temporal.mediation") {
+                if !physical.binding().estimator.is(EstimatorId::TemporalMediation) {
                     return Err(CausalError::Compile {
                         message:
                             "temporal mediation estimator differs from its checked physical plan"
@@ -89,9 +89,7 @@ impl CheckedTemporalMediationOperation {
             }
             InferenceMode::Bayesian(config) => {
                 require_isotropic_mediation_prior(config)?;
-                if physical.logical.record.estimator.as_deref()
-                    != Some("temporal.mediation.bayesian")
-                {
+                if !physical.binding().estimator.is(EstimatorId::BayesianTemporalMediation) {
                     return Err(CausalError::Compile {
                         message: "Bayesian temporal mediation estimator differs from its checked physical plan".into(),
                     });

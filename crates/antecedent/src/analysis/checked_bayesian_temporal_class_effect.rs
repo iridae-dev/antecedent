@@ -85,9 +85,7 @@ impl CheckedBayesianTemporalClassEffectOperation {
         }
         let query = CausalQuery::TemporalEffect(target.query().clone());
         if physical.logical.query != query
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(Self::estimator_for(&target).as_str())
+            || !physical.binding().names(identifier, Self::estimator_for(&target))
         {
             return Err(CausalError::Compile {
                 message: "Bayesian temporal class physical plan disagrees with its retained proof or procedure"

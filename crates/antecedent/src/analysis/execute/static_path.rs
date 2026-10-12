@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::estimator_spec::EstimatorSpec;
+use crate::planner::RouteDefaults;
 
 impl super::Study {
     #[expect(
@@ -22,11 +23,8 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
-        let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
-        let estimator = physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) =
+            physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
 
         // rd.sharp identifies from the declared design, which the graph must agree
         // with; it has no adjustment search, so it takes its own path.
@@ -557,7 +555,7 @@ impl super::Study {
                 Some(prop_scratch),
                 ctx,
                 self.refute,
-                estimator,
+                estimator_id.as_str(),
                 &self.custom_validators,
                 None,
             )?;
@@ -632,20 +630,12 @@ impl super::Study {
             ensure_admg_distribution_licensed(query, self.refute)?;
         }
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
-        let estimator =
-            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) =
+            physical.binding().resolve(RouteDefaults::DISTRIBUTION)?;
         if !matches!(estimator_id, EstimatorId::FunctionalDistribution) {
             return Err(CausalError::Compile {
                 message: format!(
-                    "Distribution execute requires estimator functional.distribution; got {estimator}"
+                    "Distribution execute requires estimator functional.distribution; got {estimator_id}"
                 ),
             });
         }
@@ -802,16 +792,11 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PATH_IDENTIFIER);
-        let estimator =
-            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_PATH_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Err(CausalError::Compile {
                 message: format!(
-                    "PathSpecific execute requires estimator functional.effect; got {estimator}"
+                    "PathSpecific execute requires estimator functional.effect; got {estimator_id}"
                 ),
             });
         }
@@ -880,20 +865,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER);
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static_query(
@@ -921,7 +893,7 @@ impl super::Study {
             None,
             ctx,
             self.refute,
-            estimator,
+            estimator_id.as_str(),
             &self.custom_validators,
             None,
         )?;

@@ -173,21 +173,12 @@ impl CheckedPropensityOperation {
         }
         let fitter = fitter.into();
         let expected_estimator = estimator_id(&fitter);
-        if estimator != expected_estimator
-            || context.physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
-        {
+        if estimator != expected_estimator || !context.physical.binding().estimator.is(estimator) {
             return Err(compile_error(
                 "checked propensity estimator does not match the selected physical plan",
             ));
         }
-        let identifier = context
-            .physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(context.identifier.as_str())
-            .parse()?;
+        let identifier = context.physical.binding().identifier.or(context.identifier)?;
         Arc::make_mut(&mut context.common).identifier = identifier;
 
         let mut arena = context.identification.arena.clone();

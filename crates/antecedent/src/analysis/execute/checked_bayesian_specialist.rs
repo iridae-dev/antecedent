@@ -87,26 +87,26 @@ impl CheckedBayesianSpecialistOperation {
         {
             return Ok(None);
         }
-        let estimator = plan.logical.record.estimator.as_deref().and_then(|id| id.parse().ok());
-        let identifier = plan.logical.record.identifier.as_deref().and_then(|id| id.parse().ok());
-        let (family, identifier, estimator) = match (estimator, identifier) {
-            (Some(EstimatorId::BayesianIvJointLinear), Some(IdentifierId::Iv)) => (
-                BayesianSpecialistFamily::IvJointLinear,
-                IdentifierId::Iv,
-                EstimatorId::BayesianIvJointLinear,
-            ),
-            (Some(EstimatorId::BayesianRdLocalLinear), Some(IdentifierId::RdSharp)) => {
-                let Some(rd) = study.rd else {
-                    return Ok(None);
-                };
-                (
-                    BayesianSpecialistFamily::RdLocalLinear(rd),
-                    IdentifierId::RdSharp,
-                    EstimatorId::BayesianRdLocalLinear,
-                )
-            }
-            _ => return Ok(None),
-        };
+        let binding = plan.binding();
+        let (family, identifier, estimator) =
+            match (binding.estimator.named(), binding.identifier.named()) {
+                (Some(EstimatorId::BayesianIvJointLinear), Some(IdentifierId::Iv)) => (
+                    BayesianSpecialistFamily::IvJointLinear,
+                    IdentifierId::Iv,
+                    EstimatorId::BayesianIvJointLinear,
+                ),
+                (Some(EstimatorId::BayesianRdLocalLinear), Some(IdentifierId::RdSharp)) => {
+                    let Some(rd) = study.rd else {
+                        return Ok(None);
+                    };
+                    (
+                        BayesianSpecialistFamily::RdLocalLinear(rd),
+                        IdentifierId::RdSharp,
+                        EstimatorId::BayesianRdLocalLinear,
+                    )
+                }
+                _ => return Ok(None),
+            };
         // A sharp design binds its target to the cutoff population at build;
         // the joint IV model estimates the all-observed contrast only.
         let population_matches = match (&family, &query.target_population) {

@@ -77,10 +77,9 @@ impl CheckedStaticMediationOperation {
                     && candidate.adjustment_set == cache.estimand.adjustment_set
                     && candidate.mediators == cache.estimand.mediators
             })
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::PathSpecificNatural.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::StaticMediationLinear.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)
         {
             return Err(CausalError::Compile { message: "mediation identification or estimator lowering does not match the checked target".into() });
         }

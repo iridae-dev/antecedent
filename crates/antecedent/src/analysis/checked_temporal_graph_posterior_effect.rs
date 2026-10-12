@@ -125,20 +125,7 @@ impl CheckedTemporalGraphPosteriorEffect {
             });
         }
         let target = CausalQuery::TemporalEffect(query.clone());
-        if physical.logical.query != target
-            || physical
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|name| name != identifier.as_str())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|name| name != estimator.as_str())
-        {
+        if physical.logical.query != target || !physical.binding().names(identifier, estimator) {
             return Err(CausalError::Compile {
                 message:
                     "temporal graph-posterior physical plan disagrees with its retained procedure"

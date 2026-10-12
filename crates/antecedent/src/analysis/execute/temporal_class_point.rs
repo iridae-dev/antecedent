@@ -7,6 +7,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::planner::RouteDefaults;
 use antecedent_core::SupportStatus;
 
 const CONDITIONAL_PRIOR_REFUSAL: &str = "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
@@ -250,13 +251,7 @@ impl super::Study {
             target_population: query.target_population.clone(),
             effect_modifiers: std::sync::Arc::from([]),
         };
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
             if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
                 if let Some((_, envelope)) =
@@ -396,13 +391,7 @@ impl super::Study {
             .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
             .with_horizon_steps(1)
             .with_max_history_lag(Some(1));
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) = {
             report_identify_compute(ctx);
             (self.identify_temporal_class(identifier_id, &probe)?.envelope, false)
@@ -841,13 +830,7 @@ impl super::Study {
                 "published value is the posterior-weighted mean of each atom's completion-weighted point; completion enumeration is not posterior probability",
             ));
         }
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
