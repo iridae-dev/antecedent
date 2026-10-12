@@ -770,8 +770,9 @@ impl PartialLinearSensitivity {
 /// Rows are independent, so the outer loop runs on `ctx`'s pool (results come back in row order,
 /// each row summed in `j` order, so the output does not depend on the thread count). Distances are
 /// squared Euclidean, which is exact for covariates already on a common scale (the caller
-/// standardizes); the weight shift `exp(−½ (d² − min d²) / h²)` keeps the nearest observations
-/// at weight 1 even for a tiny bandwidth.
+/// standardizes). Each row stores those squared distances once and reuses the same `f64` values
+/// for the minimum and the weights; the weight shift `exp(−½ (d² − min d²) / h²)` keeps the
+/// nearest observations at weight 1 even for a tiny bandwidth.
 fn nw_loo_predict_pair(
     y1: &[f64],
     y2: &[f64],
@@ -786,30 +787,30 @@ fn nw_loo_predict_pair(
         if inner.cancellation.is_cancelled() {
             return Err(ValidationError::Cancelled);
         }
-        let dist2 = |j: usize| {
-            let xi = &cov_rowmajor[i * dim..(i + 1) * dim];
+        let xi = &cov_rowmajor[i * dim..(i + 1) * dim];
+        // Slot `i` is unused; every other slot is the squared distance to that row.
+        let mut dist2 = vec![0.0; n];
+        let mut nearest = f64::INFINITY;
+        for (j, slot) in dist2.iter_mut().enumerate() {
+            if i == j {
+                continue;
+            }
             let xj = &cov_rowmajor[j * dim..(j + 1) * dim];
             let mut acc = 0.0;
             for d in 0..dim {
                 let diff = xi[d] - xj[d];
                 acc += diff * diff;
             }
-            acc
-        };
-        let mut nearest = f64::INFINITY;
-        for j in 0..n {
-            if i != j {
-                nearest = nearest.min(dist2(j));
-            }
+            *slot = acc;
+            nearest = nearest.min(acc);
         }
         let mut num1 = 0.0;
         let mut num2 = 0.0;
         let mut den = 0.0;
-        for j in 0..n {
+        for (j, &d2) in dist2.iter().enumerate() {
             if i == j {
                 continue;
             }
-            let d2 = dist2(j);
             // The nearest observations always have weight 1, even for a tiny bandwidth.
             #[allow(
                 clippy::float_cmp,

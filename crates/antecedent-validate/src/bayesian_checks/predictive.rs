@@ -312,10 +312,6 @@ impl PredictiveCheckReport {
     /// contributing atom, are dropped. Returns `None` when nothing contributes.
     #[must_use]
     #[allow(
-        clippy::needless_range_loop,
-        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-    )]
-    #[allow(
         clippy::too_many_lines,
         reason = "mixture-weights every field of the per-atom check summary, one statement each"
     )]
@@ -357,9 +353,11 @@ impl PredictiveCheckReport {
             predictive_mean += weight * report.predictive_mean;
             observed_dispersion += weight * report.observed_dispersion;
             predictive_dispersion_mean += weight * report.predictive_dispersion_mean;
-            for tail in 0..2 {
-                location_tails[tail] += weight * report.location_tails[tail];
-                dispersion_tails[tail] += weight * report.dispersion_tails[tail];
+            for (slot, src) in location_tails.iter_mut().zip(report.location_tails) {
+                *slot += weight * src;
+            }
+            for (slot, src) in dispersion_tails.iter_mut().zip(report.dispersion_tails) {
+                *slot += weight * src;
             }
             n_sims = n_sims.max(report.n_sims);
         }
@@ -375,8 +373,8 @@ impl PredictiveCheckReport {
                 let weight = (w / max_weight) / total;
                 observed_serial += weight * serial.observed;
                 predictive_serial += weight * serial.predictive_mean;
-                for tail in 0..2 {
-                    tails[tail] += weight * serial.tails[tail];
+                for (slot, src) in tails.iter_mut().zip(serial.tails) {
+                    *slot += weight * src;
                 }
                 tempering_kappa =
                     tempering_kappa.zip(serial.tempering_kappa).map(|(a, b)| a.min(b));
@@ -416,8 +414,8 @@ impl PredictiveCheckReport {
                 for (out, r) in mixed.iter_mut().zip(&report.residual) {
                     out.observed += weight * r.observed;
                     out.predictive_mean += weight * r.predictive_mean;
-                    for tail in 0..2 {
-                        out.tails[tail] += weight * r.tails[tail];
+                    for (slot, src) in out.tails.iter_mut().zip(r.tails) {
+                        *slot += weight * src;
                     }
                 }
             }
@@ -964,27 +962,23 @@ impl ResidualTracker {
     }
 
     /// Record the fitted means of the current draw (before observation noise is added).
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-    )]
     fn set_means(&mut self, fitted: &[f64]) {
         self.mu.copy_from_slice(fitted);
         let mean = fitted.iter().sum::<f64>() / fitted.len() as f64;
-        for i in 0..fitted.len() {
+        for ((&value, scale), curvature) in
+            fitted.iter().zip(self.scale.iter_mut()).zip(self.curvature.iter_mut())
+        {
             // `new` verified the family has a variance function.
-            self.scale[i] = pearson_scale(self.family, fitted[i]).unwrap_or(1.0);
-            self.curvature[i] = (fitted[i] - mean) * (fitted[i] - mean);
+            *scale = pearson_scale(self.family, value).unwrap_or(1.0);
+            *curvature = (value - mean) * (value - mean);
         }
     }
 
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-    )]
     fn statistics(&mut self, y: &[f64]) -> [f64; 4] {
-        for i in 0..y.len() {
-            self.residual[i] = (y[i] - self.mu[i]) / self.scale[i];
+        for (((slot, &obs), &mu), &scale) in
+            self.residual.iter_mut().zip(y).zip(&self.mu).zip(&self.scale)
+        {
+            *slot = (obs - mu) / scale;
         }
         residual_statistics(&self.residual, &self.curvature, &self.mu, &mut self.squared)
     }
