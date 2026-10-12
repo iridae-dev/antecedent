@@ -341,7 +341,7 @@ pub(super) fn fit_class_sequential(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassEffectFit, CausalError> {
-    let TemporalClassEffectInputs { data, query, bundle, bootstrap_replicates, .. } = *inputs;
+    let TemporalClassEffectInputs { bundle, .. } = *inputs;
     if inputs.split.is_some() {
         return Err(CausalError::Unsupported {
             message: "class-aware multi-step sustained requires no discovery-estimation split",

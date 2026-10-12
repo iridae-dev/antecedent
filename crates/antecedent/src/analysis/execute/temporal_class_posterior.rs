@@ -241,12 +241,11 @@ impl super::Study {
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedTemporalClassPosteriorIdentification>, bool), CausalError> {
-        let (identified, identify_cached) = if let Some(cache) =
-            self.temporal_class_posterior_identification_cache.as_ref()
-        {
-            (Arc::clone(cache), true)
-        } else {
-            (
+        let (identified, identify_cached) =
+            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
+            } else {
+                (
                 Arc::new(
                     crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
                         gp,
@@ -258,7 +257,7 @@ impl super::Study {
                 ),
                 false,
             )
-        };
+            };
         if identified.class_atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "temporal class graph-posterior envelope: no identified class atoms"

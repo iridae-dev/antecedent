@@ -42,6 +42,38 @@ struct TemporalClassMediationAtomEval {
 }
 
 impl super::Study {
+    /// The class posterior identification for a mediation horizon, built from
+    /// the posterior at the horizon's pulse witness when the study carries no
+    /// cache.
+    fn class_mediation_posterior_identification(
+        &self,
+        data: &TimeSeriesData,
+        gp: &GraphPosterior,
+        query: &antecedent_core::MediationQuery,
+        horizon: u32,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<CachedTemporalClassPosteriorIdentification>, bool), CausalError> {
+        let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
+        witness.horizon_steps = horizon;
+        let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
+        Ok(if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(
+                    crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
+                        gp,
+                        &vars,
+                        &witness,
+                        self.max_completions,
+                        ctx,
+                    )?,
+                ),
+                false,
+            )
+        })
+    }
+
     /// Mix TemporalCpdag/Pag posterior atoms through the class mediation envelope.
     pub(super) fn execute_temporal_class_graph_posterior_mediation(
         &self,
@@ -65,38 +97,14 @@ impl super::Study {
         }
         let started = Instant::now();
         let horizon = query.horizons[0];
-        let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
-        witness.horizon_steps = horizon;
-        let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
-                (Arc::clone(cache), true)
-            } else {
-                (
-                Arc::new(
-                    crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
-                        gp,
-                        &vars,
-                        &witness,
-                        self.max_completions,
-                        ctx,
-                    )?,
-                ),
-                false,
-            )
-            };
-        let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-        let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
-            evaluate_temporal_class_mediation_atom_frequentist(
-                self,
-                data,
-                query,
-                horizon,
-                &identified.class_atoms[i],
-                &estimator,
-                inner,
-            )
-        })?;
+            self.class_mediation_posterior_identification(data, gp, query, horizon, ctx)?;
+        let evals = self.evaluate_class_mediation_atoms_frequentist(
+            (data, query),
+            horizon,
+            &identified,
+            ctx,
+        )?;
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_temporal_class_mediation_posterior(
             &identified,
@@ -105,103 +113,14 @@ impl super::Study {
             query,
             horizon,
         )?;
-        let mut designs = Vec::new();
-        let mut weights = Vec::new();
-        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-        for eval in &evals {
-            let graph_w = key_weights.get(eval.key);
-            if graph_w <= 0.0 {
-                continue;
-            }
-            if let Some(prepared) = eval.prepared.as_ref() {
-                designs.push(prepared);
-                weights.push(graph_w);
-            }
-        }
-        let refs: Vec<&antecedent_estimate::PreparedTemporalMediation> = designs.clone();
-        let shared = antecedent_estimate::shared_mediation_block_bootstrap(
-            &refs,
-            &weights,
-            query.contrast,
-            self.bootstrap_replicates,
-            mediation_block_stream(MediationRoute::TemporalClass, horizon),
-            ctx,
+        let block = self.class_mediation_shared_block((&identified, &evals), query, horizon, ctx);
+        let estimate = block.stamp(mixed.estimate);
+        let mediation = class_mediation_with_effect(&estimate, mixed.mediation);
+        let mut diagnostics = self.class_mediation_frequentist_diagnostics(
+            mixed.identification.diagnostics.clone(),
+            (mixed.policy, &mixed.mixture, mixed.posterior.is_none()),
+            &block,
         );
-        let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
-        let replicates_requested = self.bootstrap_replicates > 0;
-        let (replicates_ok, replicates_attempted) = shared
-            .as_ref()
-            .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
-        let family = shared.as_ref().map_or_else(
-            || antecedent_estimate::CircularBlockFamily::for_mediation_atoms(designs.len()),
-            |s| s.family,
-        );
-        let mut estimate = mixed.estimate.with_block_family(family);
-        estimate.uncertainty.analytic.se = f64::NAN;
-        estimate.uncertainty.bootstrap.se = requested_se;
-        estimate.uncertainty.bootstrap.replicates_ok =
-            replicates_requested.then_some(replicates_ok);
-        estimate.uncertainty.bootstrap.replicates_failed =
-            replicates_requested.then_some(replicates_attempted.saturating_sub(replicates_ok));
-        let mediation = mixed.mediation.map(|m| TemporalMediationEstimate {
-            effect: estimate.clone(),
-            total: m.total,
-            direct: m.direct,
-            mediated: m.mediated,
-        });
-        let mut diagnostics = mixed.identification.diagnostics.clone();
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
-            diagnostics.push(Diagnostic::new(
-                "estimate.graph_posterior.posterior_withheld",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                "aggregate posterior withheld: a graph- or completion-conditional posterior \
-                 does not describe the full weighted target; retained atom posteriors are conditional",
-            ));
-        }
-        diagnostics.push(Diagnostic::new(
-            "estimate.graph_posterior.temporal_class_mediation_envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "each TemporalCpdag/Pag posterior atom was evaluated with the existing temporal class \
-             mediation envelope; outer weights are posterior probabilities; completion enumeration \
-             is not posterior probability",
-        ));
-        push_graph_posterior_structural_aggregation_diagnostic(
-            &mut diagnostics,
-            mixed.policy,
-            mixed.mixture.identified_mass,
-            mixed.mixture.unidentified_mass,
-            mixed.mixture.unevaluable_mass,
-            0.0,
-        );
-        match shared.as_ref() {
-            Some(s) if replicates_requested && requested_se.is_some() => {
-                diagnostics.push(Diagnostic::new(
-                    "estimate.temporal_class.mediation.shared_block",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "shared circular-block replicates={}; attempted={}; each posterior atom \
-                         keeps its own S(h); between-atom covariance included in the aggregate SE",
-                        s.block.replicates_ok, s.block.replicates_attempted,
-                    ),
-                ));
-                diagnostics.extend(short_series_warning(s.block.effective_rows, family));
-            }
-            _ => diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.mediation.uncertainty_withheld",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                if replicates_requested {
-                    "the shared circular-block bootstrap did not produce a usable SE; the \
-                     aggregate SE is withheld and iid analytic SEs are not substituted"
-                } else {
-                    "no bootstrap replicates were requested; lagged rows are serially dependent, \
-                     so no iid analytic SE is published for the aggregate"
-                },
-            )),
-        }
         let (refutations, refute_diagnostics) = refute_temporal_class_mediation_posterior(
             self,
             data,
@@ -215,15 +134,7 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        let uncertainty = match shared {
-            Some(s) if replicates_requested => {
-                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                    requested: s.requested,
-                    block: s.block,
-                }
-            }
-            _ => antecedent_estimate::TemporalMediationUncertainty::Unavailable,
-        };
+        let uncertainty = block.uncertainty();
         let mediation_grid = antecedent_estimate::TemporalMediationGrid {
             slices: Arc::from([antecedent_estimate::TemporalMediationSlice {
                 horizon,
@@ -258,7 +169,7 @@ impl super::Study {
             .refutations(refutations)
             .mediation(mediation)
             .wall_time_ns(elapsed_ns(started))
-            .bootstrap_replicates_ok(replicates_requested.then_some(replicates_ok))
+            .bootstrap_replicates_ok(block.replicates_requested.then_some(block.replicates_ok))
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
@@ -272,6 +183,149 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
+    }
+
+    /// Prepares each class atom's mediation designs on the context's workers.
+    fn evaluate_class_mediation_atoms_frequentist(
+        &self,
+        (data, query): (&TimeSeriesData, &antecedent_core::MediationQuery),
+        horizon: u32,
+        identified: &CachedTemporalClassPosteriorIdentification,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<TemporalClassMediationAtomEval>, CausalError> {
+        let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
+            evaluate_temporal_class_mediation_atom_frequentist(
+                self,
+                data,
+                query,
+                horizon,
+                &identified.class_atoms[i],
+                &estimator,
+                inner,
+            )
+        })
+    }
+
+    /// The shared circular-block bootstrap over the evaluated atoms' prepared
+    /// mediation designs, frozen-weighted by posterior graph weight.
+    fn class_mediation_shared_block(
+        &self,
+        (identified, evals): (
+            &CachedTemporalClassPosteriorIdentification,
+            &[TemporalClassMediationAtomEval],
+        ),
+        query: &antecedent_core::MediationQuery,
+        horizon: u32,
+        ctx: &ExecutionContext,
+    ) -> ClassMediationBlock {
+        let mut designs = Vec::new();
+        let mut weights = Vec::new();
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        for eval in evals {
+            let graph_w = key_weights.get(eval.key);
+            if graph_w <= 0.0 {
+                continue;
+            }
+            if let Some(prepared) = eval.prepared.as_ref() {
+                designs.push(prepared);
+                weights.push(graph_w);
+            }
+        }
+        let refs: Vec<&antecedent_estimate::PreparedTemporalMediation> = designs.clone();
+        let shared = antecedent_estimate::shared_mediation_block_bootstrap(
+            &refs,
+            &weights,
+            query.contrast,
+            self.bootstrap_replicates,
+            mediation_block_stream(MediationRoute::TemporalClass, horizon),
+            ctx,
+        );
+        let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
+        let replicates_requested = self.bootstrap_replicates > 0;
+        let (replicates_ok, replicates_attempted) = shared
+            .as_ref()
+            .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
+        let family = shared.as_ref().map_or_else(
+            || antecedent_estimate::CircularBlockFamily::for_mediation_atoms(designs.len()),
+            |s| s.family,
+        );
+        ClassMediationBlock {
+            shared,
+            requested_se,
+            replicates_requested,
+            replicates_ok,
+            replicates_attempted,
+            family,
+        }
+    }
+
+    /// The diagnostics of a frequentist class graph-posterior mediation before
+    /// refutation: the withheld posterior, the evaluation and aggregation
+    /// notes, and the shared-block or withheld-uncertainty note.
+    fn class_mediation_frequentist_diagnostics(
+        &self,
+        mut diagnostics: Vec<Diagnostic>,
+        (policy, mixture, posterior_withheld): (
+            StructuralAggregationPolicy,
+            &StructuralResponseMixture,
+            bool,
+        ),
+        block: &ClassMediationBlock,
+    ) -> Vec<Diagnostic> {
+        if matches!(self.inference, InferenceMode::Bayesian(_)) && posterior_withheld {
+            diagnostics.push(Diagnostic::new(
+                "estimate.graph_posterior.posterior_withheld",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "aggregate posterior withheld: a graph- or completion-conditional posterior \
+                 does not describe the full weighted target; retained atom posteriors are conditional",
+            ));
+        }
+        diagnostics.push(Diagnostic::new(
+            "estimate.graph_posterior.temporal_class_mediation_envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "each TemporalCpdag/Pag posterior atom was evaluated with the existing temporal class \
+             mediation envelope; outer weights are posterior probabilities; completion enumeration \
+             is not posterior probability",
+        ));
+        push_graph_posterior_structural_aggregation_diagnostic(
+            &mut diagnostics,
+            policy,
+            mixture.identified_mass,
+            mixture.unidentified_mass,
+            mixture.unevaluable_mass,
+            0.0,
+        );
+        match block.shared.as_ref() {
+            Some(s) if block.replicates_requested && block.requested_se.is_some() => {
+                diagnostics.push(Diagnostic::new(
+                    "estimate.temporal_class.mediation.shared_block",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!(
+                        "shared circular-block replicates={}; attempted={}; each posterior atom \
+                         keeps its own S(h); between-atom covariance included in the aggregate SE",
+                        s.block.replicates_ok, s.block.replicates_attempted,
+                    ),
+                ));
+                diagnostics.extend(short_series_warning(s.block.effective_rows, block.family));
+            }
+            _ => diagnostics.push(Diagnostic::new(
+                "estimate.temporal_class.mediation.uncertainty_withheld",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                if block.replicates_requested {
+                    "the shared circular-block bootstrap did not produce a usable SE; the \
+                     aggregate SE is withheld and iid analytic SEs are not substituted"
+                } else {
+                    "no bootstrap replicates were requested; lagged rows are serially dependent, \
+                     so no iid analytic SE is published for the aggregate"
+                },
+            )),
+        }
+        diagnostics
     }
 
     fn execute_temporal_class_graph_posterior_mediation_bayesian(
@@ -291,26 +345,8 @@ impl super::Study {
         require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
         let started = Instant::now();
         let horizon = query.horizons[0];
-        let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
-        witness.horizon_steps = horizon;
-        let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
-                (Arc::clone(cache), true)
-            } else {
-                (
-                Arc::new(
-                    crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
-                        gp,
-                        &vars,
-                        &witness,
-                        self.max_completions,
-                        ctx,
-                    )?,
-                ),
-                false,
-            )
-            };
+            self.class_mediation_posterior_identification(data, gp, query, horizon, ctx)?;
         let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             evaluate_temporal_class_mediation_atom_bayesian(
                 self,
@@ -401,6 +437,60 @@ impl super::Study {
     }
 }
 
+/// The shared circular-block bootstrap of a class graph-posterior mediation
+/// and the replicate accounting its estimate is stamped with.
+struct ClassMediationBlock {
+    shared: Option<antecedent_estimate::SharedMediationBlockSe>,
+    requested_se: Option<f64>,
+    replicates_requested: bool,
+    replicates_ok: u32,
+    replicates_attempted: u32,
+    family: antecedent_estimate::CircularBlockFamily,
+}
+
+/// The mediation estimate carrying the stamped effect with the mixed Total,
+/// Direct and Mediated parts.
+fn class_mediation_with_effect(
+    effect: &EffectEstimate,
+    mixed: Option<TemporalMediationEstimate>,
+) -> Option<TemporalMediationEstimate> {
+    mixed.map(|m| TemporalMediationEstimate {
+        effect: effect.clone(),
+        total: m.total,
+        direct: m.direct,
+        mediated: m.mediated,
+    })
+}
+
+impl ClassMediationBlock {
+    /// Stamps the mixed estimate with the block family and bootstrap
+    /// accounting; the iid analytic SE is not published.
+    fn stamp(&self, estimate: EffectEstimate) -> EffectEstimate {
+        let mut estimate = estimate.with_block_family(self.family);
+        estimate.uncertainty.analytic.se = f64::NAN;
+        estimate.uncertainty.bootstrap.se = self.requested_se;
+        estimate.uncertainty.bootstrap.replicates_ok =
+            self.replicates_requested.then_some(self.replicates_ok);
+        estimate.uncertainty.bootstrap.replicates_failed = self
+            .replicates_requested
+            .then_some(self.replicates_attempted.saturating_sub(self.replicates_ok));
+        estimate
+    }
+
+    /// The slice uncertainty: the shared block bootstrap when requested.
+    fn uncertainty(&self) -> antecedent_estimate::TemporalMediationUncertainty {
+        match self.shared.clone() {
+            Some(s) if self.replicates_requested => {
+                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                    requested: s.requested,
+                    block: s.block,
+                }
+            }
+            _ => antecedent_estimate::TemporalMediationUncertainty::Unavailable,
+        }
+    }
+}
+
 struct MixedTemporalClassMediationPosterior {
     policy: StructuralAggregationPolicy,
     identification: IdentificationResult,
@@ -412,6 +502,57 @@ struct MixedTemporalClassMediationPosterior {
     adjustment: Arc<[antecedent_core::TemporalNodeKey]>,
     slice_identified_set: Option<antecedent_estimate::TemporalMediationIdentifiedSet>,
     mediation_grid: Option<antecedent_estimate::TemporalMediationGrid>,
+}
+
+/// The lagged adjustment columns of a completion's mediation estimand, read
+/// relative to the outcome time.
+fn class_case_lagged_adjustment(
+    estimand: &IdentifiedEstimand,
+    indexer: &antecedent_core::TemporalIndexer,
+    outcome_offset: i32,
+) -> Arc<[antecedent_data::LaggedColumn]> {
+    estimand
+        .adjustment_set
+        .iter()
+        .filter_map(|dense| {
+            let key = indexer.key_of(dense.raw()).ok()?;
+            super::temporal_path::lagged_column_relative_to_outcome(key, outcome_offset)
+        })
+        .collect::<Vec<_>>()
+        .into()
+}
+
+/// One completion's composed Bayesian mediation posterior: each mechanism is
+/// fitted on its own seed stream and the pair composed.
+fn fit_class_mediation_case_posterior(
+    bayes: &antecedent_estimate::BayesianGComputationAte,
+    (data, horizon_query, horizon): (&TimeSeriesData, &antecedent_core::MediationQuery, u32),
+    (estimand, adjustment, status): (
+        &IdentifiedEstimand,
+        &Arc<[antecedent_data::LaggedColumn]>,
+        IdentificationStatus,
+    ),
+    ctx: &ExecutionContext,
+) -> Result<CausalPosterior, CausalError> {
+    use antecedent_estimate::bayesian_mediation::{
+        compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+    };
+    let preparations =
+        prepare_temporal_mediation_adjusted(data, estimand, horizon_query, adjustment, ctx)
+            .map_err(CausalError::from)?;
+    let mechanisms = preparations
+        .iter()
+        .enumerate()
+        .map(|(index, prep)| {
+            let mut mechanism = bayes.clone();
+            mechanism.seed = mediation_mechanism_seed(mechanism.seed, horizon, index);
+            mechanism
+                .fit(prep, status, &mut BayesianGCompWorkspace::default(), ctx)
+                .map_err(CausalError::from)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    compose_temporal_mediation(&mechanisms[0], &mechanisms[1], horizon_query, status)
+        .map_err(CausalError::from)
 }
 
 fn evaluate_temporal_class_mediation_atom_frequentist(
@@ -447,15 +588,7 @@ fn evaluate_temporal_class_mediation_atom_frequentist(
             continue;
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalMediation)?;
-        let adjustment: Arc<[antecedent_data::LaggedColumn]> = estimand
-            .adjustment_set
-            .iter()
-            .filter_map(|dense| {
-                let key = indexer.key_of(dense.raw()).ok()?;
-                super::temporal_path::lagged_column_relative_to_outcome(key, outcome_offset)
-            })
-            .collect::<Vec<_>>()
-            .into();
+        let adjustment = class_case_lagged_adjustment(&estimand, indexer, outcome_offset);
         let prep = estimator
             .prepare_shared(data, &estimand, &horizon_query, &adjustment, ctx)
             .map_err(CausalError::from)?;
@@ -534,9 +667,6 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
     cfg: &BayesianConfig,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassMediationAtomEval, CausalError> {
-    use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_adjusted,
-    };
     let bayes = bayesian_gcomp(cfg, ctx);
     let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
     crate::identify_api::refine_temporal_class_identification(
@@ -562,36 +692,13 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
             continue;
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalMediation)?;
-        let adjustment: Arc<[antecedent_data::LaggedColumn]> = estimand
-            .adjustment_set
-            .iter()
-            .filter_map(|dense| {
-                let key = indexer.key_of(dense.raw()).ok()?;
-                super::temporal_path::lagged_column_relative_to_outcome(key, outcome_offset)
-            })
-            .collect::<Vec<_>>()
-            .into();
-        let preparations =
-            prepare_temporal_mediation_adjusted(data, &estimand, &horizon_query, &adjustment, ctx)
-                .map_err(CausalError::from)?;
-        let mechanisms = preparations
-            .iter()
-            .enumerate()
-            .map(|(index, prep)| {
-                let mut mechanism = bayes.clone();
-                mechanism.seed = mediation_mechanism_seed(mechanism.seed, horizon, index);
-                mechanism
-                    .fit(prep, case.result.status, &mut BayesianGCompWorkspace::default(), ctx)
-                    .map_err(CausalError::from)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let composed = compose_temporal_mediation(
-            &mechanisms[0],
-            &mechanisms[1],
-            &horizon_query,
-            case.result.status,
-        )
-        .map_err(CausalError::from)?;
+        let adjustment = class_case_lagged_adjustment(&estimand, indexer, outcome_offset);
+        let composed = fit_class_mediation_case_posterior(
+            &bayes,
+            (data, &horizon_query, horizon),
+            (&estimand, &adjustment, case.result.status),
+            ctx,
+        )?;
         let mean = composed.summaries.mean.first().copied().unwrap_or(f64::NAN);
         if mean.is_finite() {
             weighted += case.weight.0 * mean;
