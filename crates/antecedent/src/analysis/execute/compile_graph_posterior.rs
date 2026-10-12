@@ -3,7 +3,14 @@
 // kind and posterior atom kind. Execution lives in the per-family `*_posterior` modules.
 
 use super::{
-    Arc, AverageEffectQuery, CausalError, CausalQuery, Dag, DataClassification, DataInput, EstimatorId, ExecutionContext, GraphClass, IdentifierId, InferenceMode, LogicalAnalysisPlan, Pag, PhysicalExecutionPlan, StaticAteCompileInput, StaticCpdagResponseCompileInput, StaticPagResponseCompileInput, StaticResponseCompileInput, TabularData, TableView, TemporalDag, TemporalEffectQuery, TimeSeriesData, compile_logical_static_ate, compile_logical_static_cpdag_response, compile_logical_static_pag_response, compile_logical_static_response, compile_logical_temporal_effect_classified, compile_logical_temporal_response,
+    Arc, AverageEffectQuery, CausalError, CausalQuery, Dag, DataClassification, DataInput,
+    EstimatorId, ExecutionContext, GraphClass, IdentifierId, InferenceMode, LogicalAnalysisPlan,
+    Pag, PhysicalExecutionPlan, StaticAteCompileInput, StaticCpdagResponseCompileInput,
+    StaticPagResponseCompileInput, StaticResponseCompileInput, TableView, TabularData, TemporalDag,
+    TemporalEffectQuery, TimeSeriesData, compile_logical_static_ate,
+    compile_logical_static_cpdag_response, compile_logical_static_pag_response,
+    compile_logical_static_response, compile_logical_temporal_effect_classified,
+    compile_logical_temporal_response,
 };
 
 impl super::Study {
@@ -147,21 +154,28 @@ impl super::Study {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
-            ) => (Arc::from(IdentifierId::GeneralId.as_str()), Arc::from(EstimatorId::FunctionalEffect.as_str())),
+            ) => (
+                Arc::from(IdentifierId::GeneralId.as_str()),
+                Arc::from(EstimatorId::FunctionalEffect.as_str()),
+            ),
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag,
             ) => (
                 Arc::from(IdentifierId::GeneralizedAdjustment.as_str()),
                 match &self.inference {
-                    InferenceMode::Frequentist => Arc::from(EstimatorId::LinearAdjustmentAte.as_str()),
+                    InferenceMode::Frequentist => {
+                        Arc::from(EstimatorId::LinearAdjustmentAte.as_str())
+                    }
                     InferenceMode::Bayesian(_) => Arc::from(EstimatorId::BayesianGcomp.as_str()),
                 },
             ),
             _ => (
                 Arc::from(IdentifierId::BackdoorAdjustment.as_str()),
                 match &self.inference {
-                    InferenceMode::Frequentist => Arc::from(EstimatorId::LinearAdjustmentAte.as_str()),
+                    InferenceMode::Frequentist => {
+                        Arc::from(EstimatorId::LinearAdjustmentAte.as_str())
+                    }
                     InferenceMode::Bayesian(_) => Arc::from(EstimatorId::BayesianGcomp.as_str()),
                 },
             ),
@@ -257,7 +271,8 @@ impl super::Study {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str()));
         } else if q.is_multi_step_sustained() {
-            logical.record.estimator = Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+            logical.record.estimator =
+                Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
         } else if self.inference.is_bayesian() {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }

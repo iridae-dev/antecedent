@@ -744,11 +744,9 @@ impl super::Study {
         ))
     }
 
-    /// Panel temporal effect: identify on the shared graph, estimate on stacked units
-    /// with [`AnalyticSeKind::PanelClusterHac`] and per-unit `cluster_ids`.
-    ///
-    /// Bayesian mode fits [`BayesianTemporalGcomp`] on the stacked lag-aligned design
-    /// (no hierarchical unit random effects; cluster-HAC is frequentist-only).
+    /// Temporal natural mediation on a resolved `TemporalDag`: identify per horizon, then fit
+    /// the mechanism product (frequentist) or compose per-mechanism posteriors (Bayesian,
+    /// isotropic mechanism priors only).
     pub(super) fn execute_temporal_mediation(
         &self,
         data: &TimeSeriesData,
