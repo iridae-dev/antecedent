@@ -409,8 +409,8 @@ pub enum SignalError {
 
 /// The one place this crate fills an [`ExternalRefusal`].
 ///
-/// `antecedent-contract` validates the shape and does not construct it. Call sites
-/// set the optional fields with methods, so the struct literal is not repeated.
+/// The contract constructor owns the field set. Call sites set the optional fields
+/// here, and [`Self::build`] forwards them to `ExternalRefusal::new`.
 pub(crate) struct RefusalBuilder {
     code: &'static str,
     stage: &'static str,
@@ -475,16 +475,23 @@ impl RefusalBuilder {
 
     /// The structured refusal.
     pub(crate) fn build(self) -> ExternalRefusal {
-        ExternalRefusal {
-            code: self.code,
-            stage: self.stage,
-            detail: self.detail,
-            offending: self.offending,
-            expected: self.expected,
-            supplied: self.supplied,
-            capability: self.capability,
-            remedy: self.remedy,
+        let mut value = ExternalRefusal::new(self.code, self.stage, self.detail);
+        if let Some(offending) = self.offending {
+            value = value.with_offending(offending);
         }
+        if let Some(expected) = self.expected {
+            value = value.with_expected(expected);
+        }
+        if let Some(supplied) = self.supplied {
+            value = value.with_supplied(supplied);
+        }
+        if let Some(capability) = self.capability {
+            value = value.with_capability(capability);
+        }
+        if let Some(remedy) = self.remedy {
+            value = value.with_remedy(remedy);
+        }
+        value
     }
 }
 

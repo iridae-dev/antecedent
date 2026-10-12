@@ -1796,7 +1796,13 @@ pub fn <antecedent_contract::ExecutionContract>::fn contract_digest(&self) -> al
 pub fn <antecedent_contract::ExternalBindingError>::fn to_refusal(&self, contract: &antecedent_contract::CheckedCausalContract, result: &antecedent_contract::ExternalResult) -> antecedent_contract::ExternalRefusal
 pub fn <antecedent_contract::ExternalContractError>::fn to_refusal(&self) -> antecedent_contract::ExternalRefusal
 pub fn <antecedent_contract::ExternalProgramClaim>::fn declared_by(binding: &antecedent_contract::ProgramBinding) -> Self
+pub fn <antecedent_contract::ExternalRefusal>::fn new(code: &'static str, stage: &'static str, detail: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_contract::ExternalRefusal>::fn validate(&self) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::ExternalRefusal>::fn with_capability(self, value: antecedent_contract::ExternalCapability) -> Self
+pub fn <antecedent_contract::ExternalRefusal>::fn with_expected(self, value: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_contract::ExternalRefusal>::fn with_offending(self, value: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_contract::ExternalRefusal>::fn with_remedy(self, value: &'static str) -> Self
+pub fn <antecedent_contract::ExternalRefusal>::fn with_supplied(self, value: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_contract::ExternalScientificObject>::const fn verified_kind(&self) -> antecedent_contract::VerifiedContractKind
 pub fn <antecedent_contract::ExternalScientificObject>::fn capabilities(&self) -> &[antecedent_contract::ExternalCapability]
 pub fn <antecedent_contract::ExternalScientificObject>::fn contract_digest(&self) -> alloc::string::String

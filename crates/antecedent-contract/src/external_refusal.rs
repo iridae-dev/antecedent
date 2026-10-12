@@ -38,16 +38,7 @@ pub struct ExternalRefusal {
 }
 
 fn refusal(code: &'static str, stage: &'static str, detail: &str) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage,
-        detail: detail.to_owned(),
-        offending: None,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    ExternalRefusal::new(code, stage, detail)
 }
 
 fn snake_case(part: &str) -> bool {
@@ -56,6 +47,59 @@ fn snake_case(part: &str) -> bool {
 }
 
 impl ExternalRefusal {
+    /// A refusal with no optional fields.
+    ///
+    /// `detail` is stored as owned text. Optional coordinates are set with
+    /// [`Self::with_offending`] and the other `with_*` methods.
+    #[must_use]
+    pub fn new(code: &'static str, stage: &'static str, detail: impl Into<String>) -> Self {
+        Self {
+            code,
+            stage,
+            detail: detail.into(),
+            offending: None,
+            expected: None,
+            supplied: None,
+            capability: None,
+            remedy: None,
+        }
+    }
+
+    /// Name the offending coordinate or probe.
+    #[must_use]
+    pub fn with_offending(mut self, value: impl Into<String>) -> Self {
+        self.offending = Some(value.into());
+        self
+    }
+
+    /// Record the expected semantics.
+    #[must_use]
+    pub fn with_expected(mut self, value: impl Into<String>) -> Self {
+        self.expected = Some(value.into());
+        self
+    }
+
+    /// Record the supplied semantics.
+    #[must_use]
+    pub fn with_supplied(mut self, value: impl Into<String>) -> Self {
+        self.supplied = Some(value.into());
+        self
+    }
+
+    /// Record the missing operation.
+    #[must_use]
+    pub fn with_capability(mut self, value: ExternalCapability) -> Self {
+        self.capability = Some(value);
+        self
+    }
+
+    /// Record a remedy.
+    #[must_use]
+    pub fn with_remedy(mut self, value: &'static str) -> Self {
+        self.remedy = Some(value);
+        self
+    }
+
     /// Check the refusal envelope itself, independent of which family built it.
     ///
     /// A well-formed refusal has a registered runtime reason code, a non-blank
@@ -530,6 +574,24 @@ mod tests {
     fn refused(contract: &CheckedCausalContract, response: ExternalResponse) -> ExternalRefusal {
         let result = ExternalResult::Response(response);
         bind_external_result(contract, &result).unwrap_err().to_refusal(contract, &result)
+    }
+
+    #[test]
+    fn constructor_fills_optional_fields_and_validates() {
+        let value = ExternalRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            "declare",
+            "signal_provider.invalid_request",
+        )
+        .with_offending("n")
+        .with_expected("a positive sample size")
+        .with_supplied("0")
+        .with_remedy("declare a positive sample size");
+        assert_eq!(value.offending.as_deref(), Some("n"));
+        assert_eq!(value.expected.as_deref(), Some("a positive sample size"));
+        assert_eq!(value.supplied.as_deref(), Some("0"));
+        assert_eq!(value.remedy, Some("declare a positive sample size"));
+        assert!(value.validate().is_ok());
     }
 
     #[test]
