@@ -501,10 +501,13 @@ Before merging the release PR:
    and evidence ledger. Record measured timings separately from test ceilings.
 
 Before tagging, confirm the changelog has a `## X.Y.Z` section for the version
-being cut and no status markers anywhere, the release notes named by
-`docs/release-notes/preparation.toml` (or the workspace version) are current,
-the supported-versions table in `SECURITY.md` and the version in `CITATION.cff`
-name that version, and release-status text matches the cut. Coverage records must be attested at
+being cut and no status markers anywhere. `docs/release-notes/preparation.toml`
+is optional: when it is present, `target_version` names the release notes
+(`docs/release-notes/vX.Y.Z.md`), which may be ahead of the package; when it is
+absent, X.Y.Z is the workspace package version in `Cargo.toml` and the missing
+file is not an error. Those notes must be current, the supported-versions table
+in `SECURITY.md` and the version in `CITATION.cff` must name that version, and
+release-status text must match the cut. Coverage records must be attested at
 HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 

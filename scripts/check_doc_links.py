@@ -6,8 +6,9 @@ Two kinds of link are checked in the user-facing Markdown:
 * a relative link (`](path)`) must name a file that exists next to the page;
 * a GitHub `blob/<ref>/<path>` link into this repository must name a file that
   exists in the working tree when `<ref>` is the release being documented
-  (`v<target_version>` from `docs/release-notes/preparation.toml`, else the
-  workspace version) or `main`. Links pinned to any other ref are a frozen
+  (`v<target_version>` from optional `docs/release-notes/preparation.toml`, else
+  the workspace version; a missing file is that fallback, not an error) or
+  `main`. Links pinned to any other ref are a frozen
   reference to a shipped snapshot and are not checked.
 
 `--anchors` also resolves a `#fragment` against the target page's headings

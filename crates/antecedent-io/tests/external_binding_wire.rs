@@ -1,6 +1,6 @@
 //! The JSON binding wire the Python facade builds, exercised from Rust.
 //!
-//! Uses the same closed-form fixture as `python/tests/test_external_response_binding.py`
+//! Uses the same closed-form fixture as `python/tests/test_external_binding.py`
 //! so both surfaces assert the same values, trust, lineage and refusal fields.
 
 use antecedent_io::external_binding_wire::{ContractWire, ResponseWire, bind_response};

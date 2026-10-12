@@ -69,9 +69,14 @@ def workspace_version(root: Path) -> str:
 
 
 def documentation_version(root: Path) -> str:
-    """The release being documented: docs/release-notes/preparation.toml `target_version` while a
-    release is being prepared (as scripts/generate_support_matrix_docs.py reads it), else the
-    workspace version."""
+    """The release being documented.
+
+    ``docs/release-notes/preparation.toml`` is optional. While a release is being
+    prepared its ``target_version`` may be ahead of the package (the same read as
+    scripts/generate_support_matrix_docs.py). A missing file, or a file with no
+    valid ``target_version``, falls back to the workspace version and is not an
+    error.
+    """
     preparation = load(root, "docs/release-notes/preparation.toml")
     target = preparation.get("target_version")
     if isinstance(target, str) and re.fullmatch(r"\d+\.\d+\.\d+", target):

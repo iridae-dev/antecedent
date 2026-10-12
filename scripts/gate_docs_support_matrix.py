@@ -28,6 +28,8 @@ for rel in DOCS:
 # query (or a removed license) can leave the release notes silently stale.
 cargo = tomllib.load(open(root / "Cargo.toml", "rb"))
 version = cargo["workspace"]["package"]["version"]
+# Optional. Absent means the workspace package version; only a present file
+# with an invalid target_version is an error.
 preparation = root / "docs" / "release-notes" / "preparation.toml"
 if preparation.is_file():
     target = tomllib.loads(preparation.read_text()).get("target_version")

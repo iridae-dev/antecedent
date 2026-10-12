@@ -178,7 +178,7 @@ offending coordinate and expected/supplied semantics. Trust is the shared
 `ProviderTrust` vocabulary (`externally_attested`, `verified_extension`) and is
 never `native_licensed`. Python builds declarations; Rust owns every identity,
 check and refusal. `crates/antecedent-io/tests/external_binding_wire.rs` and
-`python/tests/test_external_response_binding.py` assert the same closed-form fixture.
+`python/tests/test_external_binding.py` assert the same closed-form fixture.
 
 Observational laws offered for interventions need a checked equivalence of one
 of two scopes. `Regime` covers a coordinate that differs from the request only

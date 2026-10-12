@@ -73,6 +73,8 @@ else:
 # snapshot (v0.6.1 was rewritten that way while the workspace was still 0.6.1).
 rn_begin = "<!-- generated:support-matrix:licensed:begin -->"
 rn_end = "<!-- generated:support-matrix:licensed:end -->"
+# Optional. Absent means the workspace package version; only a present file
+# with an invalid target_version is an error.
 preparation = Path("docs/release-notes/preparation.toml")
 if preparation.is_file():
     target = tomllib.loads(preparation.read_text()).get("target_version")
