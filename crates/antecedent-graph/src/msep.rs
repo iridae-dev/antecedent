@@ -37,14 +37,13 @@ impl Admg {
         if z.iter().any(|&v| v == x || v == y) {
             return Ok(false);
         }
-        Ok(self.m_sep_bool(x, y, z, ws))
+        Ok(!self.bayes_m_connected(&[x], &[y], z, ws))
     }
 
     /// Whether every node in `sources` is m-separated from every node in `targets`
     /// given `z`.
     ///
-    /// One moral graph of `An(sources ∪ targets ∪ z)` and one multi-source search,
-    /// which is the set form of the same ancestral-moralization criterion as
+    /// One Bayes-ball search, the set form of the same m-separation criterion as
     /// [`Self::is_m_separated`]. Empty `sources` or `targets` is vacuously separated.
     /// A shared endpoint, or a conditioning node that is itself an endpoint, is not
     /// separated, matching the pairwise query.
@@ -79,11 +78,7 @@ impl Admg {
                 return Ok(false);
             }
         }
-        let mut seeds = Vec::with_capacity(sources.len() + targets.len());
-        seeds.extend_from_slice(sources);
-        seeds.extend_from_slice(targets);
-        self.build_moral_of_seeds(&seeds, z, ws);
-        Ok(!ws.moral_reaches_any(sources, &target_set))
+        Ok(!self.bayes_m_connected(sources, targets, z, ws))
     }
 
     /// m-separation with witness.
@@ -121,6 +116,38 @@ impl Admg {
         }
     }
 
+    fn bayes_m_connected(
+        &self,
+        sources: &[DenseNodeId],
+        targets: &[DenseNodeId],
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) -> bool {
+        crate::dsep::bayes_ball_reaches(
+            ws,
+            self.parent_rows(),
+            self.child_rows(),
+            self.bidirected_rows(),
+            None,
+            sources,
+            targets,
+            z,
+        )
+    }
+
+    /// Moral-graph answer for the same query [`Self::is_m_separated`] answers with Bayes-ball.
+    #[cfg(test)]
+    fn moral_m_separated(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) -> bool {
+        self.m_sep_bool(x, y, z, ws)
+    }
+
+    #[cfg(test)]
     fn m_sep_bool(
         &self,
         x: DenseNodeId,
@@ -359,6 +386,61 @@ mod tests {
         );
         // Without conditioning the colliders are closed → separated.
         assert!(g.is_m_separated(x, y, &[], &mut ws).unwrap());
+    }
+
+    #[test]
+    fn bayes_ball_matches_moral_graph_on_fixtures() {
+        let n = |i| DenseNodeId::from_raw(i);
+        let mut fork = Admg::with_variables(3);
+        fork.insert_directed(n(1), n(0)).unwrap();
+        fork.insert_directed(n(1), n(2)).unwrap();
+        let mut collider = Admg::with_variables(3);
+        collider.insert_directed(n(0), n(1)).unwrap();
+        collider.insert_directed(n(2), n(1)).unwrap();
+        let mut chain = Admg::with_variables(4);
+        chain.insert_directed(n(0), n(2)).unwrap();
+        chain.insert_directed(n(1), n(2)).unwrap();
+        chain.insert_directed(n(2), n(3)).unwrap();
+        let mut district = Admg::with_variables(4);
+        district.insert_directed(n(0), n(1)).unwrap();
+        district.insert_bidirected(n(1), n(2)).unwrap();
+        district.insert_directed(n(3), n(2)).unwrap();
+        let mut latent = Admg::with_variables(3);
+        latent.insert_bidirected(n(0), n(1)).unwrap();
+        latent.insert_bidirected(n(1), n(2)).unwrap();
+        let graphs = [&fork, &collider, &chain, &district, &latent];
+        let mut ws = DSeparationWorkspace::default();
+        for g in graphs {
+            let count = g.node_count() as u32;
+            for x in 0..count {
+                for y in 0..count {
+                    if x == y {
+                        continue;
+                    }
+                    let others: Vec<u32> = (0..count).filter(|&k| k != x && k != y).collect();
+                    for mask in 0..(1u32 << others.len()) {
+                        let z: Vec<DenseNodeId> = others
+                            .iter()
+                            .enumerate()
+                            .filter(|(bit, _)| (mask >> bit) & 1 == 1)
+                            .map(|(_, &k)| n(k))
+                            .collect();
+                        let moral = g.moral_m_separated(n(x), n(y), &z, &mut ws);
+                        let bayes = !g.bayes_m_connected(&[n(x)], &[n(y)], &z, &mut ws);
+                        assert_eq!(bayes, moral, "x={x} y={y} z={z:?}");
+                    }
+                }
+            }
+        }
+        let sources = [n(0), n(1)];
+        let targets = [n(3)];
+        let z = [n(2)];
+        chain.build_moral_of_seeds(&[n(0), n(1), n(3)], &z, &mut ws);
+        let mut target_set = BitSet::with_len(chain.node_count());
+        target_set.insert(n(3));
+        let moral_sets = !ws.moral_reaches_any(&sources, &target_set);
+        let bayes_sets = !chain.bayes_m_connected(&sources, &targets, &z, &mut ws);
+        assert_eq!(bayes_sets, moral_sets);
     }
 }
 

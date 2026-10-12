@@ -309,6 +309,11 @@ fn property_matches_path_oracle_on_tiny_dags() {
                         let xi = DenseNodeId::from_raw(x);
                         let yi = DenseNodeId::from_raw(y);
                         let got = g.is_d_separated(xi, yi, &z, &mut ws).unwrap();
+                        let moral = !g.d_sep_connected(xi, yi, &z, &mut ws, None, false);
+                        assert_eq!(
+                            got, moral,
+                            "Bayes-ball left the moral graph on x={x} y={y} z={z:?}"
+                        );
                         let exp = path_oracle_d_separated(&g, xi, yi, &z);
                         assert_eq!(
                             got,

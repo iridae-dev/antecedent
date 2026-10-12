@@ -3,8 +3,10 @@
 //! Boolean batch path allocates no path objects. Witness mode returns an active
 //! path certificate when nodes are d-connected given the conditioning set.
 //!
-//! Algorithm: ancestral subgraph → moralize → remove conditioning → undirected
-//! reachability (Lauritzen et al. 1990 / Pearl 1988).
+//! Boolean queries use Bayes-ball (Shachter 1998), extended across bidirected
+//! edges as latent forks. Witness paths still come from the ancestral moral
+//! graph (Lauritzen et al. 1990 / Pearl 1988), whose neighbor order the
+//! certificates depend on.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -81,6 +83,14 @@ pub struct DSeparationWorkspace {
     pub(crate) clique: Vec<DenseNodeId>,
     /// Membership marks for [`Self::clique`].
     pub(crate) clique_mark: BitSet,
+    /// Bayes-ball nodes already entered from a child.
+    pub(crate) bayes_up: BitSet,
+    /// Bayes-ball nodes already entered from a parent or a bidirected neighbor.
+    pub(crate) bayes_down: BitSet,
+    /// Bayes-ball targets for the query in progress.
+    pub(crate) bayes_targets: BitSet,
+    /// Bayes-ball stack. `true` means the ball arrived from a child.
+    pub(crate) bayes_queue: Vec<(DenseNodeId, bool)>,
 }
 
 impl DSeparationWorkspace {
@@ -128,6 +138,7 @@ impl DSeparationWorkspace {
     /// The moral graph holds only ancestral nodes. Sources and targets that sit in
     /// the conditioning set are not expanded; the caller decides whether that makes
     /// the query ill-posed.
+    #[cfg(test)]
     pub(crate) fn moral_reaches_any(&mut self, sources: &[DenseNodeId], targets: &BitSet) -> bool {
         self.visited.clear();
         self.frontier.clear();
@@ -180,7 +191,120 @@ impl DSeparationWorkspace {
         self.graph_ws.prepare(n);
         self.clique_mark.resize(n);
         self.clique_mark.clear();
+        self.bayes_up.resize(n);
+        self.bayes_up.clear();
+        self.bayes_down.resize(n);
+        self.bayes_down.clear();
+        self.bayes_targets.resize(n);
+        self.bayes_targets.clear();
+        self.bayes_queue.clear();
     }
+}
+
+/// Whether Bayes-ball reaches any `targets` from `sources` given `conditioning`.
+///
+/// Directed edges honor `overlay`. A bidirected neighbor is the other child of
+/// an unobserved latent parent: the ball crosses it exactly when it would
+/// visit a directed parent, and it arrives traveling down.
+pub(crate) fn bayes_ball_reaches(
+    ws: &mut DSeparationWorkspace,
+    parents: &[Vec<DenseNodeId>],
+    children: &[Vec<DenseNodeId>],
+    bidirected: &[Vec<DenseNodeId>],
+    overlay: Option<&crate::overlay::GraphOverlay>,
+    sources: &[DenseNodeId],
+    targets: &[DenseNodeId],
+    conditioning: &[DenseNodeId],
+) -> bool {
+    let n = parents.len();
+    ws.prepare(n);
+    ws.conditioning.clear();
+    for &node in conditioning {
+        if node.as_usize() < n {
+            ws.conditioning.insert(node);
+        }
+    }
+    crate::algo::closure_into(
+        n,
+        |node| parents.get(node.as_usize()).map_or(&[][..], Vec::as_slice),
+        conditioning.iter().copied(),
+        &mut ws.ancestral,
+        &mut ws.graph_ws,
+        |child, parent| overlay.is_none_or(|ov| ov.edge_visible(parent, child)),
+    );
+    for &target in targets {
+        if target.as_usize() < n {
+            ws.bayes_targets.insert(target);
+        }
+    }
+    let directed_ok = |parent: DenseNodeId, child: DenseNodeId| {
+        overlay.is_none_or(|ov| ov.edge_visible(parent, child))
+    };
+    for &source in sources {
+        if source.as_usize() >= n || ws.bayes_up.contains(source) {
+            continue;
+        }
+        ws.bayes_up.insert(source);
+        ws.bayes_queue.push((source, true));
+    }
+    while let Some((node, from_child)) = ws.bayes_queue.pop() {
+        if ws.bayes_targets.contains(node) {
+            return true;
+        }
+        let parents_of = parents.get(node.as_usize()).map_or(&[][..], Vec::as_slice);
+        let children_of = children.get(node.as_usize()).map_or(&[][..], Vec::as_slice);
+        let bidirected_of = bidirected.get(node.as_usize()).map_or(&[][..], Vec::as_slice);
+        if from_child {
+            if ws.conditioning.contains(node) {
+                continue;
+            }
+            for &parent in parents_of {
+                if directed_ok(parent, node) {
+                    schedule(ws, parent, true);
+                }
+            }
+            for &child in children_of {
+                if directed_ok(node, child) {
+                    schedule(ws, child, false);
+                }
+            }
+            for &other in bidirected_of {
+                schedule(ws, other, false);
+            }
+        } else {
+            if !ws.conditioning.contains(node) {
+                for &child in children_of {
+                    if directed_ok(node, child) {
+                        schedule(ws, child, false);
+                    }
+                }
+            }
+            if ws.ancestral.contains(node) {
+                for &parent in parents_of {
+                    if directed_ok(parent, node) {
+                        schedule(ws, parent, true);
+                    }
+                }
+                for &other in bidirected_of {
+                    schedule(ws, other, false);
+                }
+            }
+        }
+    }
+    false
+}
+
+fn schedule(ws: &mut DSeparationWorkspace, node: DenseNodeId, from_child: bool) {
+    let seen = if from_child { ws.bayes_up.contains(node) } else { ws.bayes_down.contains(node) };
+    if seen {
+        return;
+    }
+    if from_child {
+        ws.bayes_up.insert(node);
+    } else {
+        ws.bayes_down.insert(node);
+    }
+    ws.bayes_queue.push((node, from_child));
 }
 
 impl Dag {
@@ -222,7 +346,16 @@ impl Dag {
         if z.iter().any(|&v| v == x || v == y) {
             return Ok(false);
         }
-        Ok(!self.d_sep_connected(x, y, z, ws, overlay, false))
+        Ok(!bayes_ball_reaches(
+            ws,
+            self.parent_rows(),
+            self.child_rows(),
+            &[],
+            overlay,
+            &[x],
+            &[y],
+            z,
+        ))
     }
 
     /// d-separation with witness (active path or separation certificate).
