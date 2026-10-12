@@ -19,7 +19,9 @@ use antecedent_core::{
     InterventionalDistributionQuery, ResponseQuery, TargetPopulation,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_estimate::{AipwAte, EffectEstimate, EstimationWorkspace, OverlapPolicy};
+use antecedent_estimate::{
+    AipwAte, BootstrapAccounting, EffectEstimate, EstimationWorkspace, OverlapPolicy,
+};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 use std::sync::Arc;
@@ -1546,11 +1548,13 @@ impl CheckedDistributionOperation {
         let estimate = EffectEstimate::from_parts(
             distribution.mean,
             distribution.se_analytic,
-            distribution.se_bootstrap,
-            distribution.bootstrap_replicates_ok,
-            distribution.bootstrap_replicates_failed,
-            distribution.bootstrap_cancelled,
-            distribution.bootstrap_early_stopped,
+            BootstrapAccounting {
+                se: distribution.se_bootstrap,
+                replicates_ok: distribution.bootstrap_replicates_ok,
+                replicates_failed: distribution.bootstrap_replicates_failed,
+                cancelled: distribution.bootstrap_cancelled,
+                early_stopped: distribution.bootstrap_early_stopped,
+            },
             distribution.assumptions.clone(),
             distribution.overlap,
             None,

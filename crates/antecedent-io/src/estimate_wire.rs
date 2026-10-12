@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use antecedent_estimate::{
-    ClipSensitivity, EffectEstimate, FirstStageDiagnostics, OverlapPolicy, OverlapReport,
-    PropensityInterval,
+    BootstrapAccounting, ClipSensitivity, EffectEstimate, FirstStageDiagnostics, OverlapPolicy,
+    OverlapReport, PropensityInterval,
 };
 use antecedent_validate::RefutationReport;
 use serde::{Deserialize, Serialize};
@@ -460,11 +460,13 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     let mut estimate = EffectEstimate::from_parts(
         w.ate,
         w.se_analytic,
-        w.se_bootstrap,
-        w.bootstrap_replicates_ok,
-        w.bootstrap_replicates_failed,
-        w.bootstrap_cancelled,
-        w.bootstrap_early_stopped,
+        BootstrapAccounting {
+            se: w.se_bootstrap,
+            replicates_ok: w.bootstrap_replicates_ok,
+            replicates_failed: w.bootstrap_replicates_failed,
+            cancelled: w.bootstrap_cancelled,
+            early_stopped: w.bootstrap_early_stopped,
+        },
         assumptions_from_wire(&w.assumptions)?,
         overlap,
         overlap_report,

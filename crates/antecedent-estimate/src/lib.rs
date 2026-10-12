@@ -113,8 +113,9 @@ pub mod vector_treatment;
 mod calibration_coverage;
 
 pub use adjustment::{
-    BlockResampling, CandidateSelectionRecord, CheckedLinearAdjustmentAte, EffectEstimate,
-    EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
+    BlockResampling, BootstrapAccounting, CandidateSelectionRecord, CheckedLinearAdjustmentAte,
+    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
+    PreparedEstimationProblem,
 };
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;

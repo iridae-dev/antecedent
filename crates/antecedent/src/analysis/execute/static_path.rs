@@ -721,11 +721,13 @@ impl super::Study {
         let estimate = EffectEstimate::from_parts(
             dist.mean,
             dist.se_analytic,
-            dist.se_bootstrap,
-            dist.bootstrap_replicates_ok,
-            dist.bootstrap_replicates_failed,
-            dist.bootstrap_cancelled,
-            dist.bootstrap_early_stopped,
+            BootstrapAccounting {
+                se: dist.se_bootstrap,
+                replicates_ok: dist.bootstrap_replicates_ok,
+                replicates_failed: dist.bootstrap_replicates_failed,
+                cancelled: dist.bootstrap_cancelled,
+                early_stopped: dist.bootstrap_early_stopped,
+            },
             dist.assumptions.clone(),
             dist.overlap,
             None,

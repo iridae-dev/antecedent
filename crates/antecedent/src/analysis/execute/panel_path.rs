@@ -382,11 +382,7 @@ impl super::Study {
         let mut estimate = EffectEstimate::from_parts(
             ate,
             se_analytic,
-            None,
-            None,
-            None,
-            ctx.cancellation.is_cancelled(),
-            false,
+            BootstrapAccounting::cancelled(ctx.cancellation.is_cancelled()),
             assumptions,
             OverlapPolicy::ExplicitOverride,
             None,

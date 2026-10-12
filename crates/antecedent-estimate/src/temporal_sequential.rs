@@ -1456,11 +1456,13 @@ fn estimate_sequential(
     let mut effect = EffectEstimate::from_parts(
         point,
         f64::NAN,
-        se.se,
-        (bootstrap_replicates > 0).then_some(se.replicates_ok),
-        (bootstrap_replicates > 0).then_some(se.replicates_failed),
-        ctx.cancellation.is_cancelled(),
-        false,
+        crate::adjustment::BootstrapAccounting {
+            se: se.se,
+            replicates_ok: (bootstrap_replicates > 0).then_some(se.replicates_ok),
+            replicates_failed: (bootstrap_replicates > 0).then_some(se.replicates_failed),
+            cancelled: ctx.cancellation.is_cancelled(),
+            early_stopped: false,
+        },
         assumptions,
         OverlapPolicy::ExplicitOverride,
         None,

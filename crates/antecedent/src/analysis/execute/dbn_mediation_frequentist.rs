@@ -203,11 +203,14 @@ impl super::Study {
         let estimate = EffectEstimate::from_parts(
             point,
             f64::NAN,
-            requested_se,
-            replicates_requested.then_some(replicates_ok),
-            replicates_requested.then_some(replicates_attempted.saturating_sub(replicates_ok)),
-            ctx.cancellation.is_cancelled(),
-            false,
+            BootstrapAccounting {
+                se: requested_se,
+                replicates_ok: replicates_requested.then_some(replicates_ok),
+                replicates_failed: replicates_requested
+                    .then_some(replicates_attempted.saturating_sub(replicates_ok)),
+                cancelled: ctx.cancellation.is_cancelled(),
+                early_stopped: false,
+            },
             assumptions,
             OverlapPolicy::ExplicitOverride,
             None,

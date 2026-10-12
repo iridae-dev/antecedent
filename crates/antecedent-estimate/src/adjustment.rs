@@ -298,6 +298,32 @@ pub struct EffectEstimate {
     pub penalized: Option<Box<crate::propensity::PenalizedReport>>,
 }
 
+/// Bootstrap bookkeeping reported beside a point estimate.
+///
+/// The all-default value means no bootstrap ran: no SE, no replicate counts, not
+/// cancelled and not early-stopped.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BootstrapAccounting {
+    /// Bootstrap standard error, when requested and enough replicates survived.
+    pub se: Option<f64>,
+    /// Successful replicates when bootstrap was requested.
+    pub replicates_ok: Option<u32>,
+    /// Soft-failed replicates when bootstrap was requested.
+    pub replicates_failed: Option<u32>,
+    /// The loop observed cooperative cancellation (partial replicates).
+    pub cancelled: bool,
+    /// Adaptive early stop (SE relative change).
+    pub early_stopped: bool,
+}
+
+impl BootstrapAccounting {
+    /// Accounting for a run that was cancelled or not, with no bootstrap SE or counts.
+    #[must_use]
+    pub fn cancelled(cancelled: bool) -> Self {
+        Self { cancelled, ..Self::default() }
+    }
+}
+
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BlockResampling {
@@ -396,15 +422,10 @@ impl EffectEstimate {
 
     /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn from_parts(
         ate: f64,
         se_analytic: f64,
-        se_bootstrap: Option<f64>,
-        bootstrap_replicates_ok: Option<u32>,
-        bootstrap_replicates_failed: Option<u32>,
-        bootstrap_cancelled: bool,
-        bootstrap_early_stopped: bool,
+        bootstrap: BootstrapAccounting,
         assumptions: AssumptionSet,
         overlap: OverlapPolicy,
         overlap_report: Option<OverlapReport>,
@@ -413,11 +434,11 @@ impl EffectEstimate {
         Self {
             ate,
             se_analytic,
-            se_bootstrap,
-            bootstrap_replicates_ok,
-            bootstrap_replicates_failed,
-            bootstrap_cancelled,
-            bootstrap_early_stopped,
+            se_bootstrap: bootstrap.se,
+            bootstrap_replicates_ok: bootstrap.replicates_ok,
+            bootstrap_replicates_failed: bootstrap.replicates_failed,
+            bootstrap_cancelled: bootstrap.cancelled,
+            bootstrap_early_stopped: bootstrap.early_stopped,
             assumptions,
             overlap,
             overlap_report,

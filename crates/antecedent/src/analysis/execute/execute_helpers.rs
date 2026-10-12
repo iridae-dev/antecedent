@@ -967,11 +967,14 @@ pub(super) fn class_mixture_estimate(
     EffectEstimate::from_parts(
         point,
         se_analytic,
-        block.se.is_finite().then_some(block.se),
-        (bootstrap_replicates > 0).then_some(block.completed),
-        (bootstrap_replicates > 0).then_some(block.attempted.saturating_sub(block.completed)),
-        ctx.cancellation.is_cancelled(),
-        false,
+        BootstrapAccounting {
+            se: block.se.is_finite().then_some(block.se),
+            replicates_ok: (bootstrap_replicates > 0).then_some(block.completed),
+            replicates_failed: (bootstrap_replicates > 0)
+                .then_some(block.attempted.saturating_sub(block.completed)),
+            cancelled: ctx.cancellation.is_cancelled(),
+            early_stopped: false,
+        },
         assumptions,
         OverlapPolicy::ExplicitOverride,
         None,

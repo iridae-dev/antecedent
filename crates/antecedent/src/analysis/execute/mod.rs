@@ -28,13 +28,13 @@ pub(super) use antecedent_data::{
 pub(super) use antecedent_discovery::GraphPosterior;
 pub(super) use antecedent_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    CausalPosterior, ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate,
-    EnvelopeOptions, EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace,
-    FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
-    OverlapPolicy, PreparedBayesianProblem, RdWorkspace, SharpRegressionDiscontinuity,
-    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
-    TemporalResponseEstimator, aggregate_effect_envelope, functional_cell_unevaluable,
-    nonidentified_with_prior, support_from_functional_eval,
+    BootstrapAccounting, CausalPosterior, ConditionalLinearAdjustment, ContinuousResponseEstimator,
+    EffectEstimate, EnvelopeOptions, EstimationWorkspace, FunctionalDistribution,
+    FunctionalDistributionWorkspace, FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte,
+    ObservationMechanismEstimator, OverlapPolicy, PreparedBayesianProblem, RdWorkspace,
+    SharpRegressionDiscontinuity, TemporalLinearAdjustment, TemporalMediationEstimate,
+    TemporalMediationEstimator, TemporalResponseEstimator, aggregate_effect_envelope,
+    functional_cell_unevaluable, nonidentified_with_prior, support_from_functional_eval,
 };
 pub(super) use antecedent_expr::{
     CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalError, ExprNode,
