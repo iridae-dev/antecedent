@@ -2,12 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::needless_pass_by_value,
-    clippy::needless_lifetimes,
-    clippy::too_many_arguments,
-    clippy::type_complexity
-)]
+#![allow(clippy::needless_pass_by_value, clippy::needless_lifetimes, clippy::type_complexity)]
 #![cfg_attr(
     test,
     allow(
@@ -81,16 +76,41 @@ pub(crate) fn resolve_nuisance(
     Ok((resolve_for(spec, task).map_err(learn_err)?, NuisanceDiagnostics::default()))
 }
 
+/// A column-major `nrows × ncols` nuisance design borrowed from its owner.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NuisanceDesign<'a> {
+    pub(crate) values: &'a [f64],
+    pub(crate) nrows: usize,
+    pub(crate) ncols: usize,
+}
+
+impl<'a> NuisanceDesign<'a> {
+    /// The retained design of a prepared propensity problem.
+    pub(crate) fn of(problem: &'a crate::propensity::PreparedPropensityProblem) -> Self {
+        Self {
+            values: problem.design_matrix.as_ref(),
+            nrows: problem.nrows,
+            ncols: problem.design_ncols,
+        }
+    }
+}
+
+/// The learners of the outcome-regression and treatment-propensity nuisances.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AipwLearners {
+    pub(crate) outcome: LearnerSpec,
+    pub(crate) treatment: LearnerSpec,
+}
+
 pub(crate) fn cross_fit_nuisance(
     spec: LearnerSpec,
     task: PredictionTask,
-    design: &[f64],
-    nrows: usize,
-    ncols: usize,
+    design: NuisanceDesign<'_>,
     y: &[f64],
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPrediction, EstimationError> {
+    let NuisanceDesign { values: design, nrows, ncols } = design;
     if ctx.cancellation.is_cancelled() {
         return Err(nuisance_cancelled());
     }
@@ -126,17 +146,16 @@ pub(crate) fn cross_fit_nuisance(
 
 /// Per-arm outcome models + propensity, trained on `train ∩ arm` and scored on the valid fold.
 pub(crate) fn cross_fit_aipw_nuisances(
-    outcome: LearnerSpec,
-    treatment: LearnerSpec,
-    design: &[f64],
-    nrows: usize,
-    ncols: usize,
+    learners: AipwLearners,
+    design: NuisanceDesign<'_>,
     y: &[f64],
     t: &[f64],
     folds: usize,
     ctx: &ExecutionContext,
     fold_ids: Vec<u16>,
-) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction), EstimationError> {
+) -> Result<AipwPredictions, EstimationError> {
+    let AipwLearners { outcome, treatment } = learners;
+    let NuisanceDesign { values: design, nrows, ncols } = design;
     let (outcome_factory, _) =
         resolve_nuisance(outcome, PredictionTask::Regression, design, nrows, ncols, y, ctx)?;
     let (treat_factory, _) = resolve_nuisance(
@@ -151,19 +170,16 @@ pub(crate) fn cross_fit_aipw_nuisances(
     let x_outcome = design_for_spec(outcome, design, nrows, ncols)?;
     let x_treat = design_for_spec(treatment, design, nrows, ncols)?;
     let plan = CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
+    let models = AipwFoldModels {
+        outcome: outcome_factory.as_ref(),
+        treatment: treat_factory.as_ref(),
+        x_outcome,
+        x_treat,
+        y,
+        t,
+    };
     let fold_parts = plan
-        .map_folds(ctx, |rows, inner| {
-            fit_aipw_fold(
-                outcome_factory.as_ref(),
-                treat_factory.as_ref(),
-                x_outcome,
-                x_treat,
-                y,
-                t,
-                rows,
-                inner,
-            )
-        })
+        .map_folds(ctx, |rows, inner| fit_aipw_fold(&models, rows, inner))
         .map_err(|error| {
             if ctx.cancellation.is_cancelled() { nuisance_cancelled() } else { learn_err(error) }
         })?;
@@ -193,6 +209,18 @@ pub(crate) fn cross_fit_aipw_nuisances(
     Ok((mu0, mu1, ehat, treat))
 }
 
+/// What every fold of the AIPW cross-fit fits and scores: the two learner factories, their
+/// designs and the targets.
+#[derive(Clone, Copy)]
+struct AipwFoldModels<'a> {
+    outcome: &'a dyn LearnerFactory,
+    treatment: &'a dyn LearnerFactory,
+    x_outcome: DesignView<'a>,
+    x_treat: DesignView<'a>,
+    y: &'a [f64],
+    t: &'a [f64],
+}
+
 struct AipwFold {
     valid: Vec<u32>,
     mu0: Vec<f64>,
@@ -206,15 +234,11 @@ struct AipwFold {
     reason = "i indexes the rows of a problem whose row count the caller checked to fit u32"
 )]
 fn fit_aipw_fold(
-    outcome: &dyn LearnerFactory,
-    treatment: &dyn LearnerFactory,
-    x_outcome: DesignView<'_>,
-    x_treat: DesignView<'_>,
-    y: &[f64],
-    t: &[f64],
+    models: &AipwFoldModels<'_>,
     rows: FoldRows<'_>,
     ctx: &ExecutionContext,
 ) -> Result<AipwFold, antecedent_learn::LearnError> {
+    let AipwFoldModels { outcome, treatment, x_outcome, x_treat, y, t } = *models;
     // The fold is the unit of work: cancellation is observed before its three fits.
     if ctx.cancellation.is_cancelled() {
         return Err(antecedent_learn::LearnError::Backend(
@@ -470,11 +494,8 @@ pub(crate) fn cached_aipw_nuisances(
     }
     let fold_ids = retained_fold_ids(problem, folds, ctx)?;
     let result = Arc::new(cross_fit_aipw_nuisances(
-        outcome,
-        treatment,
-        &problem.design_matrix,
-        problem.nrows,
-        problem.design_ncols,
+        AipwLearners { outcome, treatment },
+        NuisanceDesign::of(problem),
         &problem.outcome,
         &problem.treatment,
         folds,

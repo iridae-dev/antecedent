@@ -299,11 +299,13 @@ impl CheckedCellAipwResponseOperation {
         self.estimator
             .fit_scores(
                 data,
-                &self.treatments,
-                self.outcome,
-                &self.estimand.adjustment_set,
-                &self.query.outcome_functional,
-                None,
+                &antecedent_estimate::CellScoreSpec {
+                    treatments: &self.treatments,
+                    outcome: self.outcome,
+                    adjustment: &self.estimand.adjustment_set,
+                    functional: &self.query.outcome_functional,
+                    continuous: None,
+                },
             )
             .map_err(CausalError::from)
     }

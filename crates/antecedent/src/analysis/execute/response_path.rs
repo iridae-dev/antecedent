@@ -1659,13 +1659,17 @@ impl super::Study {
         } else {
             est.fit_scores_with_assignment(
                 data,
-                &treatments,
-                *outcome,
-                &estimand.adjustment_set,
-                &query.outcome_functional,
-                continuous,
-                fold_ids.as_deref(),
-                design.as_deref(),
+                &antecedent_estimate::CellScoreSpec {
+                    treatments: &treatments,
+                    outcome: *outcome,
+                    adjustment: &estimand.adjustment_set,
+                    functional: &query.outcome_functional,
+                    continuous: continuous,
+                },
+                antecedent_estimate::SharedCellInputs {
+                    fold_ids: fold_ids.as_deref(),
+                    design: design.as_deref(),
+                },
             )
             .map_err(CausalError::from)?
         };

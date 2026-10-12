@@ -180,8 +180,9 @@ pub use bayesian::{
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
-    CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
-    cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
+    CellSaturatedAipw, CellScoreSpec, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
+    SharedCellInputs, cell_minus_control_contrast, contrast_named, family_cell_contrast,
+    interaction_contrast,
 };
 pub use cluster_dml_aipw::{
     ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD,

@@ -7,7 +7,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::needless_range_loop)]
-#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -115,20 +115,14 @@ impl CellSaturatedAipw {
     pub fn fit_scores(
         &self,
         data: &TabularData,
-        treatments: &[VariableId],
-        outcome: VariableId,
-        adjustment: &[VariableId],
-        functional: &OutcomeFunctional,
-        continuous: Option<ContinuousCellSpec<'_>>,
+        spec: &CellScoreSpec<'_>,
     ) -> Result<ScoreTable, EstimationError> {
-        if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
+        if spec.treatments.is_empty() || spec.treatments.len() > MAX_JOINT_BINARY {
             return Err(EstimationError::unsupported(
                 "cell-saturated AIPW supports 1..=3 binary treatments",
             ));
         }
-        self.fit_scores_with_assignment(
-            data, treatments, outcome, adjustment, functional, continuous, None, None,
-        )
+        self.fit_scores_with_assignment(data, spec, SharedCellInputs::default())
     }
 
     /// Fit cell scores using a caller-assigned fold vector and/or `[1 | Z…]` design.
@@ -141,14 +135,11 @@ impl CellSaturatedAipw {
     pub fn fit_scores_with_assignment(
         &self,
         data: &TabularData,
-        treatments: &[VariableId],
-        outcome: VariableId,
-        adjustment: &[VariableId],
-        functional: &OutcomeFunctional,
-        continuous: Option<ContinuousCellSpec<'_>>,
-        fold_ids: Option<&[u32]>,
-        design: Option<&[f64]>,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
     ) -> Result<ScoreTable, EstimationError> {
+        let CellScoreSpec { treatments, outcome, adjustment, functional, continuous } = *spec;
+        let SharedCellInputs { fold_ids, design } = shared;
         if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
             return Err(EstimationError::unsupported(
                 "cell-saturated AIPW supports 1..=3 binary treatments",
@@ -185,6 +176,32 @@ impl CellSaturatedAipw {
         };
         crossfit_cell_scores(&prepared, &thresholds, self)
     }
+}
+
+/// What a cell-saturated score fit estimates: the jointly intervened treatments, the
+/// outcome and its functional, and the adjustment set.
+#[derive(Clone, Copy, Debug)]
+pub struct CellScoreSpec<'a> {
+    /// Binary treatments intervened on jointly (1..=[`MAX_JOINT_BINARY`]).
+    pub treatments: &'a [VariableId],
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Common adjustment set.
+    pub adjustment: &'a [VariableId],
+    /// Outcome functional the score table is built for.
+    pub functional: &'a OutcomeFunctional,
+    /// Discretized continuous coordinate; refused as an unlicensed point CDE.
+    pub continuous: Option<ContinuousCellSpec<'a>>,
+}
+
+/// Fold assignment and covariate design shared across a batch, both complete-case aligned
+/// with the prepared rows. `None` derives them from the data.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SharedCellInputs<'a> {
+    /// Caller-assigned fold id per row.
+    pub fold_ids: Option<&'a [u32]>,
+    /// Shared `[1 | Z…]` design.
+    pub design: Option<&'a [f64]>,
 }
 
 /// Optional discretized continuous coordinate alongside the binary cells.
@@ -399,11 +416,9 @@ fn crossfit_cell_scores(
                         }
                     }
                     let e_valid = multinomial_propensity(
-                        &design_train,
-                        train.len(),
+                        DesignRows { values: &design_train, rows: train.len() },
                         &train_cells,
-                        &design_valid,
-                        valid.len(),
+                        DesignRows { values: &design_valid, rows: valid.len() },
                         prepared.ncols,
                         n_cells,
                         est.backend,
@@ -514,16 +529,23 @@ fn crossfit_cell_scores(
 // Reference-cell multinomial likelihood with Newton steps and backtracking.
 // A tiny diagonal numerical stabilization is used only in the Newton solve;
 // acceptance and convergence use the unpenalized likelihood/score.
+/// Column-major rows of a cell-propensity design.
+#[derive(Clone, Copy)]
+struct DesignRows<'a> {
+    values: &'a [f64],
+    rows: usize,
+}
+
 fn multinomial_propensity(
-    train: &[f64],
-    n: usize,
+    train: DesignRows<'_>,
     cells: &[usize],
-    valid: &[f64],
-    nv: usize,
+    valid: DesignRows<'_>,
     p: usize,
     k: usize,
     backend: FaerBackend,
 ) -> Result<Vec<f64>, EstimationError> {
+    let DesignRows { values: train, rows: n } = train;
+    let DesignRows { values: valid, rows: nv } = valid;
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
@@ -849,11 +871,9 @@ mod tests {
                 }
             }
             let probabilities = super::multinomial_propensity(
-                &train,
-                n,
+                super::DesignRows { values: &train, rows: n },
                 &cells,
-                &[1.0, 1.0, -1.0, 1.0],
-                2,
+                super::DesignRows { values: &[1.0, 1.0, -1.0, 1.0], rows: 2 },
                 2,
                 4,
                 FaerBackend,
@@ -932,11 +952,13 @@ mod tests {
         let table = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::exceedance(0.5),
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::exceedance(0.5),
+                    continuous: None,
+                },
             )
             .unwrap();
         let weights: Vec<_> =
@@ -980,11 +1002,13 @@ mod tests {
         let table = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap();
         let summary = table.summarize(None).unwrap();
@@ -1003,11 +1027,13 @@ mod tests {
         let table = est
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap();
         let contrast = interaction_contrast(&table).unwrap();
@@ -1026,11 +1052,16 @@ mod tests {
         let err = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                Some(ContinuousCellSpec { variable: VariableId::from_raw(1), grid: &[0.0, 1.0] }),
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: Some(ContinuousCellSpec {
+                        variable: VariableId::from_raw(1),
+                        grid: &[0.0, 1.0],
+                    }),
+                },
             )
             .unwrap_err();
         assert!(err.to_string().contains("do(D=d0)"), "{err}");
@@ -1043,11 +1074,13 @@ mod tests {
         let table = est
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap();
         let err = contrast_named(&table, "not-a-contrast").unwrap_err();
@@ -1079,11 +1112,13 @@ mod tests {
         let err = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap_err();
         assert!(err.to_string().contains("sparse cell"), "{err}");

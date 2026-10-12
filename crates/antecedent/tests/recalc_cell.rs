@@ -148,11 +148,13 @@ fn independent(columns: &Columns, seed: u64, weights: Option<&[f64]>) -> (f64, f
         .with_fold_seed(seed)
         .fit_scores(
             &data,
-            &[VariableId::from_raw(A), VariableId::from_raw(D)],
-            VariableId::from_raw(Y),
-            &[VariableId::from_raw(Z)],
-            &OutcomeFunctional::Mean,
-            None,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &[VariableId::from_raw(A), VariableId::from_raw(D)],
+                outcome: VariableId::from_raw(Y),
+                adjustment: &[VariableId::from_raw(Z)],
+                functional: &OutcomeFunctional::Mean,
+                continuous: None,
+            },
         )
         .unwrap();
     let ones = vec![1.0; table.n_rows];

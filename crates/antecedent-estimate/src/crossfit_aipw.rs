@@ -88,8 +88,25 @@ pub fn build_binary_scores(
     glm_options: &GlmOptions,
     backend: FaerBackend,
 ) -> Result<ScoreTable, EstimationError> {
-    build_binary_scores_in(problem, treatment, thresholds, folds, glm_options, backend, true, None)
-        .map(|(table, _)| table)
+    let build =
+        ScoreBuild { treatment, thresholds, folds, glm_options, backend, share: true, ctx: None };
+    build_binary_scores_in(problem, &build).map(|(table, _)| table)
+}
+
+/// Everything a score-table build is configured by besides the prepared problem.
+#[derive(Clone, Copy)]
+pub(crate) struct ScoreBuild<'a> {
+    pub(crate) treatment: VariableId,
+    /// Outcome thresholds, `None` being the mean.
+    pub(crate) thresholds: &'a [Option<f64>],
+    pub(crate) folds: usize,
+    pub(crate) glm_options: &'a GlmOptions,
+    pub(crate) backend: FaerBackend,
+    /// Whether a batch's shared nuisance cache may serve this table.
+    pub(crate) share: bool,
+    /// Context carrying cancellation and parallelism; `None` is a serial context seeded
+    /// from the problem's fold seed.
+    pub(crate) ctx: Option<&'a ExecutionContext>,
 }
 
 /// What the nuisance stage of a score-table build recorded beside the table.
@@ -114,32 +131,15 @@ pub(crate) struct NuisanceFit {
 /// discards the partial table and rebuilds the *whole* table with the declared destination
 /// (no fold mixes the two nuisances); the failed fit and the destination are returned and the
 /// table's provenance names both. Any other failure is returned unchanged.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_binary_scores_in(
     problem: &PreparedPropensityProblem,
-    treatment: VariableId,
-    thresholds: &[Option<f64>],
-    folds: usize,
-    glm_options: &GlmOptions,
-    backend: FaerBackend,
-    share: bool,
-    ctx: Option<&ExecutionContext>,
+    build: &ScoreBuild<'_>,
 ) -> Result<(ScoreTable, NuisanceFit), EstimationError> {
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::ScoreConstruction,
         || {
             let mut failed: Option<FailedFit> = None;
-            let first = build_scores_pass(
-                problem,
-                treatment,
-                thresholds,
-                folds,
-                glm_options,
-                backend,
-                share,
-                ctx,
-                &mut failed,
-            );
+            let first = build_scores_pass(problem, build, &mut failed);
             let error = match first {
                 Ok((table, selections)) => {
                     return Ok((table, NuisanceFit { selections, fallback: None }));
@@ -152,17 +152,7 @@ pub(crate) fn build_binary_scores_in(
             let destination = problem.propensity.resolve_failed_fit(error)?;
             let mut rerun = problem.clone();
             rerun.propensity = destination;
-            let (mut table, selections) = build_scores_pass(
-                &rerun,
-                treatment,
-                thresholds,
-                folds,
-                glm_options,
-                backend,
-                share,
-                ctx,
-                &mut None,
-            )?;
+            let (mut table, selections) = build_scores_pass(&rerun, build, &mut None)?;
             table.nuisance_provenance = Arc::from(format!(
                 "{}{}",
                 table.nuisance_provenance,
@@ -185,18 +175,12 @@ struct FoldNuisance {
 }
 
 /// One pass of the score-table builder; `failed` records the GLM propensity fit that failed.
-#[allow(clippy::too_many_arguments)]
 fn build_scores_pass(
     problem: &PreparedPropensityProblem,
-    treatment: VariableId,
-    thresholds: &[Option<f64>],
-    folds: usize,
-    glm_options: &GlmOptions,
-    backend: FaerBackend,
-    share: bool,
-    ctx: Option<&ExecutionContext>,
+    build: &ScoreBuild<'_>,
     failed: &mut Option<FailedFit>,
 ) -> Result<(ScoreTable, Vec<RidgeFoldSelection>), EstimationError> {
+    let ScoreBuild { treatment, thresholds, folds, glm_options, backend, share, ctx } = *build;
     problem.propensity.validate_for_execution()?;
     let penalized = problem.propensity.fold_penalty();
     let share = share && penalized.is_none();

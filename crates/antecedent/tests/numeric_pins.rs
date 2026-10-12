@@ -3118,11 +3118,13 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         .with_fold_seed(ctx.rng.master_seed())
         .fit_scores(
             &data,
-            &[t1_id, t2_id],
-            y,
-            id.estimands[0].adjustment_set.as_ref(),
-            &OutcomeFunctional::Mean,
-            None,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &[t1_id, t2_id],
+                outcome: y,
+                adjustment: id.estimands[0].adjustment_set.as_ref(),
+                functional: &OutcomeFunctional::Mean,
+                continuous: None,
+            },
         )
         .unwrap();
     let summary = direct.summarize(None).unwrap();
@@ -3134,7 +3136,16 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         summary.means[arm11]
     );
     let empty = antecedent_estimate::CellSaturatedAipw::new()
-        .fit_scores(&data, &[t1_id, t2_id], y, &[], &OutcomeFunctional::Mean, None)
+        .fit_scores(
+            &data,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &[t1_id, t2_id],
+                outcome: y,
+                adjustment: &[],
+                functional: &OutcomeFunctional::Mean,
+                continuous: None,
+            },
+        )
         .unwrap()
         .summarize(None)
         .unwrap();

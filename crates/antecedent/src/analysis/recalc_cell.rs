@@ -474,11 +474,13 @@ fn fit_cells(
     let (fitted, fits) = count_cell_model_fits(|| {
         estimator.fit_scores(
             &data,
-            &treatments,
-            VariableId::from_raw(spec.outcome),
-            &adjustment,
-            &OutcomeFunctional::Mean,
-            None,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &treatments,
+                outcome: VariableId::from_raw(spec.outcome),
+                adjustment: &adjustment,
+                functional: &OutcomeFunctional::Mean,
+                continuous: None,
+            },
         )
     });
     recorder.record(Counter::FoldFit, fits);

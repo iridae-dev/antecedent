@@ -1097,13 +1097,15 @@ impl AipwAte {
     {
         crate::crossfit_aipw::build_binary_scores_in(
             p,
-            p.treatment_id,
-            &[None],
-            crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
-            &self.glm_options,
-            self.backend,
-            share,
-            Some(ctx),
+            &crate::crossfit_aipw::ScoreBuild {
+                treatment: p.treatment_id,
+                thresholds: &[None],
+                folds: crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+                glm_options: &self.glm_options,
+                backend: self.backend,
+                share,
+                ctx: Some(ctx),
+            },
         )
     }
 

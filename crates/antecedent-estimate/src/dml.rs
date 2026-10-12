@@ -14,8 +14,8 @@ use antecedent_learn::{LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, dia
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
-    AipwPredictions, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance, guarded_propensity,
-    iid_se,
+    AipwPredictions, NuisanceDesign, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance,
+    guarded_propensity, iid_se,
 };
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
@@ -257,9 +257,7 @@ impl DmlAte {
         let m = cross_fit_nuisance(
             self.outcome,
             PredictionTask::Regression,
-            problem.design_matrix.as_ref(),
-            problem.nrows,
-            problem.design_ncols,
+            NuisanceDesign::of(problem),
             problem.outcome.as_ref(),
             self.folds,
             ctx,
@@ -267,9 +265,7 @@ impl DmlAte {
         let e = cross_fit_nuisance(
             self.treatment,
             PredictionTask::BinaryProbability,
-            problem.design_matrix.as_ref(),
-            problem.nrows,
-            problem.design_ncols,
+            NuisanceDesign::of(problem),
             problem.treatment.as_ref(),
             self.folds,
             ctx,
