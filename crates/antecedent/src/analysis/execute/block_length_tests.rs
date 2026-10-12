@@ -28,7 +28,8 @@ use antecedent_data::{ColumnView, TableView, TimeSeriesData};
 use antecedent_estimate::AlignedRows;
 
 use super::{
-    circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
+    BlockBootstrapPlan, circular_block_length, mixture_block_length,
+    shared_circular_block_mixture_se_with_length,
 };
 
 const B: f64 = 0.8;
@@ -191,10 +192,12 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
             let block = shared_circular_block_mixture_se_with_length(
                 &design,
                 &[1.0],
-                scaled,
-                kernel_bias,
-                REPLICATES,
-                0xB10C_0000,
+                BlockBootstrapPlan {
+                    block_length: scaled,
+                    kernel_bias: kernel_bias,
+                    replicates: REPLICATES,
+                    stream_base: 0xB10C_0000,
+                },
                 &ctx,
                 |_, rows| slope(rows.iter().map(|&r| pairs[r])),
             );

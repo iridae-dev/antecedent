@@ -117,7 +117,6 @@ impl StudyBuilder {
     /// Any decision refusal (a nonrecoverable decision refuses with
     /// `transport_proven_non_transportable`), requests without an effect, or an
     /// observed law that is not the named one.
-    #[allow(clippy::too_many_arguments)]
     pub fn observation_recovery(
         graph: Admg,
         query: &ObservationRecoveryQuery,
@@ -166,7 +165,6 @@ impl PreparedObservationRecovery {
     /// # Errors
     /// Inputs that are not the derivation's, requests without an effect, or an
     /// observed law that is not the named one.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_derivation(
         graph: Admg,
         catalog: EvidenceCatalog,

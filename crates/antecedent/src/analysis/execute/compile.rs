@@ -6,9 +6,9 @@ use super::{
     PanelData, PhysicalExecutionPlan, ResponseQuery, RouteInput, StaticAteCompileInput,
     StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticMediationSource,
     StaticPagAteCompileInput, StaticPagResponseCompileInput, StaticPathSpecificCompileInput,
-    StaticResponseCompileInput, TableView, TabularData, TemporalDag, TemporalEffectQuery,
-    TimeSeriesData, VariableId, admg_has_bidirected, admg_without_latents_to_dag,
-    compile_logical_codetermined_joint, compile_logical_distribution,
+    StaticResponseCompileInput, TableView, TabularData, TemporalClassEffectCompileInput,
+    TemporalDag, TemporalEffectQuery, TimeSeriesData, VariableId, admg_has_bidirected,
+    admg_without_latents_to_dag, compile_logical_codetermined_joint, compile_logical_distribution,
     compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
     compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
     compile_logical_static_pag_response, compile_logical_static_response,
@@ -1088,16 +1088,16 @@ impl super::Study {
             }
         };
         let (identifier, estimator) = self.resolve_temporal_class_pair();
-        let mut logical = compile_logical_temporal_class_effect(
-            data,
-            nodes,
-            query,
-            self.split,
-            classification,
-            plan_id,
-            identifier,
-            estimator,
-        )?;
+        let mut logical = compile_logical_temporal_class_effect(TemporalClassEffectCompileInput {
+            data: data,
+            nodes: nodes,
+            query: query,
+            split: self.split,
+            data_classification: classification,
+            plan_id: plan_id,
+            identifier: identifier,
+            estimator: estimator,
+        })?;
         if query.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));

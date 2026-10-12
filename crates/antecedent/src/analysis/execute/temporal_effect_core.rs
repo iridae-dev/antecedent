@@ -62,9 +62,16 @@ pub(super) struct TemporalEffectFit {
     estimate_provenance: (&'static str, &'static str),
 }
 
+/// How the fit's identification was obtained and how long the fit took.
+#[derive(Clone, Copy)]
+pub(super) struct FitFinishMeta {
+    pub(super) identify_cached: bool,
+    pub(super) structure_version: u32,
+    pub(super) wall_time_ns: u64,
+}
+
 impl TemporalEffectFit {
     /// The result-assembly arguments of this fit on the proof it ran against.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn finish_args<'a>(
         self,
         physical: &'a PhysicalExecutionPlan,
@@ -72,10 +79,9 @@ impl TemporalEffectFit {
         estimand: IdentifiedEstimand,
         indexer: &TemporalIndexer,
         query: &TemporalEffectQuery,
-        identify_cached: bool,
-        structure_version: u32,
-        wall_time_ns: u64,
+        meta: FitFinishMeta,
     ) -> IdentifiedExecuteFinish<'a> {
+        let FitFinishMeta { identify_cached, structure_version, wall_time_ns } = meta;
         let (estimate_artifact, estimate_op) = self.estimate_provenance;
         let certificate = crate::Identification::Point {
             result: identification.clone(),

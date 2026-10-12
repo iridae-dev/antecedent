@@ -46,7 +46,6 @@ impl StudyBuilder {
     /// nothing (with its own reason); a law outside the window or the declared
     /// domains; a reached history outside certified support
     /// (`temporal_transport.history_outside_support`); or provider failures.
-    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn temporal_transport_sequence(
         spec: &TemporalSequenceSpec,
         sequence: &[Value],

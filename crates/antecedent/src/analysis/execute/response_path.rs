@@ -1613,7 +1613,6 @@ impl super::Study {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
     fn execute_cell_aipw_response(
         &self,

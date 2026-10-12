@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
+use super::temporal_effect_core::FitFinishMeta;
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation,
     CausalError, CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
@@ -654,9 +655,11 @@ impl super::Study {
             estimand,
             &indexer,
             query,
-            identify_cached,
-            self.graph.version(),
-            elapsed_ns(started),
+            FitFinishMeta {
+                identify_cached,
+                structure_version: self.graph.version(),
+                wall_time_ns: elapsed_ns(started),
+            },
         );
         Ok(super::temporal_effect_core::seal_point_only(
             point_only,
@@ -2214,9 +2217,11 @@ impl super::Study {
             &bundle,
             identifier_id,
             query,
-            identify_cached,
-            self.graph.version(),
-            elapsed_ns(started),
+            FitFinishMeta {
+                identify_cached,
+                structure_version: self.graph.version(),
+                wall_time_ns: elapsed_ns(started),
+            },
         );
         Ok(super::temporal_effect_core::seal_point_only(
             point_only,

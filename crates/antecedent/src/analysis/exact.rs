@@ -280,7 +280,6 @@ impl PreparedStudy<ExactPreparedState> {
         Self::build_with_identity(diagram, functional, data, request, limits, ctx, false)
     }
     // Identity encoding is retained independently of numerical execution settings.
-    #[allow(clippy::too_many_arguments)]
     fn build_with_identity(
         diagram: SelectionDiagram,
         functional: BoundTransportFunctional,
@@ -327,7 +326,6 @@ impl PreparedStudy<ExactPreparedState> {
     }
 
     // Only the facade calls this after graph verification and compilation against these inputs.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn from_checked_plan(
         diagram: SelectionDiagram,
         functional: BoundTransportFunctional,

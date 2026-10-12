@@ -340,11 +340,13 @@ pub fn compile_logical_static_pag_response(
         }
     }
     compile_logical_class_response(
-        input.data,
-        input.query,
-        input.validation_suite,
-        input.identifier,
-        input.estimator,
+        ClassResponseCompile {
+            data: input.data,
+            query: input.query,
+            validation_suite: input.validation_suite,
+            identifier: input.identifier,
+            estimator: input.estimator,
+        },
         "static_pag_response",
         &treatments,
         &outcomes,
@@ -384,11 +386,13 @@ pub fn compile_logical_static_cpdag_response(
         }
     }
     compile_logical_class_response(
-        input.data,
-        input.query,
-        input.validation_suite,
-        input.identifier,
-        input.estimator,
+        ClassResponseCompile {
+            data: input.data,
+            query: input.query,
+            validation_suite: input.validation_suite,
+            identifier: input.identifier,
+            estimator: input.estimator,
+        },
         "static_cpdag_response",
         &treatments,
         &outcomes,
@@ -420,17 +424,22 @@ fn require_class_aware_response(query: &ResponseQuery, class_tag: &str) -> Resul
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn compile_logical_class_response(
-    data: &TabularData,
-    query: &ResponseQuery,
+/// The query, data and strategy names shared by every class-aware response compile.
+struct ClassResponseCompile<'a> {
+    data: &'a TabularData,
+    query: &'a ResponseQuery,
     validation_suite: Option<Arc<str>>,
     identifier: Arc<str>,
     estimator: Arc<str>,
+}
+
+fn compile_logical_class_response(
+    input: ClassResponseCompile<'_>,
     plan_id: &'static str,
     treatments: &[VariableId],
     outcomes: &[VariableId],
 ) -> Result<LogicalAnalysisPlan, CausalError> {
+    let ClassResponseCompile { data, query, validation_suite, identifier, estimator } = input;
     let identifier_id: IdentifierId = identifier.parse()?;
     let estimator_id: EstimatorId = estimator.parse()?;
     if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
@@ -900,22 +909,45 @@ pub fn compile_logical_temporal_effect_classified(
     Ok(plan)
 }
 
+/// Inputs for [`compile_logical_temporal_class_effect`].
+#[derive(Clone, Debug)]
+pub struct TemporalClassEffectCompileInput<'a> {
+    /// Time-series data.
+    pub data: &'a TimeSeriesData,
+    /// Nodes of the supplied temporal class graph.
+    pub nodes: &'a [antecedent_graph::NodeRef],
+    /// Pulse or Sustained effect query.
+    pub query: &'a TemporalEffectQuery,
+    /// Discovery/estimation split, if any.
+    pub split: Option<DiscoveryEstimationSplit>,
+    /// Data classification recorded on the plan.
+    pub data_classification: DataClassification,
+    /// Plan id recorded on the plan.
+    pub plan_id: &'static str,
+    /// Identifier (must be generalized.adjustment).
+    pub identifier: Arc<str>,
+    /// Estimator id.
+    pub estimator: Arc<str>,
+}
+
 /// Pulse or Sustained on an incomplete `TemporalCpdag` or `TemporalPag`.
 ///
 /// # Errors
 ///
 /// Query validation, multi-step Sustained, or incompatible identifier/estimator.
-#[allow(clippy::too_many_arguments)]
 pub fn compile_logical_temporal_class_effect(
-    data: &TimeSeriesData,
-    nodes: &[antecedent_graph::NodeRef],
-    query: &TemporalEffectQuery,
-    split: Option<DiscoveryEstimationSplit>,
-    data_classification: DataClassification,
-    plan_id: &'static str,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    input: TemporalClassEffectCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
+    let TemporalClassEffectCompileInput {
+        data,
+        nodes,
+        query,
+        split,
+        data_classification,
+        plan_id,
+        identifier,
+        estimator,
+    } = input;
     query.validate()?;
     validate_query_vars_in_temporal_nodes(nodes, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {

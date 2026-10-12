@@ -693,14 +693,16 @@ impl PreparedStudy<TransportGridState> {
         let mut statistical = if let TransportGridData::Statistical(input, options) = input {
             if let Some(first) = eligible.first() {
                 let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
-                    query.diagram.clone(),
-                    query.functional.clone(),
-                    input.clone(),
-                    self.state.data.clone(),
-                    self.state.template.samples.clone(),
-                    first.clone(),
-                    limits,
-                    *options,
+                    super::statistical::StatisticalPremises {
+                        diagram: query.diagram.clone(),
+                        functional: query.functional.clone(),
+                        input: Arc::new(input.clone()),
+                        data: self.state.data.clone(),
+                        samples: self.state.template.samples.clone(),
+                        request: first.clone(),
+                        limits: limits,
+                        options: *options,
+                    },
                     &ctx,
                     false,
                 )?;

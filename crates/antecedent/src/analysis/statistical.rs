@@ -365,6 +365,18 @@ impl StudyBuilder {
     }
 }
 
+/// The premises one statistical preparation is built from, apart from the context.
+pub(super) struct StatisticalPremises {
+    pub(super) diagram: SelectionDiagram,
+    pub(super) functional: BoundTransportFunctional,
+    pub(super) input: Arc<StatisticalTransportInput>,
+    pub(super) data: ExactTransportData,
+    pub(super) samples: Vec<SampleSummary>,
+    pub(super) request: Assignment,
+    pub(super) limits: ExactEvaluationLimits,
+    pub(super) options: EmpiricalTableOptions,
+}
+
 impl PreparedStudy<StatisticalPreparedState> {
     fn build(
         diagram: SelectionDiagram,
@@ -390,35 +402,50 @@ impl PreparedStudy<StatisticalPreparedState> {
         let samples =
             input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
         Self::build_fitted(
-            diagram, functional, input, data, samples, request, limits, options, ctx, false,
+            StatisticalPremises {
+                diagram: diagram,
+                functional: functional,
+                input: Arc::new(input),
+                data: data,
+                samples: samples,
+                request: request,
+                limits: limits,
+                options: options,
+            },
+            ctx,
+            false,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn build_fitted(
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
-        input: StatisticalTransportInput,
-        data: ExactTransportData,
-        samples: Vec<SampleSummary>,
-        request: Assignment,
-        limits: ExactEvaluationLimits,
-        options: EmpiricalTableOptions,
+        premises: StatisticalPremises,
         ctx: &ExecutionContext,
         loaded_only: bool,
     ) -> Result<Self, IoError> {
-        antecedent_estimate::empirical_table::validate_options(&options).map_err(estimate_err)?;
-        let invariants = StudyInvariants::compute(&functional, &data, &samples)?;
-        Self::from_invariants(
-            &invariants,
+        let StatisticalPremises {
             diagram,
             functional,
-            Arc::new(input),
+            input,
             data,
             samples,
             request,
             limits,
             options,
+        } = premises;
+        antecedent_estimate::empirical_table::validate_options(&options).map_err(estimate_err)?;
+        let invariants = StudyInvariants::compute(&functional, &data, &samples)?;
+        Self::from_invariants(
+            &invariants,
+            StatisticalPremises {
+                diagram,
+                functional,
+                input,
+                data,
+                samples,
+                request,
+                limits,
+                options,
+            },
             ctx,
             loaded_only,
         )
@@ -426,20 +453,22 @@ impl PreparedStudy<StatisticalPreparedState> {
 
     /// Build one request's prepared state from the identity layers that do not
     /// depend on the request.
-    #[allow(clippy::too_many_arguments)]
     fn from_invariants(
         invariants: &StudyInvariants,
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
-        input: Arc<StatisticalTransportInput>,
-        data: ExactTransportData,
-        samples: Vec<SampleSummary>,
-        request: Assignment,
-        limits: ExactEvaluationLimits,
-        options: EmpiricalTableOptions,
+        premises: StatisticalPremises,
         ctx: &ExecutionContext,
         loaded_only: bool,
     ) -> Result<Self, IoError> {
+        let StatisticalPremises {
+            diagram,
+            functional,
+            input,
+            data,
+            samples,
+            request,
+            limits,
+            options,
+        } = premises;
         // Coverage, assignments, binding snapshots and allocation limits are checked at preparation.
         antecedent_estimate::prepare_exact_transport(
             &functional,
@@ -939,14 +968,16 @@ impl PreparedStudy<StatisticalPreparedState> {
             .map(|(index, (request, mut estimate))| {
                 let prepared = Self::from_invariants(
                     &invariants,
-                    self.state.diagram.clone(),
-                    self.state.functional.clone(),
-                    Arc::clone(&self.state.input),
-                    self.state.data.clone(),
-                    self.state.samples.clone(),
-                    request.clone(),
-                    self.state.limits,
-                    self.state.options,
+                    StatisticalPremises {
+                        diagram: self.state.diagram.clone(),
+                        functional: self.state.functional.clone(),
+                        input: Arc::clone(&self.state.input),
+                        data: self.state.data.clone(),
+                        samples: self.state.samples.clone(),
+                        request: request.clone(),
+                        limits: self.state.limits,
+                        options: self.state.options,
+                    },
                     &frozen_ctx,
                     false,
                 )?
@@ -1222,14 +1253,16 @@ impl PreparedStudy<StatisticalPreparedState> {
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(wire.seed);
         let prepared = Self::build_fitted(
-            diagram,
-            functional,
-            input,
-            data,
-            wire.samples.clone(),
-            request,
-            ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
-            options,
+            StatisticalPremises {
+                diagram: diagram,
+                functional: functional,
+                input: Arc::new(input),
+                data: data,
+                samples: wire.samples.clone(),
+                request: request,
+                limits: ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
+                options: options,
+            },
             &frozen_ctx,
             true,
         )?

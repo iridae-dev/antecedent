@@ -63,7 +63,6 @@ impl CheckedTemporalClassEffectOperation {
     }
 
     /// Check and freeze the full completion proof and selected temporal method.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
         source_graph: AcceptedGraph,
         query: &TemporalEffectQuery,

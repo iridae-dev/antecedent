@@ -294,10 +294,7 @@ pub fn shared_circular_block_mixture_se(
     let mut out = shared_circular_block_mixture_se_with_length(
         &designs,
         weights,
-        block_length,
-        kernel_bias,
-        replicates,
-        stream_base,
+        BlockBootstrapPlan { block_length, kernel_bias, replicates, stream_base },
         ctx,
         |atom, rows| atoms[atom].estimate_on_rows(rows, &mut workspace, &mut x_boot, &mut y_boot),
     );
@@ -354,22 +351,29 @@ pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
     antecedent_data::circular_block_length(structural_span, n)
 }
 
+/// The block length, kernel-bias factor, replicate count and stream base of one
+/// shared circular-block bootstrap.
+#[derive(Clone, Copy)]
+pub struct BlockBootstrapPlan {
+    pub block_length: usize,
+    pub kernel_bias: f64,
+    pub replicates: u32,
+    pub stream_base: u64,
+}
+
 /// [`shared_circular_block_mixture_se`] over explicit aligned designs at an
 /// explicit block length and kernel-bias factor. Production reaches it through
 /// [`shared_circular_block_mixture_se`] at [`mixture_block_length`]; the
 /// block-length sensitivity check calls it directly at multiples of that
 /// length. `fit_atom(g, rows)` refits atom `g` on its design rows `rows`.
-#[allow(clippy::too_many_arguments)]
 pub fn shared_circular_block_mixture_se_with_length(
     designs: &[antecedent_estimate::AlignedRows],
     weights: &[f64],
-    block_length: usize,
-    kernel_bias: f64,
-    replicates: u32,
-    stream_base: u64,
+    plan: BlockBootstrapPlan,
     ctx: &ExecutionContext,
     mut fit_atom: impl FnMut(usize, &[usize]) -> Option<f64>,
 ) -> SharedCircularBlockSe {
+    let BlockBootstrapPlan { block_length, kernel_bias, replicates, stream_base } = plan;
     let total: f64 = weights.iter().sum();
     if replicates == 0 || designs.is_empty() || designs.len() != weights.len() || total <= 0.0 {
         return SharedCircularBlockSe::empty();

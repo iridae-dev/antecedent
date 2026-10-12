@@ -59,7 +59,6 @@ impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
 
 impl CheckedTemporalClassResponseOperation {
     /// Check and freeze the per-horizon completion proofs and selected procedure.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
         source_graph: AcceptedGraph,
         query: &ResponseQuery,

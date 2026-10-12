@@ -34,7 +34,6 @@ pub(crate) struct CheckedTemporalEffectOperation {
 
 impl CheckedTemporalEffectOperation {
     /// Check and freeze the graph, query, selected proof, and estimator family.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
         graph: &TemporalDag,
         query: &TemporalEffectQuery,

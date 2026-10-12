@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::temporal_effect_core::FitFinishMeta;
 use super::{
     Arc, CausalError, ExecutionContext, IdentifiedResultContext, InferenceMode, Instant,
     PhysicalExecutionPlan, StudyResult, TimeSeriesData, elapsed_ns,
@@ -89,9 +90,11 @@ impl CheckedTemporalEffectExecution {
             op.estimand().clone(),
             op.indexer(),
             op.query(),
-            true,
-            self.result_context.graph_version,
-            elapsed_ns(started),
+            FitFinishMeta {
+                identify_cached: true,
+                structure_version: self.result_context.graph_version,
+                wall_time_ns: elapsed_ns(started),
+            },
         );
         Ok(seal_point_only(
             point_only,

@@ -62,13 +62,13 @@ pub(super) use crate::planner::{
     LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
     StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
     StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
-    compile_logical_codetermined_joint, compile_logical_distribution,
-    compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
-    compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
-    compile_logical_static_pag_response, compile_logical_static_response,
-    compile_logical_temporal_class_effect, compile_logical_temporal_effect,
-    compile_logical_temporal_effect_classified, compile_logical_temporal_response,
-    reject_dag_only_on_pag,
+    TemporalClassEffectCompileInput, compile_logical_codetermined_joint,
+    compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
+    compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
+    compile_logical_static_pag_ate, compile_logical_static_pag_response,
+    compile_logical_static_response, compile_logical_temporal_class_effect,
+    compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
+    compile_logical_temporal_response, reject_dag_only_on_pag,
 };
 pub(super) use crate::result::StructuralAggregationPolicy;
 pub(super) use crate::result::StudyResult;
@@ -340,13 +340,14 @@ pub(crate) use checked_static_class_response::CheckedStaticClassResponse;
 pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
 include!("execute_helpers.rs");
 
+#[cfg(test)]
+pub(super) use class_envelope_se::{
+    BlockBootstrapPlan, circular_block_length, mixture_block_length,
+    shared_circular_block_mixture_se_with_length,
+};
 pub(super) use class_envelope_se::{
     TemporalAtomDesign, envelope_shared_block_diagnostics, shared_block_mixture_message,
     shared_circular_block_mixture_se,
-};
-#[cfg(test)]
-pub(super) use class_envelope_se::{
-    circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
 };
 pub(super) use identified_set_diagnostics::{
     IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,

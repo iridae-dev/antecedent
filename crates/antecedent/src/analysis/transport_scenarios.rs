@@ -73,7 +73,6 @@ impl StudyBuilder {
     /// `schema_mismatch` for a catalog, law or request outside the shared
     /// coordinate schema; invalid query, catalog or laws; or a request that
     /// fails for every scenario.
-    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn transport_scenarios(
         set: &TransportScenarioSet,
         query: ClassicalTransportQuery,
@@ -107,7 +106,6 @@ impl StudyBuilder {
     /// `admg_transport.bounds_exceeded` (more than 6 observed variables, 3
     /// treatments or 3 conditioned variables) and `invalid_argument` /
     /// `admg_transport.invalid_query` or `admg_transport.invalid_request`.
-    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn conditional_transport_scenarios(
         set: &TransportScenarioSet,
         query: ConditionalTransportQuery,
@@ -130,7 +128,6 @@ impl StudyBuilder {
     ///
     /// # Errors
     /// As [`Self::transport_scenarios`], plus samples the plug-in cannot fit.
-    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn transport_scenarios_empirical(
         set: &TransportScenarioSet,
         query: ClassicalTransportQuery,

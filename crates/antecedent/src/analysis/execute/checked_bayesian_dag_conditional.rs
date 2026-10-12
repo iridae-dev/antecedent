@@ -62,7 +62,6 @@ impl CheckedBayesianConditionalOperation {
         self.validators = validators;
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
         graph: &Dag,
         query: antecedent_core::ConditionalEffectQuery,

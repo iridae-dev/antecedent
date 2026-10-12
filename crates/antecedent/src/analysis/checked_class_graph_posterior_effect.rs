@@ -42,7 +42,6 @@ pub(crate) struct CheckedClassGraphPosteriorEffect {
 }
 
 impl CheckedClassGraphPosteriorEffect {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         target: GraphPosteriorEffectTarget,

@@ -78,7 +78,6 @@ impl CheckedTemporalGraphPosteriorEffect {
                 .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         query: TemporalEffectQuery,

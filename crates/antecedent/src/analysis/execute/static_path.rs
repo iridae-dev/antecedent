@@ -1512,7 +1512,6 @@ impl super::Study {
         ))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn execute_tiered_average(
         &self,
         data: &TabularData,
@@ -1638,7 +1637,6 @@ impl super::Study {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn finish_tiered_unknown(
         &self,
         data: &TabularData,

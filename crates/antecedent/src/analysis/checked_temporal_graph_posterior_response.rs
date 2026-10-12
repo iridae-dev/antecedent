@@ -110,7 +110,6 @@ impl CheckedTemporalGraphPosteriorResponse {
                 .is_none_or(|id| id == EstimatorId::temporal_response_for(&study.inference))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         query: ResponseQuery,

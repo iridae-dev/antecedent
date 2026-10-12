@@ -83,7 +83,6 @@ impl std::fmt::Debug for CheckedCounterfactualPlan {
 }
 
 impl CheckedCounterfactualPlan {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         operation: crate::gcm::CheckedCounterfactualOperation,
         cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,

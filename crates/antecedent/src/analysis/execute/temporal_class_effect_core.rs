@@ -11,6 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::SequentialValidation;
+use super::temporal_effect_core::FitFinishMeta;
 use super::temporal_path::{temporal_class_envelope_diagnostic, temporal_class_structural_mixture};
 use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, ClassLinearAtoms, Diagnostic,
@@ -64,7 +65,6 @@ pub(super) struct TemporalClassEffectFit {
 
 impl TemporalClassEffectFit {
     /// The result-assembly arguments of this fit on the proof it ran against.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn finish_args<'a>(
         self,
         physical: &'a PhysicalExecutionPlan,
@@ -72,10 +72,9 @@ impl TemporalClassEffectFit {
         bundle: &CachedTemporalClassIdentification,
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
-        identify_cached: bool,
-        structure_version: u32,
-        wall_time_ns: u64,
+        meta: FitFinishMeta,
     ) -> IdentifiedExecuteFinish<'a> {
+        let FitFinishMeta { identify_cached, structure_version, wall_time_ns } = meta;
         IdentifiedExecuteFinish::new(
             physical,
             identification,
