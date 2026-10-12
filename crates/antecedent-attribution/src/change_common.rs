@@ -277,7 +277,6 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     unidentified: Arc<[ComponentId]>,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
-    use crate::path::path_decompose;
     use crate::result::ComponentContribution;
 
     // PathBased is the O(n) analogue of Shapley: instead of averaging each
@@ -311,9 +310,16 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         raw_players.push(v_i - v0);
     }
 
+    // One coefficient map for every player. Rebuilding it per player repeated the
+    // same linear read; the path products below are unchanged.
+    if ctx.cancellation.is_cancelled() {
+        return Err(AttributionError::Cancelled);
+    }
+    let strengths = crate::path::edge_strength_map(model)?;
     let mut player_paths = Vec::with_capacity(players.len());
     for &comp in players {
-        let res = path_decompose(model, &[comp.variable()], outcome, 64, 16, ctx)?;
+        let res =
+            crate::path::path_shares(model, &[comp.variable()], outcome, 64, 16, ctx, &strengths)?;
         player_paths.push(res.path_breakdown.to_vec());
     }
 

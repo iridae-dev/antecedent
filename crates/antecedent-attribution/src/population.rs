@@ -7,6 +7,42 @@ use antecedent_data::{TableView, TabularData};
 
 use crate::error::AttributionError;
 
+/// Row indices an anomaly or unit-change query scores.
+///
+/// `None` is every row. An index at or past `n_rows`, or more rows than
+/// `max_units`, is the same typed error either caller used to raise.
+///
+/// # Errors
+///
+/// [`AttributionError::PopulationOutOfRange`] or [`AttributionError::SizeLimit`].
+pub(crate) fn resolve_unit_rows(
+    unit_rows: Option<&[usize]>,
+    n_rows: usize,
+    max_units: usize,
+) -> Result<Vec<usize>, AttributionError> {
+    let rows = match unit_rows {
+        Some(rows) => rows.to_vec(),
+        None => (0..n_rows).collect(),
+    };
+    for &row in &rows {
+        if row >= n_rows {
+            return Err(AttributionError::PopulationOutOfRange {
+                kind: "row",
+                index: row,
+                limit: n_rows,
+            });
+        }
+    }
+    if rows.len() > max_units {
+        return Err(AttributionError::SizeLimit {
+            kind: "units",
+            requested: rows.len(),
+            max: max_units,
+        });
+    }
+    Ok(rows)
+}
+
 /// Resolve a population selector against a single tabular table.
 ///
 /// # Errors

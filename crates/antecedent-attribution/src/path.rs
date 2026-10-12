@@ -33,9 +33,29 @@ pub fn path_decompose(
     if ctx.cancellation.is_cancelled() {
         return Err(AttributionError::Cancelled);
     }
+    let strengths = edge_strength_map(model)?;
+    path_shares(model, sources, outcome, max_paths, max_len, ctx, &strengths)
+}
+
+/// Path products on a strength map the caller already built.
+///
+/// `path_based_change_allocation` scores one source per player against the same
+/// model, so it builds the map once and calls this. The products are the same
+/// ones [`path_decompose`] reports.
+pub(crate) fn path_shares(
+    model: &CompiledCausalModel,
+    sources: &[VariableId],
+    outcome: VariableId,
+    max_paths: usize,
+    max_len: usize,
+    ctx: &ExecutionContext,
+    strengths: &std::collections::HashMap<(DenseNodeId, DenseNodeId), f64>,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(AttributionError::Cancelled);
+    }
     let outcome_dense =
         model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
-    let strengths = edge_strength_map(model)?;
 
     if sources.len() > 1 {
         for (i, &src_i) in sources.iter().enumerate() {
@@ -132,7 +152,7 @@ pub fn path_decompose(
     })
 }
 
-fn edge_strength_map(
+pub(crate) fn edge_strength_map(
     model: &CompiledCausalModel,
 ) -> Result<std::collections::HashMap<(DenseNodeId, DenseNodeId), f64>, AttributionError> {
     let mut m = std::collections::HashMap::new();

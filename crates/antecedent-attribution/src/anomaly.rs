@@ -212,26 +212,8 @@ pub fn score_anomalies_with(
 ) -> Result<Vec<AnomalyScores>, AttributionError> {
     query.validate()?;
     let n = data.row_count();
-    let rows: Vec<usize> = match &query.unit_rows {
-        Some(r) => r.to_vec(),
-        None => (0..n).collect(),
-    };
-    for &row in &rows {
-        if row >= n {
-            return Err(AttributionError::PopulationOutOfRange {
-                kind: "row",
-                index: row,
-                limit: n,
-            });
-        }
-    }
-    if rows.len() > query.max_units {
-        return Err(AttributionError::SizeLimit {
-            kind: "units",
-            requested: rows.len(),
-            max: query.max_units,
-        });
-    }
+    let rows =
+        crate::population::resolve_unit_rows(query.unit_rows.as_deref(), n, query.max_units)?;
 
     let engine = CounterfactualEngine::from_ref(model);
     let mut ctx = ctx.clone();

@@ -39,26 +39,8 @@ pub fn unit_change(
 ) -> Result<UnitChangeResult, AttributionError> {
     query.validate()?;
     let n_all = data.row_count();
-    let rows: Vec<usize> = match &query.unit_rows {
-        Some(r) => r.to_vec(),
-        None => (0..n_all).collect(),
-    };
-    for &row in &rows {
-        if row >= n_all {
-            return Err(AttributionError::PopulationOutOfRange {
-                kind: "row",
-                index: row,
-                limit: n_all,
-            });
-        }
-    }
-    if rows.len() > query.max_units {
-        return Err(AttributionError::SizeLimit {
-            kind: "units",
-            requested: rows.len(),
-            max: query.max_units,
-        });
-    }
+    let rows =
+        crate::population::resolve_unit_rows(query.unit_rows.as_deref(), n_all, query.max_units)?;
 
     require_input_components(
         query.components,
