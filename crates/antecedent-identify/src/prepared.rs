@@ -12,8 +12,10 @@ use crate::error::IdentificationError;
 
 /// Prepared semi-Markovian graph for ID/IDC.
 ///
-/// Owns one [`Admg`] and caches the topological order, the variable-to-node index, and
-/// ancestral closures so recursive ID does not clone the graph per step.
+/// Owns one [`Admg`] and caches the topological order and the variable-to-node index.
+/// Ancestral closures are memoized on the identification run ([`AncestorMemo`]), not here,
+/// so cloning a prepared graph does not copy that table and the graph stays immutable
+/// during the recursion.
 #[derive(Clone, Debug)]
 pub struct PreparedAdmg {
     admg: Admg,
@@ -22,8 +24,15 @@ pub struct PreparedAdmg {
     var_index: Arc<HashMap<VariableId, DenseNodeId>>,
     /// Topological order of all nodes (directed edges).
     topo: Arc<[DenseNodeId]>,
-    /// Memo of ancestral closures keyed by (seed-set, active-set).
-    ancestor_memo: HashMap<(BitSet, BitSet), BitSet>,
+}
+
+/// Ancestral closures for one identification run.
+///
+/// The key is the seed set intersected with the active set, then the active set.
+/// The value is the closure [`Admg::ancestors_within`] returns for that pair.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AncestorMemo {
+    map: HashMap<(BitSet, BitSet), BitSet>,
 }
 
 impl PreparedAdmg {
@@ -55,13 +64,7 @@ impl PreparedAdmg {
                 var_index.entry(v).or_insert_with(|| DenseNodeId::from_index(i));
             }
         }
-        Ok(Self {
-            admg,
-            declared_assumptions,
-            var_index: Arc::new(var_index),
-            topo,
-            ancestor_memo: HashMap::new(),
-        })
+        Ok(Self { admg, declared_assumptions, var_index: Arc::new(var_index), topo })
     }
 
     /// Embed a DAG as an ADMG (directed edges only; no bidirected).
@@ -122,23 +125,44 @@ impl PreparedAdmg {
             .ok_or_else(|| IdentificationError::msg(format!("unknown dense node {}", id.raw())))
     }
 
-    /// Ancestral closure of `seeds` within `active` (including seeds), with memoization.
+    /// Ancestral closure of `seeds` within `active` (including seeds).
+    ///
+    /// Seeds outside `active` are dropped before the walk, which is what
+    /// [`Admg::ancestors_within`] does by skipping inactive seeds. The signature
+    /// stays `&mut self` so existing callers keep compiling; the closure is not
+    /// stored on `self`.
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "public signature stays &mut self; the closure is memoized on the identification run"
+    )]
     pub fn ancestors_within(
         &mut self,
         seeds: &BitSet,
         active: &BitSet,
         ws: &mut GraphWorkspace,
     ) -> BitSet {
+        ancestral_closure(&self.admg, seeds, active, ws)
+    }
+
+    /// [`Self::ancestors_within`], reusing `memo` for this run.
+    ///
+    /// A hit is the set the uncached walk returns for the same seeds and active set.
+    pub(crate) fn ancestors_cached(
+        &self,
+        seeds: &BitSet,
+        active: &BitSet,
+        ws: &mut GraphWorkspace,
+        memo: &mut AncestorMemo,
+    ) -> BitSet {
         debug_assert_eq!(seeds.bit_len(), active.bit_len());
-        // Key must include `active`: reachability depends on which nodes exist.
         let mut seed_key = seeds.clone();
         seed_key.intersect_with(active);
         let key = (seed_key, active.clone());
-        if let Some(cached) = self.ancestor_memo.get(&key) {
+        if let Some(cached) = memo.map.get(&key) {
             return cached.clone();
         }
         let computed = self.admg.ancestors_within(&key.0, active, None, ws);
-        self.ancestor_memo.insert(key, computed.clone());
+        memo.map.insert(key, computed.clone());
         computed
     }
 
@@ -170,6 +194,18 @@ impl PreparedAdmg {
         let comps = self.c_components(nodes);
         comps.len() == 1 && comps[0].equal_set(nodes)
     }
+}
+
+fn ancestral_closure(
+    admg: &Admg,
+    seeds: &BitSet,
+    active: &BitSet,
+    ws: &mut GraphWorkspace,
+) -> BitSet {
+    debug_assert_eq!(seeds.bit_len(), active.bit_len());
+    let mut seed_key = seeds.clone();
+    seed_key.intersect_with(active);
+    admg.ancestors_within(&seed_key, active, None, ws)
 }
 
 /// The identification-facing variable id carried by node `dense` in `nodes`, if any.
@@ -278,5 +314,32 @@ mod tests {
         }
         let comps = prep.c_components(&nodes);
         assert_eq!(comps.len(), 2);
+    }
+
+    #[test]
+    fn run_local_ancestor_memo_matches_the_uncached_closure() {
+        let mut g = Admg::with_variables(4);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap();
+        let mut prep = PreparedAdmg::new(g).unwrap();
+        let mut seeds = BitSet::with_len(4);
+        seeds.insert(DenseNodeId::from_raw(2));
+        let mut active = BitSet::with_len(4);
+        for i in 0..3u32 {
+            active.insert(DenseNodeId::from_raw(i));
+        }
+        let mut ws = GraphWorkspace::default();
+        let fresh = prep.ancestors_within(&seeds, &active, &mut ws);
+        let mut memo = AncestorMemo::default();
+        let once = prep.ancestors_cached(&seeds, &active, &mut ws, &mut memo);
+        let twice = prep.ancestors_cached(&seeds, &active, &mut ws, &mut memo);
+        assert!(fresh.equal_set(&once));
+        assert!(twice.equal_set(&once));
+        assert_eq!(memo.map.len(), 1);
+        assert!(once.contains(DenseNodeId::from_raw(0)));
+        assert!(once.contains(DenseNodeId::from_raw(1)));
+        assert!(once.contains(DenseNodeId::from_raw(2)));
+        assert!(!once.contains(DenseNodeId::from_raw(3)));
     }
 }

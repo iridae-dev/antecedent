@@ -18,7 +18,7 @@ use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace};
 use crate::error::IdentificationError;
 use crate::hedge::HedgeCertificate;
 use crate::identifier::IdentificationWorkspace;
-use crate::prepared::PreparedAdmg;
+use crate::prepared::{AncestorMemo, PreparedAdmg};
 use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 /// Memo key: canonical (Y, X, V) plus optional hard assignment for ATE contrast sides.
@@ -94,7 +94,8 @@ impl Factor {
 /// The mutable state one ID recursion threads through every line: working graph, expression
 /// arena, memo table, derivation, counters, graph workspace and budget meter.
 pub(crate) struct IdRun<'a, 'm> {
-    prepared: &'a mut PreparedAdmg,
+    prepared: &'a PreparedAdmg,
+    ancestors: AncestorMemo,
     arena: &'a mut CausalExprArena,
     memo: &'a mut HashMap<SubproblemKey, IdOutcome>,
     derivation: &'a mut DerivationTrace,
@@ -180,15 +181,15 @@ pub(crate) fn identify_interventional_metered(
     charge: &mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + '_),
 ) -> Result<MeteredId, IdentificationError> {
     require_disjoint(y, x)?;
-    let mut working = prepared.clone();
     let mut arena = CausalExprArena::new();
     let mut derivation = DerivationTrace::default();
     let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
     let mut perf = IdentificationPerformanceRecord::default();
-    let active = BitSet::full(working.admg().node_count());
+    let active = BitSet::full(prepared.admg().node_count());
     let mut meter = IdMeter { charge: Some(charge), depth: 0 };
     let mut run = IdRun {
-        prepared: &mut working,
+        prepared,
+        ancestors: AncestorMemo::default(),
         arena: &mut arena,
         memo: &mut memo,
         derivation: &mut derivation,
@@ -478,7 +479,6 @@ impl IdIdentifier {
                 let mut x_set = BitSet::with_len(prepared.admg().node_count());
                 x_set.insert(t);
 
-                let mut prepared = prepared.clone();
                 let mut arena = CausalExprArena::new();
                 let mut derivation = DerivationTrace::default();
                 derivation.push("general.id", "Shpitser–Pearl ID for ATE contrast");
@@ -490,7 +490,7 @@ impl IdIdentifier {
                 let control_level = intervention_value(&query.control)?;
 
                 let mut side = |assign: Assign,
-                                prepared: &mut PreparedAdmg,
+                                prepared: &PreparedAdmg,
                                 arena: &mut CausalExprArena,
                                 memo: &mut HashMap<SubproblemKey, IdOutcome>,
                                 derivation: &mut DerivationTrace,
@@ -498,6 +498,7 @@ impl IdIdentifier {
                  -> Result<IdOutcome, IdentificationError> {
                     let mut run = IdRun {
                         prepared,
+                        ancestors: AncestorMemo::default(),
                         arena,
                         memo,
                         derivation,
@@ -509,7 +510,7 @@ impl IdIdentifier {
                 };
                 let left = match side(
                     Arc::from([(t, active_level)]),
-                    &mut prepared,
+                    prepared,
                     &mut arena,
                     &mut memo,
                     &mut derivation,
@@ -528,7 +529,7 @@ impl IdIdentifier {
                 };
                 let right = match side(
                     Arc::from([(t, control_level)]),
-                    &mut prepared,
+                    prepared,
                     &mut arena,
                     &mut memo,
                     &mut derivation,
@@ -592,7 +593,6 @@ impl IdIdentifier {
         if schedule.is_empty() {
             return Err(IdentificationError::msg("empty treatment schedule"));
         }
-        let mut prepared = prepared.clone();
         let mut arena = CausalExprArena::new();
         let mut derivation = DerivationTrace::default();
         derivation.push("general.id", "Shpitser–Pearl ID for schedule contrast");
@@ -615,7 +615,7 @@ impl IdIdentifier {
             schedule_dense.iter().map(|&d| (d, level.clone())).collect()
         };
         let mut side = |assign: Assign,
-                        prepared: &mut PreparedAdmg,
+                        prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
                         memo: &mut HashMap<SubproblemKey, IdOutcome>,
                         derivation: &mut DerivationTrace,
@@ -623,6 +623,7 @@ impl IdIdentifier {
          -> Result<IdOutcome, IdentificationError> {
             let mut run = IdRun {
                 prepared,
+                ancestors: AncestorMemo::default(),
                 arena,
                 memo,
                 derivation,
@@ -634,7 +635,7 @@ impl IdIdentifier {
         };
         let left = match side(
             assign_for(active_level),
-            &mut prepared,
+            prepared,
             &mut arena,
             &mut memo,
             &mut derivation,
@@ -653,7 +654,7 @@ impl IdIdentifier {
         };
         let right = match side(
             assign_for(control_level),
-            &mut prepared,
+            prepared,
             &mut arena,
             &mut memo,
             &mut derivation,
@@ -703,7 +704,6 @@ impl IdIdentifier {
             || {
                 crate::execution_counts::note_check();
                 require_disjoint(y, x)?;
-                let mut prepared = prepared.clone();
                 let mut arena = CausalExprArena::new();
                 let mut derivation = DerivationTrace::default();
                 derivation.push("general.id", "Shpitser–Pearl ID");
@@ -711,7 +711,8 @@ impl IdIdentifier {
                 let mut perf = IdentificationPerformanceRecord::default();
                 let active = BitSet::full(prepared.admg().node_count());
                 let mut run = IdRun {
-                    prepared: &mut prepared,
+                    prepared,
+                    ancestors: AncestorMemo::default(),
                     arena: &mut arena,
                     memo: &mut memo,
                     derivation: &mut derivation,
@@ -917,7 +918,7 @@ fn id_body(
 
     // Line 2: restrict to An(Y)_G; the current distribution marginalizes over
     // the removed set (a Marginal stays a Marginal; a CFactor grows its sumset).
-    let an_y = run.prepared.ancestors_within(y, v, run.ws);
+    let an_y = run.prepared.ancestors_cached(y, v, run.ws, &mut run.ancestors);
     if !v.equal_set(&an_y) {
         let mut x2 = x.clone();
         x2.intersect_with(&an_y);
@@ -1818,11 +1819,7 @@ mod tests {
         let mut calls = 0;
         let mut stop = |_: usize, _: u64| {
             calls += 1;
-            if calls >= 2 {
-                Err(IdentificationError::Cancelled)
-            } else {
-                Ok(())
-            }
+            if calls >= 2 { Err(IdentificationError::Cancelled) } else { Ok(()) }
         };
         let stopped = identify_interventional_metered(
             &prepared,

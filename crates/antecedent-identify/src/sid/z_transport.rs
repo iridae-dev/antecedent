@@ -2955,7 +2955,7 @@ fn search_trz_state(
         trace.push("ztr.line1.marginal".into());
         return Ok(Some(engine.marginal(state.kernel, &super::difference(&state.v, &state.y))?));
     }
-    let ancestors = engine.prepared.ancestors_within(&state.y, &state.v, &mut ws);
+    let ancestors = engine.cached_ancestors(&state.y, &state.v, &mut ws);
     // `TRz` rule 2: restrict to ancestors of the current outcomes.
     if !ancestors.equal_set(&state.v) {
         trace.push("ztr.line2.ancestors".into());
