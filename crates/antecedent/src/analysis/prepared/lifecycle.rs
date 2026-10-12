@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::estimate::{ClickNotes, Rebound};
+use super::estimate::{ClickNotes, ClickScores, Rebound};
 use super::sealed::{SeriesCall, SeriesEntry};
 use super::{
     PreparedExecution, PreparedModality, PreparedStudy, overlay_prepared_score_functional,
@@ -87,9 +87,11 @@ impl PreparedStudy {
             // cell-AIPW response operations are sealed too, but their row
             // scores remain the source for retargeting after the click.
             let scores = match scores {
-                Some(built) => built.filter(|_| self.score_table.is_some()),
-                None if self.score_table.is_some() => refreshed.prepare_score_table(ctx)?,
-                None => None,
+                ClickScores::Built(built) => built.filter(|_| self.score_table.is_some()),
+                ClickScores::NotBuilt if self.score_table.is_some() => {
+                    refreshed.prepare_score_table(ctx)?
+                }
+                ClickScores::NotBuilt => None,
             };
             self.replace_study(refreshed);
             // Receipts that bind complete-case rows (linear, GLM, RD, AIPW,

@@ -38,10 +38,20 @@ pub(crate) struct ClickNotes {
     /// receipts bind rows and are replaced by a refresh.
     pub(super) rebound: Option<Rebound>,
     /// The frozen cross-fitted scores of the click's study when the click
-    /// built them (`Some(None)`: built, and the plan keeps none). The scores
-    /// are a function of the study snapshot and the context seed alone, so a
-    /// refresh over the same snapshot and context may keep them.
-    pub(super) scores: Option<Option<ScoreTable>>,
+    /// built them. The scores are a function of the study snapshot and the
+    /// context seed alone, so a refresh over the same snapshot and context may
+    /// keep them.
+    pub(super) scores: ClickScores,
+}
+
+/// Whether a click built its study's frozen scores, and what it built.
+#[derive(Debug, Default)]
+pub(super) enum ClickScores {
+    /// The click did not build them.
+    #[default]
+    NotBuilt,
+    /// The click built them; `None` when the plan keeps no table.
+    Built(Option<ScoreTable>),
 }
 
 impl ClickNotes {
@@ -176,13 +186,16 @@ impl PreparedStudy {
         // Only a non-mean functional is read from the frozen scores; a mean click keeps
         // the estimator's own value, so refitting the cross-fit table would be discarded.
         let click_scores = if query_reads_score_table(&self.analysis.query) {
-            Some(click_analysis.prepare_score_table(ctx)?)
+            ClickScores::Built(click_analysis.prepare_score_table(ctx)?)
         } else {
-            None
+            ClickScores::NotBuilt
         };
         overlay_prepared_score_functional(
             &self.analysis.query,
-            click_scores.as_ref().and_then(Option::as_ref),
+            match &click_scores {
+                ClickScores::Built(table) => table.as_ref(),
+                ClickScores::NotBuilt => None,
+            },
             &mut result,
         )?;
         notes.rebound = rebound.map(Rebound::Dispatch);

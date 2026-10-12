@@ -154,6 +154,7 @@ pub(crate) fn fits_run() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_core::Lag;
 
     fn key(set: &[u32], status: IdentificationStatus) -> CompletionFitKey {
         let set: Arc<[VariableId]> = set.iter().copied().map(VariableId::from_raw).collect();
@@ -250,7 +251,6 @@ mod tests {
     /// variables that touch neither the treatment nor the outcome, so both
     /// orientations adjust and fit identically.
     fn two_completion_temporal_cpdag() -> antecedent_graph::TemporalCpdag {
-        use antecedent_core::Lag;
         let mut graph = antecedent_graph::TemporalCpdag::empty();
         let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -353,7 +353,6 @@ mod tests {
             1,
         )
         .unwrap();
-        use antecedent_core::Lag;
         let mut graph = antecedent_graph::TemporalCpdag::empty();
         graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
