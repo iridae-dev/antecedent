@@ -30,7 +30,7 @@ use super::LogicalAnalysisPlan;
 
 /// Inputs needed to compile a logical plan for the static ATE path.
 #[derive(Clone, Debug)]
-pub struct StaticAteCompileInput<'a> {
+pub(crate) struct StaticAteCompileInput<'a> {
     /// Tabular data (classification + row count).
     pub data: &'a TabularData,
     /// Graph.
@@ -64,13 +64,13 @@ fn refuse_linear_adjustment_population(
     Ok(())
 }
 
-/// Compile logical plan for static ATE .
+/// Compile logical plan for static ATE.
 ///
 /// # Errors
 ///
 /// Query validation failures, or an identifier/estimator pair not in the compile-time allowlist
 /// (see [`crate::strategy_table::validate_static_pair`]).
-pub fn compile_logical_static_ate(
+pub(crate) fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
@@ -79,29 +79,71 @@ pub fn compile_logical_static_ate(
     let estimator: EstimatorId = input.estimator.parse()?;
     validate_static_pair(identifier, estimator)?;
     refuse_linear_adjustment_population(estimator, input.query)?;
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_ate"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from([input.query.treatment, input.query.outcome]),
-    };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::AverageEffect(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
+    finish_static_ate(
+        input.data,
+        input.query,
+        input.validation_suite,
+        input.identifier,
+        input.estimator,
+        "static_ate",
+    )
+}
+
+/// Assemble and validate a plan; every compile entry point ends here.
+fn finish_plan(
+    record: LogicalAnalysisPlanRecord,
+    query: CausalQuery,
+    split: Option<DiscoveryEstimationSplit>,
+    row_count_hint: u64,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let plan = LogicalAnalysisPlan { record, query, split, row_count_hint };
     plan.validate()?;
     Ok(plan)
 }
 
+/// Record for a tabular plan with no discovery stage and no graph review.
+fn tabular_record(
+    plan_id: &'static str,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+    validation_suite: Option<Arc<str>>,
+    query_variables: Arc<[VariableId]>,
+) -> LogicalAnalysisPlanRecord {
+    LogicalAnalysisPlanRecord {
+        plan_id: Arc::from(plan_id),
+        data_classification: DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(identifier),
+        estimator: Some(estimator),
+        validation_suite,
+        query_variables,
+    }
+}
+
+/// Plan assembly shared by the DAG and class-aware (PAG / CPDAG) static ATE compiles,
+/// run after the caller has validated the strategy pair.
+fn finish_static_ate(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    validation_suite: Option<Arc<str>>,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+    plan_id: &'static str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let record = tabular_record(
+        plan_id,
+        identifier,
+        estimator,
+        validation_suite,
+        Arc::from([query.treatment, query.outcome]),
+    );
+    finish_plan(record, CausalQuery::AverageEffect(query.clone()), None, data.row_count() as u64)
+}
+
 /// Inputs for a static-DAG continuous-response plan.
 #[derive(Clone, Debug)]
-pub struct StaticResponseCompileInput<'a> {
+pub(crate) struct StaticResponseCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// Accepted causal DAG.
@@ -121,7 +163,7 @@ pub struct StaticResponseCompileInput<'a> {
 /// # Errors
 ///
 /// Invalid queries, out-of-range variables, or incompatible strategies.
-pub fn compile_logical_static_response(
+pub(crate) fn compile_logical_static_response(
     input: StaticResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
@@ -164,23 +206,18 @@ pub fn compile_logical_static_response(
     }
     let query_variables: Arc<[VariableId]> =
         treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
-    let plan = LogicalAnalysisPlan {
-        record: LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("static_response"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(input.identifier),
-            estimator: Some(input.estimator),
-            validation_suite: input.validation_suite,
+    finish_plan(
+        tabular_record(
+            "static_response",
+            input.identifier,
+            input.estimator,
+            input.validation_suite,
             query_variables,
-        },
-        query: CausalQuery::Response(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        ),
+        CausalQuery::Response(input.query.clone()),
+        None,
+        input.data.row_count() as u64,
+    )
 }
 
 fn response_query_variables(functional: &ResponseFunctional) -> (Vec<VariableId>, Vec<VariableId>) {
@@ -189,7 +226,7 @@ fn response_query_variables(functional: &ResponseFunctional) -> (Vec<VariableId>
 
 /// Inputs for PAG ATE compile (class-aware identification).
 #[derive(Clone, Debug)]
-pub struct StaticPagAteCompileInput<'a> {
+pub(crate) struct StaticPagAteCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// PAG.
@@ -209,7 +246,7 @@ pub struct StaticPagAteCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_static_pag_ate(
+pub(crate) fn compile_logical_static_pag_ate(
     input: StaticPagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
@@ -227,7 +264,7 @@ pub fn compile_logical_static_pag_ate(
 
 /// Inputs for CPDAG ATE compile (class-aware MEC envelope).
 #[derive(Clone, Debug)]
-pub struct StaticCpdagAteCompileInput<'a> {
+pub(crate) struct StaticCpdagAteCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// CPDAG.
@@ -247,7 +284,7 @@ pub struct StaticCpdagAteCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_static_cpdag_ate(
+pub(crate) fn compile_logical_static_cpdag_ate(
     input: StaticCpdagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
@@ -287,29 +324,12 @@ fn compile_logical_static_class_ate(
     }
     validate_static_pair(identifier_id, estimator_id)?;
     refuse_linear_adjustment_population(estimator_id, query)?;
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from(plan_id),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(identifier),
-        estimator: Some(estimator),
-        validation_suite,
-        query_variables: Arc::from([query.treatment, query.outcome]),
-    };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::AverageEffect(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_static_ate(data, query, validation_suite, identifier, estimator, plan_id)
 }
 
 /// Inputs for PAG response compile (same generalized-adjustment envelope as ATE).
 #[derive(Clone, Debug)]
-pub struct StaticPagResponseCompileInput<'a> {
+pub(crate) struct StaticPagResponseCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// PAG.
@@ -329,7 +349,7 @@ pub struct StaticPagResponseCompileInput<'a> {
 /// # Errors
 ///
 /// Invalid queries, unsupported functionals, or incompatible strategies.
-pub fn compile_logical_static_pag_response(
+pub(crate) fn compile_logical_static_pag_response(
     input: StaticPagResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     require_class_aware_response(input.query, "PAG")?;
@@ -355,7 +375,7 @@ pub fn compile_logical_static_pag_response(
 
 /// Inputs for CPDAG response compile (same MEC envelope as ATE).
 #[derive(Clone, Debug)]
-pub struct StaticCpdagResponseCompileInput<'a> {
+pub(crate) struct StaticCpdagResponseCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// CPDAG.
@@ -375,7 +395,7 @@ pub struct StaticCpdagResponseCompileInput<'a> {
 /// # Errors
 ///
 /// Invalid queries, unsupported functionals, or incompatible strategies.
-pub fn compile_logical_static_cpdag_response(
+pub(crate) fn compile_logical_static_cpdag_response(
     input: StaticCpdagResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     require_class_aware_response(input.query, "CPDAG")?;
@@ -470,28 +490,17 @@ fn compile_logical_class_response(
     }
     let query_variables: Arc<[VariableId]> =
         treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
-    let plan = LogicalAnalysisPlan {
-        record: LogicalAnalysisPlanRecord {
-            plan_id: Arc::from(plan_id),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(identifier),
-            estimator: Some(estimator),
-            validation_suite,
-            query_variables,
-        },
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(
+        tabular_record(plan_id, identifier, estimator, validation_suite, query_variables),
+        CausalQuery::Response(query.clone()),
+        None,
+        data.row_count() as u64,
+    )
 }
 
 /// Compile logical plan for interventional-distribution queries.
 #[derive(Clone, Debug)]
-pub struct StaticDistributionCompileInput<'a> {
+pub(crate) struct StaticDistributionCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// Graph.
@@ -511,7 +520,7 @@ pub struct StaticDistributionCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_distribution(
+pub(crate) fn compile_logical_distribution(
     input: StaticDistributionCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
@@ -541,29 +550,24 @@ pub fn compile_logical_distribution(
             qvars.push(z);
         }
     }
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_distribution"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from(qvars),
-    };
-    let plan = LogicalAnalysisPlan {
+    let record = tabular_record(
+        "static_distribution",
+        input.identifier,
+        input.estimator,
+        input.validation_suite,
+        Arc::from(qvars),
+    );
+    finish_plan(
         record,
-        query: CausalQuery::Distribution(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        CausalQuery::Distribution(input.query.clone()),
+        None,
+        input.data.row_count() as u64,
+    )
 }
 
 /// Compile input for path-specific natural-effect queries.
 #[derive(Clone, Debug)]
-pub struct StaticPathSpecificCompileInput<'a> {
+pub(crate) struct StaticPathSpecificCompileInput<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
     /// Graph.
@@ -583,7 +587,7 @@ pub struct StaticPathSpecificCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_path_specific(
+pub(crate) fn compile_logical_path_specific(
     input: StaticPathSpecificCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
@@ -602,31 +606,26 @@ pub fn compile_logical_path_specific(
             qvars.push(m);
         }
     }
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_path_specific"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from(qvars),
-    };
-    let plan = LogicalAnalysisPlan {
+    let record = tabular_record(
+        "static_path_specific",
+        input.identifier,
+        input.estimator,
+        input.validation_suite,
+        Arc::from(qvars),
+    );
+    finish_plan(
         record,
-        query: CausalQuery::PathSpecific(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        CausalQuery::PathSpecific(input.query.clone()),
+        None,
+        input.data.row_count() as u64,
+    )
 }
 
 /// Compile a `CoDetermined` joint `InterventionResponse` on the closure ADMG.
 ///
 /// # Errors
 /// Invalid query or identifier/estimator pair.
-pub fn compile_logical_codetermined_joint(
+pub(crate) fn compile_logical_codetermined_joint(
     data: &TabularData,
     admg: &Admg,
     query: &ResponseQuery,
@@ -655,23 +654,18 @@ pub fn compile_logical_codetermined_joint(
     }
     let query_variables: Arc<[VariableId]> =
         treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
-    let plan = LogicalAnalysisPlan {
-        record: LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("codetermined_joint_response"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(identifier),
-            estimator: Some(estimator),
+    finish_plan(
+        tabular_record(
+            "codetermined_joint_response",
+            identifier,
+            estimator,
             validation_suite,
             query_variables,
-        },
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        ),
+        CausalQuery::Response(query.clone()),
+        None,
+        data.row_count() as u64,
+    )
 }
 
 fn validate_query_vars_in_admg(
@@ -789,7 +783,7 @@ fn validate_query_vars_in_temporal_nodes(
 /// # Errors
 ///
 /// Modality / query validation failures.
-pub fn compile_logical_temporal_effect(
+pub(crate) fn compile_logical_temporal_effect(
     data: &TimeSeriesData,
     graph: &TemporalDag,
     query: &TemporalEffectQuery,
@@ -811,7 +805,7 @@ pub fn compile_logical_temporal_effect(
 /// # Errors
 ///
 /// Query validation failures or variables missing from the temporal DAG.
-pub fn compile_logical_temporal_response(
+pub(crate) fn compile_logical_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,
     query: &ResponseQuery,
@@ -845,14 +839,7 @@ pub fn compile_logical_temporal_response(
         validation_suite: None,
         query_variables: Arc::from([treatment, outcome]),
     };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(record, CausalQuery::Response(query.clone()), None, data.row_count() as u64)
 }
 
 fn response_primary_pair(
@@ -868,7 +855,7 @@ fn response_primary_pair(
 /// # Errors
 ///
 /// Query validation failures.
-pub fn compile_logical_temporal_effect_classified(
+pub(crate) fn compile_logical_temporal_effect_classified(
     data: &TimeSeriesData,
     graph: &TemporalDag,
     query: &TemporalEffectQuery,
@@ -899,19 +886,12 @@ pub fn compile_logical_temporal_effect_classified(
         validation_suite: None,
         query_variables: Arc::from([query.treatment, query.outcome]),
     };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::TemporalEffect(query.clone()),
-        split,
-        row_count_hint,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(record, CausalQuery::TemporalEffect(query.clone()), split, row_count_hint)
 }
 
 /// Inputs for [`compile_logical_temporal_class_effect`].
 #[derive(Clone, Debug)]
-pub struct TemporalClassEffectCompileInput<'a> {
+pub(crate) struct TemporalClassEffectCompileInput<'a> {
     /// Time-series data.
     pub data: &'a TimeSeriesData,
     /// Nodes of the supplied temporal class graph.
@@ -935,7 +915,7 @@ pub struct TemporalClassEffectCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation, multi-step Sustained, or incompatible identifier/estimator.
-pub fn compile_logical_temporal_class_effect(
+pub(crate) fn compile_logical_temporal_class_effect(
     input: TemporalClassEffectCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     let TemporalClassEffectCompileInput {
@@ -1008,12 +988,5 @@ pub fn compile_logical_temporal_class_effect(
         validation_suite: None,
         query_variables: Arc::from([query.treatment, query.outcome]),
     };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::TemporalEffect(query.clone()),
-        split,
-        row_count_hint,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(record, CausalQuery::TemporalEffect(query.clone()), split, row_count_hint)
 }

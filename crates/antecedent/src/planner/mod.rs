@@ -7,7 +7,7 @@ mod logical;
 mod plan;
 
 pub(crate) use binding::{PlanBinding, RouteDefaults};
-pub use logical::{
+pub(crate) use logical::{
     StaticAteCompileInput, StaticCpdagAteCompileInput, StaticCpdagResponseCompileInput,
     StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPagResponseCompileInput,
     StaticPathSpecificCompileInput, StaticResponseCompileInput, TemporalClassEffectCompileInput,
