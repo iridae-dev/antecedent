@@ -29,7 +29,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::result_large_err)]
+#![allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+)]
 
 use std::collections::HashSet;
 

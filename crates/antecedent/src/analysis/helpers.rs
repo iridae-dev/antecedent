@@ -536,7 +536,7 @@ pub(crate) fn attach_score_functional_grid(
                 .collect::<Vec<_>>()
                 .into(),
         );
-        if estimate.se_bootstrap().take().is_some() {
+        if estimate.se_bootstrap().is_some() {
             diagnostics.push(Diagnostic::new(
                 "estimate.functional.crossfit_inference",
                 DiagnosticKind::Scientific,

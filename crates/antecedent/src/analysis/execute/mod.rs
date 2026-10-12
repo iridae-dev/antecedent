@@ -237,9 +237,8 @@ mod checked_bayesian_dag_ate;
 pub(crate) use checked_bayesian_dag_ate::CheckedBayesianDagAteExecution;
 mod bayesian_graph_posterior_atoms;
 mod checked_bayesian_dag_conditional;
-#[allow(unused_imports)]
 pub(crate) use bayesian_graph_posterior_atoms::{
-    BayesianGraphPosteriorAtomFit, BayesianGraphPosteriorAtomFits, BayesianGraphPosteriorAtomInput,
+    BayesianGraphPosteriorAtomFits, BayesianGraphPosteriorAtomInput,
     BayesianGraphPosteriorPriorAnchor,
 };
 mod checked_cell_aipw_response;

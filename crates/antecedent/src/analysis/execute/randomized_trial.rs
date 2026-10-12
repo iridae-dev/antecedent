@@ -7,7 +7,7 @@ use super::{
 };
 
 /// Query-specific facts a [`RandomizedTrialOperation`] needs but cannot derive.
-pub(super) trait RandomizedTrialQuery: std::fmt::Debug + Sized {
+pub(crate) trait RandomizedTrialQuery: std::fmt::Debug + Sized {
     /// Type name reported by `Debug`.
     const OPERATION: &'static str;
     /// Refusal text when a refresh table differs from the prepared one.

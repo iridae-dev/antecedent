@@ -58,8 +58,10 @@ impl BoundDecisionContract {
     /// # Errors
     /// An invalid decision contract or rule set refuses with the exact structured
     /// refusal of its validation.
-    // The refusal is the cold path of a once-per-declaration check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "DecisionFacadeRefusal carries the decision layer's structured refusal by value on a cold once-per-declaration path; boxing it would change the public error contract"
+    )]
     pub fn bind(
         causal: &CausalContract,
         decision: AdmissibleDecisionContract,
@@ -106,7 +108,10 @@ impl BoundDecisionContract {
     /// # Errors
     /// A policy different from the one the claims were adapted under, and any
     /// refusal of the structural evaluation or robustness assessment.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "DecisionFacadeRefusal carries the decision layer's structured refusal by value on a cold once-per-declaration path; boxing it would change the public error contract"
+    )]
     pub fn evaluate_claims(
         &self,
         adapted: &AdaptedClaims,
@@ -118,7 +123,10 @@ impl BoundDecisionContract {
     ///
     /// # Errors
     /// Any refusal of [`evaluate_identified_sets`].
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "DecisionFacadeRefusal carries the decision layer's structured refusal by value on a cold once-per-declaration path; boxing it would change the public error contract"
+    )]
     pub fn evaluate_identified_sets(
         &self,
         utilities: &[IdentifiedUtility],

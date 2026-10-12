@@ -84,6 +84,10 @@ pub(super) fn classify_analysis_route(
     classify_route(data_modality(data), query)
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "one arm per (modality, query kind) pair so the routing table reads pair by pair"
+)]
 pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Option<AnalysisRoute> {
     Some(match (modality, query) {
         (DataModality::Tabular, CausalQuery::Response(q)) if q.is_temporal() => return None,
@@ -422,8 +426,10 @@ pub(super) struct IdentifiedExecuteExtras {
     pub gcm: Option<GcmSlot>,
     pub empty_provenance: bool,
     /// `None` uses the study bootstrap count; `Some(v)` writes `v` (response writes `None`).
-    /// Nested option is intentional: outer selects override vs study default.
-    #[allow(clippy::option_option)]
+    #[allow(
+        clippy::option_option,
+        reason = "the outer option selects override against the study default, the inner is the written value (response writes None)"
+    )]
     pub bootstrap_replicates_requested: Option<Option<u32>>,
 }
 
@@ -739,6 +745,10 @@ pub(crate) fn run_functional(
 }
 
 /// Tail shared by the checked functional, path, distribution, and ADMG-response executes.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the assembled result (cancelled, early-stopped, refutation mirroring, interval rebinding)"
+)]
 pub(crate) struct CheckedResultFinish<'a> {
     pub common: &'a CheckedStaticCommon,
     pub identification: &'a IdentificationResult,
@@ -1629,6 +1639,7 @@ pub(super) fn most_conservative_identification_status(
         .unwrap_or(IdentificationStatus::NotIdentified)
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct PosteriorMassSummary {
     pub unidentified: f64,
     pub unevaluable: f64,
@@ -1849,6 +1860,7 @@ pub(super) struct IdentificationBasis<'a> {
 
 /// How a Bayesian posterior run is validated: the suite, the inference configuration it
 /// was fitted under, and the estimator each atom's checks are derived from.
+#[derive(Clone, Copy)]
 pub(super) struct BayesianValidation<'a> {
     pub(super) suite: RefuteSuite,
     pub(super) cfg: &'a crate::inference::BayesianConfig,
@@ -1874,12 +1886,13 @@ pub(super) fn run_envelope_bayesian_full_validation(
     predictive_sims: u32,
     sink: ValidationSink<'_>,
 ) -> Result<Vec<PredictiveCheckReport>, CausalError> {
-    let BayesianValidation { suite: refute, cfg, estimator: est } = setup;
-    let ValidationSink { refutations, diagnostics } = sink;
     const PPC_ALPHA: f64 = 0.05;
     fn borrow(items: &[(f64, PredictiveCheckReport)]) -> Vec<(f64, &PredictiveCheckReport)> {
         items.iter().map(|(w, r)| (*w, r)).collect()
     }
+
+    let BayesianValidation { suite: refute, cfg, estimator: est } = setup;
+    let ValidationSink { refutations, diagnostics } = sink;
 
     let mut predictive_checks = Vec::new();
     if matches!(refute, RefuteSuite::None) || atoms.is_empty() {

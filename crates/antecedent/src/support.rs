@@ -315,7 +315,10 @@ mod graphless_support_tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)] // one end-to-end support fixture; splitting would fragment the flow
+    #[allow(
+        clippy::too_many_lines,
+        reason = "builds each ownership, support and interval variant of the exact policy rows and asserts the verdict of every row against the same fixture"
+    )]
     fn exact_policy_rows_require_ownership_support_and_every_interval() {
         let binary = GraphlessSupportKey {
             family: "policy_value",

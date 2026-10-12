@@ -160,8 +160,10 @@ fn names(representations: &[SourceRepresentation]) -> String {
 }
 
 impl NativeResponseContext {
-    // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+    )]
     fn check(&self) -> Result<(), ExternalRefusal> {
         self.program.validate()?;
         if self.snapshot_id.trim().is_empty() || self.rng_id.trim().is_empty() {
@@ -179,7 +181,10 @@ impl NativeResponseContext {
 }
 
 /// The mean curve's outcome, treatment and dose grid, read from the response itself.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+)]
 fn mean_curve(
     response: &CausalResponse,
 ) -> Result<(VariableId, VariableId, Vec<f64>), ExternalRefusal> {
@@ -203,7 +208,10 @@ fn mean_curve(
     Ok((*outcome, treatment.variable, doses))
 }
 
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+)]
 fn point_surface<'a>(
     response: &'a CausalResponse,
     doses: &[f64],
@@ -244,7 +252,10 @@ fn point_surface<'a>(
     Ok(&mean[..])
 }
 
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+)]
 fn variable_name(
     schema: &CausalSchema,
     id: VariableId,
@@ -274,7 +285,10 @@ fn variable_name(
 /// of treatment, outcome, grid or population against the program
 /// (`program_binding.*` details).
 // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+)]
 pub fn native_response_coordinates(
     response: &CausalResponse,
     schema: &CausalSchema,
@@ -336,8 +350,10 @@ impl NativeResponseClaim {
     /// that is not the estimand's grid (`native_claims.grid_mismatch`), missing or
     /// inconsistent per-coordinate support (`coordinate_support.*`,
     /// `native_claims.point_support_missing`), and an invalid context.
-    // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+    )]
     pub fn from_response(
         response: &CausalResponse,
         schema: &CausalSchema,
@@ -431,8 +447,10 @@ impl NativeResponseClaim {
     ///
     /// # Errors
     /// See [`Self::decision_source`].
-    // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+    )]
     pub fn into_decision_source(
         self,
         requirement: &SourceRequirement,
@@ -451,8 +469,10 @@ impl NativeResponseClaim {
     /// satisfies the requirement, `native_claims.no_supported_coordinate` when every
     /// coordinate lacks support, and `native_claims.joint_law_invalid` when the
     /// retained draws cannot form a valid artifact.
-    // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+    )]
     pub fn decision_source(
         &self,
         requirement: &SourceRequirement,
@@ -537,8 +557,10 @@ impl NativeResponseClaim {
         (NativeDecisionSource::Mean(source), coordinates, status)
     }
 
-    // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+    )]
     fn joint_artifact(&self) -> Result<DistributionArtifact, ExternalRefusal> {
         let invalid = |why: String| {
             refusal(

@@ -463,11 +463,12 @@ pub(super) struct EstimatorData {
     pub(super) provenance: (&'static str, &'static str),
 }
 
-// One exhaustive match over every estimator, returning pure data. It is long because
-// there are many estimators, not because it does several things. Keeping it as a `match`
-// rather than an indexed table preserves the compile error when a new variant is added and
-// this row is forgotten -- which is the whole point of centralising the data here.
-#[allow(clippy::too_many_lines)]
+// Keeping this as an exhaustive `match` rather than an indexed table preserves the compile
+// error when a new variant is added and its row is forgotten.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one data row per EstimatorId in an exhaustive match; each row is independent, so the length is the variant count"
+)]
 pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
     match id {
         EstimatorId::LinearAdjustmentAte => EstimatorData {
@@ -1053,8 +1054,10 @@ pub fn validate_class_response_pair(
 /// # Errors
 ///
 /// Unknown ids or incompatible pairs.
-// exhaustive identifier/estimator compatibility table; length is inherent, not decomposable
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the identifier/estimator compatibility table for the static ATE path: one arm per identifier family over every EstimatorId, each with its own refusal text"
+)]
 pub fn validate_static_pair(
     identifier: IdentifierId,
     estimator: EstimatorId,

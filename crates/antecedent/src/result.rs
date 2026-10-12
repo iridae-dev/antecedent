@@ -1642,8 +1642,10 @@ impl StudyResult {
     ///    effect reports its scenario max-t band as a simultaneous interval.
     /// 6. Otherwise a reported identified-set interval is the primary interval,
     ///    or nothing was reported.
-    // interval-selection precedence is a single ordered decision; splitting it would obscure the ranking
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the primary-interval choice is one ordered precedence list (cluster and panel intervals, response bands, a withheld unknown-orientation band, the identified set); splitting it would hide the ranking"
+    )]
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};

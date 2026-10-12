@@ -215,7 +215,10 @@ pub fn identify_dag(
     )
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "dispatches on the accepted graph class (DAG, CPDAG, PAG, ADMG and the temporal variants) after the support-cell check, each arm calling its own identifier and building its own certificate"
+)]
 fn identify_with_source(
     structure: &AcceptedGraph,
     query: &CausalQuery,

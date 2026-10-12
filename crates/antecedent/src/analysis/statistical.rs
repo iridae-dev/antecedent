@@ -403,14 +403,14 @@ impl PreparedStudy<StatisticalPreparedState> {
             input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
         Self::build_fitted(
             StatisticalPremises {
-                diagram: diagram,
-                functional: functional,
+                diagram,
+                functional,
                 input: Arc::new(input),
-                data: data,
-                samples: samples,
-                request: request,
-                limits: limits,
-                options: options,
+                data,
+                samples,
+                request,
+                limits,
+                options,
             },
             ctx,
             false,
@@ -1254,14 +1254,14 @@ impl PreparedStudy<StatisticalPreparedState> {
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(wire.seed);
         let prepared = Self::build_fitted(
             StatisticalPremises {
-                diagram: diagram,
-                functional: functional,
+                diagram,
+                functional,
                 input: Arc::new(input),
-                data: data,
+                data,
                 samples: wire.samples.clone(),
-                request: request,
+                request,
                 limits: ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
-                options: options,
+                options,
             },
             &frozen_ctx,
             true,

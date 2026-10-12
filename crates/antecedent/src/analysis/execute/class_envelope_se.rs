@@ -79,9 +79,10 @@ impl SharedCircularBlockSe {
 
 /// One atom of a frozen-weight temporal mixture, prepared once on the original
 /// series so the shared bootstrap can refit it on resampled lag-aligned rows.
-// A mixture holds a handful of atoms built once per run; boxing the linear
-// variant would only add an indirection to every replicate refit.
-#[allow(clippy::large_enum_variant)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a mixture holds a handful of atoms built once per run; boxing the linear variant would only add an indirection to every replicate refit"
+)]
 pub enum TemporalAtomDesign {
     /// Pulse / single-step Sustained: one lag-aligned adjustment regression.
     Linear {

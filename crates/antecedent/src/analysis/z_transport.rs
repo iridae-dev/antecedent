@@ -1159,7 +1159,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one enumerated structural model (W to Z, X to Y, W with X confounded) built, executed and checked against its exact joint law"
+    )]
     fn connected_complementary_sources_execute_the_enumerated_joint_target_effect() {
         // One connected graph W→Z, X→Y, W↔X (a single component). The arc W↔X is
         // a shared latent that confounds W and X observationally but is cut by

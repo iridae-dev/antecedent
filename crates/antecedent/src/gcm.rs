@@ -861,17 +861,26 @@ pub fn rank_root_causes(
     root_cause_rank(attribution, None, None, ctx).map_err(map_attr)
 }
 
-#[allow(clippy::needless_pass_by_value)] // map_err adapters
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "map_err adapter: takes the error by value so it can be passed to `map_err` as it is"
+)]
 fn map_model(e: ModelError) -> CausalError {
     CausalError::from(e)
 }
 
-#[allow(clippy::needless_pass_by_value)] // map_err adapters
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "map_err adapter: takes the error by value so it can be passed to `map_err` as it is"
+)]
 fn map_cf(e: CounterfactualError) -> CausalError {
     CausalError::from(e)
 }
 
-#[allow(clippy::needless_pass_by_value)] // map_err adapters
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "map_err adapter: takes the error by value so it can be passed to `map_err` as it is"
+)]
 fn map_attr(e: AttributionError) -> CausalError {
     CausalError::from(e)
 }
