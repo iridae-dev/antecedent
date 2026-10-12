@@ -12,6 +12,8 @@ from dataclasses import KW_ONLY, dataclass, field, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args, overload
 
+from .._columns import coerce_fields
+
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
 
@@ -112,8 +114,8 @@ class ZTransportQuery:
             raise CausalValueError("zTR experiment assignments must name controllable variables")
         if any(not math.isfinite(value) for value in self.experiment_assignment.values()):
             raise CausalValueError("zTR experiment assignments must be finite")
-        object.__setattr__(
-            self, "experiment_assignment", MappingProxyType(dict(self.experiment_assignment))
+        coerce_fields(
+            self, experiment_assignment=MappingProxyType(dict(self.experiment_assignment))
         )
 
 
@@ -436,9 +438,9 @@ class ZTransportCandidate:
         _non_negative("tag", self.tag)
         if not any(regime.evidence_kind == "proposed" for regime in self.catalog.regimes):
             raise CausalValueError("candidate catalog must add proposed regimes")
-        object.__setattr__(self, "targets", tuple(self.targets))
-        object.__setattr__(self, "measured", tuple(self.measured))
-        object.__setattr__(self, "feasibility_constraints", tuple(self.feasibility_constraints))
+        coerce_fields(self, targets=tuple(self.targets))
+        coerce_fields(self, measured=tuple(self.measured))
+        coerce_fields(self, feasibility_constraints=tuple(self.feasibility_constraints))
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,7 +484,7 @@ class TransportQuery:
             if explicit and set(explicit) != set(derived):
                 raise CausalValueError("source_experiments disagree with the evidence catalog")
             if not explicit:
-                object.__setattr__(self, "source_experiments", tuple(derived))
+                coerce_fields(self, source_experiments=tuple(derived))
         columns = (self.trial, self.selection_probability, self.treatment_probability)
         if any(column is not None for column in columns):
             if any(column is None for column in columns):
@@ -1127,16 +1129,16 @@ class ExactDiscreteLaw:
 
     def __post_init__(self) -> None:
         # Freeze caller-owned sequences before retaining them as a snapshot.
-        object.__setattr__(self, "axes", tuple((name, tuple(values)) for name, values in self.axes))
-        object.__setattr__(self, "probabilities", tuple(self.probabilities))
-        object.__setattr__(self, "interventions", tuple(tuple(item) for item in self.interventions))
+        coerce_fields(self, axes=tuple((name, tuple(values)) for name, values in self.axes))
+        coerce_fields(self, probabilities=tuple(self.probabilities))
+        coerce_fields(self, interventions=tuple(tuple(item) for item in self.interventions))
         if self.empirical_counts is not None:
             counts = tuple(self.empirical_counts)
             if len(counts) != len(self.probabilities):
                 raise CausalValueError("empirical_counts must have one count per probability")
             for count in counts:
                 _non_negative("empirical_counts", count)
-            object.__setattr__(self, "empirical_counts", counts)
+            coerce_fields(self, empirical_counts=counts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1146,7 +1148,7 @@ class ExactTransportData:
     laws: tuple[ExactDiscreteLaw, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "laws", tuple(self.laws))
+        coerce_fields(self, laws=tuple(self.laws))
 
 
 @dataclass(frozen=True, slots=True)
@@ -1418,10 +1420,9 @@ class RegimeSample:
     def __post_init__(self) -> None:
         from types import MappingProxyType
 
-        object.__setattr__(
+        coerce_fields(
             self,
-            "columns",
-            MappingProxyType(
+            columns=MappingProxyType(
                 {
                     name: tuple(
                         None if value is None or math.isnan(value) else float(value)
@@ -1431,7 +1432,7 @@ class RegimeSample:
                 }
             ),
         )
-        object.__setattr__(self, "interventions", tuple(tuple(item) for item in self.interventions))
+        coerce_fields(self, interventions=tuple(tuple(item) for item in self.interventions))
 
 
 @dataclass(frozen=True, slots=True)
@@ -1442,8 +1443,8 @@ class StatisticalTransportData:
     laws: tuple[ExactDiscreteLaw, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "samples", tuple(self.samples))
-        object.__setattr__(self, "laws", tuple(self.laws))
+        coerce_fields(self, samples=tuple(self.samples))
+        coerce_fields(self, laws=tuple(self.laws))
 
 
 @dataclass(frozen=True, slots=True)
@@ -1556,7 +1557,7 @@ class StatisticalTransportQuery:
     def __post_init__(self) -> None:
         from types import MappingProxyType
 
-        object.__setattr__(self, "at", MappingProxyType(dict(self.at)))
+        coerce_fields(self, at=MappingProxyType(dict(self.at)))
 
 
 def prepare_statistical(
@@ -1936,7 +1937,7 @@ class ExactTransportQuery:
     def __post_init__(self) -> None:
         from types import MappingProxyType
 
-        object.__setattr__(self, "at", MappingProxyType(dict(self.at)))
+        coerce_fields(self, at=MappingProxyType(dict(self.at)))
 
 
 __all__ += ["ExactTransportQuery"]
@@ -2017,7 +2018,7 @@ class TransportResponseGridQuery:
     def __post_init__(self) -> None:
         from types import MappingProxyType
 
-        object.__setattr__(self, "at", tuple(MappingProxyType(dict(point)) for point in self.at))
+        coerce_fields(self, at=tuple(MappingProxyType(dict(point)) for point in self.at))
 
 
 @dataclass(frozen=True, slots=True)

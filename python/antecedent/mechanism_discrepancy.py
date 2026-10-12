@@ -48,6 +48,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Protocol
 
+from ._columns import coerce_fields
 from ._native import mechanism_discrepancy_consume as _consume
 from ._native import mechanism_discrepancy_run as _run
 from ._native import mechanism_discrepancy_summarize as _summarize
@@ -140,7 +141,7 @@ class Measurement:
             if isinstance(item, (str, bytes)) or not isinstance(item, Sequence) or len(item) != 2:
                 raise CausalTypeError("every parent is a (name, unit) pair")
             pairs.append((_text(item[0], "parent name"), _text(item[1], "parent unit")))
-        object.__setattr__(self, "parents", tuple(pairs))
+        coerce_fields(self, parents=tuple(pairs))
 
     @property
     def parent_names(self) -> tuple[str, ...]:
@@ -186,9 +187,9 @@ class SufficientStatistics:
             flat = [value for row in rows for value in _floats("xtx", row)]
         else:
             flat = _floats("xtx", rows)
-        object.__setattr__(self, "xtx", tuple(flat))
-        object.__setattr__(self, "xty", tuple(_floats("xty", self.xty)))
-        object.__setattr__(self, "yty", _real(self.yty, "yty"))
+        coerce_fields(self, xtx=tuple(flat))
+        coerce_fields(self, xty=tuple(_floats("xty", self.xty)))
+        coerce_fields(self, yty=_real(self.yty, "yty"))
 
 
 @dataclass(frozen=True, slots=True)

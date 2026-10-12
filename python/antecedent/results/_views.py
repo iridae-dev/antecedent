@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr
 
+from .._columns import coerce_fields
 from ..policy import DoublyRobustPolicyEvaluation
 from ..survival import CumulativeIncidenceEstimate, SurvivalEstimate
 
@@ -777,12 +778,12 @@ class AnalysisResult(ResultModel, ResultAPI):
         # point and interval for a claim that has none.
         limitation = self.rendering_limitation()
         if isinstance(self.estimate, EstimateView) and self.estimate.limitation != limitation:
-            object.__setattr__(
-                self, "estimate", self.estimate.model_copy(update={"limitation": limitation})
+            coerce_fields(
+                self, estimate=self.estimate.model_copy(update={"limitation": limitation})
             )
         if isinstance(self.posterior, PosteriorView) and self.posterior.limitation != limitation:
-            object.__setattr__(
-                self, "posterior", self.posterior.model_copy(update={"limitation": limitation})
+            coerce_fields(
+                self, posterior=self.posterior.model_copy(update={"limitation": limitation})
             )
 
     @property

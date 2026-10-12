@@ -28,6 +28,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import plan_studies_stage as _plan_studies_stage
 from .._native import replay_study_plan as _replay_study_plan
 from ..errors import CausalTypeError, CausalValueError
@@ -70,9 +71,9 @@ class StudyCandidate:
             raise CausalValueError("candidate id must be a non-empty string")
         if not isinstance(self.population, str) or not self.population.strip():
             raise CausalValueError("candidate population must be a non-empty name")
-        object.__setattr__(self, "measured", _names("measured", self.measured))
-        object.__setattr__(
-            self, "interventions", _names("interventions", self.interventions, allow_empty=True)
+        coerce_fields(self, measured=_names("measured", self.measured))
+        coerce_fields(
+            self, interventions=_names("interventions", self.interventions, allow_empty=True)
         )
         if isinstance(self.cost_units, bool) or not isinstance(self.cost_units, int):
             raise CausalTypeError("cost_units must be an integer")
@@ -83,7 +84,7 @@ class StudyCandidate:
             for level in levels:
                 if any(not math.isfinite(float(value)) for value in level.values()):
                     raise CausalValueError("candidate levels must be finite")
-            object.__setattr__(self, "levels", levels)
+            coerce_fields(self, levels=levels)
         for name in ("requires", "conflicts", "feasibility"):
             values = tuple(getattr(self, name))
             if any(not isinstance(value, str) for value in values):

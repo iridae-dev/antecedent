@@ -48,6 +48,7 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import Any
 
+from ._columns import coerce_fields
 from ._native import (
     consume_transported_counterfactual_artifact as _consume,
 )
@@ -101,11 +102,10 @@ class Affine:
     slopes: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "constant", _real(self.constant, "constant"))
-        object.__setattr__(
+        coerce_fields(self, constant=_real(self.constant, "constant"))
+        coerce_fields(
             self,
-            "slopes",
-            {_name(k, "covariate"): _real(v, "slope") for k, v in dict(self.slopes).items()},
+            slopes={_name(k, "covariate"): _real(v, "slope") for k, v in dict(self.slopes).items()},
         )
 
     def _wire(self) -> dict[str, Any]:
@@ -135,12 +135,13 @@ class Mechanism:
 
     def __post_init__(self) -> None:
         _name(self.node, "node")
-        object.__setattr__(
+        coerce_fields(
             self,
-            "parents",
-            {_name(p, "parent"): _affine(c, "coefficient") for p, c in dict(self.parents).items()},
+            parents={
+                _name(p, "parent"): _affine(c, "coefficient") for p, c in dict(self.parents).items()
+            },
         )
-        object.__setattr__(self, "intercept", _affine(self.intercept, "intercept"))
+        coerce_fields(self, intercept=_affine(self.intercept, "intercept"))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -162,10 +163,8 @@ class AdditiveNoiseScm:
         _name(self.treatment, "treatment")
         if isinstance(self.covariates, str):
             raise CausalTypeError("covariates must be a sequence of names")
-        object.__setattr__(
-            self, "covariates", tuple(_name(c, "covariate") for c in self.covariates)
-        )
-        object.__setattr__(self, "mechanisms", tuple(self.mechanisms))
+        coerce_fields(self, covariates=tuple(_name(c, "covariate") for c in self.covariates))
+        coerce_fields(self, mechanisms=tuple(self.mechanisms))
         if not all(isinstance(m, Mechanism) for m in self.mechanisms):
             raise CausalTypeError("mechanisms must be Mechanism objects")
 
@@ -193,7 +192,7 @@ class CovariateLaw:
                 _name(k, "covariate"): _real(v, "covariate value") for k, v in dict(point).items()
             }
             points.append((values, _real(weight, "weight")))
-        object.__setattr__(self, "points", tuple(points))
+        coerce_fields(self, points=tuple(points))
 
     @classmethod
     def univariate(cls, covariate: str, weights: Mapping[float, float]) -> CovariateLaw:
@@ -224,7 +223,7 @@ class MechanismSelection:
             _name(k, "selection label"): _name(v, "selection target")
             for k, v in dict(self.nodes).items()
         }
-        object.__setattr__(self, "nodes", nodes)
+        coerce_fields(self, nodes=nodes)
 
     @classmethod
     def on(cls, *targets: str) -> MechanismSelection:
@@ -253,8 +252,8 @@ class EdgeAssignment:
 
     def __post_init__(self) -> None:
         _name(self.outcome, "outcome")
-        object.__setattr__(self, "treated_value", _real(self.treated_value, "treated_value"))
-        object.__setattr__(self, "control_value", _real(self.control_value, "control_value"))
+        coerce_fields(self, treated_value=_real(self.treated_value, "treated_value"))
+        coerce_fields(self, control_value=_real(self.control_value, "control_value"))
         for what in ("plus", "minus"):
             children = getattr(self, what)
             if isinstance(children, str):

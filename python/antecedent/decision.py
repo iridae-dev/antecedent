@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
+from ._columns import coerce_fields
 from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
 from ._native import decision_source_digest as _source_digest
@@ -255,7 +256,7 @@ class Action:
             )
         if self.kind not in get_args(ActionKind):
             raise CausalValueError(f"Action.kind must be one of {get_args(ActionKind)}")
-        object.__setattr__(self, "inputs", inputs)
+        coerce_fields(self, inputs=inputs)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -290,7 +291,7 @@ class Constraint:
         _text(self.units, "Constraint.units")
         if isinstance(self.applies_to, (str, bytes)):
             raise CausalTypeError("Constraint.applies_to must be a sequence of action ids")
-        object.__setattr__(self, "applies_to", tuple(self.applies_to))
+        coerce_fields(self, applies_to=tuple(self.applies_to))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -364,8 +365,8 @@ class MeanSource:
     _original_effect: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "coordinates", tuple(self.coordinates))
-        object.__setattr__(self, "means", tuple(float(m) for m in self.means))
+        coerce_fields(self, coordinates=tuple(self.coordinates))
+        coerce_fields(self, means=tuple(float(m) for m in self.means))
 
     def _validated_original(self):
         if self._original_effect is not None:
@@ -545,8 +546,8 @@ class Contract:
             raise CausalValueError(
                 f"Contract.structural_policy must be one of {get_args(StructuralPolicy)}"
             )
-        object.__setattr__(self, "actions", actions)
-        object.__setattr__(self, "constraints", constraints)
+        coerce_fields(self, actions=actions)
+        coerce_fields(self, constraints=constraints)
 
     def _wire(self) -> dict[str, Any]:
         return {

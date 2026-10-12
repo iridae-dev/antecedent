@@ -45,6 +45,7 @@ from functools import partial
 from typing import Any, Literal, Protocol, cast
 
 from . import _native
+from ._columns import coerce_fields
 from ._validate import count, names, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .graph import Admg, Dag
@@ -319,10 +320,10 @@ class ExpectedEvidence:
 
     def __post_init__(self) -> None:
         _text(self.population, "population")
-        object.__setattr__(self, "measured", _names(self.measured, "measured", allow_empty=False))
-        object.__setattr__(self, "interventions", _names(self.interventions, "interventions"))
-        object.__setattr__(self, "conditioned_on", _names(self.conditioned_on, "conditioned_on"))
-        object.__setattr__(self, "levels", {str(k): float(v) for k, v in self.levels.items()})
+        coerce_fields(self, measured=_names(self.measured, "measured", allow_empty=False))
+        coerce_fields(self, interventions=_names(self.interventions, "interventions"))
+        coerce_fields(self, conditioned_on=_names(self.conditioned_on, "conditioned_on"))
+        coerce_fields(self, levels={str(k): float(v) for k, v in self.levels.items()})
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -378,9 +379,9 @@ class StudyCandidate:
         if self.kind not in _KINDS:
             raise CausalValueError(f"kind must be one of {', '.join(_KINDS)}")
         _text(self.population, "population")
-        object.__setattr__(self, "measured", _names(self.measured, "measured"))
-        object.__setattr__(self, "interventions", _names(self.interventions, "interventions"))
-        object.__setattr__(self, "notes", tuple(_text(n, "notes") for n in self.notes))
+        coerce_fields(self, measured=_names(self.measured, "measured"))
+        coerce_fields(self, interventions=_names(self.interventions, "interventions"))
+        coerce_fields(self, notes=tuple(_text(n, "notes") for n in self.notes))
         if self.kind != "sample_increase" and self.evidence is None and not self.measured:
             raise CausalValueError("an experiment or observation measures at least one variable")
         for name in ("recruitment", "timing", "unit", "cost_unit"):
@@ -402,7 +403,7 @@ class StudyCandidate:
             evidence = tuple(self.evidence)
             if any(not isinstance(e, ExpectedEvidence) for e in evidence):
                 raise CausalTypeError("evidence must be ExpectedEvidence values")
-            object.__setattr__(self, "evidence", evidence)
+            coerce_fields(self, evidence=evidence)
 
     @classmethod
     def experiment(
@@ -499,11 +500,9 @@ class TransportContract:
             raise CausalTypeError("TransportContract requires graph=Admg(...)")
         if not isinstance(self.catalog, EvidenceCatalog):
             raise CausalTypeError("catalog must be an EvidenceCatalog")
-        object.__setattr__(self, "selections", _names(self.selections, "selections"))
-        object.__setattr__(self, "outcomes", _names(self.outcomes, "outcomes", allow_empty=False))
-        object.__setattr__(
-            self, "treatments", _names(self.treatments, "treatments", allow_empty=False)
-        )
+        coerce_fields(self, selections=_names(self.selections, "selections"))
+        coerce_fields(self, outcomes=_names(self.outcomes, "outcomes", allow_empty=False))
+        coerce_fields(self, treatments=_names(self.treatments, "treatments", allow_empty=False))
         stage = _call(
             _native.repair_transport_contract,
             self.graph,
@@ -516,7 +515,7 @@ class TransportContract:
             max_steps=_count(self.max_steps, "max_steps"),
             max_depth=_count(self.max_depth, "max_depth"),
         )
-        object.__setattr__(self, "_stage", stage)
+        coerce_fields(self, _stage=stage)
 
     @property
     def family(self) -> str:
@@ -552,11 +551,11 @@ class BackdoorContract:
     def __post_init__(self) -> None:
         if not isinstance(self.graph, Dag):
             raise CausalTypeError("BackdoorContract requires graph=Dag(...)")
-        object.__setattr__(self, "observed", _names(self.observed, "observed"))
+        coerce_fields(self, observed=_names(self.observed, "observed"))
         assumptions = tuple(self.assumptions)
         if any(not isinstance(a, UnresolvedAssumption) for a in assumptions):
             raise CausalTypeError("assumptions must be UnresolvedAssumption values")
-        object.__setattr__(self, "assumptions", assumptions)
+        coerce_fields(self, assumptions=assumptions)
         stage = _call(
             _native.repair_backdoor_contract,
             self.graph,
@@ -566,7 +565,7 @@ class BackdoorContract:
             list(self.observed),
             [(a.id, a.description, a.required_check) for a in assumptions],
         )
-        object.__setattr__(self, "_stage", stage)
+        coerce_fields(self, _stage=stage)
 
     @classmethod
     def from_identification(
@@ -634,11 +633,10 @@ class ZTransportContract:
         names = _names(self.names, "names", allow_empty=False)
         if not isinstance(self.failure_snapshot, bytes):
             raise CausalTypeError("failure_snapshot must be bytes from a z-transport stage")
-        object.__setattr__(self, "names", names)
-        object.__setattr__(
+        coerce_fields(self, names=names)
+        coerce_fields(
             self,
-            "_stage",
-            _call(
+            _stage=_call(
                 _native.repair_z_transport_contract,
                 list(names),
                 self.failure_snapshot,

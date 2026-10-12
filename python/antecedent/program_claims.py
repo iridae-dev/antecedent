@@ -38,6 +38,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from ._columns import coerce_fields
 from ._native import NativeResponseClaim as _NativeResponseClaim
 from ._native import check_external_program as _check_external_program
 from ._native import native_response_claim as _native_response_claim
@@ -105,7 +106,7 @@ class ProgramBinding:
         grid = tuple(float(dose) for dose in self.dose_grid)
         if not all(math.isfinite(dose) for dose in grid):
             raise CausalValueError("dose_grid must be finite")
-        object.__setattr__(self, "dose_grid", grid)
+        coerce_fields(self, dose_grid=grid)
 
     def _wire(self) -> dict[str, Any]:
         return {

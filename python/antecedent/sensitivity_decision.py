@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._columns import coerce_fields
 from ._native import SensitivityArtifact as _NativeSensitivityArtifact
 from ._native import composition_lineage as _composition_lineage
 from ._native import sensitivity_artifact_from_surface as _from_surface
@@ -179,11 +180,9 @@ class SurfaceQuantity:
 
     def __post_init__(self) -> None:
         lower = tuple(float(v) for v in self.lower)
-        object.__setattr__(self, "lower", lower)
-        object.__setattr__(
-            self,
-            "upper",
-            lower if self.upper is None else tuple(float(v) for v in self.upper),
+        coerce_fields(self, lower=lower)
+        coerce_fields(
+            self, upper=lower if self.upper is None else tuple(float(v) for v in self.upper)
         )
 
     @property

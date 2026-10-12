@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal, cast
 
 from . import _native
+from ._columns import coerce_fields
 from ._measured_inference import MeasuredInference
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
@@ -357,7 +358,7 @@ class CheckedTemporalIntervalIdentity:
         ):
             raise CausalValueError("panel_digest requires 16 lowercase hexadecimal digits")
         _interval_integer("producing_seed", self.producing_seed, 0, 2**64 - 1)
-        object.__setattr__(self, "functional", _interval_functional(self.functional))
+        coerce_fields(self, functional=_interval_functional(self.functional))
 
     def _wire(self) -> dict[str, Any]:
         wire = asdict(self)
@@ -433,8 +434,8 @@ class CheckedTemporalIntervalCandidate:
         ):
             raise CausalSerializationError("checked temporal interval identity and receipt differ")
         result = object.__new__(cls)
-        object.__setattr__(result, "_native", native)
-        object.__setattr__(result, "_body", freeze(body))
+        coerce_fields(result, _native=native)
+        coerce_fields(result, _body=freeze(body))
         return result
 
     @property

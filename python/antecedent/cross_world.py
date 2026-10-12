@@ -24,6 +24,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ._columns import coerce_fields
 from ._data import as_columns
 from ._native import (
     consume_cross_world_edge_contrast_artifact as _consume,
@@ -82,9 +83,9 @@ class EdgeIntervention:
                 reason_code="invalid_argument",
             )
         edges = tuple(sorted({(_name(a, "edge"), _name(b, "edge")) for a, b in self.edges}))
-        object.__setattr__(self, "control", control)
-        object.__setattr__(self, "active", active)
-        object.__setattr__(self, "edges", edges)
+        coerce_fields(self, control=control)
+        coerce_fields(self, active=active)
+        coerce_fields(self, edges=edges)
 
     @classmethod
     def natural_direct(

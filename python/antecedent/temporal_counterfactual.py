@@ -18,6 +18,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
+from ._columns import coerce_fields
 from ._native import (
     consume_temporal_counterfactual_artifact as _consume_temporal,
 )
@@ -103,7 +104,7 @@ class UnitHistory:
         _name(self.unit, "unit")
         if self.history is not None:
             _name(self.history, "history")
-        object.__setattr__(self, "times", _times(self.times, "times"))
+        coerce_fields(self, times=_times(self.times, "times"))
         for node in TEMPORAL_NODES:
             object.__setattr__(
                 self,
@@ -144,10 +145,9 @@ class ActionHistory:
         _name(self.name, "name")
         if not isinstance(self.actions, Sequence) or len(self.actions) != 2:
             raise CausalTypeError("actions must be a pair (action_0, action_1)")
-        object.__setattr__(
+        coerce_fields(
             self,
-            "actions",
-            tuple(
+            actions=tuple(
                 _number(
                     a,
                     "action",
@@ -157,9 +157,9 @@ class ActionHistory:
                 for a in self.actions
             ),
         )
-        object.__setattr__(self, "times", _times(self.times, "times"))
+        coerce_fields(self, times=_times(self.times, "times"))
         if self.units is not None:
-            object.__setattr__(self, "units", tuple(_name(u, "unit") for u in self.units))
+            coerce_fields(self, units=tuple(_name(u, "unit") for u in self.units))
 
     def _wire(self, units: Sequence[str]) -> dict[str, Any]:
         return {
@@ -187,15 +187,15 @@ class NodeMechanism:
 
     def __post_init__(self) -> None:
         _name(self.node, "node")
-        object.__setattr__(
+        coerce_fields(
             self,
-            "intercept",
-            _number(self.intercept, "intercept", detail="temporal_counterfactual.fit_mismatch"),
+            intercept=_number(
+                self.intercept, "intercept", detail="temporal_counterfactual.fit_mismatch"
+            ),
         )
-        object.__setattr__(
+        coerce_fields(
             self,
-            "coefficients",
-            {
+            coefficients={
                 _name(parent, "parent"): _number(
                     coef,
                     "coefficient",
@@ -206,10 +206,9 @@ class NodeMechanism:
             },
         )
         if self.noise_halfwidth is not None:
-            object.__setattr__(
+            coerce_fields(
                 self,
-                "noise_halfwidth",
-                _number(
+                noise_halfwidth=_number(
                     self.noise_halfwidth,
                     "noise_halfwidth",
                     detail="temporal_counterfactual.fit_mismatch",
@@ -240,7 +239,7 @@ class TemporalMechanisms:
 
     def __post_init__(self) -> None:
         _name(self.fit_id, "fit_id")
-        object.__setattr__(self, "mechanisms", tuple(self.mechanisms))
+        coerce_fields(self, mechanisms=tuple(self.mechanisms))
         if not all(isinstance(m, NodeMechanism) for m in self.mechanisms):
             raise CausalTypeError("mechanisms must be NodeMechanism objects")
 

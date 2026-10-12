@@ -7,6 +7,7 @@ from collections.abc import Sequence as SequenceValues
 from dataclasses import KW_ONLY, dataclass
 from functools import partial
 
+from ._columns import coerce_fields
 from ._validate import real
 from .errors import CausalUnsupportedError, CausalValueError
 
@@ -90,7 +91,7 @@ class Categorical:
             raise CausalValueError("probabilities must be non-empty, finite, and non-negative")
         if sum(probs) <= 0.0:
             raise CausalValueError("probabilities must have positive total mass")
-        object.__setattr__(self, "probabilities", probs)
+        coerce_fields(self, probabilities=probs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +127,7 @@ class Soft:
                 raise CausalValueError("truncated_shift requires delta, lower, upper")
             if params[1] > params[2]:
                 raise CausalValueError("truncated_shift lower bound exceeds upper bound")
-        object.__setattr__(self, "parameters", params)
+        coerce_fields(self, parameters=params)
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,7 +140,7 @@ class Sequence:
         steps = tuple(self.steps)
         if not steps:
             raise CausalValueError("steps must not be empty")
-        object.__setattr__(self, "steps", steps)
+        coerce_fields(self, steps=steps)
 
 
 Intervention = Set | Shift | Bernoulli | Gaussian | Categorical | Soft | Sequence

@@ -34,6 +34,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from .._columns import coerce_fields
 from .._measured_inference import MeasuredInference, _production_limits
 from .._native import (
     consume_temporal_initial_state_artifact as _consume_initial_state,
@@ -126,7 +127,7 @@ class UnitHistories:
     histories: Sequence[SequenceHistory]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "histories", tuple(self.histories))
+        coerce_fields(self, histories=tuple(self.histories))
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +143,7 @@ class TemporalUnitPanel:
 
     def __post_init__(self) -> None:
         if self.units is not None:
-            object.__setattr__(self, "units", tuple(self.units))
+            coerce_fields(self, units=tuple(self.units))
 
     @classmethod
     def from_rows(
@@ -196,10 +197,8 @@ class InitialStateLaw:
 
     def __post_init__(self) -> None:
         pairs = self.states.items() if isinstance(self.states, Mapping) else self.states
-        object.__setattr__(
-            self,
-            "states",
-            tuple((_index("state", level), float(mass)) for level, mass in pairs),
+        coerce_fields(
+            self, states=tuple((_index("state", level), float(mass)) for level, mass in pairs)
         )
 
     def _wire(self) -> tuple[str, str, list[tuple[int, float]]]:
@@ -227,7 +226,7 @@ class TemporalPremises:
     proof_id: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "time_order", tuple(self.time_order))
+        coerce_fields(self, time_order=tuple(self.time_order))
 
     def _wire(self) -> tuple[str, list[str], str, str, str, str]:
         return (
@@ -264,9 +263,9 @@ class TemporalWindow:
     def __post_init__(self) -> None:
         lag = self.lag_alignment
         pairs = lag.items() if isinstance(lag, Mapping) else lag
-        object.__setattr__(self, "lag_alignment", tuple((str(n), int(s)) for n, s in pairs))
-        object.__setattr__(self, "intervention_history", tuple(self.intervention_history))
-        object.__setattr__(self, "selection_targets", tuple(self.selection_targets))
+        coerce_fields(self, lag_alignment=tuple((str(n), int(s)) for n, s in pairs))
+        coerce_fields(self, intervention_history=tuple(self.intervention_history))
+        coerce_fields(self, selection_targets=tuple(self.selection_targets))
         if len(self.period) != 2:
             raise CausalValueError("period is a (start, end) pair", reason_code="invalid_argument")
 

@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from .._columns import coerce_fields
 from ..errors import CausalTypeError, CausalValueError
 from ._declarations import BinomialSignal, GaussianMeanSignal, StatePrior
 from .plans import _count
@@ -83,10 +84,10 @@ class MeasurementColumn:
 
     def __post_init__(self) -> None:
         _count(self.variable, "variable")
-        object.__setattr__(self, "cross", _numbers(self.cross, "cross"))
-        object.__setattr__(self, "self_dot", _variance(self.self_dot, "self_dot"))
+        coerce_fields(self, cross=_numbers(self.cross, "cross"))
+        coerce_fields(self, self_dot=_variance(self.self_dot, "self_dot"))
         if self.sigma2_after is not None:
-            object.__setattr__(self, "sigma2_after", _variance(self.sigma2_after, "sigma2_after"))
+            coerce_fields(self, sigma2_after=_variance(self.sigma2_after, "sigma2_after"))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -106,8 +107,8 @@ class DesignInformation:
     n: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "xtx", _gram(self.xtx, "xtx"))
-        object.__setattr__(self, "sigma2", _variance(self.sigma2, "sigma2"))
+        coerce_fields(self, xtx=_gram(self.xtx, "xtx"))
+        coerce_fields(self, sigma2=_variance(self.sigma2, "sigma2"))
         _count(self.n, "n", minimum=1)
 
     def _wire(self) -> dict[str, Any]:
@@ -126,9 +127,9 @@ class EnvironmentInformation:
     def __post_init__(self) -> None:
         _count(self.environment, "environment")
         _count(self.n, "n", minimum=1)
-        object.__setattr__(self, "xtx", _gram(self.xtx, "xtx"))
+        coerce_fields(self, xtx=_gram(self.xtx, "xtx"))
         if self.sigma2 is not None:
-            object.__setattr__(self, "sigma2", _variance(self.sigma2, "sigma2"))
+            coerce_fields(self, sigma2=_variance(self.sigma2, "sigma2"))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -159,8 +160,8 @@ class EffectWidth:
     query_id: int = 0
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "xtx", _gram(self.xtx, "xtx"))
-        object.__setattr__(self, "sigma2", _variance(self.sigma2, "sigma2"))
+        coerce_fields(self, xtx=_gram(self.xtx, "xtx"))
+        coerce_fields(self, sigma2=_variance(self.sigma2, "sigma2"))
         _count(self.n, "n", minimum=1)
         _count(self.query_id, "query_id")
         _count(self.treatment_col, "treatment_col")
@@ -178,8 +179,8 @@ class EffectWidth:
             raise CausalValueError("measurement_columns has duplicate variable ids")
         if len({e.environment for e in environments}) != len(environments):
             raise CausalValueError("environments has duplicate environment ids")
-        object.__setattr__(self, "measurement_columns", columns)
-        object.__setattr__(self, "environments", environments)
+        coerce_fields(self, measurement_columns=columns)
+        coerce_fields(self, environments=environments)
 
     def _options(self) -> dict[str, Any]:
         context: dict[str, Any] = {
@@ -227,8 +228,8 @@ class ModelDistinction:
             raise CausalValueError("log_likelihoods needs one non-empty row per model")
         if any(len(row) != len(rows[0]) for row in rows):
             raise CausalValueError("log_likelihoods rows must have the same draw count")
-        object.__setattr__(self, "model_ids", ids)
-        object.__setattr__(self, "log_likelihoods", rows)
+        coerce_fields(self, model_ids=ids)
+        coerce_fields(self, log_likelihoods=rows)
 
     def _options(self) -> dict[str, Any]:
         return {
@@ -281,7 +282,7 @@ class DecisionRegret:
             raise CausalValueError("prior kind must be draws or normal")
         if isinstance(self.signal, GaussianMeanSignal):
             _variance(self.signal.noise_variance, "noise_variance", positive=True)
-        object.__setattr__(self, "actions", actions)
+        coerce_fields(self, actions=actions)
 
     def _options(self) -> dict[str, Any]:
         prior = self.prior._wire()

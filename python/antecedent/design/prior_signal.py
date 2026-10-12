@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .. import _native
+from .._columns import coerce_fields
 from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
 from ..joint_distribution import ScientificQuantity
@@ -75,9 +76,9 @@ class CheckedPriorSignal:
         prior_id: str,
     ) -> CheckedPriorSignal:
         result = object.__new__(cls)
-        object.__setattr__(result, "prior", StatePrior("draws", _checked=native))
-        object.__setattr__(result, "signal", signal)
-        object.__setattr__(result, "prior_id", prior_id)
+        coerce_fields(result, prior=StatePrior("draws", _checked=native))
+        coerce_fields(result, signal=signal)
+        coerce_fields(result, prior_id=prior_id)
         return result
 
     @property

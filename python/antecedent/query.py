@@ -14,6 +14,7 @@ from dataclasses import KW_ONLY, dataclass, field
 from math import isfinite
 from typing import Literal
 
+from ._columns import coerce_fields
 from ._native import temporal_response_spec as _native_temporal_response_spec
 from .errors import CausalUnsupportedError, CausalValueError
 
@@ -597,7 +598,7 @@ class TemporalMediationEffect:
     def __post_init__(self) -> None:
         hs = (1,) if self.horizons is None else tuple(self.horizons)
         _validate_horizons(hs)
-        object.__setattr__(self, "horizons", hs)
+        coerce_fields(self, horizons=hs)
 
 
 @dataclass(frozen=True, slots=True)

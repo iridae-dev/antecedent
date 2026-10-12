@@ -42,6 +42,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
+from ._columns import coerce_fields
 from ._native import admissible_contract_normalize as _normalize
 from ._native import evaluate_identified_set_decision as _evaluate_sets
 from ._native import evaluate_robust_decision as _evaluate_robust
@@ -152,8 +153,8 @@ class AdmissibilityRules:
     uncertainty: UncertaintyRequirement = "none"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "support_rules", tuple(self.support_rules))
-        object.__setattr__(self, "declared_exclusions", tuple(self.declared_exclusions))
+        coerce_fields(self, support_rules=tuple(self.support_rules))
+        coerce_fields(self, declared_exclusions=tuple(self.declared_exclusions))
         if self.default_weakest_support is not None:
             choice(self.default_weakest_support, "default_weakest_support", _SUPPORT_LABELS)
         choice(self.uncertainty, "uncertainty", _UNCERTAINTY_LABELS)
@@ -902,7 +903,7 @@ class IdentifiedUtility:
     support: Support | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "hard_exclusions", tuple(self.hard_exclusions))
+        coerce_fields(self, hard_exclusions=tuple(self.hard_exclusions))
 
     @classmethod
     def from_inputs(

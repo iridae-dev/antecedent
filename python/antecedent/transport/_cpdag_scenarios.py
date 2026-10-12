@@ -45,6 +45,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from .._columns import coerce_fields
 from .._digest import canonical_digest
 from .._native import (
     consume_cpdag_scenarios_artifact as _consume_cpdag,
@@ -383,7 +384,7 @@ class CompletionEvidence:
             raise CausalValueError("evidence identity must be a non-empty string")
         if self.completion is not None and not isinstance(self.completion, str):
             completion = tuple((str(a), str(b)) for a, b in self.completion)
-            object.__setattr__(self, "completion", completion)
+            coerce_fields(self, completion=completion)
 
     def _wire(self) -> tuple[str | None, list[tuple[str, str]] | None, str, Any, str | None]:
         by_id = self.completion if isinstance(self.completion, str) else None
@@ -566,9 +567,9 @@ class RowTable:
     def __post_init__(self) -> None:
         columns = tuple(str(c) for c in self.columns)
         rows = tuple(tuple(_code(v, f"row {i}") for v in row) for i, row in enumerate(self.rows))
-        object.__setattr__(self, "columns", columns)
-        object.__setattr__(self, "rows", rows)
-        object.__setattr__(self, "unit_ids", tuple(str(u) for u in self.unit_ids))
+        coerce_fields(self, columns=columns)
+        coerce_fields(self, rows=rows)
+        coerce_fields(self, unit_ids=tuple(str(u) for u in self.unit_ids))
 
     @classmethod
     def from_columns(
@@ -690,7 +691,7 @@ class ScenarioEstimator:
         if self.dependence not in _DEPENDENCE:
             raise CausalValueError(f"dependence must be one of {_DEPENDENCE}")
         if self.unit_ids is not None:
-            object.__setattr__(self, "unit_ids", tuple(str(u) for u in self.unit_ids))
+            coerce_fields(self, unit_ids=tuple(str(u) for u in self.unit_ids))
 
 
 @dataclass(frozen=True, slots=True)

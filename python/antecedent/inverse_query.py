@@ -50,6 +50,7 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
+from ._columns import coerce_fields
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
 from ._refusal import raise_refusal
@@ -234,8 +235,8 @@ class MeanClaim:
     _original_native: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "coordinates", tuple(self.coordinates))
-        object.__setattr__(self, "means", tuple(float(m) for m in self.means))
+        coerce_fields(self, coordinates=tuple(self.coordinates))
+        coerce_fields(self, means=tuple(float(m) for m in self.means))
 
     @classmethod
     def from_external(cls, claim: BoundExternalClaim) -> MeanClaim:
@@ -367,7 +368,7 @@ class IdentifiedSet:
     exhaustive: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "members", tuple(self.members))
+        coerce_fields(self, members=tuple(self.members))
 
 
 # ------------------------------------------------------------------------ result
@@ -666,8 +667,8 @@ class InverseQuery:
     max_evaluations: int | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "grid", tuple(self.grid))
-        object.__setattr__(self, "constraints", tuple(self.constraints))
+        coerce_fields(self, grid=tuple(self.grid))
+        coerce_fields(self, constraints=tuple(self.constraints))
         if not isinstance(self.contract, Contract):
             raise CausalTypeError("contract must be a decision.Contract")
         if any(not isinstance(c, Constraint) for c in self.constraints):

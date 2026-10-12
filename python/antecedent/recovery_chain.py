@@ -42,6 +42,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ._columns import coerce_fields
 from ._native import consume_recovery_chain_artifact as _consume
 from ._native import recover_recovery_chain as _recover
 from ._refusal import raise_refusal
@@ -129,10 +130,10 @@ class PatternLaw:
             or len(only_second) != 2
         ):
             raise CausalValueError("both is 2 x 2 and only_first / only_second have two cells")
-        object.__setattr__(self, "both", both)
-        object.__setattr__(self, "only_first", only_first)
-        object.__setattr__(self, "only_second", only_second)
-        object.__setattr__(self, "neither", neither)
+        coerce_fields(self, both=both)
+        coerce_fields(self, only_first=only_first)
+        coerce_fields(self, only_second=only_second)
+        coerce_fields(self, neither=neither)
 
     def _cells(self) -> list[float]:
         return [*(c for row in self.both for c in row), *self.only_first, *self.only_second]

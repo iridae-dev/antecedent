@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._columns import coerce_fields
 from ._transport_results import _freeze as freeze
 from ._transport_results import _thaw as detached
 from .errors import (
@@ -88,7 +89,7 @@ class MeasuredInferenceIdentity:
             _bounded_name("scalar", name)
         if len(set(self.scalars)) != len(self.scalars):
             raise CausalValueError("scalar names must be unique")
-        object.__setattr__(self, "scalars", tuple(self.scalars))
+        coerce_fields(self, scalars=tuple(self.scalars))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -205,14 +206,14 @@ class MeasuredInference:
             ):
                 raise CausalSerializationError("measured scalar lacks its governing native record")
             scalar = object.__new__(MeasuredScalar)
-            object.__setattr__(scalar, "_authority", native)
-            object.__setattr__(scalar, "_body", freeze(row))
+            coerce_fields(scalar, _authority=native)
+            coerce_fields(scalar, _body=freeze(row))
             scalars.append(scalar)
         result = object.__new__(cls)
-        object.__setattr__(result, "_native", native)
-        object.__setattr__(result, "_body", freeze(body))
-        object.__setattr__(result, "_identity", identity)
-        object.__setattr__(result, "_scalars", tuple(scalars))
+        coerce_fields(result, _native=native)
+        coerce_fields(result, _body=freeze(body))
+        coerce_fields(result, _identity=identity)
+        coerce_fields(result, _scalars=tuple(scalars))
         return result
 
     @property

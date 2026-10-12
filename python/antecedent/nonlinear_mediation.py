@@ -50,6 +50,7 @@ from typing import Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
 from ._refusal import raise_refusal
@@ -132,7 +133,7 @@ class MediationPremises:
             raise CausalTypeError("treatment_induced_confounders must be a sequence of names")
         if not all(isinstance(n, str) and n for n in names):
             raise CausalTypeError("treatment_induced_confounders must be non-empty strings")
-        object.__setattr__(self, "treatment_induced_confounders", tuple(names))
+        coerce_fields(self, treatment_induced_confounders=tuple(names))
 
     @classmethod
     def sequentially_ignorable(cls) -> MediationPremises:

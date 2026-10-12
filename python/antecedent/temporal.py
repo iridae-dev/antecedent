@@ -50,6 +50,7 @@ from typing import Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
@@ -163,8 +164,8 @@ class Partition:
             _name(self.coordinate, "coordinate")
         if self.estimand is not None and not isinstance(self.estimand, EffectEstimand):
             raise CausalTypeError("estimand must be an EffectEstimand")
-        object.__setattr__(self, "effect", _finite_estimate(self.effect, "effect"))
-        object.__setattr__(self, "se", _finite_estimate(self.se, "se"))
+        coerce_fields(self, effect=_finite_estimate(self.effect, "effect"))
+        coerce_fields(self, se=_finite_estimate(self.se, "se"))
 
 
 _finite_estimate = partial(

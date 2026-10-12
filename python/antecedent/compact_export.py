@@ -45,6 +45,7 @@ from typing import Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._native import build_compact_export as _build
 from ._native import consume_compact_export as _consume
 from ._native import evaluate_compact_export as _evaluate
@@ -141,8 +142,8 @@ class Numeric:
     role: str = "covariate"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "lo", _real(self.lo, "lo"))
-        object.__setattr__(self, "hi", _real(self.hi, "hi"))
+        coerce_fields(self, lo=_real(self.lo, "lo"))
+        coerce_fields(self, hi=_real(self.hi, "hi"))
         self._quantity()
 
     def _quantity(self) -> Quantity:
@@ -167,7 +168,7 @@ class Categorical:
     def __post_init__(self) -> None:
         if isinstance(self.levels, str):
             raise CausalTypeError("levels must be an iterable of level names")
-        object.__setattr__(self, "levels", tuple(_name(x, "level") for x in self.levels))
+        coerce_fields(self, levels=tuple(_name(x, "level") for x in self.levels))
         self._quantity()
 
     def _quantity(self) -> Quantity:

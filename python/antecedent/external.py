@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ._columns import coerce_fields
 from ._digest import canonical_digest
 from ._native import ExternalClaimArtifact as _NativeClaim
 from ._native import ExternalColumnClaimArtifact as _NativeColumnClaim
@@ -123,9 +124,7 @@ class ProviderObject:
         for name in ("provider_id", "object_id", "version", "snapshot", "request", "meaning"):
             if not isinstance(getattr(self, name), str):
                 raise CausalTypeError(f"ProviderObject.{name} must be a string")
-        object.__setattr__(
-            self, "capabilities", _strings("ProviderObject.capabilities", self.capabilities)
-        )
+        coerce_fields(self, capabilities=_strings("ProviderObject.capabilities", self.capabilities))
 
     def distribution_identity(
         self,
@@ -226,20 +225,20 @@ class Response:
         except TypeError as error:
             raise CausalTypeError("Response.values must be an iterable of numbers") from error
         values = tuple(_real(v, "Response.values entry") for v in entries)
-        object.__setattr__(self, "values", values)
-        object.__setattr__(self, "evidence", _strings("Response.evidence", self.evidence))
-        object.__setattr__(self, "assumptions", _strings("Response.assumptions", self.assumptions))
+        coerce_fields(self, values=values)
+        coerce_fields(self, evidence=_strings("Response.evidence", self.evidence))
+        coerce_fields(self, assumptions=_strings("Response.assumptions", self.assumptions))
         try:
             probes = tuple(self.probes)
         except TypeError as error:
             raise CausalTypeError("Response.probes must be VerificationProbe values") from error
         if any(not isinstance(probe, VerificationProbe) for probe in probes):
             raise CausalTypeError("Response.probes must be VerificationProbe values")
-        object.__setattr__(self, "probes", probes)
+        coerce_fields(self, probes=probes)
         if self.attested_by is not None and not isinstance(self.attested_by, str):
             raise CausalTypeError("Response.attested_by must be a string or None")
         if self.support is not None:
-            object.__setattr__(self, "support", _strings("Response.support", self.support))
+            coerce_fields(self, support=_strings("Response.support", self.support))
         for name in ("uncertainty_method", "graph_id"):
             if getattr(self, name) is not None and not isinstance(getattr(self, name), str):
                 raise CausalTypeError(f"Response.{name} must be a string or None")
@@ -252,7 +251,7 @@ class Response:
                 ) from error
             if any(not isinstance(quantity, ScientificQuantity) for quantity in quantities):
                 raise CausalTypeError("Response.quantities must be ScientificQuantity values")
-            object.__setattr__(self, "quantities", quantities)
+            coerce_fields(self, quantities=quantities)
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,27 +294,25 @@ class ColumnResponse:
         if not np.isfinite(column).all():
             raise CausalValueError("ColumnResponse.values must be finite")
         column.flags.writeable = False
-        object.__setattr__(self, "values", column)
-        object.__setattr__(self, "evidence", _strings("ColumnResponse.evidence", self.evidence))
-        object.__setattr__(
-            self, "assumptions", _strings("ColumnResponse.assumptions", self.assumptions)
-        )
+        coerce_fields(self, values=column)
+        coerce_fields(self, evidence=_strings("ColumnResponse.evidence", self.evidence))
+        coerce_fields(self, assumptions=_strings("ColumnResponse.assumptions", self.assumptions))
         probes = tuple(self.probes)
         if any(not isinstance(probe, VerificationProbe) for probe in probes):
             raise CausalTypeError("ColumnResponse.probes must be VerificationProbe values")
-        object.__setattr__(self, "probes", probes)
+        coerce_fields(self, probes=probes)
         if self.attested_by is not None and not isinstance(self.attested_by, str):
             raise CausalTypeError("ColumnResponse.attested_by must be a string or None")
         for name in ("uncertainty_method", "graph_id"):
             if getattr(self, name) is not None and not isinstance(getattr(self, name), str):
                 raise CausalTypeError(f"ColumnResponse.{name} must be a string or None")
         if self.support is not None and not isinstance(self.support, str):
-            object.__setattr__(self, "support", _strings("ColumnResponse.support", self.support))
+            coerce_fields(self, support=_strings("ColumnResponse.support", self.support))
         if self.quantities is not None:
             quantities = tuple(self.quantities)
             if any(not isinstance(quantity, ScientificQuantity) for quantity in quantities):
                 raise CausalTypeError("ColumnResponse.quantities must be ScientificQuantity values")
-            object.__setattr__(self, "quantities", quantities)
+            coerce_fields(self, quantities=quantities)
 
 
 @dataclass(frozen=True, slots=True)

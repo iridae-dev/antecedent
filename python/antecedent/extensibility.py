@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, get_args, runtime_checkab
 import numpy as np
 from numpy.typing import NDArray
 
+from ._columns import coerce_fields
 from ._digest import canonical_digest
 from .errors import CausalValueError, StructuredRefusal
 
@@ -289,7 +290,7 @@ class CausalProviderSpec:
         return str(self.uncertainty_semantics)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "capabilities", _capabilities(self.capabilities))
+        coerce_fields(self, capabilities=_capabilities(self.capabilities))
         if self.meaning is not None:
             from .joint_distribution import DistributionMeaning
 
@@ -300,10 +301,8 @@ class CausalProviderSpec:
                 )
         if isinstance(self.uncertainty_semantics, str):
             with contextlib.suppress(ValueError):
-                object.__setattr__(
-                    self,
-                    "uncertainty_semantics",
-                    UncertaintySemantics(self.uncertainty_semantics),
+                coerce_fields(
+                    self, uncertainty_semantics=UncertaintySemantics(self.uncertainty_semantics)
                 )
         for field_name in (
             "identification_requirements",
@@ -355,7 +354,7 @@ class CausalProviderSpec:
             raise ValueError("provenance keys and values must be non-empty strings")
         if type(self.deterministic) is not bool:
             raise ValueError("deterministic must be a bool")
-        object.__setattr__(self, "provenance", MappingProxyType(dict(self.provenance)))
+        coerce_fields(self, provenance=MappingProxyType(dict(self.provenance)))
 
 
 @runtime_checkable
@@ -397,8 +396,8 @@ class ProviderExecution:
             for k, v in provenance.items()
         ):
             raise ValueError("provider result provenance must contain non-empty strings")
-        object.__setattr__(self, "assumptions", assumptions)
-        object.__setattr__(self, "provenance", MappingProxyType(provenance))
+        coerce_fields(self, assumptions=assumptions)
+        coerce_fields(self, provenance=MappingProxyType(provenance))
         if self.artifact is not None and not isinstance(self.artifact, bytes):
             raise TypeError("provider artifact must be bytes")
 
@@ -465,10 +464,8 @@ class ProviderVerificationFixture:
             raise TypeError("artifact_decoder must be callable")
         if self.artifact_decoder is not None and self.artifact_digest is None:
             raise ValueError("artifact_decoder requires an expected artifact_digest")
-        object.__setattr__(self, "request", MappingProxyType(dict(self.request)))
-        object.__setattr__(
-            self, "expected_provenance", MappingProxyType(dict(self.expected_provenance))
-        )
+        coerce_fields(self, request=MappingProxyType(dict(self.request)))
+        coerce_fields(self, expected_provenance=MappingProxyType(dict(self.expected_provenance)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -678,7 +675,7 @@ class ProviderQuery:
             raise ValueError("ProviderQuery.provider must be a non-empty registered name")
         if not isinstance(self.request, Mapping):
             raise TypeError("ProviderQuery.request must be a mapping")
-        object.__setattr__(self, "request", MappingProxyType(dict(self.request)))
+        coerce_fields(self, request=MappingProxyType(dict(self.request)))
 
 
 class ProviderRegistry:

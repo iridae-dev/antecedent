@@ -21,6 +21,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_z_transport_joint_sensitivity_artifact as _consume_joint_artifact,
 )
@@ -70,7 +71,7 @@ class JointDeviation:
                 "joint_sensitivity.invalid_threshold: decision_threshold must be finite",
                 reason_code="invalid_argument",
             )
-        object.__setattr__(self, "_pairs", tuple(pairs))
+        coerce_fields(self, _pairs=tuple(pairs))
 
     def _kwargs(self) -> dict[str, Any]:
         return {

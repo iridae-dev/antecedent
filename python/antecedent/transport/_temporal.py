@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_temporal_transport_artifact as _consume_temporal_transport_artifact,
 )
@@ -87,11 +88,11 @@ class TemporalSequenceSpec:
         selections = tuple(self.selections)
         if len(set(selections)) != len(selections):
             raise CausalValueError("temporal selections must be distinct")
-        object.__setattr__(self, "baseline", tuple(self.baseline))
-        object.__setattr__(self, "covariates", covariates)
-        object.__setattr__(self, "actions", actions)
-        object.__setattr__(self, "coordinates", tuple(self.coordinates))
-        object.__setattr__(self, "selections", selections)
+        coerce_fields(self, baseline=tuple(self.baseline))
+        coerce_fields(self, covariates=covariates)
+        coerce_fields(self, actions=actions)
+        coerce_fields(self, coordinates=tuple(self.coordinates))
+        coerce_fields(self, selections=selections)
 
 
 def prepare_temporal_transport_sequence(

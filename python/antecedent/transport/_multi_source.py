@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_multi_source_z_transport_artifact as _consume_multi_source_z_transport_artifact,
 )
@@ -59,16 +60,14 @@ class ZTransportSource:
     def __post_init__(self) -> None:
         if not isinstance(self.population, str) or not self.population.strip():
             raise CausalValueError("source population must be a non-empty name")
-        object.__setattr__(self, "controllable", _names("controllable", self.controllable))
-        object.__setattr__(
-            self, "selections", _names("selections", self.selections, allow_empty=True)
-        )
+        coerce_fields(self, controllable=_names("controllable", self.controllable))
+        coerce_fields(self, selections=_names("selections", self.selections, allow_empty=True))
         if not set(self.experiment_assignment).issubset(self.controllable):
             raise CausalValueError("experiment assignments must name controllable variables")
         if any(not math.isfinite(value) for value in self.experiment_assignment.values()):
             raise CausalValueError("experiment assignments must be finite")
-        object.__setattr__(
-            self, "experiment_assignment", MappingProxyType(dict(self.experiment_assignment))
+        coerce_fields(
+            self, experiment_assignment=MappingProxyType(dict(self.experiment_assignment))
         )
 
 
@@ -102,9 +101,9 @@ class MultiSourceZTransportQuery:
         populations = [source.population for source in sources]
         if len(set(populations)) != len(populations) or self.target in populations:
             raise CausalValueError("source populations must be distinct and differ from the target")
-        object.__setattr__(self, "outcomes", outcomes)
-        object.__setattr__(self, "treatments", treatments)
-        object.__setattr__(self, "sources", sources)
+        coerce_fields(self, outcomes=outcomes)
+        coerce_fields(self, treatments=treatments)
+        coerce_fields(self, sources=sources)
 
 
 def identify_multi_source_z_transport(

@@ -9,6 +9,8 @@ from typing import Any, Self
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer
 from pydantic.config import ExtraValues
 
+from .._columns import coerce_fields
+
 _HANDLE_ATTRS = ("_raw", "_prepared", "_execution")
 
 
@@ -199,7 +201,7 @@ class ResultModel(BaseModel):
                 object.__setattr__(self, name, extra.pop(name))
                 lifted = True
         if lifted:
-            object.__setattr__(self, "__pydantic_extra__", extra or None)
+            coerce_fields(self, __pydantic_extra__=extra or None)
 
     def to_dict(self) -> dict[str, Any]:
         from ._slots import json_value
