@@ -24,8 +24,8 @@ use crate::{
 };
 
 use super::GraphPosteriorEffectTarget;
-use super::route_guards::complete_mean_response;
 use super::posterior_binding::{CacheKeys, PosteriorProof, validate_posterior_cache};
+use super::route_guards::complete_mean_response;
 
 /// Sealed average effect over a static CPDAG or PAG completion envelope.
 /// The graph and prepare-time completion cache are retained together so
@@ -251,9 +251,7 @@ impl CheckedAdmgGraphPosteriorResponse {
             query.functional,
             antecedent_core::ResponseFunctional::InterventionResponse { .. }
         );
-        if (!intervention_response && validation != RefuteSuite::None)
-            || !validation.is_point()
-        {
+        if (!intervention_response && validation != RefuteSuite::None) || !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked ADMG graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });
@@ -414,7 +412,6 @@ impl CheckedGraphPosteriorEffect {
     pub(crate) const fn validation(&self) -> RefuteSuite {
         self.validation
     }
-
 }
 
 impl PosteriorProof for CheckedGraphPosteriorEffect {

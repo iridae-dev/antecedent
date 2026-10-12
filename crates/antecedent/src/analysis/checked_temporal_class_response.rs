@@ -328,7 +328,8 @@ impl Inspect for CheckedTemporalClassResponseOperation {
     type Info = CheckedTemporalClassResponseInfo;
 
     fn info(&self) -> CheckedTemporalClassResponseInfo {
-        let Procedure { identifier, estimator, bootstrap_replicates, validation } = self.procedure();
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
+            self.procedure();
         let (identified_mass, unidentified_mass) = self.enumeration_mass();
         CheckedTemporalClassResponseInfo {
             query: self.query().clone(),

@@ -109,7 +109,13 @@ impl CheckedBayesianBasisCateExecution {
             identify_static(IdentifierId::BackdoorAdjustment, graph, inner)?,
             EstimatorId::BayesianBasisGcomp,
         )?;
-        verify_proof_against_graph(&checked_identification, &checked_estimand, &identification, &estimand, "Bayesian basis CATE proof is not justified by its retained graph")?;
+        verify_proof_against_graph(
+            &checked_identification,
+            &checked_estimand,
+            &identification,
+            &estimand,
+            "Bayesian basis CATE proof is not justified by its retained graph",
+        )?;
         Ok(Self {
             graph: graph.clone(),
             query,

@@ -254,7 +254,8 @@ fn verify_mediation_proof(
     if !matches!(
         study.structure_source,
         crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
-    ) || !study.refute.is_point_or_placebo() || !study.custom_validators.is_empty()
+    ) || !study.refute.is_point_or_placebo()
+        || !study.custom_validators.is_empty()
         || cache.identification.query != study.query
         || !matches!(
             cache.identification.status,

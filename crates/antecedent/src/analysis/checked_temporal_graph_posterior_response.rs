@@ -18,9 +18,9 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::{ClassPrior, InferenceMode};
 
 use super::builder::{DataInput, RefuteSuite};
+use super::checked_temporal_graph_posterior_effect::CheckedTemporalGraphPosteriorProof;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::execute::Study;
-use super::checked_temporal_graph_posterior_effect::CheckedTemporalGraphPosteriorProof;
 use super::posterior_binding::{CacheKeys, PosteriorProof, validate_posterior_cache};
 use super::route_guards::complete_mean_response;
 
@@ -147,9 +147,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         }
         let intervention_response =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if (!intervention_response && validation != RefuteSuite::None)
-            || !validation.is_point()
-        {
+        if (!intervention_response && validation != RefuteSuite::None) || !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });

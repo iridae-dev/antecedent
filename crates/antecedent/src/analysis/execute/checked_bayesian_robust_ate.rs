@@ -257,9 +257,7 @@ fn verify_robust_ate_proof(
     identification: &antecedent_identify::IdentificationResult,
     estimand: &IdentifiedEstimand,
 ) -> Result<(), CausalError> {
-    if identification.average_effect() != Some(query)
-        || !proof_supplies(identification, estimand)
-    {
+    if identification.average_effect() != Some(query) || !proof_supplies(identification, estimand) {
         return Err(CausalError::Compile {
             message: "Bayesian robust ATE estimand is not supplied by its retained proof".into(),
         });
@@ -273,7 +271,13 @@ fn verify_robust_ate_proof(
         )?,
         EstimatorId::BayesianRobustAte,
     )?;
-    verify_proof_against_graph(&checked_identification, &checked_estimand, identification, estimand, "Bayesian robust ATE proof is not justified by its retained graph")
+    verify_proof_against_graph(
+        &checked_identification,
+        &checked_estimand,
+        identification,
+        estimand,
+        "Bayesian robust ATE proof is not justified by its retained graph",
+    )
 }
 
 #[expect(clippy::float_cmp, reason = "the Bernoulli treatment contract requires exact 0/1 coding")]

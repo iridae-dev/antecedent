@@ -8,7 +8,7 @@ use super::{
     TableView, TabularData, VariableId, elapsed_ns, finish_identified_execute_with_context,
 };
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{proof_supplies_with_mediators};
+use crate::analysis::proof_support::proof_supplies_with_mediators;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
 /// One frozen mediation target, identification, row design, and uncertainty procedure.

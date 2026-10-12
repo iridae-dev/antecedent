@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{EstimandClaim};
+use crate::analysis::proof_support::EstimandClaim;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -109,8 +109,7 @@ impl CheckedCellAipwResponseOperation {
             });
         }
         let (treatments, requested_arm) = joint_binary_interventions(interventions)?;
-        let valid_suite =
-            validation.is_point();
+        let valid_suite = validation.is_point();
         let (expected_identifier, structure_ok) = match structure {
             CellAipwStructure::Dag(graph) => (
                 IdentifierId::ResponseBackdoor,

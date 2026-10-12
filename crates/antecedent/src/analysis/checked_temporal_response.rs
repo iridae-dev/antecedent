@@ -303,11 +303,9 @@ impl CheckedTemporalResponseOperation {
             status = Some(member.identification.status);
             assumptions.extend_unique(&member.identification.required_assumptions.entries);
         }
-        let signature =
-            temporal_graph_signature(graph).ok_or_else(|| CausalError::Compile {
-                message: "temporal response graph holds a node that is not a lagged variable"
-                    .into(),
-            })?;
+        let signature = temporal_graph_signature(graph).ok_or_else(|| CausalError::Compile {
+            message: "temporal response graph holds a node that is not a lagged variable".into(),
+        })?;
         let fitter = antecedent_estimate::TemporalResponseEstimator::new()
             .with_bootstrap_replicates(bootstrap_replicates);
         Ok(Self {

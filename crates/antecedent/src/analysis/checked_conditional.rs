@@ -189,8 +189,10 @@ impl CheckedConditionalOperation {
                 ));
             }
         }
-        let mut design_roles =
-            vec![query.inner.treatment, query.inner.outcome, query.inner.effect_modifiers[0]];
+        let Some(&modifier) = query.inner.effect_modifiers.first() else {
+            return Err(compile_error("conditional effect requires an effect modifier"));
+        };
+        let mut design_roles = vec![query.inner.treatment, query.inner.outcome, modifier];
         design_roles.extend(estimand.adjustment_set.iter().copied());
         design_roles.sort_unstable();
         design_roles.dedup();

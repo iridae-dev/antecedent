@@ -8,7 +8,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ResponseFunctional, VariableId};
+use antecedent_core::{
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, ResponseFunctional, VariableId,
+};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::result::IdentificationResult;
 
@@ -84,10 +86,7 @@ pub(crate) fn proof_supplies_method_and_functional(
     identification: &IdentificationResult,
     estimand: &IdentifiedEstimand,
 ) -> bool {
-    identification
-        .estimands
-        .iter()
-        .any(|candidate| candidate.same_method_and_functional(estimand))
+    identification.estimands.iter().any(|candidate| candidate.same_method_and_functional(estimand))
 }
 
 /// Refuse unless the claim re-derived from the retained graph agrees with the
@@ -110,6 +109,20 @@ pub(crate) fn verify_proof_against_graph(
         return Err(CausalError::Compile { message: message.into() });
     }
     Ok(())
+}
+
+/// The note a graph-posterior route attaches when it withholds the aggregate
+/// posterior because a graph- or completion-conditional posterior does not
+/// describe the full weighted target.
+#[must_use]
+pub(crate) fn graph_posterior_withheld_diagnostic() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.graph_posterior.posterior_withheld",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "aggregate posterior withheld: a graph- or completion-conditional posterior \
+         does not describe the full weighted target; retained atom posteriors are conditional",
+    )
 }
 
 /// The treatment/outcome pair a response functional is about.

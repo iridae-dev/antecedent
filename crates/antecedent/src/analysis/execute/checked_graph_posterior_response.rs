@@ -15,9 +15,9 @@ use super::{
     LatencyMode, PhysicalExecutionPlan, RefuteSuite, ResponseFunctional, ResponseQuery,
     StudyResult, TabularData,
 };
+use crate::analysis::posterior_binding::{CacheKeys, validate_posterior_cache};
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::analysis::prepared::Inspect;
-use crate::analysis::posterior_binding::{CacheKeys, validate_posterior_cache};
 use crate::analysis::route_guards::inference_label;
 
 /// Frozen response route over a DAG, CPDAG or PAG graph posterior.
@@ -95,9 +95,7 @@ impl CheckedGraphPosteriorResponse {
         }
         let intervention_response =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if (!intervention_response && validation != RefuteSuite::None)
-            || !validation.is_point()
-        {
+        if (!intervention_response && validation != RefuteSuite::None) || !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });

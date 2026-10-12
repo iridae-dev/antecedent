@@ -163,7 +163,13 @@ impl CheckedBayesianConditionalOperation {
             identify_static(IdentifierId::BackdoorAdjustment, graph, &query.inner)?,
             EstimatorId::BayesianConditional,
         )?;
-        verify_proof_against_graph(&checked_identification, &checked_estimand, &identification, &estimand, "Bayesian CATE proof is not justified by its retained graph")?;
+        verify_proof_against_graph(
+            &checked_identification,
+            &checked_estimand,
+            &identification,
+            &estimand,
+            "Bayesian CATE proof is not justified by its retained graph",
+        )?;
         Ok(Self {
             query,
             cache,
@@ -214,7 +220,9 @@ impl CheckedBayesianConditionalOperation {
         ctx: &ExecutionContext,
     ) -> Result<CheckedBayesianConditionalPoint, CausalError> {
         let InferenceMode::Bayesian(config) = &self.inference else {
-            unreachable!("checked constructor requires Bayesian inference")
+            return Err(CausalError::Compile {
+                message: "checked Bayesian CATE lost its Bayesian inference configuration".into(),
+            });
         };
         let conditional_est = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
         let mut fitter = bayesian_gcomp(config, ctx);
@@ -355,7 +363,9 @@ impl CheckedBayesianConditionalOperation {
             },
         );
         let InferenceMode::Bayesian(config) = &self.inference else {
-            unreachable!("checked constructor requires Bayesian inference")
+            return Err(CausalError::Compile {
+                message: "checked Bayesian CATE lost its Bayesian inference configuration".into(),
+            });
         };
         // Fit on the identified columns only, as the one-shot route does;
         // the retained estimand keeps the caller's ids for the result.

@@ -159,21 +159,20 @@ impl CheckedLongitudinalRegimeOperation {
         &self,
         outcome: &[f64],
     ) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
+        let (Some(observation_history), Some(q_predictions)) =
+            (self.query.observation_history.as_deref(), self.query.q_predictions.as_deref())
+        else {
+            return Err(
+                "sequential doubly robust regime value requires observation history and Q predictions",
+            );
+        };
         evaluate_sequential_dr_value_with_subject_scores(
             outcome,
             &self.subject_histories(),
             &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
                 actions: &self.query.regime_actions,
-                observation_history: self
-                    .query
-                    .observation_history
-                    .as_deref()
-                    .expect("validated observation history"),
-                q_predictions: self
-                    .query
-                    .q_predictions
-                    .as_deref()
-                    .expect("validated Q predictions"),
+                observation_history,
+                q_predictions,
             },
         )
     }
@@ -194,12 +193,11 @@ impl CheckedLongitudinalRegimeOperation {
     fn estimate_regime_value(&self, outcome: &[f64]) -> Result<RegimeEstimation, CausalError> {
         let mut msm: Option<MsmSummary> = None;
         let mut dr_scores: Option<Vec<f64>> = None;
-        // The `.expect()`s in the arms below are guaranteed by
-        // `LongitudinalRegimeQuery::validate`, run in the prepare pipeline: its
-        // per-method match refuses any query whose method-conditional fields
-        // (g-formula `period_outcome_predictions`, sequential-DR `q_predictions`
-        // and `observation_history`, MSM `stabilizing_numerator_probabilities`)
-        // are not `Some` and aligned, so each field is present in its own arm.
+        // `LongitudinalRegimeQuery::validate`, run in the prepare pipeline,
+        // refuses any query whose method-conditional fields (g-formula
+        // `period_outcome_predictions`, sequential-DR `q_predictions` and
+        // `observation_history`, MSM `stabilizing_numerator_probabilities`) are
+        // not `Some` and aligned; an absent field is still a typed refusal here.
         let (summary, estimator_id, method, diagnostic, description) = match self.query.method {
             LongitudinalRegimeMethod::Ipw => (
                 evaluate_regime_value(
@@ -212,24 +210,28 @@ impl CheckedLongitudinalRegimeOperation {
                 "estimate.longitudinal.ipw_regime.point_only",
                 "sequential inverse-probability regime value under caller-declared known randomization and censoring probabilities; no interval or calibration claim",
             ),
-            LongitudinalRegimeMethod::GFormula => (
-                evaluate_g_formula_value(
-                    self.query
-                        .period_outcome_predictions
-                        .as_deref()
-                        .expect("validated g-formula predictions"),
-                    &self.query.regime_actions,
-                    &self.query.treatment_probabilities,
-                    &self.query.censoring_probabilities,
-                    self.rows,
-                    self.query.periods,
-                    self.query.minimum_probability,
-                ),
-                EstimatorId::LongitudinalGFormulaRegime,
-                "g_formula",
-                "estimate.longitudinal.g_formula_regime.point_only",
-                "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
-            ),
+            LongitudinalRegimeMethod::GFormula => {
+                let predictions = self.query.period_outcome_predictions.as_deref().ok_or(
+                    CausalError::Unsupported {
+                        message: "g-formula regime value requires period outcome predictions",
+                    },
+                )?;
+                (
+                    evaluate_g_formula_value(
+                        predictions,
+                        &self.query.regime_actions,
+                        &self.query.treatment_probabilities,
+                        &self.query.censoring_probabilities,
+                        self.rows,
+                        self.query.periods,
+                        self.query.minimum_probability,
+                    ),
+                    EstimatorId::LongitudinalGFormulaRegime,
+                    "g_formula",
+                    "estimate.longitudinal.g_formula_regime.point_only",
+                    "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
+                )
+            }
             LongitudinalRegimeMethod::SequentialDoublyRobust => {
                 let result = self.sequential_dr_value(outcome).map(|(summary, scores)| {
                     dr_scores = Some(scores);
@@ -244,15 +246,13 @@ impl CheckedLongitudinalRegimeOperation {
                 )
             }
             LongitudinalRegimeMethod::MarginalStructuralModel => {
-                let fit = fit_binary_msm(
-                    outcome,
-                    &self.subject_histories(),
-                    self.query
-                        .stabilizing_numerator_probabilities
-                        .as_deref()
-                        .expect("validated MSM numerators"),
-                )
-                .map_err(|message| CausalError::Unsupported { message })?;
+                let numerators = self.query.stabilizing_numerator_probabilities.as_deref().ok_or(
+                    CausalError::Unsupported {
+                        message: "marginal structural model requires stabilizing numerators",
+                    },
+                )?;
+                let fit = fit_binary_msm(outcome, &self.subject_histories(), numerators)
+                    .map_err(|message| CausalError::Unsupported { message })?;
                 let (min_action, min_censor) = self.probability_floors();
                 let summary = RegimeValueSummary {
                     value: fit.intercept,
@@ -292,15 +292,14 @@ impl CheckedLongitudinalRegimeOperation {
             && self.query.known_fixed_outcome_predictions
             && self.query.probabilities_known_by_design
         {
-            g_formula_fixed_q_pointwise_interval_95(
-                summary,
-                self.query
-                    .period_outcome_predictions
-                    .as_deref()
-                    .expect("validated g-formula predictions"),
-                self.rows,
-                self.query.periods,
-            )
+            self.query.period_outcome_predictions.as_deref().and_then(|predictions| {
+                g_formula_fixed_q_pointwise_interval_95(
+                    summary,
+                    predictions,
+                    self.rows,
+                    self.query.periods,
+                )
+            })
         } else {
             None
         };
@@ -516,13 +515,10 @@ impl CheckedLongitudinalRegimeOperation {
                 .msm
                 .as_ref()
                 .map(|fit| Arc::from(fit.standard_errors.as_slice())),
-            stabilizing_numerator_probabilities: estimation.msm.as_ref().map(|_| {
-                self.query
-                    .stabilizing_numerator_probabilities
-                    .as_ref()
-                    .expect("validated MSM numerator")
-                    .clone()
-            }),
+            stabilizing_numerator_probabilities: estimation
+                .msm
+                .as_ref()
+                .and_then(|_| self.query.stabilizing_numerator_probabilities.clone()),
             observed_subjects: estimation.msm.as_ref().map(|fit| fit.observed_subjects),
         }
     }

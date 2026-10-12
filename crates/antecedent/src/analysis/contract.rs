@@ -2303,12 +2303,16 @@ fn project_class_envelope(
     envelope: &antecedent_identify::TemporalClassEnvelope,
 ) -> Option<CachedTemporalIdentification> {
     let indexer = envelope.indexers.first()?.clone();
-    let case = envelope.envelope.cases.iter().find(|case| !case.result.estimands.is_empty())?;
+    let (case, estimand) = envelope
+        .envelope
+        .cases
+        .iter()
+        .find_map(|case| case.result.estimands.first().map(|estimand| (case, estimand)))?;
     Some(CachedTemporalIdentification {
         by_horizon: Arc::from([CachedTemporalHorizonIdentification {
             horizon,
             identification: case.result.clone(),
-            estimand: case.result.estimands[0].clone(),
+            estimand: estimand.clone(),
             indexer,
         }]),
     })

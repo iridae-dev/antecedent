@@ -12,7 +12,7 @@ use super::{
     parametric_scm_identification,
 };
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{proof_supplies_method_and_functional};
+use crate::analysis::proof_support::proof_supplies_method_and_functional;
 
 #[derive(Clone, Debug)]
 enum AttributionTarget {
