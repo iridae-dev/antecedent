@@ -8,6 +8,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::util::DrawSpec;
 
 /// Posterior summary for a sharp-RD jump under a fixed local-linear Gaussian model.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,25 +31,31 @@ pub struct BayesianRdEstimate {
     pub model: &'static str,
 }
 
+/// The observed vectors of a sharp-RD fit, aligned by row.
+#[derive(Clone, Copy, Debug)]
+pub struct RdSample<'a> {
+    /// Running-variable values.
+    pub running: &'a [f64],
+    /// Treatment values (must equal `1{running >= cutoff}`).
+    pub treatment: &'a [f64],
+    /// Outcome values.
+    pub outcome: &'a [f64],
+}
+
 /// Fit a local-linear Bayesian sharp RD at a caller-specified bandwidth.
 ///
 /// Sharp assignment `T = 1{R >= cutoff}` is checked row by row. The posterior conditions on
 /// that design, the fixed bandwidth, and the plug-in variance. At least 12 in-window rows and
 /// four rows on each side are required.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the fixed-bandwidth model contract"
-)]
 pub fn fit_bayesian_sharp_rd(
-    running: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &RdSample<'_>,
     cutoff: f64,
     bandwidth: f64,
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
 ) -> Result<BayesianRdEstimate, EstimationError> {
+    let RdSample { running, treatment, outcome } = *sample;
+    let DrawSpec { draws, seed } = sampling;
     let n = running.len();
     if n == 0
         || treatment.len() != n
@@ -121,19 +128,12 @@ pub fn fit_bayesian_sharp_rd(
 }
 
 /// Fit the same model over declared bandwidths and return sensitivity summaries.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "sensitivity forwards the same explicit fit contract"
-)]
 pub fn bayesian_rd_bandwidth_sensitivity(
-    running: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &RdSample<'_>,
     cutoff: f64,
     bandwidths: &[f64],
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
 ) -> Result<Vec<BayesianRdEstimate>, EstimationError> {
     if bandwidths.is_empty() {
         return Err(EstimationError::stats_msg(
@@ -145,33 +145,23 @@ pub fn bayesian_rd_bandwidth_sensitivity(
         .enumerate()
         .map(|(i, b)| {
             fit_bayesian_sharp_rd(
-                running,
-                treatment,
-                outcome,
+                sample,
                 cutoff,
                 *b,
                 prior_sd,
-                draws,
-                seed.wrapping_add(i as u64),
+                DrawSpec::new(sampling.draws, sampling.seed.wrapping_add(i as u64)),
             )
         })
         .collect()
 }
 
 /// Refit the fixed-bandwidth model over caller-declared coefficient prior scales.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "sensitivity forwards the same explicit fit contract"
-)]
 pub fn bayesian_rd_prior_sensitivity(
-    running: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &RdSample<'_>,
     cutoff: f64,
     bandwidth: f64,
     prior_sds: &[f64],
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
 ) -> Result<Vec<BayesianRdEstimate>, EstimationError> {
     if prior_sds.is_empty() {
         return Err(EstimationError::stats_msg(
@@ -183,14 +173,11 @@ pub fn bayesian_rd_prior_sensitivity(
         .enumerate()
         .map(|(i, sd)| {
             fit_bayesian_sharp_rd(
-                running,
-                treatment,
-                outcome,
+                sample,
                 cutoff,
                 bandwidth,
                 *sd,
-                draws,
-                seed.wrapping_add(i as u64),
+                DrawSpec::new(sampling.draws, sampling.seed.wrapping_add(i as u64)),
             )
         })
         .collect()
@@ -262,16 +249,34 @@ mod tests {
                 1.0 + 2.5 * t[i] + 0.8 * r + 1.2 * t[i] * r + ((i % 5) as f64 - 2.0) * 0.01
             })
             .collect();
-        let fit = fit_bayesian_sharp_rd(&running, &t, &y, 0.0, 0.8, 20.0, 1000, 4).unwrap();
+        let fit = fit_bayesian_sharp_rd(
+            &RdSample { running: &running, treatment: &t, outcome: &y },
+            0.0,
+            0.8,
+            20.0,
+            DrawSpec::new(1000, 4),
+        )
+        .unwrap();
         assert!((fit.mean - 2.5).abs() < 0.08, "{}", fit.mean);
         assert!(fit.lower < 2.5 && fit.upper > 2.5);
-        let sens =
-            bayesian_rd_bandwidth_sensitivity(&running, &t, &y, 0.0, &[0.5, 0.8], 20.0, 300, 8)
-                .unwrap();
+        let sens = bayesian_rd_bandwidth_sensitivity(
+            &RdSample { running: &running, treatment: &t, outcome: &y },
+            0.0,
+            &[0.5, 0.8],
+            20.0,
+            DrawSpec::new(300, 8),
+        )
+        .unwrap();
         assert_eq!(sens.len(), 2);
         assert_ne!(sens[0].n_window, sens[1].n_window);
-        let prior = bayesian_rd_prior_sensitivity(&running, &t, &y, 0.0, 0.8, &[0.5, 20.0], 300, 8)
-            .unwrap();
+        let prior = bayesian_rd_prior_sensitivity(
+            &RdSample { running: &running, treatment: &t, outcome: &y },
+            0.0,
+            0.8,
+            &[0.5, 20.0],
+            DrawSpec::new(300, 8),
+        )
+        .unwrap();
         assert_eq!(prior.len(), 2);
         assert!((prior[0].mean - prior[1].mean).abs() > 1e-3);
     }
@@ -291,7 +296,14 @@ mod tests {
         let mut t: Vec<f64> = r.iter().map(|x| f64::from(*x >= 0.0)).collect();
         t[8] = 1.0;
         let y = r.clone();
-        let e = fit_bayesian_sharp_rd(&r, &t, &y, 0.0, 5.0, 2.0, 20, 3).unwrap_err();
+        let e = fit_bayesian_sharp_rd(
+            &RdSample { running: &r, treatment: &t, outcome: &y },
+            0.0,
+            5.0,
+            2.0,
+            DrawSpec::new(20, 3),
+        )
+        .unwrap_err();
         assert!(e.to_string().contains("rd_assignment_not_sharp"));
     }
     #[test]

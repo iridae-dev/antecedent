@@ -11,7 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
-use crate::util::{dot, mean};
+use crate::util::{DrawSpec, dot, mean};
 
 /// Scoped Bayesian IV output. Intervals are equal-tailed posterior intervals conditional on
 /// the selected model, prior scale, and plug-in Gaussian residual variance.
@@ -33,69 +33,67 @@ pub struct BayesianIvEstimate {
     pub model: &'static str,
 }
 
+/// The observed vectors of a single-instrument IV fit, aligned by row.
+#[derive(Clone, Copy, Debug)]
+pub struct IvSample<'a> {
+    /// Instrument values.
+    pub instrument: &'a [f64],
+    /// Treatment values.
+    pub treatment: &'a [f64],
+    /// Outcome values.
+    pub outcome: &'a [f64],
+}
+
+/// Declared stage variances of the fixed-variance control-function model.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StageVariances {
+    /// Variance of the first-stage (treatment) disturbance.
+    pub treatment: f64,
+    /// Variance of the outcome disturbance.
+    pub outcome: f64,
+}
+
+impl StageVariances {
+    fn validate(self) -> Result<Self, EstimationError> {
+        if !self.treatment.is_finite()
+            || self.treatment <= 0.0
+            || !self.outcome.is_finite()
+            || self.outcome <= 0.0
+        {
+            return Err(EstimationError::stats_msg(
+                "declared IV stage variances must be finite and positive",
+            ));
+        }
+        Ok(self)
+    }
+}
+
 /// Fit the linear control-function IV model and sample its conditional Gaussian posterior.
 ///
-/// `instrument` and `treatment` must be finite vectors of at least 8 rows. The instrument is
+/// `sample` vectors must be finite and at least 8 rows. The instrument is
 /// binary or continuous; the first-stage design includes an intercept. The structural model
 /// currently uses one instrument and a homoskedastic Gaussian likelihood. This function does
 /// not claim generic IV robustness or identification outside that model.
 pub fn fit_bayesian_iv(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
 ) -> Result<BayesianIvEstimate, EstimationError> {
-    fit_bayesian_iv_inner(
-        instrument,
-        treatment,
-        outcome,
-        prior_sd,
-        draws,
-        seed,
-        weak_f_threshold,
-        None,
-    )
+    fit_bayesian_iv_inner(sample, prior_sd, sampling, weak_f_threshold, None)
 }
 
 /// Fit using fixed, declared stage variances instead of estimating them from the observations.
 /// The posterior remains model-based and limited to the stated control-function system.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the documented model contract"
-)]
 pub fn fit_bayesian_iv_fixed_variances(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    treatment_variance: f64,
-    outcome_variance: f64,
-    draws: usize,
-    seed: u64,
+    variances: StageVariances,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
 ) -> Result<BayesianIvEstimate, EstimationError> {
-    if !treatment_variance.is_finite()
-        || treatment_variance <= 0.0
-        || !outcome_variance.is_finite()
-        || outcome_variance <= 0.0
-    {
-        return Err(EstimationError::stats_msg(
-            "declared IV stage variances must be finite and positive",
-        ));
-    }
-    fit_bayesian_iv_inner(
-        instrument,
-        treatment,
-        outcome,
-        prior_sd,
-        draws,
-        seed,
-        weak_f_threshold,
-        Some((treatment_variance, outcome_variance)),
-    )
+    let variances = variances.validate()?;
+    fit_bayesian_iv_inner(sample, prior_sd, sampling, weak_f_threshold, Some(variances))
 }
 
 /// Fit a jointly Gaussian structural IV model with a *fixed unit loading* on
@@ -108,21 +106,16 @@ pub fn fit_bayesian_iv_fixed_variances(
 /// `(alpha, pi, mu, beta)`. The fixed loading is a substantive restriction:
 /// this route must not be used when the outcome disturbance has an unknown
 /// loading on `v`.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the documented model contract"
-)]
 pub fn fit_bayesian_iv_joint_fixed_loading(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    treatment_variance: f64,
-    outcome_variance: f64,
-    draws: usize,
-    seed: u64,
+    variances: StageVariances,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
 ) -> Result<BayesianIvEstimate, EstimationError> {
+    let IvSample { instrument, treatment, outcome } = *sample;
+    let StageVariances { treatment: treatment_variance, outcome: outcome_variance } = variances;
+    let DrawSpec { draws, seed } = sampling;
     let n = instrument.len();
     if n < 8
         || treatment.len() != n
@@ -199,20 +192,15 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "shared private fitter receives the exact variance and model settings of each public contract"
-)]
 fn fit_bayesian_iv_inner(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
-    known_variances: Option<(f64, f64)>,
+    known_variances: Option<StageVariances>,
 ) -> Result<BayesianIvEstimate, EstimationError> {
+    let IvSample { instrument, treatment, outcome } = *sample;
+    let DrawSpec { draws, seed } = sampling;
     let n = instrument.len();
     if n < 8
         || treatment.len() != n
@@ -246,8 +234,12 @@ fn fit_bayesian_iv_inner(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
         )));
     }
-    let (stage_mean, stage_cov) =
-        first_stage_posterior(instrument, treatment, prior_sd, known_variances.map(|x| x.0))?;
+    let (stage_mean, stage_cov) = first_stage_posterior(
+        instrument,
+        treatment,
+        prior_sd,
+        known_variances.map(|v| v.treatment),
+    )?;
     let stage_draws = first_stage_draws(stage_mean, &stage_cov, draws, seed)?;
     let mut effect_draws = Vec::with_capacity(draws);
     let mut log_weights = Vec::with_capacity(draws);
@@ -257,7 +249,7 @@ fn fit_bayesian_iv_inner(
             (0..n).map(|i| treatment[i] - stage[0] - stage[1] * instrument[i]).collect();
         let x: Vec<[f64; 3]> = (0..n).map(|i| [1.0, treatment[i], e[i]]).collect();
         let (beta, cov, log_evidence) =
-            normal_posterior(&x, outcome, prior_sd, known_variances.map(|x| x.1))?;
+            normal_posterior(&x, outcome, prior_sd, known_variances.map(|v| v.outcome))?;
         // The effect coordinate's marginal posterior, one seeded draw per first-stage draw.
         let sampled = crate::util::normal_draws(
             beta[1],
@@ -455,14 +447,10 @@ mod tests {
                 y.push(1.0 + 2.0 * ti + v + antecedent_kernels::standard_normal(&mut rng));
             }
             let fit = fit_bayesian_iv_joint_fixed_loading(
-                &z,
-                &t,
-                &y,
+                &IvSample { instrument: &z, treatment: &t, outcome: &y },
                 10.0,
-                1.0,
-                1.0,
-                800,
-                30_000 + rep as u64,
+                StageVariances { treatment: 1.0, outcome: 1.0 },
+                DrawSpec::new(800, 30_000 + rep as u64),
                 10.0,
             )
             .unwrap();
@@ -480,18 +468,36 @@ mod tests {
         let u: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { -0.2 } else { 0.2 }).collect();
         let t: Vec<f64> = z.iter().zip(&u).map(|(z, u)| 0.25 + 0.65 * z + u).collect();
         let y: Vec<f64> = t.iter().zip(&u).map(|(t, u)| 1.0 + 2.0 * t + 1.5 * u).collect();
-        let fit = fit_bayesian_iv(&z, &t, &y, 10.0, 2000, 23, 10.0).unwrap();
+        let fit = fit_bayesian_iv(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            10.0,
+            DrawSpec::new(2000, 23),
+            10.0,
+        )
+        .unwrap();
         assert!((fit.mean - 2.0).abs() < 0.15, "{}", fit.mean);
         assert!(fit.first_stage_f > 10.0);
-        let narrow = fit_bayesian_iv(&z, &t, &y, 0.2, 1000, 4, 10.0).unwrap();
+        let narrow = fit_bayesian_iv(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            0.2,
+            DrawSpec::new(1000, 4),
+            10.0,
+        )
+        .unwrap();
         assert!(
             (narrow.mean - fit.mean).abs() > 0.01,
             "prior sensitivity means: narrow={} broad={}",
             narrow.mean,
             fit.mean
         );
-        let fixed =
-            fit_bayesian_iv_fixed_variances(&z, &t, &y, 10.0, 0.04, 0.01, 1000, 17, 10.0).unwrap();
+        let fixed = fit_bayesian_iv_fixed_variances(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            10.0,
+            StageVariances { treatment: 0.04, outcome: 0.01 },
+            DrawSpec::new(1000, 17),
+            10.0,
+        )
+        .unwrap();
         assert!(fixed.model.contains("declared fixed variances"));
         assert!((fixed.mean - 2.0).abs() < 0.15);
     }
@@ -501,7 +507,13 @@ mod tests {
         let z: Vec<f64> = (0..n).map(|i| f64::from((i / 2) % 2)).collect();
         let t: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
         let y = t.clone();
-        let e = fit_bayesian_iv(&z, &t, &y, 2.0, 100, 9, 10.0).unwrap_err();
+        let e = fit_bayesian_iv(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            2.0,
+            DrawSpec::new(100, 9),
+            10.0,
+        )
+        .unwrap_err();
         assert!(e.to_string().contains("weak_instrument"));
     }
     #[test]

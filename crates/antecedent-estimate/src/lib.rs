@@ -379,7 +379,7 @@ pub use transport::{
     refuse_eval, transport_augmented_response_grid, transport_outcome_kind, trial_aipw_row_scores,
     trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
 };
-pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
+pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, DrawSpec, ReplicatePolicy};
 
 mod splitmix;
 mod static_mediation;

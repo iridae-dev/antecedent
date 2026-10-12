@@ -151,6 +151,23 @@ pub(crate) fn monte_carlo_critical(sorted_maxima: &[f64], level: f64) -> f64 {
     sorted_maxima[rank - 1]
 }
 
+/// How many seeded posterior or resampling draws an estimator takes, and from which seed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawSpec {
+    /// Number of draws.
+    pub draws: usize,
+    /// Master seed of the draw stream.
+    pub seed: u64,
+}
+
+impl DrawSpec {
+    /// `draws` draws from `seed`.
+    #[must_use]
+    pub const fn new(draws: usize, seed: u64) -> Self {
+        Self { draws, seed }
+    }
+}
+
 /// Outcome of an IID bootstrap SE computation with failure accounting.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BootstrapSeResult {
