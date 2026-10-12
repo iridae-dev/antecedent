@@ -1,7 +1,6 @@
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent._native import estimate_complier_effect as native_estimate_complier_effect
 from antecedent.errors import CausalUnsupportedError
 from antecedent.experiment import (
     ComplierEffect,
@@ -39,16 +38,6 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
     assert result.interval_95 is None
     assert result.uncertainty == "bernoulli_wald_cace_influence_variance_no_interval"
     assert "exclusion_restriction" in " ".join(analysis.assumptions or [])
-    native = native_estimate_complier_effect(outcome, assignment, receipt, np.array([0.5]))
-    assert native[4] is None
-    assert tuple(native[:4]) == pytest.approx(
-        (
-            result.intention_to_treat_effect,
-            result.first_stage_effect,
-            result.effect,
-            np.sqrt(result.variance),
-        )
-    )
 
 
 def test_randomized_noncompliance_refuses_zero_first_stage():

@@ -93,17 +93,6 @@ pub(crate) fn series_from_tabular(tabular: TabularData) -> PyResult<TimeSeriesDa
     .map_err(py_err)
 }
 
-/// Pool a multi-unit panel into one time series by row-concatenating unit tables.
-///
-/// Matches the preprocessing the old lazy `Study::compile()` applied when PCMCI-family
-/// algorithms (`pcmci`, `pcmci_plus`, `lpcmci`) were run directly against `PanelData`:
-/// stack all units into one tabular batch, then wrap it in a synthetic unit-interval
-/// series index (discovery only needs a within-series ordering, not real timestamps).
-pub(crate) fn pool_panel_series(panel: &antecedent_data::PanelData) -> PyResult<TimeSeriesData> {
-    let pooled = antecedent_validate::stack_panel_tabular(panel).map_err(py_err)?;
-    series_from_tabular(pooled)
-}
-
 pub(crate) fn parse_space_dummy_ci(s: &str) -> PyResult<SpaceDummyCiMode> {
     match s {
         "scalar" | "scalar_one_hot" | "one_hot" => Ok(SpaceDummyCiMode::ScalarOneHot),
@@ -145,12 +134,4 @@ pub(crate) fn parse_dummy_ci_modes(
         parse_time_dummy_encoding(time_dummy_encoding)?,
         parse_time_dummy_ci(time_dummy_ci)?,
     ))
-}
-
-pub(crate) fn space_dummy_ci_from_bool(multivariate: bool) -> SpaceDummyCiMode {
-    if multivariate { SpaceDummyCiMode::MultivariateBlock } else { SpaceDummyCiMode::ScalarOneHot }
-}
-
-pub(crate) fn time_dummy_ci_from_bool(multivariate: bool) -> TimeDummyCiMode {
-    if multivariate { TimeDummyCiMode::MultivariateBlock } else { TimeDummyCiMode::ScalarOneHot }
 }

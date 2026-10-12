@@ -3,7 +3,7 @@
 Covers: every dataclass's all-defaults `_wire()` is empty and its estimator id
 itself raises, since there is no meaningful all-defaults RD config); `estimator_id` matches
 the Rust wire id from `antecedent.ids.Estimator`; `_wire()` round-trips through the real
-`antecedent.analyze(...)` / `antecedent._native.analyze_ate` and matches a hand-written dict
+`antecedent.analyze(...)` / the native prepared handle and matches a hand-written dict
 exactly; and every `__post_init__` validation rule raises with a message naming the offending
 field.
 """
@@ -85,7 +85,7 @@ def test_default_wire_is_empty_and_estimator_id_matches_rust(instance, expected_
     assert instance.estimator_id == str(expected_id)
 
 
-# --- real round-trips through analyze() / analyze_ate --------------------------------------
+# --- real round-trips through analyze() and the native handle -------------------------------
 
 
 def test_linear_adjustment_wire_round_trips_through_public_analyze():

@@ -11,7 +11,7 @@ evidence_kind = "implementation_exists"
 owner = "estimate"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "prepared_reestimate_matches_fresh_analyze"
-notes = "CausalAnalysis builder + data/graph/query; Python analyze_ate / analyze"
+notes = "CausalAnalysis builder + data/graph/query; Python analyze"
 
 [[capabilities]]
 id = "estimate.model.treatment_outcome"

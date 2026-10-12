@@ -8,7 +8,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import interference, intervention, observation
-from antecedent._native import analyze_response_pag
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results import (
     CausalResponseView,
@@ -340,28 +339,6 @@ def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
     assert np.isfinite(result.response.values).all()
     assert result.evidence_status == "licensed"
     assert any("identify.pag.envelope" in diagnostic for diagnostic in result.diagnostics)
-
-
-def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
-    rng = np.random.default_rng(173)
-    a = rng.normal(size=240)
-    y = 1.2 * a + rng.normal(scale=0.2, size=240)
-    r = rng.normal(size=len(a))
-    s = rng.normal(size=len(a))
-    v = rng.normal(size=len(a))
-    pag = antecedent.Pag.from_marked_edges(
-        ["a", "y", "r", "s", "v"],
-        [("r", "a", "tail", "arrow"), ("a", "y", "tail", "arrow"), ("s", "v", "circle", "circle")],
-    )
-
-    raw = analyze_response_pag(
-        ["a", "y", "r", "s", "v"], [a, y, r, s, v], pag, "a", "y", [-0.25, 0.25], max_completions=1
-    )
-
-    assert raw.enumeration_capped is True
-    assert raw.mass_scope == "examined_completions"
-    assert raw.identified_mass == pytest.approx(1.0)
-    assert raw.unidentified_mass == pytest.approx(0.0)
 
 
 def test_curve_cheap_refute_is_not_applicable():

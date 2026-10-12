@@ -6,10 +6,11 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent._native import (
-    analyze_ate,
     discover_pcmci,
     sample_do,
 )
+
+from _native_ate import native_ate
 
 
 def _indep_ci(columns, queries):
@@ -105,7 +106,7 @@ def test_evaluate_decision_utility_failure_is_typed():
         antecedent.design.evaluate_decision([0.0, 1.0], [2.0, 4.0], boom)
 
 
-def test_custom_validator_on_analyze_ate():
+def test_custom_validator_on_native_ate():
     rng = np.random.default_rng(3)
     n = 120
     z = rng.normal(size=n)
@@ -123,7 +124,7 @@ def test_custom_validator_on_analyze_ate():
             "failure_condition": "custom fail",
         }
 
-    result = analyze_ate(
+    result = native_ate(
         names,
         columns,
         edges,

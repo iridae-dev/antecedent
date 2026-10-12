@@ -56,7 +56,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_pulse"
 evidence_test = "crates/antecedent/tests/bayesian.rs"
 evidence_assertion = "temporal_pulse"
-notes = "BayesianTemporalGcomp on TemporalLinearAdjustment::prepare lag-aligned design; CausalAnalysis InferenceMode::Bayesian; panel stacked via analyze_panel (python_facade=full); conformance/bayesian/temporal_pulse"
+notes = "BayesianTemporalGcomp on TemporalLinearAdjustment::prepare lag-aligned design; CausalAnalysis InferenceMode::Bayesian; panel stacked via the prepared panel route (python_facade=full); conformance/bayesian/temporal_pulse"
 
 [[capabilities]]
 id = "bayes.estimate.graph_envelopes"

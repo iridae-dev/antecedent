@@ -2,7 +2,7 @@
 
 Covers two branch-review defects fixed together:
 
-* The native `analyze_response` (python/src/response_api.rs) now consults the
+* The native response preparation (python/src/response_api.rs) now consults the
   generated support matrix itself (`antecedent::support::refuse_if_not_applicable`)
   instead of being enforced only by hand-typed Python literals that could drift
   from `parity/support_closed.toml`. Admg InterventionResponse cheap/full is

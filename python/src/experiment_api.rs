@@ -124,60 +124,6 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
     }
 }
 
-/// Horvitz--Thompson ITT and Wald complier effect with an influence-function SE.
-///
-/// Shares the retained analyze route's estimator, so the returned interval, when
-/// present, is byte-identical to the licensed interval that route publishes. The
-/// interval is `None` below the calibrated support thresholds; this direct
-/// utility never grants a support-matrix license.
-#[pyfunction]
-#[allow(
-    clippy::type_complexity,
-    reason = "flat Python return tuple of ITT, first stage, effect, SE, and optional interval bounds"
-)]
-fn estimate_complier_effect(
-    outcome: PyReadonlyArray1<'_, f64>,
-    assignment: Vec<bool>,
-    received: Vec<bool>,
-    propensity: PyReadonlyArray1<'_, f64>,
-) -> PyResult<(f64, f64, f64, f64, Option<(f64, f64)>)> {
-    let y = outcome.as_array();
-    let p = propensity.as_array();
-    let n = y.len();
-    if n < 2 || assignment.len() != n || received.len() != n || (p.len() != 1 && p.len() != n) {
-        return Err(PyValueError::new_err(
-            "outcome, assignment, receipt, and propensity must have compatible non-zero rows",
-        ));
-    }
-    let probabilities = (0..n).map(|i| p[if p.len() == 1 { 0 } else { i }]).collect::<Vec<_>>();
-    if probabilities.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value >= 1.0) {
-        return Err(PyValueError::new_err(
-            "assignment propensities must be strictly between zero and one",
-        ));
-    }
-    if y.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-    let fit = antecedent_estimate::randomized_scores::complier_wald_effect(
-        &y.to_vec(),
-        &assignment,
-        &received,
-        &probabilities,
-    )
-    .ok_or_else(|| {
-        PyValueError::new_err(
-            "first stage must be positive under the declared monotonicity assumption",
-        )
-    })?;
-    Ok((
-        fit.intention_to_treat_effect,
-        fit.first_stage,
-        fit.effect,
-        fit.variance.sqrt(),
-        fit.interval_95.map(|interval| (interval[0], interval[1])),
-    ))
-}
-
 /// CUPED covariate residualization with a known-propensity HT contrast.
 #[pyfunction]
 fn estimate_cuped_effect(
@@ -297,7 +243,6 @@ fn estimate_ancova_effect(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<RandomizedEffectSection>()?;
-    module.add_function(wrap_pyfunction!(estimate_complier_effect, module)?)?;
     module.add_function(wrap_pyfunction!(estimate_cuped_effect, module)?)?;
     module.add_function(wrap_pyfunction!(estimate_stratified_effect, module)?)?;
     module.add_function(wrap_pyfunction!(exact_randomization_test, module)?)?;

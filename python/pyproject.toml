@@ -47,7 +47,7 @@ include = ["antecedent/py.typed"]
 exclude = ["**/__pycache__/**"]
 # PEP 517/660 builds (including the editable rebuild uv triggers whenever this
 # file changes) default to Cargo's debug profile, which ships an unoptimized
-# faer/pulp and makes analyze_ate ~50x slower with bit-identical output.
+# faer/pulp and makes estimation ~50x slower with bit-identical output.
 profile = "release"
 
 [dependency-groups]

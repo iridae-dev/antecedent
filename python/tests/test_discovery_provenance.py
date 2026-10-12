@@ -187,8 +187,7 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
     `run_temporal_discovery` (tested above) is the free-function dispatcher used by
     `AcceptedGraph` and GCM compose helpers; `analyze(..., discovery=...)` for
     PulseEffect/SustainedEffect goes through a completely separate call path
-    (`_handle_series_discover` -> `_native.analyze_temporal_discover`), so it needs its
-    own coverage — a prior bug had exactly this path silently ignoring `max_cond_size`
+    (the prepared-analysis compile route), so it needs its own coverage — a prior bug had exactly this path silently ignoring `max_cond_size`
     while `run_temporal_discovery` already forwarded it correctly.
 
     On the 5-variable system from `_pruned_conditioning_series`, capping PCMCI+'s

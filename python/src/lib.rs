@@ -1,5 +1,5 @@
-//! `PyO3` bindings — : Arrow load, `analyze_ate` (incl. Bayesian),
-//! `analyze`, `discover_pcmci`, `discover_pcmci_plus`, GCM fit/sample/CF.
+//! `PyO3` bindings: Arrow load, the prepared-analysis handles, `discover_pcmci`,
+//! `discover_pcmci_plus`, GCM fit/sample/CF.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -138,16 +138,13 @@ mod transport_z_api;
 mod transported_counterfactual_api;
 mod vector_treatment_api;
 
-pub(crate) use ate_api::{
-    GraphEdge, ate_result_from_analysis, panel_discovery_builder, panel_multi_dataset_constraints,
-};
+pub(crate) use ate_api::{GraphEdge, ate_result_from_analysis};
 pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
 };
 pub(crate) use graph_build::{
-    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, pool_panel_series,
-    require_named_graph_order, schema_var_id, series_from_tabular, space_dummy_ci_from_bool,
-    temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
+    dag_from_named_edges, parse_dummy_ci_modes, require_named_graph_order, schema_var_id,
+    series_from_tabular, temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges,
 };
 pub(crate) use temporal_api::{
     AnalysisResult, GcmIteResult, GcmSampleResult, MediationEffectsSummary, PredictSummary,
@@ -188,10 +185,9 @@ use std::sync::Arc;
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
-    RegimeAssignment, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
-    discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
-    discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
-    discover_lpcmci as facade_discover_lpcmci,
+    RegimeAssignment, ScoredLink, StaticDiscoverParams, discover_fci as facade_discover_fci,
+    discover_ges as facade_discover_ges, discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    discover_lingam as facade_discover_lingam, discover_lpcmci as facade_discover_lpcmci,
     discover_lpcmci_panel as facade_discover_lpcmci_panel,
     discover_notears as facade_discover_notears, discover_pc as facade_discover_pc,
     discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
@@ -218,8 +214,8 @@ use antecedent::gcm::{
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
-    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, FdrControl, InferenceMode,
-    RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, InferenceMode, RefuteSuite,
+    Study,
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
@@ -229,10 +225,9 @@ use antecedent_core::{
     TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
     VariableId,
 };
-use antecedent_data::TimeDummyEncoding;
 use antecedent_data::{
-    ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit, TableView,
-    TimeSeriesData, tabular_from_arrow_c_columns, tabular_from_record_batch,
+    ArrowCColumn, DataError, MultiEnvironmentData, TableView, TimeSeriesData,
+    tabular_from_arrow_c_columns, tabular_from_record_batch,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
@@ -2829,7 +2824,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Surfaced so the Python package can refuse to stay silent when an
     // unoptimized extension sneaks in: a stale editable install rebuilt through
     // PEP 517/660 defaults to Cargo's debug profile, which keeps every estimate
-    // bit-identical while making analyze_ate ~50x slower.
+    // bit-identical while making estimation ~50x slower.
     m.add("__build_optimized__", !cfg!(debug_assertions))?;
     Ok(())
 }
