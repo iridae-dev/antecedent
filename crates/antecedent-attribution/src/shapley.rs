@@ -1065,8 +1065,8 @@ mod tests {
             est.component_mc_stderr.as_ref().map(|s| s.iter().map(|v| v.to_bits()).collect()),
             est.budget.evaluations,
             est.budget.samples,
-            est.cache_stats.hits as u64,
-            est.cache_stats.misses as u64,
+            est.cache_stats.hits,
+            est.cache_stats.misses,
         )
     }
 

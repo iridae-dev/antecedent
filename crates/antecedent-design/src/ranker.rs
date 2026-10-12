@@ -194,6 +194,8 @@ struct ActiveScoring<'a, O> {
     /// Indexes of the candidates that passed the constraints.
     active: &'a [usize],
     decision: Option<&'a DecisionScoring<'a, O>>,
+    /// Every active candidate is scored exactly, so its draws are all identical.
+    all_exact: bool,
 }
 
 /// Per-draw scores of every active candidate (draw `i` is the same CRN replicate for all)
@@ -279,9 +281,13 @@ impl DesignRanker {
             candidates,
             ctx_eval,
             ctx,
-            &ActiveScoring { active: &active, decision: decision.as_ref() },
-            // Exact objectives return the same value on every draw, so one is enough.
-            !evaluations.is_empty() && evaluations.iter().all(|e| *e == ScoreEvaluation::Exact),
+            &ActiveScoring {
+                active: &active,
+                decision: decision.as_ref(),
+                // Exact objectives return the same value on every draw, so one is enough.
+                all_exact: !evaluations.is_empty()
+                    && evaluations.iter().all(|e| *e == ScoreEvaluation::Exact),
+            },
             z,
         )?;
 
@@ -353,14 +359,13 @@ impl DesignRanker {
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
         scoring: &ActiveScoring<'_, O>,
-        all_exact: bool,
         z: f64,
     ) -> Result<ScoringRun, DesignError>
     where
         A: Clone,
         O: Clone,
     {
-        let (active, decision) = (scoring.active, scoring.decision);
+        let (active, decision, all_exact) = (scoring.active, scoring.decision, scoring.all_exact);
         let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();

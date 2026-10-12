@@ -1091,7 +1091,7 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let mut columns = vec![Vec::with_capacity(n); 4];
+        let mut columns: Vec<Vec<f64>> = (0..4).map(|_| Vec::with_capacity(n)).collect();
         for i in 0..n {
             let shifted = if i < n / 2 { 0.0 } else { 1.0 };
             let wobble = |k: f64| ((i as f64 + 1.0) * k).sin();
