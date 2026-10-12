@@ -1177,7 +1177,7 @@ impl super::Study {
     }
 
     #[allow(clippy::float_cmp)] // Exact comparison of the requested cell with the control contrast.
-    fn execute_cell_aipw_response(
+    pub(super) fn execute_cell_aipw_response(
         &self,
         data: &TabularData,
         query: &ResponseQuery,
