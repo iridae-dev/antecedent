@@ -5,7 +5,7 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GcmSlot,
     IdentificationStatus, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, StudyResult, TableView, TabularData, VariableId,
+    PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData, VariableId,
     anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
     bayesian_draw_count, binary_cf_interventions, counterfactual_ite, elapsed_ns,
     finish_identified_execute_with_context, fit_gcm, identification_from_cache_or,
@@ -355,8 +355,7 @@ fn execute_checked_counterfactual_plan(
             identification.clone(),
             estimand,
             estimate,
-            IdentifierId::GcmParametric,
-            EstimatorId::GcmFit,
+            Strategy::new(IdentifierId::GcmParametric, EstimatorId::GcmFit),
             treatment,
             outcome,
         )
@@ -376,6 +375,17 @@ fn execute_checked_counterfactual_plan(
             ..Default::default()
         }),
     ))
+}
+
+/// The result slots of one GCM attribution finish, apart from the plan and clock.
+struct GcmFinish {
+    query: CausalQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    estimate: EffectEstimate,
+    slot: GcmSlot,
+    diagnostics: Vec<Diagnostic>,
+    identify_cached: bool,
 }
 
 impl super::Study {
@@ -464,14 +474,16 @@ impl super::Study {
         let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
         let mut result = self.finish_gcm(
             physical,
-            CausalQuery::AnomalyAttribution(query.clone()),
-            outcome,
-            outcome,
-            nan_effect(),
             started,
-            GcmSlot::Anomaly(scores.clone()),
-            Vec::new(),
-            identify_cached,
+            GcmFinish {
+                query: CausalQuery::AnomalyAttribution(query.clone()),
+                treatment: outcome,
+                outcome: outcome,
+                estimate: nan_effect(),
+                slot: GcmSlot::Anomaly(scores.clone()),
+                diagnostics: Vec::new(),
+                identify_cached: identify_cached,
+            },
         );
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
             let n_draws = bayesian_draw_count(&self.inference)?;
@@ -583,14 +595,16 @@ impl super::Study {
         );
         let mut result = self.finish_gcm(
             physical,
-            CausalQuery::ChangeAttribution(query.clone()),
-            query.outcome,
-            query.outcome,
-            estimate,
             started,
-            GcmSlot::Change(point_result),
-            Vec::new(),
-            identify_cached,
+            GcmFinish {
+                query: CausalQuery::ChangeAttribution(query.clone()),
+                treatment: query.outcome,
+                outcome: query.outcome,
+                estimate: estimate,
+                slot: GcmSlot::Change(point_result),
+                diagnostics: Vec::new(),
+                identify_cached: identify_cached,
+            },
         );
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
             let n_draws = bayesian_draw_count(&self.inference)?;
@@ -693,14 +707,16 @@ impl super::Study {
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
         Ok(self.finish_gcm(
             physical,
-            CausalQuery::MechanismChange(query.clone()),
-            outcome,
-            outcome,
-            nan_effect(),
             started,
-            GcmSlot::Mechanism(detections),
-            Vec::new(),
-            false,
+            GcmFinish {
+                query: CausalQuery::MechanismChange(query.clone()),
+                treatment: outcome,
+                outcome: outcome,
+                estimate: nan_effect(),
+                slot: GcmSlot::Mechanism(detections),
+                diagnostics: Vec::new(),
+                identify_cached: false,
+            },
         ))
     }
 
@@ -718,29 +734,27 @@ impl super::Study {
         let result = attribute_unit_change(&fitted.model, data, query, ctx)?;
         Ok(self.finish_gcm(
             physical,
-            CausalQuery::UnitChange(query.clone()),
-            query.outcome,
-            query.outcome,
-            nan_effect(),
             started,
-            GcmSlot::Unit(result),
-            Vec::new(),
-            false,
+            GcmFinish {
+                query: CausalQuery::UnitChange(query.clone()),
+                treatment: query.outcome,
+                outcome: query.outcome,
+                estimate: nan_effect(),
+                slot: GcmSlot::Unit(result),
+                diagnostics: Vec::new(),
+                identify_cached: false,
+            },
         ))
     }
 
     fn finish_gcm(
         &self,
         physical: &PhysicalExecutionPlan,
-        query: CausalQuery,
-        treatment: VariableId,
-        outcome: VariableId,
-        estimate: EffectEstimate,
         started: Instant,
-        slot: GcmSlot,
-        diagnostics: Vec<Diagnostic>,
-        identify_cached: bool,
+        finish: GcmFinish,
     ) -> StudyResult {
+        let GcmFinish { query, treatment, outcome, estimate, slot, diagnostics, identify_cached } =
+            finish;
         let estimator_id = match (&query, &self.inference) {
             (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
                 EstimatorId::GcmFitBayesian
@@ -757,8 +771,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::GcmParametric,
-                estimator_id,
+                Strategy::new(IdentifierId::GcmParametric, estimator_id),
                 treatment,
                 outcome,
             )

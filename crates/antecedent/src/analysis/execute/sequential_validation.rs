@@ -3,9 +3,9 @@ use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, DenseNodeId, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimationWorkspace, ExecutionContext,
     IdentificationStatus, IdentifiedEstimand, PosteriorPredictiveCheck, PredictiveCheckReport,
-    PriorPredictiveCheck, RandomizedTrialQuery, RefuteSuite, TableView, TabularData, TemporalDag,
-    TemporalEffectQuery, TemporalRefitContext, TimeIndex, TimeSeriesData, ValidationSuite,
-    VariableId, mix_prior_sensitivity_summaries, temporal_refuter_average, with_prior_sensitivity,
+    PriorPredictiveCheck, RefuteSuite, TableView, TabularData, TemporalDag, TemporalEffectQuery,
+    TemporalRefitContext, TimeIndex, TimeSeriesData, ValidationSuite, VariableId,
+    mix_prior_sensitivity_summaries, temporal_refuter_average, with_prior_sensitivity,
 };
 use antecedent_estimate::temporal_sequential::{
     SequentialBayesianMechanism, estimate_sustained_window,
@@ -214,21 +214,28 @@ fn least_squares_stand_in(bayes: &BayesianGComputationAte) -> Arc<str> {
     ))
 }
 
+/// What a sequential validation pass runs against: the series and query, the suite and
+/// custom validators, and the predictive-check budget.
+pub(super) struct SequentialValidation<'a> {
+    pub(super) data: &'a TimeSeriesData,
+    pub(super) query: &'a TemporalEffectQuery,
+    pub(super) suite: RefuteSuite,
+    pub(super) custom: &'a [Arc<dyn antecedent_validate::CustomEffectValidator>],
+    pub(super) predictive_sims: u32,
+}
+
 type SequentialValidationResults =
     (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>, Vec<PredictiveCheckReport>);
 
 pub(super) fn validate_sequential(
-    data: &TimeSeriesData,
-    query: &TemporalEffectQuery,
+    setup: SequentialValidation<'_>,
     atoms: &[SequentialValidationAtom],
-    suite: RefuteSuite,
-    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     bayes: Option<&BayesianGComputationAte>,
     posterior: Option<&mut CausalPosterior>,
     original: f64,
     ctx: &ExecutionContext,
-    predictive_sims: u32,
 ) -> Result<SequentialValidationResults, CausalError> {
+    let SequentialValidation { data, query, suite, custom, predictive_sims } = setup;
     let table = TabularData::new(data.storage().clone());
     let average = temporal_refuter_average(query);
     let mut reports: std::collections::BTreeMap<

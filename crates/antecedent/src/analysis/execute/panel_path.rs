@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::completion_fit_memo::{CompletionFitMemo, ResponseFitKey};
+use super::sequential_validation::SequentialValidation;
 use super::{
     AnalyticSeKind, Arc, BayesianGCompWorkspace, BayesianGComputationAte, BootstrapAccounting,
     CausalError, CausalPosterior, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind,
@@ -8,10 +9,10 @@ use super::{
     ExecutionContext, GraphEffectDraws, GraphIdentFlag, IdentificationStatus, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
     Intervention, ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan,
-    PredictiveCheckReport, PriorSet, RefuteSuite, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, StudyResult, TableView, TemporalBackdoorIdentifier,
-    TemporalDag, TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment,
-    TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
+    PredictiveCheckReport, PriorSet, RefutationRun, RefuteSuite, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
+    TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
+    TemporalLinearAdjustment, TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
     apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
     bootstrap_has_enough_successes, completion_fit_seed, effect_from_posterior, elapsed_ns,
     envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
@@ -19,7 +20,7 @@ use super::{
     identify_cached_diagnostic, mag_sequential_unevaluable_diagnostic, mix_weighted_analytic_se,
     nan_effect, posterior_identified_set_interval, provenance_ids, push_conflict_diagnostics,
     report_identify_compute, require_identified, resolve_bayesian_prior_with_conflict,
-    run_refuters, same_fit_inputs, same_fitted_mechanisms, same_fitted_problem, select_estimand,
+    same_fit_inputs, same_fitted_mechanisms, same_fitted_problem, select_estimand,
     sequential_linear_sem_assumption, stack_panel_tabular, temporal_refuter_average,
     with_conflict_summary,
 };
@@ -180,23 +181,21 @@ impl super::Study {
             time_index: None,
             panel: Some(panel),
         };
-        let (mut refutations, na_diagnostics) = run_refuters(
-            &stacked,
-            &estimand,
-            &ate_q,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            if posterior.is_some() {
+        let (mut refutations, na_diagnostics) = RefutationRun {
+            data: &stacked,
+            estimand: &estimand,
+            query: &ate_q,
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: if posterior.is_some() {
                 EstimatorId::BayesianTemporalGcomp.as_str()
             } else {
                 EstimatorId::TemporalLinearAdjustment.as_str()
             },
-            &self.custom_validators,
-            Some(temporal_ctx),
-        )?;
+            custom: &self.custom_validators,
+            temporal: Some(temporal_ctx),
+        }
+        .reports(&mut refute_ws, None, ctx)?;
         diagnostics.extend(na_diagnostics);
 
         // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
@@ -230,12 +229,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                if posterior.is_some() {
-                    EstimatorId::BayesianTemporalGcomp
-                } else {
-                    EstimatorId::TemporalLinearAdjustment
-                },
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if posterior.is_some() {
+                        EstimatorId::BayesianTemporalGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                ),
                 query.treatment,
                 query.outcome,
             )
@@ -429,8 +430,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                EstimatorId::TemporalLinearAdjustment,
+                Strategy::new(identifier_id, EstimatorId::TemporalLinearAdjustment),
                 query.treatment,
                 query.outcome,
             )
@@ -679,8 +679,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                EstimatorId::BayesianTemporalGcomp,
+                Strategy::new(identifier_id, EstimatorId::BayesianTemporalGcomp),
                 query.treatment,
                 query.outcome,
             )
@@ -735,19 +734,17 @@ impl super::Study {
                 time_index: None,
                 panel: Some(panel),
             };
-            let (mut local, local_diagnostics) = run_refuters(
-                &stacked,
-                &atom.estimand,
-                &ate_q,
-                &atom.estimate,
-                &mut workspace,
-                None,
-                ctx,
-                self.refute,
+            let (mut local, local_diagnostics) = RefutationRun {
+                data: &stacked,
+                estimand: &atom.estimand,
+                query: &ate_q,
+                estimate: &atom.estimate,
+                suite: self.refute,
                 estimator,
-                &self.custom_validators,
-                Some(temporal_ctx),
-            )?;
+                custom: &self.custom_validators,
+                temporal: Some(temporal_ctx),
+            }
+            .reports(&mut workspace, None, ctx)?;
             for report in &mut local {
                 report.refuter = Arc::from(format!("completion.{}.{}", atom.key, report.refuter));
             }
@@ -905,12 +902,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::TemporalResponseBayesian
-                } else {
-                    EstimatorId::TemporalResponseGcomp
-                },
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
+                ),
                 treatment,
                 outcome,
             )
@@ -1180,12 +1179,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::TemporalResponseBayesian
-                } else {
-                    EstimatorId::TemporalResponseGcomp
-                },
+                Strategy::new(
+                    identifier_id,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
+                ),
                 treatment,
                 outcome,
             )
@@ -1433,8 +1434,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                EstimatorId::TemporalSequentialGcomp,
+                Strategy::new(identifier_id, EstimatorId::TemporalSequentialGcomp),
                 query.treatment,
                 query.outcome,
             )
@@ -1495,16 +1495,20 @@ impl super::Study {
                 });
                 let (mut local, local_diagnostics, local_checks) =
                     super::sequential_validation::validate_sequential(
-                        &unit.series,
-                        query,
+                        SequentialValidation {
+                            data: &unit.series,
+                            query,
+                            suite: self.refute,
+                            custom: &self.custom_validators,
+                            predictive_sims: super::super::latency::predictive_check_sims(
+                                self.latency_mode,
+                            ),
+                        },
                         std::slice::from_ref(&validation_atom),
-                        self.refute,
-                        &self.custom_validators,
                         unit_bayes.as_ref(),
                         posterior.as_mut(),
                         fit.estimate.ate,
                         ctx,
-                        super::super::latency::predictive_check_sims(self.latency_mode),
                     )?;
                 for report in &mut local {
                     report.refuter = Arc::from(format!(

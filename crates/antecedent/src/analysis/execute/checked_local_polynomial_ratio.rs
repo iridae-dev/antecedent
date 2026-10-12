@@ -6,8 +6,8 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
     IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteFinish, IdentifierId, InferenceMode, PhysicalExecutionPlan,
-    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Study, StudyResult, TableView,
-    TabularData, finish_identified_execute_with_context,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
 };
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
@@ -112,7 +112,7 @@ impl CheckedLocalPolynomialRatioOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.treatment, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.treatment, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.local_ratio.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,

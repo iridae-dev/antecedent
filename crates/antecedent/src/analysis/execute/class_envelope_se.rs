@@ -4,8 +4,7 @@
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
     EstimationWorkspace, ExecutionContext, IdentificationStatus, IdentifiedEstimand, OverlapPolicy,
-    RandomizedTrialQuery, TableView, TemporalDag, TemporalEffectQuery, TemporalIndexer,
-    TemporalLinearAdjustment, TimeSeriesData,
+    TemporalDag, TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment, TimeSeriesData,
 };
 
 /// Shared circular-block SE for a frozen-weight temporal class / DBN mixture.

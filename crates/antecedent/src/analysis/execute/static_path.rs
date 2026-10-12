@@ -2,21 +2,21 @@
 
 use super::{
     Admg, Arc, AverageEffectQuery, BootstrapAccounting, CausalError, CausalQuery, ClassAtomOutcome,
-    ConditionalLinearAdjustment, Dag, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
-    FunctionalDistribution, FunctionalDistributionWorkspace, GraphClass, IdentificationEnvelope,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, Intervention,
-    LinearAdjustmentAte, OverlapPolicy, PhysicalExecutionPlan, RdWorkspace, RefuteSuite,
-    SharpRdConfig, SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateWorkspaces,
+    ClassEnvelopeRun, ConditionalLinearAdjustment, Dag, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
+    EstimationWorkspace, EstimatorId, ExecuteRun, ExecutionContext, FunctionalDistribution,
+    FunctionalDistributionWorkspace, GraphClass, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
+    InferenceMode, Instant, Intervention, LinearAdjustmentAte, OverlapPolicy,
+    PhysicalExecutionPlan, RdWorkspace, RefutationRun, RefuteSuite, SharpRdConfig,
+    SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateWorkspaces, Strategy,
     StudyResult, TableView, TabularData, bayesian_draw_count, bayesian_gcomp, elapsed_ns,
     envelope_se_omission_diagnostic, envelope_to_identification_result_for, estimate_static_effect,
     identification_from_cache_or, identification_status_ok_for_case, identify_cpdag, identify_pag,
     identify_static, identify_static_query, identify_static_query_with_rd, mix_static_envelope_se,
     mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, project_for_ate_estimate,
-    projection_diagnostic, report_identify_compute, require_identified,
-    run_envelope_effect_refuters, run_refuters, scalar_identified_set, select_claim,
-    select_estimand, static_aligned_influence,
+    projection_diagnostic, report_identify_compute, require_identified, scalar_identified_set,
+    select_claim, select_estimand, static_aligned_influence,
 };
 use crate::estimator_spec::EstimatorSpec;
 use crate::planner::RouteDefaults;
@@ -32,13 +32,14 @@ impl super::Study {
         graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
-        prepared_linear: Option<&super::super::prepared::CheckedLinearOperation>,
-        prepared_aipw: Option<&super::super::prepared::CheckedAipwOperation>,
-        prepared_frontdoor: Option<&super::super::prepared::CheckedFrontDoorOperation>,
-        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
-        prepared_iv: Option<&super::super::prepared::CheckedIvOperation>,
+        execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let prepared_linear = execution.linear_operation();
+        let prepared_aipw = execution.aipw_operation();
+        let prepared_frontdoor = execution.frontdoor_linear();
+        let bayesian_gcomp_operation = execution.bayesian_gcomp();
+        let prepared_iv = execution.iv();
         let mut clock = super::super::stage::StageClock::new();
         let (identifier_id, estimator_id) =
             physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
@@ -80,8 +81,7 @@ impl super::Study {
                 physical,
                 ctx,
                 &background,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
             );
         }
 
@@ -565,19 +565,17 @@ impl super::Study {
                 EstimatorId::Aipw => &mut estimate_ws.aipw.propensity,
                 _ => &mut estimate_ws.propensity.propensity,
             };
-            let (reports, na_diagnostics) = run_refuters(
-                &data_est,
-                &estimand_est,
-                &query_est,
-                &estimate,
-                &mut estimate_ws.linear,
-                Some(prop_scratch),
-                ctx,
-                self.refute,
-                estimator_id.as_str(),
-                &self.custom_validators,
-                None,
-            )?;
+            let (reports, na_diagnostics) = RefutationRun {
+                data: &data_est,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .reports(&mut estimate_ws.linear, Some(prop_scratch), ctx)?;
             clock.finish(super::super::stage::STAGE_VALIDATE);
             super::super::stage::emit_stage(
                 self.stage_sink.as_ref(),
@@ -614,8 +612,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -778,8 +775,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -857,8 +853,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -903,27 +898,24 @@ impl super::Study {
             ctx,
         )?;
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, extra_diagnostics) = run_refuters(
+        let (refutations, extra_diagnostics) = RefutationRun {
             data,
-            &estimand,
+            estimand: &estimand,
             query,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator_id.as_str(),
-            &self.custom_validators,
-            None,
-        )?;
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -991,19 +983,17 @@ impl super::Study {
         let estimate = est.fit_checked(&checked, &mut ws, ctx).map_err(CausalError::from)?;
 
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, extra_diagnostics) = run_refuters(
+        let (refutations, extra_diagnostics) = RefutationRun {
             data,
-            &estimand,
+            estimand: &estimand,
             query,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            "rd.sharp",
-            &self.custom_validators,
-            None,
-        )?;
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: "rd.sharp",
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
 
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
@@ -1011,8 +1001,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::RdSharp,
-                EstimatorId::RdSharp,
+                Strategy::new(IdentifierId::RdSharp, EstimatorId::RdSharp),
                 query.treatment,
                 query.outcome,
             )
@@ -1069,19 +1058,17 @@ impl super::Study {
             EstimatorId::ConditionalLinearAdjustment
         };
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, mut extra_diagnostics) = run_refuters(
+        let (refutations, mut extra_diagnostics) = RefutationRun {
             data,
-            &estimand,
-            &query.inner,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator_name,
-            &self.custom_validators,
-            None,
-        )?;
+            estimand: &estimand,
+            query: &query.inner,
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: estimator_name,
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
         if let Some(diagnostic) = super::super::helpers::conditional_quantile_grid_diagnostic(
             data,
             query,
@@ -1097,8 +1084,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.inner.treatment,
                 query.inner.outcome,
             )
@@ -1141,15 +1127,13 @@ impl super::Study {
                 self.finish_class_conditional(
                     data,
                     query,
-                    physical,
-                    ctx,
-                    &envelope,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: &envelope,
+                        envelope_diagnostic: super::pag_path::pag_envelope_diagnostic(&envelope),
+                    },
                     identification,
-                    identify_cached,
-                    super::pag_path::pag_envelope_diagnostic(&envelope),
-                    identifier_id,
-                    estimator_id,
-                    started,
+                    Strategy::new(identifier_id, estimator_id),
                     "pag",
                 )
                 .map(|result| {
@@ -1182,15 +1166,13 @@ impl super::Study {
                 self.finish_class_conditional(
                     data,
                     query,
-                    physical,
-                    ctx,
-                    &envelope,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: &envelope,
+                        envelope_diagnostic: super::pag_path::cpdag_envelope_diagnostic(&envelope),
+                    },
                     identification,
-                    identify_cached,
-                    super::pag_path::cpdag_envelope_diagnostic(&envelope),
-                    identifier_id,
-                    estimator_id,
-                    started,
+                    Strategy::new(identifier_id, estimator_id),
                     "cpdag",
                 )
                 .map(|result| {
@@ -1214,17 +1196,17 @@ impl super::Study {
         &self,
         data: &TabularData,
         query: &antecedent_core::ConditionalEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        envelope: &IdentificationEnvelope<G>,
+        run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
-        identify_cached: bool,
-        envelope_diag: Diagnostic,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
-        started: Instant,
+        strategy: Strategy,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic: envelope_diag,
+        } = run;
         if envelope.unidentified_weight.0 > 1e-12
             && (query.inner.outcome_functional.quantile_level().is_some()
                 || query.inner.outcome_functional.thresholds().is_some())
@@ -1241,13 +1223,12 @@ impl super::Study {
             {
                 return self.execute_pag_nonidentified_prior(
                     &query.inner,
-                    physical,
-                    ctx,
-                    envelope,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: envelope,
+                        envelope_diagnostic: envelope_diag,
+                    },
                     identification,
-                    identify_cached,
-                    started,
-                    envelope_diag,
                     class_tag,
                 );
             }
@@ -1265,13 +1246,12 @@ impl super::Study {
             return self.execute_pag_bayesian(
                 data,
                 &query.inner,
-                physical,
-                ctx,
-                envelope,
+                ClassEnvelopeRun {
+                    run: ExecuteRun { physical, ctx, started, identify_cached },
+                    envelope: envelope,
+                    envelope_diagnostic: envelope_diag,
+                },
                 identification,
-                identify_cached,
-                started,
-                envelope_diag,
                 class_tag,
             );
         }
@@ -1376,19 +1356,15 @@ impl super::Study {
         }
         diagnostics.extend(super::super::helpers::conditional_score_estimator_diagnostic(query));
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+        let (refutations, na_diagnostics) = EnvelopeRefutation {
             data,
-            &query.inner,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            estimator_id.as_str(),
-            &self.custom_validators,
-            None,
-            self.split.as_ref(),
-            None,
-        )?;
+            query: &query.inner,
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .run(&refute_atoms, &mut refute_ws, ctx)?;
         diagnostics.extend(na_diagnostics);
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
@@ -1407,8 +1383,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.inner.treatment,
                 query.inner.outcome,
             )
@@ -1510,8 +1485,10 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::PathSpecificNatural,
-                EstimatorId::StaticMediationLinear,
+                Strategy::new(
+                    IdentifierId::PathSpecificNatural,
+                    EstimatorId::StaticMediationLinear,
+                ),
                 query.treatment,
                 query.outcome,
             )
@@ -1540,9 +1517,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
         background: &antecedent_graph::TieredBackground,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
+        strategy: Strategy,
     ) -> Result<StudyResult, CausalError> {
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let started = Instant::now();
         let (identification, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
@@ -1559,13 +1536,14 @@ impl super::Study {
             return self.finish_tiered_unknown(
                 data,
                 query,
-                physical,
-                ctx,
+                ExecuteRun {
+                    physical: physical,
+                    ctx: ctx,
+                    started: started,
+                    identify_cached: identify_cached,
+                },
                 identification,
-                identifier_id,
-                estimator_id,
-                identify_cached,
-                started,
+                Strategy::new(identifier_id, estimator_id),
             );
         }
         let estimand = identification.estimands[0].clone();
@@ -1601,19 +1579,17 @@ impl super::Study {
             ctx.rng.master_seed(),
         )?;
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_refuters(
+        let (refutations, na_diagnostics) = RefutationRun {
             data,
-            &estimand,
+            estimand: &estimand,
             query,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator_id.as_str(),
-            &self.custom_validators,
-            None,
-        )?;
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
         extra_diagnostics.extend(na_diagnostics);
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
@@ -1621,8 +1597,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -1659,13 +1634,14 @@ impl super::Study {
         self.finish_tiered_unknown(
             data,
             query,
-            physical,
-            ctx,
+            ExecuteRun {
+                physical: physical,
+                ctx: ctx,
+                started: Instant::now(),
+                identify_cached: true,
+            },
             identification,
-            identifier_id,
-            estimator_id,
-            true,
-            Instant::now(),
+            Strategy::new(identifier_id, estimator_id),
         )
     }
 
@@ -1674,14 +1650,12 @@ impl super::Study {
         &self,
         data: &TabularData,
         query: &AverageEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
+        run: ExecuteRun<'_>,
         identification: IdentificationResult,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
-        identify_cached: bool,
-        started: Instant,
+        strategy: Strategy,
     ) -> Result<StudyResult, CausalError> {
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
             data,
             query.outcome,
@@ -1791,8 +1765,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )

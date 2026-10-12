@@ -7,8 +7,8 @@ use super::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
     IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifierId, InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, SharpRdConfig, SharpRdIdentifier, Study, StudyResult, TabularData,
-    elapsed_ns, identify_static_query, require_identified, select_estimand,
+    PhysicalExecutionPlan, SharpRdConfig, SharpRdIdentifier, Strategy, Study, StudyResult,
+    TabularData, elapsed_ns, identify_static_query, require_identified, select_estimand,
 };
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::bayesian_iv::{
@@ -156,8 +156,7 @@ impl Study {
                 identification.clone(),
                 estimand.clone(),
                 estimate,
-                IdentifierId::Iv,
-                estimator_id,
+                Strategy::new(IdentifierId::Iv, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -270,8 +269,7 @@ impl Study {
                 identification.clone(),
                 estimand.clone(),
                 estimate,
-                IdentifierId::RdSharp,
-                estimator_id,
+                Strategy::new(IdentifierId::RdSharp, estimator_id),
                 query.treatment,
                 query.outcome,
             )

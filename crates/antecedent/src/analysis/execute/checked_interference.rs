@@ -7,8 +7,8 @@ use super::{
     IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
     InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan,
-    RefuteSuite, Study, StudyResult, TableView, TabularData, VariableId, effect_from_posterior,
-    elapsed_ns, finish_identified_execute_with_context,
+    RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, VariableId,
+    effect_from_posterior, elapsed_ns, finish_identified_execute_with_context,
 };
 use crate::analysis::prepared::Inspect;
 
@@ -607,8 +607,7 @@ impl CheckedInterferenceOperation {
                 self.identification.clone(),
                 self.estimand.clone(),
                 estimate,
-                IdentifierId::InterferenceDesign,
-                self.estimator,
+                Strategy::new(IdentifierId::InterferenceDesign, self.estimator),
                 outcome,
                 outcome,
             )

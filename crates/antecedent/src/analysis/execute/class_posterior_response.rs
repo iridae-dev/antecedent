@@ -15,12 +15,12 @@ use super::{
     ExecutionContext, GraphPosterior, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
     IdentifierId, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, Study, StudyResult, TableView, TabularData, VariableId,
-    bayesian_gcomp, elapsed_ns, identification_status_ok_for_case, identify_cached_diagnostic,
-    provenance_ids, push_graph_posterior_structural_aggregation_diagnostic,
-    resolve_posterior_status, resolve_structural_aggregation, response_path,
-    run_plugin_level_refuters,
+    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study, StudyResult, TableView,
+    TabularData, VariableId, bayesian_gcomp, elapsed_ns, identification_status_ok_for_case,
+    identify_cached_diagnostic, provenance_ids,
+    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
+    resolve_structural_aggregation, response_path,
 };
 use crate::analysis::prepared::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
@@ -208,17 +208,17 @@ impl super::Study {
                         mixed.response.assumptions.clone(),
                         OverlapPolicy::ExplicitOverride,
                     );
-                    run_plugin_level_refuters(
+                    RefutationRun {
                         data,
-                        &mixed.estimand,
-                        &ate_query,
-                        &plugin_estimate,
-                        &mut refute_ws,
-                        ctx,
-                        self.refute,
-                        estimator_id.as_str(),
-                        &self.custom_validators,
-                    )?
+                        estimand: &mixed.estimand,
+                        query: &ate_query,
+                        estimate: &plugin_estimate,
+                        suite: self.refute,
+                        estimator: estimator_id.as_str(),
+                        custom: &self.custom_validators,
+                        temporal: None,
+                    }
+                    .plugin_level(&mut refute_ws, ctx)?
                 } else {
                     plugin_level_on_class_response_atoms(
                         data,
@@ -266,8 +266,7 @@ impl super::Study {
                 identification,
                 mixed.estimand,
                 estimate,
-                IdentifierId::GeneralizedAdjustment,
-                estimator_id,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
                 treatment,
                 outcome,
             )
@@ -706,17 +705,17 @@ fn plugin_level_on_class_response_atoms(
                 assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             );
-            let (reports, notes) = run_plugin_level_refuters(
+            let (reports, notes) = RefutationRun {
                 data,
                 estimand,
-                &ate_query,
-                &estimate,
-                &mut refute_ws,
-                ctx,
+                query: &ate_query,
+                estimate: &estimate,
                 suite,
                 estimator,
                 custom,
-            )?;
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?;
             diagnostics.extend(notes);
             per_atom.push((weight, reports));
         }

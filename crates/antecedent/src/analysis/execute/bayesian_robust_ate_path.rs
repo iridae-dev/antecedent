@@ -3,8 +3,8 @@
 use super::{
     Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Dag, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext, IdentifiedExecuteFinish,
-    InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, StudyResult, TableView,
-    TabularData, effect_from_posterior, elapsed_ns, identification_from_cache_or,
+    InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, Strategy, StudyResult,
+    TableView, TabularData, effect_from_posterior, elapsed_ns, identification_from_cache_or,
     identify_static_query_with_rd, project_for_ate_estimate, select_claim,
 };
 use crate::planner::RouteDefaults;
@@ -157,8 +157,7 @@ impl super::Study {
                 identification,
                 estimand_est,
                 estimate,
-                identifier,
-                estimator,
+                Strategy::new(identifier, estimator),
                 query_est.treatment,
                 query_est.outcome,
             )

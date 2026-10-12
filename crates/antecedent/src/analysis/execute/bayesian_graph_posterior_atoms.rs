@@ -9,7 +9,7 @@
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,
     CausalPosterior, ExecutionContext, GraphEffectDraws, IdentificationStatus, IdentifiedEstimand,
-    PreparedBayesianProblem, PriorSet, TableView, resolve_envelope_prior_anchor,
+    PreparedBayesianProblem, PriorSet, resolve_envelope_prior_anchor,
 };
 
 /// One identified DAG atom ready for Bayesian g-computation.
@@ -160,11 +160,14 @@ fn graph_effect_draws(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::strategy_table::IdentifierId;
     use crate::strategy_table::identify_static;
+    use antecedent_core::AverageEffectQuery;
     use antecedent_core::ExecutionContext;
     use antecedent_data::{TableView, TabularData};
     use antecedent_estimate::BayesianGComputationAte;
     use antecedent_graph::Dag;
+    use antecedent_graph::DenseNodeId;
 
     fn data(n: usize) -> TabularData {
         let mut x = Vec::with_capacity(n);

@@ -10,23 +10,24 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::sequential_validation::SequentialValidation;
 use super::temporal_path::{temporal_class_envelope_diagnostic, temporal_class_structural_mixture};
 use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, ClassLinearAtoms, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeOptions, EstimationWorkspace,
-    EstimatorId, ExecutionContext, GraphClass, GraphEffectDraws, GraphIdentFlag,
-    IDENTIFIED_SET_INTERVAL_LEVEL, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceDiagnostics,
-    InferenceMode, PhysicalExecutionPlan, PredictiveCheckReport, RefuteSuite, SequentialAtomBlock,
-    TableView, TabularData, TemporalEffectQuery, TimeSeriesData, UNFOLDED_LINEAR_SEM,
-    WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp, class_mixture_estimate,
-    completion_fit_seed, effect_from_posterior, envelope_se_omits_between_atom_variance,
-    envelope_shared_block_diagnostics, fit_class_linear_atoms, identification_status_ok_for_case,
-    identified_set_interval_diagnostics, mag_sequential_unevaluable_diagnostic,
-    mix_weighted_analytic_se, nan_effect, posterior_identified_set_interval, provenance_ids,
-    run_envelope_effect_refuters, same_fitted_mechanisms, select_estimand, sequential_atom_block,
-    sequential_linear_sem_assumption, shared_circular_block_mixture_se, temporal_class_block_span,
-    temporal_refuter_average,
+    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeOptions, EnvelopeRefutation,
+    EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass, GraphEffectDraws,
+    GraphIdentFlag, IDENTIFIED_SET_INTERVAL_LEVEL, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
+    InferenceDiagnostics, InferenceMode, PhysicalExecutionPlan, PredictiveCheckReport, RefuteSuite,
+    SequentialAtomBlock, Strategy, TableView, TabularData, TemporalEffectQuery, TemporalRefutation,
+    TimeSeriesData, UNFOLDED_LINEAR_SEM, WeightedGraphSamples, aggregate_effect_envelope,
+    bayesian_gcomp, class_mixture_estimate, completion_fit_seed, effect_from_posterior,
+    envelope_se_omits_between_atom_variance, envelope_shared_block_diagnostics,
+    fit_class_linear_atoms, identification_status_ok_for_case, identified_set_interval_diagnostics,
+    mag_sequential_unevaluable_diagnostic, mix_weighted_analytic_se, nan_effect,
+    posterior_identified_set_interval, provenance_ids, same_fitted_mechanisms, select_estimand,
+    sequential_atom_block, sequential_linear_sem_assumption, shared_circular_block_mixture_se,
+    temporal_class_block_span, temporal_refuter_average,
 };
 use crate::analysis::prepared::CachedTemporalClassIdentification;
 
@@ -80,8 +81,7 @@ impl TemporalClassEffectFit {
             identification,
             self.estimand,
             self.estimate,
-            identifier_id,
-            self.estimator_id,
+            Strategy::new(identifier_id, self.estimator_id),
             query.treatment,
             query.outcome,
         )
@@ -240,19 +240,15 @@ pub(super) fn fit_class_linear(
     );
     let tabular = TabularData::new(data.storage().clone());
     let ate_query = temporal_refuter_average(query);
-    let (refutations, refute_diagnostics) = run_envelope_effect_refuters(
-        &tabular,
-        &ate_query,
-        &refute_atoms,
-        &mut EstimationWorkspace::default(),
-        ctx,
-        inputs.refute,
-        EstimatorId::TemporalLinearAdjustment.as_str(),
-        inputs.custom_validators,
-        Some(query),
-        split,
-        Some(data.time_index()),
-    )?;
+    let (refutations, refute_diagnostics) = EnvelopeRefutation {
+        data: &tabular,
+        query: &ate_query,
+        suite: inputs.refute,
+        estimator: EstimatorId::TemporalLinearAdjustment.as_str(),
+        custom: inputs.custom_validators,
+        temporal: Some(TemporalRefutation { query, split, time_index: data.time_index() }),
+    }
+    .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;
     diagnostics.extend(refute_diagnostics);
     if block.se.is_finite() {
         diagnostics.extend(envelope_shared_block_diagnostics(
@@ -530,16 +526,18 @@ pub(super) fn fit_class_sequential(
     let sims = crate::analysis::latency::predictive_check_sims(inputs.latency_mode);
     let (refutations, extra_diagnostics, predictive_checks) = if estimate.ate.is_finite() {
         super::sequential_validation::validate_sequential(
-            data,
-            query,
+            SequentialValidation {
+                data,
+                query,
+                suite: inputs.refute,
+                custom: inputs.custom_validators,
+                predictive_sims: sims,
+            },
             &seq_atoms,
-            inputs.refute,
-            inputs.custom_validators,
             bayes.as_ref(),
             posterior.as_mut(),
             estimate.ate,
             ctx,
-            sims,
         )?
     } else {
         let mut reports = Vec::new();
@@ -548,16 +546,18 @@ pub(super) fn fit_class_sequential(
         for (atom, key) in seq_atoms.iter().zip(&seq_atom_keys) {
             let (mut local_reports, local_extra, local_checks) =
                 super::sequential_validation::validate_sequential(
-                    data,
-                    query,
+                    SequentialValidation {
+                        data,
+                        query,
+                        suite: inputs.refute,
+                        custom: inputs.custom_validators,
+                        predictive_sims: sims,
+                    },
                     std::slice::from_ref(atom),
-                    inputs.refute,
-                    inputs.custom_validators,
                     bayes.as_ref(),
                     atom_posteriors.get_mut(key),
                     atom.estimate.ate,
                     ctx,
-                    sims,
                 )?;
             for report in &mut local_reports {
                 report.refuter = Arc::from(format!("completion.{key}.{}", report.refuter));

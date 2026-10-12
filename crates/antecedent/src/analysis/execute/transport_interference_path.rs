@@ -18,8 +18,8 @@ use super::{
     Arc, BayesianConfig, CausalExprArena, CausalPosterior, DerivationMeta, DerivationTrace,
     DomainRef, ExprNode, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteFinish, InferenceDiagnostics,
-    InferenceMode, OutcomeExprId, PhysicalExecutionPlan, StudyResult, TabularData, VariableId,
-    effect_from_posterior, elapsed_ns, report_identify_compute,
+    InferenceMode, OutcomeExprId, PhysicalExecutionPlan, Strategy, StudyResult, TabularData,
+    VariableId, effect_from_posterior, elapsed_ns, report_identify_compute,
 };
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
@@ -243,8 +243,7 @@ impl super::Study {
                 identification.clone(),
                 estimand.clone(),
                 estimate,
-                IdentifierId::TransportSid,
-                estimator_id,
+                Strategy::new(IdentifierId::TransportSid, estimator_id),
                 treatment,
                 outcome,
             )
@@ -381,8 +380,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::InterferenceDesign,
-                estimator_id,
+                Strategy::new(IdentifierId::InterferenceDesign, estimator_id),
                 outcome,
                 outcome,
             )

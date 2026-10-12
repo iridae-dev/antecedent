@@ -6,21 +6,21 @@ use super::temporal_path::{
     horizon_adjustment_sets_differ, resolve_temporal_response_prior,
 };
 use super::{
-    Arc, AverageEffectQuery, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,
-    CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
-    ExecutionContext, GraphEffectDraws, GraphIdentFlag, GraphPosterior, IdentificationStatus,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
-    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, ObservationSpec,
-    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, StudyResult, TableView,
-    TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalLinearAdjustment,
-    TemporalResponseEstimator, TimeSeriesData, VariableId, WeightedGraphSamples,
-    aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp, elapsed_ns,
-    envelope_refute_atoms, identify_cached_diagnostic, provenance_ids, push_conflict_diagnostics,
+    Arc, AverageEffectQuery, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation,
+    CausalError, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace,
+    EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag, GraphPosterior,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention,
+    ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, Strategy,
+    StudyResult, TableView, TabularData, TemporalAtomDesign, TemporalEffectQuery,
+    TemporalLinearAdjustment, TemporalRefutation, TemporalResponseEstimator, TimeSeriesData,
+    ValidationSink, VariableId, WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp,
+    bayesian_temporal_gcomp, elapsed_ns, envelope_refute_atoms, identify_cached_diagnostic,
+    provenance_ids, push_conflict_diagnostics,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
     resolve_structural_aggregation, run_envelope_bayesian_full_validation,
-    run_envelope_effect_refuters,
 };
 
 type PulseWitnessReports = (
@@ -487,8 +487,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                estimator_id,
+                Strategy::new(IdentifierId::TemporalBackdoorUnfolded, estimator_id),
                 treatment,
                 outcome,
             )
@@ -577,19 +576,19 @@ impl super::Study {
                             .effect_estimate(atom.identification.required_assumptions.clone()),
                     });
                 }
-                let (reports, mix_notes) = run_envelope_effect_refuters(
-                    &tabular,
-                    &ate_query,
-                    &refute_atoms,
-                    &mut EstimationWorkspace::default(),
-                    ctx,
-                    self.refute,
-                    "temporal.linear.adjustment",
-                    &self.custom_validators,
-                    Some(&pulse),
-                    self.split.as_ref(),
-                    Some(data.time_index()),
-                )?;
+                let (reports, mix_notes) = EnvelopeRefutation {
+                    data: &tabular,
+                    query: &ate_query,
+                    suite: self.refute,
+                    estimator: "temporal.linear.adjustment",
+                    custom: &self.custom_validators,
+                    temporal: Some(TemporalRefutation {
+                        query: &pulse,
+                        split: self.split.as_ref(),
+                        time_index: data.time_index(),
+                    }),
+                }
+                .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;
                 notes.extend(mix_notes);
                 Ok((reports, Vec::new(), notes))
             }
@@ -645,18 +644,22 @@ impl super::Study {
                         prior: bayes.inner.prior.clone(),
                     });
                 }
-                let (reports, mix_notes) = run_envelope_effect_refuters(
-                    &tabular,
-                    &ate_query,
+                let (reports, mix_notes) = EnvelopeRefutation {
+                    data: &tabular,
+                    query: &ate_query,
+                    suite: self.refute,
+                    estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
+                    custom: &self.custom_validators,
+                    temporal: Some(TemporalRefutation {
+                        query: &pulse,
+                        split: self.split.as_ref(),
+                        time_index: data.time_index(),
+                    }),
+                }
+                .run(
                     &envelope_refute_atoms(&fits)?,
                     &mut EstimationWorkspace::default(),
                     ctx,
-                    self.refute,
-                    EstimatorId::BayesianTemporalGcomp.as_str(),
-                    &self.custom_validators,
-                    Some(&pulse),
-                    self.split.as_ref(),
-                    Some(data.time_index()),
                 )?;
                 notes.extend(mix_notes);
                 let flags = weighted
@@ -681,16 +684,13 @@ impl super::Study {
                     .and_then(|eq| posterior.summaries.mean.get(eq).copied())
                     .unwrap_or(f64::NAN);
                 let predictive = run_envelope_bayesian_full_validation(
-                    self.refute,
-                    cfg,
-                    &bayes.inner,
+                    BayesianValidation { suite: self.refute, cfg, estimator: &bayes.inner },
                     &fits,
                     &mut posterior,
                     pulse_mean,
                     ctx,
                     super::super::latency::predictive_check_sims(self.latency_mode),
-                    &mut refutations,
-                    &mut notes,
+                    ValidationSink { refutations: &mut refutations, diagnostics: &mut notes },
                 )?;
                 let _ = (gp, vars);
                 Ok((refutations, predictive, notes))

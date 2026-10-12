@@ -6,15 +6,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::temporal_path::{CrossWorldContrast, DerivativeSpec};
 use super::{
     Arc, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     EffectEstimate, EstimatorId, ExecutionContext, GraphClass, GraphPosterior,
     IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifiedKeyWeights, InferenceMode, Instant, Intervention,
     OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StudyResult,
-    TableView, TemporalEffectQuery, TemporalIndexer, TimeSeriesData, VariableId, elapsed_ns,
-    envelope_to_identification_result_for, identification_status_ok_for_case,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy,
+    StudyResult, TableView, TemporalEffectQuery, TemporalIndexer, TimeSeriesData, VariableId,
+    elapsed_ns, envelope_to_identification_result_for, identification_status_ok_for_case,
     identify_cached_diagnostic, report_identify_compute, resolve_posterior_status, select_estimand,
 };
 use crate::planner::RouteDefaults;
@@ -42,7 +43,7 @@ fn isotropic_prior_scale(
         InferenceMode::Bayesian(cfg) => {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
-                return Err(CausalError::Unsupported { message: message });
+                return Err(CausalError::Unsupported { message });
             }
             Ok(Some(cfg.prior_scale))
         }
@@ -300,10 +301,12 @@ impl super::Study {
                 &estimand,
                 indexer,
                 &case.result,
-                treatment_offset,
-                outcome_offset,
-                &ctx.kernel_policy,
-                prior_scale,
+                DerivativeSpec {
+                    treatment_offset,
+                    outcome_offset,
+                    policy: &ctx.kernel_policy,
+                    prior_scale,
+                },
             )?;
             let scalar = super::response_path::response_scalar_summary(&response).0;
             if scalar.is_finite() {
@@ -353,8 +356,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -420,33 +422,27 @@ impl super::Study {
                     }
                     _ => "temporal cross-world effect is licensed when the back-door set is empty",
                 };
-                return Err(CausalError::Unsupported { message: message });
+                return Err(CausalError::Unsupported { message });
             }
             cross_world_point(
                 data,
                 query,
                 &estimand,
                 indexer,
-                treatment,
-                outcome,
-                mediator,
-                active,
-                control,
-                treatment_offset,
-                outcome_offset,
-                &ctx.kernel_policy,
-                prior_scale,
+                CrossWorldContrast { treatment, outcome, mediator, active, control },
+                DerivativeSpec {
+                    treatment_offset,
+                    outcome_offset,
+                    policy: &ctx.kernel_policy,
+                    prior_scale,
+                },
             )
         })?;
-        let identification = super::temporal_path::scope_temporal_cross_world(
+        let identification = super::temporal_path::template_scoped_cross_world(
             fitted.primary_identification,
             &fitted.primary_indexer,
             self.query.clone(),
-            treatment,
-            outcome,
-            mediator,
-            active,
-            control,
+            CrossWorldContrast { treatment, outcome, mediator, active, control },
         );
         let estimand = identification.estimands[0].clone();
         let estimate =
@@ -477,8 +473,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                EstimatorId::TemporalLinearAdjustment,
+                Strategy::new(identifier_id, EstimatorId::TemporalLinearAdjustment),
                 treatment,
                 outcome,
             )
@@ -621,10 +616,12 @@ impl super::Study {
                     query,
                     &atom.envelope,
                     self.graph.class(),
-                    treatment_offset,
-                    outcome_offset,
-                    &ctx.kernel_policy,
-                    prior_scale,
+                    DerivativeSpec {
+                        treatment_offset,
+                        outcome_offset,
+                        policy: &ctx.kernel_policy,
+                        prior_scale,
+                    },
                 )?;
             let scalar = super::response_path::response_scalar_summary(&response).0;
             if !derivative_response_finite(&response) {
@@ -708,26 +705,20 @@ impl super::Study {
                     &self.query,
                     &estimand,
                     indexer,
-                    treatment,
-                    outcome,
-                    mediator,
-                    active,
-                    control,
-                    treatment_offset,
-                    outcome_offset,
-                    &ctx.kernel_policy,
-                    prior_scale,
+                    CrossWorldContrast { treatment, outcome, mediator, active, control },
+                    DerivativeSpec {
+                        treatment_offset,
+                        outcome_offset,
+                        policy: &ctx.kernel_policy,
+                        prior_scale,
+                    },
                 )
             })?;
-            let identification = super::temporal_path::scope_temporal_cross_world(
+            let identification = super::temporal_path::template_scoped_cross_world(
                 fitted.primary_identification,
                 &fitted.primary_indexer,
                 self.query.clone(),
-                treatment,
-                outcome,
-                mediator,
-                active,
-                control,
+                CrossWorldContrast { treatment, outcome, mediator, active, control },
             );
             let estimand = identification.estimands[0].clone();
             let envelope = &atom.envelope.envelope;
@@ -831,8 +822,7 @@ impl super::Study {
                 identification,
                 estimand,
                 point_only_estimate(point, assumptions),
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -1039,16 +1029,11 @@ fn cross_world_point(
     query: &CausalQuery,
     estimand: &IdentifiedEstimand,
     indexer: &TemporalIndexer,
-    treatment: VariableId,
-    outcome: VariableId,
-    mediator: Option<VariableId>,
-    active: f64,
-    control: f64,
-    treatment_offset: i32,
-    outcome_offset: i32,
-    policy: &antecedent_core::KernelPolicy,
-    prior_scale: Option<f64>,
+    contrast: CrossWorldContrast,
+    spec: DerivativeSpec<'_>,
 ) -> Result<f64, CausalError> {
+    let CrossWorldContrast { treatment, outcome, mediator, active, control } = contrast;
+    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     let fit = |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
         antecedent_estimate::temporal_linear_slopes(
             data,
@@ -1169,10 +1154,7 @@ fn derivative_on_envelope(
     query: &ResponseQuery,
     bundle: &antecedent_identify::TemporalClassEnvelope,
     graph_class: GraphClass,
-    treatment_offset: i32,
-    outcome_offset: i32,
-    policy: &antecedent_core::KernelPolicy,
-    prior_scale: Option<f64>,
+    spec: DerivativeSpec<'_>,
 ) -> Result<
     (
         CausalResponse,
@@ -1184,6 +1166,7 @@ fn derivative_on_envelope(
     ),
     CausalError,
 > {
+    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     let envelope = &bundle.envelope;
     if matches!(envelope.status, IdentificationStatus::NotIdentified)
         || envelope.identified_weight.0 <= 0.0
@@ -1210,10 +1193,7 @@ fn derivative_on_envelope(
             &estimand,
             indexer,
             &case.result,
-            treatment_offset,
-            outcome_offset,
-            policy,
-            prior_scale,
+            DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale },
         )?;
         let scalar = super::response_path::response_scalar_summary(&response).0;
         if scalar.is_finite() {

@@ -6,9 +6,10 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GcmSlot,
     IdentificationResult, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, Study, StudyResult, TableView, TabularData, TimeSeriesData, VariableId,
-    anomaly_attribution_query_with, attribute_distribution_change, bayesian_draw_count, elapsed_ns,
-    finish_identified_execute_with_context, fit_gcm, nan_effect, parametric_scm_identification,
+    PhysicalExecutionPlan, Strategy, Study, StudyResult, TableView, TabularData, TimeSeriesData,
+    VariableId, anomaly_attribution_query_with, attribute_distribution_change, bayesian_draw_count,
+    elapsed_ns, finish_identified_execute_with_context, fit_gcm, nan_effect,
+    parametric_scm_identification,
 };
 use crate::analysis::prepared::Inspect;
 
@@ -248,8 +249,7 @@ impl CheckedAttributionOperation {
                         self.cache.identification.clone(),
                         self.cache.estimand.clone(),
                         estimate,
-                        IdentifierId::GcmParametric,
-                        self.estimator,
+                        Strategy::new(IdentifierId::GcmParametric, self.estimator),
                         outcome,
                         outcome,
                     )
@@ -312,8 +312,7 @@ impl CheckedAttributionOperation {
                         self.cache.identification.clone(),
                         self.cache.estimand.clone(),
                         estimate,
-                        IdentifierId::GcmParametric,
-                        self.estimator,
+                        Strategy::new(IdentifierId::GcmParametric, self.estimator),
                         query.outcome,
                         query.outcome,
                     )
@@ -577,6 +576,7 @@ impl Inspect for CheckedAttributionOperation {
 #[cfg(test)]
 mod bayesian_checked_attribution_tests {
     use super::*;
+    use crate::analysis::builder::RefuteSuite;
     use antecedent_core::{AnomalyAttributionQuery, CausalQuery, PopulationSelector, VariableId};
     use antecedent_data::TabularData;
     use antecedent_graph::DenseNodeId;

@@ -17,11 +17,11 @@ use super::{
     GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
     InferenceMode, Instant, Intervention, OverlapPolicy, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, Study, StudyResult, TabularData, VariableId, elapsed_ns,
-    identify_admg_query, identify_cached_diagnostic, mass_fields, provenance_ids,
-    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
-    resolve_structural_aggregation, run_plugin_level_refuters, select_estimand,
+    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study, StudyResult, TabularData,
+    VariableId, elapsed_ns, identify_admg_query, identify_cached_diagnostic, mass_fields,
+    provenance_ids, push_graph_posterior_structural_aggregation_diagnostic,
+    resolve_posterior_status, resolve_structural_aggregation, select_estimand,
     support_from_functional_eval,
 };
 use crate::result::{
@@ -308,17 +308,17 @@ impl super::Study {
                      identified intervention mean",
                 ));
             }
-            run_plugin_level_refuters(
+            RefutationRun {
                 data,
-                &estimand,
-                &ate_query,
-                &estimate,
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                EstimatorId::FunctionalEffect.as_str(),
-                &self.custom_validators,
-            )?
+                estimand: &estimand,
+                query: &ate_query,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: EstimatorId::FunctionalEffect.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?
         } else {
             if !matches!(self.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
@@ -361,8 +361,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::GeneralId,
-                EstimatorId::FunctionalEffect,
+                Strategy::new(IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
                 treatment,
                 outcome,
             )

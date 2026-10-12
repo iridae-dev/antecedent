@@ -3,12 +3,12 @@
 use super::{
     Admg, Arc, CausalError, CausalQuery, DataClassification, EstimatorId, ExecutionContext,
     GraphClass, GraphRef, IdentifierId, InferenceMode, Intervention, LogicalAnalysisPlan,
-    PanelData, PhysicalExecutionPlan, RandomizedTrialQuery, ResponseQuery, RouteInput,
-    StaticAteCompileInput, StaticCpdagResponseCompileInput, StaticDistributionCompileInput,
-    StaticMediationSource, StaticPagAteCompileInput, StaticPagResponseCompileInput,
-    StaticPathSpecificCompileInput, StaticResponseCompileInput, TableView, TabularData,
-    TemporalDag, TemporalEffectQuery, TimeSeriesData, VariableId, admg_has_bidirected,
-    admg_without_latents_to_dag, compile_logical_codetermined_joint, compile_logical_distribution,
+    PanelData, PhysicalExecutionPlan, ResponseQuery, RouteInput, StaticAteCompileInput,
+    StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticMediationSource,
+    StaticPagAteCompileInput, StaticPagResponseCompileInput, StaticPathSpecificCompileInput,
+    StaticResponseCompileInput, TableView, TabularData, TemporalDag, TemporalEffectQuery,
+    TimeSeriesData, VariableId, admg_has_bidirected, admg_without_latents_to_dag,
+    compile_logical_codetermined_joint, compile_logical_distribution,
     compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
     compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
     compile_logical_static_pag_response, compile_logical_static_response,
@@ -434,7 +434,7 @@ impl super::Study {
                 plan.record.estimator = Some(Arc::from("mediation.linear"));
                 plan.query = match source {
                     StaticMediationSource::Nested(nested) => {
-                        CausalQuery::NestedCounterfactual((*nested))
+                        CausalQuery::NestedCounterfactual(*nested)
                     }
                     StaticMediationSource::Mediation(_) => CausalQuery::Mediation(q),
                 };

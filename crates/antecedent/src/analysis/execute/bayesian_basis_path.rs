@@ -6,9 +6,9 @@ use super::{
     Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Dag, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
-    OverlapPolicy, PhysicalExecutionPlan, Study, StudyResult, TabularData, bayesian_draw_count,
-    elapsed_ns, identification_from_cache_or, identify_cached_diagnostic, identify_static_query,
-    project_for_ate_estimate, select_claim,
+    OverlapPolicy, PhysicalExecutionPlan, Strategy, Study, StudyResult, TabularData,
+    bayesian_draw_count, elapsed_ns, identification_from_cache_or, identify_cached_diagnostic,
+    identify_static_query, project_for_ate_estimate, select_claim,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
@@ -209,8 +209,7 @@ impl Study {
                 identification,
                 estimand_est,
                 estimate,
-                identifier,
-                EstimatorId::BayesianBasisGcomp,
+                Strategy::new(identifier, EstimatorId::BayesianBasisGcomp),
                 query_est.treatment,
                 query_est.outcome,
             )

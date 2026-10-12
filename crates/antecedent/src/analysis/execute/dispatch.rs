@@ -9,11 +9,11 @@ use super::{
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, DataInput, DataModality,
     Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext, GraphClass,
     GraphPosterior, GraphRef, IdentificationResult, IdentifierId, InferenceMode, OverlapPolicy,
-    PhysicalExecutionPlan, RandomizedTrialQuery, RefuteSuite, ResponseQuery, RouteInput,
-    StaticMediationSource, StudyResult, TableView, TabularData, TimeSeriesData, VariableId,
-    admg_has_bidirected, admg_without_latents_to_dag, classify_analysis_route, classify_route,
-    data_modality, graph_posterior_response_supported, reject_dag_only_on_pag,
-    response_functional_is_derivative, temporal_admg_projection,
+    PhysicalExecutionPlan, RefuteSuite, ResponseQuery, RouteInput, StaticMediationSource, Strategy,
+    StudyResult, TableView, TabularData, TimeSeriesData, VariableId, admg_has_bidirected,
+    admg_without_latents_to_dag, classify_analysis_route, classify_route, data_modality,
+    graph_posterior_response_supported, reject_dag_only_on_pag, response_functional_is_derivative,
+    temporal_admg_projection,
 };
 use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
 use crate::planner::RouteDefaults;
@@ -809,23 +809,13 @@ impl super::Study {
                         physical,
                         ctx,
                         &background,
-                        identifier,
-                        estimator,
+                        Strategy::new(identifier, estimator),
                     );
                 }
                 match self.graph.graph_ref() {
-                    GraphRef::Dag(graph) => self.execute_static(
-                        data,
-                        graph,
-                        q,
-                        physical,
-                        execution.linear_operation(),
-                        execution.aipw_operation(),
-                        execution.frontdoor_linear(),
-                        execution.bayesian_gcomp(),
-                        execution.iv(),
-                        ctx,
-                    ),
+                    GraphRef::Dag(graph) => {
+                        self.execute_static(data, graph, q, physical, execution, ctx)
+                    }
                     GraphRef::Cpdag(cpdag) => self.execute_cpdag(data, cpdag, q, physical, ctx),
                     GraphRef::Admg(admg) => {
                         if admg_has_bidirected(admg) {
@@ -836,18 +826,7 @@ impl super::Study {
                                     "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
                                         .into(),
                             })?;
-                            self.execute_static(
-                                data,
-                                graph,
-                                q,
-                                physical,
-                                execution.linear_operation(),
-                                execution.aipw_operation(),
-                                execution.frontdoor_linear(),
-                                execution.bayesian_gcomp(),
-                                execution.iv(),
-                                ctx,
-                            )
+                            self.execute_static(data, graph, q, physical, execution, ctx)
                         }
                     }
                     GraphRef::Pag(_) => {
@@ -866,18 +845,7 @@ impl super::Study {
                                           static DAG"
                                     .into(),
                             })?;
-                            self.execute_static(
-                                data,
-                                graph,
-                                q,
-                                physical,
-                                execution.linear_operation(),
-                                execution.aipw_operation(),
-                                execution.frontdoor_linear(),
-                                execution.bayesian_gcomp(),
-                                execution.iv(),
-                                ctx,
-                            )
+                            self.execute_static(data, graph, q, physical, execution, ctx)
                         }
                     }
                     GraphRef::TemporalDag(_)

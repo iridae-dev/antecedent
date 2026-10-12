@@ -7,7 +7,7 @@ use super::{
     ExprNode, GraphClass, IdentificationPerformanceRecord, IdentificationResult,
     IdentifiedEstimand, IdentifiedExecuteFinish, IdentifierId, InferenceMode, OutcomeExprId,
     OverlapPolicy, PhysicalExecutionPlan, RandomizedTrialOperation, RandomizedTrialQuery,
-    RefuteSuite, Study, StudyResult, TableView, TabularData, VariableId,
+    RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, VariableId,
     finish_identified_execute_with_context,
 };
 use antecedent_core::{
@@ -265,7 +265,7 @@ impl CheckedSurvivalOperation {
                     f64::NAN,
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
-                ), IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit, self.query.treatment, self.query.duration).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
+                ), Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit), self.query.treatment, self.query.duration).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
                     if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,

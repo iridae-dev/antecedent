@@ -87,11 +87,10 @@ pub(super) use crate::strategy_table::{
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
-    AssembleArgs, assemble_result, credible_scalar_uncertainty, effect_from_posterior,
-    evaluate_bayesian_prior_sensitivity, overlap_diagnostic, project_for_ate_estimate,
-    projection_diagnostic, provenance_pair, push_conflict_diagnostics, refute_outcomes,
-    run_plugin_level_refuters, run_refuters, validator_not_applicable_diagnostic,
-    validator_not_applicable_diagnostics,
+    AssembleArgs, RefutationRun, assemble_result, credible_scalar_uncertainty,
+    effect_from_posterior, evaluate_bayesian_prior_sensitivity, overlap_diagnostic,
+    project_for_ate_estimate, projection_diagnostic, provenance_pair, push_conflict_diagnostics,
+    validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
 };
 
 /// Build-time declarations no click rebinds.

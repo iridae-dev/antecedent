@@ -1,41 +1,43 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sequential_validation::{SequentialValidationAtom, validate_sequential};
+use super::sequential_validation::{
+    SequentialValidation, SequentialValidationAtom, validate_sequential,
+};
 use super::{
     Arc, AverageEffectQuery, BayesianGCompWorkspace, BayesianGComputationAte, BayesianSuiteContext,
-    BootstrapAccounting, CausalError, CausalPosterior, CausalQuery, ClassAtomOutcome,
-    ConditionalLinearAdjustment, DBN_LINEAR_SEM, Dag, DataClassification, DataInput, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeAtomFit, EnvelopeOptions,
-    EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass,
-    GraphEffectDraws, GraphIdentFlag, GraphPosterior, GraphPosteriorAtomValue,
-    IdentificationEnvelope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
-    InferenceDiagnostics, InferenceMode, Instant, LogicalAnalysisPlan, OverlapPolicy, Pag,
-    PhysicalExecutionPlan, PosteriorMassSummary, PosteriorPredictiveCheck, PredictiveCheckReport,
-    PreparedBayesianProblem, PriorPredictiveCheck, PriorSet, RefuteSuite, ResponseValue,
-    SUSTAINED_LINEAR_SEM, StaticAteCompileInput, StaticCpdagResponseCompileInput,
-    StaticEstimateWorkspaces, StaticPagResponseCompileInput, StaticResponseCompileInput,
-    StructuralAggregationPolicy, StudyResult, TableView, TabularData, TemporalAtomDesign,
-    TemporalDag, TemporalEffectQuery, TemporalLinearAdjustment, TemporalMediationEstimate,
-    TimeSeriesData, ValidationSuite, ValidatorId, VariableId, WeightedGraphSamples,
-    aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp, compile_logical_static_ate,
-    compile_logical_static_cpdag_response, compile_logical_static_pag_response,
-    compile_logical_static_response, compile_logical_temporal_effect_classified,
-    compile_logical_temporal_response, effect_from_posterior, elapsed_ns, envelope_mass_diagnostic,
-    envelope_refute_atoms, envelope_se_omission_diagnostic, estimate_static_effect,
-    evaluate_bayesian_prior_sensitivity, first_key_positions, identification_from_cache_or,
-    identification_status_ok_for_case, identified_envelope_keys, identify_static,
-    interactive_subsample_graphs_accounted, is_multi_step_sustained, mass_fields,
-    maybe_interactive_envelope_subsample, mediation_mechanism_seed, merge_posterior_notes,
-    mix_graph_posterior_identified_atoms, mix_prior_sensitivity_summaries, mix_static_envelope_se,
-    mix_weighted_analytic_se, mixed_static_influence, most_conservative_identification_status,
-    nan_effect, overlap_diagnostic, project_for_ate_estimate, projection_diagnostic,
-    provenance_ids, push_conflict_diagnostics,
-    push_graph_posterior_structural_aggregation_diagnostic, report_subsampled_out_mass,
-    require_identified, resolve_bayesian_prior_with_conflict, resolve_envelope_prior_anchor,
-    resolve_posterior_status, resolve_structural_aggregation, retain_envelope_assumptions,
-    run_envelope_bayesian_full_validation, run_envelope_effect_refuters, run_refuters,
-    select_claim, select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
+    BayesianValidation, BootstrapAccounting, CausalError, CausalPosterior, CausalQuery,
+    ClassAtomOutcome, ClassEnvelopeRun, ConditionalLinearAdjustment, DBN_LINEAR_SEM, Dag,
+    DataClassification, DataInput, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace,
+    EstimatorId, ExecuteRun, ExecutionContext, GraphClass, GraphEffectDraws, GraphIdentFlag,
+    GraphPosterior, GraphPosteriorAtomValue, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, LogicalAnalysisPlan, OverlapPolicy,
+    Pag, PhysicalExecutionPlan, PosteriorMassSummary, PosteriorPredictiveCheck,
+    PredictiveCheckReport, PreparedBayesianProblem, PriorPredictiveCheck, PriorSet, RefutationRun,
+    RefuteSuite, ResponseValue, SUSTAINED_LINEAR_SEM, StaticAteCompileInput,
+    StaticCpdagResponseCompileInput, StaticEstimateWorkspaces, StaticPagResponseCompileInput,
+    StaticResponseCompileInput, Strategy, StructuralAggregationPolicy, StudyResult, TableView,
+    TabularData, TemporalAtomDesign, TemporalDag, TemporalEffectQuery, TemporalLinearAdjustment,
+    TemporalMediationEstimate, TemporalRefutation, TimeSeriesData, ValidationSink, ValidationSuite,
+    ValidatorId, VariableId, WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp,
+    bayesian_temporal_gcomp, compile_logical_static_ate, compile_logical_static_cpdag_response,
+    compile_logical_static_pag_response, compile_logical_static_response,
+    compile_logical_temporal_effect_classified, compile_logical_temporal_response,
+    effect_from_posterior, elapsed_ns, envelope_mass_diagnostic, envelope_refute_atoms,
+    envelope_se_omission_diagnostic, estimate_static_effect, evaluate_bayesian_prior_sensitivity,
+    first_key_positions, identification_from_cache_or, identification_status_ok_for_case,
+    identified_envelope_keys, identify_static, interactive_subsample_graphs_accounted,
+    is_multi_step_sustained, mass_fields, maybe_interactive_envelope_subsample,
+    mediation_mechanism_seed, merge_posterior_notes, mix_graph_posterior_identified_atoms,
+    mix_prior_sensitivity_summaries, mix_static_envelope_se, mix_weighted_analytic_se,
+    mixed_static_influence, most_conservative_identification_status, nan_effect,
+    overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_ids,
+    push_conflict_diagnostics, push_graph_posterior_structural_aggregation_diagnostic,
+    report_subsampled_out_mass, require_identified, resolve_bayesian_prior_with_conflict,
+    resolve_envelope_prior_anchor, resolve_posterior_status, resolve_structural_aggregation,
+    retain_envelope_assumptions, run_envelope_bayesian_full_validation, select_claim,
+    select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
     shared_circular_block_mixture_se, short_series_warning, static_aligned_influence,
     temporal_refuter_average, validator_not_applicable_diagnostics, with_conflict_summary,
     with_prior_sensitivity,
@@ -153,19 +155,17 @@ impl super::Study {
         let mut refute_ws = EstimationWorkspace::default();
         let (mut refutations, na_diagnostics) = match self.refute {
             RefuteSuite::None => (Vec::new(), Vec::new()),
-            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
-                &data_est,
-                &estimand_est,
-                &query_est,
-                &estimate,
-                &mut refute_ws,
-                None,
-                ctx,
-                self.refute,
-                estimator_id.as_str(),
-                &self.custom_validators,
-                None,
-            )?,
+            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => RefutationRun {
+                data: &data_est,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .reports(&mut refute_ws, None, ctx)?,
         };
         extra_diagnostics.extend(na_diagnostics);
         // Prior + posterior PPC whenever refute is enabled (full PredictiveCheckReport retained).
@@ -234,8 +234,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -261,15 +260,15 @@ impl super::Study {
         &self,
         data: &TabularData,
         query: &AverageEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        envelope: &IdentificationEnvelope<G>,
+        run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
-        identify_cached: bool,
-        started: Instant,
-        envelope_diagnostic: Diagnostic,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic,
+        } = run;
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
@@ -467,34 +466,27 @@ impl super::Study {
         let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
-                let (reports, mix_diagnostics) = run_envelope_effect_refuters(
+                let (reports, mix_diagnostics) = EnvelopeRefutation {
                     data,
                     query,
-                    &envelope_refute_atoms(&atoms)?,
-                    &mut refute_ws,
-                    ctx,
-                    self.refute,
-                    estimator_id.as_str(),
-                    &self.custom_validators,
-                    None,
-                    self.split.as_ref(),
-                    None,
-                )?;
+                    suite: self.refute,
+                    estimator: estimator_id.as_str(),
+                    custom: &self.custom_validators,
+                    temporal: None,
+                }
+                .run(&envelope_refute_atoms(&atoms)?, &mut refute_ws, ctx)?;
                 diagnostics.extend(mix_diagnostics);
                 reports
             }
         };
         let predictive_checks = run_envelope_bayesian_full_validation(
-            self.refute,
-            &cfg,
-            &est,
+            BayesianValidation { suite: self.refute, cfg: &cfg, estimator: &est },
             &atoms,
             &mut posterior,
             estimate.ate,
             ctx,
             super::super::latency::predictive_check_sims(self.latency_mode),
-            &mut refutations,
-            &mut diagnostics,
+            ValidationSink { refutations: &mut refutations, diagnostics: &mut diagnostics },
         )?;
         // Completions that disagree publish the identified set over their
         // per-completion posterior means; a point-identified envelope stays a
@@ -513,8 +505,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::GeneralizedAdjustment,
-                estimator_id,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -1121,19 +1112,15 @@ impl super::Study {
                 };
                 let mut reports = Vec::new();
                 for group in groups {
-                    let (atom_reports, mut notes) = run_envelope_effect_refuters(
+                    let (atom_reports, mut notes) = EnvelopeRefutation {
                         data,
                         query,
-                        group,
-                        &mut refute_ws,
-                        ctx,
-                        self.refute,
-                        "bayesian.gcomp",
-                        &self.custom_validators,
-                        None,
-                        self.split.as_ref(),
-                        None,
-                    )?;
+                        suite: self.refute,
+                        estimator: "bayesian.gcomp",
+                        custom: &self.custom_validators,
+                        temporal: None,
+                    }
+                    .run(group, &mut refute_ws, ctx)?;
                     if graph_dependent {
                         notes.retain(|d| d.code.as_ref() != "refute.envelope.effect_mixture");
                     }
@@ -1158,31 +1145,28 @@ impl super::Study {
                     let mut atom_posterior = atom.posterior.clone();
                     let atom_effect = effect_from_posterior(&atom_posterior)?.ate;
                     checks.extend(run_envelope_bayesian_full_validation(
-                        self.refute,
-                        &cfg,
-                        &est,
+                        BayesianValidation { suite: self.refute, cfg: &cfg, estimator: &est },
                         std::slice::from_ref(atom),
                         &mut atom_posterior,
                         atom_effect,
                         ctx,
                         super::super::latency::predictive_check_sims(self.latency_mode),
-                        &mut refutations,
-                        &mut diagnostics,
+                        ValidationSink {
+                            refutations: &mut refutations,
+                            diagnostics: &mut diagnostics,
+                        },
                     )?);
                 }
                 checks
             } else {
                 run_envelope_bayesian_full_validation(
-                    self.refute,
-                    &cfg,
-                    &est,
+                    BayesianValidation { suite: self.refute, cfg: &cfg, estimator: &est },
                     &atoms,
                     &mut posterior,
                     estimate.ate,
                     ctx,
                     super::super::latency::predictive_check_sims(self.latency_mode),
-                    &mut refutations,
-                    &mut diagnostics,
+                    ValidationSink { refutations: &mut refutations, diagnostics: &mut diagnostics },
                 )?
             };
 
@@ -1194,12 +1178,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::BackdoorAdjustment,
-                if conditional {
-                    EstimatorId::BayesianConditional
-                } else {
-                    EstimatorId::BayesianGcomp
-                },
+                Strategy::new(
+                    IdentifierId::BackdoorAdjustment,
+                    if conditional {
+                        EstimatorId::BayesianConditional
+                    } else {
+                        EstimatorId::BayesianGcomp
+                    },
+                ),
                 query.treatment,
                 query.outcome,
             )
@@ -1518,22 +1504,18 @@ impl super::Study {
                     if atom.weight <= 0.0 {
                         continue;
                     }
-                    let (mut per_atom, mut per_notes) = run_envelope_effect_refuters(
+                    let (mut per_atom, mut per_notes) = EnvelopeRefutation {
                         data,
                         query,
-                        std::slice::from_ref(atom),
-                        &mut refute_ws,
-                        ctx,
-                        checked.map_or(
+                        suite: checked.map_or(
                             self.refute,
                             super::super::CheckedGraphPosteriorEffect::validation,
                         ),
                         estimator,
-                        if checked.is_some() { &[] } else { &self.custom_validators },
-                        None,
-                        if checked.is_some() { None } else { self.split.as_ref() },
-                        None,
-                    )?;
+                        custom: if checked.is_some() { &[] } else { &self.custom_validators },
+                        temporal: None,
+                    }
+                    .run(std::slice::from_ref(atom), &mut refute_ws, ctx)?;
                     reports.append(&mut per_atom);
                     notes.append(&mut per_notes);
                 }
@@ -1548,20 +1530,16 @@ impl super::Study {
                 ));
                 (reports, notes)
             } else {
-                run_envelope_effect_refuters(
+                EnvelopeRefutation {
                     data,
                     query,
-                    &refute_atoms,
-                    &mut refute_ws,
-                    ctx,
-                    checked
+                    suite: checked
                         .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
                     estimator,
-                    if checked.is_some() { &[] } else { &self.custom_validators },
-                    None,
-                    if checked.is_some() { None } else { self.split.as_ref() },
-                    None,
-                )?
+                    custom: if checked.is_some() { &[] } else { &self.custom_validators },
+                    temporal: None,
+                }
+                .run(&refute_atoms, &mut refute_ws, ctx)?
             };
         diagnostics.extend(na_diagnostics);
 
@@ -1573,8 +1551,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::BackdoorAdjustment,
-                estimator_id,
+                Strategy::new(IdentifierId::BackdoorAdjustment, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -1741,32 +1718,36 @@ impl super::Study {
                     })
                     .collect::<Result<Vec<_>, CausalError>>()?;
                 let (reports, notes, _) = validate_sequential(
-                    data,
-                    query,
+                    SequentialValidation {
+                        data,
+                        query,
+                        suite: self.refute,
+                        custom: &self.custom_validators,
+                        predictive_sims: super::super::latency::predictive_check_sims(
+                            self.latency_mode,
+                        ),
+                    },
                     &validation_atoms,
-                    self.refute,
-                    &self.custom_validators,
                     None,
                     None,
                     estimate.ate,
                     ctx,
-                    super::super::latency::predictive_check_sims(self.latency_mode),
                 )?;
                 (reports, notes)
             } else {
-                run_envelope_effect_refuters(
-                    &tabular,
-                    &ate_query,
-                    &refute_atoms,
-                    &mut EstimationWorkspace::default(),
-                    ctx,
-                    self.refute,
-                    "temporal.linear.adjustment",
-                    &self.custom_validators,
-                    Some(query),
-                    self.split.as_ref(),
-                    Some(data.time_index()),
-                )?
+                EnvelopeRefutation {
+                    data: &tabular,
+                    query: &ate_query,
+                    suite: self.refute,
+                    estimator: "temporal.linear.adjustment",
+                    custom: &self.custom_validators,
+                    temporal: Some(TemporalRefutation {
+                        query,
+                        split: self.split.as_ref(),
+                        time_index: data.time_index(),
+                    }),
+                }
+                .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?
             };
         diagnostics.push(
             Diagnostic::new(
@@ -1806,12 +1787,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                if is_multi_step_sustained(query) {
-                    EstimatorId::TemporalSequentialGcomp
-                } else {
-                    EstimatorId::TemporalLinearAdjustment
-                },
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if is_multi_step_sustained(query) {
+                        EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                ),
                 query.treatment,
                 query.outcome,
             )
@@ -2149,30 +2132,38 @@ impl super::Study {
         let ate_query = temporal_refuter_average(query);
         let (mut refutations, notes, sequential_predictive) = if multi_step {
             validate_sequential(
-                data,
-                query,
+                SequentialValidation {
+                    data,
+                    query,
+                    suite: self.refute,
+                    custom: &self.custom_validators,
+                    predictive_sims: super::super::latency::predictive_check_sims(
+                        self.latency_mode,
+                    ),
+                },
                 &sequential_atoms,
-                self.refute,
-                &self.custom_validators,
                 sequential_bayes.as_ref(),
                 Some(&mut posterior),
                 estimate.ate,
                 ctx,
-                super::super::latency::predictive_check_sims(self.latency_mode),
             )?
         } else {
-            let (reports, notes) = run_envelope_effect_refuters(
-                &tabular,
-                &ate_query,
+            let (reports, notes) = EnvelopeRefutation {
+                data: &tabular,
+                query: &ate_query,
+                suite: self.refute,
+                estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
+                custom: &self.custom_validators,
+                temporal: Some(TemporalRefutation {
+                    query,
+                    split: self.split.as_ref(),
+                    time_index: data.time_index(),
+                }),
+            }
+            .run(
                 &envelope_refute_atoms(&atoms)?,
                 &mut EstimationWorkspace::default(),
                 ctx,
-                self.refute,
-                EstimatorId::BayesianTemporalGcomp.as_str(),
-                &self.custom_validators,
-                Some(query),
-                self.split.as_ref(),
-                Some(data.time_index()),
             )?;
             (reports, notes, Vec::new())
         };
@@ -2181,16 +2172,13 @@ impl super::Study {
             sequential_predictive
         } else {
             run_envelope_bayesian_full_validation(
-                self.refute,
-                &cfg,
-                &bayes.inner,
+                BayesianValidation { suite: self.refute, cfg: &cfg, estimator: &bayes.inner },
                 &atoms,
                 &mut posterior,
                 estimate.ate,
                 ctx,
                 super::super::latency::predictive_check_sims(self.latency_mode),
-                &mut refutations,
-                &mut diagnostics,
+                ValidationSink { refutations: &mut refutations, diagnostics: &mut diagnostics },
             )?
         };
 
@@ -2200,12 +2188,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                if multi_step {
-                    EstimatorId::TemporalSequentialGcomp
-                } else {
-                    EstimatorId::BayesianTemporalGcomp
-                },
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if multi_step {
+                        EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        EstimatorId::BayesianTemporalGcomp
+                    },
+                ),
                 query.treatment,
                 query.outcome,
             )
@@ -2367,8 +2357,7 @@ impl super::Study {
                     identification,
                     estimand,
                     nan_effect(),
-                    IdentifierId::Frontdoor,
-                    EstimatorId::BayesianTemporalMediation,
+                    Strategy::new(IdentifierId::Frontdoor, EstimatorId::BayesianTemporalMediation),
                     query.treatment,
                     query.outcome,
                 )
@@ -2742,15 +2731,12 @@ impl super::Study {
             diagnostics.extend(notes);
         }
         let predictive_checks = run_dbn_mediation_bayesian_validation(
-            self.refute,
-            &cfg,
-            &estimator,
+            BayesianValidation { suite: self.refute, cfg: &cfg, estimator: &estimator },
             &refute_atoms,
             &mut posterior,
             estimate.ate,
             ctx,
-            &mut refutations,
-            &mut diagnostics,
+            ValidationSink { refutations: &mut refutations, diagnostics: &mut diagnostics },
         )?;
         let requested_summary = antecedent_estimate::MediationPosteriorSummary {
             mean: posterior.summaries.mean[0],
@@ -2796,8 +2782,7 @@ impl super::Study {
                 identification.clone(),
                 estimand,
                 estimate,
-                IdentifierId::Frontdoor,
-                EstimatorId::BayesianTemporalMediation,
+                Strategy::new(IdentifierId::Frontdoor, EstimatorId::BayesianTemporalMediation),
                 query.treatment,
                 query.outcome,
             )
@@ -2956,16 +2941,15 @@ fn mix_dbn_mediation_refuters(
 }
 
 fn run_dbn_mediation_bayesian_validation(
-    refute: RefuteSuite,
-    cfg: &crate::inference::BayesianConfig,
-    estimator: &BayesianGComputationAte,
+    setup: BayesianValidation<'_>,
     atoms: &[DbnMediationAtom],
     mixture_posterior: &mut CausalPosterior,
     estimate_ate: f64,
     ctx: &ExecutionContext,
-    refutations: &mut Vec<antecedent_validate::RefutationReport>,
-    diagnostics: &mut Vec<Diagnostic>,
+    sink: ValidationSink<'_>,
 ) -> Result<Vec<PredictiveCheckReport>, CausalError> {
+    let BayesianValidation { suite: refute, cfg, estimator } = setup;
+    let ValidationSink { refutations, diagnostics } = sink;
     const PPC_ALPHA: f64 = 0.05;
     if matches!(refute, RefuteSuite::None) || atoms.is_empty() {
         return Ok(Vec::new());

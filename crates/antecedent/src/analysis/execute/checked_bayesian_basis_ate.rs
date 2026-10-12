@@ -5,8 +5,8 @@ use super::{
     Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag,
     Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
     GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
-    IdentifierId, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, StudyResult,
-    TableView, TabularData, bayesian_draw_count, elapsed_ns,
+    IdentifierId, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy,
+    StudyResult, TableView, TabularData, bayesian_draw_count, elapsed_ns,
     finish_identified_execute_with_context, identify_static_query, project_for_ate_estimate,
     select_claim,
 };
@@ -333,8 +333,7 @@ impl CheckedBayesianBasisAteExecution {
             identification,
             estimand_est,
             estimate,
-            IdentifierId::BackdoorAdjustment,
-            EstimatorId::BayesianBasisGcomp,
+            Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianBasisGcomp),
             query.treatment,
             query.outcome,
         )

@@ -11,12 +11,12 @@ use super::atom_mix::{
 };
 use super::{
     Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
-    ExecutionContext, GraphPosterior, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
-    IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    Study, StudyResult, TabularData, elapsed_ns, mass_fields, overlap_diagnostic, provenance_ids,
-    resolve_posterior_status, run_envelope_effect_refuters,
+    DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
+    EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefuteSuite, Strategy, Study, StudyResult, TabularData, elapsed_ns,
+    mass_fields, overlap_diagnostic, provenance_ids, resolve_posterior_status,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
@@ -198,8 +198,7 @@ impl super::Study {
                 identification,
                 mixed.estimand,
                 mixed.estimate,
-                IdentifierId::GeneralId,
-                EstimatorId::FunctionalEffect,
+                Strategy::new(IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
                 query.treatment,
                 query.outcome,
             )
@@ -336,19 +335,15 @@ fn refute_admg_graph_posterior(
             if weight <= 0.0 {
                 return Ok(Vec::new());
             }
-            let (reports, notes) = run_envelope_effect_refuters(
+            let (reports, notes) = EnvelopeRefutation {
                 data,
                 query,
-                &eval.refute_atoms,
-                &mut refute_ws,
-                ctx,
-                study.refute,
-                EstimatorId::FunctionalEffect.as_str(),
-                &study.custom_validators,
-                None,
-                study.split.as_ref(),
-                None,
-            )?;
+                suite: study.refute,
+                estimator: EstimatorId::FunctionalEffect.as_str(),
+                custom: &study.custom_validators,
+                temporal: None,
+            }
+            .run(&eval.refute_atoms, &mut refute_ws, ctx)?;
             Ok(vec![AtomRefuterBatch {
                 weight,
                 reports,

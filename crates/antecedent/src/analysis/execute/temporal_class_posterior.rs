@@ -6,20 +6,21 @@ use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
     drive_posterior_refuters, mix_atom_evals,
 };
+use super::sequential_validation::SequentialValidation;
 use super::{
     Arc, BayesianGCompWorkspace, BayesianGComputationAte, BootstrapAccounting, CausalError,
     CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
-    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Study, StudyResult,
-    TableView, TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalIndexer,
-    TemporalLinearAdjustment, TimeSeriesData, UNFOLDED_LINEAR_SEM, bayesian_gcomp,
-    bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior, elapsed_ns,
-    envelope_se_omission_diagnostic, envelope_se_omits_between_atom_variance,
-    identification_status_ok_for_case, identify_cached_diagnostic, is_multi_step_sustained,
-    mass_fields, mix_weighted_analytic_se, overlap_diagnostic, provenance_ids,
-    resolve_posterior_status, run_envelope_effect_refuters, select_estimand,
+    EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
+    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
+    InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary,
+    RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, TemporalAtomDesign,
+    TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment, TemporalRefutation,
+    TimeSeriesData, UNFOLDED_LINEAR_SEM, bayesian_gcomp, bayesian_temporal_gcomp,
+    completion_fit_seed, effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic,
+    envelope_se_omits_between_atom_variance, identification_status_ok_for_case,
+    identify_cached_diagnostic, is_multi_step_sustained, mass_fields, mix_weighted_analytic_se,
+    overlap_diagnostic, provenance_ids, resolve_posterior_status, select_estimand,
     sequential_linear_sem_assumption, shared_block_mixture_message,
     shared_circular_block_mixture_se, short_series_warning, temporal_class_block_span,
     temporal_refuter_average,
@@ -306,8 +307,7 @@ impl super::Study {
                 identification,
                 mixed.estimand,
                 estimate,
-                IdentifierId::GeneralizedAdjustment,
-                estimator_id,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -781,34 +781,42 @@ fn refute_temporal_class_graph_posterior(
                 }
                 let original = eval.estimate.as_ref().map_or(f64::NAN, |estimate| estimate.ate);
                 let (reports, notes, _) = super::sequential_validation::validate_sequential(
-                    data,
-                    query,
+                    SequentialValidation {
+                        data,
+                        query,
+                        suite: study.refute,
+                        custom: &study.custom_validators,
+                        predictive_sims: super::super::latency::predictive_check_sims(
+                            study.latency_mode,
+                        ),
+                    },
                     &eval.sequential_atoms,
-                    study.refute,
-                    &study.custom_validators,
                     None,
                     None,
                     original,
                     ctx,
-                    super::super::latency::predictive_check_sims(study.latency_mode),
                 )?;
                 (reports, notes)
             } else {
                 if eval.refute_atoms.is_empty() {
                     return Ok(Vec::new());
                 }
-                run_envelope_effect_refuters(
-                    &tabular,
-                    &ate_q,
+                EnvelopeRefutation {
+                    data: &tabular,
+                    query: &ate_q,
+                    suite: study.refute,
+                    estimator,
+                    custom: &study.custom_validators,
+                    temporal: Some(TemporalRefutation {
+                        query,
+                        split: study.split.as_ref(),
+                        time_index: data.time_index(),
+                    }),
+                }
+                .run(
                     &eval.refute_atoms,
                     &mut EstimationWorkspace::default(),
                     ctx,
-                    study.refute,
-                    estimator,
-                    &study.custom_validators,
-                    Some(query),
-                    study.split.as_ref(),
-                    Some(data.time_index()),
                 )?
             };
             Ok(vec![AtomRefuterBatch {

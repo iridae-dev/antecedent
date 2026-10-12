@@ -3,7 +3,7 @@
 
 use super::{
     CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
-    PreparedBayesianProblem, TableView,
+    PreparedBayesianProblem,
 };
 use antecedent_core::StreamDomain;
 

@@ -2,21 +2,22 @@
 
 use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
 use super::{
-    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,
-    CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation,
+    CausalError, CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
     DerivationMeta, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate,
-    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefuteAtom, EstimandMethod, EstimationWorkspace,
-    EstimatorId, ExecutionContext, ExprNode, GraphClass, GraphEffectDraws, GraphIdentFlag,
-    IdentificationEnvelope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
-    InferenceDiagnostics, InferenceMode, Instant, Intervention, MediationRoute,
+    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimandMethod,
+    EstimationWorkspace, EstimatorId, ExecutionContext, ExprNode, GraphClass, GraphEffectDraws,
+    GraphIdentFlag, IdentificationEnvelope, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, MediationRoute,
     ObservationMechanismEstimator, ObservationSpec, OutcomeExprId, OverlapPolicy,
     PhysicalExecutionPlan, PriorSet, RefuteSuite, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SEQUENCE_LINEAR_SEM, StudyResult, TableView,
-    TabularData, TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
-    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
-    TemporalMediationIdentifier, TemporalResponseEstimator, TimeSeriesData, TupleObservationTarget,
-    TupleReplicates, TupleSurface, VariableId, WeightedGraphSamples, aggregate_effect_envelope,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SEQUENCE_LINEAR_SEM, Strategy, StudyResult,
+    TableView, TabularData, TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery,
+    TemporalIndexer, TemporalLinearAdjustment, TemporalMediationEstimate,
+    TemporalMediationEstimator, TemporalMediationIdentifier, TemporalRefutation,
+    TemporalResponseEstimator, TimeSeriesData, TupleObservationTarget, TupleReplicates,
+    TupleSurface, ValidationSink, VariableId, WeightedGraphSamples, aggregate_effect_envelope,
     bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
     elapsed_ns, envelope_to_identification_result_for, identification_status_ok_for_case,
     identified_set_interval_diagnostics, identify_cached_diagnostic,
@@ -25,9 +26,9 @@ use super::{
     posterior_note_diagnostics, provenance_ids, push_conflict_diagnostics, push_unique_diagnostic,
     report_identify_compute, require_identified, resolve_bayesian_prior_with_conflict,
     resolve_envelope_prior_anchor, response_functional_is_derivative,
-    run_envelope_bayesian_full_validation, run_envelope_effect_refuters, same_fit_inputs,
-    same_fitted_problem, select_estimand, sequential_linear_sem_assumption, short_series_warning,
-    temporal_refuter_average, tuple_block_observation_replicates, with_conflict_summary,
+    run_envelope_bayesian_full_validation, same_fit_inputs, same_fitted_problem, select_estimand,
+    sequential_linear_sem_assumption, short_series_warning, temporal_refuter_average,
+    tuple_block_observation_replicates, with_conflict_summary,
 };
 use crate::planner::RouteDefaults;
 #[path = "checked_temporal_response.rs"]
@@ -149,12 +150,14 @@ impl super::Study {
                         let (composed, conflicts) = fit_class_bayesian_mediation(
                             &mut bayesian_fits,
                             cfg,
-                            data,
-                            &estimand,
-                            &horizon_query,
-                            &adjustment,
+                            ClassMediationInput {
+                                data,
+                                estimand: &estimand,
+                                query: &horizon_query,
+                                adjustment: &adjustment,
+                                status: identification.status,
+                            },
                             horizon,
-                            identification.status,
                             ctx,
                         )?;
                         for summary in &conflicts {
@@ -175,11 +178,13 @@ impl super::Study {
                         let estimate = fit_class_frequentist_mediation(
                             &mut point_fits,
                             &estimator,
-                            data,
-                            &estimand,
-                            &horizon_query,
-                            &adjustment,
-                            identification.status,
+                            ClassMediationInput {
+                                data,
+                                estimand: &estimand,
+                                query: &horizon_query,
+                                adjustment: &adjustment,
+                                status: identification.status,
+                            },
                             ctx,
                         )?;
                         effects.push(estimate.effect.ate);
@@ -190,13 +195,15 @@ impl super::Study {
                     if self.refute != RefuteSuite::None {
                         let mut reports = refute_class_mediation(
                             &mut refute_fits,
-                            data,
-                            &estimand,
-                            &horizon_query,
+                            ClassMediationInput {
+                                data,
+                                estimand: &estimand,
+                                query: &horizon_query,
+                                adjustment: &adjustment,
+                                status: identification.status,
+                            },
                             estimate,
                             self.refute == RefuteSuite::Full,
-                            &adjustment,
-                            identification.status,
                             ctx,
                         )?;
                         for report in &mut reports {
@@ -318,12 +325,14 @@ impl super::Study {
                             let (composed, conflicts) = fit_class_bayesian_mediation(
                                 &mut bayesian_fits,
                                 cfg,
-                                data,
-                                shared_estimand,
-                                &qh,
-                                shared_adjustment,
+                                ClassMediationInput {
+                                    data,
+                                    estimand: shared_estimand,
+                                    query: &qh,
+                                    adjustment: shared_adjustment,
+                                    status,
+                                },
                                 horizon,
-                                status,
                                 ctx,
                             )?;
                             for summary in &conflicts {
@@ -494,12 +503,14 @@ impl super::Study {
                 identification,
                 estimand,
                 scalar_estimate,
-                IdentifierId::GeneralizedAdjustment,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::BayesianTemporalMediation
-                } else {
-                    EstimatorId::TemporalMediation
-                },
+                Strategy::new(
+                    IdentifierId::GeneralizedAdjustment,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::BayesianTemporalMediation
+                    } else {
+                        EstimatorId::TemporalMediation
+                    },
+                ),
                 query.treatment,
                 query.outcome,
             )
@@ -830,10 +841,12 @@ impl super::Study {
                 &estimand,
                 &first.indexer,
                 &identification,
-                probe.try_treatment_offset()?,
-                probe.outcome_offset(),
-                &ctx.kernel_policy,
-                prior_scale,
+                DerivativeSpec {
+                    treatment_offset: probe.try_treatment_offset()?,
+                    outcome_offset: probe.outcome_offset(),
+                    policy: &ctx.kernel_policy,
+                    prior_scale,
+                },
             )?;
             let scalar = super::response_path::response_scalar_summary(&response).0;
             let estimator_id = match &self.inference {
@@ -852,8 +865,7 @@ impl super::Study {
                     identification,
                     estimand,
                     estimate,
-                    IdentifierId::TemporalBackdoorUnfolded,
-                    estimator_id,
+                    Strategy::new(IdentifierId::TemporalBackdoorUnfolded, estimator_id),
                     treatment,
                     outcome,
                 )
@@ -1059,12 +1071,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::TemporalResponseBayesian
-                } else {
-                    EstimatorId::TemporalResponseGcomp
-                },
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
+                ),
                 treatment,
                 outcome,
             )
@@ -1364,12 +1378,14 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::TemporalResponseBayesian
-                } else {
-                    EstimatorId::TemporalResponseGcomp
-                },
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
+                ),
                 treatment,
                 outcome,
             )
@@ -1537,11 +1553,8 @@ impl super::Study {
                         let (response, conflict) = fit_class_bayesian_response(
                             &mut bayesian_response_fits,
                             cfg,
-                            series,
-                            &qh,
+                            ClassResponseInput { series, query: &qh, estimand: &estimand, indexer },
                             horizon,
-                            &estimand,
-                            indexer,
                             &case.result,
                             (treatment, outcome),
                             ctx,
@@ -1565,10 +1578,7 @@ impl super::Study {
                         fit_class_frequentist_response(
                             memo,
                             &estimator,
-                            series,
-                            &qh,
-                            &estimand,
-                            indexer,
+                            ClassResponseInput { series, query: &qh, estimand: &estimand, indexer },
                             case.result.status,
                             &case.result.required_assumptions,
                             ctx,
@@ -1696,12 +1706,14 @@ impl super::Study {
                 identification,
                 estimand,
                 nan_effect(),
-                IdentifierId::GeneralizedAdjustment,
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::TemporalResponseBayesian
-                } else {
-                    EstimatorId::TemporalResponseGcomp
-                },
+                Strategy::new(
+                    IdentifierId::GeneralizedAdjustment,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
+                ),
                 treatment,
                 outcome,
             )
@@ -2080,12 +2092,14 @@ impl super::Study {
                 identification,
                 estimand,
                 nan_effect(),
-                IdentifierId::GeneralizedAdjustment,
-                if bayes.is_some() {
-                    EstimatorId::TemporalResponseBayesian
-                } else {
-                    EstimatorId::TemporalResponseGcomp
-                },
+                Strategy::new(
+                    IdentifierId::GeneralizedAdjustment,
+                    if bayes.is_some() {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
+                ),
                 treatment,
                 outcome,
             )
@@ -2441,35 +2455,32 @@ impl super::Study {
             let refute_atom = EnvelopeRefuteAtom::from_fit(atom)?;
             let atom_ate = refute_atom.original.ate;
             let start = refutations.len();
-            let (reports, na_diagnostics) = run_envelope_effect_refuters(
-                &tabular,
-                &ate_q,
-                std::slice::from_ref(&refute_atom),
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                EstimatorId::BayesianTemporalGcomp.as_str(),
-                &self.custom_validators,
-                Some(query),
-                self.split.as_ref(),
-                Some(data.time_index()),
-            )?;
+            let (reports, na_diagnostics) = EnvelopeRefutation {
+                data: &tabular,
+                query: &ate_q,
+                suite: self.refute,
+                estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
+                custom: &self.custom_validators,
+                temporal: Some(TemporalRefutation {
+                    query,
+                    split: self.split.as_ref(),
+                    time_index: data.time_index(),
+                }),
+            }
+            .run(std::slice::from_ref(&refute_atom), &mut refute_ws, ctx)?;
             refutations.extend(reports);
             diagnostics.extend(na_diagnostics);
             let mut atom_posterior = atom.posterior.clone();
             let atom_estimator =
                 BayesianGComputationAte { prior: atom.prior.clone(), seed, ..bayes.inner.clone() };
             predictive_checks.extend(run_envelope_bayesian_full_validation(
-                self.refute,
-                cfg,
-                &atom_estimator,
+                BayesianValidation { suite: self.refute, cfg, estimator: &atom_estimator },
                 std::slice::from_ref(atom),
                 &mut atom_posterior,
                 atom_ate,
                 ctx,
                 super::super::latency::predictive_check_sims(self.latency_mode),
-                &mut refutations,
-                &mut diagnostics,
+                ValidationSink { refutations: &mut refutations, diagnostics: &mut diagnostics },
             )?);
             for report in &mut refutations[start..] {
                 report.refuter = Arc::from(format!("completion.{}.{}", atom.key, report.refuter));
@@ -2489,8 +2500,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                EstimatorId::BayesianTemporalGcomp,
+                Strategy::new(identifier_id, EstimatorId::BayesianTemporalGcomp),
                 query.treatment,
                 query.outcome,
             )
@@ -4283,7 +4293,10 @@ mod tests {
         AssumptionStatus,
     };
 
+    use super::super::most_conservative_identification_status;
     use super::*;
+    use antecedent_core::AverageEffectQuery;
+    use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
 
     fn horizon_result(
         status: IdentificationStatus,
@@ -4769,11 +4782,7 @@ impl super::Study {
             identification,
             &found.indexer,
             self.query.clone(),
-            treatment,
-            outcome,
-            mediator,
-            active,
-            control,
+            CrossWorldContrast { treatment, outcome, mediator, active, control },
         );
         let estimand = identification.estimands[0].clone();
         let estimate = EffectEstimate::new(
@@ -4788,8 +4797,10 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::TemporalBackdoorUnfolded,
-                EstimatorId::TemporalLinearAdjustment,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::TemporalLinearAdjustment,
+                ),
                 treatment,
                 outcome,
             )
@@ -4807,16 +4818,33 @@ impl super::Study {
     }
 }
 
-fn template_scoped_cross_world(
+/// The variables and levels of one cross-world (mediation) contrast.
+#[derive(Clone, Copy)]
+pub(super) struct CrossWorldContrast {
+    pub(super) treatment: VariableId,
+    pub(super) outcome: VariableId,
+    pub(super) mediator: Option<VariableId>,
+    pub(super) active: f64,
+    pub(super) control: f64,
+}
+
+/// How a temporal derivative response differentiates: the lag offsets of the
+/// derivative's treatment and outcome, the kernel policy and the prior scale.
+#[derive(Clone, Copy)]
+pub(super) struct DerivativeSpec<'a> {
+    pub(super) treatment_offset: i32,
+    pub(super) outcome_offset: i32,
+    pub(super) policy: &'a antecedent_core::KernelPolicy,
+    pub(super) prior_scale: Option<f64>,
+}
+
+pub(super) fn template_scoped_cross_world(
     mut identification: IdentificationResult,
     indexer: &antecedent_core::TemporalIndexer,
     query: CausalQuery,
-    treatment: VariableId,
-    outcome: VariableId,
-    mediator: Option<VariableId>,
-    active: f64,
-    control: f64,
+    contrast: CrossWorldContrast,
 ) -> IdentificationResult {
+    let CrossWorldContrast { treatment, outcome, mediator, active, control } = contrast;
     let map = |id: VariableId| indexer.key_of(id.raw()).map(|key| key.variable).unwrap_or(id);
     let adjustment: Vec<VariableId> = identification
         .estimands
@@ -5022,11 +5050,9 @@ pub(super) fn temporal_linear_derivative_response(
     estimand: &IdentifiedEstimand,
     indexer: &TemporalIndexer,
     identification: &IdentificationResult,
-    treatment_offset: i32,
-    outcome_offset: i32,
-    policy: &antecedent_core::KernelPolicy,
-    prior_scale: Option<f64>,
+    spec: DerivativeSpec<'_>,
 ) -> Result<CausalResponse, CausalError> {
+    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     use antecedent_core::{DerivativeScale, DerivativeWeighting, ResponseFunctional as F};
     if query.target_population != antecedent_core::TargetPopulation::AllObserved {
         return Err(CausalError::Unsupported {
@@ -5248,28 +5274,6 @@ fn derivative_support_report(
     }
 }
 
-pub(super) fn scope_temporal_cross_world(
-    identification: IdentificationResult,
-    indexer: &antecedent_core::TemporalIndexer,
-    query: CausalQuery,
-    treatment: VariableId,
-    outcome: VariableId,
-    mediator: Option<VariableId>,
-    active: f64,
-    control: f64,
-) -> IdentificationResult {
-    template_scoped_cross_world(
-        identification,
-        indexer,
-        query,
-        treatment,
-        outcome,
-        mediator,
-        active,
-        control,
-    )
-}
-
 pub(super) fn temporal_cross_world_hard_level(
     intervention: &Intervention,
 ) -> Result<f64, CausalError> {
@@ -5279,6 +5283,27 @@ pub(super) fn temporal_cross_world_hard_level(
 type BayesianMediationFit =
     (antecedent_estimate::CausalPosterior, Vec<antecedent_prob::ConflictSummary>);
 
+/// The inputs a class completion's temporal mediation fit or refutation is keyed
+/// and computed from.
+#[derive(Clone, Copy)]
+struct ClassMediationInput<'a> {
+    data: &'a TimeSeriesData,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a antecedent_core::MediationQuery,
+    adjustment: &'a Arc<[antecedent_data::LaggedColumn]>,
+    status: IdentificationStatus,
+}
+
+/// The series, query, estimand and lag indexer a class completion's temporal
+/// response is fitted from.
+#[derive(Clone, Copy)]
+struct ClassResponseInput<'a> {
+    series: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    estimand: &'a IdentifiedEstimand,
+    indexer: &'a TemporalIndexer,
+}
+
 /// The composed Bayesian mediation posterior of one class completion, with the
 /// prior-conflict summaries its mechanism fits resolved, served from `fits`
 /// when an earlier completion (or the shared-design recompute) of the same
@@ -5287,14 +5312,11 @@ type BayesianMediationFit =
 fn fit_class_bayesian_mediation(
     fits: &mut CompletionFitMemo<BayesianMediationFit, MediationFitKey>,
     cfg: &BayesianConfig,
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    query: &antecedent_core::MediationQuery,
-    adjustment: &Arc<[antecedent_data::LaggedColumn]>,
+    input: ClassMediationInput<'_>,
     horizon: u32,
-    status: IdentificationStatus,
     ctx: &ExecutionContext,
 ) -> Result<BayesianMediationFit, CausalError> {
+    let ClassMediationInput { data, estimand, query, adjustment, status } = input;
     let key = MediationFitKey::new(estimand, adjustment, status);
     if let Some(hit) = fits.get(&key) {
         return Ok(hit.clone());
@@ -5338,13 +5360,10 @@ fn fit_class_bayesian_mediation(
 fn fit_class_frequentist_mediation(
     fits: &mut CompletionFitMemo<antecedent_estimate::TemporalMediationEstimate, MediationFitKey>,
     estimator: &TemporalMediationEstimator,
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    query: &antecedent_core::MediationQuery,
-    adjustment: &Arc<[antecedent_data::LaggedColumn]>,
-    status: IdentificationStatus,
+    input: ClassMediationInput<'_>,
     ctx: &ExecutionContext,
 ) -> Result<antecedent_estimate::TemporalMediationEstimate, CausalError> {
+    let ClassMediationInput { data, estimand, query, adjustment, status } = input;
     let key = MediationFitKey::new(estimand, adjustment, status);
     if let Some(hit) = fits.get(&key) {
         return Ok(hit.clone());
@@ -5362,15 +5381,12 @@ fn fit_class_frequentist_mediation(
 #[inline(never)]
 fn refute_class_mediation(
     fits: &mut CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    query: &antecedent_core::MediationQuery,
+    input: ClassMediationInput<'_>,
     estimate: &antecedent_estimate::TemporalMediationEstimate,
     full: bool,
-    adjustment: &Arc<[antecedent_data::LaggedColumn]>,
-    status: IdentificationStatus,
     ctx: &ExecutionContext,
 ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
+    let ClassMediationInput { data, estimand, query, adjustment, status } = input;
     let key = MediationFitKey::new(estimand, adjustment, status);
     if let Some(hit) = fits.get(&key) {
         return Ok(hit.clone());
@@ -5392,15 +5408,13 @@ type BayesianResponseFit = (CausalResponse, Option<antecedent_prob::ConflictSumm
 fn fit_class_bayesian_response(
     fits: &mut CompletionFitMemo<BayesianResponseFit, ResponseFitKey>,
     cfg: &BayesianConfig,
-    series: &TimeSeriesData,
-    query: &ResponseQuery,
+    input: ClassResponseInput<'_>,
     horizon: u32,
-    estimand: &IdentifiedEstimand,
-    indexer: &TemporalIndexer,
     identification: &IdentificationResult,
     (treatment, outcome): (VariableId, VariableId),
     ctx: &ExecutionContext,
 ) -> Result<BayesianResponseFit, CausalError> {
+    let ClassResponseInput { series, query, estimand, indexer } = input;
     let status = identification.status;
     let assumptions = &identification.required_assumptions;
     let key = ResponseFitKey::new(estimand, indexer, status, assumptions);
@@ -5448,14 +5462,12 @@ fn fit_class_bayesian_response(
 fn fit_class_frequentist_response(
     fits: Option<&mut CompletionFitMemo<CausalResponse, ResponseFitKey>>,
     estimator: &TemporalResponseEstimator,
-    series: &TimeSeriesData,
-    query: &ResponseQuery,
-    estimand: &IdentifiedEstimand,
-    indexer: &TemporalIndexer,
+    input: ClassResponseInput<'_>,
     status: IdentificationStatus,
     assumptions: &antecedent_core::AssumptionSet,
     ctx: &ExecutionContext,
 ) -> Result<CausalResponse, CausalError> {
+    let ClassResponseInput { series, query, estimand, indexer } = input;
     let key = ResponseFitKey::new(estimand, indexer, status, assumptions);
     if let Some(hit) = fits.as_deref().and_then(|memo| memo.get(&key)) {
         return Ok(hit.clone());

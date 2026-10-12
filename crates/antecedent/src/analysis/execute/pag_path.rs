@@ -2,23 +2,31 @@
 
 use super::{
     Admg, Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
-    ClassAtomOutcome, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext, IdentificationEnvelope,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifierId, InferenceDiagnostics, InferenceMode, Instant,
-    Intervention, OverlapPolicy, Pag, PhysicalExecutionPlan, PriorSet, RefuteSuite,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    StaticEstimateWorkspaces, StudyResult, TabularData, VariableId, credible_scalar_uncertainty,
-    effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic,
-    envelope_to_identification_result, estimate_static_effect, identification_from_cache_or,
-    identification_status_ok_for_case, identify_admg, identify_admg_query,
-    identify_cached_diagnostic, identify_cpdag, identify_pag, mix_static_envelope_se,
-    mix_weighted_analytic_se, mixed_static_influence, nonidentified_with_prior, overlap_diagnostic,
-    provenance_ids, report_identify_compute, run_envelope_effect_refuters,
-    run_plugin_level_refuters, run_refuters, select_estimand, static_aligned_influence,
-    support_from_functional_eval,
+    ClassAtomOutcome, ClassEnvelopeRun, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
+    ExecuteRun, ExecutionContext, IdentificationEnvelope, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, OverlapPolicy, Pag,
+    PhysicalExecutionPlan, PriorSet, RefutationRun, RefuteSuite, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    StaticEstimateWorkspaces, Strategy, StudyResult, TabularData, VariableId,
+    credible_scalar_uncertainty, effect_from_posterior, elapsed_ns,
+    envelope_se_omission_diagnostic, envelope_to_identification_result, estimate_static_effect,
+    identification_from_cache_or, identification_status_ok_for_case, identify_admg,
+    identify_admg_query, identify_cached_diagnostic, identify_cpdag, identify_pag,
+    mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
+    nonidentified_with_prior, overlap_diagnostic, provenance_ids, report_identify_compute,
+    select_estimand, static_aligned_influence, support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
+
+/// The response query and the per-level queries an ADMG response finish evaluates.
+struct AdmgResponseLevels<'a> {
+    query: &'a ResponseQuery,
+    level_queries: &'a [ResponseQuery],
+    /// A curve over a grid rather than one intervention level.
+    curve: bool,
+}
 
 impl super::Study {
     /// ADMG ATE via general ID + functional plug-in (bidirected case).
@@ -55,19 +63,17 @@ impl super::Study {
         )?;
 
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, extra_diagnostics) = run_refuters(
+        let (refutations, extra_diagnostics) = RefutationRun {
             data,
-            &estimand,
+            estimand: &estimand,
             query,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator_id.as_str(),
-            &self.custom_validators,
-            None,
-        )?;
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
 
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
@@ -75,8 +81,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -119,12 +124,14 @@ impl super::Study {
             ResponseFunctional::InterventionResponse { .. } => self.finish_admg_response_levels(
                 data,
                 admg,
-                query,
-                &[admg_response_single_level(query)?],
+                AdmgResponseLevels {
+                    query: query,
+                    level_queries: &[admg_response_single_level(query)?],
+                    curve: false,
+                },
                 physical,
                 ctx,
                 started,
-                false,
             ),
             ResponseFunctional::MeanCurve { outcome, treatment } => {
                 let levels = treatment.grid.values()?;
@@ -137,12 +144,10 @@ impl super::Study {
                 self.finish_admg_response_levels(
                     data,
                     admg,
-                    query,
-                    &level_queries,
+                    AdmgResponseLevels { query: query, level_queries: &level_queries, curve: true },
                     physical,
                     ctx,
                     started,
-                    true,
                 )
             }
             _ => Err(CausalError::Unsupported {
@@ -155,13 +160,12 @@ impl super::Study {
         &self,
         data: &TabularData,
         admg: &Admg,
-        query: &ResponseQuery,
-        level_queries: &[ResponseQuery],
+        levels: AdmgResponseLevels<'_>,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
         started: Instant,
-        curve: bool,
     ) -> Result<StudyResult, CausalError> {
+        let AdmgResponseLevels { query, level_queries, curve } = levels;
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
         if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Err(CausalError::Compile {
@@ -386,17 +390,17 @@ impl super::Study {
                      identified intervention mean",
                 ));
             }
-            run_plugin_level_refuters(
+            RefutationRun {
                 data,
-                &estimand,
-                &ate_query,
-                &estimate,
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                estimator_id.as_str(),
-                &self.custom_validators,
-            )?
+                estimand: &estimand,
+                query: &ate_query,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?
         } else {
             (Vec::new(), Vec::new())
         };
@@ -407,8 +411,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -463,13 +466,12 @@ impl super::Study {
                 return self
                     .execute_pag_nonidentified_prior(
                         query,
-                        physical,
-                        ctx,
-                        &envelope,
+                        ClassEnvelopeRun {
+                            run: ExecuteRun { physical, ctx, started, identify_cached },
+                            envelope: &envelope,
+                            envelope_diagnostic: pag_envelope_diagnostic(&envelope),
+                        },
                         identification,
-                        identify_cached,
-                        started,
-                        pag_envelope_diagnostic(&envelope),
                         "pag",
                     )
                     .map(|result| self.attach_certificate(result, certificate));
@@ -488,13 +490,12 @@ impl super::Study {
                 .execute_pag_bayesian(
                     data,
                     query,
-                    physical,
-                    ctx,
-                    &envelope,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: &envelope,
+                        envelope_diagnostic: pag_envelope_diagnostic(&envelope),
+                    },
                     identification,
-                    identify_cached,
-                    started,
-                    pag_envelope_diagnostic(&envelope),
                     "pag",
                 )
                 .map(|result| self.attach_certificate(result, certificate));
@@ -589,19 +590,15 @@ impl super::Study {
         }
 
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+        let (refutations, na_diagnostics) = EnvelopeRefutation {
             data,
             query,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            estimator_id.as_str(),
-            &self.custom_validators,
-            None,
-            self.split.as_ref(),
-            None,
-        )?;
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .run(&refute_atoms, &mut refute_ws, ctx)?;
         diagnostics.extend(na_diagnostics);
 
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
@@ -618,8 +615,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -669,13 +665,12 @@ impl super::Study {
                 return self
                     .execute_pag_nonidentified_prior(
                         query,
-                        physical,
-                        ctx,
-                        &envelope,
+                        ClassEnvelopeRun {
+                            run: ExecuteRun { physical, ctx, started, identify_cached },
+                            envelope: &envelope,
+                            envelope_diagnostic: cpdag_envelope_diagnostic(&envelope),
+                        },
                         identification,
-                        identify_cached,
-                        started,
-                        cpdag_envelope_diagnostic(&envelope),
                         "cpdag",
                     )
                     .map(|result| self.attach_certificate(result, certificate));
@@ -694,13 +689,12 @@ impl super::Study {
                 .execute_pag_bayesian(
                     data,
                     query,
-                    physical,
-                    ctx,
-                    &envelope,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: &envelope,
+                        envelope_diagnostic: cpdag_envelope_diagnostic(&envelope),
+                    },
                     identification,
-                    identify_cached,
-                    started,
-                    cpdag_envelope_diagnostic(&envelope),
                     "cpdag",
                 )
                 .map(|result| self.attach_certificate(result, certificate));
@@ -793,19 +787,15 @@ impl super::Study {
         }
 
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+        let (refutations, na_diagnostics) = EnvelopeRefutation {
             data,
             query,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            estimator_id.as_str(),
-            &self.custom_validators,
-            None,
-            self.split.as_ref(),
-            None,
-        )?;
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .run(&refute_atoms, &mut refute_ws, ctx)?;
         diagnostics.extend(na_diagnostics);
 
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
@@ -822,8 +812,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -843,15 +832,15 @@ impl super::Study {
     pub(super) fn execute_pag_nonidentified_prior<G>(
         &self,
         query: &AverageEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        envelope: &IdentificationEnvelope<G>,
+        run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
-        identify_cached: bool,
-        started: Instant,
-        envelope_diagnostic: Diagnostic,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic,
+        } = run;
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
@@ -905,8 +894,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::GeneralizedAdjustment,
-                EstimatorId::BayesianGcomp,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianGcomp),
                 query.treatment,
                 query.outcome,
             )

@@ -9,14 +9,14 @@ use super::atom_mix::{
 use super::{
     Arc, AverageEffectQuery, BayesianGCompWorkspace, CausalError, CausalPosterior, CausalQuery,
     ConditionalLinearAdjustment, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
-    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    StaticEstimateWorkspaces, Study, StudyResult, TabularData, bayesian_gcomp,
-    effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic, estimate_static_effect,
-    mass_fields, mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status, run_envelope_effect_refuters,
+    EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
+    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
+    InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary,
+    RefuteSuite, StaticEstimateWorkspaces, Strategy, Study, StudyResult, TabularData,
+    bayesian_gcomp, effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic,
+    estimate_static_effect, mass_fields, mix_static_envelope_se, mix_weighted_analytic_se,
+    mixed_static_influence, overlap_diagnostic, provenance_ids, resolve_posterior_status,
     static_aligned_influence,
 };
 use crate::analysis::prepared::{
@@ -199,8 +199,7 @@ impl super::Study {
                 identification,
                 mixed.estimand,
                 mixed.estimate,
-                IdentifierId::GeneralizedAdjustment,
-                estimator_id,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
                 query.treatment,
                 query.outcome,
             )
@@ -538,19 +537,15 @@ fn refute_class_graph_posterior(
             if weight <= 0.0 {
                 return Ok(Vec::new());
             }
-            let (reports, notes) = run_envelope_effect_refuters(
+            let (reports, notes) = EnvelopeRefutation {
                 data,
                 query,
-                &eval.refute_atoms,
-                &mut refute_ws,
-                ctx,
-                study.refute,
+                suite: study.refute,
                 estimator,
-                &study.custom_validators,
-                None,
-                study.split.as_ref(),
-                None,
-            )?;
+                custom: &study.custom_validators,
+                temporal: None,
+            }
+            .run(&eval.refute_atoms, &mut refute_ws, ctx)?;
             Ok(vec![AtomRefuterBatch {
                 weight,
                 reports,

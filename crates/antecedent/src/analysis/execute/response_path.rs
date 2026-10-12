@@ -3,21 +3,21 @@
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::{
     Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
-    CheckedCellAipwResponseOperation, ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId,
-    EvalError, ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect, GraphClass,
-    GraphIdentFlag, GraphPosterior, IdentificationEnvelope, IdentificationResult,
-    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, Intervention,
-    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, StudyResult, TableView, TabularData, VariableId,
-    bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
-    envelope_to_identification_result_for, functional_cell_unevaluable,
-    identification_from_cache_or, identification_status_ok_for_case, identify_cached_diagnostic,
-    identify_static_query, interactive_subsample_graphs_accounted, provenance_ids,
-    report_identify_compute, resolve_posterior_status, run_plugin_level_refuters, run_refuters,
-    scalar_identified_set, support_from_functional_eval,
+    CheckedCellAipwResponseOperation, ClassEnvelopeRun, ContinuousResponseEstimator, Dag,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimandMethod,
+    EstimationWorkspace, EstimatorId, EvalError, ExecuteRun, ExecutionContext,
+    FunctionalDistributionWorkspace, FunctionalEffect, GraphClass, GraphIdentFlag, GraphPosterior,
+    IdentificationResult, IdentificationStatus, IdentifiedClaim, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
+    InferenceMode, Instant, Intervention, ObservationMechanismEstimator, ObservationSpec,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun, RefuteSuite,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    Strategy, StudyResult, TableView, TabularData, VariableId, bayesian_gcomp, elapsed_ns,
+    envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
+    functional_cell_unevaluable, identification_from_cache_or, identification_status_ok_for_case,
+    identify_cached_diagnostic, identify_static_query, interactive_subsample_graphs_accounted,
+    provenance_ids, report_identify_compute, resolve_posterior_status, scalar_identified_set,
+    support_from_functional_eval,
 };
 use crate::analysis::prepared::Inspect;
 use crate::planner::RouteDefaults;
@@ -535,8 +535,7 @@ impl super::Study {
                 identification.clone(),
                 estimand.clone(),
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -616,17 +615,17 @@ impl super::Study {
                     "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-computation level",
                 ));
             }
-            run_plugin_level_refuters(
+            RefutationRun {
                 data,
                 estimand,
-                &ate_query,
-                &estimate,
-                &mut workspace,
-                ctx,
-                refute,
-                estimator_id.as_str(),
-                &[],
-            )?
+                query: &ate_query,
+                estimate: &estimate,
+                suite: refute,
+                estimator: estimator_id.as_str(),
+                custom: &[],
+                temporal: None,
+            }
+            .plugin_level(&mut workspace, ctx)?
         } else {
             (Vec::new(), Vec::new())
         };
@@ -637,8 +636,7 @@ impl super::Study {
                 identification.clone(),
                 estimand.clone(),
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -681,14 +679,9 @@ impl super::Study {
         self.execute_cell_aipw_response(
             data,
             operation.query(),
-            physical,
-            ctx,
-            identification.clone(),
-            estimand.clone(),
-            identifier_id,
-            estimator_id,
-            true,
-            started,
+            ExecuteRun { physical: physical, ctx: ctx, started: started, identify_cached: true },
+            IdentifiedClaim { identification: identification.clone(), estimand: estimand.clone() },
+            Strategy::new(identifier_id, estimator_id),
             Some(table),
         )
     }
@@ -1230,17 +1223,17 @@ impl super::Study {
                      g-comp level",
                 ));
             }
-            run_plugin_level_refuters(
+            RefutationRun {
                 data,
-                &estimand,
-                &ate_query,
-                &plugin_estimate,
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                estimator_id.as_str(),
-                &self.custom_validators,
-            )?
+                estimand: &estimand,
+                query: &ate_query,
+                estimate: &plugin_estimate,
+                suite: self.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?
         } else {
             if !matches!(self.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
@@ -1264,8 +1257,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::BackdoorAdjustment,
-                estimator_id,
+                Strategy::new(IdentifierId::BackdoorAdjustment, estimator_id),
                 treatment,
                 outcome,
             )
@@ -1381,8 +1373,7 @@ impl super::Study {
                     identification,
                     estimand,
                     estimate,
-                    identifier_id,
-                    estimator_id,
+                    Strategy::new(identifier_id, estimator_id),
                     treatment,
                     outcome,
                 )
@@ -1404,14 +1395,14 @@ impl super::Study {
             return self.execute_cell_aipw_response(
                 data,
                 query,
-                physical,
-                ctx,
-                identification,
-                estimand,
-                identifier_id,
-                estimator_id,
-                identify_cached,
-                started,
+                ExecuteRun {
+                    physical: physical,
+                    ctx: ctx,
+                    started: started,
+                    identify_cached: identify_cached,
+                },
+                IdentifiedClaim { identification: identification, estimand: estimand },
+                Strategy::new(identifier_id, estimator_id),
                 None,
             );
         }
@@ -1511,17 +1502,17 @@ impl super::Study {
                     "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-comp level. cell.aipw cheap uses the cell-versus-control contrast.",
                 ));
             }
-            run_plugin_level_refuters(
+            RefutationRun {
                 data,
-                &estimand,
-                &ate_query,
-                &estimate,
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                estimator_id.as_str(),
-                &self.custom_validators,
-            )?
+                estimand: &estimand,
+                query: &ate_query,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?
         } else {
             if !matches!(self.refute, RefuteSuite::None) || !scalar_intervention {
                 diagnostics.push(Diagnostic::new(
@@ -1563,8 +1554,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -1621,14 +1611,14 @@ impl super::Study {
         self.execute_cell_aipw_response(
             data,
             query,
-            physical,
-            ctx,
-            identification,
-            estimand,
-            identifier_id,
-            estimator_id,
-            identify_cached,
-            started,
+            ExecuteRun {
+                physical: physical,
+                ctx: ctx,
+                started: started,
+                identify_cached: identify_cached,
+            },
+            IdentifiedClaim { identification: identification, estimand: estimand },
+            Strategy::new(identifier_id, estimator_id),
             None,
         )
     }
@@ -1639,16 +1629,14 @@ impl super::Study {
         &self,
         data: &TabularData,
         query: &ResponseQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
-        identify_cached: bool,
-        started: Instant,
+        run: ExecuteRun<'_>,
+        claim: IdentifiedClaim,
+        strategy: Strategy,
         precomputed_table: Option<antecedent_estimate::ScoreTable>,
     ) -> Result<StudyResult, CausalError> {
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
         else {
             return Err(CausalError::Unsupported {
@@ -1860,19 +1848,17 @@ impl super::Study {
             ));
         }
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, refute_diags) = run_refuters(
+        let (refutations, refute_diags) = RefutationRun {
             data,
-            &estimand,
-            &ate_query,
-            &refute_estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            "cell.aipw",
-            &self.custom_validators,
-            None,
-        )?;
+            estimand: &estimand,
+            query: &ate_query,
+            estimate: &refute_estimate,
+            suite: self.refute,
+            estimator: "cell.aipw",
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
         diagnostics.extend(refute_diags);
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
@@ -1880,8 +1866,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
@@ -2027,14 +2012,12 @@ impl super::Study {
                 self.finish_class_response(
                     data,
                     query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    identify_cached,
-                    envelope_diag,
-                    identifier_id,
-                    estimator_id,
-                    started,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: &envelope,
+                        envelope_diagnostic: envelope_diag,
+                    },
+                    Strategy::new(identifier_id, estimator_id),
                 )
                 .map(|result| {
                     self.attach_certificate(
@@ -2069,14 +2052,12 @@ impl super::Study {
                 self.finish_class_response(
                     data,
                     query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    identify_cached,
-                    envelope_diag,
-                    identifier_id,
-                    estimator_id,
-                    started,
+                    ClassEnvelopeRun {
+                        run: ExecuteRun { physical, ctx, started, identify_cached },
+                        envelope: &envelope,
+                        envelope_diagnostic: envelope_diag,
+                    },
+                    Strategy::new(identifier_id, estimator_id),
                 )
                 .map(|result| {
                     self.attach_certificate(
@@ -2099,15 +2080,15 @@ impl super::Study {
         &self,
         data: &TabularData,
         query: &ResponseQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        envelope: &IdentificationEnvelope<G>,
-        identify_cached: bool,
-        envelope_diag: Diagnostic,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
-        started: Instant,
+        run: ClassEnvelopeRun<'_, G>,
+        strategy: Strategy,
     ) -> Result<StudyResult, CausalError> {
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic: envelope_diag,
+        } = run;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
@@ -2504,8 +2485,7 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                identifier_id,
-                estimator_id,
+                Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )

@@ -341,6 +341,7 @@ impl Inspect for CheckedTemporalMediationOperation {
 mod tests {
     use super::*;
     use crate::{AcceptedGraph, Study};
+    use antecedent_core::VariableId;
     use antecedent_core::{
         CausalSchemaBuilder, Lag, MeasurementSpec, MediationContrast, RoleHint, SmallRoleSet,
         ValueType,

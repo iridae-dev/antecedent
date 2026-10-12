@@ -4,8 +4,8 @@
 use super::{
     Arc, CausalError, CausalQuery, Dag, EstimatorId, ExecutionContext, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
-    InferenceMode, Instant, PhysicalExecutionPlan, RefuteSuite, Study, StudyResult, TableView,
-    TabularData, VariableId, elapsed_ns, finish_identified_execute_with_context,
+    InferenceMode, Instant, PhysicalExecutionPlan, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, VariableId, elapsed_ns, finish_identified_execute_with_context,
 };
 use crate::analysis::prepared::Inspect;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
@@ -200,8 +200,10 @@ impl CheckedStaticMediationOperation {
                 bound.cache.identification.clone(),
                 bound.cache.estimand.clone(),
                 estimate,
-                IdentifierId::PathSpecificNatural,
-                EstimatorId::StaticMediationLinear,
+                Strategy::new(
+                    IdentifierId::PathSpecificNatural,
+                    EstimatorId::StaticMediationLinear,
+                ),
                 bound.query.treatment,
                 bound.query.outcome,
             )

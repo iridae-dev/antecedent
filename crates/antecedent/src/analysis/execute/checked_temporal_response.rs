@@ -3,11 +3,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
-    ExecutionContext, IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedResultContext, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, StudyResult, TableView, TimeSeriesData, bayesian_gcomp, elapsed_ns,
-    provenance_ids, push_conflict_diagnostics,
+    Arc, CausalError, CausalQuery, DerivativeSpec, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, ExecutionContext, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, InferenceMode,
+    Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy, StudyResult, TableView,
+    TimeSeriesData, bayesian_gcomp, elapsed_ns, provenance_ids, push_conflict_diagnostics,
 };
 use crate::analysis::prepared::Inspect;
 
@@ -125,10 +125,12 @@ impl CheckedTemporalResponseExecution {
                 first.estimand(),
                 first.indexer(),
                 first.identification(),
-                first.effect_query().try_treatment_offset()?,
-                first.effect_query().outcome_offset(),
-                &ctx.kernel_policy,
-                prior_scale,
+                DerivativeSpec {
+                    treatment_offset: first.effect_query().try_treatment_offset()?,
+                    outcome_offset: first.effect_query().outcome_offset(),
+                    policy: &ctx.kernel_policy,
+                    prior_scale,
+                },
             )?
         } else {
             match self.operation.inference() {
@@ -220,8 +222,7 @@ impl CheckedTemporalResponseExecution {
             self.identification.clone(),
             self.estimand.clone(),
             estimate,
-            identifier_id,
-            estimator_id,
+            Strategy::new(identifier_id, estimator_id),
             treatment,
             outcome,
         )
@@ -328,12 +329,17 @@ impl Inspect for CheckedTemporalResponseExecution {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Study;
+    use crate::analysis::builder::RefuteSuite;
+    use crate::strategy_table::{EstimatorId, IdentifierId};
+    use antecedent_core::ResponseQuery;
     use antecedent_core::{
         ContinuousDomain, GridSpec, Lag, ResponseFunctional, TemporalEffectQuery, TemporalPolicy,
         TemporalResponseSpec, VariableId,
     };
     use antecedent_data::TimeSeriesData;
     use antecedent_graph::{TemporalDag, ensure_lagged};
+    use antecedent_identify::IdentificationStatus;
     use antecedent_identify::temporal_backdoor::TemporalBackdoorIdentifier;
 
     #[test]

@@ -7,7 +7,7 @@ use super::{
     IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, Instant, MediationRoute,
     OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, QueryRefutationPlan, RefuteSuite,
-    ResponseValue, StudyResult, TableView, TemporalIndexer, TemporalMediationEstimate,
+    ResponseValue, Strategy, StudyResult, TableView, TemporalIndexer, TemporalMediationEstimate,
     TemporalMediationEstimator, TimeSeriesData, VariableId, elapsed_ns, identify_cached_diagnostic,
     mediation_block_stream, provenance_ids, push_graph_posterior_structural_aggregation_diagnostic,
     require_identified, resolve_posterior_status, resolve_structural_aggregation,
@@ -417,8 +417,7 @@ impl super::Study {
                 identification.clone(),
                 estimand,
                 estimate,
-                IdentifierId::Frontdoor,
-                EstimatorId::TemporalMediation,
+                Strategy::new(IdentifierId::Frontdoor, EstimatorId::TemporalMediation),
                 query.treatment,
                 query.outcome,
             )

@@ -5,8 +5,9 @@ use super::{
     Arc, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag, EffectEstimate,
     EstimatorId, ExecutionContext, GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, StudyResult, TableView, TabularData, VariableId, bayesian_draw_count,
-    elapsed_ns, finish_identified_execute_with_context, identify_static, select_claim,
+    PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData, VariableId,
+    bayesian_draw_count, elapsed_ns, finish_identified_execute_with_context, identify_static,
+    select_claim,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
@@ -258,8 +259,7 @@ impl CheckedBayesianBasisCateExecution {
             self.cache.identification.clone(),
             self.cache.estimand.clone(),
             estimate,
-            IdentifierId::BackdoorAdjustment,
-            EstimatorId::BayesianBasisGcomp,
+            Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianBasisGcomp),
             inner.treatment,
             inner.outcome,
         )

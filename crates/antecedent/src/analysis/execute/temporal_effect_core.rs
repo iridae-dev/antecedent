@@ -10,19 +10,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::sequential_validation::SequentialValidation;
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalError, CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
     EstimationWorkspace, EstimatorId, ExecutionContext, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, OverlapPolicy,
     PhysicalExecutionPlan, PosteriorPredictiveCheck, PredictiveCheckReport,
-    PreparedBayesianProblem, PriorPredictiveCheck, RefuteSuite, SUSTAINED_LINEAR_SEM, StudyResult,
-    TabularData, TemporalDag, TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment,
-    TemporalRefitContext, TimeSeriesData, bayesian_gcomp, bayesian_temporal_gcomp,
-    effect_from_posterior, evaluate_bayesian_prior_sensitivity, provenance_ids,
-    push_conflict_diagnostics, require_identified, resolve_bayesian_prior_with_conflict,
-    run_refuters, sequential_linear_sem_assumption, temporal_refuter_average,
-    with_conflict_summary, with_prior_sensitivity,
+    PreparedBayesianProblem, PriorPredictiveCheck, RefutationRun, RefuteSuite,
+    SUSTAINED_LINEAR_SEM, Strategy, StudyResult, TabularData, TemporalDag, TemporalEffectQuery,
+    TemporalIndexer, TemporalLinearAdjustment, TemporalRefitContext, TimeSeriesData,
+    bayesian_gcomp, bayesian_temporal_gcomp, effect_from_posterior,
+    evaluate_bayesian_prior_sensitivity, provenance_ids, push_conflict_diagnostics,
+    require_identified, resolve_bayesian_prior_with_conflict, sequential_linear_sem_assumption,
+    temporal_refuter_average, with_conflict_summary, with_prior_sensitivity,
 };
 
 /// Everything one temporal-effect fit reads, resolved by the caller.
@@ -87,8 +88,7 @@ impl TemporalEffectFit {
             identification,
             estimand,
             self.estimate,
-            IdentifierId::TemporalBackdoorUnfolded,
-            self.estimator_id,
+            Strategy::new(IdentifierId::TemporalBackdoorUnfolded, self.estimator_id),
             query.treatment,
             query.outcome,
         )
@@ -201,16 +201,20 @@ fn fit_sustained(
     };
     let (refutations, mut diagnostics, predictive_checks) =
         super::sequential_validation::validate_sequential(
-            data,
-            query,
+            SequentialValidation {
+                data,
+                query,
+                suite: inputs.refute,
+                custom: inputs.custom_validators,
+                predictive_sims: crate::analysis::latency::predictive_check_sims(
+                    inputs.latency_mode,
+                ),
+            },
             &[atom],
-            inputs.refute,
-            inputs.custom_validators,
             bayes.as_ref(),
             posterior.as_mut(),
             estimate.ate,
             ctx,
-            crate::analysis::latency::predictive_check_sims(inputs.latency_mode),
         )?;
     // The validation diagnostics are the prebuilt list, so the window note
     // and the dependence caveats join them.
@@ -403,19 +407,17 @@ fn fit_single_window(
     } else {
         EstimatorId::TemporalLinearAdjustment
     };
-    let (mut refutations, mut diagnostics) = run_refuters(
-        &tabular,
+    let (mut refutations, mut diagnostics) = RefutationRun {
+        data: &tabular,
         estimand,
-        &average,
-        &estimate,
-        &mut workspace,
-        None,
-        ctx,
-        refute,
-        estimator_id.as_str(),
-        inputs.custom_validators,
-        Some(temporal_ctx),
-    )?;
+        query: &average,
+        estimate: &estimate,
+        suite: refute,
+        estimator: estimator_id.as_str(),
+        custom: inputs.custom_validators,
+        temporal: Some(temporal_ctx),
+    }
+    .reports(&mut workspace, None, ctx)?;
     if let Some(info) = dependence_se.as_ref() {
         diagnostics
             .extend(super::temporal_path::single_window_dependence_se_diagnostics(&estimate, info));

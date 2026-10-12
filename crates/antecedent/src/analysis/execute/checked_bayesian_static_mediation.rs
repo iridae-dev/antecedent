@@ -5,9 +5,9 @@ use super::{
     Arc, BayesianConfig, CausalError, CausalQuery, CheckedStaticMediationInfo, Dag, EstimatorId,
     ExecutionContext, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId, InferenceMode, Instant,
-    PhysicalExecutionPlan, RefuteSuite, Study, StudyResult, TableView, TabularData, VariableId,
-    bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context, identify_static_query,
-    select_claim,
+    PhysicalExecutionPlan, RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
+    VariableId, bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context,
+    identify_static_query, select_claim,
 };
 use crate::analysis::prepared::Inspect;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
@@ -251,8 +251,10 @@ impl CheckedBayesianStaticMediationOperation {
                 bound.cache.identification.clone(),
                 bound.cache.estimand.clone(),
                 estimate,
-                IdentifierId::PathSpecificNatural,
-                EstimatorId::StaticMediationLinear,
+                Strategy::new(
+                    IdentifierId::PathSpecificNatural,
+                    EstimatorId::StaticMediationLinear,
+                ),
                 bound.query.treatment,
                 bound.query.outcome,
             )
@@ -312,6 +314,7 @@ mod tests {
     use super::*;
     use crate::{AcceptedGraph, Study};
     use antecedent_core::{Intervention, MediationContrast, MediationQuery, Value};
+    use antecedent_graph::DenseNodeId;
 
     fn fixture() -> (TabularData, Dag) {
         let (mut a, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());

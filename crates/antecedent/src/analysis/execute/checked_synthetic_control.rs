@@ -6,8 +6,8 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
     IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteFinish, IdentifierId, InferenceMode, PhysicalExecutionPlan,
-    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Study, StudyResult, TableView,
-    TabularData, finish_identified_execute_with_context,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
 };
 use antecedent_core::SyntheticPanelMethod;
 use antecedent_estimate::synthetic_control::exact_augmented_synthetic_unit_randomization_test;
@@ -182,7 +182,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -299,7 +299,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,

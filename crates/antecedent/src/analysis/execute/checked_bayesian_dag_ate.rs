@@ -7,12 +7,12 @@ use super::{
     Dag, EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass, IdentificationStatus,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
     InferenceMode, LatencyMode, PhysicalExecutionPlan, PosteriorPredictiveCheck,
-    PriorPredictiveCheck, RefuteSuite, StudyResult, TableView, TabularData, ValidationSuite,
-    ValidatorId, bayesian_gcomp, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
-    finish_identified_execute_with_context, identify_static, project_for_ate_estimate,
-    projection_diagnostic, push_conflict_diagnostics, resolve_bayesian_prior_with_conflict,
-    run_refuters, select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
-    with_prior_sensitivity,
+    PriorPredictiveCheck, RefutationRun, RefuteSuite, Strategy, StudyResult, TableView,
+    TabularData, ValidationSuite, ValidatorId, bayesian_gcomp, effect_from_posterior,
+    evaluate_bayesian_prior_sensitivity, finish_identified_execute_with_context, identify_static,
+    project_for_ate_estimate, projection_diagnostic, push_conflict_diagnostics,
+    resolve_bayesian_prior_with_conflict, select_claim, validator_not_applicable_diagnostics,
+    with_conflict_summary, with_prior_sensitivity,
 };
 
 /// The causal proof, prior, procedure, validation, and result contract selected
@@ -254,19 +254,17 @@ impl CheckedBayesianDagAteExecution {
         let mut workspace_refute = EstimationWorkspace::default();
         let (mut refutations, not_applicable) = match self.validation {
             RefuteSuite::None => (Vec::new(), Vec::new()),
-            suite => run_refuters(
-                &projected,
-                &estimand_est,
-                &query_est,
-                &estimate,
-                &mut workspace_refute,
-                None,
-                ctx,
+            suite => RefutationRun {
+                data: &projected,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate: &estimate,
                 suite,
-                EstimatorId::BayesianGcomp.as_str(),
-                &self.validators,
-                None,
-            )?,
+                estimator: EstimatorId::BayesianGcomp.as_str(),
+                custom: &self.validators,
+                temporal: None,
+            }
+            .reports(&mut workspace_refute, None, ctx)?,
         };
         diagnostics.extend(not_applicable);
 
@@ -329,8 +327,7 @@ impl CheckedBayesianDagAteExecution {
             identification,
             estimand,
             estimate,
-            IdentifierId::BackdoorAdjustment,
-            EstimatorId::BayesianGcomp,
+            Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianGcomp),
             query.treatment,
             query.outcome,
         )

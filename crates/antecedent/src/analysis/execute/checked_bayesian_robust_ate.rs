@@ -5,8 +5,8 @@ use super::{
     Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Dag, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext, GraphClass,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
-    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, StudyResult,
-    TableView, TabularData, VariableId, effect_from_posterior, elapsed_ns,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, Strategy,
+    StudyResult, TableView, TabularData, VariableId, effect_from_posterior, elapsed_ns,
     finish_identified_execute_with_context, identify_static_query_with_rd,
     project_for_ate_estimate, select_claim,
 };
@@ -257,8 +257,7 @@ impl CheckedBayesianRobustAteExecution {
             self.cache.identification.clone(),
             self.cache.estimand.clone(),
             estimate,
-            IdentifierId::BackdoorAdjustment,
-            EstimatorId::BayesianRobustAte,
+            Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianRobustAte),
             self.query.treatment,
             self.query.outcome,
         )

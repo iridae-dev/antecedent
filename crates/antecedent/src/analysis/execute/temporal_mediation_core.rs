@@ -18,7 +18,7 @@ use super::{
     CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId,
     ExecutionContext, IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifierId, MediationRoute, PhysicalExecutionPlan,
-    PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck, RefuteSuite,
+    PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck, RefuteSuite, Strategy,
     TemporalIndexer, TemporalMediationEstimate, TemporalMediationEstimator, TimeSeriesData,
     bayesian_gcomp, effect_from_posterior, mediation_block_stream, mediation_mechanism_seed,
     most_conservative_identification_status, nan_effect, provenance_ids, require_identified,
@@ -103,8 +103,7 @@ impl TemporalMediationFit {
             self.identification,
             self.estimand,
             self.estimate,
-            IdentifierId::Frontdoor,
-            self.estimator_id,
+            Strategy::new(IdentifierId::Frontdoor, self.estimator_id),
             query.treatment,
             query.outcome,
         )

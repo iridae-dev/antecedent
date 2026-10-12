@@ -6,8 +6,8 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
     IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan,
-    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Study, StudyResult, TableView,
-    TabularData, elapsed_ns, finish_identified_execute_with_context,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, elapsed_ns, finish_identified_execute_with_context,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -197,7 +197,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.panel_did.cluster_se",
                         DiagnosticKind::Scientific,
@@ -284,7 +284,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.augmented_panel_did.supplied_nuisance",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -422,7 +422,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         if any_interval {
                             "estimate.quasi.staggered_event_study.pointwise_95"
@@ -544,7 +544,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.staggered_group_time.cluster_se",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -646,7 +646,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt, self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.repeated_cross_section_did.cluster_se",
                         DiagnosticKind::Scientific,

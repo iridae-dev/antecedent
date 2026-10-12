@@ -6,11 +6,11 @@ use super::{
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass, IdentificationResult,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
     IdentifierId, InferenceMode, LatencyMode, PhysicalExecutionPlan, PosteriorPredictiveCheck,
-    PriorPredictiveCheck, RefuteSuite, StudyResult, TableView, TabularData, ValidationSuite,
-    ValidatorId, VariableId, bayesian_gcomp, effect_from_posterior,
+    PriorPredictiveCheck, RefutationRun, RefuteSuite, Strategy, StudyResult, TableView,
+    TabularData, ValidationSuite, ValidatorId, VariableId, bayesian_gcomp, effect_from_posterior,
     evaluate_bayesian_prior_sensitivity, finish_identified_execute_with_context, identify_static,
     project_for_ate_estimate, projection_diagnostic, resolve_bayesian_prior_with_conflict,
-    run_refuters, select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
+    select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
     with_prior_sensitivity,
 };
 use crate::analysis::prepared::Inspect;
@@ -252,19 +252,17 @@ impl CheckedBayesianConditionalOperation {
                 query.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
                 query
             };
-            let (reports, not_applicable) = run_refuters(
-                &projected,
-                &estimand_est,
-                &mean_query,
-                &estimate,
-                &mut refute_workspace,
-                None,
-                ctx,
-                self.refute,
-                EstimatorId::BayesianConditional.as_str(),
-                &self.validators,
-                None,
-            )?;
+            let (reports, not_applicable) = RefutationRun {
+                data: &projected,
+                estimand: &estimand_est,
+                query: &mean_query,
+                estimate: &estimate,
+                suite: self.refute,
+                estimator: EstimatorId::BayesianConditional.as_str(),
+                custom: &self.validators,
+                temporal: None,
+            }
+            .reports(&mut refute_workspace, None, ctx)?;
             refutations = reports;
             diagnostics.extend(not_applicable);
             let sims = super::super::latency::predictive_check_sims(self.latency);
@@ -325,8 +323,7 @@ impl CheckedBayesianConditionalOperation {
                 identification,
                 estimand,
                 estimate,
-                IdentifierId::BackdoorAdjustment,
-                EstimatorId::BayesianConditional,
+                Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianConditional),
                 self.query.inner.treatment,
                 self.query.inner.outcome,
             )

@@ -6,8 +6,8 @@ use super::{
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
     IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteFinish, IdentifierId, InferenceMode, OverlapPolicy, PhysicalExecutionPlan,
-    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Study, StudyResult, TableView,
-    TabularData, finish_identified_execute_with_context,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
@@ -176,7 +176,7 @@ impl CheckedContinuousDoseOperation {
                     f64::NAN,
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
-                ), IdentifierId::ContinuousDoseExchangeability, EstimatorId::ContinuousDoseKernel, self.query.dose, self.query.outcome).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
+                ), Strategy::new(IdentifierId::ContinuousDoseExchangeability, EstimatorId::ContinuousDoseKernel), self.query.dose, self.query.outcome).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.policy.continuous_dose_support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,

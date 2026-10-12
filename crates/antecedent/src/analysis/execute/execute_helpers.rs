@@ -209,6 +209,42 @@ pub(super) fn identify_cached_diagnostic() -> Diagnostic {
     )
 }
 
+/// The identifier and estimator a route executed with.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Strategy {
+    pub(super) identifier: IdentifierId,
+    pub(super) estimator: EstimatorId,
+}
+
+impl Strategy {
+    pub(super) const fn new(identifier: IdentifierId, estimator: EstimatorId) -> Self {
+        Self { identifier, estimator }
+    }
+}
+
+/// The execution frame every finish of one execute path shares.
+#[derive(Clone, Copy)]
+pub(super) struct ExecuteRun<'a> {
+    pub(super) physical: &'a PhysicalExecutionPlan,
+    pub(super) ctx: &'a ExecutionContext,
+    pub(super) started: Instant,
+    /// Whether identification was served from the prepare-time cache.
+    pub(super) identify_cached: bool,
+}
+
+/// The identified class envelope a CPDAG/PAG execute path finishes from.
+pub(super) struct ClassEnvelopeRun<'a, G> {
+    pub(super) run: ExecuteRun<'a>,
+    pub(super) envelope: &'a IdentificationEnvelope<G>,
+    pub(super) envelope_diagnostic: Diagnostic,
+}
+
+/// An identification result together with the estimand selected from it.
+pub(super) struct IdentifiedClaim {
+    pub(super) identification: IdentificationResult,
+    pub(super) estimand: IdentifiedEstimand,
+}
+
 pub(super) struct IdentifiedExecuteFinish<'a> {
     pub physical: &'a PhysicalExecutionPlan,
     pub identification: IdentificationResult,
@@ -238,8 +274,7 @@ impl<'a> IdentifiedExecuteFinish<'a> {
         identification: IdentificationResult,
         estimand: IdentifiedEstimand,
         estimate: EffectEstimate,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
+        strategy: Strategy,
         treatment: VariableId,
         outcome: VariableId,
     ) -> Self {
@@ -248,8 +283,8 @@ impl<'a> IdentifiedExecuteFinish<'a> {
             identification,
             estimand,
             estimate,
-            identifier_id,
-            estimator_id,
+            identifier_id: strategy.identifier,
+            estimator_id: strategy.estimator,
             treatment,
             outcome,
             identify_cached: false,
@@ -1791,22 +1826,35 @@ fn same_predictive_check_inputs(
         && same_fitted_problem(&a.prep, &b.prep)
 }
 
+/// How a Bayesian posterior run is validated: the suite, the inference configuration it
+/// was fitted under, and the estimator each atom's checks are derived from.
+pub(super) struct BayesianValidation<'a> {
+    pub(super) suite: RefuteSuite,
+    pub(super) cfg: &'a crate::inference::BayesianConfig,
+    pub(super) estimator: &'a BayesianGComputationAte,
+}
+
+/// Where a validation pass appends the reports and diagnostics it produces.
+pub(super) struct ValidationSink<'a> {
+    pub(super) refutations: &'a mut Vec<antecedent_validate::RefutationReport>,
+    pub(super) diagnostics: &'a mut Vec<Diagnostic>,
+}
+
 /// Run PPC (and, under `full`, prior-sensitivity) on identified envelope atoms.
 ///
 /// Aggregation is mixture-weighted by graph-posterior mass. Records the method as a
 /// diagnostic so `full` means the same thing on PAG / graph-posterior as on a single DAG.
 pub(super) fn run_envelope_bayesian_full_validation(
-    refute: RefuteSuite,
-    cfg: &crate::inference::BayesianConfig,
-    est: &BayesianGComputationAte,
+    setup: BayesianValidation<'_>,
     atoms: &[EnvelopeAtomFit],
     mixture_posterior: &mut CausalPosterior,
     estimate_ate: f64,
     ctx: &ExecutionContext,
     predictive_sims: u32,
-    refutations: &mut Vec<antecedent_validate::RefutationReport>,
-    diagnostics: &mut Vec<Diagnostic>,
+    sink: ValidationSink<'_>,
 ) -> Result<Vec<PredictiveCheckReport>, CausalError> {
+    let BayesianValidation { suite: refute, cfg, estimator: est } = setup;
+    let ValidationSink { refutations, diagnostics } = sink;
     const PPC_ALPHA: f64 = 0.05;
     fn borrow(items: &[(f64, PredictiveCheckReport)]) -> Vec<(f64, &PredictiveCheckReport)> {
         items.iter().map(|(w, r)| (*w, r)).collect()
@@ -1947,6 +1995,25 @@ pub(super) fn envelope_validation_diagnostics(
     out
 }
 
+/// The temporal frame refuters refit through when an envelope atom carries a lag indexer.
+pub(super) struct TemporalRefutation<'a> {
+    pub(super) query: &'a TemporalEffectQuery,
+    pub(super) split: Option<&'a DiscoveryEstimationSplit>,
+    pub(super) time_index: &'a TimeIndex,
+}
+
+/// What an envelope refuter run checks and how: the data and query every atom is validated
+/// against, the suite, and the temporal frame for DBN atoms.
+pub(super) struct EnvelopeRefutation<'a> {
+    pub(super) data: &'a TabularData,
+    pub(super) query: &'a AverageEffectQuery,
+    pub(super) suite: RefuteSuite,
+    pub(super) estimator: &'a str,
+    pub(super) custom: &'a [Arc<dyn antecedent_validate::CustomEffectValidator>],
+    pub(super) temporal: Option<TemporalRefutation<'a>>,
+}
+
+impl EnvelopeRefutation<'_> {
 /// Run cheap/full effect refuters on every contributing envelope atom and mix.
 ///
 /// Each atom is validated on its own estimand (and lag indexer, for DBN atoms)
@@ -1958,19 +2025,13 @@ pub(super) fn envelope_validation_diagnostics(
 /// report), and the mixed check passes only if every contributing atom passes.
 /// Validators that are `NotApplicable` on every contributing atom surface once;
 /// a check that applies to only a subset mixes that subset.
-pub(super) fn run_envelope_effect_refuters(
-    data: &TabularData,
-    query: &AverageEffectQuery,
+pub(super) fn run(
+    self,
     atoms: &[EnvelopeRefuteAtom],
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
-    suite: RefuteSuite,
-    estimator: &str,
-    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
-    temporal_query: Option<&TemporalEffectQuery>,
-    split: Option<&DiscoveryEstimationSplit>,
-    time_index: Option<&TimeIndex>,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    let Self { data, query, suite, estimator, custom, temporal: temporal_frame } = self;
     if matches!(suite, RefuteSuite::None) && custom.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
@@ -1986,30 +2047,28 @@ pub(super) fn run_envelope_effect_refuters(
             continue;
         }
         contributing += atom.weight;
-        let temporal = match (atom.indexer.as_ref(), temporal_query) {
-            (Some(indexer), Some(tq)) => Some(TemporalRefitContext {
+        let temporal = match (atom.indexer.as_ref(), temporal_frame.as_ref()) {
+            (Some(indexer), Some(frame)) => Some(TemporalRefitContext {
                 indexer,
-                temporal_query: tq,
-                split,
+                temporal_query: frame.query,
+                split: frame.split,
                 kernel_policy: &ctx.kernel_policy,
-                time_index,
+                time_index: Some(frame.time_index),
                 panel: None,
             }),
             _ => None,
         };
-        let outcomes = refute_outcomes(
+        let outcomes = RefutationRun {
             data,
-            &atom.estimand,
+            estimand: &atom.estimand,
             query,
-            &atom.original,
-            workspace,
-            None,
-            ctx,
+            estimate: &atom.original,
             suite,
             estimator,
             custom,
             temporal,
-        )?;
+        }
+        .outcomes(workspace, None, ctx)?;
         per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
         for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
             na_weight
@@ -2041,6 +2100,7 @@ pub(super) fn run_envelope_effect_refuters(
         ),
     ));
     Ok((reports, diagnostics))
+}
 }
 
 /// Mix per-atom refutation reports by refuter id (weights are envelope / graph-posterior mass).
@@ -3084,7 +3144,7 @@ pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
 
 #[cfg(test)]
 mod bootstrap_success_floor_tests {
-    use super::{bootstrap_has_enough_successes, PERCENTILE_95_BAND_MIN_SUCCESSES};
+    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
 
     #[test]
     fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {
