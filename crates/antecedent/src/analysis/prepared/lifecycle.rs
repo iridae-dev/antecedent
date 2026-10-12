@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::sealed::{SeriesCall, SeriesEntry};
 use super::{
     PreparedExecution, PreparedModality, PreparedStudy, overlay_prepared_score_functional,
 };
@@ -411,16 +412,17 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
-        let result = match self.run_sealed_series(&self.analysis, &input, ctx, false)? {
-            Some(result) => result,
-            None => self.analysis.execute_on(&input, &self.plan, ctx)?,
-        };
+        let result =
+            match self.run_sealed_series(&self.analysis, &input, ctx, SeriesEntry::Estimate)? {
+                Some(result) => result,
+                None => self.analysis.execute_on(&input, &self.plan, ctx)?,
+            };
         self.stamp(&input, result)
     }
 
     /// Execute the retained series operation, if any, over `study` and
     /// `input`. `study` is the prepared study (estimate) or its refreshed
-    /// clone (refresh); `refreshing` selects the wording of each refusal.
+    /// clone (refresh); `entry` selects the wording of each refusal.
     /// `None` means no series family is sealed and ordinary dispatch applies.
     #[inline(never)]
     fn run_sealed_series(
@@ -428,150 +430,19 @@ impl PreparedStudy {
         study: &Study,
         input: &DataInput,
         ctx: &ExecutionContext,
-        refreshing: bool,
+        entry: SeriesEntry,
     ) -> Result<Option<StudyResult>, CausalError> {
-        let refusal = |estimate: &str, refresh: &str| CausalError::Compile {
-            message: if refreshing { refresh.into() } else { estimate.into() },
-        };
         let (DataInput::Temporal(series) | DataInput::Event(series)) = input else {
             unreachable!("series execution constructs temporal data")
         };
-        let result = match &self.execution {
-            PreparedExecution::TemporalMediation(operation) => {
-                let graph = study.graph.as_temporal_dag().ok_or_else(|| {
-                    refusal(
-                        "checked temporal mediation lost its prepared TemporalDag",
-                        "checked temporal mediation refresh lost its TemporalDag",
-                    )
-                })?;
-                if !operation.matches_graph(graph) {
-                    return Err(refusal(
-                        "checked temporal mediation graph differs from the prepared graph",
-                        "checked temporal mediation refresh graph differs from its retained proof",
-                    ));
-                }
-                operation.execute(series, ctx)?
-            }
-            PreparedExecution::TemporalClassMediation(operation) => {
-                operation.execute(study, input, ctx)?
-            }
-            PreparedExecution::BayesianTemporalDagEffect(operation) => {
-                if !operation.matches_query(&study.query) {
-                    return Err(refusal(
-                        "checked Bayesian temporal query changed after preparation",
-                        "checked Bayesian temporal refresh query changed after preparation",
-                    ));
-                }
-                let graph = study.graph.as_temporal_dag().ok_or_else(|| {
-                    refusal(
-                        "checked Bayesian temporal effect lost its prepared TemporalDag",
-                        "checked Bayesian temporal effect refresh lost its TemporalDag",
-                    )
-                })?;
-                let CausalQuery::TemporalEffect(query) = &study.query else {
-                    return Err(refusal(
-                        "checked Bayesian temporal effect lost its temporal query",
-                        "checked Bayesian temporal effect refresh lost its temporal query",
-                    ));
-                };
-                study.execute_temporal(
-                    series,
-                    graph,
-                    query,
-                    &self.state.plan,
-                    ctx,
-                    Some(operation),
-                )?
-            }
-            PreparedExecution::TemporalDagEffect(operation) => {
-                let graph = study.graph.as_temporal_dag().ok_or_else(|| {
-                    refusal(
-                        "checked temporal effect lost its prepared TemporalDag",
-                        "checked temporal effect refresh lost its TemporalDag",
-                    )
-                })?;
-                if !operation.operation().matches_graph(graph) {
-                    return Err(refusal(
-                        "checked temporal effect graph differs from prepared graph",
-                        "checked temporal effect refresh graph differs from prepared graph",
-                    ));
-                }
-                operation.execute(series, ctx)?
-            }
-            PreparedExecution::TemporalClassEffect(operation) => {
-                if !operation.operation().matches_source_graph(&study.graph) {
-                    return Err(refusal(
-                        "checked temporal class source graph differs from the retained proof",
-                        "checked temporal class refresh graph differs from its retained proof",
-                    ));
-                }
-                operation.execute(series, ctx)?
-            }
-            PreparedExecution::TemporalDagResponse(operation) => {
-                let graph = study.graph.as_temporal_dag().ok_or_else(|| {
-                    refusal(
-                        "checked temporal response lost its prepared TemporalDag",
-                        "checked temporal response refresh lost its TemporalDag",
-                    )
-                })?;
-                if !operation.operation().matches_graph(graph) {
-                    return Err(refusal(
-                        "checked temporal response graph differs from prepared graph",
-                        "checked temporal response refresh graph differs from prepared graph",
-                    ));
-                }
-                operation.execute(series, ctx)?
-            }
-            PreparedExecution::TemporalClassResponse(operation) => {
-                if !operation.matches_source_graph(&study.graph) {
-                    return Err(refusal(
-                        "checked temporal class response source graph differs from the retained proof",
-                        "checked temporal class response refresh graph differs from its retained proof",
-                    ));
-                }
-                study.execute_checked_temporal_class_response(series, operation, ctx)?
-            }
-            PreparedExecution::TemporalGraphPosteriorResponse(operation) => {
-                if !operation.matches_posterior(study.graph_posterior.as_ref()) {
-                    return Err(refusal(
-                        "checked temporal graph-posterior response atoms differ from the retained proof",
-                        "checked temporal graph-posterior response refresh atoms differ from its retained proof",
-                    ));
-                }
-                study.execute_checked_temporal_graph_posterior_response(series, operation, ctx)?
-            }
-            PreparedExecution::BayesianTemporalClassEffect(operation) => {
-                if !operation.matches_query(&study.query) {
-                    return Err(refusal(
-                        "checked Bayesian temporal class query changed after preparation",
-                        "checked Bayesian temporal class refresh query changed after preparation",
-                    ));
-                }
-                if !study
-                    .temporal_class_identification_cache
-                    .as_deref()
-                    .is_some_and(|proof| operation.matches_class_proof(proof))
-                {
-                    return Err(refusal(
-                        "checked Bayesian temporal class envelope differs from its retained proof",
-                        "checked Bayesian temporal class refresh envelope differs from its retained proof",
-                    ));
-                }
-                study.execute_checked_bayesian_temporal_class_effect(series, operation, ctx)?
-            }
-            PreparedExecution::TemporalGraphPosteriorEffect(operation) => {
-                if !operation.matches_query(&study.query) {
-                    return Err(refusal(
-                        "checked temporal graph-posterior query changed after preparation",
-                        "checked temporal graph-posterior refresh query changed after preparation",
-                    ));
-                }
-                study.execute_checked_temporal_graph_posterior_effect(series, operation, ctx)?
-            }
-            PreparedExecution::Attribution(operation) => operation.execute_series(series, ctx)?,
-            _ => return Ok(None),
-        };
-        Ok(Some(result))
+        self.execution.operation().estimate_series(&SeriesCall {
+            handle: self,
+            study,
+            input,
+            series,
+            ctx,
+            entry,
+        })
     }
 
     /// Re-estimate a prepared panel Pulse/Sustained analysis (no re-identify).
@@ -722,10 +593,11 @@ impl PreparedStudy {
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = series_input(&self.analysis.data, data);
-        let result = match self.run_sealed_series(&refreshed, &refreshed.data, ctx, true)? {
-            Some(result) => result,
-            None => refreshed.execute(&self.plan, ctx)?,
-        };
+        let result =
+            match self.run_sealed_series(&refreshed, &refreshed.data, ctx, SeriesEntry::Refresh)? {
+                Some(result) => result,
+                None => refreshed.execute(&self.plan, ctx)?,
+            };
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
         self.stamp(&data, result)

@@ -18,6 +18,7 @@ mod prepare;
 mod prepare_identification;
 mod retarget;
 mod seal;
+mod sealed;
 mod support;
 
 #[cfg(test)]

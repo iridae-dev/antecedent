@@ -5,7 +5,7 @@
 use super::{
     CachedTemporalIdentification, CheckedAipwOperation, CheckedBayesianGcompOperation,
     CheckedFunctionalEffectResponseMember, CheckedIvOperation, CheckedLinearOperation,
-    CheckedProgramBinding, PreparedExecution, PreparedStudy,
+    CheckedProgramBinding, ExecutionKind, PreparedExecution, PreparedStudy,
 };
 use crate::accepted::GraphClass;
 use crate::analysis::builder::{DataInput, RefuteSuite};
@@ -732,7 +732,7 @@ impl PreparedStudy {
     }
 
     pub(crate) fn has_checked_rd_operation(&self) -> bool {
-        matches!(&self.execution, PreparedExecution::CheckedRd(_))
+        self.execution.kind() == ExecutionKind::CheckedRd
     }
 
     /// Whether this prepared handle owns the complete operation for a family
@@ -850,7 +850,7 @@ impl PreparedStudy {
     }
 
     pub(crate) fn has_checked_counterfactual_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::Counterfactual(_))
+        self.execution.kind() == ExecutionKind::Counterfactual
     }
 
     /// The retained graph and cross-world target for a checked counterfactual route.
@@ -866,11 +866,11 @@ impl PreparedStudy {
     }
 
     pub(crate) fn has_checked_derivative_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::DerivativeResponse(_))
+        self.execution.kind() == ExecutionKind::DerivativeResponse
     }
 
     pub(crate) fn has_checked_static_dag_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::StaticDagResponse(_))
+        self.execution.kind() == ExecutionKind::StaticDagResponse
     }
 
     /// Inspect the sealed static DAG mediation target and procedure.
@@ -925,42 +925,42 @@ impl PreparedStudy {
     }
 
     pub(crate) fn has_checked_temporal_dag_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TemporalDagResponse(_))
+        self.execution.kind() == ExecutionKind::TemporalDagResponse
     }
 
     pub(crate) fn has_checked_temporal_class_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TemporalClassResponse(_))
+        self.execution.kind() == ExecutionKind::TemporalClassResponse
     }
 
     pub(crate) fn has_checked_temporal_graph_posterior_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TemporalGraphPosteriorResponse(_))
+        self.execution.kind() == ExecutionKind::TemporalGraphPosteriorResponse
     }
 
     pub(crate) fn has_checked_temporal_dag_effect_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TemporalDagEffect(_))
+        self.execution.kind() == ExecutionKind::TemporalDagEffect
     }
 
     pub(crate) fn has_checked_propensity_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::CheckedPropensity(_))
+        self.execution.kind() == ExecutionKind::CheckedPropensity
     }
 
     /// Whether preparation retained the frequentist DAG graph-posterior effect plan.
     #[must_use]
     pub fn has_checked_graph_posterior_effect_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::GraphPosteriorEffect(_))
+        self.execution.kind() == ExecutionKind::GraphPosteriorEffect
     }
 
     /// Whether preparation retained a frequentist CPDAG/PAG graph-posterior ATE plan.
     #[must_use]
     pub fn has_checked_class_graph_posterior_effect_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::ClassGraphPosteriorEffect(_))
+        self.execution.kind() == ExecutionKind::ClassGraphPosteriorEffect
     }
 
     /// Returns whether the static CPDAG/PAG average effect is bound to a
     /// completion envelope retained at preparation time.
     #[must_use]
     pub fn has_checked_static_class_effect_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::StaticClassEffect(_))
+        self.execution.kind() == ExecutionKind::StaticClassEffect
     }
 
     /// Inspect the retained static CPDAG/PAG average-effect target, procedure,
@@ -1012,7 +1012,7 @@ impl PreparedStudy {
     /// Whether preparation retained an ADMG graph-posterior response operation.
     #[must_use]
     pub fn has_checked_admg_graph_posterior_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::AdmgGraphPosteriorResponse(_))
+        self.execution.kind() == ExecutionKind::AdmgGraphPosteriorResponse
     }
 
     /// Inspect the frozen graph-posterior atoms and estimator procedure.
@@ -1093,7 +1093,7 @@ impl PreparedStudy {
     /// Whether preparation retained an explicit/accepted class response operation.
     #[must_use]
     pub fn has_checked_static_class_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::StaticClassResponse(_))
+        self.execution.kind() == ExecutionKind::StaticClassResponse
     }
 
     /// Inspect the retained explicit/accepted CPDAG or PAG response operation.
@@ -1119,7 +1119,7 @@ impl PreparedStudy {
     /// response operation.
     #[must_use]
     pub fn has_checked_graph_posterior_response_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::GraphPosteriorResponse(_))
+        self.execution.kind() == ExecutionKind::GraphPosteriorResponse
     }
 
     /// Inspect the retained DAG, CPDAG, or PAG graph-posterior response operation.
@@ -1339,7 +1339,7 @@ impl PreparedStudy {
     }
 
     pub(crate) fn has_checked_temporal_class_mediation_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TemporalClassMediation(_))
+        self.execution.kind() == ExecutionKind::TemporalClassMediation
     }
 
     /// Inspect the retained fixed-network interference target and procedure.
@@ -1387,7 +1387,7 @@ impl PreparedStudy {
     /// Whether preparation retained the complete Bayesian IV or sharp-RD operation.
     #[must_use]
     pub fn has_checked_bayesian_specialist_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::BayesianSpecialist(_))
+        self.execution.kind() == ExecutionKind::BayesianSpecialist
     }
 
     /// Inspect the retained certified trial-to-target transport operation.
@@ -1404,7 +1404,7 @@ impl PreparedStudy {
     /// Whether preparation retained the complete trial-to-target transport operation.
     #[must_use]
     pub fn has_checked_transport_trial_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TransportTrial(_))
+        self.execution.kind() == ExecutionKind::TransportTrial
     }
 
     /// Inspect the retained checked temporal effect before execution.
@@ -1472,7 +1472,7 @@ impl PreparedStudy {
     /// Whether preparation retained a Bayesian TemporalCpdag/TemporalPag effect plan.
     #[must_use]
     pub fn has_checked_bayesian_temporal_class_effect_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::BayesianTemporalClassEffect(_))
+        self.execution.kind() == ExecutionKind::BayesianTemporalClassEffect
     }
 
     /// Inspect the retained source class, completion proof, and Bayesian settings.
@@ -1504,7 +1504,7 @@ impl PreparedStudy {
     /// Whether preparation retained a temporal graph-posterior effect plan.
     #[must_use]
     pub fn has_checked_temporal_graph_posterior_effect_operation(&self) -> bool {
-        matches!(self.execution, PreparedExecution::TemporalGraphPosteriorEffect(_))
+        self.execution.kind() == ExecutionKind::TemporalGraphPosteriorEffect
     }
 
     /// Inspect the frozen temporal posterior samples, atom proofs, and procedure.
@@ -1711,7 +1711,7 @@ impl PreparedStudy {
     #[cfg(test)]
     pub(crate) fn study_mut(&mut self) -> &mut Study {
         self.program_cache = std::sync::OnceLock::new();
-        if matches!(self.execution, PreparedExecution::CheckedLinear(_)) {
+        if self.execution.kind() == ExecutionKind::CheckedLinear {
             self.execution = PreparedExecution::OrdinaryDispatch;
         }
         &mut self.analysis

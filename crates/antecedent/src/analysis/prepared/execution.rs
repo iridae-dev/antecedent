@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::sealed::{OrdinaryDispatch, SealedOperation};
 use super::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
     CheckedFrontDoorOperation, CheckedFunctionalEffectOperation,
@@ -16,15 +17,73 @@ use crate::analysis::{
     CheckedStaticClassEffect,
 };
 
-/// One sealed execution choice for a prepared click. The checked variants carry
-/// the complete operation retained by preparation; `OrdinaryDispatch` names a
-/// configuration no sealed operation admits, which executes through the
-/// ordinary dispatcher.
-#[derive(Clone, Debug)]
-pub(crate) enum PreparedExecution {
-    /// No sealed operation admits this configuration; execute through the
-    /// ordinary dispatcher.
-    OrdinaryDispatch,
+/// Declares [`PreparedExecution`], its fieldless [`ExecutionKind`], and the
+/// exhaustive variant-to-[`SealedOperation`] projection from one list.
+///
+/// Every dispatch over the sealed route goes through that projection, so a
+/// variant added here cannot be reached by a match that forgot it: the new
+/// payload must implement [`SealedOperation`], and every hook that route does
+/// not override is stated by its implementation rather than by a wildcard arm.
+macro_rules! sealed_executions {
+    ($($variant:ident($payload:ty)),+ $(,)?) => {
+        /// One sealed execution choice for a prepared click. The checked variants
+        /// carry the complete operation retained by preparation;
+        /// `OrdinaryDispatch` names a configuration no sealed operation admits,
+        /// which executes through the ordinary dispatcher.
+        #[derive(Clone, Debug)]
+        pub(crate) enum PreparedExecution {
+            /// No sealed operation admits this configuration; execute through the
+            /// ordinary dispatcher.
+            OrdinaryDispatch,
+            $($variant($payload),)+
+        }
+
+        /// The variant of a [`PreparedExecution`] without its payload.
+        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+        pub(crate) enum ExecutionKind {
+            OrdinaryDispatch,
+            $($variant,)+
+        }
+
+        impl ExecutionKind {
+            /// Every kind, in declaration order.
+            #[cfg(test)]
+            pub(crate) const ALL: &'static [Self] = &[Self::OrdinaryDispatch, $(Self::$variant,)+];
+            /// Number of kinds a preparation can seal (every kind but
+            /// `OrdinaryDispatch`).
+            pub(super) const SEALED_COUNT: usize = [$(Self::$variant,)+].len();
+        }
+
+        impl PreparedExecution {
+            /// The payload-free variant of this route.
+            pub(crate) fn kind(&self) -> ExecutionKind {
+                match self {
+                    Self::OrdinaryDispatch => ExecutionKind::OrdinaryDispatch,
+                    $(Self::$variant(_) => ExecutionKind::$variant,)+
+                }
+            }
+
+            /// The retained operation behind this route.
+            pub(super) fn operation(&self) -> &dyn SealedOperation {
+                match self {
+                    Self::OrdinaryDispatch => &OrdinaryDispatch,
+                    $(Self::$variant(operation) => operation,)+
+                }
+            }
+
+            /// Mutable access to the retained operation; `None` for
+            /// `OrdinaryDispatch`, which retains none.
+            pub(super) fn operation_mut(&mut self) -> Option<&mut dyn SealedOperation> {
+                match self {
+                    Self::OrdinaryDispatch => None,
+                    $(Self::$variant(operation) => Some(operation),)+
+                }
+            }
+        }
+    };
+}
+
+sealed_executions! {
     FunctionalEffect(CheckedFunctionalEffectOperation),
     PathSpecificEffect(CheckedPathSpecificEffectOperation),
     AdmgResponseCurve(CheckedAdmgResponseCurveOperation),
