@@ -155,6 +155,81 @@ pub struct ExternalResponse {
     pub point_support: Option<Vec<SupportStatus>>,
 }
 
+/// Declared support of a column's rows.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ColumnSupport {
+    /// One label for every row.
+    Uniform(SupportStatus),
+    /// One label per row, in row order.
+    PerRow(Vec<SupportStatus>),
+}
+
+/// A column of row-level values, such as one conditional effect per unit.
+///
+/// A response grid names one coordinate per value, which is the right shape
+/// for a dose curve and the wrong one for thousands of rows. A column has *one*
+/// scientific quantity (the per-row estimand) and a value per row; the claim
+/// keeps the column's digest, not its rows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExternalColumn {
+    /// Shared declarations; `quantities` holds exactly the one row-level quantity.
+    pub header: ExternalResultHeader,
+    /// The finite values, one per row.
+    pub values: Vec<f64>,
+    /// Uncertainty meaning.
+    pub uncertainty: ExternalUncertaintyMeaning,
+    /// Provider-declared support of the rows. Absent means support was not
+    /// assessed, so every row is `MissingEvidence`, never `Supported`.
+    pub support: Option<ColumnSupport>,
+}
+
+/// What a bound claim retains of a column: its size, digest and support.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ColumnClaim {
+    rows: usize,
+    values_blake3: String,
+    support_counts: Vec<(SupportStatus, usize)>,
+}
+
+impl ColumnClaim {
+    /// Name of the only element type a column holds.
+    pub const DTYPE: &'static str = "f64";
+
+    /// Number of rows.
+    #[must_use]
+    pub const fn rows(&self) -> usize {
+        self.rows
+    }
+    /// Digest of the ordered values, [`external_values_digest`].
+    #[must_use]
+    pub fn values_blake3(&self) -> &str {
+        &self.values_blake3
+    }
+    /// Rows per support label, weakest label last, labels with no rows omitted.
+    #[must_use]
+    pub fn support_counts(&self) -> &[(SupportStatus, usize)] {
+        &self.support_counts
+    }
+    /// Whether `values` is exactly the column this claim was bound to.
+    #[must_use]
+    pub fn covers(&self, values: &[f64]) -> bool {
+        values.len() == self.rows && external_values_digest(values) == self.values_blake3
+    }
+}
+
+/// Digest of ordered response or column values: the length and every value's
+/// bit pattern under the shared canonical writer, so a changed value is a
+/// changed identity.
+#[must_use]
+pub fn external_values_digest(values: &[f64]) -> String {
+    let mut hasher = antecedent_core::CanonicalWriter::new("antecedent.external_claim.values");
+    hasher.word(values.len() as u64);
+    for value in values {
+        hasher.real(*value);
+    }
+    hasher.finish_hex()
+}
+
 /// A supplied outcome or functional law.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExternalDistribution {
@@ -178,6 +253,8 @@ pub struct ExternalPosterior {
 pub enum ExternalResult {
     /// Finite response grid.
     Response(ExternalResponse),
+    /// Row-level column under one quantity.
+    Column(ExternalColumn),
     /// Law of an outcome or functional.
     Distribution(ExternalDistribution),
     /// Posterior.
@@ -208,6 +285,17 @@ pub enum ExternalBindingError {
     UncheckedObservationalLaw(usize),
     /// A supplied value is not finite.
     NonFiniteValue(usize),
+    /// A column was labelled with this many quantities, not the one it answers.
+    ColumnQuantities(usize),
+    /// A column has no rows.
+    EmptyColumn,
+    /// A column's per-row support has a different length than its values.
+    ColumnSupportLength {
+        /// Rows in the column.
+        rows: usize,
+        /// Labels supplied.
+        supplied: usize,
+    },
     /// Distribution meaning is not accepted by the contract.
     MeaningNotAccepted,
     /// Posterior kind differs from the provider declaration.
@@ -236,6 +324,7 @@ pub struct BoundExternalClaim {
     identification: IdentificationStatus,
     quantities: Vec<ScientificQuantity>,
     values: Option<Vec<f64>>,
+    column: Option<ColumnClaim>,
     point_status: Option<Vec<SupportStatus>>,
     meaning: Option<DistributionMeaning>,
     uncertainty: ExternalUncertaintyMeaning,
@@ -270,8 +359,14 @@ impl BoundExternalClaim {
     pub fn values(&self) -> Option<&[f64]> {
         self.values.as_deref()
     }
-    /// Per-coordinate support of a response grid; `MissingEvidence` where the
-    /// provider declared none. Absent for laws and posteriors.
+    /// The bound column, when this is a row-level column rather than a grid.
+    #[must_use]
+    pub fn column(&self) -> Option<&ColumnClaim> {
+        self.column.as_ref()
+    }
+    /// Per-coordinate support of a response grid, or the worst row label of a
+    /// column's one coordinate; `MissingEvidence` where the provider declared
+    /// none. Absent for laws and posteriors.
     #[must_use]
     pub fn point_status(&self) -> Option<&[SupportStatus]> {
         self.point_status.as_deref()
@@ -475,6 +570,66 @@ fn check_contract(contract: &CheckedCausalContract) -> Result<(), ExternalBindin
     Ok(())
 }
 
+/// The trust a result may be bound at: native licence is never a provider's.
+fn bound_trust(header: &ExternalResultHeader) -> Result<BoundTrustLevel, ExternalBindingError> {
+    match &header.trust {
+        ExternalTrustState::NativeLicensed => Err(ExternalBindingError::TrustMismatch),
+        ExternalTrustState::ExternallyAttested { .. } => Ok(BoundTrustLevel::ExternallyAttested),
+        state @ ExternalTrustState::ExactRequestVerified(_) => {
+            if state.verifies(&header.object) {
+                Ok(BoundTrustLevel::ExactRequestVerified)
+            } else {
+                Err(ExternalBindingError::TrustMismatch)
+            }
+        }
+    }
+}
+
+/// The retained form of a column and the worst label over its rows.
+fn check_column(
+    column: &ExternalColumn,
+) -> Result<(ColumnClaim, SupportStatus), ExternalBindingError> {
+    use ExternalBindingError as E;
+    let rows = column.values.len();
+    if rows == 0 {
+        return Err(E::EmptyColumn);
+    }
+    if let Some(index) = column.values.iter().position(|x| !x.is_finite()) {
+        return Err(E::NonFiniteValue(index));
+    }
+    let mut counts = [0_usize; 5];
+    let slot = |status: SupportStatus| usize::from(status.severity());
+    match &column.support {
+        None => counts[slot(SupportStatus::MissingEvidence)] = rows,
+        Some(ColumnSupport::Uniform(status)) => counts[slot(*status)] = rows,
+        Some(ColumnSupport::PerRow(labels)) => {
+            if labels.len() != rows {
+                return Err(E::ColumnSupportLength { rows, supplied: labels.len() });
+            }
+            for status in labels {
+                counts[slot(*status)] += 1;
+            }
+        }
+    }
+    let ordered = [
+        SupportStatus::Supported,
+        SupportStatus::WeakOverlap,
+        SupportStatus::Extrapolative,
+        SupportStatus::OutsideEmpiricalSupport,
+        SupportStatus::MissingEvidence,
+    ];
+    let support_counts: Vec<_> = ordered
+        .into_iter()
+        .map(|status| (status, counts[slot(status)]))
+        .filter(|(_, count)| *count > 0)
+        .collect();
+    let worst = support_counts.last().map_or(SupportStatus::MissingEvidence, |(status, _)| *status);
+    Ok((
+        ColumnClaim { rows, values_blake3: external_values_digest(&column.values), support_counts },
+        worst,
+    ))
+}
+
 fn check_provider_kind(
     contract: &CheckedCausalContract,
     result: &ExternalResult,
@@ -484,7 +639,9 @@ fn check_provider_kind(
     use ExternalBindingError as E;
     match (result, &header.object) {
         (
-            ExternalResult::Response(_) | ExternalResult::Distribution(_),
+            ExternalResult::Response(_)
+            | ExternalResult::Column(_)
+            | ExternalResult::Distribution(_),
             ExternalScientificObject::Law(law),
         ) => {
             if meaning.is_some_and(|m| law.meaning != m) {
@@ -521,6 +678,7 @@ pub fn bind_external_result(
     check_contract(contract)?;
     let (header, values, meaning, uncertainty) = match result {
         ExternalResult::Response(r) => (&r.header, Some(&r.values), None, r.uncertainty.clone()),
+        ExternalResult::Column(c) => (&c.header, None, None, c.uncertainty.clone()),
         ExternalResult::Distribution(d) => {
             (&d.header, None, Some(d.meaning), ExternalUncertaintyMeaning::None)
         }
@@ -535,6 +693,9 @@ pub fn bind_external_result(
         ExternalResult::Response(r) => r.point_support.as_ref(),
         _ => None,
     };
+    if matches!(result, ExternalResult::Column(_)) && header.quantities.len() != 1 {
+        return Err(E::ColumnQuantities(header.quantities.len()));
+    }
     if header.quantities.len() != contract.estimand.len()
         || values.is_some_and(|v| v.len() != header.quantities.len())
         || declared_support.is_some_and(|p| p.len() != header.quantities.len())
@@ -544,6 +705,10 @@ pub fn bind_external_result(
     if let Some(index) = values.and_then(|v| v.iter().position(|x| !x.is_finite())) {
         return Err(E::NonFiniteValue(index));
     }
+    let column = match result {
+        ExternalResult::Column(c) => Some(check_column(c)?),
+        _ => None,
+    };
     if meaning.is_some_and(|m| !contract.accepted_meanings.contains(&m)) {
         return Err(E::MeaningNotAccepted);
     }
@@ -567,26 +732,23 @@ pub fn bind_external_result(
     if let Some(id) = declared(&contract.required_assumption_ids, &header.assumption_ids) {
         return Err(E::MissingAssumption(id));
     }
-    let trust = match &header.trust {
-        ExternalTrustState::NativeLicensed => return Err(E::TrustMismatch),
-        ExternalTrustState::ExternallyAttested { .. } => BoundTrustLevel::ExternallyAttested,
-        state @ ExternalTrustState::ExactRequestVerified(_) => {
-            if !state.verifies(&header.object) {
-                return Err(E::TrustMismatch);
-            }
-            BoundTrustLevel::ExactRequestVerified
-        }
-    };
+    let trust = bound_trust(header)?;
     Ok(BoundExternalClaim {
         graph_id: contract.graph_id.clone(),
         identification: contract.identification,
         quantities: contract.estimand.clone(),
         values: values.cloned(),
-        point_status: values.map(|v| {
-            declared_support
-                .cloned()
-                .unwrap_or_else(|| vec![SupportStatus::MissingEvidence; v.len()])
-        }),
+        point_status: column.as_ref().map_or_else(
+            || {
+                values.map(|v| {
+                    declared_support
+                        .cloned()
+                        .unwrap_or_else(|| vec![SupportStatus::MissingEvidence; v.len()])
+                })
+            },
+            |(_, worst)| Some(vec![*worst]),
+        ),
+        column: column.map(|(claim, _)| claim),
         meaning,
         uncertainty,
         execution: header.object.identity().clone(),
@@ -689,6 +851,99 @@ mod tests {
         // Support not assessed by the provider is missing evidence, not support.
         assert_eq!(claim.point_status(), Some(&[SupportStatus::MissingEvidence; 2][..]));
         assert_eq!(claim.support_status(), Some(SupportStatus::MissingEvidence));
+    }
+
+    fn column(
+        values: Vec<f64>,
+        support: Option<ColumnSupport>,
+    ) -> (CheckedCausalContract, ExternalColumn) {
+        let quantity =
+            ScientificQuantity { functional_id: "cate".into(), ..quantity("do(a=1)", 0) };
+        let mut c = contract();
+        c.estimand = vec![quantity.clone()];
+        let object = law(vec![quantity.clone()]);
+        let column = ExternalColumn {
+            header: ExternalResultHeader {
+                object,
+                graph_id: "graph-1".into(),
+                quantities: vec![quantity],
+                evidence_ids: vec!["factor:z".into()],
+                assumption_ids: vec!["ignorability".into()],
+                trust: ExternalTrustState::ExternallyAttested { attestor: "lab".into() },
+            },
+            values,
+            uncertainty: ExternalUncertaintyMeaning::None,
+            support,
+        };
+        (c, column)
+    }
+
+    #[test]
+    fn a_column_binds_one_quantity_and_keeps_its_digest_and_support_not_its_rows() {
+        let rows: Vec<f64> = (0..20_000).map(|i| f64::from(i) * 0.001).collect();
+        let labels: Vec<_> = (0..rows.len())
+            .map(|i| if i % 4 == 0 { SupportStatus::WeakOverlap } else { SupportStatus::Supported })
+            .collect();
+        let (c, column) = column(rows.clone(), Some(ColumnSupport::PerRow(labels)));
+        let claim = bind_external_result(&c, &ExternalResult::Column(column)).unwrap();
+        assert_eq!(claim.values(), None);
+        assert_eq!(claim.quantities().len(), 1);
+        let kept = claim.column().unwrap();
+        assert_eq!(kept.rows(), 20_000);
+        assert_eq!(
+            kept.support_counts(),
+            [(SupportStatus::Supported, 15_000), (SupportStatus::WeakOverlap, 5_000)]
+        );
+        assert_eq!(claim.point_status(), Some(&[SupportStatus::WeakOverlap][..]));
+        assert_eq!(claim.support_status(), Some(SupportStatus::WeakOverlap));
+        assert!(kept.covers(&rows));
+        let mut changed = rows;
+        changed[7] += 1e-9;
+        assert!(!kept.covers(&changed));
+        // The same lineage and provider identity as a grid.
+        assert_eq!(claim.provenance_label(), "external:lab/curve@v3#snap-9");
+        assert!(claim.provenance_chain("checked-contract").is_ok());
+    }
+
+    #[test]
+    fn a_column_without_declared_support_is_missing_evidence_never_supported() {
+        let (c, column) = column(vec![1.0, 2.0], None);
+        let claim = bind_external_result(&c, &ExternalResult::Column(column)).unwrap();
+        assert_eq!(claim.support_status(), Some(SupportStatus::MissingEvidence));
+        assert_eq!(claim.column().unwrap().support_counts(), [(SupportStatus::MissingEvidence, 2)]);
+    }
+
+    #[test]
+    fn a_column_refuses_empty_non_finite_and_mislabelled_rows() {
+        use ExternalBindingError as E;
+        let (c, empty) = column(vec![], None);
+        assert_eq!(bind_external_result(&c, &ExternalResult::Column(empty)), Err(E::EmptyColumn));
+        let (c, bad) = column(vec![1.0, f64::NAN], None);
+        assert_eq!(
+            bind_external_result(&c, &ExternalResult::Column(bad)),
+            Err(E::NonFiniteValue(1))
+        );
+        let (c, short) = column(
+            vec![1.0, 2.0, 3.0],
+            Some(ColumnSupport::PerRow(vec![SupportStatus::Supported; 2])),
+        );
+        assert_eq!(
+            bind_external_result(&c, &ExternalResult::Column(short)),
+            Err(E::ColumnSupportLength { rows: 3, supplied: 2 })
+        );
+        // A column answers exactly one coordinate: it is neither labelled with a grid's
+        // coordinates nor checked against a contract of several.
+        let (c3, mut wide) = column(vec![1.0], None);
+        wide.header.quantities = contract().estimand;
+        assert_eq!(
+            bind_external_result(&c3, &ExternalResult::Column(wide)),
+            Err(E::ColumnQuantities(2))
+        );
+        let (_, one) = column(vec![1.0], None);
+        assert_eq!(
+            bind_external_result(&contract(), &ExternalResult::Column(one)),
+            Err(E::DimensionMismatch)
+        );
     }
 
     #[test]

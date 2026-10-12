@@ -4162,6 +4162,21 @@ def bind_external_response(
     contract_json: str, response_json: str, causal_contract_id: str
 ) -> tuple[ExternalClaimArtifact | None, str | None]: ...
 
+class ExternalColumnClaimArtifact:
+    metadata_json: str
+    provenance_label: str
+    @staticmethod
+    def load(data: bytes, expected_identity_json: str) -> ExternalColumnClaimArtifact: ...
+    def covers(self, values: NDArray[np.float64]) -> bool: ...
+    def export(self, artifact_id: str) -> bytes: ...
+
+def bind_external_column(
+    contract_json: str,
+    column_json: str,
+    values: NDArray[np.float64],
+    causal_contract_id: str,
+) -> tuple[ExternalColumnClaimArtifact | None, str | None]: ...
+
 class NativeResponseClaim:
     source_evidence: SourceEvidenceHandle
     execution_program_id: str | None

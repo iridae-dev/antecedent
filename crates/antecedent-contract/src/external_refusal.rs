@@ -314,6 +314,7 @@ impl ExternalBindingError {
         let binding = antecedent_core::reason_code!("external_binding_mismatch");
         let header = match result {
             ExternalResult::Response(r) => &r.header,
+            ExternalResult::Column(c) => &c.header,
             ExternalResult::Distribution(d) => &d.header,
             ExternalResult::Posterior(p) => &p.header,
         };
@@ -387,6 +388,33 @@ impl ExternalBindingError {
                 ..at(
                     antecedent_core::reason_code!("invalid_argument"),
                     "external_response_binding.non_finite_value",
+                )
+            },
+            Self::ColumnQuantities(supplied) => ExternalRefusal {
+                offending: Some("quantities".to_owned()),
+                expected: Some("1".to_owned()),
+                supplied: Some(supplied.to_string()),
+                remedy: Some(
+                    "a column is one quantity per row: bind a response grid for several coordinates",
+                ),
+                ..at(binding, "external_response_binding.column_quantity")
+            },
+            Self::EmptyColumn => ExternalRefusal {
+                offending: Some("values".to_owned()),
+                remedy: Some("supply one value per row; an empty column answers nothing"),
+                ..at(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "external_response_binding.empty_column",
+                )
+            },
+            Self::ColumnSupportLength { rows, supplied } => ExternalRefusal {
+                offending: Some("support".to_owned()),
+                expected: Some(rows.to_string()),
+                supplied: Some(supplied.to_string()),
+                remedy: Some("give one support label, or one per row"),
+                ..at(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "external_response_binding.column_support_length",
                 )
             },
             Self::MeaningNotAccepted => ExternalRefusal {

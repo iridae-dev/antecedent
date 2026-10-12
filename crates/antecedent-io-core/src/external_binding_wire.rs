@@ -10,17 +10,18 @@
 #![allow(clippy::result_large_err)]
 
 use antecedent_contract::{
-    BoundExternalClaim, CheckedCausalContract, CheckedEquivalence, EquivalenceScope,
-    ExternalBindingError, ExternalContractError, ExternalProgramClaim, ExternalResponse,
-    ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, LawProviderContract, ProgramBinding, ProviderObjectIdentity,
-    ScientificQuantity, VerificationProbe, bind_external_result, bind_external_result_to_program,
-    capability_from_name, probe_from_name, verify_external_object,
+    BoundExternalClaim, CheckedCausalContract, CheckedEquivalence, ColumnSupport, EquivalenceScope,
+    ExternalBindingError, ExternalColumn, ExternalContractError, ExternalProgramClaim,
+    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalScientificObject,
+    ExternalTrustState, ExternalUncertaintyMeaning, LawProviderContract, ProgramBinding,
+    ProviderObjectIdentity, ScientificQuantity, VerificationProbe, bind_external_result,
+    bind_external_result_to_program, capability_from_name, probe_from_name, verify_external_object,
 };
 use antecedent_core::{IdentificationStatus, SupportStatus};
 use serde::{Deserialize, Serialize};
 
 use crate::external_claim_artifact::ExternalClaimArtifact;
+use crate::external_column_claim_artifact::ExternalColumnClaimArtifact;
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 
 /// Maximum accepted JSON declaration bytes.
@@ -129,6 +130,42 @@ pub struct ResponseWire {
     pub uncertainty_method: Option<String>,
     /// Provider-declared support labels per coordinate.
     pub point_support: Option<Vec<String>>,
+}
+
+/// Declared support of a column's rows.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(tag = "kind", content = "labels", rename_all = "snake_case")]
+pub enum ColumnSupportWire {
+    /// One `SupportStatus` name for every row.
+    Uniform(String),
+    /// One name per row, in row order.
+    PerRow(Vec<String>),
+}
+
+/// A typed row-level column; its values travel beside this declaration as a
+/// binary `f64` array, so the JSON never carries one number per row.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ColumnResponseWire {
+    /// Provider object.
+    pub provider: ProviderWire,
+    /// Graph identity the provider used.
+    pub graph_id: String,
+    /// The one row-level quantity.
+    pub quantities: Vec<ScientificQuantityWire>,
+    /// Evidence factors used.
+    pub evidence_ids: Vec<String>,
+    /// Assumptions relied on.
+    pub assumption_ids: Vec<String>,
+    /// Party attesting the provider; required unless probes are given.
+    pub attestor: Option<String>,
+    /// Independent probes; when present the exact contract is verified.
+    pub probes: Option<Vec<ProbeWire>>,
+    /// Provider-declared uncertainty method.
+    pub uncertainty_method: Option<String>,
+    /// Provider-declared support of the rows; absent means not assessed.
+    pub support: Option<ColumnSupportWire>,
 }
 
 /// A structured refusal on the wire; mirrors `ExternalRefusal`.
@@ -257,8 +294,50 @@ pub fn prepare(
 /// # Errors
 /// Original quantity, capability, trust or support declaration refusal.
 pub fn response_from_wire(response: &ResponseWire) -> Result<ExternalResponse, RefusalWire> {
-    let coordinates = quantities(&response.quantities)?;
-    let capabilities = response
+    let (header, uncertainty) = declare(&Declaration {
+        provider: &response.provider,
+        graph_id: &response.graph_id,
+        quantities: &response.quantities,
+        evidence_ids: &response.evidence_ids,
+        assumption_ids: &response.assumption_ids,
+        attestor: response.attestor.as_deref(),
+        probes: response.probes.as_deref(),
+        uncertainty_method: response.uncertainty_method.as_deref(),
+    })?;
+    let point_support = response
+        .point_support
+        .as_ref()
+        .map(|labels| labels.iter().map(|label| support_status(label)).collect())
+        .transpose()?;
+    Ok(ExternalResponse { header, values: response.values.clone(), uncertainty, point_support })
+}
+
+fn support_status(label: &str) -> Result<SupportStatus, RefusalWire> {
+    SupportStatus::from_name(label)
+        .ok_or_else(|| malformed("external_response_binding.malformed_support", label))
+}
+
+/// The declarations every external result shares, borrowed from its wire.
+struct Declaration<'a> {
+    provider: &'a ProviderWire,
+    graph_id: &'a str,
+    quantities: &'a [ScientificQuantityWire],
+    evidence_ids: &'a [String],
+    assumption_ids: &'a [String],
+    attestor: Option<&'a str>,
+    probes: Option<&'a [ProbeWire]>,
+    uncertainty_method: Option<&'a str>,
+}
+
+/// Build the provider object, its trust and the shared header of a result.
+///
+/// Verification is recomputed from the independent probes here, so no host
+/// language decides what passes.
+fn declare(
+    wire: &Declaration<'_>,
+) -> Result<(ExternalResultHeader, ExternalUncertaintyMeaning), RefusalWire> {
+    let coordinates = quantities(wire.quantities)?;
+    let capabilities = wire
         .provider
         .capabilities
         .iter()
@@ -269,18 +348,18 @@ pub fn response_from_wire(response: &ResponseWire) -> Result<ExternalResponse, R
         .collect::<Result<Vec<_>, _>>()?;
     let object = ExternalScientificObject::Law(LawProviderContract {
         identity: ProviderObjectIdentity {
-            provider_id: response.provider.provider_id.clone(),
-            object_id: response.provider.object_id.clone(),
-            version_id: response.provider.version_id.clone(),
-            snapshot_id: response.provider.snapshot_id.clone(),
-            request_id: response.provider.request_id.clone(),
+            provider_id: wire.provider.provider_id.clone(),
+            object_id: wire.provider.object_id.clone(),
+            version_id: wire.provider.version_id.clone(),
+            snapshot_id: wire.provider.snapshot_id.clone(),
+            request_id: wire.provider.request_id.clone(),
         },
         quantities: coordinates.clone(),
-        meaning: response.provider.meaning.into(),
+        meaning: wire.provider.meaning.into(),
         capabilities,
     });
     object.validate().map_err(|e: ExternalContractError| RefusalWire::from(e.to_refusal()))?;
-    let trust = match (&response.probes, &response.attestor) {
+    let trust = match (wire.probes, wire.attestor) {
         (Some(probes), _) => {
             let probes = probes
                 .iter()
@@ -308,36 +387,76 @@ pub fn response_from_wire(response: &ResponseWire) -> Result<ExternalResponse, R
             ));
         }
     };
-    let point_support = response
-        .point_support
-        .as_ref()
-        .map(|labels| {
-            labels
-                .iter()
-                .map(|l| {
-                    SupportStatus::from_name(l)
-                        .ok_or_else(|| malformed("external_response_binding.malformed_support", l))
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .transpose()?;
-    Ok(ExternalResponse {
-        header: ExternalResultHeader {
+    let uncertainty = wire.uncertainty_method.map_or(ExternalUncertaintyMeaning::None, |method| {
+        ExternalUncertaintyMeaning::ProviderDeclared { method_id: method.to_owned() }
+    });
+    Ok((
+        ExternalResultHeader {
             object,
-            graph_id: response.graph_id.clone(),
+            graph_id: wire.graph_id.to_owned(),
             quantities: coordinates,
-            evidence_ids: response.evidence_ids.clone(),
-            assumption_ids: response.assumption_ids.clone(),
+            evidence_ids: wire.evidence_ids.to_vec(),
+            assumption_ids: wire.assumption_ids.to_vec(),
             trust,
         },
-        values: response.values.clone(),
-        uncertainty: response
-            .uncertainty_method
-            .clone()
-            .map_or(ExternalUncertaintyMeaning::None, |method_id| {
-                ExternalUncertaintyMeaning::ProviderDeclared { method_id }
-            }),
-        point_support,
+        uncertainty,
+    ))
+}
+
+/// Convert a column declaration and its values into the typed external column.
+/// # Errors
+/// Original quantity, capability, trust or support declaration refusal.
+pub fn column_from_wire(
+    column: &ColumnResponseWire,
+    values: Vec<f64>,
+) -> Result<ExternalColumn, RefusalWire> {
+    let (header, uncertainty) = declare(&Declaration {
+        provider: &column.provider,
+        graph_id: &column.graph_id,
+        quantities: &column.quantities,
+        evidence_ids: &column.evidence_ids,
+        assumption_ids: &column.assumption_ids,
+        attestor: column.attestor.as_deref(),
+        probes: column.probes.as_deref(),
+        uncertainty_method: column.uncertainty_method.as_deref(),
+    })?;
+    let support = column
+        .support
+        .as_ref()
+        .map(|support| match support {
+            ColumnSupportWire::Uniform(label) => support_status(label).map(ColumnSupport::Uniform),
+            ColumnSupportWire::PerRow(labels) => labels
+                .iter()
+                .map(|label| support_status(label))
+                .collect::<Result<Vec<_>, _>>()
+                .map(ColumnSupport::PerRow),
+        })
+        .transpose()?;
+    Ok(ExternalColumn { header, values, uncertainty, support })
+}
+
+/// Bind a row-level column under a contract and return its exportable claim.
+///
+/// The column's rows are checked and digested here and then dropped: the claim
+/// keeps the digest, size and support counts, not one coordinate per row.
+///
+/// # Errors
+/// Any malformed declaration, failed verification or binding mismatch returns
+/// a structured refusal.
+pub fn bind_column(
+    contract: &ContractWire,
+    column: &ColumnResponseWire,
+    values: Vec<f64>,
+    causal_contract_id: &str,
+) -> Result<ExternalColumnClaimArtifact, RefusalWire> {
+    let contract_core = core_contract(contract)?;
+    let result = ExternalResult::Column(column_from_wire(column, values)?);
+    let claim =
+        bind_external_result(&contract_core, &result).map_err(|e: ExternalBindingError| {
+            RefusalWire::from(e.to_refusal(&contract_core, &result))
+        })?;
+    ExternalColumnClaimArtifact::from_bound_claim(&claim, causal_contract_id).map_err(|error| {
+        malformed("external_response_binding.malformed_artifact", &error.to_string())
     })
 }
 

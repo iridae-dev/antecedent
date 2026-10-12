@@ -41,6 +41,7 @@ pub mod expr_wire;
 pub mod external_binding_wire;
 pub mod external_callback_artifact;
 pub mod external_claim_artifact;
+pub mod external_column_claim_artifact;
 pub mod external_estimate;
 pub mod frozen_scores_artifact;
 pub mod graph_dot;

@@ -227,9 +227,19 @@ impl ExternalClaimIdentity {
         claim: &BoundExternalClaim,
         causal_contract_id: &str,
     ) -> Result<Self, IoError> {
-        if claim.values().is_none() {
+        let Some(values) = claim.values() else {
             return Err(IoError::Convert("claim is not a finite response grid".into()));
-        }
+        };
+        Self::from_claim_with_digest(claim, causal_contract_id, values_digest(values))
+    }
+
+    /// Identity of a bound claim whose values digest is `values_blake3`: the
+    /// ordered values of a grid, or the column a column claim is bound to.
+    pub(crate) fn from_claim_with_digest(
+        claim: &BoundExternalClaim,
+        causal_contract_id: &str,
+        values_blake3: String,
+    ) -> Result<Self, IoError> {
         let execution = claim.execution();
         let value = Self {
             causal_contract_id: causal_contract_id.into(),
@@ -241,7 +251,7 @@ impl ExternalClaimIdentity {
             version_id: execution.version_id.clone(),
             snapshot_id: execution.snapshot_id.clone(),
             request_id: execution.request_id.clone(),
-            values_blake3: values_digest(claim.values().expect("response claim checked above")),
+            values_blake3,
             trust: claim.trust().into(),
             point_status: claim
                 .point_status()
@@ -332,7 +342,7 @@ impl ExternalClaimIdentity {
         hasher.finish_hex()
     }
 
-    fn validate(&self) -> Result<(), IoError> {
+    pub(crate) fn validate(&self) -> Result<(), IoError> {
         if self.quantities.is_empty() || self.quantities.len() > MAX_EXTERNAL_CLAIM_COORDINATES {
             return Err(IoError::TooLarge);
         }
@@ -447,12 +457,7 @@ fn validate(meta: &ExternalClaimMetadata, values: &[f64]) -> Result<(), IoError>
 /// under the shared canonical writer, so a changed value is a changed identity.
 #[must_use]
 pub fn values_digest(values: &[f64]) -> String {
-    let mut hasher = antecedent_core::CanonicalWriter::new("antecedent.external_claim.values");
-    hasher.word(values.len() as u64);
-    for value in values {
-        hasher.real(*value);
-    }
-    hasher.finish_hex()
+    antecedent_contract::external_values_digest(values)
 }
 
 impl ExternalClaimArtifact {

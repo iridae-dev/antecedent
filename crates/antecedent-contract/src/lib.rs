@@ -60,10 +60,10 @@ pub use external::{
     UtilityProviderContract, VerificationProbe, VerificationProbeKind,
 };
 pub use external_binding::{
-    BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence,
-    EquivalenceScope, ExternalBindingError, ExternalDistribution, ExternalPosterior,
-    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning,
-    OBSERVATIONAL_REGIME, bind_external_result,
+    BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence, ColumnClaim,
+    ColumnSupport, EquivalenceScope, ExternalBindingError, ExternalColumn, ExternalDistribution,
+    ExternalPosterior, ExternalResponse, ExternalResult, ExternalResultHeader,
+    ExternalUncertaintyMeaning, OBSERVATIONAL_REGIME, bind_external_result, external_values_digest,
 };
 pub use external_refusal::{
     ExternalRefusal, StructuredRefusal, capability_from_name, capability_name, probe_from_name,
