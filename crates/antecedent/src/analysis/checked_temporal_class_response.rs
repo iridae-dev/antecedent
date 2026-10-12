@@ -19,6 +19,7 @@ use crate::{AcceptedGraph, ClassPrior, GraphClass, InferenceMode};
 use super::builder::RefuteSuite;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::prepared::CachedTemporalClassIdentification;
+use super::proof_support::Procedure;
 use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope per requested horizon for a
@@ -254,8 +255,13 @@ impl CheckedTemporalClassResponseOperation {
     }
 
     #[must_use]
-    pub(crate) fn procedure(&self) -> (IdentifierId, EstimatorId, u32, RefuteSuite) {
-        (self.identifier, self.estimator, self.bootstrap_replicates, self.validation)
+    pub(crate) fn procedure(&self) -> Procedure {
+        Procedure {
+            identifier: self.identifier,
+            estimator: self.estimator,
+            bootstrap_replicates: self.bootstrap_replicates,
+            validation: self.validation,
+        }
     }
 
     #[must_use]
@@ -331,7 +337,7 @@ impl Inspect for CheckedTemporalClassResponseOperation {
     type Info = CheckedTemporalClassResponseInfo;
 
     fn info(&self) -> CheckedTemporalClassResponseInfo {
-        let (identifier, estimator, bootstrap_replicates, validation) = self.procedure();
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } = self.procedure();
         let (identified_mass, unidentified_mass) = self.enumeration_mass();
         CheckedTemporalClassResponseInfo {
             query: self.query().clone(),

@@ -15,6 +15,7 @@ use super::{
     select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
     with_prior_sensitivity,
 };
+use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 
 /// Fitted point stage state the validate stage reuses.
 struct CheckedBayesianDagAtePoint {
@@ -154,11 +155,7 @@ impl CheckedBayesianDagAteExecution {
             });
         };
         if operation.identification().average_effect() != Some(target)
-            || !operation.identification().estimands.iter().any(|candidate| {
-                candidate.functional == operation.estimand().functional
-                    && candidate.method == operation.estimand().method
-                    && candidate.adjustment_set == operation.estimand().adjustment_set
-            })
+            || !proof_supplies(operation.identification(), operation.estimand())
         {
             return Err(CausalError::Compile {
                 message: "Bayesian DAG effect estimand is not supplied by its retained proof"
@@ -185,16 +182,13 @@ impl CheckedBayesianDagAteExecution {
             identify_static(IdentifierId::BackdoorAdjustment, graph, target)?;
         let (checked_identification, checked_estimand) =
             select_claim(checked_identification, EstimatorId::BayesianGcomp)?;
-        if checked_identification.status != operation.identification().status
-            || checked_identification.query != operation.identification().query
-            || checked_estimand.functional != operation.estimand().functional
-            || checked_estimand.method != operation.estimand().method
-            || checked_estimand.adjustment_set != operation.estimand().adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian DAG effect proof is not justified by its retained graph".into(),
-            });
-        }
+        verify_proof_against_graph(
+            &checked_identification,
+            &checked_estimand,
+            operation.identification(),
+            operation.estimand(),
+            "Bayesian DAG effect proof is not justified by its retained graph",
+        )?;
         let config = config.clone();
         Ok(Self {
             graph: graph.clone(),

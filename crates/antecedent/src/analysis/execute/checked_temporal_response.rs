@@ -54,10 +54,10 @@ impl CheckedTemporalResponseExecution {
                 .iter()
                 .map(crate::analysis::TemporalResponseHorizonEvidence::identification),
         )?;
-        let mut identification = operation.primary_identification().clone();
+        let mut identification = operation.primary_identification()?.clone();
         identification.status = status;
         identification.required_assumptions = assumptions;
-        let estimand = operation.primary_estimand().clone();
+        let estimand = operation.primary_estimand()?.clone();
         Ok(Self { operation, result_context, physical, identification, estimand })
     }
 
@@ -206,16 +206,14 @@ impl CheckedTemporalResponseExecution {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let temporal = self
-            .operation
-            .query()
-            .temporal
-            .as_ref()
-            .expect("checked temporal response retains its temporal spec");
+        let temporal =
+            self.operation.query().temporal.as_ref().ok_or_else(|| CausalError::Compile {
+                message: "checked temporal response lost its temporal specification".into(),
+            })?;
         super::enforce_temporal_response_memory_budget(
             self.operation.query(),
             temporal,
-            self.operation.procedure().3,
+            self.operation.procedure().bootstrap_replicates,
             ctx,
         )?;
         let (treatment, outcome) =
@@ -245,7 +243,8 @@ impl CheckedTemporalResponseExecution {
         )
         .with_n_obs(lag_aligned_rows(data, self.operation.evidence()));
         let diagnostics = self.response_diagnostics(&response, scalar, conflict_summary.as_ref());
-        let (identifier_id, estimator_id, _, _) = self.operation.procedure();
+        let procedure = self.operation.procedure();
+        let (identifier_id, estimator_id) = (procedure.identifier, procedure.estimator);
         let response_provenance = Arc::clone(&response.provenance_id);
         let args = IdentifiedExecuteFinish::new(
             &self.physical,
@@ -339,7 +338,9 @@ impl Inspect for CheckedTemporalResponseExecution {
 
     fn info(&self) -> CheckedTemporalDagResponseInfo {
         let operation = self.operation();
-        let (identifier, estimator, uncertainty, _) = operation.procedure();
+        let procedure = operation.procedure();
+        let (identifier, estimator, uncertainty) =
+            (procedure.identifier, procedure.estimator, procedure.uncertainty);
         CheckedTemporalDagResponseInfo {
             query: operation.query().clone(),
             identifier,

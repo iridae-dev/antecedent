@@ -12,6 +12,7 @@ use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::builder::RefuteSuite;
+use super::proof_support::{Procedure, proof_supplies};
 
 /// A temporal effect's full selected identification and estimation route.
 ///
@@ -82,11 +83,7 @@ impl CheckedTemporalEffectOperation {
                 message: "checked temporal effect requires point identification",
             });
         }
-        if !identification.estimands.iter().any(|candidate| {
-            candidate.functional == estimand.functional
-                && candidate.method == estimand.method
-                && candidate.adjustment_set == estimand.adjustment_set
-        }) {
+        if !proof_supplies(&identification, &estimand) {
             return Err(CausalError::Compile {
                 message: "temporal effect estimand is absent from its retained proof".into(),
             });
@@ -133,8 +130,13 @@ impl CheckedTemporalEffectOperation {
     }
 
     #[must_use]
-    pub(crate) fn procedure(&self) -> (IdentifierId, EstimatorId, RefuteSuite, u32) {
-        (self.identifier, self.estimator, self.refute, self.bootstrap_replicates)
+    pub(crate) fn procedure(&self) -> Procedure {
+        Procedure {
+            identifier: self.identifier,
+            estimator: self.estimator,
+            bootstrap_replicates: self.bootstrap_replicates,
+            validation: self.refute,
+        }
     }
 
     #[must_use]

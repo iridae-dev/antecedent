@@ -11,6 +11,7 @@ use super::{
     VariableId, bayesian_draw_count, elapsed_ns, finish_identified_execute_with_context,
     identify_static, select_claim,
 };
+use crate::analysis::proof_support::verify_proof_against_graph;
 use antecedent_core::ConditionalEffectQuery;
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
 
@@ -108,16 +109,7 @@ impl CheckedBayesianBasisCateExecution {
             identify_static(IdentifierId::BackdoorAdjustment, graph, inner)?,
             EstimatorId::BayesianBasisGcomp,
         )?;
-        if checked_identification.status != identification.status
-            || checked_identification.query != identification.query
-            || checked_estimand.functional != estimand.functional
-            || checked_estimand.method != estimand.method
-            || checked_estimand.adjustment_set != estimand.adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian basis CATE proof is not justified by its retained graph".into(),
-            });
-        }
+        verify_proof_against_graph(&checked_identification, &checked_estimand, &identification, &estimand, "Bayesian basis CATE proof is not justified by its retained graph")?;
         Ok(Self {
             graph: graph.clone(),
             query,

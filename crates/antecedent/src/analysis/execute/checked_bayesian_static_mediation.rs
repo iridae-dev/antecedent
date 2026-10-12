@@ -10,6 +10,7 @@ use super::{
     identify_static_query, select_claim,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{EstimandClaim, proof_supplies_with_mediators};
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
 /// Frozen mediation proof, executable functional, mechanism prior configuration,
@@ -263,12 +264,7 @@ fn verify_mediation_proof(
             IdentificationStatus::NonparametricallyIdentified
                 | IdentificationStatus::IdentifiedUnderParametricRestrictions
         )
-        || !cache.identification.estimands.iter().any(|candidate| {
-            candidate.functional == cache.estimand.functional
-                && candidate.method == cache.estimand.method
-                && candidate.adjustment_set == cache.estimand.adjustment_set
-                && candidate.mediators == cache.estimand.mediators
-        })
+        || !proof_supplies_with_mediators(&cache.identification, &cache.estimand)
         || physical.logical.query != study.query
         || !physical
             .binding()
@@ -281,10 +277,7 @@ fn verify_mediation_proof(
     let verified = identify_static_query(IdentifierId::PathSpecificNatural, graph, &study.query)?;
     let (verified, verified_estimand) = select_claim(verified, EstimatorId::StaticMediationLinear)?;
     if verified.query != cache.identification.query
-        || verified_estimand.functional != cache.estimand.functional
-        || verified_estimand.method != cache.estimand.method
-        || verified_estimand.adjustment_set != cache.estimand.adjustment_set
-        || verified_estimand.mediators != cache.estimand.mediators
+        || !verified_estimand.same_claim_with_mediators(&cache.estimand)
     {
         return Err(CausalError::Compile {
             message: "Bayesian mediation proof is not justified by its retained graph".into(),

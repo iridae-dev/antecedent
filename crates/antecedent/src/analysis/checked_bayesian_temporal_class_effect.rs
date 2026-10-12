@@ -76,7 +76,9 @@ impl CheckedBayesianTemporalClassEffectOperation {
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let config = checked_settings(inference, validation)?;
-        let (identifier, _, _, _, target_validation, custom_validators) = target.procedure();
+        let procedure = target.procedure();
+        let (identifier, target_validation) = (procedure.identifier, procedure.validation);
+        let custom_validators = procedure.custom_validators;
         if target_validation != validation || !custom_validators.is_empty() {
             return Err(CausalError::Compile {
                 message:
@@ -195,7 +197,7 @@ impl Inspect for CheckedBayesianTemporalClassEffectOperation {
 
     fn info(&self) -> CheckedBayesianTemporalClassEffectInfo {
         let target = self.target();
-        let (identifier, _, _, _, _, _) = target.procedure();
+        let identifier = target.procedure().identifier;
         let envelope = &target.bundle().envelope.envelope;
         CheckedBayesianTemporalClassEffectInfo {
             query: target.query().clone(),

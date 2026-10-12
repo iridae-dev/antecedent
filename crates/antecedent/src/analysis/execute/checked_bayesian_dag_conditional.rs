@@ -14,6 +14,7 @@ use super::{
     validator_not_applicable_diagnostics, with_conflict_summary, with_prior_sensitivity,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 
 const PPC_ALPHA: f64 = 0.05;
 
@@ -152,11 +153,7 @@ impl CheckedBayesianConditionalOperation {
             });
         }
         if identification.average_effect() != Some(&query.inner)
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.functional == estimand.functional
-                    && candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-            })
+            || !proof_supplies(&identification, &estimand)
         {
             return Err(CausalError::Compile {
                 message: "Bayesian CATE estimand is not supplied by its retained proof".into(),
@@ -166,16 +163,7 @@ impl CheckedBayesianConditionalOperation {
             identify_static(IdentifierId::BackdoorAdjustment, graph, &query.inner)?,
             EstimatorId::BayesianConditional,
         )?;
-        if checked_identification.status != identification.status
-            || checked_identification.query != identification.query
-            || checked_estimand.functional != estimand.functional
-            || checked_estimand.method != estimand.method
-            || checked_estimand.adjustment_set != estimand.adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian CATE proof is not justified by its retained graph".into(),
-            });
-        }
+        verify_proof_against_graph(&checked_identification, &checked_estimand, &identification, &estimand, "Bayesian CATE proof is not justified by its retained graph")?;
         Ok(Self {
             query,
             cache,

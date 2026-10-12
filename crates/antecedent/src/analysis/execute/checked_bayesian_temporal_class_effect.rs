@@ -29,7 +29,9 @@ impl super::Study {
                         .into(),
             });
         }
-        let (_, _, bootstrap_replicates, split, _, custom_validators) = target.procedure();
+        let procedure = target.procedure();
+        let bootstrap_replicates = procedure.bootstrap_replicates;
+        let (split, custom_validators) = (procedure.split, procedure.custom_validators);
         let mut click = self.clone();
         click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(target.query().clone());

@@ -8,6 +8,7 @@ use super::{
     TableView, TabularData, VariableId, elapsed_ns, finish_identified_execute_with_context,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{proof_supplies_with_mediators};
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
 /// One frozen mediation target, identification, row design, and uncertainty procedure.
@@ -76,12 +77,7 @@ impl CheckedStaticMediationOperation {
                 IdentificationStatus::NonparametricallyIdentified
                     | IdentificationStatus::IdentifiedUnderParametricRestrictions
             )
-            || !cache.identification.estimands.iter().any(|candidate| {
-                candidate.functional == cache.estimand.functional
-                    && candidate.method == cache.estimand.method
-                    && candidate.adjustment_set == cache.estimand.adjustment_set
-                    && candidate.mediators == cache.estimand.mediators
-            })
+            || !proof_supplies_with_mediators(&cache.identification, &cache.estimand)
             || !physical
                 .binding()
                 .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)

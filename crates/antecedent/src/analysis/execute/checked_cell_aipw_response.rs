@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{EstimandClaim};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -166,7 +167,7 @@ impl CheckedCellAipwResponseOperation {
                 .estimands
                 .iter()
                 .zip(&identification.estimands)
-                .any(|(expected, supplied)| !same_estimand(expected, supplied))
+                .any(|(expected, supplied)| !expected.same_full_claim(supplied))
         {
             return Err(CausalError::Compile {
                 message: "cell AIPW identification does not replay on the retained DAG and query"
@@ -343,15 +344,6 @@ fn admg_contains(
         && treatments.iter().all(|treatment| treatment != &outcome)
         && treatments.iter().all(|treatment| !adjustment.contains(treatment))
         && !adjustment.contains(&outcome)
-}
-
-fn same_estimand(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
-    left.method == right.method
-        && left.adjustment_set == right.adjustment_set
-        && left.instruments == right.instruments
-        && left.mediators == right.mediators
-        && left.functional == right.functional
-        && left.rd_design == right.rd_design
 }
 
 fn graph_contains(
