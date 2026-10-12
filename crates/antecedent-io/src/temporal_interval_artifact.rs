@@ -34,7 +34,8 @@ pub const TEMPORAL_INTERVAL_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_INTERVAL_ARTIFACT_FEATURE: &str = "temporal_dependent_interval_v1";
 /// The artifact kind; a different kind is a different artifact.
-pub const TEMPORAL_INTERVAL_ARTIFACT_KIND: &str = "temporal_dependent_interval_internal";
+pub const TEMPORAL_INTERVAL_ARTIFACT_KIND: &str =
+    crate::artifact_kinds::TEMPORAL_DEPENDENT_INTERVAL;
 
 const PREFIX: &str = "temporal_interval_artifact";
 

@@ -132,6 +132,9 @@ pub use antecedent_io_core::{
     weight_basis_name, wire,
 };
 
+mod artifact_kinds;
+mod width;
+
 /// Analysis / estimate / identification / refutation / diagnostic wire types.
 pub mod analysis_wire;
 mod estimate_wire;

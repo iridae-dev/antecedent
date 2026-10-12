@@ -181,8 +181,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
         if len > MAX_SECTION_BYTES {
             return Err(IoError::TooLarge);
         }
-        let mut on_wire = vec![0u8; len];
-        self.inner.read_exact(&mut on_wire).map_err(|e| IoError::Io(e.to_string()))?;
+        let on_wire = crate::container::read_exact_len(&mut self.inner, len)?;
         let hash = blake3::hash(&on_wire);
         if hash.as_bytes() != &desc.blake3 {
             return Err(IoError::ChecksumMismatch { section: id.into() });
@@ -365,22 +364,9 @@ impl MappedArtifactReader {
         if desc.compression.is_some() {
             return Err(IoError::MappedCompressed { section: id.into() });
         }
-        let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
-        let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        let bytes = self.backing.as_slice();
-        if start.checked_add(len).is_none_or(|end| end > bytes.len()) {
-            return Err(IoError::Io("mmap section range out of bounds".into()));
-        }
-        let on_wire = &bytes[start..start + len];
-        if !self.verified[pos] {
-            let hash = blake3::hash(on_wire);
-            if hash.as_bytes() != &desc.blake3 {
-                return Err(IoError::ChecksumMismatch { section: id.into() });
-            }
-            self.verified[pos] = true;
-        }
+        let (start, len) = self.locate_section(pos, &entry, id)?;
         let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
-        if on_wire.len() != expected {
+        if len != expected {
             return Err(IoError::ManifestMismatch { message: "uncompressed mmap size mismatch" });
         }
         self.stats.mmap_views += 1;
@@ -406,20 +392,8 @@ impl MappedArtifactReader {
         if desc.compression.is_none() {
             return Ok(SectionAccess::Mapped(self.load_section_mapped(id)?));
         }
-        let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
-        let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        let bytes = self.backing.as_slice();
-        if start.checked_add(len).is_none_or(|end| end > bytes.len()) {
-            return Err(IoError::Io("mmap section range out of bounds".into()));
-        }
-        let on_wire = &bytes[start..start + len];
-        if !self.verified[pos] {
-            let hash = blake3::hash(on_wire);
-            if hash.as_bytes() != &desc.blake3 {
-                return Err(IoError::ChecksumMismatch { section: id.into() });
-            }
-            self.verified[pos] = true;
-        }
+        let (start, len) = self.locate_section(pos, &entry, id)?;
+        let on_wire = &self.backing.as_slice()[start..start + len];
         let (logical, decompressed) = decode_on_wire_arc(
             on_wire,
             desc.compression.as_deref(),
@@ -437,6 +411,29 @@ impl MappedArtifactReader {
                 self.stats.bytes_skipped.saturating_sub(u64::from(entry.on_wire_len));
         }
         Ok(SectionAccess::Shared(logical))
+    }
+
+    /// On-wire byte range of section `pos`, verified once.
+    fn locate_section(
+        &mut self,
+        pos: usize,
+        entry: &SectionIndexEntry,
+        id: &str,
+    ) -> Result<(usize, usize), IoError> {
+        let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
+        let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
+        let end = start
+            .checked_add(len)
+            .filter(|end| *end <= self.backing.as_slice().len())
+            .ok_or_else(|| IoError::Io("mmap section range out of bounds".into()))?;
+        if !self.verified[pos] {
+            let hash = blake3::hash(&self.backing.as_slice()[start..end]);
+            if hash.as_bytes() != &self.manifest.sections[pos].blake3 {
+                return Err(IoError::ChecksumMismatch { section: id.into() });
+            }
+            self.verified[pos] = true;
+        }
+        Ok((start, len))
     }
 
     fn lookup_pos(&self, id: &str) -> Result<usize, IoError> {

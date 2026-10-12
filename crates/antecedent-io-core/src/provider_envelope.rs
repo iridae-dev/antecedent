@@ -15,7 +15,7 @@ use crate::convert::{from_cbor, to_cbor};
 
 /// Frame magic of the pre-container envelope. Read-only.
 const LEGACY_MAGIC: &[u8; 12] = b"ANTEPROV2\0\0\0";
-const ARTIFACT_KIND: &str = "provider_result_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::PROVIDER_RESULT;
 const HEADER_SECTION: &str = "provider_result.header";
 const ARTIFACT_SECTION: &str = "provider_result.artifact";
 const MAX_HEADER: usize = 1 << 20;

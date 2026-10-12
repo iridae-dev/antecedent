@@ -165,7 +165,7 @@ pub fn mz_point_contrasts(
     for (k, distribution) in distributions.iter().enumerate().skip(1) {
         for outcome in base.outcomes.iter() {
             out.push(MzContrastWire {
-                request: u32::try_from(k).unwrap_or(u32::MAX),
+                request: u32::try_from(k).map_err(|_| IoError::TooLarge)?,
                 outcome: outcome.raw(),
                 estimate: mean(distribution, *outcome)? - mean(base, *outcome)?,
             });

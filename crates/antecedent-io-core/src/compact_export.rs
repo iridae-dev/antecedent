@@ -35,7 +35,7 @@ use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 /// Body format version this module reads and writes.
 pub const COMPACT_EXPORT_VERSION: u16 = 1;
 /// Artifact kind tag in the container manifest.
-pub const COMPACT_EXPORT_ARTIFACT_KIND: &str = "compact_runtime_export_v1";
+pub const COMPACT_EXPORT_ARTIFACT_KIND: &str = crate::artifact_kinds::COMPACT_RUNTIME_EXPORT;
 /// Id of the single body section.
 pub const COMPACT_EXPORT_SECTION: &str = "compact_export_body";
 /// Stored statement of what the point prediction means.
@@ -943,8 +943,7 @@ impl CompactExport {
         if !layout_ok {
             return Err(invalid("compact_export.layout_invalid", "manifest"));
         }
-        let limit = u64::try_from(limits.max_bytes).unwrap_or(u64::MAX);
-        if declared.is_none_or(|total| total > limit) {
+        if crate::error::declared_exceeds_usize_limit(declared, limits.max_bytes) {
             return Err(invalid("compact_export.oversized", "declared_uncompressed_size"));
         }
         let section =

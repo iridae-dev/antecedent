@@ -125,7 +125,7 @@ impl LearnedTrialWire {
         )?;
         if artifact.sections.len() != 1
             || artifact.manifest.artifact_kind
-                != crate::wire::ArtifactKind::Other("learned_trial".into())
+                != crate::wire::ArtifactKind::Other(crate::artifact_kinds::LEARNED_TRIAL.into())
         {
             return Err(err("expected learned trial artifact"));
         }

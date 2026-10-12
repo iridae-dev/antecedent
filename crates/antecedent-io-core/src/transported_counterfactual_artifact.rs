@@ -64,7 +64,7 @@ pub const MAX_SUPPORT_POINTS: usize = 65_536;
 /// Most selection nodes, evidence factors or assignment children a request may declare.
 pub const MAX_DECLARATIONS: usize = 256;
 
-const ARTIFACT_KIND: &str = "transported_counterfactual_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::TRANSPORTED_COUNTERFACTUAL;
 const META_SECTION: &str = "transported_counterfactual_meta";
 
 /// The two-model non-recoverability witness of a selection on a sensitive mechanism.

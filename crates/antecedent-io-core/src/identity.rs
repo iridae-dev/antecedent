@@ -82,7 +82,10 @@ pub fn digest_wire<T: Serialize>(
     domain: IdentityDomain,
     value: &T,
 ) -> Result<SemanticDigest, IoError> {
-    Ok(digest_canonical(domain, &to_cbor(value)?))
+    let mut hasher = blake3::Hasher::new_derive_key(domain.derive_key());
+    hasher.update(&IDENTITY_FORMAT.to_le_bytes());
+    ciborium::into_writer(value, &mut hasher).map_err(|error| IoError::Cbor(error.to_string()))?;
+    Ok(SemanticDigest::from_bytes(*hasher.finalize().as_bytes()))
 }
 
 /// Lower-case hex of [`digest_wire`], for artifact ids and wire-level identity strings.
@@ -458,7 +461,15 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         CausalQueryWire::MechanismChange { targets, .. } => {
             named_outcomes("mechanism_change", targets)
         }
-        _ => unreachable!("contrast variants are handled by executed_functional_labels"),
+        // Contrast queries are labeled by `executed_functional_labels` before this
+        // function is called. Matching them here keeps the match exhaustive, so a
+        // new query kind is a compile error instead of a runtime panic.
+        CausalQueryWire::AverageEffect { .. }
+        | CausalQueryWire::TemporalEffect { .. }
+        | CausalQueryWire::ConditionalEffect { .. }
+        | CausalQueryWire::Mediation { .. }
+        | CausalQueryWire::NestedCounterfactual { .. }
+        | CausalQueryWire::PathSpecific(_) => Vec::new(),
     }
 }
 
@@ -587,12 +598,28 @@ impl TargetIdentityWire {
 /// it is a [`antecedent_core::CanonicalWriter`] stream with its own domain tag.
 #[must_use]
 pub fn payload_digest(kind: &str, bytes: &[u8]) -> [u8; 32] {
+    *payload_hasher(kind, |hasher| {
+        hasher.update(bytes);
+    })
+    .finalize()
+    .as_bytes()
+}
+
+/// Same framing as [`payload_digest`], writing the CBOR of `value` straight
+/// into the hasher. The digest bytes match `payload_digest(kind, &to_cbor(value)?)`.
+pub(crate) fn payload_digest_of<T: Serialize>(kind: &str, value: &T) -> Result<[u8; 32], IoError> {
+    let mut hasher = payload_hasher(kind, |_| {});
+    ciborium::into_writer(value, &mut hasher).map_err(|error| IoError::Cbor(error.to_string()))?;
+    Ok(*hasher.finalize().as_bytes())
+}
+
+fn payload_hasher(kind: &str, prime: impl FnOnce(&mut blake3::Hasher)) -> blake3::Hasher {
     let mut hasher = blake3::Hasher::new_derive_key("antecedent.identity.payload");
     hasher.update(&IDENTITY_FORMAT.to_le_bytes());
     hasher.update(&(kind.len() as u64).to_le_bytes());
     hasher.update(kind.as_bytes());
-    hasher.update(bytes);
-    *hasher.finalize().as_bytes()
+    prime(&mut hasher);
+    hasher
 }
 
 /// Content digest plus element count for a data-sized payload.
@@ -1068,8 +1095,8 @@ pub fn graph_posterior_atom_identities(
     posterior: &GraphPosterior,
 ) -> Result<Vec<PosteriorAtomIdentityWire>, IoError> {
     let ids: Vec<VariableId> = (0..posterior.n_vars)
-        .map(|i| VariableId::from_raw(u32::try_from(i).unwrap_or(u32::MAX)))
-        .collect();
+        .map(|i| u32::try_from(i).map(VariableId::from_raw).map_err(|_| IoError::TooLarge))
+        .collect::<Result<_, _>>()?;
     let max_lag = posterior.max_lag.unwrap_or(1);
     let mut atoms = Vec::with_capacity(posterior.n_graphs);
     for (index, (&adjacency, &weight)) in
@@ -1080,7 +1107,7 @@ pub fn graph_posterior_atom_identities(
             format: IDENTITY_FORMAT,
             weight_bits: weight.to_bits(),
             graph,
-            execution_key: u64::try_from(index).unwrap_or(u64::MAX),
+            execution_key: crate::error::fit_u64(index)?,
         });
     }
     Ok(atoms)
@@ -2503,7 +2530,7 @@ pub fn execution_identity_from_context(ctx: &ExecutionContext) -> ExecutionIdent
             ess_target_bits: None,
         }),
         adaptive_draws: ctx.adaptive_draws.enabled.then(|| AdaptiveBudgetWire {
-            minimum: u64::try_from(ctx.adaptive_draws.min_draws).unwrap_or(u64::MAX),
+            minimum: crate::error::lossless_u64(ctx.adaptive_draws.min_draws),
             epsilon_bits: ctx.adaptive_draws.quantile_width_rel_epsilon.to_bits(),
             ess_target_bits: Some(ctx.adaptive_draws.ess_target.to_bits()),
         }),
@@ -2594,7 +2621,7 @@ mod tests {
     use antecedent_graph::{Dag, DenseNodeId};
 
     use super::*;
-    use crate::{causal_query_to_wire, from_cbor};
+    use crate::{causal_query_to_wire, from_cbor, to_cbor};
     use antecedent_discovery::SamplingSummary;
 
     fn schema_and_query() -> (CausalSchema, CausalQuery, Dag) {
@@ -2665,6 +2692,19 @@ mod tests {
             .collect();
         let domains: Vec<_> = IdentityDomain::ALL.iter().map(|domain| domain.as_str()).collect();
         assert_eq!(listed, domains);
+    }
+
+    #[test]
+    fn streamed_cbor_digest_matches_the_buffered_payload() {
+        let payload = vec![-0.0_f64, 1.0, f64::from_bits(0x7ff8_0000_0000_0001)];
+        let streamed = digest_wire(IdentityDomain::Target, &payload).unwrap();
+        let buffered = digest_canonical(IdentityDomain::Target, &to_cbor(&payload).unwrap());
+        assert_eq!(streamed, buffered);
+        let kind = "analysis_result.body";
+        assert_eq!(
+            payload_digest_of(kind, &payload).unwrap(),
+            payload_digest(kind, &to_cbor(&payload).unwrap())
+        );
     }
 
     #[test]

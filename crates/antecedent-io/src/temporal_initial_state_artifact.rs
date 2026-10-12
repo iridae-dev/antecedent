@@ -34,7 +34,8 @@ pub const TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE: &str = "temporal_initial_state_target_law_v1";
 /// The artifact kind; a different kind is a different artifact.
-pub const TEMPORAL_INITIAL_STATE_ARTIFACT_KIND: &str = "temporal_initial_state_marginalization";
+pub const TEMPORAL_INITIAL_STATE_ARTIFACT_KIND: &str =
+    crate::artifact_kinds::TEMPORAL_INITIAL_STATE;
 
 const PREFIX: &str = "temporal_initial_state_artifact";
 

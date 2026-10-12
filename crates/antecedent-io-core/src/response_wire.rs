@@ -241,7 +241,7 @@ fn grid_to_wire(grid: &GridSpec) -> GridSpecWire {
         GridSpec::Linspace { start, end, points } => GridSpecWire::Linspace {
             start: *start,
             end: *end,
-            points: u64::try_from(*points).unwrap_or(u64::MAX),
+            points: crate::error::lossless_u64(*points),
         },
     }
 }
@@ -853,18 +853,18 @@ pub fn response_value_to_wire(v: &ResponseValue) -> ResponseValueWire {
         ResponseValue::Scalar(x) => ResponseValueWire::Scalar(*x),
         ResponseValue::Surface { grid, dimension, mean } => ResponseValueWire::Surface {
             grid: grid.to_vec(),
-            dimension: u64::try_from(*dimension).unwrap_or(u64::MAX),
+            dimension: crate::error::lossless_u64(*dimension),
             mean: mean.to_vec(),
         },
         ResponseValue::Vector(v) => ResponseValueWire::Vector(v.to_vec()),
         ResponseValue::Jacobian { outcomes, treatments, values } => ResponseValueWire::Jacobian {
-            outcomes: u64::try_from(*outcomes).unwrap_or(u64::MAX),
-            treatments: u64::try_from(*treatments).unwrap_or(u64::MAX),
+            outcomes: crate::error::lossless_u64(*outcomes),
+            treatments: crate::error::lossless_u64(*treatments),
             values: values.to_vec(),
         },
         ResponseValue::Envelope(e) => ResponseValueWire::Envelope(ResponseEnvelopeWire {
             grid: e.grid.to_vec(),
-            dimension: u64::try_from(e.dimension).unwrap_or(u64::MAX),
+            dimension: crate::error::lossless_u64(e.dimension),
             lower: e.lower.to_vec(),
             upper: e.upper.to_vec(),
         }),

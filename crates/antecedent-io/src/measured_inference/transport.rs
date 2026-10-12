@@ -5,6 +5,11 @@ use crate::joint_bayesian_transport_artifact::{
     GaussianPriorWire, JointSourceWire, JointTargetWire, PriorProvenanceWire,
 };
 
+const PROTOCOL_LEVEL_BITS: u64 = 0.95f64.to_bits();
+const PROTOCOL_MIN_DRAWS: usize = 4096;
+const PROTOCOL_PRIOR_VARIANCE_BITS: u64 = 1000.0f64.to_bits();
+const PROTOCOL_CONFLICT_BITS: u64 = 3.0f64.to_bits();
+
 pub(crate) struct Model<'a> {
     pub(crate) graph: &'a str,
     pub(crate) features: &'a [u32],
@@ -30,7 +35,11 @@ fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
         && prior.covariance.len() == width * width
         && prior.covariance.iter().enumerate().all(|(i, v)| {
             v.to_bits()
-                == if i / width == i % width { 1000.0f64.to_bits() } else { 0.0f64.to_bits() }
+                == if i / width == i % width {
+                    PROTOCOL_PRIOR_VARIANCE_BITS
+                } else {
+                    0.0f64.to_bits()
+                }
         })
 }
 pub(crate) fn protocol(
@@ -40,13 +49,13 @@ pub(crate) fn protocol(
     draws: usize,
     level: f64,
 ) -> Result<serde_json::Value, IoError> {
-    if level.to_bits() != 0.95f64.to_bits()
-        || draws < 4096
+    if level.to_bits() != PROTOCOL_LEVEL_BITS
+        || draws < PROTOCOL_MIN_DRAWS
         || model.graph != "fixed_dag"
         || model.features != [1]
         || model.dependence != "independent_samples"
         || model.unsupported.to_bits() != 0.0f64.to_bits()
-        || model.conflict.to_bits() != 3.0f64.to_bits()
+        || model.conflict.to_bits() != PROTOCOL_CONFLICT_BITS
         || sources.is_empty()
         || sources.len() > 2
         || model.degree.is_some_and(|d| d != 2)
@@ -115,8 +124,8 @@ pub(crate) fn protocol(
         "source_rows":sources.iter().map(|s|s.outcome.len()).collect::<Vec<_>>(),
         "source_ids":sources.iter().map(|s|&s.id).collect::<Vec<_>>(),"source_noise_variances":sources.iter().map(|s|s.noise_variance).collect::<Vec<_>>(),
         "target_covariates":target.covariates,"features":model.features,"basis_degree":model.degree,
-        "varying":model.varying,"sharing":model.sharing,"prior_mean":0.0,"prior_variance":1000.0,"prior_provenance":"declared",
-        "posterior_draws":draws,"posterior_draws_min":4096,"level":level,"reported_scalar":"target_effect"
+        "varying":model.varying,"sharing":model.sharing,"prior_mean":0.0,"prior_variance":f64::from_bits(PROTOCOL_PRIOR_VARIANCE_BITS),"prior_provenance":"declared",
+        "posterior_draws":draws,"posterior_draws_min":PROTOCOL_MIN_DRAWS,"level":level,"reported_scalar":"target_effect"
     }))
 }
 

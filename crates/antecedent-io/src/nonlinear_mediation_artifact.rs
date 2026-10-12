@@ -52,7 +52,7 @@ pub const MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Inference claim of the artifact: point estimates and diagnostics, no interval.
 pub const NONLINEAR_MEDIATION_ARTIFACT_CLAIM: &str = "point_with_diagnostics";
 
-const ARTIFACT_KIND: &str = "nonlinear_mediation_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::NONLINEAR_MEDIATION;
 const META_SECTION: &str = "nonlinear_mediation_meta";
 const DATA_SECTION: &str = "nonlinear_mediation_data";
 const ESTIMAND_NATURAL: &str = "natural_effects";
@@ -324,16 +324,16 @@ pub struct NonlinearMediationMeta {
     pub caveats: Vec<String>,
 }
 
-fn count_u32(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
+fn count_u32(n: usize) -> Result<u32, NonlinearMediationArtifactError> {
+    u32::try_from(n).map_err(|_| NonlinearMediationArtifactError::LimitsExceeded("count"))
 }
 
 fn count_u64(n: usize) -> u64 {
-    u64::try_from(n).unwrap_or(u64::MAX)
+    crate::width::lossless_u64(n)
 }
 
 fn index(n: u32) -> usize {
-    usize::try_from(n).unwrap_or(usize::MAX)
+    n as usize
 }
 
 fn estimand_of(tag: &str) -> Result<NonlinearMediationEstimand, NonlinearMediationArtifactError> {
@@ -523,9 +523,11 @@ fn model_specs(request: &NonlinearMediationRequestWire) -> MediationModelSpecs {
     }
 }
 
-fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
+fn result_wire(
+    estimate: &NonlinearMediationEstimate,
+) -> Result<MediationResultWire, NonlinearMediationArtifactError> {
     let boot = &estimate.bootstrap;
-    MediationResultWire {
+    Ok(MediationResultWire {
         natural_direct: estimate.natural_direct,
         natural_indirect: estimate.natural_indirect,
         total: estimate.total,
@@ -534,9 +536,14 @@ fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
         total_se: estimate.total_se,
         identity_residual: estimate.identity_residual,
         integration_error: estimate.integration_error,
-        coarse_nodes: count_u32(estimate.quadrature_nodes),
-        fine_nodes: count_u32(2 * estimate.quadrature_nodes),
-        outcome_degree: count_u32(estimate.outcome_degree),
+        coarse_nodes: count_u32(estimate.quadrature_nodes)?,
+        fine_nodes: count_u32(
+            estimate
+                .quadrature_nodes
+                .checked_mul(2)
+                .ok_or(NonlinearMediationArtifactError::LimitsExceeded("count"))?,
+        )?,
+        outcome_degree: count_u32(estimate.outcome_degree)?,
         n_rows: count_u64(estimate.n_rows),
         overlap: MediationOverlapWire {
             treated_count: count_u64(estimate.overlap.treated_count),
@@ -561,7 +568,7 @@ fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
             interval_status: estimate.interval_status.to_owned(),
         },
         assumptions: estimate.assumptions.iter().map(|a| (*a).to_owned()).collect(),
-    }
+    })
 }
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, NonlinearMediationArtifactError> {
@@ -586,7 +593,7 @@ fn build_meta(
 ) -> Result<NonlinearMediationMeta, NonlinearMediationArtifactError> {
     let records = premise_records(&request.premises);
     let specs = model_specs(request);
-    let result = result_wire(estimate);
+    let result = result_wire(estimate)?;
     let premises_id = digest("nonlinear_mediation_v1.premises", &(&request.premises, &records))?;
     let config_id = digest("nonlinear_mediation_v1.config", &(&request.config, &specs))?;
     let data_id = data_digest(&request.data)?;

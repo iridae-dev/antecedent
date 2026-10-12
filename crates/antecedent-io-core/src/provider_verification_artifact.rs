@@ -24,7 +24,7 @@ use crate::error::IoError;
 use crate::external_binding_wire::ExternalBindingRefusalWire;
 use crate::external_claim_artifact::VerificationProbeWire;
 
-const ARTIFACT_KIND: &str = "provider_verification_receipt_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::PROVIDER_VERIFICATION_RECEIPT;
 const META_SECTION: &str = "provider_verification.meta";
 /// Maximum artifact bytes accepted before decode allocation.
 pub const MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES: usize = 4 * 1024 * 1024;

@@ -19,7 +19,7 @@ use crate::external_claim_artifact::{ExternalClaimIdentity, values_digest};
 pub const MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES: usize = 1024 * 1024;
 /// Maximum rows one column claim covers.
 pub const MAX_EXTERNAL_COLUMN_ROWS: u64 = 16 * 1024 * 1024;
-const ARTIFACT_KIND: &str = "external_column_claim_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::EXTERNAL_COLUMN_CLAIM;
 const META_SECTION: &str = "external_column_claim.meta";
 const LABELS: [&str; 5] =
     ["supported", "weak_overlap", "extrapolative", "outside_empirical_support", "missing_evidence"];

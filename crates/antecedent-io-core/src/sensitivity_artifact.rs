@@ -37,7 +37,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::is_blank;
@@ -75,10 +75,10 @@ pub const LICENSED_SAMPLING_COMPOSITIONS: &[&str] = &[];
 /// What the surface range means.
 pub const ASSUMPTION_RANGE_STATEMENT: &str = "assumption range over the declared coordinate set; not a probability, not a confidence interval and not a sampling interval";
 
-const ARTIFACT_KIND: &str = "sensitivity_decision_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::SENSITIVITY_DECISION;
 const META_SECTION: &str = "sensitivity_decision.meta";
 const NUMBERS_SECTION: &str = "sensitivity_decision.numbers";
-const JOINT_SOURCE_KIND: &str = "joint_mechanism_sensitivity";
+const JOINT_SOURCE_KIND: &str = crate::artifact_kinds::JOINT_MECHANISM_SENSITIVITY;
 
 fn invalid_surface(text: &str) -> IoError {
     IoError::Refused {
@@ -272,17 +272,31 @@ impl UtilityTerm {
     /// certify the whole assumption range at a grid point.
     #[must_use]
     pub fn is_multilinear(&self) -> bool {
+        self.multilinear_quantities().is_some()
+    }
+
+    /// Quantity ids when `self` is multilinear, in one walk. `None` when a minimum,
+    /// a maximum, or a product of overlapping quantities is present.
+    fn multilinear_quantities(&self) -> Option<BTreeSet<&str>> {
         match self {
-            Self::Const(_) | Self::Quantity(_) => true,
-            Self::Neg(a) => a.is_multilinear(),
-            Self::Add(a, b) | Self::Sub(a, b) => a.is_multilinear() && b.is_multilinear(),
-            Self::Mul(a, b) => {
-                let right = b.references();
-                a.is_multilinear()
-                    && b.is_multilinear()
-                    && !a.references().iter().any(|id| right.contains(id))
+            Self::Const(_) => Some(BTreeSet::new()),
+            Self::Quantity(id) => Some(BTreeSet::from([id.as_str()])),
+            Self::Neg(a) => a.multilinear_quantities(),
+            Self::Add(a, b) | Self::Sub(a, b) => {
+                let mut left = a.multilinear_quantities()?;
+                left.append(&mut b.multilinear_quantities()?);
+                Some(left)
             }
-            Self::Min(..) | Self::Max(..) => false,
+            Self::Mul(a, b) => {
+                let mut left = a.multilinear_quantities()?;
+                let mut right = b.multilinear_quantities()?;
+                if left.intersection(&right).next().is_some() {
+                    return None;
+                }
+                left.append(&mut right);
+                Some(left)
+            }
+            Self::Min(..) | Self::Max(..) => None,
         }
     }
 
@@ -1716,5 +1730,24 @@ fn surface_of(result: &JointSensitivityView, grid_points: usize) -> Result<Surfa
             Ok((coordinate, vec![0.0, 1.0], vec![baseline, minimum], vec![baseline, maximum]))
         }
         _ => Err(unsupported_adaptation("one or two declared factors are adapted")),
+    }
+}
+
+#[cfg(test)]
+mod multilinear_tests {
+    use super::UtilityTerm;
+
+    fn q(id: &str) -> UtilityTerm {
+        UtilityTerm::Quantity(id.into())
+    }
+
+    #[test]
+    fn multilinear_rejects_a_repeated_factor_and_a_min() {
+        assert!(UtilityTerm::product(q("x"), q("y")).is_multilinear());
+        assert!(UtilityTerm::sum(q("x"), q("x")).is_multilinear());
+        assert!(!UtilityTerm::product(q("x"), q("x")).is_multilinear());
+        assert!(!UtilityTerm::product(q("x"), UtilityTerm::sum(q("y"), q("x"))).is_multilinear());
+        assert!(!UtilityTerm::Min(Box::new(q("x")), Box::new(q("y"))).is_multilinear());
+        assert!(UtilityTerm::product(UtilityTerm::Const(2.0), q("x")).is_multilinear());
     }
 }

@@ -324,8 +324,8 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         first_stage_diagnostics: e.diagnostics.first_stage.as_ref().map(|diagnostic| {
             FirstStageDiagnosticsWire {
                 f_statistic: diagnostic.f_statistic,
-                df1: u64::try_from(diagnostic.df1).unwrap_or(u64::MAX),
-                df2: u64::try_from(diagnostic.df2).unwrap_or(u64::MAX),
+                df1: crate::width::lossless_u64(diagnostic.df1),
+                df2: crate::width::lossless_u64(diagnostic.df2),
                 partial_r2: diagnostic.partial_r2,
                 anderson_rubin: diagnostic.anderson_rubin,
                 uncertainty_withheld: diagnostic.uncertainty_withheld.map(str::to_owned),

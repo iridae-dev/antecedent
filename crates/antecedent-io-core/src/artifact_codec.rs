@@ -449,7 +449,10 @@ pub const fn search_bounds(
     }
 }
 
-/// Count words enter the canonical stream as `u64`, saturating at `u64::MAX`.
+/// Count words enter the canonical stream as `u64`.
+///
+/// The word is [`crate::error::lossless_u64`]: a `usize` that does not fit in
+/// `u64` does not compile, so a count is never saturated to `u64::MAX`.
 // doc(hidden): implemented by antecedent-io artifact metadata.
 #[doc(hidden)]
 pub trait CanonicalSize {
@@ -459,7 +462,7 @@ pub trait CanonicalSize {
 
 impl CanonicalSize for antecedent_core::CanonicalWriter {
     fn size(&mut self, value: usize) -> &mut Self {
-        self.word(u64::try_from(value).unwrap_or(u64::MAX))
+        self.word(crate::error::lossless_u64(value))
     }
 }
 
@@ -575,8 +578,7 @@ pub fn decode_container(
         .sections
         .iter()
         .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    let bound = u64::try_from(max_bytes).unwrap_or(u64::MAX);
-    if declared.is_none_or(|total| total > bound) {
+    if crate::error::declared_exceeds_usize_limit(declared, max_bytes) {
         return Err(CodecError::SectionsTooLarge);
     }
     let mut payloads = Vec::with_capacity(section_ids.len());

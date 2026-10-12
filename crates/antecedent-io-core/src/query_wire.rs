@@ -1599,10 +1599,10 @@ fn allocation_to_wire(a: &AllocationMethod) -> Result<AllocationMethodWire, IoEr
             let (mode, n) = match approximation.mode {
                 ShapleyMode::Exact => ("exact", 0u64),
                 ShapleyMode::MonteCarlo { n_samples } => {
-                    ("monte_carlo", u64::try_from(n_samples).unwrap_or(u64::MAX))
+                    ("monte_carlo", crate::error::fit_u64(n_samples)?)
                 }
                 ShapleyMode::Permutation { n_permutations } => {
-                    ("permutation", u64::try_from(n_permutations).unwrap_or(u64::MAX))
+                    ("permutation", crate::error::fit_u64(n_permutations)?)
                 }
                 _ => {
                     return Err(IoError::Convert("unsupported ShapleyMode".into()));
@@ -1611,8 +1611,7 @@ fn allocation_to_wire(a: &AllocationMethod) -> Result<AllocationMethodWire, IoEr
             AllocationMethodWire::Shapley {
                 mode: mode.into(),
                 n,
-                max_exact_components: u64::try_from(approximation.max_exact_components)
-                    .unwrap_or(u64::MAX),
+                max_exact_components: crate::error::fit_u64(approximation.max_exact_components)?,
                 allow_exact_override: approximation.allow_exact_override,
                 seed: approximation.seed,
             }
@@ -1738,7 +1737,7 @@ pub fn causal_query_to_wire_with_registry(
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,
-            max_units: u64::try_from(q.max_units).unwrap_or(u64::MAX),
+            max_units: crate::error::fit_u64(q.max_units)?,
             reference: Some(match q.reference {
                 AnomalyReference::Empirical => None,
                 AnomalyReference::Fixed { center, scale } => {
@@ -1752,14 +1751,14 @@ pub fn causal_query_to_wire_with_registry(
             comparison: population_to_wire(&q.comparison)?,
             components: components_to_str(q.components)?.into(),
             allocation: allocation_to_wire(&q.allocation)?,
-            max_components: u64::try_from(q.max_components).unwrap_or(u64::MAX),
+            max_components: crate::error::fit_u64(q.max_components)?,
         },
         CausalQuery::MechanismChange(q) => CausalQueryWire::MechanismChange {
             targets: vars_to_raw(&q.targets),
             baseline: population_to_wire(&q.baseline)?,
             comparison: population_to_wire(&q.comparison)?,
             significance_level_bits: q.significance_level.to_f64().to_bits(),
-            max_targets: u64::try_from(q.max_targets).unwrap_or(u64::MAX),
+            max_targets: crate::error::fit_u64(q.max_targets)?,
         },
         CausalQuery::UnitChange(q) => CausalQueryWire::UnitChange {
             outcome: q.outcome.raw(),
@@ -1774,7 +1773,7 @@ pub fn causal_query_to_wire_with_registry(
                 .transpose()?,
             components: components_to_str(q.components)?.into(),
             allocation: allocation_to_wire(&q.allocation)?,
-            max_units: u64::try_from(q.max_units).unwrap_or(u64::MAX),
+            max_units: crate::error::fit_u64(q.max_units)?,
         },
         CausalQuery::Mediation(q) => CausalQueryWire::Mediation {
             treatment: q.treatment.raw(),
@@ -2944,8 +2943,8 @@ pub fn path_specific_to_wire(
         control: InterventionWire::from_domain(&q.control)?,
         active: InterventionWire::from_domain(&q.active)?,
         target_population: TargetPopulationWire::from_domain(&q.target_population)?,
-        max_paths: u64::try_from(q.max_paths).unwrap_or(u64::MAX),
-        max_len: u64::try_from(q.max_len).unwrap_or(u64::MAX),
+        max_paths: crate::error::fit_u64(q.max_paths)?,
+        max_len: crate::error::fit_u64(q.max_len)?,
     })
 }
 
@@ -2976,6 +2975,22 @@ mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
     use antecedent_core::{ComponentId, PopulationRegistry};
+
+    #[test]
+    fn path_limits_encode_as_the_exact_count() {
+        let mut query = antecedent_core::PathSpecificEffectQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        );
+        query.max_paths = 7;
+        query.max_len = 3;
+        let wire = path_specific_to_wire(&query).unwrap();
+        assert_eq!(wire.max_paths, 7);
+        assert_eq!(wire.max_len, 3);
+        let back = path_specific_from_wire(&wire).unwrap();
+        assert_eq!(back.max_paths, 7);
+        assert_eq!(back.max_len, 3);
+    }
 
     #[test]
     fn randomized_itt_design_round_trips_as_its_own_query_kind() {

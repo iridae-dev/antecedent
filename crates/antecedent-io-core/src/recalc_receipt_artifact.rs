@@ -45,7 +45,7 @@ pub const MAX_RECALC_RECEIPT_ARTIFACT_BYTES: usize = 256 * 1024;
 /// Most stage declarations or entries a receipt may carry.
 pub const MAX_RECALC_RECEIPT_STAGES: usize = 64;
 
-const ARTIFACT_KIND: &str = "recalc_receipt_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::RECALC_RECEIPT;
 const META_SECTION: &str = "recalc_receipt_meta";
 const MAX_ROUTE_BYTES: usize = 96;
 const MAX_INTERNED_ROUTES: usize = 64;

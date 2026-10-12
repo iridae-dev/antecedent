@@ -51,7 +51,7 @@ pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "unmeasured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "mechanism_discrepancy_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::MECHANISM_DISCREPANCY;
 const META_SECTION: &str = "mechanism_discrepancy_meta";
 const NUMBERS_SECTION: &str = "mechanism_discrepancy_numbers";
 const DEPENDENCE_INDEPENDENT: &str = "independent";
@@ -199,15 +199,17 @@ pub struct FitWire {
 }
 
 impl FitWire {
-    fn from_fit(fit: &PopulationFit) -> Self {
-        Self {
+    fn from_fit(fit: &PopulationFit) -> Result<Self, MechanismDiscrepancyArtifactError> {
+        Ok(Self {
             label: fit.label.clone(),
             n: fit.n as u64,
-            residual_df: u32::try_from(fit.residual_df).unwrap_or(u32::MAX),
+            residual_df: u32::try_from(fit.residual_df).map_err(|_| {
+                MechanismDiscrepancyArtifactError::LimitsExceeded("residual degrees of freedom")
+            })?,
             residual_variance: fit.residual_variance,
             coefficients: fit.coefficients.clone(),
             standard_errors: fit.standard_errors.clone(),
-        }
+        })
     }
 }
 
@@ -268,10 +270,14 @@ pub struct ResultWire {
 }
 
 impl ResultWire {
-    fn from_result(result: &MechanismDiscrepancyResult) -> Self {
-        Self {
+    fn from_result(
+        result: &MechanismDiscrepancyResult,
+    ) -> Result<Self, MechanismDiscrepancyArtifactError> {
+        let degrees_of_freedom = u32::try_from(result.test.degrees_of_freedom)
+            .map_err(|_| MechanismDiscrepancyArtifactError::LimitsExceeded("degrees of freedom"))?;
+        Ok(Self {
             statistic: result.test.statistic,
-            degrees_of_freedom: u32::try_from(result.test.degrees_of_freedom).unwrap_or(u32::MAX),
+            degrees_of_freedom,
             p_value: result.test.p_value,
             conclusion: match result.conclusion {
                 DiscrepancyConclusion::NotRejected => "not_rejected",
@@ -283,8 +289,8 @@ impl ResultWire {
             power_statement: result.power_statement.clone(),
             informs_selection_on: result.informs_selection_on.clone(),
             coefficient_names: result.coefficient_names.clone(),
-            source: FitWire::from_fit(&result.source),
-            target: FitWire::from_fit(&result.target),
+            source: FitWire::from_fit(&result.source)?,
+            target: FitWire::from_fit(&result.target)?,
             coefficients: result
                 .coefficients
                 .iter()
@@ -301,7 +307,7 @@ impl ResultWire {
                     minimal_detectable_difference: c.minimal_detectable_difference,
                 })
                 .collect(),
-        }
+        })
     }
 }
 
@@ -757,7 +763,7 @@ impl MechanismDiscrepancyArtifact {
                 n: request.target.n,
             },
             identity: computed.identity,
-            result: ResultWire::from_result(&computed.result),
+            result: ResultWire::from_result(&computed.result)?,
             caveats: vec![
                 MECHANISM_DISCREPANCY_CAVEAT.to_owned(),
                 MECHANISM_DISCREPANCY_POWER_CAVEAT.to_owned(),
@@ -845,7 +851,7 @@ impl MechanismDiscrepancyArtifact {
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(MechanismDiscrepancyArtifactError::IdentityMismatch { field });
         }
-        if meta.result != ResultWire::from_result(&computed.result) {
+        if meta.result != ResultWire::from_result(&computed.result)? {
             return Err(MechanismDiscrepancyArtifactError::ResultMismatch(
                 "statistic, p-value, coefficients or detectability",
             ));

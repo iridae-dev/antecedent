@@ -44,7 +44,7 @@ pub const EFFECT_CONSTANCY_CALIBRATION: &str = "unmeasured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "effect_constancy_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::EFFECT_CONSTANCY;
 const META_SECTION: &str = "effect_constancy_meta";
 const NUMBERS_SECTION: &str = "effect_constancy_numbers";
 const DEPENDENCE_INDEPENDENT: &str = "independent";
@@ -220,15 +220,16 @@ pub struct ResultWire {
 }
 
 impl ResultWire {
-    fn from_result(result: &EffectConstancyResult) -> Self {
-        Self {
+    fn from_result(result: &EffectConstancyResult) -> Result<Self, EffectConstancyArtifactError> {
+        Ok(Self {
             statistic_kind: match result.test.statistic_kind {
                 HeterogeneityStatistic::CochranQ => "cochran_q",
                 HeterogeneityStatistic::WaldChiSquare => "wald_chi_square",
             }
             .to_owned(),
             statistic: result.test.statistic,
-            degrees_of_freedom: u32::try_from(result.test.degrees_of_freedom).unwrap_or(u32::MAX),
+            degrees_of_freedom: u32::try_from(result.test.degrees_of_freedom)
+                .map_err(|_| EffectConstancyArtifactError::LimitsExceeded("degrees of freedom"))?,
             p_value: result.test.p_value,
             conclusion: match result.conclusion {
                 ConstancyConclusion::NotRejected => "not_rejected",
@@ -250,7 +251,7 @@ impl ResultWire {
                     rejected: c.rejected,
                 })
                 .collect(),
-        }
+        })
     }
 }
 
@@ -724,7 +725,7 @@ impl EffectConstancyArtifact {
             dependence: request.dependence.kind.clone(),
             family: request.family.clone(),
             identity: computed.identity,
-            result: ResultWire::from_result(&computed.result),
+            result: ResultWire::from_result(&computed.result)?,
             caveats: vec![NON_REJECTION_CAVEAT.to_owned(), POWER_CAVEAT.to_owned()],
         };
         Ok(Self { meta, request: request.clone(), result: computed.result })
@@ -828,7 +829,7 @@ impl EffectConstancyArtifact {
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(EffectConstancyArtifactError::IdentityMismatch { field });
         }
-        if meta.result != ResultWire::from_result(&computed.result) {
+        if meta.result != ResultWire::from_result(&computed.result)? {
             return Err(EffectConstancyArtifactError::ResultMismatch(
                 "statistic, p-value or contrasts",
             ));

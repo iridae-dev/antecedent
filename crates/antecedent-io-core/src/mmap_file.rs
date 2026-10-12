@@ -1,4 +1,8 @@
-//! Thin mmap wrapper — sole `unsafe` boundary in antecedent-io.
+//! `Mmap::map` for a read-only file.
+//!
+//! [`crate::reader::MappedArtifactReader::open_path_mapped`] and
+//! [`crate::reader::MappedArtifactReader::from_mmap`] are the other `unsafe`
+//! entry points; they call this wrapper and keep the same immutability contract.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

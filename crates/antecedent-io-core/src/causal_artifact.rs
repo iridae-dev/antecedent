@@ -18,7 +18,7 @@ use crate::{
 
 const HEADER_SECTION: &str = "causal_payload.header";
 const PAYLOAD_SECTION: &str = "causal_payload.body";
-const ARTIFACT_KIND: &str = "causal_payload";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::CAUSAL_PAYLOAD;
 
 /// The existing wire type stored in a standalone causal-payload artifact.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -118,6 +118,17 @@ impl CausalPayloadWire {
     }
 }
 
+fn payload_cbor(payload: &CausalPayloadWire) -> Result<Vec<u8>, IoError> {
+    match payload {
+        CausalPayloadWire::Query(value) => to_cbor(value),
+        CausalPayloadWire::ResponseResult(value) => to_cbor(value),
+        CausalPayloadWire::TransportIdentification(value) => to_cbor(value),
+        CausalPayloadWire::TransportEstimate(value) => to_cbor(value),
+        CausalPayloadWire::InterferenceEstimate(value) => to_cbor(value),
+        CausalPayloadWire::StaticResult(value) => to_cbor(value),
+    }
+}
+
 /// Encode one existing causal wire payload as a stable-format artifact.
 ///
 /// # Errors
@@ -133,14 +144,7 @@ pub fn encode_causal_payload_artifact(
     validate_header(&header)?;
     validate_payload(payload, header.variable_names.len())?;
     let header_bytes = to_cbor(&header)?;
-    let payload_bytes = match payload {
-        CausalPayloadWire::Query(value) => to_cbor(value)?,
-        CausalPayloadWire::ResponseResult(value) => to_cbor(value)?,
-        CausalPayloadWire::TransportIdentification(value) => to_cbor(value)?,
-        CausalPayloadWire::TransportEstimate(value) => to_cbor(value)?,
-        CausalPayloadWire::InterferenceEstimate(value) => to_cbor(value)?,
-        CausalPayloadWire::StaticResult(value) => to_cbor(value)?,
-    };
+    let payload_bytes = payload_cbor(payload)?;
     // Descriptors are built from the shared buffers (no header/payload clones);
     // `pack_section_shared` moves each Vec into its section via `Arc`.
     let (header_desc, header_sec) = pack_section_shared(
@@ -1756,14 +1760,7 @@ mod tests {
         )
         .unwrap();
         let header_bytes = to_cbor(&header).unwrap();
-        let payload_bytes = match payload {
-            CausalPayloadWire::Query(value) => to_cbor(value).unwrap(),
-            CausalPayloadWire::ResponseResult(value) => to_cbor(value).unwrap(),
-            CausalPayloadWire::TransportIdentification(value) => to_cbor(value).unwrap(),
-            CausalPayloadWire::TransportEstimate(value) => to_cbor(value).unwrap(),
-            CausalPayloadWire::InterferenceEstimate(value) => to_cbor(value).unwrap(),
-            CausalPayloadWire::StaticResult(value) => to_cbor(value).unwrap(),
-        };
+        let payload_bytes = payload_cbor(payload).unwrap();
         artifact.sections = vec![
             SectionBytes::new(HEADER_SECTION, header_bytes.clone()),
             SectionBytes::new(PAYLOAD_SECTION, payload_bytes.clone()),

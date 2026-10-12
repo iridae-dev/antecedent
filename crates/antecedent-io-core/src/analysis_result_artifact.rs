@@ -17,7 +17,7 @@ use crate::{
     pack_section_shared, read_and_migrate, to_cbor,
 };
 
-const ARTIFACT_KIND: &str = "analysis_result";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::ANALYSIS_RESULT;
 const HEADER_SECTION: &str = "analysis_result.header";
 const BODY_SECTION: &str = "analysis_result.body";
 
@@ -228,8 +228,8 @@ pub fn identified_set_interval_to_wire(
         upper_se: interval.upper_se,
         critical_value: interval.critical_value,
         width_retained: interval.width_retained,
-        completions: u64::try_from(interval.completions).unwrap_or(u64::MAX),
-        replicates: u64::try_from(interval.replicates).unwrap_or(u64::MAX),
+        completions: crate::error::fit_u64(interval.completions)?,
+        replicates: crate::error::fit_u64(interval.replicates)?,
         method: IdentifiedSetIntervalMethodWire::try_from_method(interval.method)?,
         truncated: interval.truncated,
     })
@@ -1230,6 +1230,31 @@ fn graphless_status_ok(actual: Option<&str>, licensed: bool, allow_legacy_missin
     actual == licensed.then_some("licensed") || (allow_legacy_missing && actual.is_none())
 }
 
+/// `C(n, k)` with the same multiply-then-divide recurrence the artifact
+/// validator used inline. Overflow, or `k > n`, refuses instead of panicking
+/// or wrapping.
+fn combination_count(n: u64, k: u64) -> Option<u64> {
+    let mut count = 1u64;
+    for i in 0..k {
+        let term = n.checked_sub(i)?;
+        count = count.checked_mul(term)?.checked_div(i.checked_add(1)?)?;
+    }
+    Some(count)
+}
+
+/// Whether a non-ITT randomized effect equals its intention-to-treat over the
+/// first stage. Missing or non-finite components do not match.
+fn late_ratio_matches(effect: f64, intention: Option<f64>, first_stage: Option<f64>) -> bool {
+    match (intention, first_stage) {
+        (Some(intention), Some(first_stage))
+            if intention.is_finite() && first_stage.is_finite() && first_stage > f64::EPSILON =>
+        {
+            (effect - intention / first_stage).abs() <= 1e-10
+        }
+        _ => false,
+    }
+}
+
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(
     clippy::too_many_lines,
@@ -1353,9 +1378,9 @@ fn validate_randomized_graphless(
             .fold(f64::INFINITY, f64::min)
     };
     let expected_allocations = if query.exact_randomization_test {
-        let n = query.realized_assignment.len() as u64;
-        let k = treated as u64;
-        Some((0..k).fold(1_u64, |count, i| count * (n - i) / (i + 1)))
+        let n = crate::error::fit_u64(query.realized_assignment.len())?;
+        let k = crate::error::fit_u64(treated)?;
+        combination_count(n, k)
     } else {
         None
     };
@@ -1755,19 +1780,18 @@ fn validate_randomized_graphless(
                 })))
         || (query.exact_randomization_test
             && randomized.randomization_p_value.is_none_or(|p| {
-                !p.is_finite() || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0
+                let Some(allocations) = expected_allocations.filter(|count| *count > 0) else {
+                    return true;
+                };
+                !p.is_finite() || p < 1.0 / allocations as f64 || p > 1.0
             }))
         || (!query.exact_randomization_test && randomized.randomization_p_value.is_some())
         || (query.estimand != crate::RandomizedEstimandWire::Itt
-            && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
-                || randomized
-                    .first_stage_effect
-                    .is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)
-                || (randomized.effect
-                    - randomized.intention_to_treat_effect.unwrap()
-                        / randomized.first_stage_effect.unwrap())
-                .abs()
-                    > 1e-10))
+            && !late_ratio_matches(
+                randomized.effect,
+                randomized.intention_to_treat_effect,
+                randomized.first_stage_effect,
+            ))
         || (query.estimand == crate::RandomizedEstimandWire::Itt
             && (randomized.intention_to_treat_effect.is_some()
                 || randomized.first_stage_effect.is_some()))

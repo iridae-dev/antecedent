@@ -275,8 +275,7 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     if manifest_len > MAX_MANIFEST_BYTES {
         return Err(IoError::TooLarge);
     }
-    let mut manifest_buf = vec![0u8; manifest_len];
-    r.read_exact(&mut manifest_buf)?;
+    let manifest_buf = read_exact_len(r, manifest_len)?;
     // The manifest is one CBOR item; trailing bytes are refused like in section payloads.
     let manifest: ArtifactManifest = crate::convert::from_cbor(&manifest_buf)?;
     let total = manifest
@@ -307,13 +306,31 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
     if len > MAX_SECTION_BYTES {
         return Err(IoError::TooLarge);
     }
-    let mut on_wire = vec![0u8; len];
-    r.read_exact(&mut on_wire)?;
+    let on_wire = read_exact_len(r, len)?;
     let hash = blake3::hash(&on_wire);
     if hash.as_bytes() != &desc.blake3 {
         return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
     }
     decode_on_wire(&on_wire, desc.compression.as_deref(), &desc.id, desc.uncompressed_size)
+}
+
+/// Read exactly `len` bytes without reserving `len` up front.
+///
+/// A declared length is untrusted. `read_to_end` on a limited reader grows with
+/// the bytes that actually arrive, then the length is checked. A short stream
+/// therefore cannot force a multi-hundred-megabyte zeroed buffer.
+pub(crate) fn read_exact_len<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>, IoError> {
+    let mut limited = reader.take(crate::error::lossless_u64(len));
+    let mut buf = Vec::new();
+    limited.read_to_end(&mut buf)?;
+    if buf.len() != len {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "failed to fill whole buffer",
+        )
+        .into());
+    }
+    Ok(buf)
 }
 
 /// Consume an on-wire section, verifying BLAKE3, without retaining the payload.
@@ -392,8 +409,8 @@ fn descriptor_and_on_wire(
         encoding_version: 1,
         required: true,
         compression,
-        compressed_size: u64::try_from(on_wire.len()).unwrap_or(u64::MAX),
-        uncompressed_size: u64::try_from(logical.len()).unwrap_or(u64::MAX),
+        compressed_size: crate::error::lossless_u64(on_wire.len()),
+        uncompressed_size: crate::error::lossless_u64(logical.len()),
         blake3: blake3_bytes,
         logical_schema: "cbor.v1".into(),
     };
@@ -572,6 +589,32 @@ mod tests {
 
     use super::*;
     use crate::convert::to_cbor;
+
+    struct ImmediateEof {
+        largest: usize,
+    }
+
+    impl Read for ImmediateEof {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.largest = self.largest.max(buf.len());
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn declared_length_is_not_reserved_before_bytes_arrive() {
+        let mut reader = ImmediateEof { largest: 0 };
+        let err = read_exact_len(&mut reader, 1_000_000).unwrap_err();
+        assert!(matches!(err, IoError::Io(_)), "{err}");
+        assert!(
+            reader.largest < 1_000_000,
+            "read requested {} bytes for a stream that ended immediately",
+            reader.largest
+        );
+        let bytes = b"section-bytes";
+        assert_eq!(read_exact_len(&mut &bytes[..], bytes.len()).unwrap(), bytes);
+        assert!(read_exact_len(&mut &bytes[..], bytes.len() + 1).is_err());
+    }
 
     fn tiny_artifact(sections: Vec<(SectionDescriptor, SectionBytes)>) -> EncodedArtifact {
         let (descs, secs): (Vec<_>, Vec<_>) = sections.into_iter().unzip();
@@ -836,13 +879,9 @@ mod tests {
             matches!(err, IoError::Decompress { .. }),
             "lying uncompressed_size must be Err, got {err:?}"
         );
-        let err_huge = decode_on_wire(
-            &on_wire,
-            Some(COMPRESSION_ZSTD),
-            "blob",
-            (MAX_SECTION_BYTES as u64) + 1,
-        )
-        .unwrap_err();
+        let err_huge =
+            decode_on_wire(&on_wire, Some(COMPRESSION_ZSTD), "blob", MAX_SECTION_BYTES as u64 + 1)
+                .unwrap_err();
         assert!(
             matches!(err_huge, IoError::TooLarge),
             "missing usable size bound must be Err, got {err_huge:?}"

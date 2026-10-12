@@ -45,7 +45,7 @@ pub const TEMPORAL_COUNTERFACTUAL_INFERENCE_CLAIM: &str = "point_only";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "temporal_counterfactual_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::TEMPORAL_COUNTERFACTUAL;
 const META_SECTION: &str = "temporal_counterfactual_meta";
 const VALUES_SECTION: &str = "temporal_counterfactual_values";
 /// Reals stored per unit: five factual values and the two counterfactual outcomes.
@@ -322,9 +322,14 @@ pub struct ReceiptWire {
 }
 
 impl ReceiptWire {
-    fn from_receipt(receipt: &SharedAbductionReceipt) -> Self {
-        let small = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
-        Self {
+    fn from_receipt(
+        receipt: &SharedAbductionReceipt,
+    ) -> Result<Self, TemporalCounterfactualArtifactError> {
+        let small = |n: usize| {
+            u32::try_from(n)
+                .map_err(|_| TemporalCounterfactualArtifactError::LimitsExceeded("count"))
+        };
+        Ok(Self {
             snapshot: receipt.snapshot.as_str().to_owned(),
             graph_digest: receipt.graph_digest.clone(),
             fit_digest: receipt.fit_digest.clone(),
@@ -341,12 +346,12 @@ impl ReceiptWire {
                 })
                 .collect(),
             exogenous_digest: receipt.exogenous_digest.clone(),
-            n_units: small(receipt.n_units),
-            n_worlds: small(receipt.n_worlds),
-            horizon: small(receipt.horizon),
+            n_units: small(receipt.n_units)?,
+            n_worlds: small(receipt.n_worlds)?,
+            horizon: small(receipt.horizon)?,
             shared_by_both_worlds: receipt.shared_by_both_worlds,
             digest: receipt.digest.clone(),
-        }
+        })
     }
 }
 
@@ -837,7 +842,7 @@ impl TemporalCounterfactualArtifact {
                 .collect(),
             plus: request.plus.clone(),
             minus: request.minus.clone(),
-            receipt: ReceiptWire::from_receipt(&result.receipt),
+            receipt: ReceiptWire::from_receipt(&result.receipt)?,
             identity: identity_of(&request, &result.receipt),
             mean_plus: result.mean_plus,
             mean_minus: result.mean_minus,
@@ -949,7 +954,7 @@ impl TemporalCounterfactualArtifact {
         if let Some(field) = identity_diff(&meta.identity, &recomputed) {
             return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
         }
-        if meta.receipt != ReceiptWire::from_receipt(&result.receipt) {
+        if meta.receipt != ReceiptWire::from_receipt(&result.receipt)? {
             return Err(TemporalCounterfactualArtifactError::ResultMismatch(
                 "shared-abduction receipt",
             ));

@@ -2989,7 +2989,7 @@ fn contract_seal_of(contract: &AnalysisResultContractWire) -> Result<[u8; 32], I
 ///
 /// CBOR encode failure.
 pub fn result_digest(body: &AnalysisResultWire) -> Result<[u8; 32], IoError> {
-    Ok(payload_digest("analysis_result.body", &to_cbor(body)?))
+    crate::identity::payload_digest_of("analysis_result.body", body)
 }
 
 /// Claim kind implied by a result body and its identification slot.

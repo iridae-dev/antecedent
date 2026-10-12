@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Frame magic of the pre-container artifact. Read-only.
 const LEGACY_MAGIC: &[u8] = b"ANTCALLBACK1";
-const ARTIFACT_KIND: &str = "external_callback_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::EXTERNAL_CALLBACK;
 const META_SECTION: &str = "external_callback.meta";
 const CLAIM_SECTION: &str = "external_callback.claim";
 const META_VERSION: u16 = 1;

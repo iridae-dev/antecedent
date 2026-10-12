@@ -44,7 +44,7 @@ pub const MAX_FROZEN_SCORE_VALUES: usize = 1 << 22;
 /// Most stage declarations the artifact may carry.
 pub const MAX_FROZEN_SCORE_STAGES: usize = 64;
 
-const ARTIFACT_KIND: &str = "frozen_scores_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::FROZEN_SCORES;
 const META_SECTION: &str = "frozen_scores_meta";
 const MAX_TEXT_BYTES: usize = 256;
 const MAX_ADJUSTMENT: usize = 1024;
@@ -248,7 +248,7 @@ fn check_shape(
         return Err(malformed("row ids must be strictly increasing"));
     }
     let last = table.row_index.last().copied().map_or(0, u64::from);
-    if input_rows == 0 || last >= input_rows || (n as u64) > input_rows {
+    if input_rows == 0 || last >= input_rows || n as u64 > input_rows {
         return Err(malformed("row ids must lie inside the input row count"));
     }
     if table.columns.iter().any(|c| c.threshold.is_some_and(|v| !v.is_finite())) {

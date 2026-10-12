@@ -53,7 +53,7 @@ pub const LATENT_CLASS_ARTIFACT_TRACE_HEAD: usize = 16;
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_LATENT_CLASS_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "latent_class_effects_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::LATENT_CLASS_EFFECTS;
 const META_SECTION: &str = "latent_class_meta";
 const DATA_SECTION: &str = "latent_class_data";
 
@@ -285,16 +285,16 @@ pub struct LatentClassReportWire {
     pub hard_assignment: Vec<u32>,
 }
 
-fn count_u32(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
+fn count_u32(n: usize) -> Result<u32, LatentClassArtifactError> {
+    u32::try_from(n).map_err(|_| LatentClassArtifactError::LimitsExceeded("count"))
 }
 
 fn count_u64(n: usize) -> u64 {
-    u64::try_from(n).unwrap_or(u64::MAX)
+    crate::width::lossless_u64(n)
 }
 
 fn index(n: u32) -> usize {
-    usize::try_from(n).unwrap_or(usize::MAX)
+    n as usize
 }
 
 fn config_of(wire: &LatentClassConfigWire) -> LatentClassConfig {
@@ -399,14 +399,16 @@ fn request_of(
     })
 }
 
-fn hard_u32(result: &LatentClassResult) -> Vec<u32> {
-    result.hard_assignment.iter().map(|&c| count_u32(c)).collect()
+fn hard_u32(result: &LatentClassResult) -> Result<Vec<u32>, LatentClassArtifactError> {
+    result.hard_assignment.iter().copied().map(count_u32).collect()
 }
 
-fn responsibilities_summary(result: &LatentClassResult) -> ResponsibilitiesSummaryWire {
+fn responsibilities_summary(
+    result: &LatentClassResult,
+) -> Result<ResponsibilitiesSummaryWire, LatentClassArtifactError> {
     let k = result.classes.len();
     let rows = result.responsibilities.len();
-    let rows_f = f64::from(count_u32(rows).max(1));
+    let rows_f = f64::from(count_u32(rows)?.max(1));
     let mut hasher = CanonicalWriter::new("latent_class_effects_v1.responsibilities");
     let mut sums = vec![0.0_f64; k];
     for row in &result.responsibilities {
@@ -420,21 +422,23 @@ fn responsibilities_summary(result: &LatentClassResult) -> ResponsibilitiesSumma
         counts[assigned] += 1;
         hasher.word(count_u64(assigned));
     }
-    ResponsibilitiesSummaryWire {
+    Ok(ResponsibilitiesSummaryWire {
         rows: count_u64(rows),
         class_means: sums.iter().map(|s| s / rows_f).collect(),
         hard_counts: counts,
         separation: result.separation,
         digest: hasher.finish_hex(),
-    }
+    })
 }
 
-fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
+fn likelihood_record(
+    result: &LatentClassResult,
+) -> Result<LatentClassLikelihoodWire, LatentClassArtifactError> {
     let mut hasher = CanonicalWriter::new("latent_class_effects_v1.trace");
     for value in &result.log_likelihood_trace {
         hasher.real(*value);
     }
-    LatentClassLikelihoodWire {
+    Ok(LatentClassLikelihoodWire {
         log_likelihood: result.log_likelihood,
         iterations: count_u64(result.iterations),
         trace_head: result
@@ -446,9 +450,9 @@ fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
         trace_len: count_u64(result.log_likelihood_trace.len()),
         trace_digest: hasher.finish_hex(),
         bic: result.bic,
-        restarts_attempted: count_u32(result.restarts_attempted),
-        restarts_converged: count_u32(result.restarts_converged),
-    }
+        restarts_attempted: count_u32(result.restarts_attempted)?,
+        restarts_converged: count_u32(result.restarts_converged)?,
+    })
 }
 
 fn premise_records(result: &LatentClassResult) -> Vec<LatentClassPremiseRecord> {
@@ -501,27 +505,33 @@ fn build_meta(
     let classes: Vec<LatentClassWire> = result
         .classes
         .iter()
-        .map(|c| LatentClassWire {
-            index: count_u32(c.index),
-            raw_index: count_u32(c.raw_index),
-            weight: c.weight,
-            weight_se: c.weight_se,
-            intercept: c.intercept,
-            effect: c.effect,
-            effect_se: c.effect_se,
-            covariate_coefficients: c.covariate_coefficients.clone(),
-            residual_variance: c.residual_variance,
-            effective_n: c.effective_n,
+        .map(|c| {
+            Ok(LatentClassWire {
+                index: count_u32(c.index)?,
+                raw_index: count_u32(c.raw_index)?,
+                weight: c.weight,
+                weight_se: c.weight_se,
+                intercept: c.intercept,
+                effect: c.effect,
+                effect_se: c.effect_se,
+                covariate_coefficients: c.covariate_coefficients.clone(),
+                residual_variance: c.residual_variance,
+                effective_n: c.effective_n,
+            })
         })
-        .collect();
-    let class_order: Vec<u32> = result.class_order.iter().map(|&c| count_u32(c)).collect();
-    let responsibilities = responsibilities_summary(result);
-    let likelihood = likelihood_record(result);
-    let bootstrap = result.bootstrap.map(|b| LatentClassBootstrapWire {
-        requested: count_u32(b.requested),
-        succeeded: count_u32(b.succeeded),
-        failed: count_u32(b.failed),
-    });
+        .collect::<Result<_, LatentClassArtifactError>>()?;
+    let class_order: Vec<u32> =
+        result.class_order.iter().copied().map(count_u32).collect::<Result<_, _>>()?;
+    let responsibilities = responsibilities_summary(result)?;
+    let likelihood = likelihood_record(result)?;
+    let bootstrap = match result.bootstrap {
+        Some(b) => Some(LatentClassBootstrapWire {
+            requested: count_u32(b.requested)?,
+            succeeded: count_u32(b.succeeded)?,
+            failed: count_u32(b.failed)?,
+        }),
+        None => None,
+    };
     let premises = premise_records(result);
     let canonical = CanonicalResult {
         class_order: &class_order,
@@ -672,6 +682,9 @@ pub struct LatentClassArtifact {
     meta: LatentClassMeta,
     request: LatentClassRequestWire,
     result: LatentClassResult,
+    /// Class index of each row. Computed when the record is sealed so a later
+    /// report does not saturate an index that does not fit in `u32`.
+    hard_assignment: Vec<u32>,
 }
 
 impl LatentClassArtifact {
@@ -683,7 +696,8 @@ impl LatentClassArtifact {
     pub fn seal(request: &LatentClassRequestWire) -> Result<Self, LatentClassArtifactError> {
         let result = fit_of(request)?;
         let meta = build_meta(request, &result)?;
-        Ok(Self { meta, request: request.clone(), result })
+        let hard_assignment = hard_u32(&result)?;
+        Ok(Self { meta, request: request.clone(), result, hard_assignment })
     }
 
     /// The metadata section, which is also the summary report.
@@ -716,7 +730,7 @@ impl LatentClassArtifact {
         LatentClassReportWire {
             meta: self.meta.clone(),
             responsibilities: self.result.responsibilities.clone(),
-            hard_assignment: hard_u32(&self.result),
+            hard_assignment: self.hard_assignment.clone(),
         }
     }
 
@@ -759,6 +773,7 @@ impl LatentClassArtifact {
         let request = request_of(&meta, &data)?;
         let result = fit_of(&request)?;
         let rebuilt = build_meta(&request, &result)?;
+        let hard_assignment = hard_u32(&result)?;
         if let Some(field) = identity_diff(&meta.identity, &rebuilt.identity) {
             return Err(if field == "result" {
                 LatentClassArtifactError::ResultMismatch("canonical result")
@@ -774,6 +789,6 @@ impl LatentClassArtifact {
                 return Err(LatentClassArtifactError::IdentityMismatch { field });
             }
         }
-        Ok(Self { meta: rebuilt, request, result })
+        Ok(Self { meta: rebuilt, request, result, hard_assignment })
     }
 }

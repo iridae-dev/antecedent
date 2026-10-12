@@ -65,7 +65,7 @@ pub const CATEGORICAL_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic W
 /// Standing caveat of the monotonicity test.
 pub const CATEGORICAL_MONOTONICITY_CAVEAT: &str = "the monotonicity p-value is a conservative one-sided union-intersection (Bonferroni) bound; rejection is evidence against monotonicity in the declared direction, failing to reject does not prove it, and the test's Type I error and power are unmeasured";
 
-const ARTIFACT_KIND: &str = "categorical_treatment_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::CATEGORICAL_TREATMENT;
 const META_SECTION: &str = "categorical_treatment_meta";
 const NUMBERS_SECTION: &str = "categorical_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
@@ -281,12 +281,14 @@ const fn direction_tag(direction: MonotonicityDirection) -> &'static str {
 }
 
 fn size(value: usize) -> u64 {
-    u64::try_from(value).unwrap_or(u64::MAX)
+    crate::width::lossless_u64(value)
 }
 
 impl CategoricalResultWire {
-    fn from_fit(fit: &CategoricalTreatmentFit) -> Self {
-        Self {
+    fn from_fit(fit: &CategoricalTreatmentFit) -> Result<Self, CategoricalTreatmentArtifactError> {
+        let degrees_of_freedom = u32::try_from(fit.omnibus.degrees_of_freedom)
+            .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("degrees of freedom"))?;
+        Ok(Self {
             reference: fit.reference.clone(),
             scale: scale_tag(fit.scale).to_owned(),
             level_order: fit.level_order.clone(),
@@ -336,8 +338,7 @@ impl CategoricalResultWire {
             family_size: size(fit.family_size),
             omnibus: WaldWire {
                 statistic: fit.omnibus.statistic,
-                degrees_of_freedom: u32::try_from(fit.omnibus.degrees_of_freedom)
-                    .unwrap_or(u32::MAX),
+                degrees_of_freedom,
                 p_value: fit.omnibus.p_value,
             },
             monotonicity: fit.monotonicity.as_ref().map(|m| MonotonicityWire {
@@ -361,7 +362,7 @@ impl CategoricalResultWire {
             }),
             covariance_kind: fit.covariance_kind.as_str().to_owned(),
             calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
-        }
+        })
     }
 }
 
@@ -833,7 +834,7 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmen
             fit_categorical_treatment(&input, &spec)?
         }
     };
-    let result = CategoricalResultWire::from_fit(&fit);
+    let result = CategoricalResultWire::from_fit(&fit)?;
     let numbers = replay.numbers();
     let identity = identity_of(decl, replay, &numbers, &result);
     Ok(Computed { fit, result, identity, numbers })

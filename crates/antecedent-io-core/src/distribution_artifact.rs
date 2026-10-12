@@ -22,7 +22,7 @@ pub const MAX_DISTRIBUTION_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_DISTRIBUTION_DRAWS: usize = 100_000;
 /// Maximum number of scalar coordinates.
 pub const MAX_DISTRIBUTION_COORDINATES: usize = 1_024;
-const ARTIFACT_KIND: &str = "joint_distribution_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::JOINT_DISTRIBUTION;
 const META_SECTION: &str = "distribution.meta";
 const DRAW_SECTION: &str = "distribution.draws";
 
@@ -483,7 +483,11 @@ impl DistributionArtifact {
         }
         let draws = draw_bytes
             .chunks_exact(8)
-            .map(|chunk| f64::from_le_bytes(chunk.try_into().expect("eight-byte chunk")))
+            .map(|chunk| {
+                let mut word = [0_u8; 8];
+                word.copy_from_slice(chunk);
+                f64::from_le_bytes(word)
+            })
             .collect();
         Self::new(metadata, draws)
     }

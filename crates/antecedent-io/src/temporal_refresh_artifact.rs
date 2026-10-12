@@ -36,7 +36,7 @@ pub const TEMPORAL_REFRESH_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_REFRESH_ARTIFACT_FEATURE: &str = "temporal_new_period_refresh_v1";
 /// The artifact kind; a different kind is a different artifact.
-pub const TEMPORAL_REFRESH_ARTIFACT_KIND: &str = "temporal_new_period_refresh";
+pub const TEMPORAL_REFRESH_ARTIFACT_KIND: &str = crate::artifact_kinds::TEMPORAL_NEW_PERIOD_REFRESH;
 
 const PREFIX: &str = "temporal_refresh_artifact";
 const REUSABLE: &str = "reusable";

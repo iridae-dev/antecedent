@@ -20,7 +20,7 @@ use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 pub const MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES: usize = 4 * 1024 * 1024;
 /// Maximum number of response coordinates.
 pub const MAX_EXTERNAL_CLAIM_COORDINATES: usize = 100_000;
-const ARTIFACT_KIND: &str = "external_response_claim_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::EXTERNAL_RESPONSE_CLAIM;
 const META_SECTION: &str = "external_claim.meta";
 const VALUES_SECTION: &str = "external_claim.values";
 const LABELS: [&str; 5] =
@@ -580,7 +580,11 @@ impl ExternalClaimArtifact {
         }
         let values = raw
             .chunks_exact(8)
-            .map(|chunk| f64::from_le_bytes(chunk.try_into().expect("eight-byte chunk")))
+            .map(|chunk| {
+                let mut word = [0u8; 8];
+                word.copy_from_slice(chunk);
+                f64::from_le_bytes(word)
+            })
             .collect();
         Self::new(metadata, values)
     }

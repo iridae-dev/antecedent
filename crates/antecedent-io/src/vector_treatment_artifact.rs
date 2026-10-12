@@ -62,7 +62,7 @@ pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asympto
 /// Standing caveat: the adjustment set is the caller's.
 pub const VECTOR_TREATMENT_ADJUSTMENT_CAVEAT: &str = "the caller owns that the shared adjustment set is valid; the artifact certifies the arithmetic of one joint regression, not identification";
 
-const ARTIFACT_KIND: &str = "vector_treatment_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::VECTOR_TREATMENT;
 const META_SECTION: &str = "vector_treatment_meta";
 const NUMBERS_SECTION: &str = "vector_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
@@ -227,8 +227,10 @@ pub struct VectorResultWire {
 }
 
 impl VectorResultWire {
-    fn from_fit(fit: &VectorTreatmentFit) -> Self {
-        Self {
+    fn from_fit(fit: &VectorTreatmentFit) -> Result<Self, VectorTreatmentArtifactError> {
+        let degrees_of_freedom = u32::try_from(fit.joint_wald.degrees_of_freedom)
+            .map_err(|_| VectorTreatmentArtifactError::LimitsExceeded("degrees of freedom"))?;
+        Ok(Self {
             coefficients: fit
                 .coefficients
                 .iter()
@@ -256,14 +258,13 @@ impl VectorResultWire {
                 .collect(),
             joint_wald: WaldWire {
                 statistic: fit.joint_wald.statistic,
-                degrees_of_freedom: u32::try_from(fit.joint_wald.degrees_of_freedom)
-                    .unwrap_or(u32::MAX),
+                degrees_of_freedom,
                 p_value: fit.joint_wald.p_value,
             },
-            n_rows: u64::try_from(fit.n_rows).unwrap_or(u64::MAX),
-            residual_df: u64::try_from(fit.residual_df).unwrap_or(u64::MAX),
+            n_rows: crate::width::lossless_u64(fit.n_rows),
+            residual_df: crate::width::lossless_u64(fit.residual_df),
             residual_variance: fit.residual_variance,
-        }
+        })
     }
 }
 
@@ -657,7 +658,7 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, VectorTreatmentArti
             fit_vector_treatment(&input, &options)?
         }
     };
-    let result = VectorResultWire::from_fit(&fit);
+    let result = VectorResultWire::from_fit(&fit)?;
     let numbers = replay.numbers();
     let identity = identity_of(decl, replay.tag(), &numbers, &result);
     Ok(Computed { fit, result, identity, numbers })
@@ -842,7 +843,7 @@ impl VectorTreatmentArtifact {
             covariance: decl.covariance.clone(),
             replay: replay.tag().to_owned(),
             row_snapshot: decl.row_snapshot.clone(),
-            n_rows: u64::try_from(decl.n_rows).unwrap_or(u64::MAX),
+            n_rows: crate::width::lossless_u64(decl.n_rows),
             adjustment: decl.adjustment.clone(),
             treatments: decl.treatments.clone(),
             contrasts: decl.contrasts.clone(),

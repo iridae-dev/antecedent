@@ -201,7 +201,7 @@ pub fn physical_plan_to_wire(p: &PhysicalExecutionPlanRecord) -> PhysicalExecuti
             .map(|(n, m)| (n.to_string(), mat_to_str(*m).into()))
             .collect(),
         kernels: p.kernels.iter().map(|(n, k)| (n.to_string(), kernel_to_str(*k).into())).collect(),
-        batch_size: p.batch_size.map(|b| u64::try_from(b).unwrap_or(u64::MAX)),
+        batch_size: p.batch_size.map(crate::error::lossless_u64),
         workspace_bytes: p.workspace_bytes,
         estimated_peak_memory_bytes: p.estimated_peak_memory_bytes,
         estimated_copy_bytes: p.estimated_copy_bytes,
@@ -234,7 +234,10 @@ pub fn physical_plan_from_wire(
             .map(|(n, k)| Ok((Arc::from(n.as_str()), kernel_from_str(k)?)))
             .collect::<Result<Vec<_>, IoError>>()?
             .into(),
-        batch_size: w.batch_size.map(|b| usize::try_from(b).unwrap_or(usize::MAX)),
+        batch_size: w
+            .batch_size
+            .map(|b| usize::try_from(b).map_err(|_| IoError::TooLarge))
+            .transpose()?,
         workspace_bytes: w.workspace_bytes,
         estimated_peak_memory_bytes: w.estimated_peak_memory_bytes,
         estimated_copy_bytes: w.estimated_copy_bytes,

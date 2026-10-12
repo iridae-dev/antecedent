@@ -142,6 +142,78 @@ pub fn convert_err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())
 }
 
+/// A `usize` count on the wire. Every supported target has `usize` no wider
+/// than `u64`, so a value that fits in memory fits in the word. A conversion
+/// that does not is [`IoError::TooLarge`], never a saturated `u64::MAX`.
+#[inline]
+pub(crate) fn fit_u64(value: usize) -> Result<u64, IoError> {
+    u64::try_from(value).map_err(|_| IoError::TooLarge)
+}
+
+/// `usize` as `u64` for builders that do not return [`Result`].
+///
+/// `usize::BITS <= 64` is a compile-time requirement, so the word is the one
+/// [`fit_u64`] would return. A wider `usize` does not compile: it is not
+/// saturated to `u64::MAX` and not truncated.
+#[inline]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "usize::BITS <= 64 is asserted; the cast cannot truncate on a target this crate builds for"
+)]
+pub(crate) const fn lossless_u64(value: usize) -> u64 {
+    const {
+        assert!(usize::BITS <= 64, "refusing to narrow a usize that does not fit in u64");
+    }
+    value as u64
+}
+
+/// Whether a declared `u64` total exceeds a `usize` byte limit.
+///
+/// A limit that does not fit in `u64` is larger than every declared total, so
+/// the comparison admits it. Truncating the limit would refuse a total the
+/// caller allowed.
+#[inline]
+pub(crate) fn declared_exceeds_usize_limit(declared: Option<u64>, limit: usize) -> bool {
+    match u64::try_from(limit) {
+        Ok(bound) => declared.is_none_or(|total| total > bound),
+        Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod count_tests {
+    use super::{IoError, declared_exceeds_usize_limit, fit_u64, lossless_u64};
+
+    fn fit_unsigned(value: u128) -> Result<u64, IoError> {
+        u64::try_from(value).map_err(|_| IoError::TooLarge)
+    }
+
+    #[test]
+    fn counts_above_u64_max_are_refused() {
+        assert_eq!(fit_unsigned(0).unwrap(), 0);
+        assert_eq!(fit_unsigned(u128::from(u64::MAX)).unwrap(), u64::MAX);
+        assert_eq!(fit_unsigned(u128::from(u64::MAX) + 1), Err(IoError::TooLarge));
+        assert_eq!(fit_u64(0).unwrap(), 0);
+        assert_eq!(fit_u64(usize::MAX).unwrap(), u64::try_from(usize::MAX).unwrap());
+    }
+
+    #[test]
+    fn lossless_word_matches_the_exact_conversion() {
+        for value in [0usize, 1, 42, usize::MAX / 2, usize::MAX] {
+            assert_eq!(lossless_u64(value), u64::try_from(value).unwrap());
+            assert_eq!(fit_u64(value).unwrap(), lossless_u64(value));
+        }
+    }
+
+    #[test]
+    fn a_limit_wider_than_u64_does_not_truncate_to_a_tighter_bound() {
+        assert!(!declared_exceeds_usize_limit(Some(1), usize::MAX));
+        assert!(declared_exceeds_usize_limit(Some(8), 7));
+        assert!(!declared_exceeds_usize_limit(Some(7), 7));
+        assert!(declared_exceeds_usize_limit(None, usize::MAX));
+    }
+}
+
 impl From<std::io::Error> for IoError {
     fn from(value: std::io::Error) -> Self {
         Self::Io(value.to_string())

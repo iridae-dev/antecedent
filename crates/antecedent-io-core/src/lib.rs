@@ -16,6 +16,7 @@
 pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod artifact_codec;
+mod artifact_kinds;
 pub mod bayesian_prior_recalc_artifact;
 pub mod calibration;
 pub mod canonical_json;
@@ -52,7 +53,9 @@ pub mod graphless_support;
 pub mod identity;
 pub mod mechanism_wire;
 pub mod migrate;
-/// Thin mmap wrapper — sole `unsafe` boundary in the io crates.
+/// `Mmap::map` lives here. [`crate::reader::MappedArtifactReader`] has the
+/// mapped constructors (`open_path_mapped`, `from_mmap`) under the same
+/// file-immutability contract.
 ///
 /// SPDX-License-Identifier: MIT OR Apache-2.0
 #[allow(
