@@ -801,6 +801,13 @@ impl<'a> StaticAteExecution<'a> {
     }
 }
 
+/// The retained background and two-scenario identification of a sealed Unknown-tier
+/// average.
+pub(crate) struct CheckedUnknownTiered<'a> {
+    pub(crate) background: &'a antecedent_graph::TieredBackground,
+    pub(crate) identification: IdentificationResult,
+}
+
 impl super::Study {
     pub(super) fn execute_static(
         &self,
@@ -1847,21 +1854,17 @@ impl super::Study {
 
     /// Execute the prepared two-scenario Unknown-tier product without looking
     /// up or rebuilding its identification from the retained Study cache.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the sealed tiered-average operation retains the identification, background and strategy ids as separate fields and passes them as they are"
-    )]
     pub(crate) fn execute_checked_unknown_tiered_average(
         &self,
         data: &TabularData,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-        background: &antecedent_graph::TieredBackground,
-        identification: IdentificationResult,
-        identifier_id: IdentifierId,
-        estimator_id: EstimatorId,
+        retained: CheckedUnknownTiered<'_>,
+        strategy: Strategy,
     ) -> Result<StudyResult, CausalError> {
+        let CheckedUnknownTiered { background, identification } = retained;
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         if background.within_tier != antecedent_graph::WithinTier::Unknown
             || identification.query != CausalQuery::AverageEffect(query.clone())
             || identification.estimands.len() != 2

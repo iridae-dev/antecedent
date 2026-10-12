@@ -32,22 +32,34 @@ pub(crate) struct CheckedBayesianGraphPosteriorAte {
     latency_mode: Option<super::latency::LatencyMode>,
 }
 
+/// The frozen premises of [`CheckedBayesianGraphPosteriorAte::prepare`], carried together.
+pub(crate) struct CheckedBayesianGraphPosteriorAtePremises {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) target: GraphPosteriorEffectTarget,
+    pub(crate) identification: Arc<CachedGraphPosteriorIdentification>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) procedure: EstimatorSpec,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) overlap: OverlapPolicy,
+    pub(crate) latency_mode: Option<super::latency::LatencyMode>,
+}
+
 impl CheckedBayesianGraphPosteriorAte {
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed Bayesian graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        target: GraphPosteriorEffectTarget,
-        identification: Arc<CachedGraphPosteriorIdentification>,
-        inference: InferenceMode,
-        procedure: EstimatorSpec,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
-        validation: RefuteSuite,
-        overlap: OverlapPolicy,
-        latency_mode: Option<super::latency::LatencyMode>,
+        premises: CheckedBayesianGraphPosteriorAtePremises,
     ) -> Result<Self, CausalError> {
+        let CheckedBayesianGraphPosteriorAtePremises {
+            posterior,
+            target,
+            identification,
+            inference,
+            procedure,
+            physical,
+            validation,
+            overlap,
+            latency_mode,
+        } = premises;
         let InferenceMode::Bayesian(_) = inference else {
             return Err(CausalError::Unsupported {
                 message: "checked Bayesian graph-posterior ATE requires Bayesian inference",

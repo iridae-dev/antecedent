@@ -88,23 +88,36 @@ pub use admg_conditional_transport::{
     export_admg_conditional_obstruction,
 };
 pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
-pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
+pub(crate) use checked_bayesian_graph_posterior::{
+    CheckedBayesianGraphPosteriorAte, CheckedBayesianGraphPosteriorAtePremises,
+};
 pub(crate) use checked_bayesian_temporal_class_effect::CheckedBayesianTemporalClassEffectOperation;
 pub(crate) use checked_bayesian_temporal_effect::CheckedBayesianTemporalEffectOperation;
-pub(crate) use checked_class_graph_posterior_effect::CheckedClassGraphPosteriorEffect;
+pub(crate) use checked_class_graph_posterior_effect::{
+    CheckedClassGraphPosteriorEffect, CheckedClassGraphPosteriorEffectPremises,
+};
 pub(crate) use checked_conditional::{CheckedConditionalOperation, ConditionalProcedure};
 pub(crate) use checked_graph_posterior::{
-    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
-    StaticClassGraph, StaticClassIdentification,
+    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect,
+    CheckedGraphPosteriorEffectPremises, CheckedStaticClassEffect,
+    CheckedStaticClassEffectPremises, StaticClassGraph, StaticClassIdentification,
 };
-pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
-pub(crate) use checked_temporal_class_response::CheckedTemporalClassResponseOperation;
-pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;
+pub(crate) use checked_temporal_class_effect::{
+    CheckedTemporalClassEffectOperation, CheckedTemporalClassEffectOperationPremises,
+};
+pub(crate) use checked_temporal_class_response::{
+    CheckedTemporalClassResponseOperation, CheckedTemporalClassResponseOperationPremises,
+};
+pub(crate) use checked_temporal_effect::{
+    CheckedTemporalEffectOperation, CheckedTemporalEffectOperationPremises,
+};
 pub(crate) use checked_temporal_graph_posterior_effect::{
-    CheckedTemporalGraphPosteriorEffect, CheckedTemporalGraphPosteriorProof,
+    CheckedTemporalGraphPosteriorEffect, CheckedTemporalGraphPosteriorEffectPremises,
+    CheckedTemporalGraphPosteriorProof,
 };
 pub(crate) use checked_temporal_graph_posterior_response::{
-    CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
+    CheckedTemporalGraphPosteriorResponse, CheckedTemporalGraphPosteriorResponsePremises,
+    TemporalPosteriorResponseProof,
 };
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,

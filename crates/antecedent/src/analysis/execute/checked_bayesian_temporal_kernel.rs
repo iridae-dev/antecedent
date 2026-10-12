@@ -100,7 +100,9 @@ mod tests {
     use super::*;
     use crate::{
         BayesianConfig, InferenceMode,
-        analysis::checked_temporal_effect::CheckedTemporalEffectOperation,
+        analysis::checked_temporal_effect::{
+            CheckedTemporalEffectOperation, CheckedTemporalEffectOperationPremises,
+        },
     };
     use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
     use antecedent_data::TimeSeriesData;
@@ -137,18 +139,19 @@ mod tests {
         let identified =
             TemporalBackdoorIdentifier::new().identify_temporal(&graph, &query).unwrap();
         let estimand = identified.result.estimands[0].clone();
-        let target = CheckedTemporalEffectOperation::checked(
-            &graph,
-            &query,
-            identified.result,
-            estimand,
-            identified.indexer,
-            crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded,
-            crate::strategy_table::EstimatorId::TemporalLinearAdjustment,
-            0,
-            super::super::super::builder::RefuteSuite::None,
-        )
-        .unwrap();
+        let target =
+            CheckedTemporalEffectOperation::checked(CheckedTemporalEffectOperationPremises {
+                graph: &graph,
+                query: &query,
+                identification: identified.result,
+                estimand,
+                indexer: identified.indexer,
+                identifier: crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded,
+                estimator: crate::strategy_table::EstimatorId::TemporalLinearAdjustment,
+                bootstrap_replicates: 0,
+                refute: super::super::super::builder::RefuteSuite::None,
+            })
+            .unwrap();
         let operation = CheckedBayesianTemporalEffectOperation::checked(
             target,
             &InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(512).prior_scale(100.0)),

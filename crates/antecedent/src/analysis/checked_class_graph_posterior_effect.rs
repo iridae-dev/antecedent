@@ -41,23 +41,36 @@ pub(crate) struct CheckedClassGraphPosteriorEffect {
     validation: RefuteSuite,
 }
 
+/// The frozen premises of [`CheckedClassGraphPosteriorEffect::prepare`], carried together.
+pub(crate) struct CheckedClassGraphPosteriorEffectPremises {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) target: GraphPosteriorEffectTarget,
+    pub(crate) identification: Arc<CachedGraphPosteriorIdentification>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) procedure: EstimatorSpec,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) overlap: OverlapPolicy,
+    pub(crate) population_registry: Option<PopulationRegistry>,
+    pub(crate) latency_mode: Option<LatencyMode>,
+    pub(crate) validation: RefuteSuite,
+}
+
 impl CheckedClassGraphPosteriorEffect {
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed class graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        target: GraphPosteriorEffectTarget,
-        identification: Arc<CachedGraphPosteriorIdentification>,
-        inference: InferenceMode,
-        procedure: EstimatorSpec,
-        bootstrap_replicates: u32,
-        overlap: OverlapPolicy,
-        population_registry: Option<PopulationRegistry>,
-        latency_mode: Option<LatencyMode>,
-        validation: RefuteSuite,
+        premises: CheckedClassGraphPosteriorEffectPremises,
     ) -> Result<Self, CausalError> {
+        let CheckedClassGraphPosteriorEffectPremises {
+            posterior,
+            target,
+            identification,
+            inference,
+            procedure,
+            bootstrap_replicates,
+            overlap,
+            population_registry,
+            latency_mode,
+            validation,
+        } = premises;
         if !matches!(
             posterior.atom_kind,
             GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
@@ -411,18 +424,18 @@ mod tests {
             }
             _ => InferenceMode::Frequentist,
         };
-        CheckedClassGraphPosteriorEffect::prepare(
-            graphs,
+        CheckedClassGraphPosteriorEffect::prepare(CheckedClassGraphPosteriorEffectPremises {
+            posterior: graphs,
             target,
-            cache,
+            identification: cache,
             inference,
             procedure,
-            0,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            Some(LatencyMode::Standard),
-            RefuteSuite::None,
-        )
+            bootstrap_replicates: 0,
+            overlap: OverlapPolicy::ExplicitOverride,
+            population_registry: None,
+            latency_mode: Some(LatencyMode::Standard),
+            validation: RefuteSuite::None,
+        })
     }
 
     #[test]
@@ -538,18 +551,18 @@ mod tests {
             "a conditional target must not retain the average-effect procedure"
         );
         assert!(
-            CheckedClassGraphPosteriorEffect::prepare(
-                graphs.clone(),
-                GraphPosteriorEffectTarget::Average(query()),
-                unidentified_cache(&graphs),
-                InferenceMode::Frequentist,
-                EstimatorSpec::Default(EstimatorId::BayesianGcomp),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(LatencyMode::Standard),
-                RefuteSuite::None,
-            )
+            CheckedClassGraphPosteriorEffect::prepare(CheckedClassGraphPosteriorEffectPremises {
+                posterior: graphs.clone(),
+                target: GraphPosteriorEffectTarget::Average(query()),
+                identification: unidentified_cache(&graphs),
+                inference: InferenceMode::Frequentist,
+                procedure: EstimatorSpec::Default(EstimatorId::BayesianGcomp),
+                bootstrap_replicates: 0,
+                overlap: OverlapPolicy::ExplicitOverride,
+                population_registry: None,
+                latency_mode: Some(LatencyMode::Standard),
+                validation: RefuteSuite::None
+            })
             .is_err(),
             "frequentist inference must not retain a Bayesian procedure"
         );

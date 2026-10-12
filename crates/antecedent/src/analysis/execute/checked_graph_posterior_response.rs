@@ -33,6 +33,19 @@ pub(crate) struct CheckedGraphPosteriorResponse {
     latency_mode: Option<LatencyMode>,
 }
 
+/// The frozen premises of [`CheckedGraphPosteriorResponse::prepare`], carried together.
+pub(crate) struct CheckedGraphPosteriorResponsePremises {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) query: ResponseQuery,
+    pub(crate) identification: Arc<CachedGraphPosteriorIdentification>,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) inference: InferenceMode,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) latency_mode: Option<LatencyMode>,
+}
+
 impl CheckedGraphPosteriorResponse {
     /// Seal a graph-posterior response over its prepare-time atom cache.
     ///
@@ -42,21 +55,20 @@ impl CheckedGraphPosteriorResponse {
     /// the complete-observation mean response family, a validation suite the
     /// family does not license, a procedure that does not match the inference
     /// mode, or a cache that does not describe the frozen posterior.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed graph-posterior response, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        query: ResponseQuery,
-        identification: Arc<CachedGraphPosteriorIdentification>,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        inference: InferenceMode,
-        validation: RefuteSuite,
-        latency_mode: Option<LatencyMode>,
+        premises: CheckedGraphPosteriorResponsePremises,
     ) -> Result<Self, CausalError> {
+        let CheckedGraphPosteriorResponsePremises {
+            posterior,
+            query,
+            identification,
+            physical,
+            identifier,
+            estimator,
+            inference,
+            validation,
+            latency_mode,
+        } = premises;
         let class_atoms = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => false,
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag

@@ -66,22 +66,32 @@ impl StaticClassIdentification {
     }
 }
 
+/// The frozen premises of [`CheckedStaticClassEffect::prepare`], carried together.
+pub(crate) struct CheckedStaticClassEffectPremises {
+    pub(crate) graph: StaticClassGraph,
+    pub(crate) query: AverageEffectQuery,
+    pub(crate) identification: StaticClassIdentification,
+    pub(crate) physical: std::sync::Arc<crate::planner::PhysicalExecutionPlan>,
+    pub(crate) procedure: EstimatorSpec,
+    pub(crate) inference: crate::InferenceMode,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) overlap: OverlapPolicy,
+    pub(crate) validation: RefuteSuite,
+}
+
 impl CheckedStaticClassEffect {
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
-    pub(crate) fn prepare(
-        graph: StaticClassGraph,
-        query: AverageEffectQuery,
-        identification: StaticClassIdentification,
-        physical: std::sync::Arc<crate::planner::PhysicalExecutionPlan>,
-        procedure: EstimatorSpec,
-        inference: crate::InferenceMode,
-        bootstrap_replicates: u32,
-        overlap: OverlapPolicy,
-        validation: RefuteSuite,
-    ) -> Result<Self, CausalError> {
+    pub(crate) fn prepare(premises: CheckedStaticClassEffectPremises) -> Result<Self, CausalError> {
+        let CheckedStaticClassEffectPremises {
+            graph,
+            query,
+            identification,
+            physical,
+            procedure,
+            inference,
+            bootstrap_replicates,
+            overlap,
+            validation,
+        } = premises;
         let expected_estimator = Self::expected_estimator(&inference);
         if procedure.id() != expected_estimator {
             return Err(CausalError::Unsupported {
@@ -294,6 +304,19 @@ impl CheckedAdmgGraphPosteriorResponse {
     }
 }
 
+/// The frozen premises of [`CheckedGraphPosteriorEffect::prepare`], carried together.
+pub(crate) struct CheckedGraphPosteriorEffectPremises {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) target: GraphPosteriorEffectTarget,
+    pub(crate) identification: Arc<CachedGraphPosteriorIdentification>,
+    pub(crate) procedure: EstimatorSpec,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) overlap: OverlapPolicy,
+    pub(crate) population_registry: Option<PopulationRegistry>,
+    pub(crate) latency_mode: Option<super::latency::LatencyMode>,
+    pub(crate) validation: RefuteSuite,
+}
+
 impl CheckedGraphPosteriorEffect {
     /// Seal a frequentist static DAG effect over a previously identified graph
     /// posterior.
@@ -302,21 +325,20 @@ impl CheckedGraphPosteriorEffect {
     ///
     /// Rejects unsupported graph classes, estimator choices, malformed query
     /// bindings, and identification caches from another atom/weight ensemble.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        target: GraphPosteriorEffectTarget,
-        identification: Arc<CachedGraphPosteriorIdentification>,
-        procedure: EstimatorSpec,
-        bootstrap_replicates: u32,
-        overlap: OverlapPolicy,
-        population_registry: Option<PopulationRegistry>,
-        latency_mode: Option<super::latency::LatencyMode>,
-        validation: RefuteSuite,
+        premises: CheckedGraphPosteriorEffectPremises,
     ) -> Result<Self, CausalError> {
+        let CheckedGraphPosteriorEffectPremises {
+            posterior,
+            target,
+            identification,
+            procedure,
+            bootstrap_replicates,
+            overlap,
+            population_registry,
+            latency_mode,
+            validation,
+        } = premises;
         let licensed = match posterior.atom_kind {
             GraphPosteriorAtomKind::Dag => procedure.id() == target.frequentist_estimator(),
             GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
@@ -583,17 +605,17 @@ mod tests {
         let graphs = posterior();
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let plan = CheckedGraphPosteriorEffect::prepare(
-            graphs.clone(),
-            GraphPosteriorEffectTarget::Average(query.clone()),
-            cache(&graphs),
-            EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
-            0,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            Some(crate::analysis::LatencyMode::Standard),
-            RefuteSuite::Full,
-        )
+        let plan = CheckedGraphPosteriorEffect::prepare(CheckedGraphPosteriorEffectPremises {
+            posterior: graphs.clone(),
+            target: GraphPosteriorEffectTarget::Average(query.clone()),
+            identification: cache(&graphs),
+            procedure: EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+            bootstrap_replicates: 0,
+            overlap: OverlapPolicy::ExplicitOverride,
+            population_registry: None,
+            latency_mode: Some(crate::analysis::LatencyMode::Standard),
+            validation: RefuteSuite::Full,
+        })
         .unwrap();
         assert_eq!(plan.posterior().weights.as_ref(), &[0.25, 0.75]);
         assert_eq!(plan.query(), &query);
@@ -608,34 +630,34 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         assert!(
-            CheckedGraphPosteriorEffect::prepare(
-                graphs.clone(),
-                GraphPosteriorEffectTarget::Average(query.clone()),
-                cache(&graphs),
-                EstimatorSpec::Default(EstimatorId::Aipw),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(crate::analysis::LatencyMode::Standard),
-                RefuteSuite::None,
-            )
+            CheckedGraphPosteriorEffect::prepare(CheckedGraphPosteriorEffectPremises {
+                posterior: graphs.clone(),
+                target: GraphPosteriorEffectTarget::Average(query.clone()),
+                identification: cache(&graphs),
+                procedure: EstimatorSpec::Default(EstimatorId::Aipw),
+                bootstrap_replicates: 0,
+                overlap: OverlapPolicy::ExplicitOverride,
+                population_registry: None,
+                latency_mode: Some(crate::analysis::LatencyMode::Standard),
+                validation: RefuteSuite::None
+            })
             .is_err()
         );
 
         let mut wrong_cache = cache(&graphs);
         Arc::make_mut(&mut wrong_cache).graphs.weights = Arc::from([0.5, 0.5]);
         assert!(
-            CheckedGraphPosteriorEffect::prepare(
-                graphs,
-                GraphPosteriorEffectTarget::Average(query),
-                wrong_cache,
-                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(crate::analysis::LatencyMode::Standard),
-                RefuteSuite::None,
-            )
+            CheckedGraphPosteriorEffect::prepare(CheckedGraphPosteriorEffectPremises {
+                posterior: graphs,
+                target: GraphPosteriorEffectTarget::Average(query),
+                identification: wrong_cache,
+                procedure: EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+                bootstrap_replicates: 0,
+                overlap: OverlapPolicy::ExplicitOverride,
+                population_registry: None,
+                latency_mode: Some(crate::analysis::LatencyMode::Standard),
+                validation: RefuteSuite::None
+            })
             .is_err()
         );
     }
@@ -651,17 +673,17 @@ mod tests {
             .unwrap(),
         );
         let prepare = |procedure: EstimatorId| {
-            CheckedGraphPosteriorEffect::prepare(
-                graphs.clone(),
-                conditional.clone(),
-                cache(&graphs),
-                EstimatorSpec::Default(procedure),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(crate::analysis::LatencyMode::Standard),
-                RefuteSuite::Cheap,
-            )
+            CheckedGraphPosteriorEffect::prepare(CheckedGraphPosteriorEffectPremises {
+                posterior: graphs.clone(),
+                target: conditional.clone(),
+                identification: cache(&graphs),
+                procedure: EstimatorSpec::Default(procedure),
+                bootstrap_replicates: 0,
+                overlap: OverlapPolicy::ExplicitOverride,
+                population_registry: None,
+                latency_mode: Some(crate::analysis::LatencyMode::Standard),
+                validation: RefuteSuite::Cheap,
+            })
         };
         let plan = prepare(EstimatorId::ConditionalLinearAdjustment).unwrap();
         assert!(plan.target().is_conditional());

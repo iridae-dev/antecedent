@@ -99,10 +99,11 @@ impl SealedOperation for CheckedUnknownTieredAverageOperation {
             &self.query,
             &self.physical,
             ctx,
-            &self.background,
-            self.cache.identification.clone(),
-            self.identifier,
-            self.estimator,
+            crate::analysis::execute::CheckedUnknownTiered {
+                background: &self.background,
+                identification: self.cache.identification.clone(),
+            },
+            crate::analysis::execute::Strategy::new(self.identifier, self.estimator),
         )?;
         stamp_tabular(handle, data, result, notes)
     }

@@ -66,15 +66,17 @@ impl Study {
             .cloned()
             .unwrap_or(crate::EstimatorSpec::Default(expected_estimator));
         Ok(Some(CheckedStaticClassEffect::prepare(
-            graph,
-            query.clone(),
-            identification,
-            plan.clone(),
-            procedure,
-            analysis.inference.clone(),
-            analysis.bootstrap_replicates,
-            analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-            analysis.refute,
+            crate::analysis::CheckedStaticClassEffectPremises {
+                graph,
+                query: query.clone(),
+                identification,
+                physical: plan.clone(),
+                procedure,
+                inference: analysis.inference.clone(),
+                bootstrap_replicates: analysis.bootstrap_replicates,
+                overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                validation: analysis.refute,
+            },
         )?))
     }
 
@@ -125,19 +127,21 @@ impl Study {
                     return Ok(None);
                 }
                 Ok(Some(CheckedGraphPosteriorEffect::prepare(
-                    posterior.clone(),
-                    target,
-                    identification.clone(),
-                    analysis
-                        .estimator_spec
-                        .as_deref()
-                        .cloned()
-                        .unwrap_or(crate::EstimatorSpec::Default(estimator)),
-                    analysis.bootstrap_replicates,
-                    analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                    analysis.population_registry.clone(),
-                    analysis.latency_mode,
-                    analysis.refute,
+                    crate::analysis::CheckedGraphPosteriorEffectPremises {
+                        posterior: posterior.clone(),
+                        target,
+                        identification: identification.clone(),
+                        procedure: analysis
+                            .estimator_spec
+                            .as_deref()
+                            .cloned()
+                            .unwrap_or(crate::EstimatorSpec::Default(estimator)),
+                        bootstrap_replicates: analysis.bootstrap_replicates,
+                        overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                        population_registry: analysis.population_registry.clone(),
+                        latency_mode: analysis.latency_mode,
+                        validation: analysis.refute,
+                    },
                 )?))
             }
             (
@@ -152,19 +156,21 @@ impl Study {
                 ) =>
             {
                 Ok(Some(CheckedGraphPosteriorEffect::prepare(
-                    posterior.clone(),
-                    target,
-                    identification.clone(),
-                    analysis.estimator_spec.as_deref().cloned().unwrap_or(
-                        crate::EstimatorSpec::Default(
-                            crate::strategy_table::EstimatorId::FunctionalEffect,
+                    crate::analysis::CheckedGraphPosteriorEffectPremises {
+                        posterior: posterior.clone(),
+                        target,
+                        identification: identification.clone(),
+                        procedure: analysis.estimator_spec.as_deref().cloned().unwrap_or(
+                            crate::EstimatorSpec::Default(
+                                crate::strategy_table::EstimatorId::FunctionalEffect,
+                            ),
                         ),
-                    ),
-                    analysis.bootstrap_replicates,
-                    analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                    analysis.population_registry.clone(),
-                    analysis.latency_mode,
-                    analysis.refute,
+                        bootstrap_replicates: analysis.bootstrap_replicates,
+                        overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                        population_registry: analysis.population_registry.clone(),
+                        latency_mode: analysis.latency_mode,
+                        validation: analysis.refute,
+                    },
                 )?))
             }
             _ => Ok(None),
@@ -203,20 +209,22 @@ impl Study {
             return Ok(None);
         }
         Ok(Some(CheckedClassGraphPosteriorEffect::prepare(
-            posterior.clone(),
-            target,
-            identification.clone(),
-            analysis.inference.clone(),
-            analysis
-                .estimator_spec
-                .as_deref()
-                .cloned()
-                .unwrap_or(crate::EstimatorSpec::Default(estimator)),
-            analysis.bootstrap_replicates,
-            analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-            analysis.population_registry.clone(),
-            analysis.latency_mode,
-            analysis.refute,
+            crate::analysis::CheckedClassGraphPosteriorEffectPremises {
+                posterior: posterior.clone(),
+                target,
+                identification: identification.clone(),
+                inference: analysis.inference.clone(),
+                procedure: analysis
+                    .estimator_spec
+                    .as_deref()
+                    .cloned()
+                    .unwrap_or(crate::EstimatorSpec::Default(estimator)),
+                bootstrap_replicates: analysis.bootstrap_replicates,
+                overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                population_registry: analysis.population_registry.clone(),
+                latency_mode: analysis.latency_mode,
+                validation: analysis.refute,
+            },
         )?))
     }
 
@@ -251,15 +259,17 @@ impl Study {
             .cloned()
             .unwrap_or(crate::EstimatorSpec::Default(estimator));
         Ok(Some(Box::new(CheckedBayesianGraphPosteriorAte::prepare(
-            posterior.clone(),
-            target,
-            identification.clone(),
-            analysis.inference.clone(),
-            procedure,
-            plan.clone(),
-            analysis.refute,
-            analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-            analysis.latency_mode,
+            crate::analysis::CheckedBayesianGraphPosteriorAtePremises {
+                posterior: posterior.clone(),
+                target,
+                identification: identification.clone(),
+                inference: analysis.inference.clone(),
+                procedure,
+                physical: plan.clone(),
+                validation: analysis.refute,
+                overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                latency_mode: analysis.latency_mode,
+            },
         )?)))
     }
 
@@ -346,15 +356,17 @@ impl Study {
             return Ok(None);
         }
         Ok(Some(Box::new(crate::analysis::CheckedTemporalClassResponseOperation::checked(
-            (*analysis.graph).clone(),
-            query,
-            cache,
-            analysis.max_completions,
-            &analysis.inference,
-            analysis.bootstrap_replicates,
-            analysis.class_prior.clone(),
-            analysis.refute,
-            plan.clone(),
+            crate::analysis::CheckedTemporalClassResponseOperationPremises {
+                source_graph: (*analysis.graph).clone(),
+                query,
+                bundle: cache,
+                max_completions: analysis.max_completions,
+                inference: &analysis.inference,
+                bootstrap_replicates: analysis.bootstrap_replicates,
+                class_prior: analysis.class_prior.clone(),
+                validation: analysis.refute,
+                physical: plan.clone(),
+            },
         )?)))
     }
 
@@ -394,15 +406,17 @@ impl Study {
             _ => return Ok(None),
         };
         Ok(Some(Box::new(crate::analysis::CheckedTemporalGraphPosteriorResponse::prepare(
-            posterior.clone(),
-            query.clone(),
-            proof,
-            plan.clone(),
-            analysis.inference.clone(),
-            analysis.refute,
-            analysis.bootstrap_replicates,
-            analysis.max_completions,
-            analysis.class_prior.clone(),
+            crate::analysis::CheckedTemporalGraphPosteriorResponsePremises {
+                posterior: posterior.clone(),
+                query: query.clone(),
+                proof,
+                physical: plan.clone(),
+                inference: analysis.inference.clone(),
+                validation: analysis.refute,
+                bootstrap_replicates: analysis.bootstrap_replicates,
+                max_completions: analysis.max_completions,
+                class_prior: analysis.class_prior.clone(),
+            },
         )?)))
     }
 
@@ -442,16 +456,18 @@ impl Study {
             return Ok(None);
         }
         let target = crate::analysis::CheckedTemporalClassEffectOperation::checked(
-            (*analysis.graph).clone(),
-            query,
-            cache,
-            analysis.max_completions,
-            identifier,
-            procedure,
-            analysis.bootstrap_replicates,
-            analysis.split,
-            analysis.refute,
-            Vec::new(),
+            crate::analysis::CheckedTemporalClassEffectOperationPremises {
+                source_graph: (*analysis.graph).clone(),
+                query,
+                bundle: cache,
+                max_completions: analysis.max_completions,
+                identifier,
+                estimator: procedure,
+                bootstrap_replicates: analysis.bootstrap_replicates,
+                split: analysis.split,
+                refute: analysis.refute,
+                custom_validators: Vec::new(),
+            },
         )?;
         Ok(Some(Box::new(crate::analysis::CheckedBayesianTemporalClassEffectOperation::checked(
             target,
@@ -502,16 +518,18 @@ impl Study {
             return Ok(None);
         }
         Ok(Some(Box::new(crate::analysis::CheckedTemporalGraphPosteriorEffect::prepare(
-            posterior.clone(),
-            query.clone(),
-            proof,
-            analysis.inference.clone(),
-            analysis.estimator_spec.as_deref(),
-            analysis.bootstrap_replicates,
-            analysis.split,
-            analysis.max_completions,
-            analysis.refute,
-            plan.clone(),
+            crate::analysis::CheckedTemporalGraphPosteriorEffectPremises {
+                posterior: posterior.clone(),
+                query: query.clone(),
+                proof,
+                inference: analysis.inference.clone(),
+                estimator_spec: analysis.estimator_spec.as_deref(),
+                bootstrap_replicates: analysis.bootstrap_replicates,
+                split: analysis.split,
+                max_completions: analysis.max_completions,
+                validation: analysis.refute,
+                physical: plan.clone(),
+            },
         )?)))
     }
 
@@ -562,14 +580,16 @@ impl Study {
             return Ok(None);
         }
         Ok(Some(Box::new(crate::analysis::execute::CheckedStaticClassResponse::prepare(
-            graph,
-            query.clone(),
-            identification,
-            plan.clone(),
-            identifier,
-            estimator,
-            analysis.inference.clone(),
-            analysis.refute,
+            crate::analysis::execute::CheckedStaticClassResponsePremises {
+                graph,
+                query: query.clone(),
+                identification,
+                physical: plan.clone(),
+                identifier,
+                estimator,
+                inference: analysis.inference.clone(),
+                validation: analysis.refute,
+            },
         )?)))
     }
 
@@ -630,15 +650,17 @@ impl Study {
             return Ok(None);
         }
         Ok(Some(Box::new(crate::analysis::execute::CheckedGraphPosteriorResponse::prepare(
-            posterior.clone(),
-            query.clone(),
-            identification.clone(),
-            plan.clone(),
-            identifier,
-            estimator,
-            analysis.inference.clone(),
-            analysis.refute,
-            analysis.latency_mode,
+            crate::analysis::execute::CheckedGraphPosteriorResponsePremises {
+                posterior: posterior.clone(),
+                query: query.clone(),
+                identification: identification.clone(),
+                physical: plan.clone(),
+                identifier,
+                estimator,
+                inference: analysis.inference.clone(),
+                validation: analysis.refute,
+                latency_mode: analysis.latency_mode,
+            },
         )?)))
     }
 }

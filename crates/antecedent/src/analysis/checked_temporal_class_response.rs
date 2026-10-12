@@ -41,6 +41,19 @@ pub(crate) struct CheckedTemporalClassResponseOperation {
     physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
+/// The frozen premises of [`CheckedTemporalClassResponseOperation::checked`], carried together.
+pub(crate) struct CheckedTemporalClassResponseOperationPremises<'a> {
+    pub(crate) source_graph: AcceptedGraph,
+    pub(crate) query: &'a ResponseQuery,
+    pub(crate) bundle: &'a Arc<CachedTemporalClassIdentification>,
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) inference: &'a InferenceMode,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) class_prior: Option<ClassPrior>,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+}
+
 impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -118,21 +131,20 @@ fn check_class_response_horizon(
 
 impl CheckedTemporalClassResponseOperation {
     /// Check and freeze the per-horizon completion proofs and selected procedure.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed temporal class response, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        source_graph: AcceptedGraph,
-        query: &ResponseQuery,
-        bundle: &Arc<CachedTemporalClassIdentification>,
-        max_completions: Option<usize>,
-        inference: &InferenceMode,
-        bootstrap_replicates: u32,
-        class_prior: Option<ClassPrior>,
-        validation: RefuteSuite,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        premises: CheckedTemporalClassResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedTemporalClassResponseOperationPremises {
+            source_graph,
+            query,
+            bundle,
+            max_completions,
+            inference,
+            bootstrap_replicates,
+            class_prior,
+            validation,
+            physical,
+        } = premises;
         query.validate()?;
         if !matches!(source_graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Err(CausalError::Compile {

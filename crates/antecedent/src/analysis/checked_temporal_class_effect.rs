@@ -37,6 +37,20 @@ pub(crate) struct CheckedTemporalClassEffectOperation {
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
 }
 
+/// The frozen premises of [`CheckedTemporalClassEffectOperation::checked`], carried together.
+pub(crate) struct CheckedTemporalClassEffectOperationPremises<'a> {
+    pub(crate) source_graph: AcceptedGraph,
+    pub(crate) query: &'a TemporalEffectQuery,
+    pub(crate) bundle: &'a CachedTemporalClassIdentification,
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) split: Option<DiscoveryEstimationSplit>,
+    pub(crate) refute: RefuteSuite,
+    pub(crate) custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
+}
+
 impl std::fmt::Debug for CheckedTemporalClassEffectOperation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -63,22 +77,21 @@ impl CheckedTemporalClassEffectOperation {
     }
 
     /// Check and freeze the full completion proof and selected temporal method.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed temporal class effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        source_graph: AcceptedGraph,
-        query: &TemporalEffectQuery,
-        bundle: &CachedTemporalClassIdentification,
-        max_completions: Option<usize>,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        bootstrap_replicates: u32,
-        split: Option<DiscoveryEstimationSplit>,
-        refute: RefuteSuite,
-        custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
+        premises: CheckedTemporalClassEffectOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedTemporalClassEffectOperationPremises {
+            source_graph,
+            query,
+            bundle,
+            max_completions,
+            identifier,
+            estimator,
+            bootstrap_replicates,
+            split,
+            refute,
+            custom_validators,
+        } = premises;
         query.validate()?;
         let wrong_class = || CausalError::Compile {
             message: "temporal class effect requires a TemporalCpdag or TemporalPag proof".into(),
@@ -278,16 +291,21 @@ mod tests {
         let outcome = VariableId::from_raw(1);
         let query = TemporalEffectQuery::sustained(treatment, outcome, 1, 1.0);
         let error = CheckedTemporalClassEffectOperation::checked(
-            AcceptedGraph::temporal_cpdag(antecedent_graph::TemporalCpdag::empty()).unwrap(),
-            &query,
-            &empty_bundle(),
-            None,
-            IdentifierId::GeneralizedAdjustment,
-            EstimatorId::TemporalLinearAdjustment,
-            0,
-            None,
-            RefuteSuite::None,
-            Vec::new(),
+            CheckedTemporalClassEffectOperationPremises {
+                source_graph: AcceptedGraph::temporal_cpdag(
+                    antecedent_graph::TemporalCpdag::empty(),
+                )
+                .unwrap(),
+                query: &query,
+                bundle: &empty_bundle(),
+                max_completions: None,
+                identifier: IdentifierId::GeneralizedAdjustment,
+                estimator: EstimatorId::TemporalLinearAdjustment,
+                bootstrap_replicates: 0,
+                split: None,
+                refute: RefuteSuite::None,
+                custom_validators: Vec::new(),
+            },
         )
         .expect_err("multi-step schedule must retain its sequential estimator");
         assert!(matches!(error, CausalError::Unsupported { .. }));
@@ -299,16 +317,18 @@ mod tests {
         let outcome = VariableId::from_raw(1);
         let query = TemporalEffectQuery::pulse(treatment, outcome, 1.0);
         let error = CheckedTemporalClassEffectOperation::checked(
-            AcceptedGraph::temporal_dag(antecedent_graph::TemporalDag::empty()),
-            &query,
-            &empty_bundle(),
-            None,
-            IdentifierId::GeneralizedAdjustment,
-            EstimatorId::TemporalLinearAdjustment,
-            0,
-            None,
-            RefuteSuite::None,
-            Vec::new(),
+            CheckedTemporalClassEffectOperationPremises {
+                source_graph: AcceptedGraph::temporal_dag(antecedent_graph::TemporalDag::empty()),
+                query: &query,
+                bundle: &empty_bundle(),
+                max_completions: None,
+                identifier: IdentifierId::GeneralizedAdjustment,
+                estimator: EstimatorId::TemporalLinearAdjustment,
+                bootstrap_replicates: 0,
+                split: None,
+                refute: RefuteSuite::None,
+                custom_validators: Vec::new(),
+            },
         )
         .expect_err("an incomplete-class operation must retain its source class");
         assert!(matches!(error, CausalError::Compile { .. }));

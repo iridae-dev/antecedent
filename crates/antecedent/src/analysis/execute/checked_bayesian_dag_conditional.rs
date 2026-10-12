@@ -54,6 +54,20 @@ pub(crate) struct CheckedBayesianConditionalOperation {
     stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
 }
 
+/// The frozen premises of [`CheckedBayesianConditionalOperation::checked`], carried together.
+pub(crate) struct CheckedBayesianConditionalOperationPremises<'a> {
+    pub(crate) graph: &'a Dag,
+    pub(crate) query: antecedent_core::ConditionalEffectQuery,
+    pub(crate) cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) refute: RefuteSuite,
+    pub(crate) context: IdentifiedResultContext,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) latency: Option<LatencyMode>,
+    pub(crate) validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    pub(crate) stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+}
+
 impl std::fmt::Debug for CheckedBayesianConditionalOperation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -84,22 +98,21 @@ impl CheckedBayesianConditionalOperation {
         self.validators = validators;
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed Bayesian DAG conditional effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        graph: &Dag,
-        query: antecedent_core::ConditionalEffectQuery,
-        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
-        inference: InferenceMode,
-        refute: RefuteSuite,
-        context: IdentifiedResultContext,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
-        latency: Option<LatencyMode>,
-        validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
-        stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+        premises: CheckedBayesianConditionalOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedBayesianConditionalOperationPremises {
+            graph,
+            query,
+            cache,
+            inference,
+            refute,
+            context,
+            physical,
+            latency,
+            validators,
+            stage_sink,
+        } = premises;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         let InferenceMode::Bayesian(_) = inference else {
             return Err(CausalError::Compile {

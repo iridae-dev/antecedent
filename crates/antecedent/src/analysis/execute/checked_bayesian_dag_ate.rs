@@ -53,6 +53,18 @@ pub(crate) struct CheckedBayesianDagAteExecution {
     stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
 }
 
+/// The frozen premises of [`CheckedBayesianDagAteExecution::checked`], carried together.
+pub(crate) struct CheckedBayesianDagAteExecutionPremises<'a> {
+    pub(crate) graph: &'a Dag,
+    pub(crate) operation: super::super::prepared::CheckedBayesianGcompOperation,
+    pub(crate) context: IdentifiedResultContext,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) latency: Option<LatencyMode>,
+    pub(crate) validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    pub(crate) stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+}
+
 impl std::fmt::Debug for CheckedBayesianDagAteExecution {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -105,20 +117,19 @@ impl CheckedBayesianDagAteExecution {
         self.validators = validators;
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed Bayesian DAG average effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        graph: &Dag,
-        operation: super::super::prepared::CheckedBayesianGcompOperation,
-        context: IdentifiedResultContext,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
-        validation: RefuteSuite,
-        latency: Option<LatencyMode>,
-        validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
-        stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+        premises: CheckedBayesianDagAteExecutionPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedBayesianDagAteExecutionPremises {
+            graph,
+            operation,
+            context,
+            physical,
+            validation,
+            latency,
+            validators,
+            stage_sink,
+        } = premises;
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
                 message: "Bayesian DAG effect result context has a different query family".into(),

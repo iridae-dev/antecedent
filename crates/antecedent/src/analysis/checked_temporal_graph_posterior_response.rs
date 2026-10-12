@@ -67,6 +67,19 @@ pub(crate) struct CheckedTemporalGraphPosteriorResponse {
     class_prior: Option<ClassPrior>,
 }
 
+/// The frozen premises of [`CheckedTemporalGraphPosteriorResponse::prepare`], carried together.
+pub(crate) struct CheckedTemporalGraphPosteriorResponsePremises {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) query: ResponseQuery,
+    pub(crate) proof: TemporalPosteriorResponseProof,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) class_prior: Option<ClassPrior>,
+}
+
 impl CheckedTemporalGraphPosteriorResponse {
     /// Whether `study` is a coordinate this operation seals: a series
     /// complete-observation mean temporal response over `TemporalDag`,
@@ -110,21 +123,20 @@ impl CheckedTemporalGraphPosteriorResponse {
                 .is_none_or(|id| id == EstimatorId::temporal_response_for(&study.inference))
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed temporal graph-posterior response, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        query: ResponseQuery,
-        proof: TemporalPosteriorResponseProof,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
-        inference: InferenceMode,
-        validation: RefuteSuite,
-        bootstrap_replicates: u32,
-        max_completions: Option<usize>,
-        class_prior: Option<ClassPrior>,
+        premises: CheckedTemporalGraphPosteriorResponsePremises,
     ) -> Result<Self, CausalError> {
+        let CheckedTemporalGraphPosteriorResponsePremises {
+            posterior,
+            query,
+            proof,
+            physical,
+            inference,
+            validation,
+            bootstrap_replicates,
+            max_completions,
+            class_prior,
+        } = premises;
         let (identifier, kind_matches) = match (posterior.atom_kind, &proof) {
             (GraphPosteriorAtomKind::Dag, TemporalPosteriorResponseProof::Dbn(_)) => {
                 (IdentifierId::TemporalBackdoorUnfolded, true)

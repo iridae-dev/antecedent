@@ -50,6 +50,20 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
     physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
+/// The frozen premises of [`CheckedTemporalGraphPosteriorEffect::prepare`], carried together.
+pub(crate) struct CheckedTemporalGraphPosteriorEffectPremises<'a> {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) query: TemporalEffectQuery,
+    pub(crate) proof: CheckedTemporalGraphPosteriorProof,
+    pub(crate) inference: InferenceMode,
+    pub(crate) estimator_spec: Option<&'a EstimatorSpec>,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) split: Option<DiscoveryEstimationSplit>,
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+}
+
 impl CheckedTemporalGraphPosteriorEffect {
     /// Whether `study` is a coordinate this operation seals: a series pulse or
     /// sustained effect over `TemporalDag`, `TemporalCpdag`, or `TemporalPag`
@@ -78,22 +92,21 @@ impl CheckedTemporalGraphPosteriorEffect {
                 .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed temporal graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        query: TemporalEffectQuery,
-        proof: CheckedTemporalGraphPosteriorProof,
-        inference: InferenceMode,
-        estimator_spec: Option<&EstimatorSpec>,
-        bootstrap_replicates: u32,
-        split: Option<DiscoveryEstimationSplit>,
-        max_completions: Option<usize>,
-        validation: RefuteSuite,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        premises: CheckedTemporalGraphPosteriorEffectPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedTemporalGraphPosteriorEffectPremises {
+            posterior,
+            query,
+            proof,
+            inference,
+            estimator_spec,
+            bootstrap_replicates,
+            split,
+            max_completions,
+            validation,
+            physical,
+        } = premises;
         query.validate()?;
         if !query.policy.is_pulse_or_sustained() {
             return Err(CausalError::Unsupported {

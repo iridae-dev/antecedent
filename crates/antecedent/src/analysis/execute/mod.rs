@@ -234,7 +234,9 @@ pub(crate) use checked_bayesian_basis_ate::CheckedBayesianBasisAteExecution;
 pub(crate) use checked_bayesian_basis_cate::CheckedBayesianBasisCateExecution;
 pub(crate) use checked_bayesian_robust_ate::CheckedBayesianRobustAteExecution;
 mod checked_bayesian_dag_ate;
-pub(crate) use checked_bayesian_dag_ate::CheckedBayesianDagAteExecution;
+pub(crate) use checked_bayesian_dag_ate::{
+    CheckedBayesianDagAteExecution, CheckedBayesianDagAteExecutionPremises,
+};
 mod bayesian_graph_posterior_atoms;
 mod checked_bayesian_dag_conditional;
 pub(crate) use bayesian_graph_posterior_atoms::{
@@ -242,7 +244,9 @@ pub(crate) use bayesian_graph_posterior_atoms::{
     BayesianGraphPosteriorPriorAnchor,
 };
 mod checked_cell_aipw_response;
-pub(crate) use checked_bayesian_dag_conditional::CheckedBayesianConditionalOperation;
+pub(crate) use checked_bayesian_dag_conditional::{
+    CheckedBayesianConditionalOperation, CheckedBayesianConditionalOperationPremises,
+};
 mod bayesian_path;
 mod bayesian_robust_ate_path;
 mod bayesian_specialist_path;
@@ -263,8 +267,10 @@ mod checked_temporal_class_effect;
 mod checked_temporal_effect;
 mod checked_temporal_mediation;
 pub(crate) use checked_bayesian_static_mediation::CheckedBayesianStaticMediationOperation;
-pub(crate) use checked_cell_aipw_response::CheckedCellAipwResponseOperation;
 pub use checked_cell_aipw_response::DagResponseOrigin;
+pub(crate) use checked_cell_aipw_response::{
+    CheckedCellAipwResponseOperation, CheckedCellAipwResponseOperationPremises,
+};
 pub(crate) use checked_continuous_dose::CheckedContinuousDoseOperation;
 pub(crate) use checked_interference::CheckedInterferenceOperation;
 pub(crate) use checked_local_polynomial_ratio::{
@@ -304,6 +310,7 @@ mod response_path;
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
 pub(crate) use response_path::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
+    CheckedStaticDagResponseOperationPremises,
 };
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
 mod checked_bayesian_specialist;
@@ -333,9 +340,13 @@ mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;
 pub(crate) use checked_cell_aipw_response::CellAipwStructure;
-pub(crate) use checked_graph_posterior_response::CheckedGraphPosteriorResponse;
+pub(crate) use checked_graph_posterior_response::{
+    CheckedGraphPosteriorResponse, CheckedGraphPosteriorResponsePremises,
+};
 pub(crate) use checked_static::CheckedStaticCommon;
-pub(crate) use checked_static_class_response::CheckedStaticClassResponse;
+pub(crate) use checked_static_class_response::{
+    CheckedStaticClassResponse, CheckedStaticClassResponsePremises,
+};
 pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
 include!("execute_helpers.rs");
 
@@ -362,7 +373,7 @@ pub(crate) use dispatch::{
     ANOMALY_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND, COUNTERFACTUAL_DIRICHLET_BACKEND,
     ROBUST_ATE_BOOTSTRAP_BACKEND,
 };
-pub(crate) use static_path::DistributionGraph;
+pub(crate) use static_path::{CheckedUnknownTiered, DistributionGraph};
 pub(crate) use transport_interference_path::live_transport_identification;
 
 pub use checked_attribution::CheckedAttributionInfo;

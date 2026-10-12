@@ -101,14 +101,16 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                     )
             {
                 Some(crate::analysis::execute::CheckedStaticDagResponseOperation::checked(
-                    graph,
-                    query,
-                    cache,
-                    identifier,
-                    estimator,
-                    analysis.response_options.clone().unwrap_or_default(),
-                    analysis.inference.clone(),
-                    analysis.refute,
+                    crate::analysis::execute::CheckedStaticDagResponseOperationPremises {
+                        graph,
+                        query,
+                        cache,
+                        identifier,
+                        estimator,
+                        options: analysis.response_options.clone().unwrap_or_default(),
+                        inference: analysis.inference.clone(),
+                        refute: analysis.refute,
+                    },
                 )?)
             } else {
                 None
@@ -139,17 +141,21 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                 && matches!(analysis.inference, InferenceMode::Frequentist)
             {
                 Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
-                    &crate::analysis::execute::CellAipwStructure::Dag(graph.clone()),
-                    query,
-                    cache,
-                    identifier,
-                    estimator,
-                    ctx.rng.master_seed(),
-                    analysis.refute,
-                    if analysis.structure_source == crate::support::StructureSource::Accepted {
-                        crate::analysis::execute::DagResponseOrigin::Accepted
-                    } else {
-                        crate::analysis::execute::DagResponseOrigin::Explicit
+                    crate::analysis::execute::CheckedCellAipwResponseOperationPremises {
+                        structure: &crate::analysis::execute::CellAipwStructure::Dag(graph.clone()),
+                        query,
+                        cache,
+                        identifier,
+                        estimator,
+                        fold_seed: ctx.rng.master_seed(),
+                        validation: analysis.refute,
+                        origin: if analysis.structure_source
+                            == crate::support::StructureSource::Accepted
+                        {
+                            crate::analysis::execute::DagResponseOrigin::Accepted
+                        } else {
+                            crate::analysis::execute::DagResponseOrigin::Explicit
+                        },
                     },
                 )?)
             } else {
@@ -174,17 +180,19 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                 });
             };
             Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
-                &crate::analysis::execute::CellAipwStructure::TierClosure {
-                    admg: admg.clone(),
-                    background: background.clone(),
+                crate::analysis::execute::CheckedCellAipwResponseOperationPremises {
+                    structure: &crate::analysis::execute::CellAipwStructure::TierClosure {
+                        admg: admg.clone(),
+                        background: background.clone(),
+                    },
+                    query,
+                    cache,
+                    identifier: crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+                    estimator: crate::strategy_table::EstimatorId::CellAipw,
+                    fold_seed: ctx.rng.master_seed(),
+                    validation: analysis.refute,
+                    origin: crate::analysis::execute::DagResponseOrigin::Explicit,
                 },
-                query,
-                cache,
-                crate::strategy_table::IdentifierId::GeneralizedAdjustment,
-                crate::strategy_table::EstimatorId::CellAipw,
-                ctx.rng.master_seed(),
-                analysis.refute,
-                crate::analysis::execute::DagResponseOrigin::Explicit,
             )?)
         }
         _ => None,

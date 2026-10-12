@@ -1172,7 +1172,7 @@ fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
 mod tests {
     use super::*;
     use antecedent_core::VariableId;
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::{SamplingSummary, set_edge};
     use antecedent_prob::InferenceDiagnostics;
 
     /// A static posterior whose samples repeat a handful of confounding structures, as an
@@ -1199,9 +1199,11 @@ mod tests {
             adjacency,
             vec![0.0; N * N],
             vec![0.0; N * N],
-            n_graphs as f64,
-            InferenceDiagnostics::analytic("identification_cache_timing"),
-            0,
+            SamplingSummary {
+                ess: n_graphs as f64,
+                diagnostics: InferenceDiagnostics::analytic("identification_cache_timing"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
     }

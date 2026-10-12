@@ -215,13 +215,13 @@ pub(super) fn identify_cached_diagnostic() -> Diagnostic {
 
 /// The identifier and estimator a route executed with.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Strategy {
+pub(crate) struct Strategy {
     pub(super) identifier: IdentifierId,
     pub(super) estimator: EstimatorId,
 }
 
 impl Strategy {
-    pub(super) const fn new(identifier: IdentifierId, estimator: EstimatorId) -> Self {
+    pub(crate) const fn new(identifier: IdentifierId, estimator: EstimatorId) -> Self {
         Self { identifier, estimator }
     }
 }

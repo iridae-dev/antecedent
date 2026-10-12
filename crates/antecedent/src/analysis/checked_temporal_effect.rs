@@ -32,23 +32,35 @@ pub(crate) struct CheckedTemporalEffectOperation {
     refute: RefuteSuite,
 }
 
+/// The frozen premises of [`CheckedTemporalEffectOperation::checked`], carried together.
+pub(crate) struct CheckedTemporalEffectOperationPremises<'a> {
+    pub(crate) graph: &'a TemporalDag,
+    pub(crate) query: &'a TemporalEffectQuery,
+    pub(crate) identification: IdentificationResult,
+    pub(crate) estimand: IdentifiedEstimand,
+    pub(crate) indexer: TemporalIndexer,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) refute: RefuteSuite,
+}
+
 impl CheckedTemporalEffectOperation {
     /// Check and freeze the graph, query, selected proof, and estimator family.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed temporal effect, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        graph: &TemporalDag,
-        query: &TemporalEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
-        indexer: TemporalIndexer,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        bootstrap_replicates: u32,
-        refute: RefuteSuite,
+        premises: CheckedTemporalEffectOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedTemporalEffectOperationPremises {
+            graph,
+            query,
+            identification,
+            estimand,
+            indexer,
+            identifier,
+            estimator,
+            bootstrap_replicates,
+            refute,
+        } = premises;
         query.validate()?;
         if identifier != IdentifierId::TemporalBackdoorUnfolded {
             return Err(CausalError::Compile {

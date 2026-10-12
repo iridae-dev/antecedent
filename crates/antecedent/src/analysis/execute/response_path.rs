@@ -224,22 +224,33 @@ pub(crate) struct CheckedStaticDagResponseOperation {
     refute: RefuteSuite,
 }
 
+/// The frozen premises of [`CheckedStaticDagResponseOperation::checked`], carried together.
+pub(crate) struct CheckedStaticDagResponseOperationPremises<'a> {
+    pub(crate) graph: &'a Dag,
+    pub(crate) query: &'a ResponseQuery,
+    pub(crate) cache: &'a Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) options: antecedent_estimate::ContinuousResponseOptions,
+    pub(crate) inference: InferenceMode,
+    pub(crate) refute: RefuteSuite,
+}
+
 impl CheckedStaticDagResponseOperation {
     /// Check and retain an explicit or accepted static DAG response route.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed DAG response, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        graph: &Dag,
-        query: &ResponseQuery,
-        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        options: antecedent_estimate::ContinuousResponseOptions,
-        inference: InferenceMode,
-        refute: RefuteSuite,
+        premises: CheckedStaticDagResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedStaticDagResponseOperationPremises {
+            graph,
+            query,
+            cache,
+            identifier,
+            estimator,
+            options,
+            inference,
+            refute,
+        } = premises;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate()?;
         let curve_grid = Self::checked_curve_grid(query)?;

@@ -88,15 +88,17 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
                         message: "prepared temporal effect lacks its horizon proof".into(),
                     })?;
                 let operation = crate::analysis::CheckedTemporalEffectOperation::checked(
-                    graph,
-                    query,
-                    member.identification.clone(),
-                    member.estimand.clone(),
-                    member.indexer.clone(),
-                    identifier,
-                    estimator,
-                    analysis.bootstrap_replicates,
-                    analysis.refute,
+                    crate::analysis::CheckedTemporalEffectOperationPremises {
+                        graph,
+                        query,
+                        identification: member.identification.clone(),
+                        estimand: member.estimand.clone(),
+                        indexer: member.indexer.clone(),
+                        identifier,
+                        estimator,
+                        bootstrap_replicates: analysis.bootstrap_replicates,
+                        refute: analysis.refute,
+                    },
                 )?;
                 Some(crate::analysis::execute::CheckedTemporalEffectExecution::checked(
                     operation,
@@ -138,15 +140,17 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
                     })?;
                 let procedure = EstimatorId::temporal_effect_procedure(query, false);
                 let target = crate::analysis::CheckedTemporalEffectOperation::checked(
-                    graph,
-                    query,
-                    member.identification.clone(),
-                    member.estimand.clone(),
-                    member.indexer.clone(),
-                    identifier,
-                    procedure,
-                    0,
-                    analysis.refute,
+                    crate::analysis::CheckedTemporalEffectOperationPremises {
+                        graph,
+                        query,
+                        identification: member.identification.clone(),
+                        estimand: member.estimand.clone(),
+                        indexer: member.indexer.clone(),
+                        identifier,
+                        estimator: procedure,
+                        bootstrap_replicates: 0,
+                        refute: analysis.refute,
+                    },
                 )?;
                 Some(crate::analysis::CheckedBayesianTemporalEffectOperation::checked(
                     target,
@@ -180,16 +184,18 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
             if cx.binding.names(identifier, estimator) {
                 let operation = crate::analysis::CheckedTemporalClassEffectOperation::checked(
-                    (*analysis.graph).clone(),
-                    query,
-                    cache,
-                    analysis.max_completions,
-                    identifier,
-                    estimator,
-                    analysis.bootstrap_replicates,
-                    analysis.split,
-                    analysis.refute,
-                    analysis.custom_validators.clone(),
+                    crate::analysis::CheckedTemporalClassEffectOperationPremises {
+                        source_graph: (*analysis.graph).clone(),
+                        query,
+                        bundle: cache,
+                        max_completions: analysis.max_completions,
+                        identifier,
+                        estimator,
+                        bootstrap_replicates: analysis.bootstrap_replicates,
+                        split: analysis.split,
+                        refute: analysis.refute,
+                        custom_validators: analysis.custom_validators.clone(),
+                    },
                 )?;
                 Some(crate::analysis::execute::CheckedTemporalClassEffectExecution::checked(
                     operation,

@@ -59,23 +59,34 @@ pub(crate) struct CheckedCellAipwResponseOperation {
     origin: DagResponseOrigin,
 }
 
+/// The frozen premises of [`CheckedCellAipwResponseOperation::checked`], carried together.
+pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
+    pub(crate) structure: &'a CellAipwStructure,
+    pub(crate) query: &'a ResponseQuery,
+    pub(crate) cache: &'a Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) fold_seed: u64,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) origin: DagResponseOrigin,
+}
+
 impl CheckedCellAipwResponseOperation {
     /// Validate and seal the licensed joint-cell response route on a static
     /// DAG or a `CoDetermined` tier closure.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed cell-AIPW response, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn checked(
-        structure: &CellAipwStructure,
-        query: &ResponseQuery,
-        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        fold_seed: u64,
-        validation: RefuteSuite,
-        origin: DagResponseOrigin,
+        premises: CheckedCellAipwResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedCellAipwResponseOperationPremises {
+            structure,
+            query,
+            cache,
+            identifier,
+            estimator,
+            fold_seed,
+            validation,
+            origin,
+        } = premises;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate()?;
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
@@ -510,17 +521,18 @@ mod tests {
     fn sealed_joint_cell_route_executes_known_truth_and_refreshes_same_target() {
         let (graph, query, data, identification) = fixture();
         let estimand = identification.estimands.first().unwrap().clone();
-        let operation = CheckedCellAipwResponseOperation::checked(
-            &CellAipwStructure::Dag(graph.clone()),
-            &query,
-            &cached(&identification, &estimand),
-            IdentifierId::ResponseBackdoor,
-            EstimatorId::CellAipw,
-            817,
-            RefuteSuite::Full,
-            DagResponseOrigin::Accepted,
-        )
-        .unwrap();
+        let operation =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                structure: &CellAipwStructure::Dag(graph.clone()),
+                query: &query,
+                cache: &cached(&identification, &estimand),
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 817,
+                validation: RefuteSuite::Full,
+                origin: DagResponseOrigin::Accepted,
+            })
+            .unwrap();
         assert_eq!(operation.origin(), DagResponseOrigin::Accepted);
         assert_eq!(operation.validation(), RefuteSuite::Full);
         assert_eq!(operation.procedure(), (IdentifierId::ResponseBackdoor, EstimatorId::CellAipw));
@@ -553,17 +565,18 @@ mod tests {
     fn sealed_joint_cell_route_refuses_a_changed_graph_and_bad_interventions() {
         let (graph, query, _, identification) = fixture();
         let estimand = identification.estimands.first().unwrap().clone();
-        let operation = CheckedCellAipwResponseOperation::checked(
-            &CellAipwStructure::Dag(graph.clone()),
-            &query,
-            &cached(&identification, &estimand),
-            IdentifierId::ResponseBackdoor,
-            EstimatorId::CellAipw,
-            1,
-            RefuteSuite::None,
-            DagResponseOrigin::Explicit,
-        )
-        .unwrap();
+        let operation =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                structure: &CellAipwStructure::Dag(graph.clone()),
+                query: &query,
+                cache: &cached(&identification, &estimand),
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 1,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Explicit,
+            })
+            .unwrap();
         let mut wrong_graph = graph.clone();
         wrong_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(!operation.matches_structure(&AcceptedGraph::from(wrong_graph), None));
@@ -594,17 +607,18 @@ mod tests {
             &CausalQuery::Response(bad_query.clone()),
         )
         .unwrap();
-        let err = CheckedCellAipwResponseOperation::checked(
-            &CellAipwStructure::Dag(graph.clone()),
-            &bad_query,
-            &cached(&bad_identification, bad_identification.estimands.first().unwrap()),
-            IdentifierId::ResponseBackdoor,
-            EstimatorId::CellAipw,
-            1,
-            RefuteSuite::None,
-            DagResponseOrigin::Explicit,
-        )
-        .unwrap_err();
+        let err =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                structure: &CellAipwStructure::Dag(graph.clone()),
+                query: &bad_query,
+                cache: &cached(&bad_identification, bad_identification.estimands.first().unwrap()),
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 1,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Explicit,
+            })
+            .unwrap_err();
         assert!(err.to_string().contains("Set levels 0 or 1"));
     }
 }

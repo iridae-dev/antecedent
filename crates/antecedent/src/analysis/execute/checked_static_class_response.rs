@@ -33,6 +33,18 @@ pub(crate) struct CheckedStaticClassResponse {
     validation: RefuteSuite,
 }
 
+/// The frozen premises of [`CheckedStaticClassResponse::prepare`], carried together.
+pub(crate) struct CheckedStaticClassResponsePremises {
+    pub(crate) graph: StaticClassGraph,
+    pub(crate) query: ResponseQuery,
+    pub(crate) identification: StaticClassIdentification,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) inference: InferenceMode,
+    pub(crate) validation: RefuteSuite,
+}
+
 impl CheckedStaticClassResponse {
     /// Whether `study` is a coordinate this operation seals: a tabular
     /// complete-observation mean class response on a fixed CPDAG or PAG with
@@ -63,20 +75,19 @@ impl CheckedStaticClassResponse {
     /// Refuses a query outside the complete-observation mean response family,
     /// a validation suite other than `none`, a procedure that does not match the
     /// inference mode, or an envelope identified for another target.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the frozen premises of a sealed static class response, resolved one at a time by the sealer in prepared/ that constructs it"
-    )]
     pub(crate) fn prepare(
-        graph: StaticClassGraph,
-        query: ResponseQuery,
-        identification: StaticClassIdentification,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        inference: InferenceMode,
-        validation: RefuteSuite,
+        premises: CheckedStaticClassResponsePremises,
     ) -> Result<Self, CausalError> {
+        let CheckedStaticClassResponsePremises {
+            graph,
+            query,
+            identification,
+            physical,
+            identifier,
+            estimator,
+            inference,
+            validation,
+        } = premises;
         if !class_aware_response_supported(&query)
             || query.target_population != antecedent_core::TargetPopulation::AllObserved
             || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)

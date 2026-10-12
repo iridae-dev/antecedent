@@ -125,16 +125,20 @@ pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
                     message: "checked Bayesian conditional effect requires its retained DAG".into(),
                 })?;
                 Some(crate::analysis::execute::CheckedBayesianConditionalOperation::checked(
-                    graph,
-                    query.clone(),
-                    Arc::clone(cache),
-                    analysis.inference.clone(),
-                    analysis.refute,
-                    crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-                    plan.clone(),
-                    analysis.latency_mode,
-                    analysis.custom_validators.clone(),
-                    analysis.stage_sink.clone(),
+                    crate::analysis::execute::CheckedBayesianConditionalOperationPremises {
+                        graph,
+                        query: query.clone(),
+                        cache: Arc::clone(cache),
+                        inference: analysis.inference.clone(),
+                        refute: analysis.refute,
+                        context: crate::analysis::execute::IdentifiedResultContext::from_study(
+                            analysis,
+                        ),
+                        physical: plan.clone(),
+                        latency: analysis.latency_mode,
+                        validators: analysis.custom_validators.clone(),
+                        stage_sink: analysis.stage_sink.clone(),
+                    },
                 )?)
             }
             _ => None,
@@ -164,14 +168,16 @@ pub(super) fn bayesian_gcomp(cx: &SealContext<'_>) -> SealOutcome {
     })?;
     Ok(Some(PreparedExecution::BayesianGcomp(
         crate::analysis::execute::CheckedBayesianDagAteExecution::checked(
-            graph,
-            operation,
-            crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-            plan.clone(),
-            analysis.refute,
-            analysis.latency_mode,
-            analysis.custom_validators.clone(),
-            analysis.stage_sink.clone(),
+            crate::analysis::execute::CheckedBayesianDagAteExecutionPremises {
+                graph,
+                operation,
+                context: crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
+                physical: plan.clone(),
+                validation: analysis.refute,
+                latency: analysis.latency_mode,
+                validators: analysis.custom_validators.clone(),
+                stage_sink: analysis.stage_sink.clone(),
+            },
         )?,
     )))
 }
