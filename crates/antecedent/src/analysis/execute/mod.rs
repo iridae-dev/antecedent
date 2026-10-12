@@ -264,7 +264,9 @@ use randomized_trial::{RandomizedTrialOperation, RandomizedTrialQuery};
 mod checked_static_mediation;
 mod checked_survival;
 mod checked_synthetic_control;
+#[path = "exec_checked_temporal_class_effect.rs"]
 mod checked_temporal_class_effect;
+#[path = "exec_checked_temporal_effect.rs"]
 mod checked_temporal_effect;
 mod checked_temporal_mediation;
 pub(crate) use checked_bayesian_static_mediation::CheckedBayesianStaticMediationOperation;
@@ -317,14 +319,18 @@ pub(crate) use checked_static_response::{
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
 mod checked_bayesian_specialist;
+#[path = "exec_checked_bayesian_temporal_class_effect.rs"]
 mod checked_bayesian_temporal_class_effect;
 mod checked_graph_posterior_effect;
 mod checked_graph_posterior_response;
 mod checked_static;
 mod checked_static_class_response;
 mod checked_temporal_class_mediation;
+#[path = "exec_checked_temporal_class_response.rs"]
 mod checked_temporal_class_response;
+#[path = "exec_checked_temporal_graph_posterior_effect.rs"]
 mod checked_temporal_graph_posterior_effect;
+#[path = "exec_checked_temporal_graph_posterior_response.rs"]
 mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;

@@ -33,7 +33,7 @@ use super::{
     tuple_block_observation_replicates, with_conflict_summary,
 };
 use crate::planner::RouteDefaults;
-#[path = "checked_temporal_response.rs"]
+#[path = "temporal_response_execution.rs"]
 pub(super) mod checked_temporal_response;
 // The identification crate owns the observation-assumption id and text table;
 // the temporal path records the same assumptions from the same body.
@@ -1838,6 +1838,9 @@ impl super::Study {
                 .then_some(self.bootstrap_replicates),
             started,
             ctx,
+            refutations: Vec::new(),
+            identify_provenance: None,
+            estimate_provenance: None,
         }))
     }
 
@@ -2335,6 +2338,9 @@ impl super::Study {
                 .then_some(self.bootstrap_replicates),
             started,
             ctx,
+            refutations: Vec::new(),
+            identify_provenance: None,
+            estimate_provenance: None,
         }))
     }
 
@@ -3121,6 +3127,13 @@ pub(super) struct ClassResponseTail<'a> {
     pub bootstrap_replicates: Option<u32>,
     pub started: Instant,
     pub ctx: &'a ExecutionContext,
+    /// Refutation reports. Class routes pass an empty list; the graph-posterior
+    /// route passes the reports it already computed.
+    pub refutations: Vec<antecedent_validate::RefutationReport>,
+    /// Overrides the identifier provenance step. `None` keeps the strategy default.
+    pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
+    /// Overrides the estimator provenance step. `None` keeps the strategy default.
+    pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
 }
 
 impl super::Study {
@@ -3141,6 +3154,9 @@ impl super::Study {
             bootstrap_replicates,
             started,
             ctx,
+            refutations,
+            identify_provenance,
+            estimate_provenance,
         } = tail;
         self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
@@ -3153,6 +3169,7 @@ impl super::Study {
                 outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
@@ -3165,6 +3182,8 @@ impl super::Study {
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
                 bootstrap_replicates_requested: Some(bootstrap_replicates),
+                identify_provenance,
+                estimate_provenance,
                 ..Default::default()
             }),
         )

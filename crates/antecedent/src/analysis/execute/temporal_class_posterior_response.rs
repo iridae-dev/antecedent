@@ -13,12 +13,11 @@ use super::{
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom,
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphIdentFlag, GraphPosterior,
     GraphPosteriorScope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant, Intervention,
-    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy,
-    StructuralAggregationPolicy, Study, StudyResult, TableView, TabularData, TemporalAtomDesign,
-    TemporalEffectQuery, TemporalRefutation, TimeSeriesData, VariableId, elapsed_ns,
-    identification_status_ok_for_case, provenance_ids,
+    IdentifierId, Instant, Intervention, OverlapPolicy, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, StructuralAggregationPolicy, Study, StudyResult, TableView,
+    TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalRefutation, TimeSeriesData,
+    VariableId, identification_status_ok_for_case, provenance_ids,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
     resolve_structural_aggregation, scalar_identified_set, select_estimand,
     shared_circular_block_mixture_se, temporal_class_block_span,
@@ -101,35 +100,33 @@ impl super::Study {
             (structural_set, conditional),
             (unidentified_mass + failed_mass) == 0.0,
         );
-        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
-                treatment,
-                outcome,
-            )
-            .identify_cached(self.class_posterior_cache_retained(gp))
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .cancelled(ctx.cancellation.is_cancelled())
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal_class_graph_posterior_response",
-                    aggregation_policy.as_str(),
-                )),
-                response: Some(response),
-                structural_response: Some(mixture),
-                diagnostics: Some(diagnostics),
-                ..Default::default()
-            }),
-        ))
+        // Same identified-execute tail as the class response. The posterior
+        // keeps its provenance strings, refutations, and the study bootstrap
+        // count (the class band's `Some(count)` write). No envelope certificate.
+        Ok(self.finish_class_response_tail(super::temporal_path::ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::GeneralizedAdjustment,
+            endpoints: (treatment, outcome),
+            envelope: None,
+            response,
+            structural: mixture,
+            diagnostics,
+            identify_cached: self.class_posterior_cache_retained(gp),
+            bootstrap_replicates: Some(self.bootstrap_replicates),
+            started,
+            ctx,
+            refutations,
+            identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+            estimate_provenance: Some(provenance_ids(
+                "estimate.temporal_class_graph_posterior_response",
+                aggregation_policy.as_str(),
+            )),
+        }))
     }
 
     /// Whether the prepared handle retains an identification for this posterior.

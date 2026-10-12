@@ -1041,6 +1041,9 @@ impl super::Study {
             bootstrap_replicates: None,
             started,
             ctx,
+            refutations: Vec::new(),
+            identify_provenance: None,
+            estimate_provenance: None,
         }))
     }
 
