@@ -339,6 +339,45 @@ struct Frame<'a> {
     indicator: Vec<Option<bool>>,
 }
 
+/// Resolves each arm's levels to treatment columns and counts complete rows per arm with the contrast indicator.
+fn resolve_arm_indicator(
+    input: &PreflightInput<'_>,
+    columns: &[Vec<f64>],
+    n_complete: usize,
+) -> Result<(Vec<usize>, Vec<Option<bool>>), CausalError> {
+    let mut resolved = Vec::with_capacity(input.arms.len());
+    for arm in &input.arms {
+        let mut levels = Vec::with_capacity(arm.levels.len());
+        for &(variable, level) in &arm.levels {
+            let col = input.treatments.iter().position(|t| *t == variable).ok_or_else(|| {
+                crate::compile_reason!(
+                    "invalid_argument",
+                    "an arm sets a variable that is not one of the treatment columns"
+                )
+            })?;
+            levels.push((col, level));
+        }
+        resolved.push(levels);
+    }
+    let in_arm = |levels: &[(usize, f64)], row: usize| {
+        levels.iter().all(|&(col, level)| same_level(columns[col][row], level))
+    };
+    let mut counts = vec![0usize; resolved.len()];
+    let mut indicator = Vec::with_capacity(n_complete);
+    for row in 0..n_complete {
+        let hit = resolved.iter().position(|levels| in_arm(levels.as_slice(), row));
+        if let Some(k) = hit {
+            counts[k] += 1;
+        }
+        indicator.push(match (resolved.len(), hit) {
+            (2, Some(k)) => Some(k == 1),
+            (2, None) => None,
+            (_, hit) => Some(hit.is_some()),
+        });
+    }
+    Ok((counts, indicator))
+}
+
 impl<'a> Frame<'a> {
     fn new(input: &'a PreflightInput<'a>) -> Result<Self, CausalError> {
         if input.treatments.is_empty() || input.arms.is_empty() {
@@ -396,38 +435,8 @@ impl<'a> Frame<'a> {
         let columns: Vec<Vec<f64>> =
             raw.iter().map(|col| complete.iter().map(|&i| col[i]).collect()).collect();
 
-        let mut resolved = Vec::with_capacity(input.arms.len());
-        for arm in &input.arms {
-            let mut levels = Vec::with_capacity(arm.levels.len());
-            for &(variable, level) in &arm.levels {
-                let col =
-                    input.treatments.iter().position(|t| *t == variable).ok_or_else(|| {
-                        crate::compile_reason!(
-                            "invalid_argument",
-                            "an arm sets a variable that is not one of the treatment columns"
-                        )
-                    })?;
-                levels.push((col, level));
-            }
-            resolved.push(levels);
-        }
-        let in_arm = |levels: &[(usize, f64)], row: usize| {
-            levels.iter().all(|&(col, level)| same_level(columns[col][row], level))
-        };
         let n_complete = complete.len();
-        let mut counts = vec![0usize; resolved.len()];
-        let mut indicator = Vec::with_capacity(n_complete);
-        for row in 0..n_complete {
-            let hit = resolved.iter().position(|levels| in_arm(levels.as_slice(), row));
-            if let Some(k) = hit {
-                counts[k] += 1;
-            }
-            indicator.push(match (resolved.len(), hit) {
-                (2, Some(k)) => Some(k == 1),
-                (2, None) => None,
-                (_, hit) => Some(hit.is_some()),
-            });
-        }
+        let (counts, indicator) = resolve_arm_indicator(input, &columns, n_complete)?;
         let in_any: usize = counts.iter().sum();
         let subject = subject_label(&names, nt, input);
         let arms = input
@@ -711,32 +720,11 @@ fn dependent_columns(scan: &RankScan, names: &[String], skip: usize) -> Vec<Depe
         .collect()
 }
 
-/// Run every fit-free check on the declared design.
-///
-/// # Errors
-///
-/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
-pub fn preflight_design(
-    input: &PreflightInput<'_>,
-    ctx: &ExecutionContext,
-) -> Result<PreflightReport, CausalError> {
-    let frame = Frame::new(input)?;
-    let mut findings = Vec::new();
+/// One review finding per group of exactly duplicated columns, worded by whether it touches the query or the adjustment set.
+fn duplicate_findings(frame: &Frame<'_>, duplicates: &[Vec<usize>]) -> Vec<PreflightFinding> {
     let nt = frame.nt();
-
-    for arm in frame.arms.iter().filter(|a| a.rows == 0) {
-        findings.push(PreflightFinding {
-            code: "arm_not_populated",
-            severity: FindingSeverity::Blocking,
-            columns: Vec::new(),
-            measure: Some(0.0),
-            threshold: None,
-            detail: format!("{} has no complete-case rows", arm.label),
-        });
-    }
-
-    let duplicates: Vec<Vec<usize>> = duplicate_groups(&frame.columns);
-    for group in &duplicates {
+    let mut findings = Vec::new();
+    for group in duplicates {
         let columns: Vec<String> = group.iter().map(|&j| frame.names[j].clone()).collect();
         let touches_query = group.iter().any(|&j| j <= nt);
         let touches_adjustment = group.iter().any(|&j| j > nt);
@@ -765,7 +753,15 @@ pub fn preflight_design(
             detail: detail.to_string(),
         });
     }
+    findings
+}
 
+/// Scans the `[1 | Z]` design for rank deficiency and near collinearity, and flags query variables it nearly determines.
+fn rank_findings(
+    frame: &Frame<'_>,
+    findings: &mut Vec<PreflightFinding>,
+    ctx: &ExecutionContext,
+) -> Result<Option<RankReport>, CausalError> {
     let mut rank = None;
     let adjustment_names = frame.adjustment_names();
     if frame.rows_complete > 0 {
@@ -810,7 +806,7 @@ pub fn preflight_design(
                 });
             }
         }
-        for (what, code, values) in query_targets(&frame) {
+        for (what, code, values) in query_targets(frame) {
             if let Some(ratio) = unexplained_ratio(&scan.basis, values) {
                 let r2 = 1.0 - ratio * ratio;
                 if r2 >= NEAR_DETERMINISTIC_R2 {
@@ -825,6 +821,38 @@ pub fn preflight_design(
             dependent,
         });
     }
+    Ok(rank)
+}
+
+/// Run every fit-free check on the declared design.
+///
+/// # Errors
+///
+/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
+pub fn preflight_design(
+    input: &PreflightInput<'_>,
+    ctx: &ExecutionContext,
+) -> Result<PreflightReport, CausalError> {
+    let frame = Frame::new(input)?;
+    let mut findings = Vec::new();
+    let nt = frame.nt();
+
+    for arm in frame.arms.iter().filter(|a| a.rows == 0) {
+        findings.push(PreflightFinding {
+            code: "arm_not_populated",
+            severity: FindingSeverity::Blocking,
+            columns: Vec::new(),
+            measure: Some(0.0),
+            threshold: None,
+            detail: format!("{} has no complete-case rows", arm.label),
+        });
+    }
+
+    let duplicates: Vec<Vec<usize>> = duplicate_groups(&frame.columns);
+    findings.extend(duplicate_findings(&frame, &duplicates));
+
+    let adjustment_names = frame.adjustment_names();
+    let rank = rank_findings(&frame, &mut findings, ctx)?;
 
     for (j, col) in frame.adjustment_columns().iter().enumerate() {
         for (what, code, values) in query_columns(&frame) {
@@ -1266,23 +1294,14 @@ fn rank_drop_refusal(
     .into()
 }
 
-/// Plan an opt-in rank-deficiency drop under a declared column priority.
-///
-/// # Errors
-///
-/// `rank_drop_not_licensed` when the priority does not cover the adjustment set, when a
-/// dependent column is a treatment, outcome or effect modifier, or when an adjustment column
-/// is an exact copy of a treatment or the outcome; `arm_not_populated` when an arm is empty;
-/// or the preflight errors (unknown column, size limit, cancellation).
-pub fn plan_rank_drop(
+/// Resolves the declared column priority to adjustment-column positions, refusing a priority that does not cover the set.
+fn column_priority_order(
     input: &PreflightInput<'_>,
     policy: &RankDropPolicy,
-    ctx: &ExecutionContext,
-) -> Result<RankDropPlan, CausalError> {
-    let frame = Frame::new(input)?;
-    let nt = frame.nt();
+    frame: &Frame<'_>,
+) -> Result<Vec<usize>, CausalError> {
     let p = input.adjustment.len();
-    let order: Vec<usize> = match &policy.priority {
+    Ok(match &policy.priority {
         ColumnPriority::AdjustmentOrder => (0..p).collect(),
         ColumnPriority::Declared(ids) => {
             let mut used = vec![false; p];
@@ -1319,7 +1338,26 @@ pub fn plan_rank_drop(
             }
             order
         }
-    };
+    })
+}
+
+/// Plan an opt-in rank-deficiency drop under a declared column priority.
+///
+/// # Errors
+///
+/// `rank_drop_not_licensed` when the priority does not cover the adjustment set, when a
+/// dependent column is a treatment, outcome or effect modifier, or when an adjustment column
+/// is an exact copy of a treatment or the outcome; `arm_not_populated` when an arm is empty;
+/// or the preflight errors (unknown column, size limit, cancellation).
+pub fn plan_rank_drop(
+    input: &PreflightInput<'_>,
+    policy: &RankDropPolicy,
+    ctx: &ExecutionContext,
+) -> Result<RankDropPlan, CausalError> {
+    let frame = Frame::new(input)?;
+    let nt = frame.nt();
+    let p = input.adjustment.len();
+    let order = column_priority_order(input, policy, &frame)?;
     if frame.arms.iter().any(|a| a.rows == 0) {
         return Err(arm_refusal(&frame.subject, &frame.arms, &[]));
     }

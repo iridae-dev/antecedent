@@ -550,31 +550,27 @@ impl BayesianSession {
         )
     }
 }
-/// Execute the original checked Bayesian study engine or project its retained native draws.
-/// # Errors
-/// Unsupported inference, invalid data/graph/prior, ownership double use, budgets, or receipts.
-pub fn execute_bayesian_with_receipt(
-    session: &mut BayesianSession,
+/// Fits the checked Bayesian study, or projects the retained draws, verifying a bound prior artifact once per likelihood.
+fn bayesian_stage(
     request: &BayesianRequest,
+    plan: &antecedent_core::recalc::RecalcPlan,
+    old: Option<&BayesianLive>,
+    recorder: &mut super::recalc_receipt::ReceiptRecorder,
     ctx: &antecedent_core::ExecutionContext,
-) -> Result<BayesianRecalcOutcome, RecalcRunError> {
-    use super::recalc_receipt::{Counter, LawValue, ReceiptRecorder, decide};
-    use antecedent_core::recalc::{Boundary, Stage};
-    use antecedent_expr::execution_counts::{StaticWork, count_static_work, note_static_work};
+) -> Result<
+    (
+        std::sync::Arc<crate::PreparedStudy>,
+        std::sync::Arc<crate::StudyResult>,
+        antecedent_core::ExecutionContext,
+        Option<std::sync::Arc<VerifiedBayesianPrior>>,
+    ),
+    RecalcRunError,
+> {
+    use super::recalc_receipt::Counter;
+    use antecedent_core::recalc::Stage;
     use antecedent_identify::execution_counts::count_checked_identifications;
     use antecedent_prob::fit_counts::count_bayesian_work;
-    request.validate()?;
-    let identities = request.identities(ctx);
-    let plan = bayesian_plan(&session.previous, &identities, session.boundary, true);
-    if !plan.is_executable() {
-        return Err(RecalcRunError::Refused(Box::new(plan)));
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
-    }
-    let old = session.live.as_ref();
-    let mut recorder = ReceiptRecorder::new();
-    let (prepared, result, context, verified_prior) = if recomputed(&plan, Stage::ScoreArtifact) {
+    Ok(if recomputed(plan, Stage::ScoreArtifact) {
         request.fit_workspace_guard(ctx)?;
         let ((execution, checks), work) = count_bayesian_work(|| {
             count_checked_identifications(|| -> Result<_, RecalcRunError> {
@@ -600,7 +596,7 @@ pub fn execute_bayesian_with_receipt(
                 let mut execution_request = request.clone();
                 execution_request.inference.prior_artifact =
                     verified_prior.as_ref().map(|prior| std::sync::Arc::clone(&prior.posterior));
-                if recomputed(&plan, Stage::Identification) {
+                if recomputed(plan, Stage::Identification) {
                     let prepared = execution_request.study(data)?.prepare(ctx)?;
                     let result = prepared.estimate_retained(ctx)?;
                     Ok((prepared, result, verified_prior))
@@ -627,7 +623,33 @@ pub fn execute_bayesian_with_receipt(
             retained.context.clone(),
             retained.verified_prior.as_ref().map(std::sync::Arc::clone),
         )
-    };
+    })
+}
+
+/// Execute the original checked Bayesian study engine or project its retained native draws.
+/// # Errors
+/// Unsupported inference, invalid data/graph/prior, ownership double use, budgets, or receipts.
+pub fn execute_bayesian_with_receipt(
+    session: &mut BayesianSession,
+    request: &BayesianRequest,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<BayesianRecalcOutcome, RecalcRunError> {
+    use super::recalc_receipt::{Counter, LawValue, ReceiptRecorder, decide};
+    use antecedent_core::recalc::{Boundary, Stage};
+    use antecedent_expr::execution_counts::{StaticWork, count_static_work, note_static_work};
+    request.validate()?;
+    let identities = request.identities(ctx);
+    let plan = bayesian_plan(&session.previous, &identities, session.boundary, true);
+    if !plan.is_executable() {
+        return Err(RecalcRunError::Refused(Box::new(plan)));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
+    let old = session.live.as_ref();
+    let mut recorder = ReceiptRecorder::new();
+    let (prepared, result, context, verified_prior) =
+        bayesian_stage(request, &plan, old, &mut recorder, ctx)?;
     let law = if recomputed(&plan, Stage::Law) {
         let (law, work) = count_static_work(|| {
             let posterior = result

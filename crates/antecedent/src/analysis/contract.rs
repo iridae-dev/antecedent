@@ -1776,29 +1776,13 @@ fn program_payloads(
     let observation_digest =
         digest_wire(IdentityDomain::Observation, &observation).map_err(|err| io_err(&err))?;
     let graph = graph_identity(study)?;
-    let identification = IdentificationIdentityWire {
-        format: IDENTITY_FORMAT,
-        target_question: *question_digest.as_bytes(),
-        population_depends_on: population_depends_on(
-            &study.query,
-            study.population_registry.as_ref(),
-        ),
-        rd_config: study.rd.as_ref().map(|cfg| antecedent_io::RdConfigWire {
-            running_variable: cfg.running_variable.raw(),
-            cutoff_bits: cfg.cutoff.to_bits(),
-            bandwidth_bits: cfg.bandwidth.to_bits(),
-            se_kind: Some(cfg.se_kind.as_str().into()),
-        }),
-        class_prior: study.class_prior.as_ref().map(crate::ClassPrior::identity_wire),
-        transport: transport_premises(study)?,
-        graph_class: study.graph.class().as_str().into(),
-        structure_source: study.structure_source.as_str().into(),
-        accepted_version: study.graph.version(),
-        algorithm_id: study.graph.algorithm_id().map(str::to_string),
-        schema_names: Some(schema.variables().iter().map(|v| v.name.to_string()).collect()),
+    let identification = identification_identity_wire(
+        study,
+        schema,
+        *question_digest.as_bytes(),
+        *observation_digest.as_bytes(),
         graph,
-        observation: *observation_digest.as_bytes(),
-    };
+    )?;
     let identification_digest =
         identification_digest(&identification).map_err(|err| io_err(&err))?;
     let identification_product = match cached {
@@ -1837,26 +1821,7 @@ fn program_payloads(
         checked_nested_counterfactual: lowerings.nested_counterfactual,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
-    let inference_binding = InferenceBindingWire {
-        format: IDENTITY_FORMAT,
-        inference: commitments.inference.clone(),
-        bootstrap_replicates: study.bootstrap_replicates,
-        bayesian: match &study.inference {
-            InferenceMode::Bayesian(cfg) => Some(super::contract_identity::bayesian_binding(cfg)),
-            InferenceMode::Frequentist => None,
-        },
-        validation_suite: study.refute.validation_suite_id().map(str::to_string),
-        overlap_policy: study.overlap_policy.map(overlap_policy_tag),
-        estimator_spec: study.estimator_spec_identity.clone(),
-        response_options: study
-            .response_options
-            .as_ref()
-            .map(super::contract_identity::response_options),
-        observation_options: super::contract_identity::observation_options(
-            &study.observation_options,
-        ),
-        split: study.split.as_ref().map(super::contract_identity::split),
-    };
+    let inference_binding = inference_binding_wire(study, commitments.inference.clone());
     let inference_binding_digest =
         inference_binding_digest(&inference_binding).map_err(|err| io_err(&err))?;
     Ok(ProgramPayloads {
@@ -1873,6 +1838,63 @@ fn program_payloads(
         inference_binding_digest,
         observation_digest,
     })
+}
+
+/// Identification identity wire: the question, graph, transport and observation bindings that fix identification.
+fn identification_identity_wire(
+    study: &Study,
+    schema: &CausalSchema,
+    target_question: [u8; 32],
+    observation: [u8; 32],
+    graph: GraphIdentityWire,
+) -> Result<IdentificationIdentityWire, CausalError> {
+    Ok(IdentificationIdentityWire {
+        format: IDENTITY_FORMAT,
+        target_question,
+        population_depends_on: population_depends_on(
+            &study.query,
+            study.population_registry.as_ref(),
+        ),
+        rd_config: study.rd.as_ref().map(|cfg| antecedent_io::RdConfigWire {
+            running_variable: cfg.running_variable.raw(),
+            cutoff_bits: cfg.cutoff.to_bits(),
+            bandwidth_bits: cfg.bandwidth.to_bits(),
+            se_kind: Some(cfg.se_kind.as_str().into()),
+        }),
+        class_prior: study.class_prior.as_ref().map(crate::ClassPrior::identity_wire),
+        transport: transport_premises(study)?,
+        graph_class: study.graph.class().as_str().into(),
+        structure_source: study.structure_source.as_str().into(),
+        accepted_version: study.graph.version(),
+        algorithm_id: study.graph.algorithm_id().map(str::to_string),
+        schema_names: Some(schema.variables().iter().map(|v| v.name.to_string()).collect()),
+        graph,
+        observation,
+    })
+}
+
+/// Inference binding wire: the inference mode, replicates, priors, overlap, options and split the result depends on.
+fn inference_binding_wire(study: &Study, inference: String) -> InferenceBindingWire {
+    InferenceBindingWire {
+        format: IDENTITY_FORMAT,
+        inference,
+        bootstrap_replicates: study.bootstrap_replicates,
+        bayesian: match &study.inference {
+            InferenceMode::Bayesian(cfg) => Some(super::contract_identity::bayesian_binding(cfg)),
+            InferenceMode::Frequentist => None,
+        },
+        validation_suite: study.refute.validation_suite_id().map(str::to_string),
+        overlap_policy: study.overlap_policy.map(overlap_policy_tag),
+        estimator_spec: study.estimator_spec_identity.clone(),
+        response_options: study
+            .response_options
+            .as_ref()
+            .map(super::contract_identity::response_options),
+        observation_options: super::contract_identity::observation_options(
+            &study.observation_options,
+        ),
+        split: study.split.as_ref().map(super::contract_identity::split),
+    }
 }
 
 fn transport_premises(
@@ -2894,17 +2916,12 @@ fn matrix_coordinate(study: &Study) -> Option<String> {
     Some(crate::support::cell_coordinate(cell))
 }
 
-fn operation_report(contract: &CausalContract, operation: OperationKind) -> OperationReport {
-    let coordinate =
-        contract.reasoning.support.as_ref().and_then(|slot| slot.matrix_coordinate.clone());
-    let cell = coordinate.as_deref().and_then(crate::support::support_cell_from_coordinate);
-    let unmet: Vec<ObligationRecord> = contract
-        .reasoning
-        .assumptions
-        .as_ref()
-        .map(|slot| slot.obligations.iter().filter(|o| o.is_unresolved()).cloned().collect())
-        .unwrap_or_default();
-    let (applicability, mut blockers) = match contract.support_status {
+/// Maps the matrix cell status to its semantic applicability and the blockers it carries.
+fn matrix_applicability(
+    status: Option<CellStatus>,
+    cell: Option<crate::support::SupportCell>,
+) -> (SemanticApplicability, Vec<antecedent_contract::BlockedOperation>) {
+    match status {
         Some(CellStatus::Licensed) => (SemanticApplicability::Licensed, Vec::new()),
         Some(CellStatus::Refused) => {
             let reason = cell.map_or(
@@ -2928,7 +2945,20 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
             SemanticApplicability::Unknown,
             vec![antecedent_contract::BlockedOperation::off_axis()],
         ),
-    };
+    }
+}
+
+fn operation_report(contract: &CausalContract, operation: OperationKind) -> OperationReport {
+    let coordinate =
+        contract.reasoning.support.as_ref().and_then(|slot| slot.matrix_coordinate.clone());
+    let cell = coordinate.as_deref().and_then(crate::support::support_cell_from_coordinate);
+    let unmet: Vec<ObligationRecord> = contract
+        .reasoning
+        .assumptions
+        .as_ref()
+        .map(|slot| slot.obligations.iter().filter(|o| o.is_unresolved()).cloned().collect())
+        .unwrap_or_default();
+    let (applicability, mut blockers) = matrix_applicability(contract.support_status, cell);
     let neighbors = match contract.support_status {
         Some(CellStatus::Refused | CellStatus::NotApplicable { .. }) => {
             cell.map(crate::support::licensed_neighbors).unwrap_or_default()
@@ -3087,48 +3117,8 @@ fn assumption_label(assumption: &Assumption) -> String {
     }
 }
 
-fn result_reasoning(
-    result: &StudyResult,
-    prepared: &ReasoningView,
-    body: &AnalysisResultWire,
-) -> Result<ReasoningView, CausalError> {
-    let identification = identification_slot_from_result(result)?;
-    let mut components = Vec::new();
-    if let Some(effect) = result.estimate.as_effect() {
-        let published = crate::PublishedScalarUncertainty::select(effect);
-        match published.method {
-            antecedent_core::IntervalMethod::AnalyticSe => components
-                .push(UncertaintyComponent::new(UncertaintySource::Sampling, "analytic_se", false)),
-            antecedent_core::IntervalMethod::BootstrapSe => components.push(
-                UncertaintyComponent::new(UncertaintySource::Sampling, "bootstrap_se", false),
-            ),
-            antecedent_core::IntervalMethod::AndersonRubin => components.push(
-                UncertaintyComponent::new(UncertaintySource::Sampling, "anderson_rubin", false),
-            ),
-            _ => {}
-        }
-    }
-    if result.posterior.is_some() {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Parameter,
-            "posterior",
-            false,
-        ));
-    }
-    if let Some(policy) = &body.policy_value {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            format!("policy_value_{}", policy.uncertainty),
-            false,
-        ));
-    }
-    if let Some(dose) = &body.continuous_dose_response {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            format!("continuous_dose_{}", dose.uncertainty),
-            false,
-        ));
-    }
+/// Adds the response's own interval or posterior artifact as an uncertainty component, whatever the inference mode.
+fn push_response_uncertainty(result: &StudyResult, components: &mut Vec<UncertaintyComponent>) {
     // A function-valued posterior can carry its band directly on the response,
     // without a scalar posterior or SE on StudyResult. Its portable reasoning
     // must not call that published parameter uncertainty "omitted". This runs for
@@ -3180,6 +3170,51 @@ fn result_reasoning(
             }
         }
     }
+}
+
+fn result_reasoning(
+    result: &StudyResult,
+    prepared: &ReasoningView,
+    body: &AnalysisResultWire,
+) -> Result<ReasoningView, CausalError> {
+    let identification = identification_slot_from_result(result)?;
+    let mut components = Vec::new();
+    if let Some(effect) = result.estimate.as_effect() {
+        let published = crate::PublishedScalarUncertainty::select(effect);
+        match published.method {
+            antecedent_core::IntervalMethod::AnalyticSe => components
+                .push(UncertaintyComponent::new(UncertaintySource::Sampling, "analytic_se", false)),
+            antecedent_core::IntervalMethod::BootstrapSe => components.push(
+                UncertaintyComponent::new(UncertaintySource::Sampling, "bootstrap_se", false),
+            ),
+            antecedent_core::IntervalMethod::AndersonRubin => components.push(
+                UncertaintyComponent::new(UncertaintySource::Sampling, "anderson_rubin", false),
+            ),
+            _ => {}
+        }
+    }
+    if result.posterior.is_some() {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Parameter,
+            "posterior",
+            false,
+        ));
+    }
+    if let Some(policy) = &body.policy_value {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            format!("policy_value_{}", policy.uncertainty),
+            false,
+        ));
+    }
+    if let Some(dose) = &body.continuous_dose_response {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            format!("continuous_dose_{}", dose.uncertainty),
+            false,
+        ));
+    }
+    push_response_uncertainty(result, &mut components);
     if result.structural_response.is_some()
         || identification.weight_basis.is_some()
         || matches!(

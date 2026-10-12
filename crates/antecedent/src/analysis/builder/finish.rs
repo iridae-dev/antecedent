@@ -34,6 +34,10 @@ use super::{
 };
 
 /// Builder fields moved into the pipeline, plus the `inspect_only` flag.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "inspect_only and caller_graph are independent facts about the call, and refute_explicit, bootstrap_explicit and n_draws_explicit mirror the builder's explicit-versus-defaulted markers one for one"
+)]
 pub(super) struct FinishInput {
     pub(super) inspect_only: bool,
     pub(super) data: DataInput,
@@ -72,6 +76,10 @@ pub(super) struct FinishInput {
 }
 
 /// Fields that pass through the phases. A phase writes the fields it decides.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "refute_explicit, bootstrap_explicit and n_draws_explicit mirror the builder's explicit-versus-defaulted markers that decide whether a latency tier may override a setting, and inspect_only is the independent inspect-versus-estimate flag"
+)]
 struct Carry {
     inspect_only: bool,
     data: DataInput,
@@ -177,26 +185,7 @@ pub(super) fn assemble(input: FinishInput) -> Result<Study, CausalError> {
 }
 
 fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
-    if let Some(spec) = &input.estimator_spec {
-        if spec.is_configured() {
-            if input.bootstrap_explicit {
-                return Err(estimator_setting_conflict("bootstrap_replicates"));
-            }
-            if input.overlap_policy.is_some() {
-                return Err(estimator_setting_conflict("overlap_policy"));
-            }
-        }
-    }
-    if input.caller_graph && input.tiered.is_some() {
-        return Err(tiered_graph_conflict());
-    }
-    if input.class_prior.is_some() && input.graph_posterior.is_some() {
-        return Err(CausalError::Conflict {
-            what: "class_prior",
-            detail: "class_prior and graph_posterior are distinct structural-mass contracts; \
-                     supply exactly one",
-        });
-    }
+    refuse_conflicting_inputs(&input)?;
 
     let FinishInput {
         inspect_only,
@@ -235,25 +224,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         interference,
     } = input;
     let design_based = query.as_ref().is_some_and(is_graphless_design);
-    let (graph, graph_posterior) = match (graph, graph_posterior) {
-        (Some(_), Some(_)) => {
-            return Err(CausalError::Conflict {
-                what: "graph",
-                detail: "both .graph(..) and .graph_posterior(..) were set; supply exactly \
-                         one causal-structure input",
-            });
-        }
-        (Some(g), None) => {
-            validate_schema_binding(&g, data_schema(&data))?;
-            (g, None)
-        }
-        (None, Some(gp)) => {
-            let stub = stub_accepted_graph_for(&data, gp.n_vars, gp.atom_kind)?;
-            (stub, Some(gp))
-        }
-        (None, None) if design_based => (AcceptedGraph::randomized_trial(data_schema(&data)), None),
-        (None, None) => return Err(CausalError::Missing { field: "graph" }),
-    };
+    let (graph, graph_posterior) = bind_graph(graph, graph_posterior, &data, design_based)?;
     Ok(BoundSchema(Spine {
         carry: Carry {
             inspect_only,
@@ -293,6 +264,59 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         graph_posterior,
         query,
     }))
+}
+
+/// Refuses builder inputs that are mutually exclusive before any field is moved.
+fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
+    if let Some(spec) = &input.estimator_spec {
+        if spec.is_configured() {
+            if input.bootstrap_explicit {
+                return Err(estimator_setting_conflict("bootstrap_replicates"));
+            }
+            if input.overlap_policy.is_some() {
+                return Err(estimator_setting_conflict("overlap_policy"));
+            }
+        }
+    }
+    if input.caller_graph && input.tiered.is_some() {
+        return Err(tiered_graph_conflict());
+    }
+    if input.class_prior.is_some() && input.graph_posterior.is_some() {
+        return Err(CausalError::Conflict {
+            what: "class_prior",
+            detail: "class_prior and graph_posterior are distinct structural-mass contracts; \
+                     supply exactly one",
+        });
+    }
+    Ok(())
+}
+
+/// Binds the supplied graph or graph posterior to the data schema, or the trial graph of a design-based query.
+fn bind_graph(
+    graph: Option<AcceptedGraph>,
+    graph_posterior: Option<GraphPosterior>,
+    data: &DataInput,
+    design_based: bool,
+) -> Result<(AcceptedGraph, Option<GraphPosterior>), CausalError> {
+    Ok(match (graph, graph_posterior) {
+        (Some(_), Some(_)) => {
+            return Err(CausalError::Conflict {
+                what: "graph",
+                detail: "both .graph(..) and .graph_posterior(..) were set; supply exactly \
+                         one causal-structure input",
+            });
+        }
+        (Some(g), None) => {
+            validate_schema_binding(&g, data_schema(data))?;
+            (g, None)
+        }
+        (None, Some(gp)) => {
+            let stub = stub_accepted_graph_for(data, gp.n_vars, gp.atom_kind)?;
+            (stub, Some(gp))
+        }
+        (None, None) if design_based => (AcceptedGraph::randomized_trial(data_schema(data)), None),
+        (None, None) => return Err(CausalError::Missing { field: "graph" }),
+    })
 }
 
 fn budget_inference(bound: BoundSchema) -> Result<BudgetedInference, CausalError> {
@@ -385,10 +409,10 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
     Ok(ContractedQuery(Spine { carry, graph, graph_posterior, query }))
 }
 
-fn apply_design_contract(
+/// Refuses an explicitly selected estimator that does not match the design-based query's frozen inputs.
+fn refuse_estimator_design_mismatch(
     query: &CausalQuery,
-    graph: &AcceptedGraph,
-    carry: &Carry,
+    estimator: Option<EstimatorId>,
 ) -> Result<(), CausalError> {
     if let CausalQuery::RandomizedEffect(randomized) = query {
         let expected = match &randomized.design {
@@ -412,7 +436,7 @@ fn apply_design_contract(
                 EstimatorId::RandomizedSwitchbackHt
             }
         };
-        if carry.estimator.is_some_and(|id| id != expected) {
+        if estimator.is_some_and(|id| id != expected) {
             return Err(CausalError::Unsupported {
                 message: "the selected randomized estimator does not match the assignment design",
             });
@@ -426,14 +450,14 @@ fn apply_design_contract(
         } else {
             EstimatorId::RandomizedDrPolicy
         };
-        if carry.estimator.is_some_and(|id| id != expected) {
+        if estimator.is_some_and(|id| id != expected) {
             return Err(CausalError::Unsupported {
                 message: "the selected policy estimator does not match its frozen inputs",
             });
         }
     }
     if matches!(query, CausalQuery::Survival(_))
-        && carry.estimator.is_some_and(|id| id != EstimatorId::RandomizedSurvivalProductLimit)
+        && estimator.is_some_and(|id| id != EstimatorId::RandomizedSurvivalProductLimit)
     {
         return Err(CausalError::Unsupported {
             message: "randomized survival requires the product-limit estimator",
@@ -452,12 +476,21 @@ fn apply_design_contract(
                 EstimatorId::LongitudinalMarginalStructuralModel
             }
         };
-        if carry.estimator.is_some_and(|id| id != expected) {
+        if estimator.is_some_and(|id| id != expected) {
             return Err(CausalError::Unsupported {
                 message: "longitudinal regime estimator must match the selected method",
             });
         }
     }
+    Ok(())
+}
+
+fn apply_design_contract(
+    query: &CausalQuery,
+    graph: &AcceptedGraph,
+    carry: &Carry,
+) -> Result<(), CausalError> {
+    refuse_estimator_design_mismatch(query, carry.estimator)?;
     if graph.class() != GraphClass::RandomizedTrial {
         return Err(CausalError::Unsupported {
             message: "design-based queries carry their own identification contract and must not be combined with graph= or discovery=",

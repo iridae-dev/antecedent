@@ -406,6 +406,106 @@ impl DrSession {
 fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))
 }
+/// Score-artifact stage: fits and retains the DR study, or reuses the live one, with the effect-model feature bounds.
+fn dr_stage(
+    request: &DrRequest,
+    plan: &RecalcPlan,
+    held: Option<&Live>,
+    recorder: &mut ReceiptRecorder,
+    ctx: &ExecutionContext,
+) -> Result<
+    (Arc<PreparedStudy>, Arc<StudyResult>, ExecutionContext, Vec<(VariableId, f64, f64)>),
+    RecalcRunError,
+> {
+    Ok(if recomputed(plan, Stage::ScoreArtifact) {
+        let cache = CrossfitNuisanceCache::new();
+        let (((built, score_builds), final_fits), all_fits) = count_resolved_fits(|| {
+            count_dr_final_fits(|| {
+                count_aipw_score_builds(|| {
+                    cache
+                        .scope(|| -> Result<_, RecalcRunError> {
+                            let data = request.data()?;
+                            let (prepared, result) = if recomputed(plan, Stage::Identification) {
+                                let prepared = request.study(data)?.prepare(ctx)?;
+                                recorder.record(Counter::Identification, 1);
+                                let result = prepared.estimate_retained(ctx)?;
+                                (prepared, result)
+                            } else {
+                                let mut prepared = held
+                                    .ok_or(RecalcRunError::NoLiveState(Stage::Identification))?
+                                    .prepared
+                                    .as_ref()
+                                    .clone();
+                                let result = prepared.refresh_dr_configuration(
+                                    data,
+                                    request.estimator.spec(),
+                                    ctx,
+                                )?;
+                                (prepared, result)
+                            };
+                            if prepared.score_table().is_none() {
+                                return Err(RecalcRunError::Request(
+                                    "recalc.dr_scores_unavailable",
+                                ));
+                            }
+                            let bounds = feature_bounds(request, &prepared, &result)?;
+                            Ok((Arc::new(prepared), Arc::new(result), ctx.clone(), bounds))
+                        })
+                        .0
+                })
+            })
+        });
+        recorder.record(
+            Counter::FoldFit,
+            all_fits
+                .checked_sub(final_fits)
+                .ok_or(RecalcRunError::Request("recalc.dr_fit_counter_mismatch"))?,
+        );
+        recorder.record(Counter::ModelFit, final_fits);
+        recorder.record(Counter::ScoreComputation, score_builds);
+        built?
+    } else {
+        let live = held.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
+        (
+            Arc::clone(&live.prepared),
+            Arc::clone(&live.result),
+            live.fit_context.clone(),
+            live.bounds.clone(),
+        )
+    })
+}
+
+/// Observed range of every feature the fitted heterogeneous-effect model reads, over the score table rows.
+fn feature_bounds(
+    request: &DrRequest,
+    prepared: &PreparedStudy,
+    result: &StudyResult,
+) -> Result<Vec<(VariableId, f64, f64)>, RecalcRunError> {
+    let mut bounds = Vec::new();
+    if let Some(model) =
+        result.estimate.as_effect().and_then(|e| e.heterogeneity.fitted_effect.as_ref())
+    {
+        let table = prepared
+            .score_table()
+            .ok_or(RecalcRunError::Request("recalc.dr_scores_unavailable"))?;
+        for &id in &model.features {
+            let values = &request.columns[id as usize].1;
+            let lo = table
+                .row_index
+                .iter()
+                .map(|&row| values[row as usize])
+                .fold(f64::INFINITY, f64::min);
+            let hi = table
+                .row_index
+                .iter()
+                .map(|&row| values[row as usize])
+                .fold(f64::NEG_INFINITY, f64::max);
+            bounds.push((VariableId::from_raw(id), lo, hi));
+        }
+    }
+    Ok(bounds)
+}
+
 /// Execute checked preparation/refresh, score-law retarget and decision stages with actual fits.
 /// # Errors
 /// Unsupported PLR/trimmed requests, unavailable state, invalid roles/weights, failed checked
@@ -452,85 +552,8 @@ pub fn execute_dr_with_receipt(
     }
     let mut recorder = ReceiptRecorder::new();
     let held = session.live.as_ref();
-    let (prepared, result, fit_context, bounds) = if recomputed(&plan, Stage::ScoreArtifact) {
-        let cache = CrossfitNuisanceCache::new();
-        let (((built, score_builds), final_fits), all_fits) = count_resolved_fits(|| {
-            count_dr_final_fits(|| {
-                count_aipw_score_builds(|| {
-                    cache
-                        .scope(|| -> Result<_, RecalcRunError> {
-                            let data = request.data()?;
-                            let (prepared, result) = if recomputed(&plan, Stage::Identification) {
-                                let prepared = request.study(data)?.prepare(ctx)?;
-                                recorder.record(Counter::Identification, 1);
-                                let result = prepared.estimate_retained(ctx)?;
-                                (prepared, result)
-                            } else {
-                                let mut prepared = held
-                                    .ok_or(RecalcRunError::NoLiveState(Stage::Identification))?
-                                    .prepared
-                                    .as_ref()
-                                    .clone();
-                                let result = prepared.refresh_dr_configuration(
-                                    data,
-                                    request.estimator.spec(),
-                                    ctx,
-                                )?;
-                                (prepared, result)
-                            };
-                            if prepared.score_table().is_none() {
-                                return Err(RecalcRunError::Request(
-                                    "recalc.dr_scores_unavailable",
-                                ));
-                            }
-                            let mut bounds = Vec::new();
-                            if let Some(model) = result
-                                .estimate
-                                .as_effect()
-                                .and_then(|e| e.heterogeneity.fitted_effect.as_ref())
-                            {
-                                let table = prepared.score_table().ok_or(
-                                    RecalcRunError::Request("recalc.dr_scores_unavailable"),
-                                )?;
-                                for &id in &model.features {
-                                    let values = &request.columns[id as usize].1;
-                                    let lo = table
-                                        .row_index
-                                        .iter()
-                                        .map(|&row| values[row as usize])
-                                        .fold(f64::INFINITY, f64::min);
-                                    let hi = table
-                                        .row_index
-                                        .iter()
-                                        .map(|&row| values[row as usize])
-                                        .fold(f64::NEG_INFINITY, f64::max);
-                                    bounds.push((VariableId::from_raw(id), lo, hi));
-                                }
-                            }
-                            Ok((Arc::new(prepared), Arc::new(result), ctx.clone(), bounds))
-                        })
-                        .0
-                })
-            })
-        });
-        recorder.record(
-            Counter::FoldFit,
-            all_fits
-                .checked_sub(final_fits)
-                .ok_or(RecalcRunError::Request("recalc.dr_fit_counter_mismatch"))?,
-        );
-        recorder.record(Counter::ModelFit, final_fits);
-        recorder.record(Counter::ScoreComputation, score_builds);
-        built?
-    } else {
-        let live = held.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
-        (
-            Arc::clone(&live.prepared),
-            Arc::clone(&live.result),
-            live.fit_context.clone(),
-            live.bounds.clone(),
-        )
-    };
+    let (prepared, result, fit_context, bounds) =
+        dr_stage(request, &plan, held, &mut recorder, ctx)?;
     let law = if recomputed(&plan, Stage::Law) {
         let table = prepared
             .score_table()

@@ -497,26 +497,16 @@ fn response_means(result: &StudyResult) -> Result<Vec<f64>, RecalcRunError> {
         _ => Err(RecalcRunError::Request("recalc.static_required_factor_missing")),
     }
 }
-/// Execute static checked preparation, selective factor rebinding and point-law reductions.
-/// # Errors
-/// Typed schema, support, identification/provider, cancellation/budget and receipt refusals.
-pub fn execute_static_response_with_receipt(
-    session: &mut StaticResponseSession,
+/// Static preparation stage: reprepares from the request, rebinds the retained functional, or reuses the live artifact.
+fn static_prepared(
+    session: &StaticResponseSession,
     request: &StaticResponseRequest,
+    plan: &RecalcPlan,
+    recorder: &mut ReceiptRecorder,
     ctx: &ExecutionContext,
-) -> Result<StaticRecalcOutcome, RecalcRunError> {
-    request.validate()?;
-    let ids = request.identities();
-    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
-    if !plan.is_executable() {
-        return Err(RecalcRunError::Refused(Box::new(plan)));
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
-    }
-    let mut recorder = ReceiptRecorder::new();
+) -> Result<Arc<PreparedStudy>, RecalcRunError> {
     let old = session.live.as_ref();
-    let prepared = if changed(&plan, Stage::ScoreArtifact) {
+    Ok(if changed(plan, Stage::ScoreArtifact) {
         guards(
             ctx,
             request
@@ -529,7 +519,7 @@ pub fn execute_static_response_with_receipt(
         let ((prepared, checks), work) = count_static_work(|| {
             count_checked_identifications(|| {
                 session.cache.scope(|| -> Result<PreparedStudy, RecalcRunError> {
-                    if changed(&plan, Stage::Identification) {
+                    if changed(plan, Stage::Identification) {
                         request.study()?.prepare(ctx).map_err(Into::into)
                     } else {
                         let mut p = old
@@ -544,17 +534,37 @@ pub fn execute_static_response_with_receipt(
             })
         });
         recorder.record(Counter::Identification, checks);
-        record_artifact(&mut recorder, work);
+        record_artifact(recorder, work);
         Arc::new(prepared?)
     } else {
         Arc::clone(&old.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.prepared)
-    };
-    let (result, full_means, means, value, context) = if changed(&plan, Stage::Law) {
-        let must_evaluate = changed(&plan, Stage::ScoreArtifact);
+    })
+}
+
+/// The retained point law of the static response: reevaluated, resummarized from retained means, or reused.
+struct StaticLaw {
+    result: Arc<StudyResult>,
+    full_means: Vec<f64>,
+    means: Vec<f64>,
+    value: f64,
+    context: ExecutionContext,
+}
+
+/// Static law stage: evaluates the point law, or reads the action means and contrast from the live state.
+fn static_law(
+    old: Option<&StaticLive>,
+    prepared: &PreparedStudy,
+    request: &StaticResponseRequest,
+    plan: &RecalcPlan,
+    recorder: &mut ReceiptRecorder,
+    ctx: &ExecutionContext,
+) -> Result<StaticLaw, RecalcRunError> {
+    let (result, full_means, means, value, context) = if changed(plan, Stage::Law) {
+        let must_evaluate = changed(plan, Stage::ScoreArtifact);
         let (result, full_means, context) = if must_evaluate {
             let (result, work) =
                 count_static_work(|| prepared.execute_static_functional_retained(ctx));
-            record_law(&mut recorder, work);
+            record_law(recorder, work);
             let result = Arc::new(result?);
             let full = response_means(&result)?;
             (result, full, ctx.clone())
@@ -579,7 +589,7 @@ pub fn execute_static_response_with_receipt(
         } else {
             let (value, work) =
                 count_static_work(|| summarize_contrast(&means, request.baseline, request.active));
-            record_law(&mut recorder, work);
+            record_law(recorder, work);
             value?
         };
         (result, full_means, means, value, context)
@@ -593,6 +603,31 @@ pub fn execute_static_response_with_receipt(
             old.context.clone(),
         )
     };
+    Ok(StaticLaw { result, full_means, means, value, context })
+}
+
+/// Execute static checked preparation, selective factor rebinding and point-law reductions.
+/// # Errors
+/// Typed schema, support, identification/provider, cancellation/budget and receipt refusals.
+pub fn execute_static_response_with_receipt(
+    session: &mut StaticResponseSession,
+    request: &StaticResponseRequest,
+    ctx: &ExecutionContext,
+) -> Result<StaticRecalcOutcome, RecalcRunError> {
+    request.validate()?;
+    let ids = request.identities();
+    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
+    if !plan.is_executable() {
+        return Err(RecalcRunError::Refused(Box::new(plan)));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
+    let mut recorder = ReceiptRecorder::new();
+    let old = session.live.as_ref();
+    let prepared = static_prepared(session, request, &plan, &mut recorder, ctx)?;
+    let StaticLaw { result, full_means, means, value, context } =
+        static_law(old, &prepared, request, &plan, &mut recorder, ctx)?;
     let decision = if changed(&plan, Stage::Decision) {
         decide(LawValue { ate: value, std_error: f64::NAN }, request.utility, &mut recorder)?
     } else {
@@ -770,26 +805,15 @@ impl MzRecalcSession {
         live.result.export_named(&live.prepared, &live.names, &live.context).map_err(io_error)
     }
 }
-/// Execute a genuine bounded multi-source decision, retained provider refresh, and finite laws.
-/// # Errors
-/// Typed theorem, missing-factor, support, search/budget, cancellation and receipt refusals.
-pub fn execute_mz_with_receipt(
-    session: &mut MzRecalcSession,
+/// Multi-source preparation stage: rebinds the data and re-decides or refreshes the transport, or reuses the live artifact.
+fn mz_prepared(
     request: &MzRecalcRequest,
+    plan: &RecalcPlan,
+    old: Option<&MzLive>,
+    recorder: &mut ReceiptRecorder,
     ctx: &ExecutionContext,
-) -> Result<StaticRecalcOutcome, RecalcRunError> {
-    request.validate()?;
-    let ids = request.identities();
-    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
-    if !plan.is_executable() {
-        return Err(RecalcRunError::Refused(Box::new(plan)));
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
-    }
-    let old = session.live.as_ref();
-    let mut recorder = ReceiptRecorder::new();
-    let prepared = if changed(&plan, Stage::ScoreArtifact) {
+) -> Result<Arc<PreparedMzTransport>, RecalcRunError> {
+    Ok(if changed(plan, Stage::ScoreArtifact) {
         guards(
             ctx,
             request
@@ -810,7 +834,7 @@ pub fn execute_mz_with_receipt(
                             message: e.to_string(),
                         })
                     })?;
-                if changed(&plan, Stage::Identification) {
+                if changed(plan, Stage::Identification) {
                     let decision = decide_mz_transport(
                         &request.graph,
                         &request.query,
@@ -860,11 +884,33 @@ pub fn execute_mz_with_receipt(
             })
         });
         recorder.record(Counter::Identification, checks);
-        record_artifact(&mut recorder, work);
+        record_artifact(recorder, work);
         Arc::new(prepared?)
     } else {
         Arc::clone(&old.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.prepared)
-    };
+    })
+}
+
+/// Execute a genuine bounded multi-source decision, retained provider refresh, and finite laws.
+/// # Errors
+/// Typed theorem, missing-factor, support, search/budget, cancellation and receipt refusals.
+pub fn execute_mz_with_receipt(
+    session: &mut MzRecalcSession,
+    request: &MzRecalcRequest,
+    ctx: &ExecutionContext,
+) -> Result<StaticRecalcOutcome, RecalcRunError> {
+    request.validate()?;
+    let ids = request.identities();
+    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
+    if !plan.is_executable() {
+        return Err(RecalcRunError::Refused(Box::new(plan)));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
+    let old = session.live.as_ref();
+    let mut recorder = ReceiptRecorder::new();
+    let prepared = mz_prepared(request, &plan, old, &mut recorder, ctx)?;
     let (result, means, value, context) = if changed(&plan, Stage::Law) {
         if changed(&plan, Stage::ScoreArtifact) {
             let (evaluated, work) = count_static_work(|| -> Result<_, RecalcRunError> {

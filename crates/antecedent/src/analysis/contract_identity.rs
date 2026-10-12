@@ -26,6 +26,10 @@ use crate::estimator_spec::EstimatorSpec;
 use crate::inference::BayesianConfig;
 
 /// Structured identity of a configured estimator. Called once per build.
+#[allow(
+    clippy::too_many_lines,
+    reason = "projects each EstimatorSpec variant onto the EstimatorSpecWire variant that digests exactly that estimator's settings, so the arm list is the identity schema and each arm reads only its own variant's fields over the shared `base`"
+)]
 pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire {
     match spec {
         EstimatorSpec::Default(id) => EstimatorSpecWire::Default(id.as_str().into()),

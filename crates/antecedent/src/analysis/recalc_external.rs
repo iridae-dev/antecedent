@@ -269,6 +269,53 @@ pub(crate) fn quantity_bounded(quantity: &antecedent_contract::ScientificQuantit
                 && condition.value_id.len() <= 256
         })
 }
+/// Invokes the provider once under the request seed and validates the response shape, identity and uncertainty.
+fn invoke_attested_provider(
+    request: &ExternalCallbackRequest,
+    provider: &mut dyn ExternalMeanProvider,
+    digest: StageIdentity,
+    ctx: &ExecutionContext,
+) -> Result<(ExternalResponse, InvocationAttempt), ExternalCallbackError> {
+    let report = InvocationAttempt { request_digest: digest, invocations: 1 };
+    let callback_context = CallbackContext {
+        rng: antecedent_core::RngFactory::from_seed(request.seed),
+        cancellation: ctx.cancellation.clone(),
+    };
+    let mut response = antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::ProviderInvocation,
+        || provider.invoke(request, &callback_context),
+    )
+    .map_err(|failure| ExternalCallbackError::Attempt {
+        detail: "external_recalc.callback_failed",
+        report: report.clone(),
+        message: failure.message.chars().take(1024).collect(),
+    })?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(ExternalCallbackError::Attempt {
+            detail: "recalc.cancelled",
+            report,
+            message: "cooperative cancellation after callback".into(),
+        });
+    }
+    if !response_bounded(&response)
+        || response.values.len() != request.program.dose_grid.len()
+        || response.values.iter().any(|value| !value.is_finite())
+        || response.header.object.identity() != &request.descriptor.identity
+        || response.uncertainty != ExternalUncertaintyMeaning::None
+    {
+        return Err(ExternalCallbackError::Attempt {
+            detail: "external_recalc.invalid_output",
+            report,
+            message: "response shape, finite means, provider identity or uncertainty mismatch"
+                .into(),
+        });
+    }
+    response.header.trust = ExternalTrustState::ExternallyAttested {
+        attestor: request.descriptor.identity.provider_id.clone(),
+    };
+    Ok((response, report))
+}
+
 fn response_bounded(response: &ExternalResponse) -> bool {
     let antecedent_contract::ExternalScientificObject::Law(law) = &response.header.object else {
         return false;
@@ -639,6 +686,26 @@ impl ExternalCallbackSession {
         }
         let provider =
             provider.ok_or(ExternalCallbackError::Request("recalc.unavailable_provider"))?;
+        let digest = self.admit_attempt(request, &*provider, ctx)?;
+        let (response, report) = invoke_attested_provider(request, provider, digest, ctx)?;
+        let (claim, artifact) = self.bind_attested_output(request, response, digest, report)?;
+        recorder.record(Counter::ExternalInvocation(request.branch), 1);
+        let receipt = recorder
+            .finish(&plan)
+            .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?;
+        self.previous = requested.clone();
+        self.live = Some(LiveOutput { claim: Arc::clone(&claim), artifact: Arc::new(artifact) });
+        self.portable = None;
+        Ok(ExternalCallbackOutcome { plan, receipt, claim, previous, requested, capabilities })
+    }
+
+    /// Admits one provider attempt: memory budget, provider identity, and the side-effect retry and idempotency ledger.
+    fn admit_attempt(
+        &mut self,
+        request: &ExternalCallbackRequest,
+        provider: &dyn ExternalMeanProvider,
+        ctx: &ExecutionContext,
+    ) -> Result<StageIdentity, ExternalCallbackError> {
         let values =
             request.columns.iter().fold(0_usize, |n, (_, values)| n.saturating_add(values.len()));
         let bytes =
@@ -689,43 +756,17 @@ impl ExternalCallbackSession {
         }
         self.epoch = self.epoch.saturating_add(1);
         INVOCATIONS.set(INVOCATIONS.get().saturating_add(1));
-        let report = InvocationAttempt { request_digest: digest, invocations: 1 };
-        let callback_context = CallbackContext {
-            rng: antecedent_core::RngFactory::from_seed(request.seed),
-            cancellation: ctx.cancellation.clone(),
-        };
-        let mut response = antecedent_core::execution_attempt::run_operation(
-            antecedent_core::execution_attempt::Operation::ProviderInvocation,
-            || provider.invoke(request, &callback_context),
-        )
-        .map_err(|failure| ExternalCallbackError::Attempt {
-            detail: "external_recalc.callback_failed",
-            report: report.clone(),
-            message: failure.message.chars().take(1024).collect(),
-        })?;
-        if ctx.cancellation.is_cancelled() {
-            return Err(ExternalCallbackError::Attempt {
-                detail: "recalc.cancelled",
-                report,
-                message: "cooperative cancellation after callback".into(),
-            });
-        }
-        if !response_bounded(&response)
-            || response.values.len() != request.program.dose_grid.len()
-            || response.values.iter().any(|value| !value.is_finite())
-            || response.header.object.identity() != &request.descriptor.identity
-            || response.uncertainty != ExternalUncertaintyMeaning::None
-        {
-            return Err(ExternalCallbackError::Attempt {
-                detail: "external_recalc.invalid_output",
-                report,
-                message: "response shape, finite means, provider identity or uncertainty mismatch"
-                    .into(),
-            });
-        }
-        response.header.trust = ExternalTrustState::ExternallyAttested {
-            attestor: request.descriptor.identity.provider_id.clone(),
-        };
+        Ok(digest)
+    }
+
+    /// Binds the attested response to the original program and checks it against any portable replay target.
+    fn bind_attested_output(
+        &self,
+        request: &ExternalCallbackRequest,
+        response: ExternalResponse,
+        digest: StageIdentity,
+        report: InvocationAttempt,
+    ) -> Result<(Arc<BoundExternalClaim>, ExternalCallbackArtifact), ExternalCallbackError> {
         let bound = antecedent_contract::bind_external_result_to_program(
             &request.program,
             &request.claim,
@@ -764,14 +805,7 @@ impl ExternalCallbackSession {
                 });
             }
         }
-        recorder.record(Counter::ExternalInvocation(request.branch), 1);
-        let receipt = recorder
-            .finish(&plan)
-            .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?;
-        self.previous = requested.clone();
-        self.live = Some(LiveOutput { claim: Arc::clone(&claim), artifact: Arc::new(artifact) });
-        self.portable = None;
-        Ok(ExternalCallbackOutcome { plan, receipt, claim, previous, requested, capabilities })
+        Ok((claim, artifact))
     }
 }
 

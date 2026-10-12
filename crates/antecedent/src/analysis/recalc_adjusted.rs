@@ -436,6 +436,93 @@ impl AdjustedSession {
 fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))
 }
+/// Refuses a fit whose design and Gram matrices would exceed the memory budget.
+fn guard_adjusted_memory(
+    request: &AdjustedRequest,
+    ctx: &ExecutionContext,
+) -> Result<(), RecalcRunError> {
+    let n = request.columns.first().map_or(0, |(_, values)| values.len()) as u64;
+    let k = match &request.model {
+        AdjustedModel::Categorical { spec, .. } => spec.declared_levels.len().saturating_sub(1),
+        _ => request.treatments.len(),
+    };
+    let p = (1 + request.adjustment.len() + k) as u64;
+    let bytes = n
+        .saturating_mul(p)
+        .saturating_mul(64)
+        .saturating_add(p.saturating_mul(p).saturating_mul(64));
+    if ctx
+        .memory
+        .hard_limit_bytes
+        .into_iter()
+        .chain(ctx.memory.soft_limit_bytes)
+        .any(|limit| bytes > limit)
+    {
+        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+    }
+    Ok(())
+}
+
+/// Refits the adjusted model from the request, or reuses the live fit.
+fn adjusted_fit(
+    request: &AdjustedRequest,
+    requested: &StageIdentities,
+    plan: &RecalcPlan,
+    held: Option<&Live>,
+    recorder: &mut ReceiptRecorder,
+) -> Result<Arc<AdjustedFit>, RecalcRunError> {
+    Ok(if recomputed(plan, Stage::ScoreArtifact) {
+        let input = request.input(&requested.own(Stage::DataSnapshot).to_hex());
+        let (fit, n) = count_adjusted_model_fits(|| match &request.model {
+            AdjustedModel::Linear { covariance } => AdjustedFit::linear(
+                &input,
+                &VectorTreatmentOptions { covariance: *covariance, contrasts: vec![] },
+            ),
+            AdjustedModel::Glm { family, options } => AdjustedFit::glm(&input, *family, options),
+            AdjustedModel::Categorical { spec, levels } => AdjustedFit::categorical(
+                &CategoricalTreatmentInput {
+                    outcome: input.outcome,
+                    row_snapshot: input.row_snapshot,
+                    adjustment: input.adjustment,
+                    levels: levels.clone(),
+                },
+                spec,
+            ),
+        });
+        recorder.record(Counter::ModelFit, n);
+        Arc::new(fit.map_err(|e| RecalcRunError::Execution(e.into()))?)
+    } else {
+        held.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.fit.clone()
+    })
+}
+
+/// Names the design columns the fitted model predicts from: adjustment, then treatment or level indicators.
+fn prediction_columns(request: &AdjustedRequest) -> Vec<String> {
+    request
+        .adjustment
+        .iter()
+        .map(|id| request.columns[*id as usize].0.clone())
+        .chain(match &request.model {
+            AdjustedModel::Categorical { spec, .. } => {
+                let mut levels = spec.declared_levels.clone();
+                if spec.scale == antecedent_estimate::categorical_treatment::LevelScale::Unordered {
+                    levels.sort();
+                }
+                levels
+                    .into_iter()
+                    .filter(|level| level != &spec.reference)
+                    .map(|level| format!("level:{level}"))
+                    .collect::<Vec<_>>()
+            }
+            _ => request
+                .treatments
+                .iter()
+                .map(|id| request.columns[*id as usize].0.clone())
+                .collect(),
+        })
+        .collect()
+}
+
 /// Execute the shared plan, measuring actual completed model solves inside numeric kernels.
 ///
 /// # Errors
@@ -469,25 +556,7 @@ pub fn execute_adjusted_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     if recomputed(&plan, Stage::ScoreArtifact) {
-        let n = request.columns.first().map_or(0, |(_, values)| values.len()) as u64;
-        let k = match &request.model {
-            AdjustedModel::Categorical { spec, .. } => spec.declared_levels.len().saturating_sub(1),
-            _ => request.treatments.len(),
-        };
-        let p = (1 + request.adjustment.len() + k) as u64;
-        let bytes = n
-            .saturating_mul(p)
-            .saturating_mul(64)
-            .saturating_add(p.saturating_mul(p).saturating_mul(64));
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
-            return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
-        }
+        guard_adjusted_memory(request, ctx)?;
     }
     let mut recorder = ReceiptRecorder::new();
     let held = session.live.as_ref();
@@ -499,31 +568,7 @@ pub fn execute_adjusted_with_receipt(
         } else {
             held.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::Identification))?.checked.clone()
         };
-        let fit = if recomputed(&plan, Stage::ScoreArtifact) {
-            let input = request.input(&requested.own(Stage::DataSnapshot).to_hex());
-            let (fit, n) = count_adjusted_model_fits(|| match &request.model {
-                AdjustedModel::Linear { covariance } => AdjustedFit::linear(
-                    &input,
-                    &VectorTreatmentOptions { covariance: *covariance, contrasts: vec![] },
-                ),
-                AdjustedModel::Glm { family, options } => {
-                    AdjustedFit::glm(&input, *family, options)
-                }
-                AdjustedModel::Categorical { spec, levels } => AdjustedFit::categorical(
-                    &CategoricalTreatmentInput {
-                        outcome: input.outcome,
-                        row_snapshot: input.row_snapshot,
-                        adjustment: input.adjustment,
-                        levels: levels.clone(),
-                    },
-                    spec,
-                ),
-            });
-            recorder.record(Counter::ModelFit, n);
-            Arc::new(fit.map_err(|e| RecalcRunError::Execution(e.into()))?)
-        } else {
-            held.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.fit.clone()
-        };
+        let fit = adjusted_fit(request, &requested, &plan, held, &mut recorder)?;
         let law = if recomputed(&plan, Stage::Law) {
             let (active, control) = match &request.contrast {
                 AdjustedContrast::Numeric { active, control } => (active.clone(), control.clone()),
@@ -546,31 +591,7 @@ pub fn execute_adjusted_with_receipt(
         };
         // Keep the checked graph in live state; it is the proof context bound by identities.
         let _ = checked.graph();
-        let prediction_columns: Vec<_> = request
-            .adjustment
-            .iter()
-            .map(|id| request.columns[*id as usize].0.clone())
-            .chain(match &request.model {
-                AdjustedModel::Categorical { spec, .. } => {
-                    let mut levels = spec.declared_levels.clone();
-                    if spec.scale
-                        == antecedent_estimate::categorical_treatment::LevelScale::Unordered
-                    {
-                        levels.sort();
-                    }
-                    levels
-                        .into_iter()
-                        .filter(|level| level != &spec.reference)
-                        .map(|level| format!("level:{level}"))
-                        .collect::<Vec<_>>()
-                }
-                _ => request
-                    .treatments
-                    .iter()
-                    .map(|id| request.columns[*id as usize].0.clone())
-                    .collect(),
-            })
-            .collect();
+        let prediction_columns = prediction_columns(request);
         Ok(Live { checked, fit, law, decision, prediction_columns: Arc::from(prediction_columns) })
     };
     let live = execute()?;
