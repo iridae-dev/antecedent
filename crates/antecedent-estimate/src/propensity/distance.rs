@@ -14,7 +14,7 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
-use super::matching::matching_contrast;
+use super::matching::{MatchingSample, matching_contrast};
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather_optional_multiway, gather_optional_row_labels,
@@ -24,7 +24,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::se::AnalyticSeKind;
+use crate::se::{AnalyticSeKind, SeSpec};
 
 /// Distance matching on z-scored adjustment covariates (Euclidean), not the propensity score.
 ///
@@ -243,19 +243,23 @@ impl DistanceMatching {
             retained.as_deref(),
         )?;
         let result = matching_contrast(
-            &t_used,
-            &y_used,
-            &f_used,
-            dim,
-            MatchingDistance::Euclidean,
+            MatchingSample {
+                treatment: &t_used,
+                outcome: &y_used,
+                features: &f_used,
+                dim,
+                distance: MatchingDistance::Euclidean,
+            },
             &problem.target_population,
             self.caliper,
             workspace,
-            self.se_kind,
-            clusters_used.as_deref(),
+            SeSpec {
+                kind: self.se_kind,
+                cluster_ids: clusters_used.as_deref(),
+                multiway_ids: multiway_used.as_deref(),
+                panel_times: times_used.as_deref(),
+            },
             tw_used.as_deref(),
-            multiway_used.as_ref(),
-            times_used.as_deref(),
         )?;
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();

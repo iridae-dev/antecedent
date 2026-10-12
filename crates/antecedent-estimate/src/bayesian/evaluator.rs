@@ -12,6 +12,7 @@ use antecedent_prob::{
 use antecedent_stats::GlmFamily;
 
 use crate::error::EstimationError;
+use crate::gcomp::GcompContrast;
 
 /// Trait for batched posterior functional evaluation.
 pub trait PosteriorFunctionalEvaluator {
@@ -96,18 +97,16 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         // Non-identity links average over every row per draw (O(draws × n × p)); the
         // draws are independent and draw-order results are kept, so the pass is spread
         // over the context's thread budget once it is large enough to repay the spawn.
-        let contrast = |beta: &[f64]| {
-            gcomp_mean_contrast(
-                self.family,
-                &self.matrix,
-                self.nrows,
-                self.ncols,
-                self.treatment_col,
-                beta,
-                self.active,
-                self.control,
-            )
+        let gcomp = GcompContrast {
+            family: self.family,
+            x_colmajor: &self.matrix,
+            nrows: self.nrows,
+            ncols: self.ncols,
+            t_col: self.treatment_col,
+            active: self.active,
+            control: self.control,
         };
+        let contrast = |beta: &[f64]| gcomp.mean_contrast(beta);
         let nonlinear = !matches!(self.family, GlmFamily::GaussianIdentity);
         if nonlinear && n_draws * self.nrows * self.ncols >= PARALLEL_WORK_FLOOR {
             let values = ctx.map_indexed(n_draws, |d, _| {
@@ -125,39 +124,6 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         }
         Ok(())
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn gcomp_mean_contrast(
-    family: GlmFamily,
-    matrix: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    beta: &[f64],
-    active: f64,
-    control: f64,
-) -> f64 {
-    // Identity link: only the treatment column differs, so the row average is
-    // exactly (active − control) β_T. Nonlinear links still need a data pass;
-    // they share one residualized η (covariates only) instead of two full Xβ.
-    if matches!(family, GlmFamily::GaussianIdentity) {
-        return (active - control) * beta[t_col];
-    }
-    let beta_t = beta[t_col];
-    let mut sum = 0.0;
-    for r in 0..nrows {
-        let mut eta = 0.0;
-        for c in 0..ncols {
-            if c == t_col {
-                continue;
-            }
-            eta += matrix[c * nrows + r] * beta[c];
-        }
-        sum += family.mean_from_eta(eta + beta_t * active)
-            - family.mean_from_eta(eta + beta_t * control);
-    }
-    sum / nrows as f64
 }
 
 pub(super) fn likelihood_to_glm_family(l: BayesLikelihood) -> GlmFamily {

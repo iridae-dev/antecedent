@@ -12,7 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_map, clippy::too_many_arguments)]
+#![allow(clippy::manual_map)]
 #![cfg_attr(
     test,
     allow(
@@ -36,9 +36,9 @@ use antecedent_stats::{
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
-use crate::gcomp::gcomp_diffs;
+use crate::gcomp::GcompContrast;
 use crate::overlap::OverlapPolicy;
-use crate::se::AnalyticSeKind;
+use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{BootstrapSeResult, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
@@ -358,16 +358,18 @@ impl GlmAdjustmentAte {
             &self.glm_options,
         )?;
 
-        let diffs = gcomp_diffs(
-            problem.family,
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+        let contrast = GcompContrast {
+            family: problem.family,
+            x_colmajor: &problem.design.matrix,
+            nrows: problem.design.nrows,
+            ncols: problem.design.ncols,
             t_col,
-            &glm_fit.coefficients,
-            problem.active,
-            problem.control,
-        );
+            active: problem.active,
+            control: problem.control,
+        };
+        let diffs = contrast.diffs(&glm_fit.coefficients);
+        let target =
+            GcompTarget { treatment: &problem.treatment, population: &problem.target_population };
         let ate = average_gcomp_for_target(&diffs, &problem.treatment, &problem.target_population)?;
         let nb_alpha = resolve_nb_alpha(
             problem.family,
@@ -380,36 +382,24 @@ impl GlmAdjustmentAte {
         );
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
-                problem.family,
-                &problem.design.matrix,
-                problem.design.nrows,
-                problem.design.ncols,
-                t_col,
+                &contrast,
                 &glm_fit.coefficients,
-                problem.active,
-                problem.control,
                 glm_fit.deviance,
                 nb_alpha,
-                &problem.treatment,
-                &problem.target_population,
+                &target,
             ),
             other => gcomp_sandwich_se(
-                other,
-                problem.family,
-                &problem.design.matrix,
-                problem.design.nrows,
-                problem.design.ncols,
-                t_col,
+                SeSpec {
+                    kind: other,
+                    cluster_ids: self.cluster_ids.as_deref(),
+                    multiway_ids: self.multiway_ids.as_deref(),
+                    panel_times: self.panel_times.as_deref(),
+                },
+                &contrast,
                 &glm_fit.coefficients,
                 &problem.design.outcome,
-                problem.active,
-                problem.control,
                 nb_alpha,
-                self.cluster_ids.as_deref(),
-                self.multiway_ids.as_deref(),
-                self.panel_times.as_deref(),
-                &problem.treatment,
-                &problem.target_population,
+                &target,
             )?,
         };
 
@@ -448,16 +438,16 @@ impl GlmAdjustmentAte {
                 if fit.require_ok().is_err() {
                     return Ok(None);
                 };
-                let diffs = gcomp_diffs(
-                    problem.family,
-                    x_boot,
-                    n,
-                    p,
+                let diffs = GcompContrast {
+                    family: problem.family,
+                    x_colmajor: x_boot,
+                    nrows: n,
+                    ncols: p,
                     t_col,
-                    &fit.coefficients,
-                    problem.active,
-                    problem.control,
-                );
+                    active: problem.active,
+                    control: problem.control,
+                }
+                .diffs(&fit.coefficients);
                 let t_boot: Vec<f64> = idx.iter().map(|&src| problem.treatment[src]).collect();
                 match average_gcomp_for_target(&diffs, &t_boot, &problem.target_population) {
                     Ok(ate) => Ok(Some(ate)),
@@ -595,25 +585,18 @@ fn moment_nb_alpha(
 /// `w = φ²/(μ(1−μ))`; dispersion `φ = RSS/(n−p)` for Gaussian, the fitted NB2
 /// `α` for negative binomial, and `1` otherwise). The SE is `sqrt(gᵀ Cov(β̂) g)`.
 /// Returns `NaN` when the information matrix is singular.
-#[allow(clippy::too_many_arguments)]
 fn gcomp_delta_method_se(
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
+    contrast: &GcompContrast<'_>,
     coefficients: &[f64],
-    active: f64,
-    control: f64,
     deviance: f64,
     nb_alpha: f64,
-    treatment: &[f64],
-    target: &TargetPopulation,
+    target: &GcompTarget<'_>,
 ) -> f64 {
+    let ncols = contrast.ncols;
     let Some(cov_unscaled) = adjustment_glm_covariance(
-        family,
-        x_colmajor,
-        nrows,
+        contrast.family,
+        contrast.x_colmajor,
+        contrast.nrows,
         ncols,
         coefficients,
         deviance,
@@ -621,18 +604,7 @@ fn gcomp_delta_method_se(
     ) else {
         return f64::NAN;
     };
-    let grad = gcomp_gradient(
-        family,
-        x_colmajor,
-        nrows,
-        ncols,
-        t_col,
-        coefficients,
-        active,
-        control,
-        treatment,
-        target,
-    );
+    let grad = gcomp_gradient(contrast, coefficients, target);
 
     let mut quad = 0.0;
     for i in 0..ncols {
@@ -701,66 +673,22 @@ pub(crate) fn solve_adjustment_glm(
 ///
 /// Meat uses score contributions `s_i = u_i x_i` with
 /// `u_i = (y_i−μ_i) V(μ_i)⁻¹ μ'(η_i)`; bread is Fisher `(XᵀWX)⁻¹`.
-#[allow(clippy::too_many_arguments)]
 fn gcomp_sandwich_se(
-    kind: AnalyticSeKind,
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
+    spec: SeSpec<'_>,
+    contrast: &GcompContrast<'_>,
     coefficients: &[f64],
     y: &[f64],
-    active: f64,
-    control: f64,
     nb_alpha: f64,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
-    treatment: &[f64],
-    target: &TargetPopulation,
+    target: &GcompTarget<'_>,
 ) -> Result<f64, EstimationError> {
+    let GcompContrast { family, x_colmajor, nrows, ncols, .. } = *contrast;
     let (score_u, fisher_w) =
         glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
-    let cov = sandwich_cov_matrix(
-        kind,
-        x_colmajor,
-        nrows,
-        ncols,
-        &score_u,
-        &fisher_w,
-        cluster_ids,
-        multiway_ids,
-        panel_times,
-    )?;
+    let cov = sandwich_cov_matrix(spec, x_colmajor, nrows, ncols, &score_u, &fisher_w)?;
     let Some(cov) = cov else {
-        return Ok(gcomp_delta_method_se(
-            family,
-            x_colmajor,
-            nrows,
-            ncols,
-            t_col,
-            coefficients,
-            active,
-            control,
-            0.0,
-            nb_alpha,
-            treatment,
-            target,
-        ));
+        return Ok(gcomp_delta_method_se(contrast, coefficients, 0.0, nb_alpha, target));
     };
-    let grad = gcomp_gradient(
-        family,
-        x_colmajor,
-        nrows,
-        ncols,
-        t_col,
-        coefficients,
-        active,
-        control,
-        treatment,
-        target,
-    );
+    let grad = gcomp_gradient(contrast, coefficients, target);
     let mut quad = 0.0;
     for i in 0..ncols {
         for j in 0..ncols {
@@ -771,18 +699,16 @@ fn gcomp_sandwich_se(
 }
 
 fn sandwich_cov_matrix(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     score_u: &[f64],
     fisher_w: &[f64],
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
     use crate::se::{require_clusters, require_multiway, require_panel_times};
     use antecedent_stats::SandwichKind;
+    let SeSpec { kind, cluster_ids, multiway_ids, panel_times } = spec;
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
     }
@@ -906,22 +832,23 @@ fn glm_score_components(
     (score_u, fisher_w)
 }
 
+/// Observed treatment labels and the population a g-computation average is taken over.
+struct GcompTarget<'a> {
+    treatment: &'a [f64],
+    population: &'a TargetPopulation,
+}
+
 fn gcomp_gradient(
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
+    contrast: &GcompContrast<'_>,
     coefficients: &[f64],
-    active: f64,
-    control: f64,
-    treatment: &[f64],
-    target: &TargetPopulation,
+    target: &GcompTarget<'_>,
 ) -> Vec<f64> {
+    let GcompContrast { family, x_colmajor, nrows, ncols, t_col, active, control } = *contrast;
+    let GcompTarget { treatment, population } = *target;
     let mut grad = vec![0.0; ncols];
     let mut count = 0usize;
     for r in 0..nrows {
-        if !include_gcomp_row(target, treatment.get(r).copied().unwrap_or(0.0)) {
+        if !include_gcomp_row(population, treatment.get(r).copied().unwrap_or(0.0)) {
             continue;
         }
         count += 1;
@@ -1523,33 +1450,29 @@ mod tests {
         // probes the treatment column through μ'·ΔT.
         let coefficients = [mu.ln(), 0.0];
         let treatment = [0.0, 0.0, 1.0, 1.0];
-        let target = TargetPopulation::AllObserved;
-        let se_nb = gcomp_delta_method_se(
-            GlmFamily::NegativeBinomial,
-            &x,
+        let population = TargetPopulation::AllObserved;
+        let target = GcompTarget { treatment: &treatment, population: &population };
+        let contrast = |family| GcompContrast {
+            family,
+            x_colmajor: &x,
             nrows,
             ncols,
-            1,
+            t_col: 1,
+            active: 1.0,
+            control: 0.0,
+        };
+        let se_nb = gcomp_delta_method_se(
+            &contrast(GlmFamily::NegativeBinomial),
             &coefficients,
-            1.0,
-            0.0,
             0.0,
             alpha,
-            &treatment,
             &target,
         );
         let se_pois = gcomp_delta_method_se(
-            GlmFamily::PoissonLog,
-            &x,
-            nrows,
-            ncols,
-            1,
+            &contrast(GlmFamily::PoissonLog),
             &coefficients,
-            1.0,
             0.0,
             0.0,
-            0.0,
-            &treatment,
             &target,
         );
         assert!(se_nb.is_finite() && se_pois.is_finite());

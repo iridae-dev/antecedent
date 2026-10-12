@@ -30,7 +30,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::se::AnalyticSeKind;
+use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{sample_std, stats_err};
 
 /// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
@@ -277,19 +277,23 @@ impl PropensityMatching {
             retained.as_deref(),
         )?;
         let result = matching_contrast(
-            &t_used,
-            &y_used,
-            &s_used,
-            1,
-            MatchingDistance::Absolute,
+            MatchingSample {
+                treatment: &t_used,
+                outcome: &y_used,
+                features: &s_used,
+                dim: 1,
+                distance: MatchingDistance::Absolute,
+            },
             &problem.target_population,
             self.caliper,
             workspace,
-            self.se_kind,
-            clusters_used.as_deref(),
+            SeSpec {
+                kind: self.se_kind,
+                cluster_ids: clusters_used.as_deref(),
+                multiway_ids: multiway_used.as_deref(),
+                panel_times: times_used.as_deref(),
+            },
             tw_used.as_deref(),
-            multiway_used.as_ref(),
-            times_used.as_deref(),
         )?;
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
@@ -310,21 +314,39 @@ impl PropensityMatching {
     }
 }
 
+/// One side of a match: row-major match features and the aligned outcomes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MatchSide<'a> {
+    pub(crate) features: &'a [f64],
+    pub(crate) outcome: &'a [f64],
+}
+
+/// The sample a matched contrast is formed over.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MatchingSample<'a> {
+    pub(crate) treatment: &'a [f64],
+    pub(crate) outcome: &'a [f64],
+    /// Row-major match features (`dim` columns).
+    pub(crate) features: &'a [f64],
+    pub(crate) dim: usize,
+    pub(crate) distance: MatchingDistance,
+}
+
 /// Match each `query` row to its nearest `donor` row; returns bias-corrected
 /// `query_y[q] − donor_y[matched]` and the local donor indices used (for `Kᵢ`).
 ///
 /// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
 /// is unchanged.
 pub(crate) fn match_diffs(
-    donor_features: &[f64],
-    donor_outcome: &[f64],
+    donors: MatchSide<'_>,
+    queries: MatchSide<'_>,
     dim: usize,
     distance: MatchingDistance,
-    query_features: &[f64],
-    query_outcome: &[f64],
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
 ) -> Result<(Vec<f64>, Vec<usize>, Vec<usize>), EstimationError> {
+    let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
+    let MatchSide { features: query_features, outcome: query_outcome } = queries;
     let n_donors = donor_outcome.len();
     if n_donors == 0 {
         return Err(EstimationError::data_msg("matching requires at least one donor row"));
@@ -381,22 +403,16 @@ pub(crate) struct MatchedEstimate {
 ///
 /// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
 /// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn matching_contrast(
-    treatment: &[f64],
-    outcome: &[f64],
-    features: &[f64],
-    dim: usize,
-    distance: MatchingDistance,
+    sample: MatchingSample<'_>,
     target: &TargetPopulation,
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
-    se_kind: AnalyticSeKind,
-    cluster_ids: Option<&[u32]>,
+    se: SeSpec<'_>,
     target_weights: Option<&[f64]>,
-    multiway_ids: Option<&Vec<Vec<u32>>>,
-    panel_times: Option<&[i64]>,
 ) -> Result<MatchedEstimate, EstimationError> {
+    let MatchingSample { treatment, outcome, features, dim, distance } = sample;
+    let SeSpec { kind: se_kind, cluster_ids, multiway_ids, panel_times } = se;
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
             return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
@@ -434,12 +450,10 @@ pub(crate) fn matching_contrast(
     ) = match target {
         TargetPopulation::Treated => {
             let (diffs, donors, q_local) = match_diffs(
-                &control_feat,
-                &control_y,
+                MatchSide { features: &control_feat, outcome: &control_y },
+                MatchSide { features: &treated_feat, outcome: &treated_y },
                 dim,
                 distance,
-                &treated_feat,
-                &treated_y,
                 caliper,
                 workspace,
             )?;
@@ -448,12 +462,10 @@ pub(crate) fn matching_contrast(
         }
         TargetPopulation::Untreated => {
             let (diffs, donors, q_local) = match_diffs(
-                &treated_feat,
-                &treated_y,
+                MatchSide { features: &treated_feat, outcome: &treated_y },
+                MatchSide { features: &control_feat, outcome: &control_y },
                 dim,
                 distance,
-                &control_feat,
-                &control_y,
                 caliper,
                 workspace,
             )?;
@@ -465,22 +477,18 @@ pub(crate) fn matching_contrast(
         | TargetPopulation::Predicate(_)
         | TargetPopulation::CustomDistribution(_) => {
             let (att_diffs, att_donors, att_q) = match_diffs(
-                &control_feat,
-                &control_y,
+                MatchSide { features: &control_feat, outcome: &control_y },
+                MatchSide { features: &treated_feat, outcome: &treated_y },
                 dim,
                 distance,
-                &treated_feat,
-                &treated_y,
                 caliper,
                 workspace,
             )?;
             let (atc_raw, atc_donors, atc_q) = match_diffs(
-                &treated_feat,
-                &treated_y,
+                MatchSide { features: &treated_feat, outcome: &treated_y },
+                MatchSide { features: &control_feat, outcome: &control_y },
                 dim,
                 distance,
-                &control_feat,
-                &control_y,
                 caliper,
                 workspace,
             )?;
@@ -897,6 +905,15 @@ mod tests {
         assert!(se_ate > se, "ATE form should exceed ATT form under reuse");
     }
 
+    fn homoskedastic() -> SeSpec<'static> {
+        SeSpec {
+            kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
+            multiway_ids: None,
+            panel_times: None,
+        }
+    }
+
     /// Donor outcomes belong to other clusters and times than the matched unit, so no
     /// cluster, multiway or HAC variance is published for matching.
     #[test]
@@ -915,19 +932,23 @@ mod tests {
         ] {
             let mut ws = PropensityEstimationWorkspace::default();
             let err = matching_contrast(
-                &t,
-                &y,
-                &x,
-                1,
-                MatchingDistance::Absolute,
+                MatchingSample {
+                    treatment: &t,
+                    outcome: &y,
+                    features: &x,
+                    dim: 1,
+                    distance: MatchingDistance::Absolute,
+                },
                 &TargetPopulation::AllObserved,
                 None,
                 &mut ws,
-                kind,
-                Some(&clusters),
+                SeSpec {
+                    kind,
+                    cluster_ids: Some(&clusters),
+                    multiway_ids: Some(&multiway),
+                    panel_times: Some(&times),
+                },
                 None,
-                Some(&multiway),
-                Some(&times),
             )
             .unwrap_err();
             assert!(
@@ -958,18 +979,17 @@ mod tests {
             }
             let mut ws = PropensityEstimationWorkspace::default();
             let est = matching_contrast(
-                &t,
-                &y,
-                &x,
-                1,
-                MatchingDistance::Absolute,
+                MatchingSample {
+                    treatment: &t,
+                    outcome: &y,
+                    features: &x,
+                    dim: 1,
+                    distance: MatchingDistance::Absolute,
+                },
                 &TargetPopulation::AllObserved,
                 None,
                 &mut ws,
-                AnalyticSeKind::Homoskedastic,
-                None,
-                None,
-                None,
+                homoskedastic(),
                 None,
             )
             .unwrap();
@@ -1028,12 +1048,10 @@ mod tests {
         let raw_queries = query_probs.clone();
         let mut ws_raw = PropensityEstimationWorkspace::default();
         let (raw_diffs, _, _) = match_diffs(
-            &raw_donors,
-            &donor_y,
+            MatchSide { features: &raw_donors, outcome: &donor_y },
+            MatchSide { features: &raw_queries, outcome: &query_y },
             1,
             MatchingDistance::Absolute,
-            &raw_queries,
-            &query_y,
             caliper,
             &mut ws_raw,
         )
@@ -1043,12 +1061,10 @@ mod tests {
         let logit_queries = logit(&query_probs);
         let mut ws_logit = PropensityEstimationWorkspace::default();
         let (logit_diffs, _, _) = match_diffs(
-            &logit_donors,
-            &donor_y,
+            MatchSide { features: &logit_donors, outcome: &donor_y },
+            MatchSide { features: &logit_queries, outcome: &query_y },
             1,
             MatchingDistance::Absolute,
-            &logit_queries,
-            &query_y,
             caliper,
             &mut ws_logit,
         )
@@ -1106,19 +1122,18 @@ mod tests {
 
         let mut ws = PropensityEstimationWorkspace::default();
         let out = matching_contrast(
-            &treatment,
-            &outcome,
-            &features,
-            1,
-            MatchingDistance::Absolute,
+            MatchingSample {
+                treatment: &treatment,
+                outcome: &outcome,
+                features: &features,
+                dim: 1,
+                distance: MatchingDistance::Absolute,
+            },
             &TargetPopulation::CustomDistribution(antecedent_core::DistributionRef::from_raw(1)),
             None,
             &mut ws,
-            AnalyticSeKind::Homoskedastic,
-            None,
+            homoskedastic(),
             Some(&weights),
-            None,
-            None,
         )
         .unwrap();
         assert!((out.ate - tau).abs() < 1e-12, "ate {} vs {tau}", out.ate);

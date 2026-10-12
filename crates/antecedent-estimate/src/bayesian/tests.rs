@@ -1,8 +1,8 @@
 #![allow(clippy::too_many_lines)]
 
-use super::evaluator::gcomp_mean_contrast;
 use super::gcomp::{add_modifier_mean_uncertainty, random_intercept_gls_whiten};
 use super::*;
+use crate::gcomp::GcompContrast;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::SerialDependence;
 use antecedent_core::IdentificationStatus;
@@ -29,7 +29,16 @@ fn gaussian_gcomp_contrast_is_treatment_coef_times_level_gap() {
         0.0, 1.0, 0.0, // treatment (overwritten by do())
         0.2, 0.4, 0.6, // covariate
     ];
-    let ate = gcomp_mean_contrast(GlmFamily::GaussianIdentity, &matrix, 3, 3, 1, &beta, 1.0, 0.0);
+    let ate = GcompContrast {
+        family: GlmFamily::GaussianIdentity,
+        x_colmajor: &matrix,
+        nrows: 3,
+        ncols: 3,
+        t_col: 1,
+        active: 1.0,
+        control: 0.0,
+    }
+    .mean_contrast(&beta);
     assert!((ate - 2.5).abs() < 1e-15);
 }
 
