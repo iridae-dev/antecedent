@@ -14,8 +14,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use antecedent_contract::{
     ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
@@ -308,6 +308,48 @@ impl std::fmt::Debug for PreparedSignal {
     }
 }
 
+/// How many prepared laws to keep for a later seal. A ranking seals the laws it
+/// just evaluated; older entries fall off so a process that evaluates without
+/// sealing does not retain every law it has ever prepared.
+const RETAINED_LAW_CAP: usize = 256;
+
+struct RetainedLaws {
+    order: VecDeque<String>,
+    by_id: HashMap<String, PreparedSignal>,
+}
+
+fn retained_laws() -> &'static Mutex<RetainedLaws> {
+    static LAWS: OnceLock<Mutex<RetainedLaws>> = OnceLock::new();
+    LAWS.get_or_init(|| Mutex::new(RetainedLaws { order: VecDeque::new(), by_id: HashMap::new() }))
+}
+
+/// Remember the law `evaluate_evsi` just prepared, keyed by receipt identity.
+///
+/// The receipt identity covers the law digest. [`recall_prepared`] returns it to `seal`.
+pub(crate) fn remember_prepared(prepared: &PreparedSignal) {
+    let id = prepared.receipt.identity();
+    let mut slot = retained_laws().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(existing) = slot.by_id.get_mut(&id) {
+        *existing = prepared.clone();
+        return;
+    }
+    while slot.order.len() >= RETAINED_LAW_CAP {
+        if let Some(old) = slot.order.pop_front() {
+            slot.by_id.remove(&old);
+        } else {
+            break;
+        }
+    }
+    slot.order.push_back(id.clone());
+    slot.by_id.insert(id, prepared.clone());
+}
+
+/// The prepared law whose receipt identity is `identity`, if it is still retained.
+pub(crate) fn recall_prepared(identity: &str) -> Option<PreparedSignal> {
+    let slot = retained_laws().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    slot.by_id.get(identity).cloned()
+}
+
 /// Candidate-specific predictive observation law and posterior update.
 pub trait SignalProvider: Send + Sync {
     /// Answer one exact request.
@@ -365,33 +407,91 @@ pub enum SignalError {
     PosteriorIncoherent,
 }
 
-/// Blank structured refusal. `antecedent-contract` only validates this shape; the
-/// constructor belongs there, and that crate is owned by another audit slice.
-pub(crate) fn external_refusal(
+/// The one place this crate fills an [`ExternalRefusal`].
+///
+/// `antecedent-contract` validates the shape and does not construct it. Call sites
+/// set the optional fields with methods, so the struct literal is not repeated.
+pub(crate) struct RefusalBuilder {
     code: &'static str,
     stage: &'static str,
-    detail: &str,
+    detail: String,
     offending: Option<String>,
-) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage,
-        detail: detail.to_owned(),
-        offending,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
+    expected: Option<String>,
+    supplied: Option<String>,
+    capability: Option<ExternalCapability>,
+    remedy: Option<&'static str>,
+}
+
+impl RefusalBuilder {
+    /// A refusal with no optional fields.
+    pub(crate) fn new(code: &'static str, stage: &'static str, detail: &str) -> Self {
+        Self {
+            code,
+            stage,
+            detail: detail.to_owned(),
+            offending: None,
+            expected: None,
+            supplied: None,
+            capability: None,
+            remedy: None,
+        }
+    }
+
+    /// Name the offending coordinate.
+    pub(crate) fn offending(mut self, value: impl Into<String>) -> Self {
+        self.offending = Some(value.into());
+        self
+    }
+
+    /// Name the offending coordinate when there is one.
+    pub(crate) fn offending_opt(mut self, value: Option<String>) -> Self {
+        self.offending = value;
+        self
+    }
+
+    /// Record the expected semantics.
+    pub(crate) fn expected(mut self, value: impl Into<String>) -> Self {
+        self.expected = Some(value.into());
+        self
+    }
+
+    /// Record the supplied semantics.
+    pub(crate) fn supplied(mut self, value: impl Into<String>) -> Self {
+        self.supplied = Some(value.into());
+        self
+    }
+
+    /// Record the missing operation.
+    pub(crate) fn capability(mut self, value: ExternalCapability) -> Self {
+        self.capability = Some(value);
+        self
+    }
+
+    /// Record a remedy.
+    pub(crate) fn remedy(mut self, value: &'static str) -> Self {
+        self.remedy = Some(value);
+        self
+    }
+
+    /// The structured refusal.
+    pub(crate) fn build(self) -> ExternalRefusal {
+        ExternalRefusal {
+            code: self.code,
+            stage: self.stage,
+            detail: self.detail,
+            offending: self.offending,
+            expected: self.expected,
+            supplied: self.supplied,
+            capability: self.capability,
+            remedy: self.remedy,
+        }
     }
 }
 
-/// Blank refusal with no offending coordinate.
-pub(crate) fn make_refusal(
-    code: &'static str,
-    stage: &'static str,
-    detail: &str,
-) -> ExternalRefusal {
-    external_refusal(code, stage, detail, None)
+/// Keep a nested error's refusal and name the stage that surfaced it.
+pub(crate) fn at_stage(mut refusal: ExternalRefusal, stage: &'static str) -> ExternalRefusal {
+    refusal.stage = stage;
+    refusal
 }
 
 impl SignalError {
@@ -399,68 +499,71 @@ impl SignalError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "declare", detail);
+        let at = |code, detail: &str| RefusalBuilder::new(code, "declare", detail);
         match self {
-            Self::InvalidRequest(what) => ExternalRefusal {
-                offending: Some((*what).to_owned()),
-                ..at(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    "signal_provider.invalid_request",
-                )
-            },
-            Self::MissingLineage => at(signal, "signal_provider.missing_lineage"),
+            Self::InvalidRequest(what) => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                "signal_provider.invalid_request",
+            )
+            .offending(*what)
+            .build(),
+            Self::MissingLineage => at(signal, "signal_provider.missing_lineage").build(),
             Self::ConditionalIndependenceMissing => {
-                at(signal, "signal_provider.conditional_independence_missing")
+                at(signal, "signal_provider.conditional_independence_missing").build()
             }
-            Self::SampleSizeInvalid => at(signal, "signal_provider.sample_size_invalid"),
-            Self::ComputationalLimit(what) => ExternalRefusal {
-                offending: Some((*what).to_owned()),
-                ..at(signal, "signal_provider.computational_limit")
-            },
+            Self::SampleSizeInvalid => at(signal, "signal_provider.sample_size_invalid").build(),
+            Self::ComputationalLimit(what) => {
+                at(signal, "signal_provider.computational_limit").offending(*what).build()
+            }
             Self::InvalidObject => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.invalid_object",
-            ),
-            Self::InvalidTable(what) => ExternalRefusal {
-                offending: Some((*what).to_owned()),
-                ..at(signal, "signal_provider.invalid_table")
-            },
+            )
+            .build(),
+            Self::InvalidTable(what) => {
+                at(signal, "signal_provider.invalid_table").offending(*what).build()
+            }
             Self::RequestFingerprintMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.request_fingerprint_mismatch",
-            ),
-            Self::CandidateMismatch => at(signal, "signal_provider.candidate_mismatch"),
-            Self::PriorMismatch => at(signal, "signal_provider.prior_mismatch"),
-            Self::SampleSizeMismatch { declared, requested } => ExternalRefusal {
-                expected: Some(requested.to_string()),
-                supplied: Some(declared.to_string()),
-                ..at(signal, "signal_provider.sample_size_mismatch")
-            },
+            )
+            .build(),
+            Self::CandidateMismatch => at(signal, "signal_provider.candidate_mismatch").build(),
+            Self::PriorMismatch => at(signal, "signal_provider.prior_mismatch").build(),
+            Self::SampleSizeMismatch { declared, requested } => {
+                at(signal, "signal_provider.sample_size_mismatch")
+                    .expected(requested.to_string())
+                    .supplied(declared.to_string())
+                    .build()
+            }
             Self::ObservationQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 "signal_provider.observation_quantity_mismatch",
-            ),
+            )
+            .build(),
             Self::PosteriorQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 "signal_provider.posterior_quantity_mismatch",
-            ),
-            Self::CapabilityMissing(capability) => ExternalRefusal {
-                capability: Some(*capability),
-                ..at(
-                    antecedent_core::reason_code!("external_capability_missing"),
-                    "signal_provider.capability_missing",
-                )
-            },
+            )
+            .build(),
+            Self::CapabilityMissing(capability) => at(
+                antecedent_core::reason_code!("external_capability_missing"),
+                "signal_provider.capability_missing",
+            )
+            .capability(*capability)
+            .build(),
             Self::TrustNativeClaimed => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.trust_native_claimed",
-            ),
+            )
+            .build(),
             Self::TrustMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.trust_mismatch",
-            ),
-            Self::LawIncoherent => at(signal, "signal_provider.law_incoherent"),
-            Self::PosteriorIncoherent => at(signal, "signal_provider.posterior_incoherent"),
+            )
+            .build(),
+            Self::LawIncoherent => at(signal, "signal_provider.law_incoherent").build(),
+            Self::PosteriorIncoherent => at(signal, "signal_provider.posterior_incoherent").build(),
         }
     }
 }

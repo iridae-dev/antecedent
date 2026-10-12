@@ -33,8 +33,8 @@ use crate::rank_rows::{AdjacentRank, evsi_bound_violation, rank_rows};
 use crate::ranker::{DesignRankConfig, DesignRanker};
 use crate::result::ScoreEvaluation;
 use crate::signal::{
-    ExternalDecisionValues, PreparedLaw, SignalError, SignalProvider, SignalReceipt,
-    SignalTrustLabel, SignalUpdateMode, make_refusal, state_key,
+    ExternalDecisionValues, PreparedLaw, RefusalBuilder, SignalError, SignalProvider,
+    SignalReceipt, SignalTrustLabel, SignalUpdateMode, remember_prepared, state_key,
 };
 
 /// Positive linear map from the caller's cost unit to the decision's utility unit:
@@ -303,65 +303,66 @@ impl EvsiError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
         let units = antecedent_core::reason_code!("design_cost_units_mismatch");
-        let at = |code, detail: &str| make_refusal(code, "evaluate", detail);
-        let with = |code, detail: &str, offending: String| ExternalRefusal {
-            offending: Some(offending),
-            ..make_refusal(code, "evaluate", detail)
-        };
+        let at = |code, detail: &str| RefusalBuilder::new(code, "evaluate", detail);
         match self {
             Self::Signal(error) => error.to_refusal(),
-            Self::Design(error) => ExternalRefusal {
-                expected: Some(error.to_string()),
-                ..at(signal, "evsi.design_error")
-            },
-            Self::InvalidRequest(what) => with(
+            Self::Design(error) => {
+                at(signal, "evsi.design_error").expected(error.to_string()).build()
+            }
+            Self::InvalidRequest(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "evsi.invalid_request",
-                (*what).to_owned(),
-            ),
-            Self::DuplicateCandidate(id) => with(signal, "evsi.duplicate_candidate", id.clone()),
-            Self::SourceOverlap(ids) => ExternalRefusal {
-                remedy: Some("use only data not already summarized by the prior"),
-                ..with(signal, "evsi.source_overlap", ids.join(","))
-            },
-            Self::SampleSizeMismatch(id) => with(signal, "evsi.sample_size_mismatch", id.clone()),
-            Self::ReceiptMismatch(id) => with(signal, "evsi.receipt_mismatch", id.clone()),
-            Self::PriorStatesMismatch(id) => with(signal, "evsi.prior_states_mismatch", id.clone()),
-            Self::ActionSetChanged => ExternalRefusal {
-                remedy: Some("an action-set change is a separate decision problem"),
-                ..at(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "evsi.action_set_changed",
-                )
-            },
-            Self::DecisionValuesNeedDraws => at(signal, "evsi.decision_values_need_draws"),
-            Self::DecisionValuesIncoherent(id) => {
-                with(signal, "evsi.decision_values_incoherent", id.clone())
+            )
+            .offending(*what)
+            .build(),
+            Self::DuplicateCandidate(id) => {
+                at(signal, "evsi.duplicate_candidate").offending(id.clone()).build()
             }
-            Self::CostMapRequired => ExternalRefusal {
-                remedy: Some(
-                    "supply a cost-to-utility mapping or report value and cost separately",
-                ),
-                ..at(units, "evsi.cost_map_required")
-            },
-            Self::CostUnitsMismatch(what) => ExternalRefusal {
-                remedy: Some(
+            Self::SourceOverlap(ids) => at(signal, "evsi.source_overlap")
+                .offending(ids.join(","))
+                .remedy("use only data not already summarized by the prior")
+                .build(),
+            Self::SampleSizeMismatch(id) => {
+                at(signal, "evsi.sample_size_mismatch").offending(id.clone()).build()
+            }
+            Self::ReceiptMismatch(id) => {
+                at(signal, "evsi.receipt_mismatch").offending(id.clone()).build()
+            }
+            Self::PriorStatesMismatch(id) => {
+                at(signal, "evsi.prior_states_mismatch").offending(id.clone()).build()
+            }
+            Self::ActionSetChanged => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "evsi.action_set_changed",
+            )
+            .remedy("an action-set change is a separate decision problem")
+            .build(),
+            Self::DecisionValuesNeedDraws => at(signal, "evsi.decision_values_need_draws").build(),
+            Self::DecisionValuesIncoherent(id) => {
+                at(signal, "evsi.decision_values_incoherent").offending(id.clone()).build()
+            }
+            Self::CostMapRequired => at(units, "evsi.cost_map_required")
+                .remedy("supply a cost-to-utility mapping or report value and cost separately")
+                .build(),
+            Self::CostUnitsMismatch(what) => at(units, "evsi.cost_units_mismatch")
+                .offending(what.clone())
+                .remedy(
                     "declare each study cost in the cost map's cost unit and map it into the decision's utility unit",
-                ),
-                ..with(units, "evsi.cost_units_mismatch", what.clone())
-            },
-            Self::InvalidCost(what) => with(
+                )
+                .build(),
+            Self::InvalidCost(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "evsi.invalid_cost",
-                what.clone(),
-            ),
+            )
+            .offending(what.clone())
+            .build(),
             Self::BoundViolation(which) => {
-                with(signal, "evsi.bound_violation", (*which).to_owned())
+                at(signal, "evsi.bound_violation").offending(*which).build()
             }
             Self::Cancelled => {
-                at(antecedent_core::reason_code!("cancelled_no_claim"), "evsi.cancelled")
+                at(antecedent_core::reason_code!("cancelled_no_claim"), "evsi.cancelled").build()
             }
-            Self::Unscored(id) => with(signal, "evsi.unscored_candidate", id.clone()),
+            Self::Unscored(id) => at(signal, "evsi.unscored_candidate").offending(id.clone()).build(),
         }
     }
 }
@@ -610,6 +611,9 @@ fn evaluate_candidate<A: Clone>(
     if let Some(which) = evsi_bound_violation(evsi, evpi, integration.stderr) {
         return Err(EvsiError::BoundViolation(which));
     }
+    // Seal reuses this law when the receipt is still the one on the row. The
+    // artifact is built from the law, so a miss falls back to preparing again.
+    remember_prepared(&prepared);
     Ok(Evaluated {
         evsi,
         integration,

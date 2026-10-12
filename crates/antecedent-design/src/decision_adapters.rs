@@ -19,6 +19,8 @@
 use std::collections::HashSet;
 
 use antecedent_contract::ExternalRefusal;
+
+use crate::signal::{RefusalBuilder, at_stage};
 use antecedent_core::{IdentifiedSet, SupportStatus};
 
 use crate::decision_contract::{
@@ -134,83 +136,57 @@ impl AdapterError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
-        let build = |code, detail: &str, offending: Option<String>, remedy| ExternalRefusal {
-            code,
-            stage: "adapt",
-            detail: detail.to_owned(),
-            offending,
-            expected: None,
-            supplied: None,
-            capability: None,
-            remedy,
-        };
+        let build = |code, detail: &str| RefusalBuilder::new(code, "adapt", detail);
         match self {
-            Self::InvalidClaims(why) => ExternalRefusal {
-                expected: Some((*why).to_owned()),
-                ..build(invalid, "decision_adapters.invalid_claims", None, None)
-            },
-            Self::CompletionCountNotProbability(id) => build(
-                unsatisfied,
-                "decision_adapters.completion_count_not_probability",
-                Some(id.clone()),
-                Some("supply genuine structure probabilities, not completion counts"),
-            ),
-            Self::ProbabilitiesRequired => build(
-                unsatisfied,
-                "decision_adapters.probabilities_required",
-                None,
-                Some("supply genuine structure probabilities for Bayes over structures"),
-            ),
-            Self::GraphClaimsCarryNoProbability(id) => build(
-                invalid,
-                "decision_adapters.graph_claims_carry_no_probability",
-                Some(id.clone()),
-                Some("adapt probability-weighted graphs as weighted graph-posterior atoms"),
-            ),
-            Self::PolicyMismatch => build(
-                unsatisfied,
-                "decision_adapters.policy_mismatch",
-                None,
-                Some("adapt the claims under the contract's declared structural policy"),
-            ),
-            Self::InvalidInterval(id) => {
-                build(invalid, "decision_adapters.invalid_interval", Some(id.clone()), None)
+            Self::InvalidClaims(why) => {
+                build(invalid, "decision_adapters.invalid_claims").expected(*why).build()
             }
+            Self::CompletionCountNotProbability(id) => {
+                build(unsatisfied, "decision_adapters.completion_count_not_probability")
+                    .offending(id.clone())
+                    .remedy("supply genuine structure probabilities, not completion counts")
+                    .build()
+            }
+            Self::ProbabilitiesRequired => build(unsatisfied, "decision_adapters.probabilities_required")
+                .remedy("supply genuine structure probabilities for Bayes over structures")
+                .build(),
+            Self::GraphClaimsCarryNoProbability(id) => {
+                build(invalid, "decision_adapters.graph_claims_carry_no_probability")
+                    .offending(id.clone())
+                    .remedy("adapt probability-weighted graphs as weighted graph-posterior atoms")
+                    .build()
+            }
+            Self::PolicyMismatch => build(unsatisfied, "decision_adapters.policy_mismatch")
+                .remedy("adapt the claims under the contract's declared structural policy")
+                .build(),
+            Self::InvalidInterval(id) => build(invalid, "decision_adapters.invalid_interval")
+                .offending(id.clone())
+                .build(),
             Self::UnknownAction(id) => {
-                build(invalid, "decision_adapters.unknown_action", Some(id.clone()), None)
+                build(invalid, "decision_adapters.unknown_action").offending(id.clone()).build()
             }
             Self::DuplicateAction(id) => {
-                build(invalid, "decision_adapters.duplicate_action", Some(id.clone()), None)
+                build(invalid, "decision_adapters.duplicate_action").offending(id.clone()).build()
             }
             Self::MissingAction(id) => {
-                build(invalid, "decision_adapters.missing_action", Some(id.clone()), None)
+                build(invalid, "decision_adapters.missing_action").offending(id.clone()).build()
             }
-            Self::BayesOverIdentifiedSet => build(
-                unsatisfied,
-                "decision_adapters.bayes_over_identified_set",
-                None,
-                Some(
-                    "an identified set has no probability law; use a worst-case or invariance policy",
-                ),
-            ),
-            Self::CriterionNotLicensedForSet => build(
-                unsatisfied,
-                "decision_adapters.criterion_not_licensed_for_set",
-                None,
-                Some(
-                    "an identified set supports expected-utility, loss, worst-case and minimax regret criteria only",
-                ),
-            ),
-            Self::Admissibility(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "adapt";
-                value
+            Self::BayesOverIdentifiedSet => {
+                build(unsatisfied, "decision_adapters.bayes_over_identified_set")
+                    .remedy(
+                        "an identified set has no probability law; use a worst-case or invariance policy",
+                    )
+                    .build()
             }
-            Self::Robustness(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "adapt";
-                value
+            Self::CriterionNotLicensedForSet => {
+                build(unsatisfied, "decision_adapters.criterion_not_licensed_for_set")
+                    .remedy(
+                        "an identified set supports expected-utility, loss, worst-case and minimax regret criteria only",
+                    )
+                    .build()
             }
+            Self::Admissibility(error) => at_stage(error.to_refusal(), "adapt"),
+            Self::Robustness(error) => at_stage(error.to_refusal(), "adapt"),
         }
     }
 }

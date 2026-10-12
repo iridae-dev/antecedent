@@ -17,6 +17,8 @@ use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
+use crate::signal::RefusalBuilder;
+
 use crate::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
     StructuralPolicy, UtilityExpr,
@@ -796,15 +798,15 @@ pub fn contract_from_json(json: &str) -> Result<DecisionContract, IoError> {
 pub fn contract_from_json_refusal(
     json: &str,
 ) -> Result<DecisionContract, antecedent_contract::ExternalRefusal> {
-    let malformed = |why: String| antecedent_contract::ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        stage: "declare",
-        detail: "decision_contract.invalid_declaration".to_owned(),
-        offending: Some(why),
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: Some("declare the contract with the documented fields"),
+    let malformed = |why: String| {
+        RefusalBuilder::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            "declare",
+            "decision_contract.invalid_declaration",
+        )
+        .offending(why)
+        .remedy("declare the contract with the documented fields")
+        .build()
     };
     if json.len() > MAX_DECISION_ARTIFACT_BYTES {
         return Err(malformed("declaration is too large".to_owned()));

@@ -55,6 +55,8 @@
 use std::collections::HashSet;
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+
+use crate::signal::{RefusalBuilder, at_stage};
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
 use crate::decision_contract::{
@@ -441,7 +443,7 @@ pub enum InverseQueryError {
 }
 
 fn refusal(code: &'static str, detail: &str, offending: Option<String>) -> ExternalRefusal {
-    crate::signal::external_refusal(code, STAGE, detail, offending)
+    RefusalBuilder::new(code, STAGE, detail).offending_opt(offending).build()
 }
 
 impl InverseQueryError {
@@ -466,11 +468,7 @@ impl InverseQueryError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         match self {
-            Self::Engine(error) => {
-                let mut value = error.to_refusal();
-                value.stage = STAGE;
-                value
-            }
+            Self::Engine(error) => at_stage(error.to_refusal(), STAGE),
             Self::InvalidGrid(why) => {
                 refusal(invalid, "inverse_query.invalid_grid", Some((*why).to_owned()))
             }

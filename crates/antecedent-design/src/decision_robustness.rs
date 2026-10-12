@@ -21,6 +21,8 @@
 //! per-structure outcomes are consumed as computed; nothing is re-evaluated.
 
 use antecedent_contract::ExternalRefusal;
+
+use crate::signal::{RefusalBuilder, at_stage};
 use antecedent_core::SupportStatus;
 
 use crate::decision_contract::{
@@ -235,40 +237,22 @@ impl RobustnessError {
     /// Structured refusal with a registered code and a namespaced detail.
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
-        let build = |code, detail: &str, expected: Option<&str>| ExternalRefusal {
-            code,
-            stage: "robustness",
-            detail: detail.to_owned(),
-            offending: None,
-            expected: expected.map(str::to_owned),
-            supplied: None,
-            capability: None,
-            remedy: None,
-        };
+        let build = |code, detail: &str| RefusalBuilder::new(code, "robustness", detail);
         match self {
-            Self::Admissibility(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "robustness";
-                value
-            }
-            Self::Structural(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "robustness";
-                value
-            }
-            Self::ContractMismatch => ExternalRefusal {
-                remedy: Some("assess the structural result against the contract that produced it"),
-                ..build(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "decision_robustness.contract_mismatch",
-                    None,
-                )
-            },
+            Self::Admissibility(error) => at_stage(error.to_refusal(), "robustness"),
+            Self::Structural(error) => at_stage(error.to_refusal(), "robustness"),
+            Self::ContractMismatch => build(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "decision_robustness.contract_mismatch",
+            )
+            .remedy("assess the structural result against the contract that produced it")
+            .build(),
             Self::InvalidProfile(why) => build(
                 antecedent_core::reason_code!("invalid_argument"),
                 "decision_robustness.invalid_profile",
-                Some(*why),
-            ),
+            )
+            .expected(*why)
+            .build(),
         }
     }
 }

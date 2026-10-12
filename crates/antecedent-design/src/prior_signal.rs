@@ -20,7 +20,9 @@ use antecedent_core::is_blank;
 use antecedent_io_core::{CompatibilityReport, PriorCatalog, TargetDesign};
 
 use crate::preposterior::DecisionPrior;
-use crate::signal::{NativeBinomialSignal, NativeGaussianMeanSignal, SignalProvider, make_refusal};
+use crate::signal::{
+    NativeBinomialSignal, NativeGaussianMeanSignal, RefusalBuilder, SignalProvider,
+};
 
 /// Largest number of equally weighted draws the adapter produces.
 pub(crate) const MAX_PRIOR_RESOLUTION: usize = 1_000_000;
@@ -219,66 +221,60 @@ impl PriorSignalError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "declare", detail);
+        let at = |code, detail: &str| RefusalBuilder::new(code, "declare", detail);
         match self {
-            Self::CoefficientPriorNotSignal => ExternalRefusal {
-                remedy: Some("supply a future-signal likelihood or provider for the candidate"),
-                ..at(signal, "prior_signal.coefficient_prior_not_signal")
-            },
-            Self::UnlockListNotSignal(count) => ExternalRefusal {
-                offending: Some(count.to_string()),
-                remedy: Some("supply a future-signal likelihood or provider for the candidate"),
-                ..at(signal, "prior_signal.unlock_list_not_signal")
-            },
-            Self::NoSources => at(signal, "prior_signal.no_sources"),
-            Self::DuplicateSource(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.duplicate_source")
-            },
-            Self::ArtifactNotInCatalog(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.artifact_not_in_catalog")
-            },
-            Self::IncompatibleArtifact { artifact_id, reason } => ExternalRefusal {
-                offending: Some(artifact_id.clone()),
-                supplied: Some(reason.clone()),
-                ..at(signal, "prior_signal.incompatible_artifact")
-            },
-            Self::InvalidParameter(name) => ExternalRefusal {
-                offending: Some((*name).to_owned()),
-                ..at(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    "prior_signal.invalid_parameter",
-                )
-            },
-            Self::LineageMissing(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.lineage_missing")
-            },
-            Self::ObservationLineageMissing(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.observation_lineage_missing")
-            },
-            Self::TransportPolicyRequired(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(
-                    antecedent_core::reason_code!("transport_policy_required"),
-                    "prior_signal.transport_policy_required",
-                )
-            },
-            Self::ObservationReuse(ids) => ExternalRefusal {
-                offending: Some(ids.join(",")),
-                remedy: Some("use only data not already summarized by the prior"),
-                ..at(signal, "prior_signal.observation_reuse")
-            },
-            Self::PriorSourcesOverlap(ids) => ExternalRefusal {
-                offending: Some(ids.join(",")),
-                ..at(signal, "prior_signal.prior_sources_overlap")
-            },
+            Self::CoefficientPriorNotSignal => {
+                at(signal, "prior_signal.coefficient_prior_not_signal")
+                    .remedy("supply a future-signal likelihood or provider for the candidate")
+                    .build()
+            }
+            Self::UnlockListNotSignal(count) => at(signal, "prior_signal.unlock_list_not_signal")
+                .offending(count.to_string())
+                .remedy("supply a future-signal likelihood or provider for the candidate")
+                .build(),
+            Self::NoSources => at(signal, "prior_signal.no_sources").build(),
+            Self::DuplicateSource(id) => {
+                at(signal, "prior_signal.duplicate_source").offending(id.clone()).build()
+            }
+            Self::ArtifactNotInCatalog(id) => {
+                at(signal, "prior_signal.artifact_not_in_catalog").offending(id.clone()).build()
+            }
+            Self::IncompatibleArtifact { artifact_id, reason } => {
+                at(signal, "prior_signal.incompatible_artifact")
+                    .offending(artifact_id.clone())
+                    .supplied(reason.clone())
+                    .build()
+            }
+            Self::InvalidParameter(name) => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                "prior_signal.invalid_parameter",
+            )
+            .offending(*name)
+            .build(),
+            Self::LineageMissing(id) => {
+                at(signal, "prior_signal.lineage_missing").offending(id.clone()).build()
+            }
+            Self::ObservationLineageMissing(id) => {
+                at(signal, "prior_signal.observation_lineage_missing").offending(id.clone()).build()
+            }
+            Self::TransportPolicyRequired(id) => at(
+                antecedent_core::reason_code!("transport_policy_required"),
+                "prior_signal.transport_policy_required",
+            )
+            .offending(id.clone())
+            .build(),
+            Self::ObservationReuse(ids) => at(signal, "prior_signal.observation_reuse")
+                .offending(ids.join(","))
+                .remedy("use only data not already summarized by the prior")
+                .build(),
+            Self::PriorSourcesOverlap(ids) => {
+                at(signal, "prior_signal.prior_sources_overlap").offending(ids.join(",")).build()
+            }
             Self::ResolutionInvalid => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "prior_signal.resolution_invalid",
-            ),
+            )
+            .build(),
         }
     }
 }

@@ -36,6 +36,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use antecedent_contract::{
     CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
+
+use crate::signal::RefusalBuilder;
 use antecedent_core::{CanonicalWriter, blake3_hex};
 use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::error::IoError;
@@ -216,16 +218,12 @@ impl BundleError {
     #[must_use]
     pub fn to_refusal(&self) -> Option<ExternalRefusal> {
         match self {
-            Self::Refused { stage, reason, offending } => Some(ExternalRefusal {
-                code: stage.code(),
-                stage: "bind",
-                detail: stage.detail().to_owned(),
-                offending: offending.clone(),
-                expected: None,
-                supplied: Some(reason.clone()),
-                capability: None,
-                remedy: None,
-            }),
+            Self::Refused { stage, reason, offending } => Some(
+                RefusalBuilder::new(stage.code(), "bind", stage.detail())
+                    .offending_opt(offending.clone())
+                    .supplied(reason.clone())
+                    .build(),
+            ),
             Self::Container(_) => None,
         }
     }

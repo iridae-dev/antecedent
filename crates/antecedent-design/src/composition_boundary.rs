@@ -35,6 +35,8 @@ use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
 };
 
+use crate::signal::{RefusalBuilder, at_stage};
+
 use crate::decision_contract::{
     DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
     SourceRepresentation,
@@ -667,8 +669,8 @@ pub enum BoundaryError {
     UnknownInput(String),
 }
 
-fn refusal(code: &'static str, detail: &str) -> ExternalRefusal {
-    crate::signal::external_refusal(code, "compose", detail, None)
+fn refusal(code: &'static str, detail: &str) -> RefusalBuilder {
+    RefusalBuilder::new(code, "compose", detail)
 }
 
 impl BoundaryError {
@@ -680,86 +682,88 @@ impl BoundaryError {
         let unverifiable = antecedent_core::reason_code!("attested_not_reverifiable");
         let shared = antecedent_core::reason_code!("scenario_aggregate_not_licensed");
         let dependence = antecedent_core::reason_code!("sampling_dependence_unknown");
-        let pair = |left: &String, right: &String| Some(format!("{left}~{right}"));
+        let pair = |left: &String, right: &String| format!("{left}~{right}");
         match self {
-            Self::InvalidInput(why) => ExternalRefusal {
-                expected: Some((*why).to_owned()),
-                ..refusal(invalid, "composition_boundary.invalid_input")
-            },
-            Self::Artifact(error) => ExternalRefusal {
-                supplied: Some(error.to_string()),
-                ..refusal(invalid, "composition_boundary.artifact_rebuild_failed")
-            },
-            Self::MetadataOnlyNativeClaim { input } => ExternalRefusal {
-                offending: Some(input.clone()),
-                remedy: Some("supply a native execution record for this provider and snapshot"),
-                ..refusal(unverifiable, "composition_boundary.metadata_only_native_claim")
-            },
-            Self::NativeRequired { input } => ExternalRefusal {
-                offending: Some(input.clone()),
-                remedy: Some("supply a native execution record, or relax the requirement"),
-                ..refusal(unverifiable, "composition_boundary.native_required")
-            },
-            Self::VerificationReceiptMissing { input } => ExternalRefusal {
-                offending: Some(input.clone()),
-                remedy: Some("supply an exact-request verification receipt for this object"),
-                ..refusal(
-                    antecedent_core::reason_code!("external_verification_failed"),
-                    "composition_boundary.verification_receipt_missing",
-                )
-            },
-            Self::Eval(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "compose";
-                value
+            Self::InvalidInput(why) => {
+                refusal(invalid, "composition_boundary.invalid_input").expected(*why).build()
             }
-            Self::UnsupportedActions { actions } => ExternalRefusal {
-                offending: Some(actions.join(",")),
-                remedy: Some("compare supported actions, or supply the missing coordinates"),
-                ..refusal(unsatisfied, "composition_boundary.unsupported_action_not_comparable")
-            },
-            Self::MeanIsNotADistribution { action } => ExternalRefusal {
-                offending: Some(action.clone()),
-                remedy: Some("supply an aligned joint law for this functional"),
-                ..refusal(unsatisfied, "composition_boundary.mean_is_not_a_distribution")
-            },
-            Self::PairedDrawsAcrossSources => ExternalRefusal {
-                remedy: Some("supply one aligned joint law covering every compared action"),
-                ..refusal(
-                    antecedent_core::reason_code!("joint_law_required"),
-                    "composition_boundary.paired_draws_across_sources",
-                )
-            },
-            Self::OperationNotDeclared => ExternalRefusal {
-                remedy: Some("declare pooling, borrowing, transport or evidence reuse"),
-                ..refusal(invalid, "composition_boundary.operation_not_declared")
-            },
-            Self::SharedEvidenceNotIndependent { left, right } => ExternalRefusal {
-                offending: pair(left, right),
-                remedy: Some("declare a covariance or joint-law route, or use another operation"),
-                ..refusal(shared, "composition_boundary.shared_evidence_not_independent")
-            },
-            Self::UnknownDependence { left, right } => ExternalRefusal {
-                offending: pair(left, right),
-                remedy: Some("declare how the two inputs depend on each other"),
-                ..refusal(dependence, "composition_boundary.unknown_dependence_is_not_independence")
-            },
-            Self::DependenceRouteNotLicensed { left, right } => ExternalRefusal {
-                offending: pair(left, right),
-                remedy: Some("name an aligned joint-law input that is one of the pair"),
-                ..refusal(dependence, "composition_boundary.dependence_route_not_licensed")
-            },
-            Self::ConflictingAtomsNotAveraged => ExternalRefusal {
-                remedy: Some("declare a probability for every atom, or report each atom"),
-                ..refusal(shared, "composition_boundary.conflicting_atoms_not_averaged")
-            },
+            Self::Artifact(error) => {
+                refusal(invalid, "composition_boundary.artifact_rebuild_failed")
+                    .supplied(error.to_string())
+                    .build()
+            }
+            Self::MetadataOnlyNativeClaim { input } => {
+                refusal(unverifiable, "composition_boundary.metadata_only_native_claim")
+                    .offending(input.clone())
+                    .remedy("supply a native execution record for this provider and snapshot")
+                    .build()
+            }
+            Self::NativeRequired { input } => {
+                refusal(unverifiable, "composition_boundary.native_required")
+                    .offending(input.clone())
+                    .remedy("supply a native execution record, or relax the requirement")
+                    .build()
+            }
+            Self::VerificationReceiptMissing { input } => refusal(
+                antecedent_core::reason_code!("external_verification_failed"),
+                "composition_boundary.verification_receipt_missing",
+            )
+            .offending(input.clone())
+            .remedy("supply an exact-request verification receipt for this object")
+            .build(),
+            Self::Eval(error) => at_stage(error.to_refusal(), "compose"),
+            Self::UnsupportedActions { actions } => {
+                refusal(unsatisfied, "composition_boundary.unsupported_action_not_comparable")
+                    .offending(actions.join(","))
+                    .remedy("compare supported actions, or supply the missing coordinates")
+                    .build()
+            }
+            Self::MeanIsNotADistribution { action } => {
+                refusal(unsatisfied, "composition_boundary.mean_is_not_a_distribution")
+                    .offending(action.clone())
+                    .remedy("supply an aligned joint law for this functional")
+                    .build()
+            }
+            Self::PairedDrawsAcrossSources => refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                "composition_boundary.paired_draws_across_sources",
+            )
+            .remedy("supply one aligned joint law covering every compared action")
+            .build(),
+            Self::OperationNotDeclared => {
+                refusal(invalid, "composition_boundary.operation_not_declared")
+                    .remedy("declare pooling, borrowing, transport or evidence reuse")
+                    .build()
+            }
+            Self::SharedEvidenceNotIndependent { left, right } => {
+                refusal(shared, "composition_boundary.shared_evidence_not_independent")
+                    .offending(pair(left, right))
+                    .remedy("declare a covariance or joint-law route, or use another operation")
+                    .build()
+            }
+            Self::UnknownDependence { left, right } => {
+                refusal(dependence, "composition_boundary.unknown_dependence_is_not_independence")
+                    .offending(pair(left, right))
+                    .remedy("declare how the two inputs depend on each other")
+                    .build()
+            }
+            Self::DependenceRouteNotLicensed { left, right } => {
+                refusal(dependence, "composition_boundary.dependence_route_not_licensed")
+                    .offending(pair(left, right))
+                    .remedy("name an aligned joint-law input that is one of the pair")
+                    .build()
+            }
+            Self::ConflictingAtomsNotAveraged => {
+                refusal(shared, "composition_boundary.conflicting_atoms_not_averaged")
+                    .remedy("declare a probability for every atom, or report each atom")
+                    .build()
+            }
             Self::InvalidAtomProbabilities => {
-                refusal(unsatisfied, "composition_boundary.atom_probabilities_invalid")
+                refusal(unsatisfied, "composition_boundary.atom_probabilities_invalid").build()
             }
-            Self::UnknownInput(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..refusal(invalid, "composition_boundary.unknown_input")
-            },
+            Self::UnknownInput(id) => {
+                refusal(invalid, "composition_boundary.unknown_input").offending(id.clone()).build()
+            }
         }
     }
 

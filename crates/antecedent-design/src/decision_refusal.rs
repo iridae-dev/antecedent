@@ -12,10 +12,11 @@ use antecedent_contract::ExternalRefusal;
 use crate::decision_contract::SourceRepresentation;
 use crate::decision_eval::DecisionEvalError;
 use crate::decision_structural::StructuralError;
+use crate::signal::{RefusalBuilder, at_stage};
 use crate::{DecisionContractError, DesignError};
 
-fn refusal(code: &'static str, stage: &'static str, detail: &str) -> ExternalRefusal {
-    crate::signal::make_refusal(code, stage, detail)
+fn refusal(code: &'static str, stage: &'static str, detail: &str) -> RefusalBuilder {
+    RefusalBuilder::new(code, stage, detail)
 }
 
 const fn representation_name(representation: SourceRepresentation) -> &'static str {
@@ -36,47 +37,49 @@ impl DecisionContractError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let quantity = antecedent_core::reason_code!("quantity_semantics_mismatch");
         match self {
-            Self::InvalidDeclaration(why) => ExternalRefusal {
-                expected: Some((*why).to_owned()),
-                ..refusal(invalid, "declare", "decision_contract.invalid_declaration")
-            },
-            Self::DuplicateId(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..refusal(invalid, "declare", "decision_contract.duplicate_id")
-            },
-            Self::InvalidQuantity { action, input } => ExternalRefusal {
-                offending: Some(format!("{action}[{input}]")),
-                remedy: Some("declare a complete scientific quantity for this input"),
-                ..refusal(quantity, "declare", "decision_contract.invalid_quantity")
-            },
-            Self::OutsideDecisionScope { action, input } => ExternalRefusal {
-                offending: Some(format!("{action}[{input}]")),
-                remedy: Some("read inputs for the decision's target population and horizon"),
-                ..refusal(quantity, "declare", "decision_contract.outside_decision_scope")
-            },
-            Self::UnknownInput(position) => ExternalRefusal {
-                offending: Some(position.to_string()),
-                ..refusal(invalid, "declare", "decision_contract.unknown_input")
-            },
-            Self::UnknownAction(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..refusal(invalid, "declare", "decision_contract.unknown_action")
-            },
-            Self::InvalidParameter(name) => ExternalRefusal {
-                offending: Some((*name).to_owned()),
-                ..refusal(invalid, "declare", "decision_contract.invalid_parameter")
-            },
-            Self::MissingSource { needed } => ExternalRefusal {
-                expected: Some(
-                    needed.iter().map(|r| representation_name(*r)).collect::<Vec<_>>().join(","),
-                ),
-                remedy: Some("supply one of the needed source representations"),
-                ..refusal(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "declare",
-                    "decision_contract.missing_source",
-                )
-            },
+            Self::InvalidDeclaration(why) => {
+                refusal(invalid, "declare", "decision_contract.invalid_declaration")
+                    .expected(*why)
+                    .build()
+            }
+            Self::DuplicateId(id) => refusal(invalid, "declare", "decision_contract.duplicate_id")
+                .offending(id.clone())
+                .build(),
+            Self::InvalidQuantity { action, input } => {
+                refusal(quantity, "declare", "decision_contract.invalid_quantity")
+                    .offending(format!("{action}[{input}]"))
+                    .remedy("declare a complete scientific quantity for this input")
+                    .build()
+            }
+            Self::OutsideDecisionScope { action, input } => {
+                refusal(quantity, "declare", "decision_contract.outside_decision_scope")
+                    .offending(format!("{action}[{input}]"))
+                    .remedy("read inputs for the decision's target population and horizon")
+                    .build()
+            }
+            Self::UnknownInput(position) => {
+                refusal(invalid, "declare", "decision_contract.unknown_input")
+                    .offending(position.to_string())
+                    .build()
+            }
+            Self::UnknownAction(id) => {
+                refusal(invalid, "declare", "decision_contract.unknown_action")
+                    .offending(id.clone())
+                    .build()
+            }
+            Self::InvalidParameter(name) => {
+                refusal(invalid, "declare", "decision_contract.invalid_parameter")
+                    .offending(*name)
+                    .build()
+            }
+            Self::MissingSource { needed } => refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "declare",
+                "decision_contract.missing_source",
+            )
+            .expected(needed.iter().map(|r| representation_name(*r)).collect::<Vec<_>>().join(","))
+            .remedy("supply one of the needed source representations")
+            .build(),
         }
     }
 }
@@ -88,67 +91,58 @@ impl DecisionEvalError {
         let at = |code, detail: &str| refusal(code, "evaluate", detail);
         let quantity = antecedent_core::reason_code!("quantity_semantics_mismatch");
         match self {
-            Self::Contract(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "evaluate";
-                value
+            Self::Contract(error) => at_stage(error.to_refusal(), "evaluate"),
+            Self::JointLawRequired { action, supplied_alignment } => at(
+                antecedent_core::reason_code!("joint_law_required"),
+                "decision_evaluation.joint_law_required",
+            )
+            .offending_opt(action.clone())
+            .expected("joint")
+            .supplied(*supplied_alignment)
+            .remedy("supply aligned joint draws, not independent marginals")
+            .build(),
+            Self::QuantityNotFound { action, input } => {
+                at(quantity, "decision_evaluation.quantity_not_found")
+                    .offending(format!("{action}[{input}]"))
+                    .remedy("supply a source coordinate with this input's exact quantity")
+                    .build()
             }
-            Self::JointLawRequired { action, supplied_alignment } => ExternalRefusal {
-                offending: action.clone(),
-                expected: Some("joint".to_owned()),
-                supplied: Some((*supplied_alignment).to_owned()),
-                remedy: Some("supply aligned joint draws, not independent marginals"),
-                ..at(
-                    antecedent_core::reason_code!("joint_law_required"),
-                    "decision_evaluation.joint_law_required",
-                )
-            },
-            Self::QuantityNotFound { action, input } => ExternalRefusal {
-                offending: Some(format!("{action}[{input}]")),
-                remedy: Some("supply a source coordinate with this input's exact quantity"),
-                ..at(quantity, "decision_evaluation.quantity_not_found")
-            },
-            Self::UnsupportedCoordinate { action, input } => ExternalRefusal {
-                offending: Some(format!("{action}[{input}]")),
-                remedy: Some("supply support for this coordinate or remove the action"),
-                ..at(quantity, "decision_evaluation.unsupported_coordinate")
-            },
-            Self::MeaningMismatch { action, input } => ExternalRefusal {
-                offending: Some(format!("{action}[{input}]")),
-                remedy: Some("supply interventional predictive draws for outcome-law inputs"),
-                ..at(
-                    antecedent_core::reason_code!("distribution_meaning_mismatch"),
-                    "decision_evaluation.distribution_meaning",
-                )
-            },
-            Self::StructureInputsRequired(why) => ExternalRefusal {
-                expected: Some((*why).to_owned()),
-                remedy: Some("evaluate under structures with evaluate_structural"),
-                ..at(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "decision_evaluation.structure_inputs_required",
-                )
-            },
-            Self::NonFiniteUtility { action } => ExternalRefusal {
-                offending: Some(action.clone()),
-                ..at(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "decision_evaluation.non_finite_utility",
-                )
-            },
-            Self::MeanSourceInsufficient { needed } => ExternalRefusal {
-                expected: Some(
-                    needed.iter().map(|r| representation_name(*r)).collect::<Vec<_>>().join(","),
-                ),
-                supplied: Some("mean".to_owned()),
-                remedy: Some(
-                    "supply aligned joint draws, or use an affine utility with the expectation criteria and no hard constraints",
-                ),
-                ..at(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "decision_evaluation.mean_source_insufficient",
-                )
-            },
+            Self::UnsupportedCoordinate { action, input } => {
+                at(quantity, "decision_evaluation.unsupported_coordinate")
+                    .offending(format!("{action}[{input}]"))
+                    .remedy("supply support for this coordinate or remove the action")
+                    .build()
+            }
+            Self::MeaningMismatch { action, input } => at(
+                antecedent_core::reason_code!("distribution_meaning_mismatch"),
+                "decision_evaluation.distribution_meaning",
+            )
+            .offending(format!("{action}[{input}]"))
+            .remedy("supply interventional predictive draws for outcome-law inputs")
+            .build(),
+            Self::StructureInputsRequired(why) => at(
+                antecedent_core::reason_code!("route_not_supported"),
+                "decision_evaluation.structure_inputs_required",
+            )
+            .expected(*why)
+            .remedy("evaluate under structures with evaluate_structural")
+            .build(),
+            Self::NonFiniteUtility { action } => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "decision_evaluation.non_finite_utility",
+            )
+            .offending(action.clone())
+            .build(),
+            Self::MeanSourceInsufficient { needed } => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "decision_evaluation.mean_source_insufficient",
+            )
+            .expected(needed.iter().map(|r| representation_name(*r)).collect::<Vec<_>>().join(","))
+            .supplied("mean")
+            .remedy(
+                "supply aligned joint draws, or use an affine utility with the expectation criteria and no hard constraints",
+            )
+            .build(),
         }
     }
 }
@@ -160,26 +154,23 @@ impl StructuralError {
         let at = |code, detail: &str| refusal(code, "structural", detail);
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
         match self {
-            Self::Contract(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "structural";
-                value
+            Self::Contract(error) => at_stage(error.to_refusal(), "structural"),
+            Self::InvalidAtoms => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                "decision_structural.invalid_atoms",
+            )
+            .remedy("supply at least one structure with a distinct, non-blank identity")
+            .build(),
+            Self::InvalidProbabilities => {
+                at(unsatisfied, "decision_structural.invalid_probabilities")
+                    .remedy("give every structure a finite positive probability summing to one")
+                    .build()
             }
-            Self::InvalidAtoms => ExternalRefusal {
-                remedy: Some("supply at least one structure with a distinct, non-blank identity"),
-                ..at(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    "decision_structural.invalid_atoms",
-                )
-            },
-            Self::InvalidProbabilities => ExternalRefusal {
-                remedy: Some("give every structure a finite positive probability summing to one"),
-                ..at(unsatisfied, "decision_structural.invalid_probabilities")
-            },
-            Self::ProbabilitiesRequired => ExternalRefusal {
-                remedy: Some("supply genuine structure probabilities for Bayes over structures"),
-                ..at(unsatisfied, "decision_structural.probabilities_required")
-            },
+            Self::ProbabilitiesRequired => {
+                at(unsatisfied, "decision_structural.probabilities_required")
+                    .remedy("supply genuine structure probabilities for Bayes over structures")
+                    .build()
+            }
         }
     }
 }
@@ -194,41 +185,36 @@ impl DesignError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let at = |code, detail: &str| refusal(code, "design", detail);
         match self {
-            Self::EmptyCandidates => at(invalid, "design_refusal.empty_candidates"),
-            Self::EmptyPosterior => at(invalid, "design_refusal.empty_posterior"),
-            Self::Shape(message) => ExternalRefusal {
-                supplied: Some(message.clone()),
-                ..at(invalid, "design_refusal.shape")
-            },
-            Self::Config(message) => ExternalRefusal {
-                supplied: Some(message.clone()),
-                ..at(invalid, "design_refusal.config")
-            },
-            Self::Numerical(message) => ExternalRefusal {
-                supplied: Some(message.clone()),
-                ..at(invalid, "design_refusal.numerical")
-            },
-            Self::Prob(message) => ExternalRefusal {
-                supplied: Some(message.clone()),
-                ..at(invalid, "design_refusal.probability")
-            },
-            Self::NoAdmissibleAction(message) => ExternalRefusal {
-                supplied: Some(message.clone()),
-                ..at(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "design_refusal.no_admissible_action",
-                )
-            },
-            Self::Callback { name, message } => ExternalRefusal {
-                offending: Some(name.clone()),
-                supplied: Some(message.clone()),
-                ..at(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "design_refusal.callback",
-                )
-            },
+            Self::EmptyCandidates => at(invalid, "design_refusal.empty_candidates").build(),
+            Self::EmptyPosterior => at(invalid, "design_refusal.empty_posterior").build(),
+            Self::Shape(message) => {
+                at(invalid, "design_refusal.shape").supplied(message.clone()).build()
+            }
+            Self::Config(message) => {
+                at(invalid, "design_refusal.config").supplied(message.clone()).build()
+            }
+            Self::Numerical(message) => {
+                at(invalid, "design_refusal.numerical").supplied(message.clone()).build()
+            }
+            Self::Prob(message) => {
+                at(invalid, "design_refusal.probability").supplied(message.clone()).build()
+            }
+            Self::NoAdmissibleAction(message) => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "design_refusal.no_admissible_action",
+            )
+            .supplied(message.clone())
+            .build(),
+            Self::Callback { name, message } => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "design_refusal.callback",
+            )
+            .offending(name.clone())
+            .supplied(message.clone())
+            .build(),
             Self::Cancelled => {
                 at(antecedent_core::reason_code!("cancelled_no_claim"), "design_refusal.cancelled")
+                    .build()
             }
         }
     }

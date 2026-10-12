@@ -38,6 +38,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
+
+use crate::signal::RefusalBuilder;
 use antecedent_core::CanonicalWriter;
 use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionMetadata};
@@ -105,16 +107,7 @@ pub fn artifact_refusal(error: &IoError) -> antecedent_contract::ExternalRefusal
             other.to_string(),
         ),
     };
-    antecedent_contract::ExternalRefusal {
-        code,
-        stage: "inverse_query",
-        detail,
-        offending: Some(offending),
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    RefusalBuilder::new(code, "inverse_query", &detail).offending(offending).build()
 }
 
 fn wide(count: usize) -> u64 {

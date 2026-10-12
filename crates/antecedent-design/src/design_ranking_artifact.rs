@@ -53,13 +53,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::decision::{DecisionProblem, DecisionTable};
 use crate::error::DesignError;
-use crate::evsi::{CostToUtilityMap, EvsiReport, EvsiRequest, IntegrationMethod, SearchReceipt};
+use crate::evsi::{
+    CandidateEvsi, CostToUtilityMap, EvsiCandidate, EvsiReport, EvsiRequest, IntegrationMethod,
+    SearchReceipt,
+};
 use crate::preposterior::{DecisionPrior, DecisionSignal, expected_max_affine};
 use crate::rank_rows::{AdjacentRank, evsi_bound_ok, rank_rows};
 use crate::ranking::{DesignRankingBasis, DesignRankingValue, RankingEntry, RankingError};
 use crate::signal::{
-    PreparedLaw, SignalError, SignalLimits, SignalReceipt, SignalRequest, SignalTrustLabel,
-    SignalUpdateMode, make_refusal,
+    PreparedLaw, PreparedSignal, RefusalBuilder, SignalError, SignalLimits, SignalReceipt,
+    SignalRequest, SignalTrustLabel, SignalUpdateMode, recall_prepared,
 };
 
 /// Wire schema version.
@@ -453,75 +456,64 @@ impl DesignRankingArtifactError {
     #[must_use]
     pub fn refusal(&self) -> Option<ExternalRefusal> {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "consume", detail);
-        let with =
-            |code, detail: &str, offending: String, expected: Option<String>| ExternalRefusal {
-                offending: Some(offending),
-                expected,
-                ..make_refusal(code, "consume", detail)
-            };
+        let at = |code, detail: &str| RefusalBuilder::new(code, "consume", detail);
         Some(match self {
             Self::Io(_) => return None,
-            Self::UnsupportedVersion(version) => ExternalRefusal {
-                supplied: Some(version.to_string()),
-                expected: Some(DESIGN_RANKING_ARTIFACT_VERSION.to_string()),
-                ..at(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "design_ranking.unsupported_version",
-                )
-            },
-            Self::Bounds(what) => with(
+            Self::UnsupportedVersion(version) => at(
+                antecedent_core::reason_code!("route_not_supported"),
+                "design_ranking.unsupported_version",
+            )
+            .supplied(version.to_string())
+            .expected(DESIGN_RANKING_ARTIFACT_VERSION.to_string())
+            .build(),
+            Self::Bounds(what) => at(
                 antecedent_core::reason_code!("route_not_supported"),
                 "design_ranking.bounds_exceeded",
-                (*what).to_owned(),
-                None,
-            ),
-            Self::InvalidWire(what) => with(
+            )
+            .offending(*what)
+            .build(),
+            Self::InvalidWire(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "design_ranking.invalid_artifact",
-                (*what).to_owned(),
-                None,
-            ),
-            Self::DigestMismatch => at(signal, "design_ranking.digest_mismatch"),
-            Self::ExpectedIdentityMismatch => at(signal, "design_ranking.identity_mismatch"),
+            )
+            .offending(*what)
+            .build(),
+            Self::DigestMismatch => at(signal, "design_ranking.digest_mismatch").build(),
+            Self::ExpectedIdentityMismatch => {
+                at(signal, "design_ranking.identity_mismatch").build()
+            }
             Self::Ranking(error) => error.to_refusal(),
-            Self::SignalInconsistent { candidate, slot } => with(
-                signal,
-                "design_ranking.signal_inconsistent",
-                candidate.clone(),
-                Some((*slot).to_owned()),
-            ),
-            Self::ReplayMismatch { candidate, quantity } => with(
-                signal,
-                "design_ranking.replay_mismatch",
-                candidate.clone(),
-                Some((*quantity).to_owned()),
-            ),
-            Self::SourceOverlap { candidate, ids } => ExternalRefusal {
-                remedy: Some("use only data not already summarized by the prior"),
-                ..with(
-                    signal,
-                    "design_ranking.source_overlap",
-                    candidate.clone(),
-                    Some(ids.join(",")),
-                )
-            },
-            Self::CostUnitsMismatch(what) => with(
+            Self::SignalInconsistent { candidate, slot } => {
+                at(signal, "design_ranking.signal_inconsistent")
+                    .offending(candidate.clone())
+                    .expected(*slot)
+                    .build()
+            }
+            Self::ReplayMismatch { candidate, quantity } => {
+                at(signal, "design_ranking.replay_mismatch")
+                    .offending(candidate.clone())
+                    .expected(*quantity)
+                    .build()
+            }
+            Self::SourceOverlap { candidate, ids } => at(signal, "design_ranking.source_overlap")
+                .offending(candidate.clone())
+                .expected(ids.join(","))
+                .remedy("use only data not already summarized by the prior")
+                .build(),
+            Self::CostUnitsMismatch(what) => at(
                 antecedent_core::reason_code!("design_cost_units_mismatch"),
                 "design_ranking.cost_units_mismatch",
-                what.clone(),
-                None,
-            ),
+            )
+            .offending(what.clone())
+            .build(),
             Self::RankMismatch(what) => {
-                with(signal, "design_ranking.rank_mismatch", (*what).to_owned(), None)
+                at(signal, "design_ranking.rank_mismatch").offending(*what).build()
             }
             Self::Signal(error) => error.to_refusal(),
-            Self::Design(error) => with(
-                signal,
-                "design_ranking.design_error",
-                "decision".to_owned(),
-                Some(error.to_string()),
-            ),
+            Self::Design(error) => at(signal, "design_ranking.design_error")
+                .offending("decision")
+                .expected(error.to_string())
+                .build(),
         })
     }
 }
@@ -1261,11 +1253,63 @@ fn provider_wire(identity: &ProviderObjectIdentity) -> ProviderWire {
     }
 }
 
+fn law_wire(
+    receipt: &SignalReceipt,
+    prepared: &PreparedSignal,
+    sample_size: u64,
+) -> Result<LawWire> {
+    match &prepared.law {
+        PreparedLaw::Likelihood(signal) => likelihood_law(
+            &receipt.family,
+            receipt.update_mode,
+            signal.as_ref(),
+            prepared.bound_states.as_deref(),
+            sample_size,
+        ),
+        PreparedLaw::DecisionValues(values) => Ok(LawWire::DecisionValues {
+            branch_probabilities: values.branch_probabilities.clone(),
+            action_ids: values.action_ids.clone(),
+            values: values.values.clone(),
+        }),
+    }
+}
+
+/// The law from evaluation when its receipt is still on the row; otherwise a
+/// fresh prepare that must answer with that same receipt identity.
+fn prepared_for_seal(declared: &EvsiCandidate, row: &CandidateEvsi) -> Result<PreparedSignal> {
+    if let Some(retained) = recall_prepared(&row.signal_receipt.identity())
+        .filter(|retained| retained.receipt == row.signal_receipt)
+    {
+        // Debug and test builds compare the retained law with a fresh prepare.
+        // The wires match, so the artifact bytes do not depend on which one is
+        // used. Release keeps the retained law and does not prepare again.
+        #[cfg(debug_assertions)]
+        {
+            let again = declared.provider.prepare(&declared.signal_request)?;
+            assert_eq!(
+                law_wire(&row.signal_receipt, &retained, row.sample_size)?,
+                law_wire(&row.signal_receipt, &again, row.sample_size)?,
+                "retained signal law changed the ranking artifact"
+            );
+        }
+        return Ok(retained);
+    }
+    let prepared = declared.provider.prepare(&declared.signal_request)?;
+    if prepared.receipt.identity() != row.signal_receipt.identity() {
+        return Err(DesignRankingArtifactError::SignalInconsistent {
+            candidate: row.semantic_id.clone(),
+            slot: "provider_not_reproducible",
+        });
+    }
+    Ok(prepared)
+}
+
 /// Seal an evaluated ranking as a durable artifact body.
 ///
-/// Each candidate's provider is asked to answer its request again (providers are
-/// deterministic functions of the exact request) so that the signal law behind the
-/// value can be retained; the answer's receipt identity must equal the evaluated one.
+/// The law prepared while evaluating the row is reused when its receipt is still
+/// the one on the row. Providers are deterministic functions of the exact request,
+/// so a miss prepares again and still requires that receipt identity. Either way
+/// the law wire is the one [`law_wire`] builds from that receipt.
 ///
 /// # Errors
 ///
@@ -1285,28 +1329,9 @@ pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifac
             .get(row.semantic_id.as_str())
             .copied()
             .ok_or(DesignRankingArtifactError::InvalidWire("report names an unknown candidate"))?;
-        let prepared = declared.provider.prepare(&declared.signal_request)?;
-        if prepared.receipt.identity() != row.signal_receipt.identity() {
-            return Err(DesignRankingArtifactError::SignalInconsistent {
-                candidate: row.semantic_id.clone(),
-                slot: "provider_not_reproducible",
-            });
-        }
+        let prepared = prepared_for_seal(declared, row)?;
         let receipt = &row.signal_receipt;
-        let law = match &prepared.law {
-            PreparedLaw::Likelihood(signal) => likelihood_law(
-                &receipt.family,
-                receipt.update_mode,
-                signal.as_ref(),
-                prepared.bound_states.as_deref(),
-                row.sample_size,
-            )?,
-            PreparedLaw::DecisionValues(values) => LawWire::DecisionValues {
-                branch_probabilities: values.branch_probabilities.clone(),
-                action_ids: values.action_ids.clone(),
-                values: values.values.clone(),
-            },
-        };
+        let law = law_wire(receipt, &prepared, row.sample_size)?;
         let mut lineage = receipt.evidence_lineage.clone();
         lineage.sort();
         candidates.push(CandidateWire {

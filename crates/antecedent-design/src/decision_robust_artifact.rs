@@ -32,6 +32,8 @@ use antecedent_io_core::error::IoError;
 use antecedent_io_core::external_claim_artifact::{LineageLinkWire, wire_from_chain};
 use serde::{Deserialize, Serialize};
 
+use crate::signal::RefusalBuilder;
+
 use crate::decision_artifact::{
     ContractBody, MAX_DECISION_ARTIFACT_BYTES, body_from_contract, contract_from_body, decode,
     encode, refused, source_digest,
@@ -251,15 +253,15 @@ pub fn admissible_contract_from_json(json: &str) -> Result<AdmissibleDecisionCon
 pub fn admissible_contract_from_json_refusal(
     json: &str,
 ) -> Result<AdmissibleDecisionContract, ExternalRefusal> {
-    let malformed = |why: String| ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        stage: "declare",
-        detail: "decision_contract.invalid_declaration".to_owned(),
-        offending: Some(why),
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: Some("declare the contract and its rules with the documented fields"),
+    let malformed = |why: String| {
+        RefusalBuilder::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            "declare",
+            "decision_contract.invalid_declaration",
+        )
+        .offending(why)
+        .remedy("declare the contract and its rules with the documented fields")
+        .build()
     };
     if json.len() > MAX_DECISION_ARTIFACT_BYTES {
         return Err(malformed("declaration is too large".to_owned()));

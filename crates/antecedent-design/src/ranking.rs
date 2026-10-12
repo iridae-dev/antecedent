@@ -18,7 +18,7 @@ use antecedent_contract::ExternalRefusal;
 use antecedent_core::CanonicalWriter;
 
 use crate::evsi::{CostToUtilityMap, EvsiReport, IntegrationMethod, SearchReceipt};
-use crate::signal::{SignalTrustLabel, SignalUpdateMode, make_refusal};
+use crate::signal::{RefusalBuilder, SignalTrustLabel, SignalUpdateMode};
 use crate::study_planner::StudyCost;
 
 /// What the ranking is ordered by.
@@ -151,28 +151,28 @@ impl RankingError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "consume", detail);
+        let at = |code, detail: &str| RefusalBuilder::new(code, "consume", detail);
         match self {
             Self::Empty => {
                 at(antecedent_core::reason_code!("invalid_argument"), "design_ranking.empty")
+                    .build()
             }
-            Self::DuplicateCandidate(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "design_ranking.duplicate_candidate")
-            },
-            Self::SignalMismatch(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "design_ranking.signal_mismatch")
-            },
-            Self::SourceDigestMismatch => at(signal, "design_ranking.source_digest_mismatch"),
-            Self::CostMappingMismatch => ExternalRefusal {
-                remedy: Some("replay with the cost mapping the ranking was computed under"),
-                ..at(
-                    antecedent_core::reason_code!("design_cost_units_mismatch"),
-                    "design_ranking.cost_units_mismatch",
-                )
-            },
-            Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch"),
+            Self::DuplicateCandidate(id) => {
+                at(signal, "design_ranking.duplicate_candidate").offending(id.clone()).build()
+            }
+            Self::SignalMismatch(id) => {
+                at(signal, "design_ranking.signal_mismatch").offending(id.clone()).build()
+            }
+            Self::SourceDigestMismatch => {
+                at(signal, "design_ranking.source_digest_mismatch").build()
+            }
+            Self::CostMappingMismatch => at(
+                antecedent_core::reason_code!("design_cost_units_mismatch"),
+                "design_ranking.cost_units_mismatch",
+            )
+            .remedy("replay with the cost mapping the ranking was computed under")
+            .build(),
+            Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch").build(),
         }
     }
 }

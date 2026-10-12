@@ -13,6 +13,8 @@
 use std::collections::HashSet;
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+
+use crate::signal::RefusalBuilder;
 use antecedent_core::{CanonicalWriter, SupportStatus, is_blank};
 
 /// What kind of thing an action is. The kind is part of the action identity.
@@ -933,32 +935,20 @@ impl AdmissibilityError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
-        let build =
-            |detail: &str, offending: Option<String>, expected: Option<&str>| ExternalRefusal {
-                code: invalid,
-                stage: "declare",
-                detail: detail.to_owned(),
-                offending,
-                expected: expected.map(str::to_owned),
-                supplied: None,
-                capability: None,
-                remedy: None,
-            };
+        let build = |detail: &str| RefusalBuilder::new(invalid, "declare", detail);
         match self {
             Self::Contract(error) => error.to_refusal(),
             Self::UnknownAction(id) => {
-                build("decision_admissibility.unknown_action", Some(id.clone()), None)
+                build("decision_admissibility.unknown_action").offending(id.clone()).build()
             }
-            Self::UnknownInput { action, input } => build(
-                "decision_admissibility.unknown_input",
-                Some(format!("{action}[{input}]")),
-                None,
-            ),
+            Self::UnknownInput { action, input } => build("decision_admissibility.unknown_input")
+                .offending(format!("{action}[{input}]"))
+                .build(),
             Self::DuplicateRule(key) => {
-                build("decision_admissibility.duplicate_rule", Some(key.clone()), None)
+                build("decision_admissibility.duplicate_rule").offending(key.clone()).build()
             }
             Self::InvalidRule(why) => {
-                build("decision_admissibility.invalid_rule", None, Some(*why))
+                build("decision_admissibility.invalid_rule").expected(*why).build()
             }
         }
     }
