@@ -165,6 +165,7 @@ impl Ges {
             n_vars,
             n,
         ));
+        let mut deltas = GesDeltaCache::default();
 
         let screen: Option<HashSet<(u32, u32)>> = if self.screen_pc {
             Some(pc_skeleton_pairs(self, data, variables, workspace, ctx)?)
@@ -191,7 +192,7 @@ impl Ges {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let Some(best) = best_insert(&cpdag, search, &mut cache)? else {
+            let Some(best) = best_insert(&cpdag, search, &mut cache, &mut deltas)? else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -205,7 +206,7 @@ impl Ges {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let Some(best) = best_reverse(&cpdag, search, &mut cache)? else {
+            let Some(best) = best_reverse(&cpdag, search, &mut cache, &mut deltas)? else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -220,7 +221,7 @@ impl Ges {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            let Some(best) = best_delete(&cpdag, search, &mut cache)? else {
+            let Some(best) = best_delete(&cpdag, search, &mut cache, &mut deltas)? else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -573,6 +574,7 @@ fn parents_u32(cpdag: &Cpdag, y: DenseNodeId) -> Vec<u32> {
 fn insert_delta(
     cpdag: &Cpdag,
     cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
     data: &GraphScoreData,
     x: DenseNodeId,
     y: DenseNodeId,
@@ -591,14 +593,13 @@ fn insert_delta(
     neu.push(x.raw());
     neu.sort_unstable();
     neu.dedup();
-    let old = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(base))?;
-    let new = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(neu))?;
-    Ok(operator_delta(old, new))
+    cached_operator_delta(cache, deltas, data, y.raw(), Arc::from(base), Arc::from(neu))
 }
 
 fn delete_delta(
     cpdag: &Cpdag,
     cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
     data: &GraphScoreData,
     x: DenseNodeId,
     y: DenseNodeId,
@@ -623,9 +624,32 @@ fn delete_delta(
     without_x.extend_from_slice(&na_rest);
     without_x.sort_unstable();
     without_x.dedup();
-    let old = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(with_x))?;
-    let new = local_score_or_degenerate(cache, data, y.raw(), &Arc::from(without_x))?;
-    Ok(operator_delta(old, new))
+    cached_operator_delta(cache, deltas, data, y.raw(), Arc::from(with_x), Arc::from(without_x))
+}
+
+/// Operator deltas keyed by the exact `(node, old parents, new parents)` pair that was scored.
+#[derive(Default)]
+struct GesDeltaCache {
+    entries: HashMap<(u32, Arc<[u32]>, Arc<[u32]>), f64>,
+}
+
+fn cached_operator_delta(
+    cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
+    data: &GraphScoreData,
+    node: u32,
+    old_parents: Arc<[u32]>,
+    new_parents: Arc<[u32]>,
+) -> Result<f64, DiscoveryError> {
+    let key = (node, Arc::clone(&old_parents), Arc::clone(&new_parents));
+    if let Some(delta) = deltas.entries.get(&key).copied() {
+        return Ok(delta);
+    }
+    let old = local_score_or_degenerate(cache, data, node, &old_parents)?;
+    let new = local_score_or_degenerate(cache, data, node, &new_parents)?;
+    let delta = operator_delta(old, new);
+    deltas.entries.insert(key, delta);
+    Ok(delta)
 }
 
 /// A zero-residual (deterministic) local score is not a finite BIC. Treat that parent set as
@@ -683,6 +707,7 @@ fn best_insert(
     cpdag: &Cpdag,
     search: GesSearch<'_>,
     cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
 ) -> Result<Option<OpCand>, DiscoveryError> {
     let GesSearch { data, max_parents, max_subset, screen, constraints, variables } = search;
     let n = cpdag.node_count();
@@ -724,7 +749,7 @@ fn best_insert(
                 if pa_len > max_parents {
                     continue;
                 }
-                let delta = insert_delta(cpdag, cache, data, x, y, &t)?;
+                let delta = insert_delta(cpdag, cache, deltas, data, x, y, &t)?;
                 if best.as_ref().is_none_or(|b| delta > b.delta) {
                     best = Some(OpCand { x, y, set: t, delta });
                 }
@@ -738,6 +763,7 @@ fn best_delete(
     cpdag: &Cpdag,
     search: GesSearch<'_>,
     cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
 ) -> Result<Option<OpCand>, DiscoveryError> {
     let GesSearch { data, max_subset, constraints, variables, .. } = search;
     let mut best: Option<OpCand> = None;
@@ -769,7 +795,7 @@ fn best_delete(
                 if !delete_valid(cpdag, x, y, &h) {
                     continue;
                 }
-                let delta = delete_delta(cpdag, cache, data, x, y, &h)?;
+                let delta = delete_delta(cpdag, cache, deltas, data, x, y, &h)?;
                 if best.as_ref().is_none_or(|b| delta > b.delta) {
                     best = Some(OpCand { x, y, set: h, delta });
                 }
@@ -783,6 +809,7 @@ fn best_reverse(
     cpdag: &Cpdag,
     search: GesSearch<'_>,
     cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
 ) -> Result<Option<ReverseCand>, DiscoveryError> {
     let GesSearch { data, max_parents, max_subset, screen, constraints, variables } = search;
     let mut best: Option<ReverseCand> = None;
@@ -814,7 +841,7 @@ fn best_reverse(
             if !delete_valid(cpdag, x, y, &h) {
                 continue;
             }
-            let d_del = delete_delta(cpdag, cache, data, x, y, &h)?;
+            let d_del = delete_delta(cpdag, cache, deltas, data, x, y, &h)?;
             let mut tmp = cpdag.clone();
             apply_delete(&mut tmp, x, y, &h)?;
             // Insert opposite Y → X
@@ -838,7 +865,7 @@ fn best_reverse(
                 if pa_len > max_parents {
                     continue;
                 }
-                let d_ins = insert_delta(&tmp, cache, data, y, x, &t)?;
+                let d_ins = insert_delta(&tmp, cache, deltas, data, y, x, &t)?;
                 let delta = d_del + d_ins;
                 if best.as_ref().is_none_or(|b| delta > b.delta) {
                     best = Some(ReverseCand { x, y, h: h.clone(), t, delta });
@@ -1060,10 +1087,65 @@ mod tests {
         let result = ges.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "ges");
         let g = &result.evidence.graph;
+        // Score recorded before the operator-delta cache. The cached search must keep these bits.
+        let dag = pdag_to_dag(g).unwrap();
+        let mut flat = Vec::new();
+        for v in &vars {
+            flat.extend(data.float64_values(*v).unwrap());
+        }
+        let score_data = GraphScoreData::new(400, vars.len(), Arc::from(flat)).unwrap();
+        let mut score_cache = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            vars.len(),
+            400,
+        ));
+        for node in 0..crate::indexing::dense_u32(vars.len()) {
+            let parents: Vec<u32> =
+                dag.parents(DenseNodeId::from_raw(node)).iter().map(|p| p.raw()).collect();
+            let _ = score_cache.local_score(&score_data, node, &Arc::from(parents)).unwrap();
+        }
+        assert_eq!(
+            score_cache.score_graph(&score_data).unwrap().to_bits(),
+            13_869_790_556_363_832_396
+        );
         let d = |i: u32| DenseNodeId::from_raw(i);
         // Chain skeleton should keep 0—1 and 1—2; 0—2 may be absent.
         assert!(g.has_edge(d(0), d(1)), "expected edge 0-1");
         assert!(g.has_edge(d(1), d(2)), "expected edge 1-2");
+    }
+
+    #[test]
+    fn delta_cache_hit_returns_the_stored_value() {
+        let (data, vars) = gaussian_chain_data(40);
+        let mut flat = Vec::new();
+        for v in &vars {
+            flat.extend(data.float64_values(*v).unwrap());
+        }
+        let score = GraphScoreData::new(40, vars.len(), Arc::from(flat)).unwrap();
+        let mut cache = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            vars.len(),
+            40,
+        ));
+        let cpdag = Cpdag::with_variables(3);
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let mut deltas = GesDeltaCache::default();
+        let first = insert_delta(&cpdag, &mut cache, &mut deltas, &score, x, y, &[]).unwrap();
+        let mut fresh = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            vars.len(),
+            40,
+        ));
+        let old = local_score_or_degenerate(&mut fresh, &score, y.raw(), &Arc::from([])).unwrap();
+        let new =
+            local_score_or_degenerate(&mut fresh, &score, y.raw(), &Arc::from([x.raw()])).unwrap();
+        assert_eq!(first.to_bits(), operator_delta(old, new).to_bits());
+        for stored in deltas.entries.values_mut() {
+            *stored = 123.0;
+        }
+        let hit = insert_delta(&cpdag, &mut cache, &mut deltas, &score, x, y, &[]).unwrap();
+        assert_eq!(hit.to_bits(), 123.0f64.to_bits());
     }
 
     #[test]
@@ -1100,7 +1182,7 @@ mod tests {
             constraints: &constraints,
             variables: &vars,
         };
-        let best = best_insert(&cpdag, search, &mut cache).unwrap();
+        let best = best_insert(&cpdag, search, &mut cache, &mut GesDeltaCache::default()).unwrap();
         assert!(
             best.is_none(),
             "an insert whose scored parent set exceeds max_parents must be skipped"
