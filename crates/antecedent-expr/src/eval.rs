@@ -613,9 +613,7 @@ mod tests {
     use crate::{InterventionAssignment, OutcomeExprId, SimplifyError};
     use antecedent_core::Value;
 
-    fn v(id: u32) -> VariableId {
-        VariableId::from_raw(id)
-    }
+    use crate::test_variable as v;
 
     fn f(x: f64) -> Value {
         Value::f64(x)

@@ -115,7 +115,7 @@ impl AutoIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedAutoGraph, IdentificationError> {
-        let dag = PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions.clone());
+        let dag = PreparedIdentificationGraph::wrap(graph, assumptions.clone());
         // The ADMG is the prepared DAG's directed tables, not a second copy of
         // `graph`. `from_dag` still validates that directed part.
         let admg = PreparedAdmg::from_dag_with_assumptions(dag.dag(), assumptions)?;

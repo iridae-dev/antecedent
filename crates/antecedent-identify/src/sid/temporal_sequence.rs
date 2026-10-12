@@ -1102,9 +1102,7 @@ mod tests {
         RegimeKind, SamplingDesign,
     };
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_support::v;
 
     /// `b -> l1 -> a1 -> l2 -> a2 -> y`, no selection: four initial states and
     /// eight complete histories.

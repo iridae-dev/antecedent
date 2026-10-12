@@ -1375,9 +1375,7 @@ mod tests {
     };
     use antecedent_graph::{Admg, DenseNodeId};
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_support::v;
 
     /// A four-node chain Z1 -> X -> Z2 -> Y with Z1 <-> X and X <-> Y.
     fn graph() -> Admg {

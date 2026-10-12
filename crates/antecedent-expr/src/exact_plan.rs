@@ -604,11 +604,9 @@ impl DistributionProvider for BoundedProvider<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_variable as v;
     use crate::{DiscreteAxis, DomainRef, ExactDiscreteLaw, InterventionAssignment};
     use antecedent_core::RegimeId;
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
     fn law() -> ExactTransportData {
         let axes = [0, 1].map(|i| DiscreteAxis {
             variable: v(i),

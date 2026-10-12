@@ -237,6 +237,11 @@ impl PreparedIdentificationGraph {
         Self { dag, declared_assumptions }
     }
 
+    /// The prepared DAG the back-door, front-door, IV, and efficient searches share.
+    pub(crate) fn wrap(dag: &Dag, assumptions: AssumptionSet) -> Self {
+        Self::with_assumptions(dag.clone(), assumptions)
+    }
+
     /// Borrow the DAG.
     #[must_use]
     pub fn dag(&self) -> &Dag {
@@ -290,7 +295,7 @@ impl BackdoorIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
+        Ok(PreparedIdentificationGraph::wrap(graph, assumptions))
     }
 
     /// Identify an average-effect query via backdoor adjustment.

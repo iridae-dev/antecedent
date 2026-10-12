@@ -71,7 +71,7 @@ impl InstrumentalVariableIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
+        Ok(PreparedIdentificationGraph::wrap(graph, assumptions))
     }
 
     /// Identify an average-effect query via a valid instrument.

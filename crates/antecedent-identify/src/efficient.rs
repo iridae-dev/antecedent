@@ -31,8 +31,8 @@ use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::backdoor::{
-    dense_to_var, is_backdoor_adjustment, screen_ancestor_candidates, AdjustmentProblem,
-    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph,
+    AdjustmentProblem, AdjustmentSearchConfig, PreparedIdentificationGraph, dense_to_var,
+    is_backdoor_adjustment, screen_ancestor_candidates,
 };
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
@@ -74,7 +74,7 @@ impl EfficientBackdoorIdentifier {
         self
     }
 
-    /// Prepare a graph (same wrap as [`BackdoorIdentifier`]).
+    /// Prepare a graph (same wrap as [`crate::backdoor::BackdoorIdentifier`]).
     ///
     /// # Errors
     ///
@@ -96,8 +96,7 @@ impl EfficientBackdoorIdentifier {
         graph: &antecedent_graph::Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        BackdoorIdentifier { config: self.config.clone() }
-            .prepare_with_assumptions(graph, assumptions)
+        Ok(PreparedIdentificationGraph::wrap(graph, assumptions))
     }
 
     /// Identify via efficient backdoor; at most one estimand is returned,

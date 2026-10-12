@@ -1726,9 +1726,7 @@ mod tests {
         pub(super) const Z2: u32 = 2;
         pub(super) const Y: u32 = 3;
 
-        fn v(i: u32) -> VariableId {
-            VariableId::from_raw(i)
-        }
+        use crate::test_support::v;
 
         pub(super) fn graph() -> Admg {
             let mut g = Admg::with_variables(4);

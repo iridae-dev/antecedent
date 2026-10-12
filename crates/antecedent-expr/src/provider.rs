@@ -1092,9 +1092,7 @@ impl DistributionProvider for GaussianDensityProvider {
 mod tests {
     use super::*;
 
-    fn v(id: u32) -> VariableId {
-        VariableId::from_raw(id)
-    }
+    use crate::test_variable as v;
 
     fn f(x: f64) -> Value {
         Value::f64(x)

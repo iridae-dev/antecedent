@@ -77,20 +77,20 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional_witness::{
-    search_conditional_witness, verify_conditional_witness, ConditionalWitnessCheck,
-    ConditionalWitnessRecord, WitnessSearch,
+    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessSearch, search_conditional_witness,
+    verify_conditional_witness,
 };
 use super::mixed_source::{Checker, Set};
 use super::{
-    identify_catalog_transport_metered, identify_classical_transport_metered, sid_memory_bytes,
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportDerivation,
     ClassicalTransportQuery, ClassicalTransportResult, SHedgeCertificate, SHedgeRecord,
-    SharedSearch, SidDerivationRecord, SidLimits,
+    SharedSearch, SidDerivationRecord, SidLimits, identify_catalog_transport_metered,
+    identify_classical_transport_metered, sid_memory_bytes,
 };
 use crate::IdentificationError;
 use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, VariableId,
-    DEFAULT_SEARCH_MEMORY_BYTES,
+    DEFAULT_SEARCH_MEMORY_BYTES, EvidenceCatalog, ExecutionContext, SearchBudget, SearchLimits,
+    SearchReceipt, VariableId,
 };
 use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
@@ -364,11 +364,7 @@ impl ConditionalTransportDerivation {
 /// Map an inner sID check failure to this route's detail; budget, cancellation
 /// and memory keep their own kind.
 fn checked_error(error: IdentificationError) -> IdentificationError {
-    if error.is_budget_or_cancel() {
-        error
-    } else {
-        invalid_derivation()
-    }
+    if error.is_budget_or_cancel() { error } else { invalid_derivation() }
 }
 
 /// A checked conditional derivation whose reduced joint is bound to a catalog.
@@ -865,11 +861,7 @@ fn rule_two_checked(checker: &Checker, y: &Set, x: &Set, w: usize, rest: &Set) -
 
 /// Cancellation poll of a record check run outside a decision's budget.
 fn poll_cancellation(ctx: &ExecutionContext) -> Result<(), IdentificationError> {
-    if ctx.cancellation.is_cancelled() {
-        Err(IdentificationError::Cancelled)
-    } else {
-        Ok(())
-    }
+    if ctx.cancellation.is_cancelled() { Err(IdentificationError::Cancelled) } else { Ok(()) }
 }
 
 /// Independently replay recorded moves (each must satisfy rule 2 at its turn)
@@ -1229,12 +1221,7 @@ mod tests {
     use super::*;
     use antecedent_core::MemoryBudget;
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
-    fn d(i: u32) -> DenseNodeId {
-        DenseNodeId::from_raw(i)
-    }
+    use crate::test_support::{d, v};
 
     /// Every source experiment and the target observational joint over three nodes.
     fn full_catalog() -> EvidenceCatalog {

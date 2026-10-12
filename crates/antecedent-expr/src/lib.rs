@@ -13,6 +13,12 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+/// `VariableId::from_raw`, shared by this crate's tests.
+#[cfg(test)]
+pub(crate) fn test_variable(raw: u32) -> antecedent_core::VariableId {
+    antecedent_core::VariableId::from_raw(raw)
+}
+
 pub mod estimand;
 pub mod eval;
 pub mod exact;

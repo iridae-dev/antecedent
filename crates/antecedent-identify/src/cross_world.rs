@@ -370,11 +370,8 @@ pub(crate) fn topological_order(node_count: usize, edges: &[(u32, u32)]) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::VariableId;
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_support::v;
 
     const MEDIATION: [(u32, u32); 3] = [(0, 1), (0, 2), (1, 2)];
 

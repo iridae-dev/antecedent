@@ -1085,9 +1085,7 @@ mod tests {
     }
 
     use super::*;
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_variable as v;
     fn axis(i: u32) -> DiscreteAxis {
         DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0), Value::Int64(1)]) }
     }
