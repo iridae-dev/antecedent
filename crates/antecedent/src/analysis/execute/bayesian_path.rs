@@ -3143,8 +3143,7 @@ impl super::Study {
 
         let DbnMediationRun { data, query, .. } = *run;
         let Some(horizons) = atom.horizons.as_ref() else {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         };
         let Ok(clicks) =
@@ -3160,13 +3159,11 @@ impl super::Study {
                     })
             })
         else {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         };
         if clicks.is_empty() {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         }
         state.horizon_dependent |= super::temporal_path::mediation_horizon_z_differs(&clicks);
@@ -3201,16 +3198,14 @@ impl super::Study {
             }
         }
         if !click_ok {
-            state.flag_unidentified(atom.key);
             if estimation_failed {
                 state.unevaluable_weight += state.key_weights.get(atom.key);
             }
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         }
         let Some((click, qh, preparations)) = published else {
-            state.flag_unidentified(atom.key);
-            state.prepare_demoted += 1;
+            state.demote(atom.key, DbnAtomDemotion::Prepare);
             return None;
         };
         match state.first_z.as_ref() {
@@ -3255,10 +3250,7 @@ impl super::Study {
         let mechanisms = match fit(cfg.prior_scale) {
             Ok(mechanisms) => mechanisms,
             Err(error) => {
-                state.flag_unidentified(key);
-                state.unevaluable_weight += state.key_weights.get(key);
-                state.first_estimation_error.get_or_insert_with(|| error.to_string());
-                state.fit_demoted += 1;
+                state.demote_unevaluable(key, DbnAtomDemotion::Fit, &error);
                 return;
             }
         };
@@ -3270,10 +3262,7 @@ impl super::Study {
         ) {
             Ok(composed) => composed,
             Err(error) => {
-                state.flag_unidentified(key);
-                state.unevaluable_weight += state.key_weights.get(key);
-                state.first_estimation_error.get_or_insert_with(|| error.to_string());
-                state.fit_demoted += 1;
+                state.demote_unevaluable(key, DbnAtomDemotion::Fit, &error);
                 return;
             }
         };
@@ -3298,12 +3287,7 @@ impl super::Study {
                     composed,
                 });
             }
-            Err(error) => {
-                state.flag_unidentified(key);
-                state.unevaluable_weight += state.key_weights.get(key);
-                state.first_estimation_error.get_or_insert_with(|| error.to_string());
-                state.draws_demoted += 1;
-            }
+            Err(error) => state.demote_unevaluable(key, DbnAtomDemotion::Draws, &error),
         }
     }
 
@@ -3388,6 +3372,29 @@ impl DbnMediationFits {
         if let Some(idx) = self.key_index.get(&key).copied() {
             self.flags[idx] = GraphIdentFlag::Unidentified;
         }
+    }
+
+    /// Flag the atom unidentified and count the stage that dropped it.
+    fn demote(&mut self, key: u64, reason: DbnAtomDemotion) {
+        self.flag_unidentified(key);
+        match reason {
+            DbnAtomDemotion::Prepare => self.prepare_demoted += 1,
+            DbnAtomDemotion::Fit => self.fit_demoted += 1,
+            DbnAtomDemotion::Draws => self.draws_demoted += 1,
+        }
+    }
+
+    /// [`Self::demote`] for an atom whose estimation failed: its identified weight is booked
+    /// as unevaluable and the first failure message is kept for the disclosure.
+    fn demote_unevaluable(
+        &mut self,
+        key: u64,
+        reason: DbnAtomDemotion,
+        error: &impl std::fmt::Display,
+    ) {
+        self.unevaluable_weight += self.key_weights.get(key);
+        self.first_estimation_error.get_or_insert_with(|| error.to_string());
+        self.demote(key, reason);
     }
 }
 
