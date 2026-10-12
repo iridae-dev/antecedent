@@ -108,9 +108,7 @@ TYPED = (CausalTypeError, CausalValueError, CausalUnsupportedError, CausalSerial
 # One row per producer, one status per consumer, in CONSUMERS order. The checks
 # registered below must agree with parity/producer_consumer.toml.
 _MATRIX = tomllib.loads(
-    (REPO_ROOT / "parity" / "producer_consumer.toml").read_text(
-        encoding="utf-8"
-    )
+    (REPO_ROOT / "parity" / "producer_consumer.toml").read_text(encoding="utf-8")
 )
 if tuple(row["key"] for row in _MATRIX["producer"]) != PRODUCERS:
     raise AssertionError("producer_consumer.toml producers drifted from this file")

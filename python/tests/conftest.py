@@ -22,7 +22,6 @@ def repo_root():
     return REPO_ROOT
 
 
-
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     collected = session.testscollected

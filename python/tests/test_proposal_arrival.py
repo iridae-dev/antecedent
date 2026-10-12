@@ -1,4 +1,5 @@
 """Actual proposal-arrival counts through the original checked transport evaluator."""
+
 import json
 import subprocess
 import sys
@@ -14,9 +15,7 @@ from _repo_text import REPO_ROOT
 from test_proposals import experiment, rank, semantic_ids, transport_contract
 
 EXPECTED = json.loads(
-    (REPO_ROOT / "conformance/proposals/arrival/expected.json").read_text(
-        encoding="utf-8"
-    )
+    (REPO_ROOT / "conformance/proposals/arrival/expected.json").read_text(encoding="utf-8")
 )
 
 

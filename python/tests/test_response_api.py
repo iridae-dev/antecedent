@@ -490,11 +490,7 @@ def test_response_admg_intervention_cheap_runs_plugin_level():
     from _repo_text import load_json
 
     pin = load_json(
-        REPO_ROOT
-        / "conformance"
-        / "estimate"
-        / "admg_frontdoor_functional"
-        / "expected.json"
+        REPO_ROOT / "conformance" / "estimate" / "admg_frontdoor_functional" / "expected.json"
     )
     values = {name: [] for name in pin["columns"]}
     for cell in pin["contingency_table"]:

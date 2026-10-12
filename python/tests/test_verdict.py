@@ -70,11 +70,7 @@ def test_certificate_matches_schema():
         refute="none",
     )
     pin = load_json(
-        REPO_ROOT
-        / "conformance"
-        / "estimate"
-        / "temporal_class_envelope"
-        / "identified_pag.json"
+        REPO_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "identified_pag.json"
     )
     n = int(pin["n"])
     i = np.arange(n, dtype=float)

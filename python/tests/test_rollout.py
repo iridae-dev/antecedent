@@ -23,9 +23,7 @@ from antecedent.joint_distribution import (
 from _repo_text import REPO_ROOT
 
 PIN = json.loads(
-    (
-        REPO_ROOT / "conformance/composition/rollout/expected.json"
-    ).read_text(encoding="utf-8")
+    (REPO_ROOT / "conformance/composition/rollout/expected.json").read_text(encoding="utf-8")
 )
 
 

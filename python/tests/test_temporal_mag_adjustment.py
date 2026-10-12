@@ -1,15 +1,12 @@
 """Stationary mixed temporal graphs retain latent confounding and lag coordinates."""
 
-
 import antecedent as ant
 import numpy as np
 import pytest
 
 from _repo_text import REPO_ROOT, load_json
 
-PIN = load_json(
-    REPO_ROOT / "conformance/estimate/temporal_class_envelope/latent.json"
-)
+PIN = load_json(REPO_ROOT / "conformance/estimate/temporal_class_envelope/latent.json")
 
 
 def case(mixed=False):

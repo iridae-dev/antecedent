@@ -53,10 +53,9 @@ def test_path_specific_program_refreshes_and_replays_independently() -> None:
 
 def test_admg_response_grid_replays_each_member_after_refresh() -> None:
     pin = json.loads(
-        (
-            REPO_ROOT
-            / "conformance/estimate/admg_frontdoor_functional/expected.json"
-        ).read_text(encoding="utf-8")
+        (REPO_ROOT / "conformance/estimate/admg_frontdoor_functional/expected.json").read_text(
+            encoding="utf-8"
+        )
     )
     data = {
         name: np.concatenate(

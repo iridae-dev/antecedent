@@ -13,9 +13,7 @@ from antecedent.inference import decode_posterior_artifact, encode_posterior_art
 
 from _repo_text import REPO_ROOT, load_json
 
-FIXTURE = load_json(
-    REPO_ROOT / "conformance/bayesian/posterior_moments/expected.json"
-)
+FIXTURE = load_json(REPO_ROOT / "conformance/bayesian/posterior_moments/expected.json")
 
 
 def prepare(data, graph, query, *, accepted, scale=10.0, suite="none", bayesian=True):
@@ -207,9 +205,7 @@ def test_mediation_validation_targets_and_prior_grid(accepted, suite, bayesian):
 @pytest.mark.parametrize("accepted", [False, True])
 @pytest.mark.parametrize("intervention", [False, True])
 def test_temporal_response_surface_artifact(accepted, intervention):
-    pin = load_json(
-        REPO_ROOT / "conformance/bayesian/response_surfaces/expected.json"
-    )
+    pin = load_json(REPO_ROOT / "conformance/bayesian/response_surfaces/expected.json")
     t = np.resize([0.0, 1.0, 0.0, -1.0], 1200)
     y = 1 + 2 * np.r_[0, t[:-1]] + 3 * np.r_[0, 0, t[:-2]]
     data = {"t": t, "y": y}

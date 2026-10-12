@@ -1,15 +1,12 @@
 """Numerical evidence for joint class-aware response identification and execution."""
 
-
 import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import REPO_ROOT, load_json
 
-_PIN = load_json(
-    REPO_ROOT / "conformance/response/class_aware_envelope/joint.json"
-)
+_PIN = load_json(REPO_ROOT / "conformance/response/class_aware_envelope/joint.json")
 
 
 def _data():

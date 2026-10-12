@@ -18,9 +18,9 @@ from test_program_claims import _native_program, _native_view, _response, _spec
 
 def _truth():
     return json.loads(
-        (
-            REPO_ROOT / "conformance/composition/source_projection/expected.json"
-        ).read_text(encoding="utf-8")
+        (REPO_ROOT / "conformance/composition/source_projection/expected.json").read_text(
+            encoding="utf-8"
+        )
     )
 
 

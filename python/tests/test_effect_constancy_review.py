@@ -28,10 +28,9 @@ from antecedent.temporal import EffectEstimand, effect_constancy
 from _repo_text import REPO_ROOT
 
 ORACLE = json.loads(
-    (
-        REPO_ROOT
-        / "conformance/population_time/effect_constancy_consumers/expected.json"
-    ).read_text(encoding="utf-8")
+    (REPO_ROOT / "conformance/population_time/effect_constancy_consumers/expected.json").read_text(
+        encoding="utf-8"
+    )
 )
 
 

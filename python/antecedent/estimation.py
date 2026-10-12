@@ -12,6 +12,18 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 import numpy as np
 
 from ._api import describe_refusal
+from ._batch import (
+    BatchRetarget,
+    CandidateScreen,
+    PreparedBatch,
+    RetargetClaim,
+    RetargetContrast,
+    RetargetMember,
+    SharedBatchDesign,
+    SimultaneousBandMember,
+    SimultaneousInterval,
+    analyze_many,
+)
 from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
 from ._estimate_helpers import (
@@ -29,18 +41,6 @@ from ._native import (
 )
 from ._native import (
     identify_ate_admg as _identify_ate_admg,
-)
-from ._batch import (
-    BatchRetarget,
-    CandidateScreen,
-    PreparedBatch,
-    RetargetClaim,
-    RetargetContrast,
-    RetargetMember,
-    SharedBatchDesign,
-    SimultaneousBandMember,
-    SimultaneousInterval,
-    analyze_many,
 )
 from .discovery import (
     DbnPosterior,

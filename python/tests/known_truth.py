@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pathlib
-from _repo_text import REPO_ROOT
 from typing import Any
 
 import antecedent
 import numpy as np
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
 _ROOT = REPO_ROOT
 PIN = load_json(_ROOT / "conformance/bayesian/known_truth_mixtures/expected.json")

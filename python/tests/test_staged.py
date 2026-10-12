@@ -1,6 +1,5 @@
 """Numerical and artifact evidence for the staged cells."""
 
-
 import antecedent as ac
 import numpy as np
 import pytest

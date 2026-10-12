@@ -99,10 +99,9 @@ def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_a
     assert result.identification == "nonparametrically_identified"
     assert result.values == pytest.approx((0.3, 0.5, 0.2), abs=1e-12)
     oracle = json.loads(
-        (
-            REPO_ROOT
-            / "conformance/transport/nested_fisher/expected.json"
-        ).read_text(encoding="utf-8")
+        (REPO_ROOT / "conformance/transport/nested_fisher/expected.json").read_text(
+            encoding="utf-8"
+        )
     )
     covariance = np.array(oracle["covariance_times_n"]) / oracle["sample_size"]
     np.testing.assert_allclose(result.covariance, covariance, atol=1e-12, rtol=0)

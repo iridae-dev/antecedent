@@ -15,9 +15,7 @@ import pytest
 
 from _repo_text import REPO_ROOT, load_json, load_toml
 
-_NOTEBOOKS = sorted(
-    (REPO_ROOT / "examples" / "notebooks").glob("*.ipynb")
-)
+_NOTEBOOKS = sorted((REPO_ROOT / "examples" / "notebooks").glob("*.ipynb"))
 
 # `antecedent.a.b.c` — capture the dotted tail so submodule paths resolve too.
 _ATTR = re.compile(r"\bantecedent((?:\.[A-Za-z_][A-Za-z0-9_]*)+)")

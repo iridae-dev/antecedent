@@ -72,10 +72,7 @@ def joint(
         # The public constructor now refuses such labels before copying rows.
         assert provider == "engine" and snapshot == "snap-n"
         assert calibration == "exact" and supported is None
-        path = (
-            REPO_ROOT
-            / "conformance/composition/metadata_only_native/legacy.art"
-        )
+        path = REPO_ROOT / "conformance/composition/metadata_only_native/legacy.art"
         return JointDistributionArtifact.load(path.read_bytes(), expected_identity=identity)
     return JointDistributionArtifact(
         identity, draws, supported=supported, calibration=calibration, trust=trust
@@ -177,10 +174,7 @@ def test_composition_boundary_caller_native_constructor_refuses_before_coercion(
 
 
 def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None:
-    path = (
-        REPO_ROOT
-        / "conformance/composition/metadata_only_native/legacy.art"
-    )
+    path = REPO_ROOT / "conformance/composition/metadata_only_native/legacy.art"
     artifact = JointDistributionArtifact.load(path.read_bytes(), expected_identity=joint().identity)
     metadata = json.loads(artifact._native.metadata_json)
     assert metadata["trust"] == "native_licensed"

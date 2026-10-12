@@ -173,13 +173,7 @@ def test_analyze_result_handoff_matches_identify() -> None:
 
 
 def test_partial_id_refuses() -> None:
-    pin = load_json(
-        REPO_ROOT
-        / "conformance"
-        / "estimate"
-        / "cpdag_ate_envelope"
-        / "expected.json"
-    )
+    pin = load_json(REPO_ROOT / "conformance" / "estimate" / "cpdag_ate_envelope" / "expected.json")
     graph = antecedent.Cpdag.from_directed_undirected(
         pin["columns"],
         [tuple(edge) for edge in pin["graph"]["directed_edges"]],

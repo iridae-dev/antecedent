@@ -1,6 +1,5 @@
 """Observed-data posterior and simultaneous composite artifact axes."""
 
-
 import antecedent
 import numpy as np
 import pytest
@@ -11,10 +10,7 @@ from _repo_text import REPO_ROOT, load_json
 
 
 def test_observed_temporal_posterior_and_response_roundtrip_together():
-    pin = load_json(
-        REPO_ROOT
-        / "conformance/bayesian/temporal_observed_response/expected.json"
-    )
+    pin = load_json(REPO_ROOT / "conformance/bayesian/temporal_observed_response/expected.json")
     rng = np.random.default_rng(pin["seed"])
     x = rng.normal(size=pin["rows"])
     latent = (

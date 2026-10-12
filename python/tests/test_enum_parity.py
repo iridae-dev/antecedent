@@ -16,14 +16,7 @@ from antecedent.ids import Estimator, Identifier
 
 from _repo_text import REPO_ROOT
 
-_IDS_RS = (
-    REPO_ROOT
-    / "crates"
-    / "antecedent"
-    / "src"
-    / "strategy_table"
-    / "ids.rs"
-)
+_IDS_RS = REPO_ROOT / "crates" / "antecedent" / "src" / "strategy_table" / "ids.rs"
 
 
 def _rust_wire_ids() -> tuple[set[str], set[str]]:

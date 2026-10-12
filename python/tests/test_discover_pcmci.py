@@ -37,9 +37,7 @@ LINK_FIELDS = {
 }
 
 # Shared Exact edge set with Rust `discovery_pcmci_lag1_exact_parents`.
-_PCMCI_LAG1_FIXTURE = (
-    REPO_ROOT / "conformance" / "discovery" / "pcmci_lag1"
-)
+_PCMCI_LAG1_FIXTURE = REPO_ROOT / "conformance" / "discovery" / "pcmci_lag1"
 _TRUE_LAG1_PARENTS = {("x", 1, "y", 0)}
 
 

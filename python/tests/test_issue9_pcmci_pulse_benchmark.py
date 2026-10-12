@@ -13,8 +13,6 @@ def test_issue9_pcmci_pulse_benchmark_example() -> None:
     import runpy
 
     runpy.run_path(
-        str(
-            REPO_ROOT / "examples" / "python" / "pcmci_pulse_benchmark.py"
-        ),
+        str(REPO_ROOT / "examples" / "python" / "pcmci_pulse_benchmark.py"),
         run_name="__main__",
     )

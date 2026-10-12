@@ -2897,7 +2897,7 @@ def evaluate_sequential_gformula(
     treatment_probability: NDArray[np.float64],
     censoring_survival: NDArray[np.float64],
     subject_ids: list[str],
-    fold_ids: list[int],
+    fold_ids: NDArray[np.int64] | list[int],
     minimum_probability: float,
 ) -> tuple[float, int, float, float]: ...
 def evaluate_sequential_doubly_robust(
@@ -2910,8 +2910,8 @@ def evaluate_sequential_doubly_robust(
     treatment_probability: NDArray[np.float64],
     censoring_probability: NDArray[np.float64],
     subject_ids: list[str],
-    fold_ids: list[int],
-    prediction_fold_ids: list[int],
+    fold_ids: NDArray[np.int64] | list[int],
+    prediction_fold_ids: NDArray[np.int64] | list[int],
     minimum_probability: float,
 ) -> tuple[float, int, float, float]: ...
 def evaluate_multi_action_policy(
@@ -3014,7 +3014,7 @@ def randomized_survival_ipcw(
     duration: NDArray[np.float64],
     event_observed: list[bool],
     treated: list[bool],
-    times: list[float],
+    times: NDArray[np.float64] | list[float],
     censoring_survival: NDArray[np.float64],
     tau: float,
     minimum_probability: float,
@@ -3023,7 +3023,7 @@ def randomized_cumulative_incidence_ipcw(
     duration: NDArray[np.float64],
     event_cause: list[int],
     treated: list[bool],
-    times: list[float],
+    times: NDArray[np.float64] | list[float],
     censoring_survival: NDArray[np.float64],
     tau: float,
     target_cause: int,
@@ -5493,9 +5493,9 @@ def consume_recovery_chain_artifact(
     cancel: Any = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_vector_treatment(
-    outcome: list[float],
-    adjustment_columns: list[list[float]],
-    treatment_columns: list[list[float]],
+    outcome: NDArray[np.float64] | list[float],
+    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    treatment_columns: list[NDArray[np.float64] | list[float]],
     declaration_json: str,
     artifact_id: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
@@ -5503,8 +5503,8 @@ def consume_vector_treatment_artifact(
     artifact: bytes, expected_identity_json: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def evaluate_categorical_treatment(
-    outcome: list[float],
-    adjustment_columns: list[list[float]],
+    outcome: NDArray[np.float64] | list[float],
+    adjustment_columns: list[NDArray[np.float64] | list[float]],
     levels: list[str],
     declaration_json: str,
     artifact_id: str,
