@@ -17,11 +17,11 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
-antecedent-contract = { version = "2.4.0", path = "../antecedent-contract" }
-antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
-antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
-antecedent-model = { version = "2.4.0", path = "../antecedent-model" }
+antecedent-core = { workspace = true }
+antecedent-contract = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-model = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

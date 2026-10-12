@@ -24,17 +24,17 @@ default = []
 calibration-internal = ["antecedent-estimate/calibration-internal"]
 
 [dependencies]
-antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
-antecedent-estimate = { version = "2.4.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
-antecedent-io-core = { version = "2.4.0", path = "../antecedent-io-core" }
-antecedent-discovery = { version = "2.4.0", path = "../antecedent-discovery" }
-antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
-antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }
-antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
+antecedent-core = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-estimate = { workspace = true }
+antecedent-expr = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-io-core = { workspace = true }
+antecedent-discovery = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
+antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

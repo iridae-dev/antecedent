@@ -17,7 +17,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
+antecedent-core = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

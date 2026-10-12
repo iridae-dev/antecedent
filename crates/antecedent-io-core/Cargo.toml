@@ -17,18 +17,18 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
-antecedent-contract = { version = "2.4.0", path = "../antecedent-contract" }
-antecedent-counterfactual = { version = "2.4.0", path = "../antecedent-counterfactual" }
-antecedent-discovery = { version = "2.4.0", path = "../antecedent-discovery" }
-antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }
-antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
-antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
-antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
-antecedent-learn = { version = "2.4.0", path = "../antecedent-learn" }
-antecedent-model = { version = "2.4.0", path = "../antecedent-model" }
-antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }
+antecedent-core = { workspace = true }
+antecedent-contract = { workspace = true }
+antecedent-counterfactual = { workspace = true }
+antecedent-discovery = { workspace = true }
+antecedent-expr = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-learn = { workspace = true }
+antecedent-model = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
 memmap2 = { workspace = true }
@@ -38,4 +38,4 @@ thiserror = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
-antecedent-test-support = { path = "../antecedent-test-support" }
+antecedent-test-support = { workspace = true }

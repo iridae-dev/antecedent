@@ -22,18 +22,16 @@ arrow = [
     "dep:arrow-array",
     "dep:arrow-schema",
     "dep:arrow-buffer",
-    "dep:arrow-data",
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
 
 [dependencies]
-antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
-antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
+antecedent-core = { workspace = true }
+antecedent-kernels = { workspace = true }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
-arrow-data = { workspace = true, optional = true }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 

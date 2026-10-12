@@ -30,22 +30,22 @@ ml-neural = ["antecedent-learn/ml-neural"]
 calibration-internal = []
 
 [dependencies]
-antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
-antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
-antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
-antecedent-io-core = { version = "2.4.0", path = "../antecedent-io-core" }
-antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
-antecedent-learn = { version = "2.4.0", path = "../antecedent-learn" }
-antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }
+antecedent-graph = { workspace = true }
+antecedent-core = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-expr = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-io-core = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-learn = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-antecedent-contract = { path = "../antecedent-contract" }
-antecedent-test-support = { path = "../antecedent-test-support" }
+antecedent-contract = { workspace = true }
+antecedent-test-support = { workspace = true }
 # Self dev-dependency: the integration tests and benches measure the closed mz bootstrap
 # estimator (and the learned continuous interval), compiled only under `calibration-internal`. Dev-dependencies
 # never reach a normal or Python build (resolver 2).
