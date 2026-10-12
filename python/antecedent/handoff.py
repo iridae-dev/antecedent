@@ -83,7 +83,7 @@ class AdjustmentHandoff:
     @property
     def spec(self):
         """Reusable declaration of this handoff's boundaries, not a learner runner."""
-        from .extensibility import CausalProviderSpec
+        from .extensibility import CausalProviderSpec, ProviderCapability
 
         if not isinstance(self.tool, str) or not self.tool.strip():
             raise CausalValueError("adjustment handoff tool must be a non-empty string")
@@ -109,6 +109,8 @@ class AdjustmentHandoff:
             artifact_codec="antecedent_external_estimate_artifact",
             deterministic=False,
             provenance={"adapter": self.tool},
+            capabilities=(ProviderCapability.MEAN,),
+            meaning="interventional_predictive",
         )
 
     def as_provider(self, executor: Any) -> AdjustmentProviderAdapter:

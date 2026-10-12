@@ -38,7 +38,13 @@ from ._native import bind_external_to_program as _bind_external_to_program
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .extensibility import ProviderTrust
-from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
+from .joint_distribution import (
+    DistributionIdentity,
+    DistributionMeaning,
+    DrawAlignment,
+    QuantityCondition,
+    ScientificQuantity,
+)
 
 if TYPE_CHECKING:
     from .program_claims import ProgramBinding
@@ -89,10 +95,12 @@ _real = partial(
 class ProviderObject:
     """One foreign provider object at an exact request.
 
-    ``capabilities`` names the operations the provider really supplies
-    (``sample``, ``cdf``, ``quantile``, ``log_probability``, ``mean``,
-    ``covariance``, ``conditional``, ``intervention``, ``posterior_predictive``).
-    ``sample`` or ``mean`` never stand in for ``cdf``.
+    ``capabilities`` names the operations the provider really supplies; the
+    vocabulary is :class:`~antecedent.extensibility.ProviderCapability`, and
+    ``sample`` or ``mean`` never stand in for ``cdf``. Prefer deriving the object
+    from a registered provider with
+    :meth:`~antecedent.extensibility.ProviderRegistry.provider_object` over
+    restating its identity and operations here.
     """
 
     provider_id: str
@@ -109,6 +117,32 @@ class ProviderObject:
                 raise CausalTypeError(f"ProviderObject.{name} must be a string")
         object.__setattr__(
             self, "capabilities", _strings("ProviderObject.capabilities", self.capabilities)
+        )
+
+    def distribution_identity(
+        self,
+        quantities: Sequence[ScientificQuantity],
+        *,
+        source_id: str,
+        rng_id: str,
+        causal_contract_id: str,
+        alignment: DrawAlignment = "joint",
+    ) -> DistributionIdentity:
+        """The identity of draws this object supplies, derived rather than restated.
+
+        The provider and snapshot are this object's; the semantic is its
+        ``meaning``. The study, random stream and checked contract are what a
+        provider object does not know, so the caller names them.
+        """
+        return DistributionIdentity(
+            semantic=self.meaning,
+            quantities=tuple(quantities),
+            alignment=alignment,
+            source_id=source_id,
+            provider_id=self.provider_id,
+            rng_id=rng_id,
+            snapshot_id=self.snapshot,
+            causal_contract_id=causal_contract_id,
         )
 
     def _wire(self) -> dict[str, Any]:

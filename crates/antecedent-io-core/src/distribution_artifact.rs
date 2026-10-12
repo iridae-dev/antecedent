@@ -79,6 +79,29 @@ pub struct DistributionProvenance {
     pub causal_contract_id: String,
 }
 
+impl DistributionProvenance {
+    /// Provenance of draws supplied by `identity`: the provider and snapshot are
+    /// the object's own, so a distribution cannot restate them differently.
+    ///
+    /// The study, random stream and checked contract are not part of a provider
+    /// object's identity, so the caller names them.
+    #[must_use]
+    pub fn from_provider(
+        identity: &antecedent_contract::ProviderObjectIdentity,
+        source_id: impl Into<String>,
+        rng_id: impl Into<String>,
+        causal_contract_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            source_id: source_id.into(),
+            provider_id: identity.provider_id.clone(),
+            rng_id: rng_id.into(),
+            snapshot_id: identity.snapshot_id.clone(),
+            causal_contract_id: causal_contract_id.into(),
+        }
+    }
+}
+
 /// Scientific identity a producer and independent consumer agree on.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -815,6 +838,24 @@ mod tests {
             vec![0.0, 0.0, 1.0, 2.0],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn provenance_takes_provider_and_snapshot_from_the_provider_identity() {
+        let object = antecedent_contract::ProviderObjectIdentity {
+            provider_id: "registry-name".into(),
+            object_id: "effect".into(),
+            version_id: "spec-digest".into(),
+            snapshot_id: "rows-1".into(),
+            request_id: "request-1".into(),
+        };
+        let provenance =
+            DistributionProvenance::from_provider(&object, "study", "seed-7", "contract");
+        assert_eq!(provenance.provider_id, "registry-name");
+        assert_eq!(provenance.snapshot_id, "rows-1");
+        assert_eq!(provenance.source_id, "study");
+        assert_eq!(provenance.rng_id, "seed-7");
+        assert_eq!(provenance.causal_contract_id, "contract");
     }
 
     #[test]

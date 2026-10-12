@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from importlib import metadata
 from types import MappingProxyType
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import Any, Protocol, cast, get_args, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -152,6 +152,38 @@ class ProviderTrust(StrEnum):
         return aliases.get(value)
 
 
+class ProviderCapability(StrEnum):
+    """An operation a provider can supply; the Rust ``ExternalCapability`` names.
+
+    Declared independently: ``SAMPLE`` or ``MEAN`` never stand in for ``CDF``.
+    """
+
+    SAMPLE = "sample"
+    CDF = "cdf"
+    QUANTILE = "quantile"
+    LOG_PROBABILITY = "log_probability"
+    MEAN = "mean"
+    COVARIANCE = "covariance"
+    CONDITIONAL = "conditional"
+    INTERVENTION = "intervention"
+    POSTERIOR_PREDICTIVE = "posterior_predictive"
+    UPDATE = "update"
+    FACTOR = "factor"
+    EVALUATE_UTILITY = "evaluate_utility"
+
+
+class UncertaintySemantics(StrEnum):
+    """The uncertainty claims the host understands without a provider method name.
+
+    Any other non-blank ``uncertainty_semantics`` string is a provider-declared
+    method identity (Rust ``ExternalUncertaintyMeaning::ProviderDeclared``), never
+    promoted to an Antecedent interval.
+    """
+
+    POINT_ONLY = "point_only"
+    ATTESTED_NOT_REVERIFIABLE = "externally_attested_not_reverifiable"
+
+
 @dataclass(frozen=True, slots=True)
 class CausalProviderSpec:
     """Machine-readable claims required before an extension can run.
@@ -159,6 +191,12 @@ class CausalProviderSpec:
     These declarations describe an extension's contract; they do not make its
     scientific claims true. Native licensing and extension verification remain
     separate gates.
+
+    ``capabilities`` and ``meaning`` are the typed counterparts of what a
+    ``ProviderObject`` declares: when given they are what
+    :meth:`ProviderRegistry.provider_object` derives it from, so a provider
+    states its operations and what one value means once. ``uncertainty_semantics``
+    is an :class:`UncertaintySemantics` member or a provider-declared method name.
     """
 
     query_family: str
@@ -175,8 +213,35 @@ class CausalProviderSpec:
     artifact_codec: str
     deterministic: bool
     provenance: Mapping[str, str]
+    capabilities: tuple[ProviderCapability, ...] = ()
+    meaning: str | None = None
+
+    @property
+    def uncertainty_method(self) -> str | None:
+        """The provider-declared uncertainty method, or ``None`` for a point-only provider."""
+        if self.uncertainty_semantics == UncertaintySemantics.POINT_ONLY:
+            return None
+        return str(self.uncertainty_semantics)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "capabilities", _capabilities(self.capabilities))
+        if self.meaning is not None:
+            from .joint_distribution import DistributionMeaning
+
+            if self.meaning not in get_args(DistributionMeaning):
+                raise ValueError(
+                    f"meaning must be one of {', '.join(get_args(DistributionMeaning))}; "
+                    f"got {self.meaning!r}"
+                )
+        if isinstance(self.uncertainty_semantics, str):
+            try:
+                object.__setattr__(
+                    self,
+                    "uncertainty_semantics",
+                    UncertaintySemantics(self.uncertainty_semantics),
+                )
+            except ValueError:
+                pass
         for field_name in (
             "identification_requirements",
             "observed_distributions",
@@ -759,6 +824,50 @@ class ProviderRegistry:
             "probes": probes,
         }
 
+    def provider_object(
+        self,
+        name: str,
+        request: Mapping[str, Any],
+        *,
+        snapshot: str | None = None,
+        meaning: str | None = None,
+    ) -> ProviderObject:
+        """The :class:`~antecedent.external.ProviderObject` of a registered provider at ``request``.
+
+        Derived, never restated: the provider id is the registered name, the
+        object is its query family, the version is the digest of its declarative
+        spec, the request is the canonical request digest, and operations and
+        meaning come from the spec. The snapshot defaults to the request digest
+        (a request carries its whole input). This is the identity a verification
+        receipt records for the same request.
+        """
+        from .external import ProviderObject
+
+        spec = self._entry(name)[0].spec
+        declared = meaning if meaning is not None else spec.meaning
+        if declared is None:
+            raise ValueError(
+                f"provider {name!r} declares no distribution meaning; set spec.meaning or pass meaning="
+            )
+        if not spec.capabilities:
+            raise ValueError(f"provider {name!r} declares no capabilities; set spec.capabilities")
+        digest = _digest("request", request)
+        return ProviderObject(
+            provider_id=name,
+            object_id=spec.query_family,
+            version=_digest("spec", _spec_evidence(spec)),
+            snapshot=snapshot if snapshot is not None else digest,
+            request=digest,
+            meaning=cast("Any", declared),
+            capabilities=tuple(str(c) for c in spec.capabilities),
+        )
+
+    def _entry(self, name: str) -> tuple[ExecutableProvider, ProviderTrust]:
+        try:
+            return self._providers[name]
+        except KeyError as exc:
+            raise KeyError(f"provider {name!r} is not explicitly registered") from exc
+
     def execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
         try:
             provider, trust = self._providers[name]
@@ -841,6 +950,21 @@ class ProviderRegistry:
             raw.artifact,
             host_artifact,
         )
+
+
+def _capabilities(value: Any) -> tuple[ProviderCapability, ...]:
+    if isinstance(value, (str, bytes)):
+        raise ValueError("capabilities must be a sequence of capability names, not one string")
+    names = []
+    for item in value:
+        try:
+            names.append(ProviderCapability(item))
+        except ValueError:
+            known = ", ".join(member.value for member in ProviderCapability)
+            raise ValueError(f"unknown provider capability {item!r}; use one of {known}") from None
+    if len(set(names)) != len(names):
+        raise ValueError("capabilities must not repeat an operation")
+    return tuple(names)
 
 
 def _provider_array(value: Any, label: str) -> NDArray[np.float64]:
@@ -953,6 +1077,7 @@ __all__ = [
     "EffectValidator",
     "ExecutableProvider",
     "MechanismWrapper",
+    "ProviderCapability",
     "ProviderTrust",
     "ProviderExecution",
     "ProviderRegistry",
@@ -961,6 +1086,7 @@ __all__ = [
     "ProviderVerificationFixture",
     "ProviderVerificationReceipt",
     "ProviderVerificationReport",
+    "UncertaintySemantics",
     "UtilityFn",
     "VerifiedRequest",
     "providers",

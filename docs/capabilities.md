@@ -1477,6 +1477,15 @@ package can be installed or upgraded independently. The caller loads it by
 name before submitting its `ProviderQuery`; an absent or ambiguous entry point
 is refused, and no plugin can declare itself native licensed through this path.
 
+A spec may declare its `capabilities` (`ProviderCapability`: `sample`, `cdf`,
+`quantile`, `log_probability`, `mean`, `covariance`, `conditional`,
+`intervention`, `posterior_predictive`, `update`, `factor`, `evaluate_utility`)
+and `meaning` (a distribution meaning). `providers.provider_object(name,
+request)` then derives the `external.ProviderObject` for a registered provider,
+with its provider id, query family, spec digest as version, and request digest,
+and `ProviderObject.distribution_identity(...)` derives the draw identity from
+it, so none of the three identity shapes is restated by hand.
+
 A host can promote an externally attested provider to `verified_extension` by
 calling `ProviderRegistry.verify(name, fixtures, evidence_origin=...)`. Each
 `ProviderVerificationFixture` supplies an independent known-truth request,
