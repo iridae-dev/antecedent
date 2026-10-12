@@ -18,11 +18,21 @@ use crate::error::CounterfactualError;
 /// Stream index of the abduction draw within [`StreamDomain::Counterfactual`].
 const ABDUCTION_STREAM: u64 = 0xAB_D0;
 
-/// Stream index of prediction and of the nested column-frozen pass.
+/// Stream index of world 0, and of the nested column-frozen pass.
 ///
-/// Both evaluations restart this stream, so a one-pass freeze matches the
-/// historical per-unit `predict` restart bit-for-bit.
+/// A one-world prediction and the nested freeze both start here, so a one-pass
+/// freeze matches the historical per-unit `predict` restart bit-for-bit. Later
+/// worlds use [`predict_world_stream`] and do not continue this generator.
 const PREDICT_STREAM: u64 = 0xCF_01;
+
+/// Stream index of world `world` inside [`PREDICT_STREAM`].
+///
+/// World 0 is `PREDICT_STREAM` itself. A later world mixes in its index, so its
+/// stochastic draws do not continue the previous world's generator.
+fn predict_world_stream(world: usize) -> u64 {
+    let world = u64::try_from(world).unwrap_or(u64::MAX);
+    PREDICT_STREAM ^ world.wrapping_mul(antecedent_core::GOLDEN_GAMMA)
+}
 
 /// Assumption recorded on every result whose abduction drew posterior noise. A
 /// categorical node's law given its parents does not identify unit-level
@@ -371,9 +381,6 @@ impl CounterfactualEngine {
         if exo.kind == NoiseInferenceKind::PosteriorNoise {
             notes.push(Arc::from(RANK_PRESERVING_ASSUMPTION));
         }
-        // Worlds share one generator. Splitting a stream per world would change
-        // every stochastic intervention that follows the first world.
-        let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, PREDICT_STREAM);
         let mut values_buf = vec![0.0; n_units * n_nodes];
         let mut parent_buf = Vec::new();
 
@@ -391,6 +398,9 @@ impl CounterfactualEngine {
 
             values_buf.fill(0.0);
             let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
+            // Each world opens its own stream. World 0 stays on `0xCF_01`.
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Counterfactual, predict_world_stream(wi));
             evaluate_world_into(
                 &self.model,
                 exo,
@@ -918,7 +928,8 @@ fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
 ///
 /// `frozen` nodes keep the values already in the batch (the outer counterfactual
 /// columns). The mechanism slot is borrowed unless a soft overlay replaces it.
-/// `rng` is the caller's stream: prediction walks worlds on one `0xCF_01` stream.
+/// `rng` is the caller's stream. [`CounterfactualEngine::predict`] passes each
+/// world its own stream from [`predict_world_stream`].
 fn evaluate_world_into(
     model: &CompiledCausalModel,
     exo: &ExogenousPosterior,
