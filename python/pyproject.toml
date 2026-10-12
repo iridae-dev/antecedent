@@ -129,3 +129,18 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = ["pandas.*", "pyarrow.*"]
 ignore_missing_imports = true
+
+# Modules that are annotated end to end. The rest of the package stays on the
+# loose settings above until those modules are cleaned the same way.
+[[tool.mypy.overrides]]
+module = [
+  "antecedent._api",
+  "antecedent._digest",
+  "antecedent._estimate_helpers",
+  "antecedent._freeze",
+  "antecedent._names",
+  "antecedent._rollback",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
