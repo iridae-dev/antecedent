@@ -455,16 +455,35 @@ impl EstimatorId {
 /// [`EstimatorId::parallel_task_dimension`], [`EstimatorId::kernel_label`], and
 /// [`estimate_provenance_step`].
 ///
-/// Purely descriptive — the real behavioral dispatch lives in
-/// [`estimate_static_effect`] / [`estimate_static_effect_default`] /
-/// [`estimand_compatible_with_estimator`], which stay exhaustive `match`es and are not
-/// table-driven.
+/// The static-ATE identifier allow-list is [`Self::compatible`]. Fit dispatch in
+/// [`estimate_static_effect`] / [`estimate_static_effect_default`] and
+/// [`estimand_compatible_with_estimator`] stay exhaustive `match`es.
 pub(super) struct EstimatorData {
     name: &'static str,
     parallel_task_dimension: &'static str,
     kernel_label: &'static str,
     pub(super) provenance: (&'static str, &'static str),
+    /// Identifiers [`validate_static_pair`] accepts with this estimator.
+    compatible: &'static [IdentifierId],
 }
+
+const ADJUSTMENT: &[IdentifierId] = &[
+    IdentifierId::BackdoorAdjustment,
+    IdentifierId::BackdoorEfficient,
+    IdentifierId::GeneralizedAdjustment,
+    IdentifierId::Auto,
+];
+const BACKDOOR_AND_AUTO: &[IdentifierId] =
+    &[IdentifierId::BackdoorAdjustment, IdentifierId::BackdoorEfficient, IdentifierId::Auto];
+const FRONTDOOR_AND_AUTO: &[IdentifierId] = &[IdentifierId::Frontdoor, IdentifierId::Auto];
+const IV_AND_AUTO: &[IdentifierId] = &[IdentifierId::Iv, IdentifierId::Auto];
+const RD: &[IdentifierId] = &[IdentifierId::RdSharp];
+const RD_AND_AUTO: &[IdentifierId] = &[IdentifierId::RdSharp, IdentifierId::Auto];
+const INTERFERENCE: &[IdentifierId] = &[IdentifierId::InterferenceDesign];
+const RANDOMIZED: &[IdentifierId] = &[IdentifierId::RandomizedDesign];
+const DOSE: &[IdentifierId] = &[IdentifierId::ContinuousDoseExchangeability];
+const GENERAL_ID: &[IdentifierId] = &[IdentifierId::GeneralId];
+const NONE: &[IdentifierId] = &[];
 
 // Keeping this as an exhaustive `match` rather than an indexed table preserves the compile
 // error when a new variant is added and its row is forgotten.
@@ -475,156 +494,182 @@ pub(super) struct EstimatorData {
 pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
     match id {
         EstimatorId::LinearAdjustmentAte => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "linear.adjustment.ate",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ols.faer",
             provenance: ("estimate.linear_adjustment", "estimate.linear_adjustment_ate"),
         },
         EstimatorId::PropensityWeighting => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "propensity.weighting",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ipw",
             provenance: ("estimate.propensity", "estimate.propensity_weighting"),
         },
         EstimatorId::PropensityMatching => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "propensity.matching",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "matching",
             provenance: ("estimate.propensity", "estimate.propensity_matching"),
         },
         EstimatorId::PropensityStratification => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "propensity.stratification",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "propensity.stratification",
             provenance: ("estimate.propensity", "estimate.propensity_stratification"),
         },
         EstimatorId::DistanceMatching => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "distance.matching",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "matching",
             provenance: ("estimate.matching", "estimate.distance_matching"),
         },
         EstimatorId::Aipw => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "aipw",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "aipw",
             provenance: same_step("estimate.aipw"),
         },
         EstimatorId::GlmAdjustment => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "glm.adjustment",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "glm.logit",
             provenance: ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
         },
         EstimatorId::FrontDoorTwoStage => EstimatorData {
+            compatible: FRONTDOOR_AND_AUTO,
             name: "frontdoor.linear_two_stage",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "frontdoor.linear_two_stage",
             provenance: ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
         },
         EstimatorId::FrontDoorFunctional => EstimatorData {
+            compatible: FRONTDOOR_AND_AUTO,
             name: "frontdoor.functional",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "frontdoor.functional",
             provenance: same_step("estimate.frontdoor_functional"),
         },
         EstimatorId::IvWald => EstimatorData {
+            compatible: IV_AND_AUTO,
             name: "iv.wald",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "iv.wald",
             provenance: ("estimate.iv", "estimate.wald_iv"),
         },
         EstimatorId::Iv2Sls => EstimatorData {
+            compatible: IV_AND_AUTO,
             name: "iv.2sls",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "2sls",
             provenance: ("estimate.iv", "estimate.two_stage_least_squares"),
         },
         EstimatorId::BayesianIvJointLinear => EstimatorData {
+            compatible: IV_AND_AUTO,
             name: "iv.bayesian_joint_linear",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian_iv.joint_fixed_loading",
             provenance: ("estimate.bayesian_iv", "estimate.bayesian_iv_joint_fixed_loading"),
         },
         EstimatorId::RdSharp => EstimatorData {
+            compatible: RD,
             name: "rd.sharp",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "rd.local_linear",
             provenance: ("estimate.rd", "estimate.rd_sharp"),
         },
         EstimatorId::BayesianRdLocalLinear => EstimatorData {
+            compatible: RD_AND_AUTO,
             name: "rd.bayesian_local_linear",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian_rd.local_linear",
             provenance: ("estimate.bayesian_rd", "estimate.bayesian_rd_local_linear"),
         },
         EstimatorId::BayesianConditional => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "conditional.bayesian",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian.conditional",
             provenance: same_step("estimate.bayesian_conditional"),
         },
         EstimatorId::BayesianGcomp => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "bayesian.gcomp",
             parallel_task_dimension: "analysis",
             kernel_label: "ols.faer",
             provenance: same_step("estimate.bayesian_gcomp"),
         },
         EstimatorId::BayesianBasisGcomp => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "bayesian.basis.gcomp",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian_basis_gcomp.quadratic_tz_z2",
             provenance: same_step("estimate.bayesian_basis_gcomp"),
         },
         EstimatorId::BayesianRobustAte => EstimatorData {
+            compatible: BACKDOOR_AND_AUTO,
             name: "bayesian.robust_ate",
             parallel_task_dimension: "bootstrap.draw",
             kernel_label: "bayesian_bootstrap.aipw",
             provenance: same_step("estimate.bayesian_robust_ate"),
         },
         EstimatorId::TemporalSequentialGcomp => EstimatorData {
+            compatible: NONE,
             name: "temporal.sequential.gcomp",
             parallel_task_dimension: "mechanism",
             kernel_label: "ols.faer.temporal.sequential",
             provenance: same_step("estimate.temporal_sequential"),
         },
         EstimatorId::TemporalLinearAdjustment => EstimatorData {
+            compatible: NONE,
             name: "temporal.linear.adjustment",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ols.faer.temporal",
             provenance: ("estimate.temporal_linear", "estimate.temporal_linear_adjustment"),
         },
         EstimatorId::BayesianTemporalGcomp => EstimatorData {
+            compatible: NONE,
             name: "bayesian.temporal.gcomp",
             parallel_task_dimension: "analysis",
             kernel_label: "ols.faer.temporal",
             provenance: ("estimate.bayesian_temporal_gcomp", "estimate.bayesian.temporal.gcomp"),
         },
         EstimatorId::FunctionalDistribution => EstimatorData {
+            compatible: NONE,
             name: "functional.distribution",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "functional.distribution",
             provenance: same_step("estimate.functional_distribution"),
         },
         EstimatorId::StaticMediationLinear => EstimatorData {
+            compatible: NONE,
             name: "mediation.linear",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ols.faer.mediation",
             provenance: same_step("estimate.mediation.linear"),
         },
         EstimatorId::FunctionalEffect => EstimatorData {
+            compatible: GENERAL_ID,
             name: "functional.effect",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "functional.effect",
             provenance: same_step("estimate.functional_effect"),
         },
         EstimatorId::ConditionalLinearAdjustment => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "conditional.linear.adjustment",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ols.faer.conditional",
             provenance: ("estimate.conditional_linear", "estimate.conditional_linear_adjustment"),
         },
         EstimatorId::BayesianTemporalMediation => EstimatorData {
+            compatible: NONE,
             name: "temporal.mediation.bayesian",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian.gaussian",
@@ -634,12 +679,14 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::ResponseBayesian => EstimatorData {
+            compatible: NONE,
             name: "response.bayesian",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian.gaussian",
             provenance: same_step("estimate.response.bayesian"),
         },
         EstimatorId::TemporalResponseBayesian => EstimatorData {
+            compatible: NONE,
             name: "response.temporal.bayesian",
             parallel_task_dimension: "analysis",
             kernel_label: "bayesian.gaussian",
@@ -649,30 +696,35 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::TemporalMediation => EstimatorData {
+            compatible: NONE,
             name: "temporal.mediation",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ols.faer.temporal",
             provenance: same_step("estimate.temporal_mediation"),
         },
         EstimatorId::ResponseKennedyDr => EstimatorData {
+            compatible: NONE,
             name: "response.kennedy_dr",
             parallel_task_dimension: "crossfit.fold",
             kernel_label: "response.kennedy_dr.gam",
             provenance: same_step("estimate.response.kennedy_dr"),
         },
         EstimatorId::ResponseRieszAde => EstimatorData {
+            compatible: NONE,
             name: "response.riesz_ade",
             parallel_task_dimension: "crossfit.fold",
             kernel_label: "response.riesz_ade.gam",
             provenance: same_step("estimate.response.riesz_ade"),
         },
         EstimatorId::ResponseGamDerivative => EstimatorData {
+            compatible: NONE,
             name: "response.gam_derivative",
             parallel_task_dimension: "outcome",
             kernel_label: "response.gam.derivative",
             provenance: same_step("estimate.response.gam_derivative"),
         },
         EstimatorId::ResponseInterventionGcomp => EstimatorData {
+            compatible: NONE,
             name: "response.intervention_gcomp",
             parallel_task_dimension: "intervention",
             kernel_label: "response.gam.intervention_gcomp",
@@ -682,42 +734,49 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::CellAipw => EstimatorData {
+            compatible: NONE,
             name: "cell.aipw",
             parallel_task_dimension: "cell",
             kernel_label: "aipw.cell",
             provenance: same_step("estimate.cell.aipw"),
         },
         EstimatorId::TemporalResponseGcomp => EstimatorData {
+            compatible: NONE,
             name: "temporal.response.gcomp",
             parallel_task_dimension: "horizon",
             kernel_label: "ols.faer.temporal.response",
             provenance: same_step("estimate.temporal_response.gcomp"),
         },
         EstimatorId::GcmFit => EstimatorData {
+            compatible: NONE,
             name: "gcm.fit",
             parallel_task_dimension: "analysis",
             kernel_label: "gcm.aap",
             provenance: same_step("estimate.gcm.fit"),
         },
         EstimatorId::GcmFitBayesian => EstimatorData {
+            compatible: NONE,
             name: "gcm.fit.bayesian",
             parallel_task_dimension: "analysis",
             kernel_label: "gcm.attribution.bayesian",
             provenance: same_step("estimate.gcm.fit.bayesian"),
         },
         EstimatorId::GcmAttributionBayesian => EstimatorData {
+            compatible: NONE,
             name: "gcm.attribution.bayesian",
             parallel_task_dimension: "analysis",
             kernel_label: "gcm.attribution.bayesian",
             provenance: same_step("estimate.gcm.attribution.bayesian"),
         },
         EstimatorId::TransportTrialIpw => EstimatorData {
+            compatible: NONE,
             name: "transport.trial_ipw",
             parallel_task_dimension: "analysis",
             kernel_label: "transport.trial_ipw",
             provenance: same_step("estimate.transport.trial_ipw"),
         },
         EstimatorId::TransportTrialBayesianBootstrap => EstimatorData {
+            compatible: NONE,
             name: "transport.trial_bayesian_bootstrap",
             parallel_task_dimension: "analysis",
             kernel_label: "transport.trial_bayesian_bootstrap",
@@ -727,12 +786,14 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::InterferenceHtHajek => EstimatorData {
+            compatible: INTERFERENCE,
             name: "interference.ht_hajek",
             parallel_task_dimension: "analysis",
             kernel_label: "interference.ht_hajek",
             provenance: same_step("estimate.interference.ht_hajek"),
         },
         EstimatorId::InterferenceClusterNeyman => EstimatorData {
+            compatible: INTERFERENCE,
             name: "interference.cluster_neyman",
             parallel_task_dimension: "analysis",
             kernel_label: "interference.cluster_neyman",
@@ -742,6 +803,7 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::InterferenceSaturationExact => EstimatorData {
+            compatible: INTERFERENCE,
             name: "interference.saturation_exact",
             parallel_task_dimension: "analysis",
             kernel_label: "interference.saturation_exact",
@@ -751,6 +813,7 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::InterferenceObservationalIpw => EstimatorData {
+            compatible: INTERFERENCE,
             name: "interference.observational_ipw",
             parallel_task_dimension: "analysis",
             kernel_label: "interference.observational_ipw",
@@ -760,6 +823,7 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::InterferenceBayesianGaussian => EstimatorData {
+            compatible: INTERFERENCE,
             name: "interference.bayesian_gaussian",
             parallel_task_dimension: "analysis",
             kernel_label: "interference.bayesian_gaussian",
@@ -769,18 +833,21 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::RandomizedHt => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.ht_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.ht_itt",
             provenance: same_step("estimate.randomized.ht_itt"),
         },
         EstimatorId::ContinuousDoseKernel => EstimatorData {
+            compatible: DOSE,
             name: "policy.triangular_kernel_inverse_density",
             parallel_task_dimension: "analysis",
             kernel_label: "policy.triangular_kernel_inverse_density",
             provenance: same_step("estimate.policy.continuous_dose"),
         },
         EstimatorId::RandomizedFixedCupedHt => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.fixed_cuped_ht_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.fixed_cuped_ht_itt",
@@ -790,12 +857,14 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::RandomizedAncova => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.ancova_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.ancova_itt",
             provenance: same_step("estimate.randomized.ancova_itt"),
         },
         EstimatorId::RandomizedWaldCace => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.wald_cace_late",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.wald_cace_late",
@@ -805,6 +874,7 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::RandomizedSwitchbackHt => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.switchback_ht_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.switchback_ht_itt",
@@ -814,12 +884,14 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::RandomizedNeyman => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.neyman_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.neyman_itt",
             provenance: same_step("estimate.randomized.neyman_itt"),
         },
         EstimatorId::RandomizedDrPolicy => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.dr_policy",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.dr_policy",
@@ -829,12 +901,14 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::RandomizedIpwPolicy => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.ipw_policy",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.ipw_policy",
             provenance: same_step("estimate.policy_value.ipw"),
         },
         EstimatorId::RandomizedMultiActionIpwPolicy => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.multi_action_ipw_policy",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.multi_action_ipw_policy",
@@ -844,18 +918,21 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::RandomizedSurvivalProductLimit => EstimatorData {
+            compatible: RANDOMIZED,
             name: "randomized.survival_product_limit",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.survival_product_limit",
             provenance: same_step("estimate.survival.product_limit"),
         },
         EstimatorId::LongitudinalIpwRegime => EstimatorData {
+            compatible: RANDOMIZED,
             name: "longitudinal.ipw_regime",
             parallel_task_dimension: "subject",
             kernel_label: "longitudinal.ipw_regime",
             provenance: same_step("estimate.longitudinal.ipw_regime"),
         },
         EstimatorId::LongitudinalGFormulaRegime => EstimatorData {
+            compatible: RANDOMIZED,
             name: "longitudinal.g_formula_regime",
             parallel_task_dimension: "subject",
             kernel_label: "longitudinal.g_formula_regime",
@@ -865,6 +942,7 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::LongitudinalSequentialDrRegime => EstimatorData {
+            compatible: RANDOMIZED,
             name: "longitudinal.sequential_dr_regime",
             parallel_task_dimension: "subject",
             kernel_label: "longitudinal.sequential_dr_regime",
@@ -874,6 +952,7 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::LongitudinalMarginalStructuralModel => EstimatorData {
+            compatible: RANDOMIZED,
             name: "longitudinal.marginal_structural_model",
             parallel_task_dimension: "subject",
             kernel_label: "longitudinal.marginal_structural_model",
@@ -883,18 +962,21 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             ),
         },
         EstimatorId::Dml => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "dml",
             parallel_task_dimension: "crossfit.fold",
             kernel_label: "dml",
             provenance: same_step("estimate.dml"),
         },
         EstimatorId::DrLearner => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "dr.learner",
             parallel_task_dimension: "crossfit.fold",
             kernel_label: "dr.learner",
             provenance: same_step("estimate.dr.learner"),
         },
         EstimatorId::CausalForest => EstimatorData {
+            compatible: ADJUSTMENT,
             name: "causal.forest",
             parallel_task_dimension: "forest.tree",
             kernel_label: "causal.forest",
@@ -1038,107 +1120,20 @@ pub fn validate_class_response_pair(
     Ok(())
 }
 
-/// Estimators that consume any covariate-adjustment set, so both `backdoor.*` and the
-/// class-aware `generalized.adjustment` identifier may feed them.
-///
-/// `BayesianRobustAte` is deliberately absent: it is a staged cell sealed only for an
-/// explicit, retained DAG (see `sealers::bayesian::bayesian_robust_ate`), with no
-/// CPDAG / PAG execution path, so `generalized.adjustment` is refused for it while
-/// `backdoor.*` and `auto` (which resolve to the DAG backdoor) accept it.
-const fn is_adjustment_estimator(estimator: EstimatorId) -> bool {
-    matches!(
-        estimator,
-        EstimatorId::LinearAdjustmentAte
-            | EstimatorId::PropensityWeighting
-            | EstimatorId::PropensityMatching
-            | EstimatorId::PropensityStratification
-            | EstimatorId::DistanceMatching
-            | EstimatorId::Aipw
-            | EstimatorId::GlmAdjustment
-            | EstimatorId::Dml
-            | EstimatorId::DrLearner
-            | EstimatorId::CausalForest
-            | EstimatorId::BayesianGcomp
-            | EstimatorId::BayesianBasisGcomp
-            | EstimatorId::BayesianConditional
-            | EstimatorId::ConditionalLinearAdjustment
-    )
-}
-
 /// Compile-time allowlist of identifier/estimator pairs for the static ATE path.
+///
+/// The pairs live on each estimator's compatible-identifier list. `BayesianRobustAte`
+/// is not an adjustment estimator: it is sealed only for an explicit retained DAG, so
+/// `generalized.adjustment` is refused while backdoor and `auto` accept it.
 ///
 /// # Errors
 ///
 /// Unknown ids or incompatible pairs.
-#[allow(
-    clippy::too_many_lines,
-    reason = "the identifier/estimator compatibility table for the static ATE path: one arm per identifier family over every EstimatorId, each with its own refusal text"
-)]
 pub fn validate_static_pair(
     identifier: IdentifierId,
     estimator: EstimatorId,
 ) -> Result<(), CausalError> {
-    let adjustment_estimators = is_adjustment_estimator(estimator);
-    let supported = match (&identifier, &estimator) {
-        (IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient, _)
-            if adjustment_estimators || estimator == EstimatorId::BayesianRobustAte =>
-        {
-            true
-        }
-        (IdentifierId::GeneralizedAdjustment, _) if adjustment_estimators => true,
-        (
-            IdentifierId::Frontdoor,
-            EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional,
-        )
-        | (
-            IdentifierId::Iv,
-            EstimatorId::IvWald | EstimatorId::Iv2Sls | EstimatorId::BayesianIvJointLinear,
-        )
-        | (IdentifierId::RdSharp, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)
-        | (
-            IdentifierId::InterferenceDesign,
-            EstimatorId::InterferenceHtHajek
-            | EstimatorId::InterferenceClusterNeyman
-            | EstimatorId::InterferenceSaturationExact
-            | EstimatorId::InterferenceObservationalIpw
-            | EstimatorId::InterferenceBayesianGaussian,
-        )
-        | (
-            IdentifierId::RandomizedDesign,
-            EstimatorId::RandomizedHt
-            | EstimatorId::RandomizedFixedCupedHt
-            | EstimatorId::RandomizedAncova
-            | EstimatorId::RandomizedWaldCace
-            | EstimatorId::RandomizedSwitchbackHt
-            | EstimatorId::RandomizedNeyman
-            | EstimatorId::RandomizedDrPolicy
-            | EstimatorId::RandomizedIpwPolicy
-            | EstimatorId::RandomizedMultiActionIpwPolicy
-            | EstimatorId::RandomizedSurvivalProductLimit
-            | EstimatorId::LongitudinalIpwRegime
-            | EstimatorId::LongitudinalGFormulaRegime
-            | EstimatorId::LongitudinalSequentialDrRegime
-            | EstimatorId::LongitudinalMarginalStructuralModel,
-        )
-        | (IdentifierId::ContinuousDoseExchangeability, EstimatorId::ContinuousDoseKernel)
-        | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
-        (IdentifierId::Auto, _)
-            if adjustment_estimators
-                || matches!(
-                    estimator,
-                    EstimatorId::BayesianRobustAte
-                        | EstimatorId::FrontDoorTwoStage
-                        | EstimatorId::FrontDoorFunctional
-                        | EstimatorId::IvWald
-                        | EstimatorId::Iv2Sls
-                        | EstimatorId::BayesianIvJointLinear
-                        | EstimatorId::BayesianRdLocalLinear
-                ) =>
-        {
-            true
-        }
-        _ => false,
-    };
+    let supported = estimator_data(estimator).compatible.contains(&identifier);
     if !supported {
         return Err(crate::compile_reason!(
             "strategy_incompatible",
