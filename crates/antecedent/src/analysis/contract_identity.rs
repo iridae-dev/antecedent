@@ -25,6 +25,21 @@ use antecedent_stats::{GlmFamily, GlmOptions, NbAlphaPolicy};
 use crate::estimator_spec::EstimatorSpec;
 use crate::inference::BayesianConfig;
 
+/// Overlay the declared grouping inputs `$field` of `$cfg` (cluster labels, multiway
+/// groups, panel times, population registry) onto `$wire` as digests; absent ones stay
+/// `None`.
+macro_rules! grouped {
+    (@digest cluster_ids, $v:expr) => { $v.as_deref().map(cluster_ids) };
+    (@digest multiway_ids, $v:expr) => { $v.as_deref().map(multiway_ids) };
+    (@digest panel_times, $v:expr) => { $v.as_deref().map(panel_times) };
+    (@digest population_registry, $v:expr) => { $v.as_ref().map(population_registry) };
+    ($cfg:expr, $wire:expr; $($field:ident),+ $(,)?) => {{
+        let mut wire = $wire;
+        $( wire.$field = grouped!(@digest $field, $cfg.$field); )+
+        wire
+    }};
+}
+
 /// Structured identity of a configured estimator. Called once per build.
 #[allow(
     clippy::too_many_lines,
@@ -37,18 +52,21 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             EstimatorSpecWire::LinearAdjustmentAte(EstimatorConfigWire {
                 se_kind: Some(se_kind(cfg.se_kind)),
                 fit_kind: Some(fit_kind(cfg.fit_kind)),
-                cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-                multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-                panel_times: cfg.panel_times.as_deref().map(panel_times),
-                population_registry: cfg.population_registry.as_ref().map(population_registry),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    cluster_ids, multiway_ids, panel_times, population_registry
+                )
             })
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
-                population_registry: cfg.population_registry.as_ref().map(population_registry),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    population_registry
+                )
             })
         }
         EstimatorSpec::PropensityMatching(cfg) => {
@@ -63,19 +81,22 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                     }
                     .into(),
                 ),
-                cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-                multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-                panel_times: cfg.panel_times.as_deref().map(panel_times),
-                population_registry: cfg.population_registry.as_ref().map(population_registry),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    cluster_ids, multiway_ids, panel_times, population_registry
+                )
             })
         }
         EstimatorSpec::PropensityStratification(cfg) => {
             EstimatorSpecWire::PropensityStratification(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
                 n_strata: Some(cfg.n_strata),
-                population_registry: cfg.population_registry.as_ref().map(population_registry),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    population_registry
+                )
             })
         }
         EstimatorSpec::DistanceMatching(cfg) => {
@@ -83,11 +104,11 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 glm: Some(glm_options(&cfg.glm_options)),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 caliper_bits: cfg.caliper.map(f64::to_bits),
-                cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-                multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-                panel_times: cfg.panel_times.as_deref().map(panel_times),
-                population_registry: cfg.population_registry.as_ref().map(population_registry),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    cluster_ids, multiway_ids, panel_times, population_registry
+                )
             })
         }
         EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(EstimatorConfigWire {
@@ -101,45 +122,50 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             // key); omitted by default.
             score: cluster_dml_key(cfg),
             se_kind: Some(se_kind(cfg.se_kind)),
-            cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-            multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-            panel_times: cfg.panel_times.as_deref().map(panel_times),
-            population_registry: cfg.population_registry.as_ref().map(population_registry),
-            ..base(cfg.bootstrap_replicates, cfg.overlap)
+            ..grouped!(
+                cfg,
+                base(cfg.bootstrap_replicates, cfg.overlap);
+                cluster_ids, multiway_ids, panel_times, population_registry
+            )
         }),
         EstimatorSpec::GlmAdjustment(cfg) => {
             EstimatorSpecWire::GlmAdjustment(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 family: Some(glm_family(cfg.family).into()),
-                cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-                multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-                panel_times: cfg.panel_times.as_deref().map(panel_times),
-                population_registry: cfg.population_registry.as_ref().map(population_registry),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    cluster_ids, multiway_ids, panel_times, population_registry
+                )
             })
         }
         EstimatorSpec::FrontDoorTwoStage(cfg) => {
             EstimatorSpecWire::FrontDoorTwoStage(EstimatorConfigWire {
                 se_kind: Some(se_kind(cfg.se_kind)),
-                cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..grouped!(
+                    cfg,
+                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    cluster_ids
+                )
             })
         }
         EstimatorSpec::IvWald(cfg) => EstimatorSpecWire::IvWald(EstimatorConfigWire {
             backend: "none".into(),
             se_kind: Some(se_kind(cfg.se_kind)),
-            cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-            multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-            panel_times: cfg.panel_times.as_deref().map(panel_times),
-            ..base(cfg.bootstrap_replicates, cfg.overlap)
+            ..grouped!(
+                cfg,
+                base(cfg.bootstrap_replicates, cfg.overlap);
+                cluster_ids, multiway_ids, panel_times
+            )
         }),
         EstimatorSpec::Iv2Sls(cfg) => EstimatorSpecWire::Iv2Sls(EstimatorConfigWire {
             se_kind: Some(se_kind(cfg.se_kind)),
-            cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
-            multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
-            panel_times: cfg.panel_times.as_deref().map(panel_times),
-            ..base(cfg.bootstrap_replicates, cfg.overlap)
+            ..grouped!(
+                cfg,
+                base(cfg.bootstrap_replicates, cfg.overlap);
+                cluster_ids, multiway_ids, panel_times
+            )
         }),
         EstimatorSpec::Dml(cfg) => EstimatorSpecWire::Dml(EstimatorConfigWire {
             folds: Some(u32::try_from(cfg.folds).unwrap_or(u32::MAX)),
@@ -209,7 +235,7 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
     }
 }
 
-fn overlap_policy(policy: OverlapPolicy) -> OverlapPolicyWire {
+pub(crate) fn overlap_policy(policy: OverlapPolicy) -> OverlapPolicyWire {
     match policy {
         OverlapPolicy::ExplicitOverride => OverlapPolicyWire::ExplicitOverride,
         OverlapPolicy::RequireDiagnostics { clip, trim } => OverlapPolicyWire::RequireDiagnostics {
@@ -232,7 +258,7 @@ fn fit_kind(kind: LinearFitKind) -> (String, Option<u64>) {
     }
 }
 
-const fn glm_family(family: GlmFamily) -> &'static str {
+pub(crate) const fn glm_family(family: GlmFamily) -> &'static str {
     match family {
         GlmFamily::BinomialLogit => "binomial_logit",
         GlmFamily::BinomialProbit => "binomial_probit",
@@ -242,7 +268,7 @@ const fn glm_family(family: GlmFamily) -> &'static str {
     }
 }
 
-fn glm_options(options: &GlmOptions) -> GlmOptionsWire {
+pub(crate) fn glm_options(options: &GlmOptions) -> GlmOptionsWire {
     GlmOptionsWire {
         max_iter: options.max_iter,
         tol_bits: options.tol.to_bits(),
