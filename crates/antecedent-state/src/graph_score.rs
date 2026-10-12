@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::Fnv1a64;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_kernels::{cholesky_spd_into, equilibrate_into, symmetric_scales};
 
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
@@ -118,6 +118,8 @@ pub struct LocalScoreCache {
     parents: HashMap<u32, Arc<[u32]>>,
     /// Fingerprint of the data the cached scores belong to.
     bound_data: Option<u64>,
+    /// Gram of `[1 | columns]`, built once for the bound data.
+    gram: Option<Vec<f64>>,
     /// Sum of local scores under the current parent sets, maintained incrementally.
     running_total: Option<f64>,
     /// Approximate retained bytes.
@@ -135,6 +137,7 @@ impl LocalScoreCache {
             entries: HashMap::new(),
             parents: HashMap::new(),
             bound_data: None,
+            gram: None,
             running_total: None,
             bytes: 0,
             retention: RetentionPolicy::SufficientStatisticsOnly,
@@ -146,6 +149,7 @@ impl LocalScoreCache {
         self.entries.clear();
         self.parents.clear();
         self.bound_data = None;
+        self.gram = None;
         self.running_total = None;
         self.bytes = 0;
     }
@@ -238,11 +242,26 @@ impl LocalScoreCache {
             return Ok(s);
         }
         let s = match self.key.family {
-            GraphScoreFamily::GaussianBic => gaussian_bic_local(data, node, parents)?,
+            GraphScoreFamily::GaussianBic => {
+                self.ensure_gram(data);
+                let Some(gram) = self.gram.as_deref() else {
+                    return Err(StateError::Numerical("Gaussian BIC Gram was not stored".into()));
+                };
+                gaussian_bic_from_gram(data, gram, node, parents)?
+            }
         };
         self.entries.entry(node).or_default().insert(Arc::clone(parents), s);
         self.bytes = self.bytes.saturating_add(32 + 8 * parents.len() as u64);
         Ok(s)
+    }
+
+    fn ensure_gram(&mut self, data: &GraphScoreData) {
+        if self.gram.is_some() {
+            return;
+        }
+        let gram = gaussian_design_gram(data);
+        self.bytes = self.bytes.saturating_add((gram.len() * core::mem::size_of::<f64>()) as u64);
+        self.gram = Some(gram);
     }
 }
 
@@ -264,24 +283,108 @@ fn gaussian_bic_local(
     node: u32,
     parents: &[u32],
 ) -> Result<f64, StateError> {
+    gaussian_bic_from_gram(data, &gaussian_design_gram(data), node, parents)
+}
+
+/// Row-major Gram of `[1 | columns]`. Index 0 is the intercept.
+fn gaussian_design_gram(data: &GraphScoreData) -> Vec<f64> {
+    let n = data.n_rows;
+    let m = data.n_vars + 1;
+    let mut g = vec![0.0; m * m];
+    g[0] = n as f64;
+    for j in 0..data.n_vars {
+        let col = data.col(j);
+        let mut sum = 0.0;
+        let mut dot = 0.0;
+        for &v in col {
+            sum += v;
+            dot += v * v;
+        }
+        g[j + 1] = sum;
+        g[(j + 1) * m] = sum;
+        g[(j + 1) * m + (j + 1)] = dot;
+        for k in (j + 1)..data.n_vars {
+            let cross: f64 = col.iter().zip(data.col(k)).map(|(a, b)| a * b).sum();
+            g[(j + 1) * m + (k + 1)] = cross;
+            g[(k + 1) * m + (j + 1)] = cross;
+        }
+    }
+    g
+}
+
+fn gaussian_bic_from_gram(
+    data: &GraphScoreData,
+    gram: &[f64],
+    node: u32,
+    parents: &[u32],
+) -> Result<f64, StateError> {
     let n = data.n_rows;
     if n < 2 {
         return Err(StateError::Numerical("need n≥2 for BIC".into()));
     }
-    let k = parents.len() + 1; // intercept
-    let y = data.col(node as usize);
-    let mut x = vec![0.0; n.saturating_mul(k)];
-    x[..n].fill(1.0);
-    for (j, &p) in parents.iter().enumerate() {
+    if node as usize >= data.n_vars {
+        return Err(StateError::Shape(format!("node {node} out of range")));
+    }
+    let m = data.n_vars + 1;
+    let mut cols = Vec::with_capacity(parents.len() + 2);
+    cols.push(0usize);
+    for &p in parents {
         if p as usize >= data.n_vars {
             return Err(StateError::Shape(format!("parent {p} out of range")));
         }
-        x[(j + 1) * n..(j + 2) * n].copy_from_slice(data.col(p as usize));
+        cols.push(p as usize + 1);
     }
-    let fit = FaerBackend
-        .least_squares(&x, n, k, y, &mut LeastSquaresWorkspace::default())
-        .map_err(|e| StateError::Numerical(format!("Gaussian BIC local fit: {e}")))?;
-    bic_from_rss(fit.rss, n, k)
+    cols.push(node as usize + 1);
+    bic_from_rss(rss_from_joint_gram(gram, m, &cols)?, n, parents.len() + 1)
+}
+
+fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<f64, StateError> {
+    let q = cols.len();
+    if q < 2 || gram.len() < m.saturating_mul(m) {
+        return Err(StateError::Shape("Gaussian BIC Gram is shorter than the design".into()));
+    }
+    let mut sub = vec![0.0; q * q];
+    for (i, &ci) in cols.iter().enumerate() {
+        for (j, &cj) in cols.iter().enumerate() {
+            sub[i * q + j] = gram[ci * m + cj];
+        }
+    }
+    let p = q - 1;
+    if p > 0 && !equilibrated_spd(&sub, q, p) {
+        return Err(StateError::Numerical("Gaussian BIC local fit: rank-deficient parents".into()));
+    }
+    let scales = symmetric_scales(&sub, q);
+    if scales.len() != q {
+        return Err(StateError::Numerical("Gaussian BIC equilibration failed".into()));
+    }
+    let mut eq = vec![0.0; q * q];
+    equilibrate_into(&sub, &scales, q, &mut eq);
+    let mut factor = vec![0.0; q * q];
+    if cholesky_spd_into(&eq, q, &mut factor).is_err() {
+        return Err(StateError::Numerical(
+            "degenerate Gaussian BIC fit (zero residual variance)".into(),
+        ));
+    }
+    let pivot = factor[(q - 1) * q + (q - 1)];
+    let d_y = scales[q - 1];
+    Ok(pivot * pivot * d_y * d_y)
+}
+
+fn equilibrated_spd(joint: &[f64], q: usize, p: usize) -> bool {
+    let mut parent = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..p {
+            parent[i * p + j] = joint[i * q + j];
+        }
+    }
+    let scales = symmetric_scales(&parent, p);
+    if scales.len() != p {
+        return false;
+    }
+    let mut eq = vec![0.0; p * p];
+    equilibrate_into(&parent, &scales, p, &mut eq);
+    let mut factor = vec![0.0; p * p];
+    cholesky_spd_into(&eq, p, &mut factor).is_ok()
 }
 
 /// Gaussian BIC from the residual sum of squares of a `k`-parameter fit on `n` rows.
@@ -319,6 +422,9 @@ pub fn full_graph_score(
     family: GraphScoreFamily,
     parents: &HashMap<u32, Arc<[u32]>>,
 ) -> Result<f64, StateError> {
+    let gram = match family {
+        GraphScoreFamily::GaussianBic => gaussian_design_gram(data),
+    };
     let mut total = 0.0;
     #[allow(
         clippy::cast_possible_truncation,
@@ -327,7 +433,7 @@ pub fn full_graph_score(
     for node in 0..data.n_vars as u32 {
         let pa = parents.get(&node).cloned().unwrap_or_else(|| Arc::from([]));
         total += match family {
-            GraphScoreFamily::GaussianBic => gaussian_bic_local(data, node, &pa)?,
+            GraphScoreFamily::GaussianBic => gaussian_bic_from_gram(data, &gram, node, &pa)?,
         };
     }
     Ok(total)
