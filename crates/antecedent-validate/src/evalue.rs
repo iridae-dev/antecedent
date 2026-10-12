@@ -117,14 +117,13 @@ impl EValue {
             }
             None => (e_point, false, false),
         };
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.evalue"),
-            original_ate: ate,
-            refuted_ate: ate,
-            comparison: e_value,
-            informative,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("sensitivity.evalue")
+            .original_ate(ate)
+            .refuted_ate(ate)
+            .comparison(e_value)
+            .informative(informative)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(match e_limit {
@@ -139,9 +138,9 @@ impl EValue {
                          and cannot support a pass"
                     ),
                 }))
-            },
-            replicates: 0,
-        })
+            })
+            .replicates(0)
+            .build())
     }
 }
 

@@ -1602,17 +1602,24 @@ fn assert_treatment_route(
 
 #[test]
 fn refutation_report_mixture_weighted_is_mass_weighted_and_fail_closed() {
-    let pass = RefutationReport::new("overlap.assessment", 2.0, 0.1, 0.2, true, true, None, 4);
-    let fail = RefutationReport::new(
-        "overlap.assessment",
-        2.0,
-        0.4,
-        0.8,
-        true,
-        false,
-        Some(Arc::from("bad overlap")),
-        2,
-    );
+    let pass = RefutationReport::builder("overlap.assessment")
+        .original_ate(2.0)
+        .refuted_ate(0.1)
+        .comparison(0.2)
+        .informative(true)
+        .passed(true)
+        .failure_condition(None)
+        .replicates(4)
+        .build();
+    let fail = RefutationReport::builder("overlap.assessment")
+        .original_ate(2.0)
+        .refuted_ate(0.4)
+        .comparison(0.8)
+        .informative(true)
+        .passed(false)
+        .failure_condition(Some(Arc::from("bad overlap")))
+        .replicates(2)
+        .build();
     let mixed = RefutationReport::mixture_weighted(&[(0.5, &pass), (0.3, &fail)]).unwrap();
     assert_eq!(mixed.refuter.as_ref(), "overlap.assessment");
     assert!((mixed.comparison - (0.5 * 0.2 + 0.3 * 0.8) / 0.8).abs() < 1e-12);
@@ -1626,28 +1633,35 @@ fn refutation_report_mixture_weighted_is_mass_weighted_and_fail_closed() {
 
 #[test]
 fn query_refutation_plan_mixes_mediation_atoms_fail_closed() {
-    let pass =
-        RefutationReport::new("mediation.placebo_mediator", 0.0, 0.01, 0.4, true, true, None, 20);
-    let fail = RefutationReport::new(
-        "mediation.placebo_mediator",
-        0.0,
-        0.2,
-        0.01,
-        true,
-        false,
-        Some(Arc::from("mediation contrast is inconsistent with the refuter target")),
-        20,
-    );
-    let rcc = RefutationReport::new(
-        "mediation.random_common_cause",
-        0.44,
-        0.45,
-        0.6,
-        true,
-        true,
-        None,
-        20,
-    );
+    let pass = RefutationReport::builder("mediation.placebo_mediator")
+        .original_ate(0.0)
+        .refuted_ate(0.01)
+        .comparison(0.4)
+        .informative(true)
+        .passed(true)
+        .failure_condition(None)
+        .replicates(20)
+        .build();
+    let fail = RefutationReport::builder("mediation.placebo_mediator")
+        .original_ate(0.0)
+        .refuted_ate(0.2)
+        .comparison(0.01)
+        .informative(true)
+        .passed(false)
+        .failure_condition(Some(Arc::from(
+            "mediation contrast is inconsistent with the refuter target",
+        )))
+        .replicates(20)
+        .build();
+    let rcc = RefutationReport::builder("mediation.random_common_cause")
+        .original_ate(0.44)
+        .refuted_ate(0.45)
+        .comparison(0.6)
+        .informative(true)
+        .passed(true)
+        .failure_condition(None)
+        .replicates(20)
+        .build();
     let mixed =
         QueryRefutationPlan::mix_weighted([(0.7, vec![pass, rcc.clone()]), (0.3, vec![fail, rcc])]);
     assert_eq!(mixed.len(), 2);

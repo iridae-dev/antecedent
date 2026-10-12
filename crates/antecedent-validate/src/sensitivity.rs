@@ -169,6 +169,31 @@ pub(crate) fn grid_failure_text(what: &str, axis: &str, value: f64, threshold: f
     }
 }
 
+/// Grid verdict as a refutation report.
+///
+/// `informative` is always true. `failure` is rendered only when `passed` is false, and its
+/// text is stored unchanged. `comparison` is the robustness value the grid just computed.
+pub(crate) fn grid_report(
+    refuter: &str,
+    original_ate: f64,
+    refuted_ate: f64,
+    comparison: f64,
+    passed: bool,
+    failure: impl FnOnce() -> String,
+    replicates: u32,
+) -> RefutationReport {
+    let failure_condition = if passed { None } else { Some(Arc::from(failure())) };
+    RefutationReport::builder(refuter)
+        .original_ate(original_ate)
+        .refuted_ate(refuted_ate)
+        .comparison(comparison)
+        .informative(true)
+        .passed(passed)
+        .failure_condition(failure_condition)
+        .replicates(replicates)
+        .build()
+}
+
 /// Grid values as the sensitivity loops probe them (`r` clamped to `[0, 0.999]`).
 fn probed_partial_r2(grid: &[f64]) -> impl Iterator<Item = f64> + '_ {
     grid.iter().map(|r| r.clamp(0.0, 0.999))
@@ -636,25 +661,15 @@ impl LinearSensitivity {
             robustness_value,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.linear"),
-            original_ate: problem.original.ate,
+        Ok(grid_report(
+            "sensitivity.linear",
+            problem.original.ate,
             refuted_ate,
-            comparison: robustness_value,
-            informative: true,
+            robustness_value,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(grid_failure_text(
-                    "effect",
-                    "partial R²",
-                    robustness_value,
-                    self.pass_threshold,
-                )))
-            },
-            replicates: self.partial_r2_grid.len() as u32,
-        })
+            || grid_failure_text("effect", "partial R²", robustness_value, self.pass_threshold),
+            self.partial_r2_grid.len() as u32,
+        ))
     }
 }
 
@@ -732,25 +747,15 @@ impl PartialLinearSensitivity {
             robustness_value,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.partial_linear"),
-            original_ate: problem.original.ate,
+        Ok(grid_report(
+            "sensitivity.partial_linear",
+            problem.original.ate,
             refuted_ate,
-            comparison: robustness_value,
-            informative: true,
+            robustness_value,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(grid_failure_text(
-                    "effect",
-                    "partial R²",
-                    robustness_value,
-                    self.pass_threshold,
-                )))
-            },
-            replicates: self.partial_r2_grid.len() as u32,
-        })
+            || grid_failure_text("effect", "partial R²", robustness_value, self.pass_threshold),
+            self.partial_r2_grid.len() as u32,
+        ))
     }
 }
 
@@ -1085,25 +1090,22 @@ impl NonparametricSensitivity {
             robustness_value,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.nonparametric"),
-            original_ate: problem.original.ate,
-            refuted_ate: last_ate * treatment_delta,
-            comparison: robustness_value,
-            informative: true,
+        Ok(grid_report(
+            "sensitivity.nonparametric",
+            problem.original.ate,
+            last_ate * treatment_delta,
+            robustness_value,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(grid_failure_text(
+            || {
+                grid_failure_text(
                     "nonparametric residual effect",
                     "partial R²",
                     robustness_value,
                     self.pass_threshold,
-                )))
+                )
             },
-            replicates: self.partial_r2_grid.len() as u32,
-        })
+            self.partial_r2_grid.len() as u32,
+        ))
     }
 }
 

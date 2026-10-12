@@ -1099,16 +1099,15 @@ mod tests {
                 _: &RefutationProblem<'_>,
                 _: &ExecutionContext,
             ) -> Result<RefutationReport, ValidationError> {
-                Ok(RefutationReport {
-                    refuter: Arc::from("ok"),
-                    original_ate: 0.0,
-                    refuted_ate: 0.0,
-                    comparison: 0.0,
-                    informative: false,
-                    passed: true,
-                    failure_condition: None,
-                    replicates: 0,
-                })
+                Ok(RefutationReport::builder("ok")
+                    .original_ate(0.0)
+                    .refuted_ate(0.0)
+                    .comparison(0.0)
+                    .informative(false)
+                    .passed(true)
+                    .failure_condition(None)
+                    .replicates(0)
+                    .build())
             }
         }
         let (data, estimand) = toy();

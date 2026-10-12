@@ -76,16 +76,15 @@ impl GraphRefuter {
             });
         }
         if problem.estimand.adjustment_set.is_empty() {
-            return Ok(RefutationReport {
-                refuter: Arc::from("adjustment.drop_covariate"),
-                original_ate: problem.original.ate,
-                refuted_ate: problem.original.ate,
-                comparison: 0.0,
-                informative: false,
-                passed: true,
-                failure_condition: None,
-                replicates: 0,
-            });
+            return Ok(RefutationReport::builder("adjustment.drop_covariate")
+                .original_ate(problem.original.ate)
+                .refuted_ate(problem.original.ate)
+                .comparison(0.0)
+                .informative(false)
+                .passed(true)
+                .failure_condition(None)
+                .replicates(0)
+                .build());
         }
         let ids = problem.estimation_ids(true);
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
@@ -133,15 +132,14 @@ impl GraphRefuter {
             }
         }
         let passed = worst_delta < self.rel_delta_threshold;
-        Ok(RefutationReport {
-            refuter: Arc::from("adjustment.drop_covariate"),
-            original_ate: problem.original.ate,
-            refuted_ate: worst_ate,
-            comparison: worst_delta,
+        Ok(RefutationReport::builder("adjustment.drop_covariate")
+            .original_ate(problem.original.ate)
+            .refuted_ate(worst_ate)
+            .comparison(worst_delta)
             // Descriptive: a moving estimate is what a real confounder does.
-            informative: false,
-            passed,
-            failure_condition: if passed {
+            .informative(false)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
@@ -150,9 +148,9 @@ impl GraphRefuter {
                      depends on that covariate, which is expected if it is a confounder",
                     self.rel_delta_threshold
                 )))
-            },
-            replicates: u32::try_from(problem.estimand.adjustment_set.len()).unwrap_or(u32::MAX),
-        })
+            })
+            .replicates(u32::try_from(problem.estimand.adjustment_set.len()).unwrap_or(u32::MAX))
+            .build())
     }
 }
 

@@ -209,91 +209,91 @@ impl PredictiveCheckReport {
             .into_iter()
             .chain((!self.residual.is_empty()).then_some(self.residual_p_value))
             .fold(self.p_value.min(self.dispersion_p_value), f64::min);
-        RefutationReport {
-            refuter: Arc::from(name),
-            original_ate,
-            refuted_ate: self.predictive_mean,
-            comparison,
-            informative: true,
-            passed,
-            failure_condition: if passed {
+        let failure_condition = if passed {
+            None
+        } else {
+            let base = if mean_ok && dispersion_ok {
                 None
-            } else {
-                let base = if mean_ok && dispersion_ok {
-                    None
-                } else if !mean_ok && !dispersion_ok {
-                    Some(format!(
-                        "predictive check failed on mean (p={} < alpha={alpha}) and dispersion \
+            } else if !mean_ok && !dispersion_ok {
+                Some(format!(
+                    "predictive check failed on mean (p={} < alpha={alpha}) and dispersion \
                          (p={} < alpha={alpha})",
-                        self.p_value, self.dispersion_p_value
-                    ))
-                } else if !mean_ok {
-                    Some(format!("predictive check failed (p={} < alpha={alpha})", self.p_value))
-                } else if self.kind == PredictiveCheckKind::Prior
-                    && self.dispersion_tails[0] <= self.dispersion_tails[1]
-                {
-                    Some(format!(
-                        "prior predictive dispersion check failed (p={} < alpha={alpha}): the \
+                    self.p_value, self.dispersion_p_value
+                ))
+            } else if !mean_ok {
+                Some(format!("predictive check failed (p={} < alpha={alpha})", self.p_value))
+            } else if self.kind == PredictiveCheckKind::Prior
+                && self.dispersion_tails[0] <= self.dispersion_tails[1]
+            {
+                Some(format!(
+                    "prior predictive dispersion check failed (p={} < alpha={alpha}): the \
                          prior predictive spread exceeds the observed spread, i.e. the prior is \
                          diffuse relative to the data (weakly informative defaults do this); a \
                          statement about the prior, not evidence against the likelihood",
-                        self.dispersion_p_value
-                    ))
-                } else {
-                    Some(format!(
-                        "predictive dispersion check failed (p={} < alpha={alpha}); predictive \
+                    self.dispersion_p_value
+                ))
+            } else {
+                Some(format!(
+                    "predictive dispersion check failed (p={} < alpha={alpha}); predictive \
                          spread does not match observed spread even though the mean matches",
-                        self.dispersion_p_value
-                    ))
-                };
-                let serial = self.serial.filter(|_| !serial_ok).map(|serial| {
-                    let tempering = match serial.tempering_kappa {
-                        Some(kappa) if kappa > 1.0 => format!(
-                            "; the published interval is already tempered for this dependence \
+                    self.dispersion_p_value
+                ))
+            };
+            let serial = self.serial.filter(|_| !serial_ok).map(|serial| {
+                let tempering = match serial.tempering_kappa {
+                    Some(kappa) if kappa > 1.0 => format!(
+                        "; the published interval is already tempered for this dependence \
                              (long-run-variance factor kappa={kappa:.4}, a generalized posterior), \
                              so this is an informative diagnostic of the dependence, not a \
                              refutation of the tempered interval"
-                        ),
-                        Some(_) => "; the likelihood was tempered but the long-run-variance \
+                    ),
+                    Some(_) => "; the likelihood was tempered but the long-run-variance \
                                     factor stayed at 1, so the interval carries no widening for \
                                     this dependence"
-                            .to_owned(),
-                        None => String::new(),
-                    };
-                    format!(
-                        "posterior predictive serial-dependence check failed: lag-{} residual \
+                        .to_owned(),
+                    None => String::new(),
+                };
+                format!(
+                    "posterior predictive serial-dependence check failed: lag-{} residual \
                          autocorrelation {:.4} vs replicated {:.4} (p={} < alpha={alpha}); rows \
                          are not exchangeable under the iid likelihood{tempering}",
-                        serial.lag, serial.observed, serial.predictive_mean, serial.p_value
-                    )
-                });
-                let residual = (!residual_ok).then(|| {
-                    let axes = self
-                        .residual
-                        .iter()
-                        .map(|r| {
-                            format!(
-                                "{} (observed {:.4} vs replicated {:.4})",
-                                r.statistic.name(),
-                                r.observed,
-                                r.predictive_mean,
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "posterior predictive residual-shape check failed (omnibus p={} < \
+                    serial.lag, serial.observed, serial.predictive_mean, serial.p_value
+                )
+            });
+            let residual = (!residual_ok).then(|| {
+                let axes = self
+                    .residual
+                    .iter()
+                    .map(|r| {
+                        format!(
+                            "{} (observed {:.4} vs replicated {:.4})",
+                            r.statistic.name(),
+                            r.observed,
+                            r.predictive_mean,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "posterior predictive residual-shape check failed (omnibus p={} < \
                          alpha={alpha}): {axes}; the fitted model does not reproduce the shape \
                          of its own residuals (nonlinearity, heteroskedasticity or heavy tails)",
-                        self.residual_p_value
-                    )
-                });
-                Some(Arc::from(
-                    base.into_iter().chain(serial).chain(residual).collect::<Vec<_>>().join("; "),
-                ))
-            },
-            replicates: self.n_sims,
-        }
+                    self.residual_p_value
+                )
+            });
+            Some(Arc::from(
+                base.into_iter().chain(serial).chain(residual).collect::<Vec<_>>().join("; "),
+            ))
+        };
+        RefutationReport::builder(name)
+            .original_ate(original_ate)
+            .refuted_ate(self.predictive_mean)
+            .comparison(comparison)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(failure_condition)
+            .replicates(self.n_sims)
+            .build()
     }
 
     /// Mixture-weighted aggregation of per-atom predictive checks of the same kind.

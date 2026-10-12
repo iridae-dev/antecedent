@@ -374,23 +374,22 @@ impl PriorSensitivity {
             PriorSensitivityFamily::ExternalAlpha => "prior_sensitivity_alpha",
             PriorSensitivityFamily::ResolvedPriorVariance => "prior_sensitivity_resolved_prior",
         };
-        RefutationReport {
-            refuter: Arc::from(kind),
-            original_ate,
-            refuted_ate: summary.effect_means.last().copied().unwrap_or(original_ate),
-            comparison: relative,
-            informative,
-            passed,
-            failure_condition: if passed {
+        RefutationReport::builder(kind)
+            .original_ate(original_ate)
+            .refuted_ate(summary.effect_means.last().copied().unwrap_or(original_ate))
+            .comparison(relative)
+            .informative(informative)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
                     "prior sensitivity relative range {relative} exceeds max {}",
                     self.max_relative_range
                 )))
-            },
-            replicates: u32::try_from(self.grid_len()).unwrap_or(u32::MAX),
-        }
+            })
+            .replicates(u32::try_from(self.grid_len()).unwrap_or(u32::MAX))
+            .build()
     }
 }
 

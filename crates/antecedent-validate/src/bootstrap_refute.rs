@@ -445,14 +445,13 @@ fn coverage_report(
     // A non-finite replicate (total order puts `-NaN` first, `NaN` last) makes the endpoints
     // or the mean non-finite; every comparison below is then false, so the check fails closed.
     let passed = centre.is_finite() && centre >= lo && centre <= hi;
-    RefutationReport {
-        refuter: Arc::from("bootstrap.ci_coverage"),
-        original_ate: problem.original.ate,
-        refuted_ate: mean_ate,
-        comparison: width,
-        informative: true,
-        passed,
-        failure_condition: if passed {
+    RefutationReport::builder("bootstrap.ci_coverage")
+        .original_ate(problem.original.ate)
+        .refuted_ate(mean_ate)
+        .comparison(width)
+        .informative(true)
+        .passed(passed)
+        .failure_condition(if passed {
             None
         } else {
             Some(Arc::from(format!(
@@ -463,10 +462,10 @@ fn coverage_report(
                 ci_level * 100.0,
                 stand_in.map(|note| format!("; {note}")).unwrap_or_default()
             )))
-        },
+        })
         // Replicates that produced the interval, not the number requested.
-        replicates: u32::try_from(m).unwrap_or(u32::MAX),
-    }
+        .replicates(u32::try_from(m).unwrap_or(u32::MAX))
+        .build()
 }
 
 #[cfg(test)]

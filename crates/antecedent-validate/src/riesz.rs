@@ -110,16 +110,15 @@ impl RieszSensitivity {
         let representer = self.representer_and_ipw(problem, propensity)?;
         if let Some(defect) = representer.defect {
             // Separation makes the representer unbounded: no finite δ certifies robustness.
-            return Ok(RefutationReport {
-                refuter: Arc::from("sensitivity.riesz"),
-                original_ate: problem.original.ate,
-                refuted_ate: problem.original.ate,
-                comparison: 0.0,
-                informative: true,
-                passed: false,
-                failure_condition: Some(Arc::from(defect)),
-                replicates: 0,
-            });
+            return Ok(RefutationReport::builder("sensitivity.riesz")
+                .original_ate(problem.original.ate)
+                .refuted_ate(problem.original.ate)
+                .comparison(0.0)
+                .informative(true)
+                .passed(false)
+                .failure_condition(Some(Arc::from(defect)))
+                .replicates(0)
+                .build());
         }
         let Representer { alpha, y, ipw_ate, .. } = representer;
         // Centring. `|E[αΔ]| ≤ δ·sd(Y)·‖α‖₂` bounds the confounding bias of the ATE functional,
@@ -179,17 +178,14 @@ impl RieszSensitivity {
             robustness,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.riesz"),
-            original_ate: problem.original.ate,
-            refuted_ate: last_bound_ate,
-            comparison: robustness,
-            informative: true,
+        Ok(crate::sensitivity::grid_report(
+            "sensitivity.riesz",
+            problem.original.ate,
+            last_bound_ate,
+            robustness,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(format!(
+            || {
+                format!(
                     "{} (||α||₂={alpha_l2})",
                     crate::sensitivity::grid_failure_text(
                         "Riesz bound: effect",
@@ -197,10 +193,10 @@ impl RieszSensitivity {
                         robustness,
                         self.pass_threshold,
                     )
-                )))
+                )
             },
-            replicates: self.delta_grid.len() as u32,
-        })
+            self.delta_grid.len() as u32,
+        ))
     }
 
     fn representer_and_ipw(

@@ -52,25 +52,27 @@ pub(super) fn mcmc_report(d: &InferenceDiagnostics, ate: f64) -> Option<Refutati
     reasons.extend(d.mcmc_publication_failures());
     let passed = reasons.is_empty();
     let rhat = d.rhat_max.unwrap_or(f64::INFINITY);
-    Some(RefutationReport {
-        refuter: Arc::from("mcmc_diagnostics"),
-        original_ate: ate,
-        refuted_ate: ate,
-        comparison: rhat,
-        informative: true,
-        passed,
-        failure_condition: if passed {
-            None
-        } else {
-            Some(Arc::from(format!(
-                "MCMC diagnostics failed: {} (rhat={rhat:.4} ess={:.1} tail_ess={:.1} \
-                 divergences={})",
-                reasons.join("; "),
-                d.ess_bulk_min.unwrap_or(0.0),
-                d.ess_tail_min.unwrap_or(0.0),
-                d.n_postwarmup_divergences.map_or_else(|| "unknown".to_owned(), |n| n.to_string())
-            )))
-        },
-        replicates: d.n_chains.unwrap_or(0),
-    })
+    Some(
+        RefutationReport::builder("mcmc_diagnostics")
+            .original_ate(ate)
+            .refuted_ate(ate)
+            .comparison(rhat)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(if passed {
+                None
+            } else {
+                Some(Arc::from(format!(
+                    "MCMC diagnostics failed: {} (rhat={rhat:.4} ess={:.1} tail_ess={:.1} \
+                     divergences={})",
+                    reasons.join("; "),
+                    d.ess_bulk_min.unwrap_or(0.0),
+                    d.ess_tail_min.unwrap_or(0.0),
+                    d.n_postwarmup_divergences
+                        .map_or_else(|| "unknown".to_owned(), |n| n.to_string())
+                )))
+            })
+            .replicates(d.n_chains.unwrap_or(0))
+            .build(),
+    )
 }

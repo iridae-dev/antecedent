@@ -78,12 +78,59 @@ pub struct RefutationReport {
     pub replicates: u32,
 }
 
+/// Which [`RefutationReport`] fields a [`RefutationReportBuilder`] has already set.
+const REPORT_ORIGINAL: u8 = 1 << 0;
+const REPORT_REFUTED: u8 = 1 << 1;
+const REPORT_COMPARISON: u8 = 1 << 2;
+const REPORT_INFORMATIVE: u8 = 1 << 3;
+const REPORT_PASSED: u8 = 1 << 4;
+const REPORT_FAILURE: u8 = 1 << 5;
+const REPORT_REPLICATES: u8 = 1 << 6;
+const REPORT_ALL: u8 = (1 << 7) - 1;
+
+/// Named construction of a [`RefutationReport`].
+///
+/// `build` records a field only after its setter has run, so a call site cannot omit one
+/// and have a zero or `false` stand in for it. Field order in the finished report is the
+/// struct's own order.
+#[must_use]
+#[derive(Clone, Debug)]
+pub struct RefutationReportBuilder {
+    refuter: Arc<str>,
+    original_ate: f64,
+    refuted_ate: f64,
+    comparison: f64,
+    informative: bool,
+    passed: bool,
+    failure_condition: Option<Arc<str>>,
+    replicates: u32,
+    set: u8,
+}
+
 impl RefutationReport {
+    /// Start a report named `refuter`. Every other field is set by the builder.
+    pub fn builder(refuter: impl Into<Arc<str>>) -> RefutationReportBuilder {
+        RefutationReportBuilder {
+            refuter: refuter.into(),
+            original_ate: 0.0,
+            refuted_ate: 0.0,
+            comparison: 0.0,
+            informative: false,
+            passed: false,
+            failure_condition: None,
+            replicates: 0,
+            set: 0,
+        }
+    }
+
     /// Construct a refutation report.
+    ///
+    /// The positional form of [`Self::builder`]. Callers outside this crate keep this
+    /// signature; construction inside the crate names each field.
     #[must_use]
     #[allow(
         clippy::too_many_arguments,
-        reason = "all-fields constructor of a #[non_exhaustive] public record; the arguments are the record's own fields"
+        reason = "positional form of the named builder, kept for callers outside this crate"
     )]
     pub fn new(
         refuter: impl Into<Arc<str>>,
@@ -95,16 +142,15 @@ impl RefutationReport {
         failure_condition: Option<Arc<str>>,
         replicates: u32,
     ) -> Self {
-        Self {
-            refuter: refuter.into(),
-            original_ate,
-            refuted_ate,
-            comparison,
-            informative,
-            passed,
-            failure_condition,
-            replicates,
-        }
+        Self::builder(refuter)
+            .original_ate(original_ate)
+            .refuted_ate(refuted_ate)
+            .comparison(comparison)
+            .informative(informative)
+            .passed(passed)
+            .failure_condition(failure_condition)
+            .replicates(replicates)
+            .build()
     }
 
     /// Mixture-weighted aggregation of per-atom reports of the same refuter id.
@@ -149,16 +195,93 @@ impl RefutationReport {
             return None;
         }
         let passed = passed_mass / w_sum >= 1.0 - 1e-12;
-        Some(Self {
-            refuter: id,
-            original_ate: original / w_sum,
-            refuted_ate: mixed_ate / w_sum,
-            comparison: comparison / w_sum,
-            informative,
-            passed,
-            failure_condition: if passed { None } else { failure },
-            replicates,
-        })
+        Some(
+            Self::builder(id)
+                .original_ate(original / w_sum)
+                .refuted_ate(mixed_ate / w_sum)
+                .comparison(comparison / w_sum)
+                .informative(informative)
+                .passed(passed)
+                .failure_condition(if passed { None } else { failure })
+                .replicates(replicates)
+                .build(),
+        )
+    }
+}
+
+impl RefutationReportBuilder {
+    /// Published estimate the refuter is checking.
+    pub fn original_ate(mut self, original_ate: f64) -> Self {
+        self.original_ate = original_ate;
+        self.set |= REPORT_ORIGINAL;
+        self
+    }
+
+    /// Refuted or transformed estimate.
+    pub fn refuted_ate(mut self, refuted_ate: f64) -> Self {
+        self.refuted_ate = refuted_ate;
+        self.set |= REPORT_REFUTED;
+        self
+    }
+
+    /// Scale-free comparison statistic.
+    pub fn comparison(mut self, comparison: f64) -> Self {
+        self.comparison = comparison;
+        self.set |= REPORT_COMPARISON;
+        self
+    }
+
+    /// Whether the check can falsify the estimator that produced the estimate.
+    pub fn informative(mut self, informative: bool) -> Self {
+        self.informative = informative;
+        self.set |= REPORT_INFORMATIVE;
+        self
+    }
+
+    /// Whether the check passed its configured threshold.
+    pub fn passed(mut self, passed: bool) -> Self {
+        self.passed = passed;
+        self.set |= REPORT_PASSED;
+        self
+    }
+
+    /// Failure text when `passed` is false, and `None` when it is true.
+    pub fn failure_condition(mut self, failure_condition: Option<Arc<str>>) -> Self {
+        self.failure_condition = failure_condition;
+        self.set |= REPORT_FAILURE;
+        self
+    }
+
+    /// Number of replicate estimates that entered the report.
+    pub fn replicates(mut self, replicates: u32) -> Self {
+        self.replicates = replicates;
+        self.set |= REPORT_REPLICATES;
+        self
+    }
+
+    /// Finish the report.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any field setter was skipped. That is a programming error at the call
+    /// site; the stored values are exactly the ones the setters received.
+    #[must_use]
+    pub fn build(self) -> RefutationReport {
+        assert_eq!(
+            self.set, REPORT_ALL,
+            "refutation report builder is missing a field (set bits {:#04x})",
+            self.set
+        );
+        RefutationReport {
+            refuter: self.refuter,
+            original_ate: self.original_ate,
+            refuted_ate: self.refuted_ate,
+            comparison: self.comparison,
+            informative: self.informative,
+            passed: self.passed,
+            failure_condition: self.failure_condition,
+            replicates: self.replicates,
+        }
     }
 }
 
@@ -1131,16 +1254,15 @@ pub(crate) fn finish_p_report(
     let mean_ate = replicate_mean(ates);
     let p_value = replicate_p_value(ates, centre)?;
     let passed = p_value >= alpha;
-    Ok(RefutationReport {
-        refuter: Arc::from(refuter),
-        original_ate,
-        refuted_ate: mean_ate,
-        comparison: p_value,
-        informative: false,
-        passed,
-        failure_condition: (!passed).then(|| Arc::from(failure(mean_ate, p_value))),
-        replicates: u32::try_from(ates.len()).unwrap_or(u32::MAX),
-    })
+    Ok(RefutationReport::builder(refuter)
+        .original_ate(original_ate)
+        .refuted_ate(mean_ate)
+        .comparison(p_value)
+        .informative(false)
+        .passed(passed)
+        .failure_condition((!passed).then(|| Arc::from(failure(mean_ate, p_value))))
+        .replicates(u32::try_from(ates.len()).unwrap_or(u32::MAX))
+        .build())
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
@@ -1229,7 +1351,6 @@ pub(crate) fn with_contiguous_row_window(
         });
     }
     #[allow(
-        clippy::cast_precision_loss,
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         reason = "the floored product is at most the row count and `as` saturates negatives and NaN to 0; the result is clamped to 1..=n-1"
@@ -1238,7 +1359,6 @@ pub(crate) fn with_contiguous_row_window(
     let span = n - window_len;
     let mut rng = ctx.rng.stream(stream_id);
     #[allow(
-        clippy::cast_precision_loss,
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         reason = "next_f64 is in [0, 1), so the floored product is in [0, span]; it is non-negative and below the row count, then min-bounded to span"

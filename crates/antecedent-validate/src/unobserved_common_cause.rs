@@ -175,14 +175,13 @@ impl UnobservedCommonCause {
         let ate_scale = (sd_y / sd_t) * treatment_delta.abs();
         let std_delta = mean_delta / centre.abs().max(1e-3 * ate_scale);
         let passed = std_delta < self.std_delta_threshold;
-        Ok(RefutationReport {
-            refuter: Arc::from("unobserved.common_cause"),
-            original_ate: problem.original.ate,
-            refuted_ate: mean_ate,
-            comparison: std_delta,
-            informative: true,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("unobserved.common_cause")
+            .original_ate(problem.original.ate)
+            .refuted_ate(mean_ate)
+            .comparison(std_delta)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
@@ -190,8 +189,8 @@ impl UnobservedCommonCause {
                      confounding (effect_on_treatment={} sd, effect_on_outcome={} sd)",
                     self.std_delta_threshold, self.effect_on_treatment, self.effect_on_outcome
                 )))
-            },
-            replicates: self.replicates,
-        })
+            })
+            .replicates(self.replicates)
+            .build())
     }
 }

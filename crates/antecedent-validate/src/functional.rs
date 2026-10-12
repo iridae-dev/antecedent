@@ -103,16 +103,19 @@ pub fn refute_distribution(
             atoms.iter().all(|a| a.probability.is_finite() && (0.0..=1.0).contains(&a.probability))
                 && (atoms.iter().map(|a| a.probability).sum::<f64>() - 1.0).abs() <= 1e-8
         });
-    let mut reports = vec![RefutationReport::new(
-        "distribution.normalization",
-        1.0,
-        f64::from(normalized),
-        f64::from(normalized),
-        true,
-        normalized,
-        (!normalized).then(|| Arc::from("invalid conditional probability table")),
-        1,
-    )];
+    let mut reports = vec![
+        RefutationReport::builder("distribution.normalization")
+            .original_ate(1.0)
+            .refuted_ate(f64::from(normalized))
+            .comparison(f64::from(normalized))
+            .informative(true)
+            .passed(normalized)
+            .failure_condition(
+                (!normalized).then(|| Arc::from("invalid conditional probability table")),
+            )
+            .replicates(1)
+            .build(),
+    ];
     let estimator = FunctionalDistribution::new();
     for (slot, &(fraction, id)) in (if full {
         &[(0.8, "distribution.subset_tv"), (0.5, "distribution.half_sample_tv")][..]
@@ -153,16 +156,20 @@ pub fn refute_distribution(
         // Descriptive robustness threshold, not a calibrated hypothesis test.
         let mean = distances.iter().sum::<f64>() / distances.len() as f64;
         let passed = mean.is_finite() && mean <= 0.1;
-        reports.push(RefutationReport::new(
-            id,
-            0.0,
-            mean,
-            mean,
-            true,
-            passed,
-            (!passed).then(|| Arc::from("mean maximum conditional total variation exceeds 0.1")),
-            STABILITY_REPLICATES,
-        ));
+        reports.push(
+            RefutationReport::builder(id)
+                .original_ate(0.0)
+                .refuted_ate(mean)
+                .comparison(mean)
+                .informative(true)
+                .passed(passed)
+                .failure_condition(
+                    (!passed)
+                        .then(|| Arc::from("mean maximum conditional total variation exceeds 0.1")),
+                )
+                .replicates(STABILITY_REPLICATES)
+                .build(),
+        );
     }
     Ok(reports)
 }

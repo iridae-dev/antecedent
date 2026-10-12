@@ -205,18 +205,19 @@ pub fn refute_temporal_mediation_adjusted(
         let fraction = if width > 0.0 { shared / width } else { 0.0 };
         // A range diagnostic, not a re-estimate: the effect columns carry the published
         // contrast, and `comparison` is the shared fraction of the mediator range.
-        reports.push(RefutationReport::new(
-            "mediation.binary_mediator_support",
-            original.effect.ate,
-            original.effect.ate,
-            fraction,
-            true,
-            fraction > 0.0,
-            (fraction <= 0.0).then(|| {
-                Arc::from("binary treatment groups have disjoint empirical mediator ranges")
-            }),
-            1,
-        ));
+        reports.push(
+            RefutationReport::builder("mediation.binary_mediator_support")
+                .original_ate(original.effect.ate)
+                .refuted_ate(original.effect.ate)
+                .comparison(fraction)
+                .informative(true)
+                .passed(fraction > 0.0)
+                .failure_condition((fraction <= 0.0).then(|| {
+                    Arc::from("binary treatment groups have disjoint empirical mediator ranges")
+                }))
+                .replicates(1)
+                .build(),
+        );
     }
 
     Ok(reports)
@@ -316,21 +317,22 @@ pub fn refute_static_mediation(
         }
         // A range diagnostic, not a re-estimate: `comparison` is 1 when every mediator's
         // per-arm empirical ranges overlap and 0 otherwise.
-        reports.push(RefutationReport::new(
-            "mediation.static.mediator_overlap",
-            original.effect.ate,
-            original.effect.ate,
-            f64::from(overlap),
-            false,
-            overlap,
-            (!overlap).then(|| {
-                Arc::from(
-                    "the treatment arms have disjoint empirical mediator ranges (a necessary \
-                     condition for conditional positivity fails)",
-                )
-            }),
-            0,
-        ));
+        reports.push(
+            RefutationReport::builder("mediation.static.mediator_overlap")
+                .original_ate(original.effect.ate)
+                .refuted_ate(original.effect.ate)
+                .comparison(f64::from(overlap))
+                .informative(false)
+                .passed(overlap)
+                .failure_condition((!overlap).then(|| {
+                    Arc::from(
+                        "the treatment arms have disjoint empirical mediator ranges (a necessary \
+                         condition for conditional positivity fails)",
+                    )
+                }))
+                .replicates(0)
+                .build(),
+        );
     }
     Ok(reports)
 }

@@ -91,17 +91,16 @@ impl OverlapRefuter {
 
     /// The overlap failure a separated / non-converged diagnostic propensity fit stands for.
     fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
-        RefutationReport {
-            refuter: Arc::from("overlap.assessment"),
-            original_ate: problem.original.ate,
-            refuted_ate: problem.original.ate,
+        RefutationReport::builder("overlap.assessment")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
             // Same polarity as the ESS report: the share of the sample without support.
-            comparison: 1.0,
-            informative: true,
-            passed: false,
-            failure_condition: Some(Arc::from(defect)),
-            replicates: 1,
-        }
+            .comparison(1.0)
+            .informative(true)
+            .passed(false)
+            .failure_condition(Some(Arc::from(defect)))
+            .replicates(1)
+            .build()
     }
 
     #[allow(clippy::float_cmp, reason = "Binary treatment is exactly 0/1")]
@@ -128,18 +127,17 @@ impl OverlapRefuter {
     ) -> Result<RefutationReport, ValidationError> {
         let nrows = estimation_row_count(problem)? as f64;
         let Some(ess) = report.ess else {
-            return Ok(RefutationReport {
-                refuter: Arc::from("overlap.assessment"),
-                original_ate: problem.original.ate,
-                refuted_ate: problem.original.ate,
-                comparison: f64::NAN,
-                informative: false,
-                passed: false,
-                failure_condition: Some(Arc::from(
+            return Ok(RefutationReport::builder("overlap.assessment")
+                .original_ate(problem.original.ate)
+                .refuted_ate(problem.original.ate)
+                .comparison(f64::NAN)
+                .informative(false)
+                .passed(false)
+                .failure_condition(Some(Arc::from(
                     "overlap report has no weights; ESS is undefined",
-                )),
-                replicates,
-            });
+                )))
+                .replicates(replicates)
+                .build());
         };
         let ess_fraction = if nrows > 0.0 { ess / nrows } else { 0.0 };
         let bounds_ok =
@@ -147,14 +145,13 @@ impl OverlapRefuter {
         let ess_ok = ess_fraction >= self.min_ess_fraction;
         let passed = bounds_ok && ess_ok;
         let comparison = 1.0 - ess_fraction;
-        Ok(RefutationReport {
-            refuter: Arc::from("overlap.assessment"),
-            original_ate: problem.original.ate,
-            refuted_ate: problem.original.ate,
-            comparison,
-            informative: true,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("overlap.assessment")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
+            .comparison(comparison)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
@@ -162,9 +159,9 @@ impl OverlapRefuter {
                      min_ess_fraction={}",
                     report.propensity_min, report.propensity_max, self.eps, self.min_ess_fraction
                 )))
-            },
-            replicates,
-        })
+            })
+            .replicates(replicates)
+            .build())
     }
 
     /// Descriptive conditional support under a linear treatment-location model.
@@ -235,14 +232,20 @@ impl OverlapRefuter {
         let fraction = supported as f64 / n as f64;
         let passed = fraction >= self.min_ess_fraction;
         // Same polarity as binary overlap.assessment: comparison is unsupported mass.
-        Ok(RefutationReport::new(
-            "overlap.continuous_support", problem.original.ate, problem.original.ate,
-            1.0 - fraction, true, passed,
-            (!passed).then(|| Arc::from(format!(
-                "both doses lie inside the empirical conditional residual interval on only {fraction} of target rows (required {}); linear treatment-location support diagnostic",
-                self.min_ess_fraction,
-            ))), 1,
-        ))
+        Ok(RefutationReport::builder("overlap.continuous_support")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
+            .comparison(1.0 - fraction)
+            .informative(true)
+            .passed(passed)
+            .failure_condition((!passed).then(|| {
+                Arc::from(format!(
+                    "both doses lie inside the empirical conditional residual interval on only {fraction} of target rows (required {}); linear treatment-location support diagnostic",
+                    self.min_ess_fraction,
+                ))
+            }))
+            .replicates(1)
+            .build())
     }
 }
 

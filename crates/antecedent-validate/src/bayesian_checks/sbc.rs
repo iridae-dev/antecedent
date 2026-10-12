@@ -423,40 +423,40 @@ impl SimulationBasedCalibration {
         };
         let uniform_ok = report.uniformity_stat.is_finite() && report.uniformity_stat <= critical;
         let passed = mean_ok && uniform_ok;
-        RefutationReport {
-            refuter: Arc::from("sbc"),
-            original_ate,
-            refuted_ate: report.mean_rank_frac,
-            comparison: report.uniformity_stat,
-            informative: true,
-            passed,
-            failure_condition: if passed {
-                None
-            } else if !mean_ok && !uniform_ok {
-                Some(Arc::from(format!(
-                    "SBC mean rank frac {:.3} outside [0.35, 0.65] and χ²={:.3} exceeds critical \
+        let failure_condition = if passed {
+            None
+        } else if !mean_ok && !uniform_ok {
+            Some(Arc::from(format!(
+                "SBC mean rank frac {:.3} outside [0.35, 0.65] and χ²={:.3} exceeds critical \
                      value {critical:.3} ({} df, p=0.99)",
-                    report.mean_rank_frac,
-                    report.uniformity_stat,
-                    report.rank_bins - 1
-                )))
-            } else if !mean_ok {
-                Some(Arc::from(format!(
-                    "SBC mean rank frac {:.3} outside [0.35, 0.65]",
-                    report.mean_rank_frac
-                )))
-            } else {
-                Some(Arc::from(format!(
-                    "SBC rank distribution non-uniform: χ²={:.3} exceeds critical value \
+                report.mean_rank_frac,
+                report.uniformity_stat,
+                report.rank_bins - 1
+            )))
+        } else if !mean_ok {
+            Some(Arc::from(format!(
+                "SBC mean rank frac {:.3} outside [0.35, 0.65]",
+                report.mean_rank_frac
+            )))
+        } else {
+            Some(Arc::from(format!(
+                "SBC rank distribution non-uniform: χ²={:.3} exceeds critical value \
                      {critical:.3} ({} df, p=0.99); mean rank frac {:.3} looked \
                      fine but ranks are not uniformly distributed (U- or M-shaped)",
-                    report.uniformity_stat,
-                    report.rank_bins - 1,
-                    report.mean_rank_frac
-                )))
-            },
-            replicates: self.n_reps,
-        }
+                report.uniformity_stat,
+                report.rank_bins - 1,
+                report.mean_rank_frac
+            )))
+        };
+        RefutationReport::builder("sbc")
+            .original_ate(original_ate)
+            .refuted_ate(report.mean_rank_frac)
+            .comparison(report.uniformity_stat)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(failure_condition)
+            .replicates(self.n_reps)
+            .build()
     }
 }
 
