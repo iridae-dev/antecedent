@@ -6,13 +6,16 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Gradient-boosted tree initialization.
+#[cfg(feature = "ml-gbdt")]
 pub(crate) const GBT: u64 = 1;
 
 /// Random-forest / extra-trees initialization.
+#[cfg(feature = "ml-forest")]
 pub(crate) const FOREST: u64 = 2;
 
 /// Cross-fit fold shuffle.
 pub(crate) const FOLD_SHUFFLE: u64 = 0xF01D;
 
 /// Burn network initialization, mixed once more by the learner before `MlpSpec.seed`.
+#[cfg(feature = "ml-neural")]
 pub(crate) const NEURAL: u64 = 0x4E45_5500;
