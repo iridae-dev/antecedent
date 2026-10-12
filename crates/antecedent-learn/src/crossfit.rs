@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
-use antecedent_kernels::shuffled_fold_assignment;
+use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 
 use crate::design::{DesignView, RowSelection, TargetView};
 use crate::error::LearnError;
@@ -75,7 +75,12 @@ pub fn assign_folds(
     if strata.is_some_and(|s| s.len() != n_rows) {
         return Err(LearnError::Shape { message: "fold strata length != rows" });
     }
-    Ok(shuffled_fold_assignment(rng, n_rows, folds, strata).into_iter().map(|f| f as u16).collect())
+    let assignment =
+        shuffled_fold_assignment(rng, n_rows, folds, strata).map_err(|error| match error {
+            ViewError::InvalidShape { message } => LearnError::Shape { message },
+            other => LearnError::View(other.to_string()),
+        })?;
+    Ok(assignment.into_iter().map(|f| f as u16).collect())
 }
 
 /// Class labels to stratify folds on: the 0/1 target of a probability task.

@@ -175,10 +175,16 @@ pub fn accumulate_contingency(
 }
 
 /// Weighted sum with contiguous zip.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::weighted_sum`].
 #[must_use]
-pub fn weighted_sum(x: &[f64], weights: &[f64]) -> f64 {
-    assert_eq!(x.len(), weights.len(), "weighted_sum length mismatch");
-    x.iter().zip(weights.iter()).map(|(xi, &w)| crate::scalar::sanitize_weight(w) * xi).sum()
+pub fn weighted_sum(x: &[f64], weights: &[f64]) -> Result<f64, ViewError> {
+    if x.len() != weights.len() {
+        return Err(ViewError::InvalidShape { message: "weighted_sum length mismatch" });
+    }
+    Ok(x.iter().zip(weights.iter()).map(|(xi, &w)| crate::scalar::sanitize_weight(w) * xi).sum())
 }
 
 /// Weighted mean with contiguous zip.

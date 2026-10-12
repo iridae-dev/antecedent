@@ -139,8 +139,8 @@ mod tests {
         let x = sample_data();
         let w: Vec<f64> =
             (0..x.len()).map(|i| if i % 5 == 0 { 0.0 } else { 1.0 + (i as f64) * 0.01 }).collect();
-        let s_sum = scalar::weighted_sum(&x, &w);
-        let p_sum = portable::weighted_sum(&x, &w);
+        let s_sum = scalar::weighted_sum(&x, &w).unwrap();
+        let p_sum = portable::weighted_sum(&x, &w).unwrap();
         assert!(ToleranceClass::StableFloat.close(s_sum, p_sum));
         let s_mean = scalar::weighted_mean(&x, &w).unwrap().unwrap();
         let p_mean = portable::weighted_mean(&x, &w).unwrap().unwrap();

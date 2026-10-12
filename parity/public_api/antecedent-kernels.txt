@@ -250,14 +250,14 @@ pub fn antecedent_kernels::portable::masked_variance(x: antecedent_kernels::F64V
 pub fn antecedent_kernels::portable::pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::portable::standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64)
 pub fn antecedent_kernels::portable::weighted_mean(x: &[f64], weights: &[f64]) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
-pub fn antecedent_kernels::portable::weighted_sum(x: &[f64], weights: &[f64]) -> f64
+pub fn antecedent_kernels::portable::weighted_sum(x: &[f64], weights: &[f64]) -> core::result::Result<f64, antecedent_kernels::ViewError>
 pub fn antecedent_kernels::posterior_reduce::quantile_type7_sorted(sorted: &[f64], p: f64) -> f64
 pub fn antecedent_kernels::posterior_reduce::reduce_posterior_draws(draws: &[f64], op: antecedent_kernels::PosteriorReduceOp, policy: &antecedent_core::execution::KernelPolicy) -> core::option::Option<f64>
 pub fn antecedent_kernels::rng::sample_categorical(rng: &mut antecedent_core::execution::CausalRng, weights: &[f64]) -> core::option::Option<usize>
 pub fn antecedent_kernels::rng::sample_gamma(shape: f64, rate: f64, rng: &mut antecedent_core::execution::CausalRng) -> f64
 pub fn antecedent_kernels::rng::sample_inv_gamma(shape: f64, scale: f64, rng: &mut antecedent_core::execution::CausalRng) -> f64
 pub fn antecedent_kernels::rng::shuffle<T>(rng: &mut antecedent_core::execution::CausalRng, items: &mut [T])
-pub fn antecedent_kernels::rng::shuffled_fold_assignment(rng: &mut antecedent_core::execution::CausalRng, n: usize, folds: usize, strata: core::option::Option<&[u32]>) -> alloc::vec::Vec<usize>
+pub fn antecedent_kernels::rng::shuffled_fold_assignment(rng: &mut antecedent_core::execution::CausalRng, n: usize, folds: usize, strata: core::option::Option<&[u32]>) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_kernels::ViewError>
 pub fn antecedent_kernels::rng::standard_normal(rng: &mut antecedent_core::execution::CausalRng) -> f64
 pub fn antecedent_kernels::rng::unbiased_index(rng: &mut antecedent_core::execution::CausalRng, n: usize) -> usize
 pub fn antecedent_kernels::sanitize_weight(w: f64) -> f64
@@ -270,7 +270,7 @@ pub fn antecedent_kernels::scalar::masked_variance(x: antecedent_kernels::F64Vec
 pub fn antecedent_kernels::scalar::pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::scalar::standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64)
 pub fn antecedent_kernels::scalar::weighted_mean(x: &[f64], weights: &[f64]) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
-pub fn antecedent_kernels::scalar::weighted_sum(x: &[f64], weights: &[f64]) -> f64
+pub fn antecedent_kernels::scalar::weighted_sum(x: &[f64], weights: &[f64]) -> core::result::Result<f64, antecedent_kernels::ViewError>
 pub fn antecedent_kernels::update_scatter(mean: &mut [f64], m2: &mut [f64], n_before: u64, x: &[f64])
 pub mod antecedent_kernels::cholesky
 pub mod antecedent_kernels::dispatch

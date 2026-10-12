@@ -33,7 +33,7 @@ fn bench_reductions(criterion: &mut Criterion) {
     });
 
     criterion.bench_function("weighted_sum_n10k", |b| {
-        b.iter(|| portable::weighted_sum(black_box(&x), black_box(&w)));
+        b.iter(|| portable::weighted_sum(black_box(&x), black_box(&w)).unwrap());
     });
 
     let pair_len = 256usize;

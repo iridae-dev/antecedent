@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use antecedent_core::CausalRng;
 use antecedent_data::TabularData;
-use antecedent_kernels::shuffled_fold_assignment;
+use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 #[cfg(feature = "gaussian-process")]
 use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
@@ -136,7 +136,12 @@ pub(super) fn cv_fold_plan(n: usize, strata: Option<&[u32]>) -> Result<Vec<usize
         });
     }
     let mut rng = CausalRng::from_seed(CV_FOLD_SEED);
-    Ok(shuffled_fold_assignment(&mut rng, n, folds, strata))
+    shuffled_fold_assignment(&mut rng, n, folds, strata).map_err(|error| ModelError::Shape {
+        message: match error {
+            ViewError::InvalidShape { message } => message.to_owned(),
+            other => other.to_string(),
+        },
+    })
 }
 
 /// Mean held-out predictive log-likelihood of `family`, refit on each training

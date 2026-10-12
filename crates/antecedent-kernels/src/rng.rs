@@ -4,6 +4,8 @@
 
 use antecedent_core::CausalRng;
 
+use crate::view::ViewError;
+
 /// One standard-normal draw via Box–Muller (cosine component only).
 #[must_use]
 pub fn standard_normal(rng: &mut CausalRng) -> f64 {
@@ -118,28 +120,33 @@ pub fn shuffle<T>(rng: &mut CausalRng, items: &mut [T]) {
 /// dealt round-robin across the folds and each fold's training rows retain
 /// every stratum that has at least `folds` members.
 ///
-/// # Panics
+/// # Errors
 ///
-/// When `folds == 0` or `strata` has a length other than `n`.
+/// [`ViewError::InvalidShape`] when `folds == 0` or `strata` has a length other
+/// than `n`. Those checks run before the shuffle, so a refused call draws nothing.
 #[must_use]
 pub fn shuffled_fold_assignment(
     rng: &mut CausalRng,
     n: usize,
     folds: usize,
     strata: Option<&[u32]>,
-) -> Vec<usize> {
-    assert!(folds > 0, "fold count must be positive");
+) -> Result<Vec<usize>, ViewError> {
+    if folds == 0 {
+        return Err(ViewError::InvalidShape { message: "fold count must be positive" });
+    }
+    if strata.is_some_and(|s| s.len() != n) {
+        return Err(ViewError::InvalidShape { message: "strata must align with rows" });
+    }
     let mut order: Vec<usize> = (0..n).collect();
     shuffle(rng, &mut order);
     if let Some(strata) = strata {
-        assert_eq!(strata.len(), n, "strata must align with rows");
         order.sort_by_key(|&row| strata[row]);
     }
     let mut assignment = vec![0usize; n];
     for (rank, &row) in order.iter().enumerate() {
         assignment[row] = rank % folds;
     }
-    assignment
+    Ok(assignment)
 }
 
 /// A weight counts only if it is finite and positive; NaN, negative and infinite
@@ -351,7 +358,7 @@ mod fold_tests {
         let n = 40;
         let strata: Vec<u32> = (0..n).map(|i| u32::from(i % 2 == 0)).collect();
         let mut rng = CausalRng::from_seed(5);
-        let fold = shuffled_fold_assignment(&mut rng, n, 2, Some(&strata));
+        let fold = shuffled_fold_assignment(&mut rng, n, 2, Some(&strata)).unwrap();
         for class in 0..2u32 {
             for f in 0..2usize {
                 let count = (0..n).filter(|&i| strata[i] == class && fold[i] == f).count();
@@ -366,12 +373,28 @@ mod fold_tests {
     fn unstratified_shuffled_folds_are_balanced_and_not_periodic() {
         let n = 103;
         let mut rng = CausalRng::from_seed(9);
-        let fold = shuffled_fold_assignment(&mut rng, n, 5, None);
+        let fold = shuffled_fold_assignment(&mut rng, n, 5, None).unwrap();
         for f in 0..5usize {
             let size = fold.iter().filter(|&&g| g == f).count();
             assert!(size == 20 || size == 21, "fold {f} has {size} rows");
         }
         assert!((0..n).any(|i| fold[i] != i % 5));
+    }
+
+    /// A zero fold count or a short stratum vector is refused before any draw.
+    #[test]
+    fn fold_assignment_refuses_before_drawing() {
+        let mut rng = CausalRng::from_seed(3);
+        let mut twin = CausalRng::from_seed(3);
+        assert_eq!(
+            shuffled_fold_assignment(&mut rng, 4, 0, None).unwrap_err(),
+            ViewError::InvalidShape { message: "fold count must be positive" }
+        );
+        assert_eq!(
+            shuffled_fold_assignment(&mut rng, 4, 2, Some(&[1])).unwrap_err(),
+            ViewError::InvalidShape { message: "strata must align with rows" }
+        );
+        assert_eq!(rng.next_u64(), twin.next_u64());
     }
 
     /// The helper reproduces the inline `-ln(max(u, MIN_POSITIVE))` loop and the

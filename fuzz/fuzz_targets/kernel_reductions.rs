@@ -30,15 +30,10 @@ fuzz_target!(|data: &[u8]| {
         let b = data.get(1 + (i % (data.len() - 1)).max(1)).copied().unwrap_or(0);
         values[i] = if b & 0x80 != 0 { f64::NAN } else { f64::from(b) };
         let b2 = data.get(2 + (i % (data.len() - 1)).max(1)).copied().unwrap_or(1);
-        values_y[i] = if b2 & 0x80 != 0 {
-            f64::NAN
-        } else {
-            f64::from(b2) * 0.5
-        };
+        values_y[i] = if b2 & 0x80 != 0 { f64::NAN } else { f64::from(b2) * 0.5 };
     }
-    let weights: Vec<f64> = (0..n)
-        .map(|i| f64::from(data.get(i % data.len()).copied().unwrap_or(1)) / 255.0)
-        .collect();
+    let weights: Vec<f64> =
+        (0..n).map(|i| f64::from(data.get(i % data.len()).copied().unwrap_or(1)) / 255.0).collect();
     let mut bits = vec![0u8; n.div_ceil(8)];
     for i in 0..n {
         if data.get(i % data.len()).copied().unwrap_or(0) & 1 == 1 {
@@ -79,8 +74,8 @@ fuzz_target!(|data: &[u8]| {
     assert!(options_agree(s_cov, p_cov), "masked_covariance {s_cov:?} vs {p_cov:?}");
 
     let x_contig: Vec<f64> = (0..n).map(|i| view.get(i).unwrap_or(0.0)).collect();
-    let s_w = scalar::weighted_sum(&x_contig, &weights);
-    let p_w = portable::weighted_sum(&x_contig, &weights);
+    let s_w = scalar::weighted_sum(&x_contig, &weights).unwrap();
+    let p_w = portable::weighted_sum(&x_contig, &weights).unwrap();
     assert!(floats_agree(s_w, p_w), "weighted_sum {s_w} vs {p_w}");
 
     let mut std_s = x_contig.clone();

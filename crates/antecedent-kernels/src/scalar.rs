@@ -309,17 +309,19 @@ pub fn kish_ess(weights: &[f64]) -> f64 {
 ///
 /// Deterministic left-to-right reduction. Tolerance class: `StableFloat`.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if lengths differ.
+/// [`ViewError::InvalidShape`] when the lengths differ.
 #[must_use]
-pub fn weighted_sum(x: &[f64], weights: &[f64]) -> f64 {
-    assert_eq!(x.len(), weights.len(), "weighted_sum length mismatch");
+pub fn weighted_sum(x: &[f64], weights: &[f64]) -> Result<f64, ViewError> {
+    if x.len() != weights.len() {
+        return Err(shape("weighted_sum length mismatch"));
+    }
     let mut acc = 0.0;
     for (xi, &w) in x.iter().zip(weights.iter()) {
         acc += sanitize_weight(w) * xi;
     }
-    acc
+    Ok(acc)
 }
 
 /// Weighted mean. Returns `Ok(None)` when total weight is 0.
@@ -431,6 +433,24 @@ mod tests {
             weighted_mean(&[1.0], &[1.0, 1.0]).unwrap_err(),
             ViewError::InvalidShape { message: "weighted_mean length mismatch" }
         );
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the hand sum of these finite weights is exactly representable"
+    )]
+    fn weighted_sum_mismatch_is_invalid_shape_and_a_match_is_the_hand_sum() {
+        assert_eq!(
+            weighted_sum(&[1.0, 2.0], &[1.0]).unwrap_err(),
+            ViewError::InvalidShape { message: "weighted_sum length mismatch" }
+        );
+        let x = [1.0, 2.0, 3.0];
+        let w = [1.0, -2.0, 4.0];
+        let hand =
+            sanitize_weight(1.0) * 1.0 + sanitize_weight(-2.0) * 2.0 + sanitize_weight(4.0) * 3.0;
+        assert_eq!(weighted_sum(&x, &w).unwrap(), hand);
+        assert_eq!(crate::portable::weighted_sum(&x, &w).unwrap(), hand);
     }
 
     #[test]

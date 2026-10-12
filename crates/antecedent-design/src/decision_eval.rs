@@ -292,8 +292,19 @@ fn build_table_with(
 
 /// Expectation `Σ wᵢ vᵢ` under already-normalised weights; zero-weight draws contribute
 /// nothing (the kernel reduction sanitises weights, utilities are validated finite).
-fn weighted_mean(values: &[f64], weights: &[f64]) -> f64 {
-    antecedent_kernels::scalar::weighted_sum(values, weights)
+///
+/// # Errors
+///
+/// The kernel's length mismatch, carried as [`DecisionEvalError::Contract`] with the
+/// same `weighted_sum length mismatch` text.
+fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, DecisionEvalError> {
+    antecedent_kernels::scalar::weighted_sum(values, weights).map_err(|error| {
+        let message = match error {
+            antecedent_kernels::ViewError::InvalidShape { message } => message,
+            _ => "weighted_sum length mismatch",
+        };
+        DecisionEvalError::Contract(DecisionContractError::InvalidParameter(message))
+    })
 }
 
 fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
@@ -400,14 +411,14 @@ pub fn evaluate_contract(
         let utility = &table.utilities[index];
         let is_admissible = exclusions[index].is_empty();
         let regret = if is_admissible { regret_of(index) } else { Vec::new() };
-        let expected_utility = weighted_mean(utility, weights);
+        let expected_utility = weighted_mean(utility, weights)?;
         let (value, standard_error) = match contract.criterion {
             DecisionCriterion::PosteriorExpectedUtility
             | DecisionCriterion::PosteriorExpectedLoss => (expected_utility, exact.then_some(0.0)),
             DecisionCriterion::ThresholdProbability { threshold } => {
                 let indicator: Vec<f64> =
                     utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
-                (weighted_mean(&indicator, weights), exact.then_some(0.0))
+                (weighted_mean(&indicator, weights)?, exact.then_some(0.0))
             }
             DecisionCriterion::Quantile { p } => (
                 left_inverse(utility, weights, p).ok_or_else(|| {
@@ -416,7 +427,7 @@ pub fn evaluate_contract(
                 None,
             ),
             DecisionCriterion::ExpectedRegret if is_admissible => {
-                (weighted_mean(&regret, weights), exact.then_some(0.0))
+                (weighted_mean(&regret, weights)?, exact.then_some(0.0))
             }
             DecisionCriterion::Regret if is_admissible => {
                 (positive_mass_max(&regret, weights), None)
@@ -437,7 +448,11 @@ pub fn evaluate_contract(
             expected_utility,
             value,
             standard_error,
-            expected_regret: is_admissible.then(|| weighted_mean(&regret, weights)),
+            expected_regret: if is_admissible {
+                Some(weighted_mean(&regret, weights)?)
+            } else {
+                None
+            },
             max_regret: is_admissible.then(|| positive_mass_max(&regret, weights)),
         });
     }
@@ -475,14 +490,16 @@ pub fn evaluate_contract(
             }
         }
     };
-    let evpi = (!admissible.is_empty()).then(|| {
-        let perfect = weighted_mean(&best_per_draw, weights);
-        let best_mean = admissible
-            .iter()
-            .map(|a| sign * weighted_mean(&table.utilities[*a], weights))
-            .fold(f64::NEG_INFINITY, f64::max);
-        perfect - best_mean
-    });
+    let evpi = if admissible.is_empty() {
+        None
+    } else {
+        let perfect = weighted_mean(&best_per_draw, weights)?;
+        let mut best_mean = f64::NEG_INFINITY;
+        for action in &admissible {
+            best_mean = best_mean.max(sign * weighted_mean(&table.utilities[*action], weights)?);
+        }
+        Some(perfect - best_mean)
+    };
     if evpi.is_some_and(|value| !value.is_finite()) {
         return Err(DecisionEvalError::NonFiniteUtility {
             action: contract.actions[admissible[0]].id.clone(),
@@ -695,7 +712,7 @@ impl ActionLaw {
             .requirement(&action.utility)
             .check(&[SourceRepresentation::JointDraws])
             .map_err(DecisionEvalError::Contract)?;
-        let mean = weighted_mean(utility, weights);
+        let mean = weighted_mean(utility, weights)?;
         let (value, sampled_error) = match functional {
             DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
                 (mean, self.exact.then_some(0.0))

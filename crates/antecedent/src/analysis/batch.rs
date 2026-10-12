@@ -221,12 +221,18 @@ impl SharedBatchDesign {
         // A seeded balanced shuffle: fold membership does not follow the file order (a
         // periodic `row % k` assignment aliases with any periodic structure in the data).
         let mut rng = antecedent_core::CausalRng::from_seed(fold_seed ^ 0xF01D_5EED_BA7C_4001);
-        let fold_ids: Arc<[u32]> =
-            antecedent_kernels::shuffled_fold_assignment(&mut rng, n, folds, None)
-                .into_iter()
-                .map(|f| u32::try_from(f).unwrap_or(u32::MAX))
-                .collect::<Vec<_>>()
-                .into();
+        let assignment = antecedent_kernels::shuffled_fold_assignment(&mut rng, n, folds, None)
+            .map_err(|error| CausalError::Compile {
+                message: match error {
+                    antecedent_kernels::ViewError::InvalidShape { message } => message.to_owned(),
+                    other => other.to_string(),
+                },
+            })?;
+        let fold_ids: Arc<[u32]> = assignment
+            .into_iter()
+            .map(|f| u32::try_from(f).unwrap_or(u32::MAX))
+            .collect::<Vec<_>>()
+            .into();
         let covariate = match common_adjustment(adjustment_sets) {
             Some(set) if !set.is_empty() => Some(compile_shared_covariates(data, set)?),
             Some(_) | None => None,
