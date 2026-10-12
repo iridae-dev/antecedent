@@ -169,6 +169,11 @@ pub(crate) fn ensure_valid_weights(weights: &[f64]) -> Result<(), StatsError> {
 }
 
 /// Weighted Pearson correlation with weighted centering (`weights` are sanitised).
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] when `x`, `y`, and `weights` do not share a length.
+/// `Ok(None)` is a defined correlation that has no variance.
 #[allow(
     clippy::trivially_copy_pass_by_ref,
     reason = "kept by reference to match the shared kernel-policy plumbing"
@@ -178,10 +183,14 @@ pub(crate) fn weighted_pearson(
     x: &[f64],
     y: &[f64],
     weights: &[f64],
-) -> Option<f64> {
+) -> Result<Option<f64>, StatsError> {
     let n = x.len();
-    let mx = weighted_mean(policy, x, weights)?;
-    let my = weighted_mean(policy, y, weights)?;
+    let mismatch = StatsError::Shape { message: "weighted correlation length mismatch" };
+    let mx = weighted_mean(policy, x, weights).map_err(|_| mismatch.clone())?;
+    let my = weighted_mean(policy, y, weights).map_err(|_| mismatch)?;
+    let (Some(mx), Some(my)) = (mx, my) else {
+        return Ok(None);
+    };
     let mut cxx = 0.0;
     let mut cyy = 0.0;
     let mut cxy = 0.0;
@@ -194,13 +203,13 @@ pub(crate) fn weighted_pearson(
         cxy += w * dx * dy;
     }
     if !(cxx > 0.0 && cyy > 0.0) {
-        return None;
+        return Ok(None);
     }
     let denom = (cxx * cyy).sqrt();
     if !denom.is_finite() || denom == 0.0 {
-        return None;
+        return Ok(None);
     }
-    Some((cxy / denom).clamp(-1.0, 1.0))
+    Ok(Some((cxy / denom).clamp(-1.0, 1.0)))
 }
 
 /// Sum of squares of `v` about its plain mean (the information in an unconditioned column).

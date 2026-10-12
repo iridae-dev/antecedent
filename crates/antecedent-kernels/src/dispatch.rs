@@ -4,7 +4,7 @@
 
 use antecedent_core::KernelPolicy;
 
-use crate::view::F64VectorView;
+use crate::view::{F64VectorView, ViewError};
 
 /// Selected implementation class for a batch.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -60,26 +60,38 @@ pub fn standardize_inplace(policy: &KernelPolicy, x: &mut [f64], eps: f64) -> (f
 /// Public semantic entry: contingency table accumulation.
 ///
 /// Contract: exact integer counts as `f64`; beneficial for `n ≳ 256`.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::accumulate_contingency`].
 pub fn accumulate_contingency(
     policy: &KernelPolicy,
     x_codes: &[u32],
     y_codes: &[u32],
     out: &mut [f64],
     n_y_levels: usize,
-) {
+) -> Result<(), ViewError> {
     match select_impl(policy) {
         KernelImpl::Scalar => {
-            crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels);
+            crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels)
         }
         KernelImpl::PortableOptimized => {
-            crate::portable::accumulate_contingency(x_codes, y_codes, out, n_y_levels);
+            crate::portable::accumulate_contingency(x_codes, y_codes, out, n_y_levels)
         }
     }
 }
 
 /// Public semantic entry: weighted mean.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::weighted_mean`].
 #[must_use]
-pub fn weighted_mean(policy: &KernelPolicy, x: &[f64], weights: &[f64]) -> Option<f64> {
+pub fn weighted_mean(
+    policy: &KernelPolicy,
+    x: &[f64],
+    weights: &[f64],
+) -> Result<Option<f64>, ViewError> {
     match select_impl(policy) {
         KernelImpl::Scalar => crate::scalar::weighted_mean(x, weights),
         KernelImpl::PortableOptimized => crate::portable::weighted_mean(x, weights),

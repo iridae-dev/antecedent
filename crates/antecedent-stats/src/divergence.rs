@@ -195,7 +195,8 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     // Rank all observations; average ranks for ties.
     let pooled: Vec<f64> = a.iter().chain(b).copied().collect();
     let mut ranks = vec![0.0; pooled.len()];
-    antecedent_kernels::midranks_into(&pooled, &mut ranks);
+    antecedent_kernels::midranks_into(&pooled, &mut ranks)
+        .map_err(|_| StatsError::Shape { message: "rank buffer length mismatch" })?;
     let rank_sum_a: f64 = ranks[..a.len()].iter().sum();
     let u_a = rank_sum_a - na * (na + 1.0) / 2.0;
     let auc = u_a / (na * nb);

@@ -113,7 +113,7 @@ pub(crate) fn residual_null_pvalue(
         &ones
     };
     let degenerate = StatsError::Shape { message: "block-shuffle null: degenerate residual" };
-    let observed = weighted_pearson(policy, rx, ry, w).ok_or(degenerate)?.abs();
+    let observed = weighted_pearson(policy, rx, ry, w)?.ok_or(degenerate)?.abs();
     let mut perm = Vec::with_capacity(n);
     let mut shuffled = vec![0.0; n];
     let mut extreme = 0u32;
@@ -122,7 +122,7 @@ pub(crate) fn residual_null_pvalue(
         for (dst, &src) in perm.iter().enumerate() {
             shuffled[dst] = rx[src];
         }
-        let r = weighted_pearson(policy, &shuffled, ry, w)
+        let r = weighted_pearson(policy, &shuffled, ry, w)?
             .ok_or(StatsError::Shape { message: "block-shuffle null: degenerate residual" })?;
         if r.abs() >= observed * (1.0 - TIE_REL_TOL) {
             extreme += 1;

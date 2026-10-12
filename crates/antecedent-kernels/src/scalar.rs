@@ -4,24 +4,31 @@
 
 #![allow(clippy::cast_precision_loss, reason = "n as f64 for means/variances is intentional")]
 
-use crate::view::{BitMaskView, F64VectorView};
+use crate::view::{BitMaskView, F64VectorView, ViewError};
+
+fn shape(message: &'static str) -> ViewError {
+    ViewError::InvalidShape { message }
+}
 
 /// A mask must cover exactly the vector it masks: `BitMaskView::get` reads out of
 /// range as "excluded", so a short mask would silently drop the tail.
-fn check_mask_len(len: usize, mask: Option<BitMaskView<'_>>) {
+fn check_mask_len(len: usize, mask: Option<BitMaskView<'_>>) -> Result<(), ViewError> {
     if let Some(m) = mask {
-        assert_eq!(m.len(), len, "mask length must equal vector length");
+        if m.len() != len {
+            return Err(shape("mask length must equal vector length"));
+        }
     }
+    Ok(())
 }
 
 /// Masked sum of a vector. When `mask` is `None`, all elements are included.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `mask` is present and its length differs from `x`.
+/// [`ViewError::InvalidShape`] when `mask` is present and its length differs from `x`.
 #[must_use]
-pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> f64 {
-    check_mask_len(x.len(), mask);
+pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result<f64, ViewError> {
+    check_mask_len(x.len(), mask)?;
     let mut acc = 0.0;
     for i in 0..x.len() {
         if mask.is_some_and(|m| !m.get(i)) {
@@ -30,17 +37,20 @@ pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> f64 {
         // SAFETY: i < x.len()
         acc += unsafe { x.get_unchecked(i) };
     }
-    acc
+    Ok(acc)
 }
 
-/// Masked mean. Returns `None` when no valid observations.
+/// Masked mean. Returns `Ok(None)` when no valid observations.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `mask` is present and its length differs from `x`.
+/// [`ViewError::InvalidShape`] when `mask` is present and its length differs from `x`.
 #[must_use]
-pub fn masked_mean(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Option<f64> {
-    check_mask_len(x.len(), mask);
+pub fn masked_mean(
+    x: F64VectorView<'_>,
+    mask: Option<BitMaskView<'_>>,
+) -> Result<Option<f64>, ViewError> {
+    check_mask_len(x.len(), mask)?;
     let mut acc = 0.0;
     let mut n = 0usize;
     for i in 0..x.len() {
@@ -51,17 +61,22 @@ pub fn masked_mean(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Optio
         acc += unsafe { x.get_unchecked(i) };
         n += 1;
     }
-    if n == 0 { None } else { Some(acc / n as f64) }
+    if n == 0 { Ok(None) } else { Ok(Some(acc / n as f64)) }
 }
 
-/// Population variance with optional mask. Returns `None` when `n == 0`.
+/// Population variance with optional mask. Returns `Ok(None)` when `n == 0`.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `mask` is present and its length differs from `x`.
+/// [`ViewError::InvalidShape`] when `mask` is present and its length differs from `x`.
 #[must_use]
-pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Option<f64> {
-    let mean = masked_mean(x, mask)?;
+pub fn masked_variance(
+    x: F64VectorView<'_>,
+    mask: Option<BitMaskView<'_>>,
+) -> Result<Option<f64>, ViewError> {
+    let Some(mean) = masked_mean(x, mask)? else {
+        return Ok(None);
+    };
     let mut acc = 0.0;
     let mut n = 0usize;
     for i in 0..x.len() {
@@ -73,7 +88,7 @@ pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> O
         acc += d * d;
         n += 1;
     }
-    if n == 0 { None } else { Some(acc / n as f64) }
+    if n == 0 { Ok(None) } else { Ok(Some(acc / n as f64)) }
 }
 
 /// Gather values at `indices` into `out` (`out.len()` must equal `indices.len()`).
@@ -98,17 +113,24 @@ pub fn gather(
     Ok(())
 }
 
-/// Population covariance of paired observations. Returns `None` when no valid pairs.
+/// Population covariance of paired observations. Returns `Ok(None)` when no valid pairs.
 ///
 /// Deterministic left-to-right reduction. Tolerance class: `StableFloat`.
+///
+/// # Errors
+///
+/// [`ViewError::InvalidShape`] when `x` and `y` differ in length, or when `mask`
+/// is present and its length differs from `x`.
 #[must_use]
 pub fn masked_covariance(
     x: F64VectorView<'_>,
     y: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
-) -> Option<f64> {
-    assert_eq!(x.len(), y.len(), "covariance views must share length");
-    check_mask_len(x.len(), mask);
+) -> Result<Option<f64>, ViewError> {
+    if x.len() != y.len() {
+        return Err(shape("covariance views must share length"));
+    }
+    check_mask_len(x.len(), mask)?;
     let mut sx = 0.0;
     let mut sy = 0.0;
     let mut n = 0usize;
@@ -116,14 +138,14 @@ pub fn masked_covariance(
         if mask.is_some_and(|m| !m.get(i)) {
             continue;
         }
-        // SAFETY: i < x.len(), and y.len() == x.len() is asserted above
+        // SAFETY: i < x.len(), and y.len() == x.len() was checked above
         sx += unsafe { x.get_unchecked(i) };
         // SAFETY: as above, i < y.len()
         sy += unsafe { y.get_unchecked(i) };
         n += 1;
     }
     if n == 0 {
-        return None;
+        return Ok(None);
     }
     let nf = n as f64;
     let mx = sx / nf;
@@ -133,13 +155,13 @@ pub fn masked_covariance(
         if mask.is_some_and(|m| !m.get(i)) {
             continue;
         }
-        // SAFETY: i < x.len(), and y.len() == x.len() is asserted above
+        // SAFETY: i < x.len(), and y.len() == x.len() was checked above
         let dx = unsafe { x.get_unchecked(i) } - mx;
         // SAFETY: as above, i < y.len()
         let dy = unsafe { y.get_unchecked(i) } - my;
         acc += dx * dy;
     }
-    Some(acc / nf)
+    Ok(Some(acc / nf))
 }
 
 /// Standardize `x` in place: subtract mean, divide by `max(sample_sd, eps)`.
@@ -173,13 +195,16 @@ pub fn standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64) {
 /// Fill `out` (`n * n`) with pairwise L1 distances `|x_i - x_j|`.
 ///
 /// Deterministic row-major fill. Tolerance class: `Exact` for finite inputs.
+/// On error `out` is left untouched.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `out.len() != x.len() * x.len()`.
-pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) {
+/// [`ViewError::InvalidShape`] when `out.len() != x.len() * x.len()`.
+pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> Result<(), ViewError> {
     let n = x.len();
-    assert_eq!(out.len(), n.saturating_mul(n), "pairwise out must be n*n");
+    if out.len() != n.saturating_mul(n) {
+        return Err(shape("pairwise out must be n*n"));
+    }
     for i in 0..n {
         let xi = x[i];
         let row = i * n;
@@ -187,33 +212,47 @@ pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) {
             out[row + j] = (xi - x[j]).abs();
         }
     }
+    Ok(())
 }
 
 /// Accumulate contingency counts: `out[x_code * n_y_levels + y_code] += 1` for each row.
 ///
 /// `x_codes` / `y_codes` are level indexes (same length). Counts stored as `f64`.
-/// Tolerance class: `Exact`.
+/// Tolerance class: `Exact`. A refused call leaves `out` unchanged.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if code lengths differ, `n_y_levels == 0`, `out` is too short, or a code is
-/// out of range for the table shape.
+/// [`ViewError::InvalidShape`] when the code lengths differ, `n_y_levels == 0`,
+/// `out` is not a rectangle of height `n_y_levels`, or a code falls outside that rectangle.
 pub fn accumulate_contingency(
     x_codes: &[u32],
     y_codes: &[u32],
     out: &mut [f64],
     n_y_levels: usize,
-) {
-    assert_eq!(x_codes.len(), y_codes.len(), "contingency code lengths");
-    assert!(n_y_levels > 0, "n_y_levels must be > 0");
+) -> Result<(), ViewError> {
+    if x_codes.len() != y_codes.len() {
+        return Err(shape("contingency code lengths"));
+    }
+    if n_y_levels == 0 {
+        return Err(shape("n_y_levels must be > 0"));
+    }
     let x_cardinality = out.len() / n_y_levels;
-    assert_eq!(out.len(), x_cardinality.saturating_mul(n_y_levels), "contingency out shape");
+    if out.len() != x_cardinality.saturating_mul(n_y_levels) {
+        return Err(shape("contingency out shape"));
+    }
     for (&xc, &yc) in x_codes.iter().zip(y_codes.iter()) {
         let ix = xc as usize;
         let iy = yc as usize;
-        assert!(ix < x_cardinality && iy < n_y_levels, "contingency code out of range");
+        if ix >= x_cardinality || iy >= n_y_levels {
+            return Err(shape("contingency code out of range"));
+        }
+    }
+    for (&xc, &yc) in x_codes.iter().zip(y_codes.iter()) {
+        let ix = xc as usize;
+        let iy = yc as usize;
         out[ix * n_y_levels + iy] += 1.0;
     }
+    Ok(())
 }
 
 /// Bootstrap / weighted-CI contract: non-finite and negative weights become `0`.
@@ -283,14 +322,16 @@ pub fn weighted_sum(x: &[f64], weights: &[f64]) -> f64 {
     acc
 }
 
-/// Weighted mean. Returns `None` when total weight is 0.
+/// Weighted mean. Returns `Ok(None)` when total weight is 0.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if lengths differ.
+/// [`ViewError::InvalidShape`] when the lengths differ.
 #[must_use]
-pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Option<f64> {
-    assert_eq!(x.len(), weights.len(), "weighted_mean length mismatch");
+pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Result<Option<f64>, ViewError> {
+    if x.len() != weights.len() {
+        return Err(shape("weighted_mean length mismatch"));
+    }
     let mut sw = 0.0;
     let mut sx = 0.0;
     for (xi, &w) in x.iter().zip(weights.iter()) {
@@ -298,7 +339,7 @@ pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Option<f64> {
         sw += ww;
         sx += ww * xi;
     }
-    if sw <= 0.0 { None } else { Some(sx / sw) }
+    if sw <= 0.0 { Ok(None) } else { Ok(Some(sx / sw)) }
 }
 
 #[cfg(test)]
@@ -342,12 +383,54 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "mask length must equal vector length")]
     fn short_mask_is_a_shape_error_not_a_silent_tail_drop() {
         let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
         let bytes = [0xFFu8];
         let mask = BitMaskView::new(&bytes, 8).unwrap();
-        let _ = masked_sum(F64VectorView::contiguous(&x), Some(mask));
+        let err = masked_sum(F64VectorView::contiguous(&x), Some(mask)).unwrap_err();
+        assert_eq!(
+            err,
+            ViewError::InvalidShape { message: "mask length must equal vector length" }
+        );
+        assert_eq!(x, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    }
+
+    #[test]
+    fn length_mismatches_are_shape_errors_and_leave_outputs_unchanged() {
+        let x = F64VectorView::contiguous(&[1.0, 2.0]);
+        let y = F64VectorView::contiguous(&[1.0]);
+        assert_eq!(
+            masked_covariance(x, y, None).unwrap_err(),
+            ViewError::InvalidShape { message: "covariance views must share length" }
+        );
+        let mut pair = [9.0];
+        assert_eq!(
+            pairwise_l1_fill(&[1.0, 2.0], &mut pair).unwrap_err(),
+            ViewError::InvalidShape { message: "pairwise out must be n*n" }
+        );
+        assert_eq!(pair, [9.0]);
+        let mut table = [7.0, 7.0, 7.0, 7.0];
+        assert_eq!(
+            accumulate_contingency(&[0, 1], &[0], &mut table, 2).unwrap_err(),
+            ViewError::InvalidShape { message: "contingency code lengths" }
+        );
+        assert_eq!(
+            accumulate_contingency(&[0], &[0], &mut table, 0).unwrap_err(),
+            ViewError::InvalidShape { message: "n_y_levels must be > 0" }
+        );
+        assert_eq!(
+            accumulate_contingency(&[0], &[0], &mut table[..3], 2).unwrap_err(),
+            ViewError::InvalidShape { message: "contingency out shape" }
+        );
+        assert_eq!(
+            accumulate_contingency(&[4], &[0], &mut table, 2).unwrap_err(),
+            ViewError::InvalidShape { message: "contingency code out of range" }
+        );
+        assert_eq!(table, [7.0, 7.0, 7.0, 7.0]);
+        assert_eq!(
+            weighted_mean(&[1.0], &[1.0, 1.0]).unwrap_err(),
+            ViewError::InvalidShape { message: "weighted_mean length mismatch" }
+        );
     }
 
     #[test]
@@ -357,7 +440,10 @@ mod tests {
         let bytes = [0b0000_0101u8, 0b0000_0010];
         let mask = BitMaskView::new(&bytes, 10).unwrap();
         // Bits 0, 2 and 9 are set: 1 + 3 + 10.
-        assert_eq!(masked_sum(F64VectorView::contiguous(&x), Some(mask)), 14.0);
-        assert_eq!(masked_mean(F64VectorView::contiguous(&x), Some(mask)), Some(14.0 / 3.0));
+        assert_eq!(masked_sum(F64VectorView::contiguous(&x), Some(mask)).unwrap(), 14.0);
+        assert_eq!(
+            masked_mean(F64VectorView::contiguous(&x), Some(mask)).unwrap(),
+            Some(14.0 / 3.0)
+        );
     }
 }

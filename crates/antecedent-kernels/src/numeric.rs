@@ -9,6 +9,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::posterior_reduce::quantile_type7_sorted;
+use crate::view::ViewError;
 
 /// Logistic function `1 / (1 + e^{-x})`, branching on the sign of `x` so the exponential
 /// argument is never positive: `e^{x} / (1 + e^{x})` for `x < 0`, `1 / (1 + e^{-x})`
@@ -191,15 +192,19 @@ pub fn median_sorted(sorted: &[f64]) -> f64 {
 /// is never equal to anything (each `NaN` gets its own distinct rank); callers that cannot
 /// tolerate `NaN` must reject it first.
 ///
-/// # Panics
+/// On error `out` is left untouched.
 ///
-/// Panics if `out.len() != values.len()`.
+/// # Errors
+///
+/// [`ViewError::InvalidShape`] when `out.len() != values.len()`.
 #[allow(
     clippy::float_cmp,
     reason = "Rank ties are exact equality, independent of measurement units"
 )]
-pub fn midranks_into(values: &[f64], out: &mut [f64]) {
-    assert_eq!(values.len(), out.len(), "midranks_into length mismatch");
+pub fn midranks_into(values: &[f64], out: &mut [f64]) -> Result<(), ViewError> {
+    if values.len() != out.len() {
+        return Err(ViewError::InvalidShape { message: "midranks_into length mismatch" });
+    }
     let n = values.len();
     let mut idx: Vec<usize> = (0..n).collect();
     idx.sort_by(|&i, &j| values[i].total_cmp(&values[j]));
@@ -216,6 +221,7 @@ pub fn midranks_into(values: &[f64], out: &mut [f64]) {
         }
         i = j;
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -334,14 +340,20 @@ mod tests {
         assert_eq!(median_sorted(&[1.0, 2.0, 9.0]), 2.0);
         assert_eq!(median_sorted(&[1.0, 2.0, 4.0, 9.0]), 3.0);
         let mut r = [0.0; 6];
-        midranks_into(&[5.0, 1.0, 5.0, 3.0, 5.0, 1.0], &mut r);
+        midranks_into(&[5.0, 1.0, 5.0, 3.0, 5.0, 1.0], &mut r).unwrap();
         // sorted: 1,1 -> 1.5 ; 3 -> 3 ; 5,5,5 -> 5
         assert_eq!(r, [5.0, 1.5, 5.0, 3.0, 5.0, 1.5]);
         let mut e: [f64; 0] = [];
-        midranks_into(&[], &mut e);
+        midranks_into(&[], &mut e).unwrap();
         // -0.0 and 0.0 are tied.
         let mut z = [0.0; 2];
-        midranks_into(&[0.0, -0.0], &mut z);
+        midranks_into(&[0.0, -0.0], &mut z).unwrap();
         assert_eq!(z, [1.5, 1.5]);
+        let mut short = [0.0];
+        assert_eq!(
+            midranks_into(&[1.0, 2.0], &mut short).unwrap_err(),
+            crate::view::ViewError::InvalidShape { message: "midranks_into length mismatch" }
+        );
+        assert_eq!(short, [0.0]);
     }
 }

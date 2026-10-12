@@ -101,11 +101,18 @@ pub fn quantile_type7_sorted(sorted: &[f64], p: f64) -> f64 {
     sorted[lo] * (1.0 - w) + sorted[hi] * w
 }
 
+/// A posterior column is reduced without a mask, so the mask-length check cannot fail.
+fn unmasked<T>(result: Result<T, crate::view::ViewError>) -> T {
+    result.expect("posterior reduction passes no mask, so the length check cannot fail")
+}
+
 fn reduce_scalar(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> {
     match op {
-        PosteriorReduceOp::Mean => scalar::masked_mean(view, None),
-        PosteriorReduceOp::Variance => scalar::masked_variance(view, None),
-        PosteriorReduceOp::Std => sample_sd(scalar::masked_variance(view, None)?, view.len()),
+        PosteriorReduceOp::Mean => unmasked(scalar::masked_mean(view, None)),
+        PosteriorReduceOp::Variance => unmasked(scalar::masked_variance(view, None)),
+        PosteriorReduceOp::Std => {
+            sample_sd(unmasked(scalar::masked_variance(view, None))?, view.len())
+        }
         PosteriorReduceOp::Min | PosteriorReduceOp::Max => {
             unreachable!("extremes are reduced on the raw slice before dispatch")
         }
@@ -114,9 +121,11 @@ fn reduce_scalar(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> 
 
 fn reduce_portable(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> {
     match op {
-        PosteriorReduceOp::Mean => portable::masked_mean(view, None),
-        PosteriorReduceOp::Variance => portable::masked_variance(view, None),
-        PosteriorReduceOp::Std => sample_sd(portable::masked_variance(view, None)?, view.len()),
+        PosteriorReduceOp::Mean => unmasked(portable::masked_mean(view, None)),
+        PosteriorReduceOp::Variance => unmasked(portable::masked_variance(view, None)),
+        PosteriorReduceOp::Std => {
+            sample_sd(unmasked(portable::masked_variance(view, None))?, view.len())
+        }
         PosteriorReduceOp::Min | PosteriorReduceOp::Max => reduce_scalar(view, op),
     }
 }

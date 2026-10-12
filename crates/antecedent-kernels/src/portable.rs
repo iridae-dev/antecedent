@@ -6,41 +6,59 @@
 
 #![allow(clippy::cast_precision_loss, reason = "n as f64 for means/variances is intentional")]
 
-use crate::view::{BitMaskView, F64VectorView};
+use crate::view::{BitMaskView, F64VectorView, ViewError};
 
 /// Contiguous fast path for masked sum when unit-stride and no mask.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::masked_sum`].
 #[must_use]
-pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> f64 {
+pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result<f64, ViewError> {
     if mask.is_none() {
         if let Some(slice) = x.as_slice() {
-            return slice.iter().sum();
+            return Ok(slice.iter().sum());
         }
     }
     crate::scalar::masked_sum(x, mask)
 }
 
 /// Contiguous fast path for masked mean.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::masked_mean`].
 #[must_use]
-pub fn masked_mean(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Option<f64> {
+pub fn masked_mean(
+    x: F64VectorView<'_>,
+    mask: Option<BitMaskView<'_>>,
+) -> Result<Option<f64>, ViewError> {
     if mask.is_none() {
         if let Some(slice) = x.as_slice() {
             if slice.is_empty() {
-                return None;
+                return Ok(None);
             }
             let sum: f64 = slice.iter().sum();
-            return Some(sum / slice.len() as f64);
+            return Ok(Some(sum / slice.len() as f64));
         }
     }
     crate::scalar::masked_mean(x, mask)
 }
 
 /// Contiguous fast path for population variance.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::masked_variance`].
 #[must_use]
-pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Option<f64> {
+pub fn masked_variance(
+    x: F64VectorView<'_>,
+    mask: Option<BitMaskView<'_>>,
+) -> Result<Option<f64>, ViewError> {
     if mask.is_none() {
         if let Some(slice) = x.as_slice() {
             if slice.is_empty() {
-                return None;
+                return Ok(None);
             }
             let n = slice.len() as f64;
             let mean = slice.iter().sum::<f64>() / n;
@@ -52,7 +70,7 @@ pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> O
                 })
                 .sum::<f64>()
                 / n;
-            return Some(var);
+            return Ok(Some(var));
         }
     }
     crate::scalar::masked_variance(x, mask)
@@ -84,18 +102,24 @@ pub fn gather(
 }
 
 /// Contiguous fast path for population covariance.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::masked_covariance`].
 #[must_use]
 pub fn masked_covariance(
     x: F64VectorView<'_>,
     y: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
-) -> Option<f64> {
-    assert_eq!(x.len(), y.len(), "covariance views must share length");
+) -> Result<Option<f64>, ViewError> {
+    if x.len() != y.len() {
+        return Err(ViewError::InvalidShape { message: "covariance views must share length" });
+    }
     if mask.is_none() {
         if let (Some(xs), Some(ys)) = (x.as_slice(), y.as_slice()) {
             let n = xs.len();
             if n == 0 {
-                return None;
+                return Ok(None);
             }
             let nf = n as f64;
             let mx = xs.iter().sum::<f64>() / nf;
@@ -104,7 +128,7 @@ pub fn masked_covariance(
             for i in 0..n {
                 acc += (xs[i] - mx) * (ys[i] - my);
             }
-            return Some(acc / nf);
+            return Ok(Some(acc / nf));
         }
     }
     crate::scalar::masked_covariance(x, y, mask)
@@ -117,9 +141,15 @@ pub fn standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64) {
 }
 
 /// Pairwise L1 fill (same contract; contiguous loops for auto-vectorization).
-pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) {
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::pairwise_l1_fill`]. On error `out` is left untouched.
+pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> Result<(), ViewError> {
     let n = x.len();
-    assert_eq!(out.len(), n.saturating_mul(n), "pairwise out must be n*n");
+    if out.len() != n.saturating_mul(n) {
+        return Err(ViewError::InvalidShape { message: "pairwise out must be n*n" });
+    }
     for i in 0..n {
         let xi = x[i];
         let row = &mut out[i * n..(i + 1) * n];
@@ -127,16 +157,21 @@ pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) {
             *slot = (xi - x[j]).abs();
         }
     }
+    Ok(())
 }
 
 /// Contingency accumulation (portable = scalar; scatter-add resists vectorization).
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::accumulate_contingency`].
 pub fn accumulate_contingency(
     x_codes: &[u32],
     y_codes: &[u32],
     out: &mut [f64],
     n_y_levels: usize,
-) {
-    crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels);
+) -> Result<(), ViewError> {
+    crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels)
 }
 
 /// Weighted sum with contiguous zip.
@@ -147,7 +182,11 @@ pub fn weighted_sum(x: &[f64], weights: &[f64]) -> f64 {
 }
 
 /// Weighted mean with contiguous zip.
+///
+/// # Errors
+///
+/// Same contract as [`crate::scalar::weighted_mean`].
 #[must_use]
-pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Option<f64> {
+pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Result<Option<f64>, ViewError> {
     crate::scalar::weighted_mean(x, weights)
 }

@@ -172,6 +172,9 @@ impl WeightingDoSampler {
     }
 
     /// Weighted mean of the sampler result.
+    ///
+    /// Empty outcomes, zero total weight, and a weight vector whose length differs
+    /// from the outcomes are all `NaN`.
     #[must_use]
     pub fn weighted_mean(result: &DoSampleResult) -> f64 {
         if result.values.is_empty() {
@@ -181,6 +184,8 @@ impl WeightingDoSampler {
             return result.values.iter().sum::<f64>() / result.values.len() as f64;
         }
         antecedent_kernels::scalar::weighted_mean(&result.values, &result.weights)
+            .ok()
+            .flatten()
             .unwrap_or(f64::NAN)
     }
 }
@@ -523,6 +528,20 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         (compiled.with_mechanisms(store), data)
+    }
+
+    #[test]
+    fn weighted_mean_of_a_short_weight_vector_is_nan() {
+        let result = DoSampleResult {
+            values: Arc::from([1.0, 2.0]),
+            weights: Arc::from([1.0]),
+            method: Arc::from("test"),
+            notes: Vec::new(),
+            accept_rate: None,
+            bandwidth: None,
+            ess: None,
+        };
+        assert!(WeightingDoSampler::weighted_mean(&result).is_nan());
     }
 
     #[test]

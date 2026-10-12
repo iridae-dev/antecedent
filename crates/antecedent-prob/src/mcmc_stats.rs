@@ -269,7 +269,7 @@ fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
 fn rank_normalize(x: &[f64]) -> Vec<f64> {
     let s = x.len();
     let mut ranks = vec![0.0; s];
-    midranks_into(x, &mut ranks);
+    midranks_into(x, &mut ranks).expect("rank buffer is allocated to the sample length");
     let denom = s as f64 + 0.25;
     ranks
         .into_iter()

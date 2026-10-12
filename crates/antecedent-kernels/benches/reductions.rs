@@ -21,7 +21,7 @@ fn bench_reductions(criterion: &mut Criterion) {
     let yv = F64VectorView::contiguous(&y);
 
     criterion.bench_function("masked_covariance_n10k", |b| {
-        b.iter(|| portable::masked_covariance(black_box(xv), black_box(yv), None));
+        b.iter(|| portable::masked_covariance(black_box(xv), black_box(yv), None).unwrap());
     });
 
     criterion.bench_function("standardize_inplace_n10k", |b| {
@@ -41,7 +41,7 @@ fn bench_reductions(criterion: &mut Criterion) {
     let mut pair_out = vec![0.0; pair_len * pair_len];
     criterion.bench_function("pairwise_l1_n256", |b| {
         b.iter(|| {
-            portable::pairwise_l1_fill(black_box(&xp), black_box(&mut pair_out));
+            portable::pairwise_l1_fill(black_box(&xp), black_box(&mut pair_out)).unwrap();
         });
     });
 
@@ -57,7 +57,8 @@ fn bench_reductions(criterion: &mut Criterion) {
                 black_box(&yc),
                 black_box(&mut table),
                 5,
-            );
+            )
+            .unwrap();
         });
     });
 }

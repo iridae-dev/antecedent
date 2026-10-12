@@ -203,7 +203,7 @@ pub fn <antecedent_kernels::Welford>::fn push(&mut self, x: f64)
 pub fn <antecedent_kernels::Welford>::fn push_weighted(&mut self, weight: f64, x: f64)
 pub fn <antecedent_kernels::Welford>::fn sample_variance(&self) -> core::option::Option<f64>
 pub fn <antecedent_kernels::Welford>::fn stderr_of_mean(&self) -> f64
-pub fn antecedent_kernels::accumulate_contingency(policy: &antecedent_core::execution::KernelPolicy, x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize)
+pub fn antecedent_kernels::accumulate_contingency(policy: &antecedent_core::execution::KernelPolicy, x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::back_solve_into(chol: &[f64], n: usize, y: &[f64], x: &mut [f64])
 pub fn antecedent_kernels::bayesian_bootstrap_weights(rng: &mut antecedent_core::execution::CausalRng, n: usize, normalize: bool) -> alloc::vec::Vec<f64>
 pub fn antecedent_kernels::categorical_from_u(u: f64, probs: &[f64]) -> core::option::Option<usize>
@@ -217,7 +217,7 @@ pub fn antecedent_kernels::cholesky::forward_solve_into(chol: &[f64], n: usize, 
 pub fn antecedent_kernels::dispatch::gather(policy: &antecedent_core::execution::KernelPolicy, src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::dispatch::select_impl(policy: &antecedent_core::execution::KernelPolicy) -> antecedent_kernels::KernelImpl
 pub fn antecedent_kernels::dispatch::standardize_inplace(policy: &antecedent_core::execution::KernelPolicy, x: &mut [f64], eps: f64) -> (f64, f64)
-pub fn antecedent_kernels::dispatch::weighted_mean(policy: &antecedent_core::execution::KernelPolicy, x: &[f64], weights: &[f64]) -> core::option::Option<f64>
+pub fn antecedent_kernels::dispatch::weighted_mean(policy: &antecedent_core::execution::KernelPolicy, x: &[f64], weights: &[f64]) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
 pub fn antecedent_kernels::dot(a: &[f64], b: &[f64]) -> f64
 pub fn antecedent_kernels::equilibrate_into(a: &[f64], scales: &[f64], n: usize, out: &mut [f64])
 pub fn antecedent_kernels::erf(x: f64) -> f64
@@ -232,7 +232,7 @@ pub fn antecedent_kernels::log_norm_pdf(x: f64) -> f64
 pub fn antecedent_kernels::log_norm_sf(z: f64) -> f64
 pub fn antecedent_kernels::mean(values: &[f64]) -> f64
 pub fn antecedent_kernels::median_sorted(sorted: &[f64]) -> f64
-pub fn antecedent_kernels::midranks_into(values: &[f64], out: &mut [f64])
+pub fn antecedent_kernels::midranks_into(values: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::mills_left_tail(t: f64) -> (f64, f64)
 pub fn antecedent_kernels::norm_cdf(x: f64) -> f64
 pub fn antecedent_kernels::norm_inv(p: f64) -> f64
@@ -245,15 +245,15 @@ pub fn antecedent_kernels::numeric::sigmoid(x: f64) -> f64
 pub fn antecedent_kernels::numeric::softmax_in_place(values: &mut [f64])
 pub fn antecedent_kernels::numeric::softplus(x: f64) -> f64
 pub fn antecedent_kernels::parcorr::partial_correlation_batch(columns: &[&[f64]], queries: &[antecedent_kernels::ParCorrQuery], z_flat: &[usize], out: &mut [core::option::Option<f64>], workspace: &mut antecedent_kernels::ParCorrWorkspace, mode: antecedent_kernels::ParCorrMode) -> core::result::Result<(), antecedent_kernels::ViewError>
-pub fn antecedent_kernels::portable::accumulate_contingency(x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize)
+pub fn antecedent_kernels::portable::accumulate_contingency(x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::portable::gather(src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
-pub fn antecedent_kernels::portable::masked_covariance(x: antecedent_kernels::F64VectorView<'_>, y: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
-pub fn antecedent_kernels::portable::masked_mean(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
-pub fn antecedent_kernels::portable::masked_sum(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> f64
-pub fn antecedent_kernels::portable::masked_variance(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
-pub fn antecedent_kernels::portable::pairwise_l1_fill(x: &[f64], out: &mut [f64])
+pub fn antecedent_kernels::portable::masked_covariance(x: antecedent_kernels::F64VectorView<'_>, y: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::portable::masked_mean(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::portable::masked_sum(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<f64, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::portable::masked_variance(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::portable::pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::portable::standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64)
-pub fn antecedent_kernels::portable::weighted_mean(x: &[f64], weights: &[f64]) -> core::option::Option<f64>
+pub fn antecedent_kernels::portable::weighted_mean(x: &[f64], weights: &[f64]) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
 pub fn antecedent_kernels::portable::weighted_sum(x: &[f64], weights: &[f64]) -> f64
 pub fn antecedent_kernels::posterior_reduce::quantile_type7_sorted(sorted: &[f64], p: f64) -> f64
 pub fn antecedent_kernels::posterior_reduce::reduce_posterior_draws(draws: &[f64], op: antecedent_kernels::PosteriorReduceOp, policy: &antecedent_core::execution::KernelPolicy) -> core::option::Option<f64>
@@ -265,15 +265,15 @@ pub fn antecedent_kernels::rng::shuffled_fold_assignment(rng: &mut antecedent_co
 pub fn antecedent_kernels::rng::standard_normal(rng: &mut antecedent_core::execution::CausalRng) -> f64
 pub fn antecedent_kernels::rng::unbiased_index(rng: &mut antecedent_core::execution::CausalRng, n: usize) -> usize
 pub fn antecedent_kernels::sanitize_weight(w: f64) -> f64
-pub fn antecedent_kernels::scalar::accumulate_contingency(x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize)
+pub fn antecedent_kernels::scalar::accumulate_contingency(x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::scalar::gather(src: antecedent_kernels::F64VectorView<'_>, indices: &[usize], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
-pub fn antecedent_kernels::scalar::masked_covariance(x: antecedent_kernels::F64VectorView<'_>, y: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
-pub fn antecedent_kernels::scalar::masked_mean(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
-pub fn antecedent_kernels::scalar::masked_sum(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> f64
-pub fn antecedent_kernels::scalar::masked_variance(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::option::Option<f64>
-pub fn antecedent_kernels::scalar::pairwise_l1_fill(x: &[f64], out: &mut [f64])
+pub fn antecedent_kernels::scalar::masked_covariance(x: antecedent_kernels::F64VectorView<'_>, y: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::scalar::masked_mean(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::scalar::masked_sum(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<f64, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::scalar::masked_variance(x: antecedent_kernels::F64VectorView<'_>, mask: core::option::Option<antecedent_kernels::BitMaskView<'_>>) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
+pub fn antecedent_kernels::scalar::pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::scalar::standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64)
-pub fn antecedent_kernels::scalar::weighted_mean(x: &[f64], weights: &[f64]) -> core::option::Option<f64>
+pub fn antecedent_kernels::scalar::weighted_mean(x: &[f64], weights: &[f64]) -> core::result::Result<core::option::Option<f64>, antecedent_kernels::ViewError>
 pub fn antecedent_kernels::scalar::weighted_sum(x: &[f64], weights: &[f64]) -> f64
 pub fn antecedent_kernels::update_scatter(mean: &mut [f64], m2: &mut [f64], n_before: u64, x: &[f64])
 pub mod antecedent_kernels::cholesky

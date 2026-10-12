@@ -31,7 +31,8 @@ pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) -> Result<(), StatsError
     if col.iter().any(|v| !v.is_finite()) {
         return Err(StatsError::Shape { message: "non-finite values in rank transform" });
     }
-    antecedent_kernels::midranks_into(col, out);
+    antecedent_kernels::midranks_into(col, out)
+        .map_err(|_| StatsError::Shape { message: "rank buffer length mismatch" })?;
     Ok(())
 }
 
@@ -178,7 +179,7 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
             let design = ZDesign::fit(request.columns, z, Some(weights), n)?;
             let ex = design.residuals(request.columns[q.x])?;
             let ey = design.residuals(request.columns[q.y])?;
-            let r = weighted_pearson(policy, &ex, &ey, weights)
+            let r = weighted_pearson(policy, &ex, &ey, weights)?
                 .ok_or(StatsError::Shape { message: "degenerate weighted correlation" })?;
             let df = kish_effective_n(weights) - 2.0 - (q.z_len as f64);
             let result = match request.significance {
@@ -734,11 +735,11 @@ mod tests {
         let y = [2.0, 2.1, 2.2];
         let w = [1.0, 1.0, 1.0];
         let policy = KernelPolicy::default_policy();
-        let r1 = weighted_pearson(&policy, &x, &y, &w).expect("unit-scale correlation");
+        let r1 = weighted_pearson(&policy, &x, &y, &w).unwrap().expect("unit-scale correlation");
         let scale = 1e-4;
         let xs: Vec<f64> = x.iter().map(|v| v * scale).collect();
         let ys: Vec<f64> = y.iter().map(|v| v * scale).collect();
-        let r2 = weighted_pearson(&policy, &xs, &ys, &w).expect("small-scale correlation");
+        let r2 = weighted_pearson(&policy, &xs, &ys, &w).unwrap().expect("small-scale correlation");
         assert!((r1 - r2).abs() < 1e-12, "r1={r1} r2={r2}");
     }
 

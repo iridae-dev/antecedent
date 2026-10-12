@@ -344,7 +344,8 @@ fn g_squared_on_rows(
         &workspace.contingency_y_codes[..n_rows],
         &mut workspace.shuffled[..need],
         ly,
-    );
+    )
+    .map_err(|_| StatsError::Shape { message: "contingency table shape" })?;
     let mut row_sum = vec![0.0; lx];
     let mut col_sum = vec![0.0; ly];
     let mut total = 0.0;
