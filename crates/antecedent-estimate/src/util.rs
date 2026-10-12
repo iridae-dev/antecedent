@@ -558,11 +558,7 @@ pub(crate) fn ls_fit(
 ) -> Result<LsFit, EstimationError> {
     let fit =
         backend.least_squares(design_colmajor, nrows, ncols, y, workspace).map_err(stats_err)?;
-    Ok(LsFit {
-        coefficients: fit.coefficients,
-        residuals: fit.residuals,
-        rank: fit.rank,
-    })
+    Ok(LsFit { coefficients: fit.coefficients, residuals: fit.residuals, rank: fit.rank })
 }
 
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.

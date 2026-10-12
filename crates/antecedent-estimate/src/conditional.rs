@@ -305,7 +305,10 @@ impl ConditionalLinearAdjustment {
         let coef = fit.coefficients;
         let residuals = fit.residuals;
 
-        let inv = crate::util::xtx_inverse(&design, n, ncols)
+        // One Gram of this design. Cholesky's inverse is the variance factor when the
+        // factor exists; Gauss–Jordan remains the inverse when that factor is refused.
+        // The two floors differ, so a conditional SE can move.
+        let inv = gram_inverse(&design, n, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
 
         let w_bar: f64 = w.iter().sum::<f64>() / n as f64;
@@ -449,6 +452,18 @@ fn plugin_arm_influence(fit: &InteractionFit<'_>, level: f64, mean: f64) -> Vec<
         .zip(residuals)
         .map(|((mu_i, leverage), residual)| (mu_i - mean) + n_f * leverage * residual)
         .collect()
+}
+
+/// `(XᵀX)⁻¹` from one Gram of `design`. The Cholesky factor supplies the inverse
+/// when it exists; the same Gram uses Gauss–Jordan when that factor is refused.
+fn gram_inverse(design: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
+    let mut xtx = vec![0.0; ncols.saturating_mul(ncols)];
+    antecedent_stats::form_xtx(design, nrows, ncols, &mut xtx);
+    if let Some(chol) = antecedent_stats::cholesky_spd(&xtx, ncols) {
+        Some(antecedent_kernels::chol_inverse(&chol, ncols))
+    } else {
+        antecedent_stats::invert_square(&xtx, ncols)
+    }
 }
 
 /// `Σ_a g_a · (inv · x_i)_a` of every row `x_i` of the column-major `n × ncols` design: the
