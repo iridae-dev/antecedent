@@ -1066,10 +1066,7 @@ impl super::Study {
         );
         clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         clock.finish(super::super::stage::STAGE_UNCERTAINTY);
-        super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
-        );
+        super::super::stage::emit_uncertainty(self.stage_sink.as_ref(), &estimate);
         Ok(BayesianGcompPoint { est, prep, ws, posterior, estimate })
     }
 
