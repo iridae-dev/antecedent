@@ -14,6 +14,7 @@ use super::{
 use crate::accepted::GraphClass;
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
+use crate::analysis::query_license::{graphless_design, is_graphless_design};
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::EstimatorId;
@@ -379,21 +380,15 @@ impl Study {
                     crate::analysis::execute::live_transport_identification(diagram, query)?,
                 ));
             }
-            (DataInput::Tabular(_), CausalQuery::RandomizedEffect(_), None) => {
-                // A randomized trial has design-based identification but no graph class to
-                // inspect. Preserve its typed identification cache without invoking the
-                // graph-only PAG/CPDAG cache builders below.
-                analysis.identification_cache =
-                    self.prepare_static_identification(&plan)?.map(Arc::new);
+            (DataInput::Tabular(_), query, None) if is_graphless_design(query) => {
+                // A design has no graph class to inspect, so the graph-only PAG/CPDAG
+                // cache builders below do not apply. Its identification is typed by the
+                // design itself and is cached at prepare when the design identifies once.
+                if graphless_design(query).is_some_and(|design| design.identified_at_prepare) {
+                    analysis.identification_cache =
+                        self.prepare_static_identification(&plan)?.map(Arc::new);
+                }
             }
-            (
-                DataInput::Tabular(_),
-                CausalQuery::PolicyValue(_)
-                | CausalQuery::ContinuousDoseResponse(_)
-                | CausalQuery::Survival(_)
-                | CausalQuery::LongitudinalRegime(_),
-                None,
-            ) => {}
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);

@@ -25,6 +25,7 @@ use super::super::latency::{
     ComputeBudget, LatencyMode, ResolvedLatencyBudget, refuse_non_report_hmc,
 };
 use super::super::prepared::CachedStaticIdentification;
+use super::super::query_license::is_graphless_design;
 use super::super::stage::StageResultSink;
 use super::{
     DataInput, InterferenceSpec, RdConfig, RefuteSuite, TransportTrialSpec,
@@ -177,20 +178,6 @@ pub(super) fn assemble(input: FinishInput) -> Result<Study, CausalError> {
     Ok(into_study(exposure))
 }
 
-fn is_design_based(query: &CausalQuery) -> bool {
-    matches!(
-        query,
-        CausalQuery::RandomizedEffect(_)
-            | CausalQuery::PolicyValue(_)
-            | CausalQuery::ContinuousDoseResponse(_)
-            | CausalQuery::PanelDid(_)
-            | CausalQuery::SyntheticControl(_)
-            | CausalQuery::LocalPolynomialRatio(_)
-            | CausalQuery::Survival(_)
-            | CausalQuery::LongitudinalRegime(_)
-    )
-}
-
 fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
     if let Some(spec) = &input.estimator_spec {
         if spec.is_configured() {
@@ -249,7 +236,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         transport_trial,
         interference,
     } = input;
-    let design_based = query.as_ref().is_some_and(is_design_based);
+    let design_based = query.as_ref().is_some_and(is_graphless_design);
     let (graph, graph_posterior) = match (graph, graph_posterior) {
         (Some(_), Some(_)) => {
             return Err(CausalError::Conflict {
@@ -376,7 +363,7 @@ fn budget_inference(bound: BoundSchema) -> Result<BudgetedInference, CausalError
 fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalError> {
     let BudgetedInference(Spine { mut carry, graph, graph_posterior, query }) = budget;
     let query = query.ok_or(CausalError::Missing { field: "query" })?;
-    if is_design_based(&query) {
+    if is_graphless_design(&query) {
         apply_design_contract(&query, &graph, &carry)?;
         // Design-based queries have no refutation suite. Bootstrap stays only for an
         // explicit survival count; every other design-based query reports zero replicates.

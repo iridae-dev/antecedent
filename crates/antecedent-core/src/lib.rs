@@ -92,7 +92,7 @@ pub use intervention::{
 pub use node::NodeRef;
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery,
+    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery, CausalQueryKind,
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery,
     CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,

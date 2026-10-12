@@ -148,6 +148,95 @@ pub enum CausalQuery {
     LongitudinalRegime(LongitudinalRegimeQuery),
 }
 
+/// The variant of a [`CausalQuery`] without its payload.
+///
+/// Unlike [`CausalQuery`] this enum is deliberately exhaustive. It exists so a
+/// per-query table (which graph classes a query is licensed on, which queries
+/// are design-based) can be one `match` with no wildcard arm: adding a
+/// [`CausalQuery`] variant extends [`CausalQuery::kind`], which extends this
+/// enum, which fails to compile every such table until its new row is written.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum CausalQueryKind {
+    /// [`CausalQuery::AverageEffect`].
+    AverageEffect,
+    /// [`CausalQuery::TemporalEffect`].
+    TemporalEffect,
+    /// [`CausalQuery::Counterfactual`].
+    Counterfactual,
+    /// [`CausalQuery::NestedCounterfactual`].
+    NestedCounterfactual,
+    /// [`CausalQuery::AnomalyAttribution`].
+    AnomalyAttribution,
+    /// [`CausalQuery::ChangeAttribution`].
+    ChangeAttribution,
+    /// [`CausalQuery::MechanismChange`].
+    MechanismChange,
+    /// [`CausalQuery::UnitChange`].
+    UnitChange,
+    /// [`CausalQuery::Mediation`].
+    Mediation,
+    /// [`CausalQuery::ConditionalEffect`].
+    ConditionalEffect,
+    /// [`CausalQuery::Distribution`].
+    Distribution,
+    /// [`CausalQuery::PathSpecific`].
+    PathSpecific,
+    /// [`CausalQuery::Response`].
+    Response,
+    /// [`CausalQuery::Transport`].
+    Transport,
+    /// [`CausalQuery::Interference`].
+    Interference,
+    /// [`CausalQuery::RandomizedEffect`].
+    RandomizedEffect,
+    /// [`CausalQuery::PolicyValue`].
+    PolicyValue,
+    /// [`CausalQuery::ContinuousDoseResponse`].
+    ContinuousDoseResponse,
+    /// [`CausalQuery::PanelDid`].
+    PanelDid,
+    /// [`CausalQuery::SyntheticControl`].
+    SyntheticControl,
+    /// [`CausalQuery::LocalPolynomialRatio`].
+    LocalPolynomialRatio,
+    /// [`CausalQuery::Survival`].
+    Survival,
+    /// [`CausalQuery::LongitudinalRegime`].
+    LongitudinalRegime,
+}
+
+impl CausalQuery {
+    /// The payload-free variant of this query.
+    #[must_use]
+    pub const fn kind(&self) -> CausalQueryKind {
+        match self {
+            Self::AverageEffect(_) => CausalQueryKind::AverageEffect,
+            Self::TemporalEffect(_) => CausalQueryKind::TemporalEffect,
+            Self::Counterfactual(_) => CausalQueryKind::Counterfactual,
+            Self::NestedCounterfactual(_) => CausalQueryKind::NestedCounterfactual,
+            Self::AnomalyAttribution(_) => CausalQueryKind::AnomalyAttribution,
+            Self::ChangeAttribution(_) => CausalQueryKind::ChangeAttribution,
+            Self::MechanismChange(_) => CausalQueryKind::MechanismChange,
+            Self::UnitChange(_) => CausalQueryKind::UnitChange,
+            Self::Mediation(_) => CausalQueryKind::Mediation,
+            Self::ConditionalEffect(_) => CausalQueryKind::ConditionalEffect,
+            Self::Distribution(_) => CausalQueryKind::Distribution,
+            Self::PathSpecific(_) => CausalQueryKind::PathSpecific,
+            Self::Response(_) => CausalQueryKind::Response,
+            Self::Transport(_) => CausalQueryKind::Transport,
+            Self::Interference(_) => CausalQueryKind::Interference,
+            Self::RandomizedEffect(_) => CausalQueryKind::RandomizedEffect,
+            Self::PolicyValue(_) => CausalQueryKind::PolicyValue,
+            Self::ContinuousDoseResponse(_) => CausalQueryKind::ContinuousDoseResponse,
+            Self::PanelDid(_) => CausalQueryKind::PanelDid,
+            Self::SyntheticControl(_) => CausalQueryKind::SyntheticControl,
+            Self::LocalPolynomialRatio(_) => CausalQueryKind::LocalPolynomialRatio,
+            Self::Survival(_) => CausalQueryKind::Survival,
+            Self::LongitudinalRegime(_) => CausalQueryKind::LongitudinalRegime,
+        }
+    }
+}
+
 impl CausalQuery {
     /// Construct an average-effect query.
     #[must_use]

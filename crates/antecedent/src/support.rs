@@ -19,7 +19,9 @@
 //! them.
 
 use antecedent_contract::{LicensedNeighbor, PremiseChange};
-use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
+use antecedent_core::{
+    CausalQuery, CausalQueryKind, DerivativeScale, ResponseFunctional, TemporalPolicy,
+};
 
 use antecedent_graph::{
     Admg, Cpdag, Dag, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
@@ -812,27 +814,17 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
     }
 }
 
-/// Query kinds that intentionally sit off the matrix axes: the two GCM attribution studies, which
-/// have no geometric cell to license and run only against a supplied static DAG.
+/// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
+/// studies, which have no geometric cell to license and run only against a supplied static DAG,
+/// and the graphless designs, which are licensed by their own design key rather than a graph class.
 ///
 /// This is the closed allow-list for "no cell": every other query kind must classify onto the
 /// axis (for some graph class), so a variant added later without a matrix row is refused at build
 /// rather than silently defaulting to allowed.
 #[must_use]
 pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
-    matches!(
-        query,
-        CausalQuery::MechanismChange(_)
-            | CausalQuery::UnitChange(_)
-            | CausalQuery::RandomizedEffect(_)
-            | CausalQuery::PolicyValue(_)
-            | CausalQuery::ContinuousDoseResponse(_)
-            | CausalQuery::PanelDid(_)
-            | CausalQuery::SyntheticControl(_)
-            | CausalQuery::LocalPolynomialRatio(_)
-            | CausalQuery::Survival(_)
-            | CausalQuery::LongitudinalRegime(_)
-    )
+    matches!(query.kind(), CausalQueryKind::MechanismChange | CausalQueryKind::UnitChange)
+        || crate::analysis::query_license::is_graphless_design(query)
 }
 
 /// Refuse a query the matrix does not know and that is not a declared off-axis kind.

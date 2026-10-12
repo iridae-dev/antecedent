@@ -57,6 +57,7 @@ mod mz_transport;
 pub mod native_claims;
 pub mod nonlinear_mediation;
 mod preflight;
+pub(crate) mod query_license;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;
