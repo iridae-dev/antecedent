@@ -2045,3 +2045,48 @@ fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stan
     let failure = report.failure_condition.expect("failing report");
     assert!(failure.contains("least-squares stand-in for the posterior mean"), "{failure}");
 }
+
+#[test]
+fn replicate_refuters_are_bit_identical_for_every_thread_count() {
+    use antecedent_core::{NonZeroThreadCount, Parallelism};
+
+    let (data, estimand, _) = toy_confounded_with_noise(0.3);
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let ctx = ExecutionContext::for_tests(17);
+    let original =
+        est.fit(&prep, &mut EstimationWorkspace::default(), &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem::new(&data, &estimand, &query, &original, None, None);
+
+    let run = |threads: u32| {
+        let mut ctx = ExecutionContext::for_tests(17);
+        ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+        let mut ws = EstimationWorkspace::default();
+        let reports = [
+            RandomCommonCause { replicates: 24, ..RandomCommonCause::new() }
+                .refute(&problem, &mut ws, &ctx),
+            PlaceboTreatment { replicates: 24, ..PlaceboTreatment::new() }
+                .refute(&problem, &mut ws, &ctx),
+            PlaceboTreatment {
+                replicates: 24,
+                mode: PlaceboMode::Permute,
+                ..PlaceboTreatment::new()
+            }
+            .refute(&problem, &mut ws, &ctx),
+            DataSubsetRefuter { replicates: 24, ..DataSubsetRefuter::new() }
+                .refute(&problem, &mut ws, &ctx),
+            UnobservedCommonCause { replicates: 24, ..UnobservedCommonCause::new() }
+                .refute(&problem, &mut ws, &ctx),
+        ];
+        reports.map(|r| {
+            let r = r.unwrap();
+            (r.refuted_ate.to_bits(), r.comparison.to_bits(), r.passed, r.replicates)
+        })
+    };
+    let serial = run(1);
+    for threads in [2, 3, 4, 7] {
+        assert_eq!(serial, run(threads), "threads={threads}");
+    }
+}

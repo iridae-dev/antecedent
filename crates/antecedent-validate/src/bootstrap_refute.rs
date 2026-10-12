@@ -43,9 +43,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
-    forced_refit_estimator, full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect,
-    with_resampled_rows,
+    RefutationProblem, RefutationReport, complete_case_rows, forced_refit_estimator,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, map_drawn_problem_replicates,
+    map_drawn_replicates, refit_effect_shared, with_resampled_rows,
 };
 use crate::error::ValidationError;
 
@@ -307,7 +307,6 @@ impl BootstrapRefute {
         }
         let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
         let mut row_idx = vec![0usize; n];
-        let mut ates = Vec::with_capacity(self.replicates as usize);
         // AllObserved static OLS: resampling the prepared design rows is the same
         // complete-case bootstrap as rebuilding a table and calling `prepare` again.
         // ATT/ATC re-filter treatment labels after the table rebuild, and temporal
@@ -328,37 +327,44 @@ impl BootstrapRefute {
                     }
                 }
                 let n_design = prepared.design.nrows;
-                let mut design_idx = vec![0usize; n_design];
-                let mut x_boot = vec![0.0; n_design * prepared.design.ncols];
-                let mut y_boot = vec![0.0; n_design];
-                for _ in 0..self.replicates {
-                    check_cancelled(ctx)?;
-                    for slot in &mut row_idx {
-                        *slot = valid[unbiased_index(&mut rng, valid.len())];
-                    }
-                    for (k, &orig) in selected.iter().enumerate() {
-                        if orig >= n {
-                            return Err(ValidationError::estimation_msg(
-                                "prepared design row_selection is out of range",
-                            ));
+                let ncols = prepared.design.ncols;
+                let ates = map_drawn_replicates(
+                    ctx,
+                    self.replicates,
+                    |_| {
+                        for slot in &mut row_idx {
+                            *slot = valid[unbiased_index(&mut rng, valid.len())];
                         }
-                        let src_orig = row_idx[orig];
-                        let src_d = orig_to_design[src_orig];
-                        if src_d == usize::MAX {
-                            return Err(ValidationError::estimation_msg(
-                                "bootstrap resample left the prepared design",
-                            ));
+                        let mut design_idx = vec![0usize; n_design];
+                        for (k, &orig) in selected.iter().enumerate() {
+                            if orig >= n {
+                                return Err(ValidationError::estimation_msg(
+                                    "prepared design row_selection is out of range",
+                                ));
+                            }
+                            let src_d = orig_to_design[row_idx[orig]];
+                            if src_d == usize::MAX {
+                                return Err(ValidationError::estimation_msg(
+                                    "bootstrap resample left the prepared design",
+                                ));
+                            }
+                            design_idx[k] = src_d;
                         }
-                        design_idx[k] = src_d;
-                    }
-                    ates.push(estimator.ate_on_row_indices_into(
-                        &prepared,
-                        workspace,
-                        &design_idx,
-                        &mut x_boot,
-                        &mut y_boot,
-                    )?);
-                }
+                        Ok(design_idx)
+                    },
+                    || {
+                        (
+                            EstimationWorkspace::default(),
+                            vec![0.0; n_design * ncols],
+                            vec![0.0; n_design],
+                        )
+                    },
+                    |(workspace, x_boot, y_boot), _ctx, _r, design_idx| {
+                        Ok(estimator.ate_on_row_indices_into(
+                            &prepared, workspace, design_idx, x_boot, y_boot,
+                        )?)
+                    },
+                )?;
                 let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
                 return Ok(coverage_report(
                     problem,
@@ -371,23 +377,32 @@ impl BootstrapRefute {
                 ));
             }
         }
-        for _ in 0..self.replicates {
-            check_cancelled(ctx)?;
-            for slot in &mut row_idx {
-                *slot = valid[unbiased_index(&mut rng, valid.len())];
-            }
-            let data = with_resampled_rows(problem.data, &resample_ids, &row_idx, &keep)?;
-            let est = refit_effect(
-                problem,
-                &data,
-                problem.estimand,
-                &[],
-                &self.estimator,
-                workspace,
-                ctx,
-            )?;
-            ates.push(est.ate);
-        }
+        let ates = map_drawn_problem_replicates(
+            ctx,
+            problem,
+            self.replicates,
+            |_| {
+                for slot in &mut row_idx {
+                    *slot = valid[unbiased_index(&mut rng, valid.len())];
+                }
+                Ok(row_idx.clone())
+            },
+            EstimationWorkspace::default,
+            |problem, refit, workspace, ctx, _r, row_idx| {
+                let data = with_resampled_rows(problem.data, &resample_ids, row_idx, &keep)?;
+                let est = refit_effect_shared(
+                    problem,
+                    refit,
+                    &data,
+                    problem.estimand,
+                    &[],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?;
+                Ok(est.ate)
+            },
+        )?;
         // Panel temporal designs resample stacked rows iid here (no per-unit block
         // or cluster plan yet); static designs are iid by construction.
         let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;

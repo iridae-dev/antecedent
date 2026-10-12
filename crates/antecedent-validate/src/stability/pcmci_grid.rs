@@ -9,6 +9,7 @@ use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, Pcmci, ci_from_name};
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 use crate::stability::{gap_masking_constraints, gapped_block_bootstrap};
 
@@ -81,7 +82,7 @@ impl BlockBootstrapStability {
         &self,
         data: &TimeSeriesData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DiscoveryStabilityReport, ValidationError> {
         if self.replicates == 0 || self.block_size == 0 {
@@ -105,15 +106,22 @@ impl BlockBootstrapStability {
                 Some(constraints) => self.pcmci.clone().with_constraints(constraints),
                 None => self.pcmci.clone(),
             };
-        for _ in 0..self.replicates {
-            let boot =
-                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
-            let result = pcmci
-                .run(&boot.series, variables, workspace, ctx)
-                .map_err(ValidationError::from)?;
-            for s in result.evidence.links.iter() {
-                *counts.entry(s.link).or_insert(0) += 1;
-            }
+        // Replicates share one bootstrap stream, drawn in order here; the discovery runs go to
+        // the pool.
+        let found = map_drawn_replicates(
+            ctx,
+            self.replicates,
+            |_| gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch),
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, boot| {
+                let result = pcmci
+                    .run(&boot.series, variables, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                Ok(result.evidence.links.iter().map(|s| s.link).collect::<Vec<_>>())
+            },
+        )?;
+        for link in found.into_iter().flatten() {
+            *counts.entry(link).or_insert(0) += 1;
         }
         Ok(report_from_counts(counts, self.replicates, self.block_size))
     }

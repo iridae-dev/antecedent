@@ -7,8 +7,8 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
     RefutationProblem, RefutationReport, check_replicate_count, finish_p_report,
-    full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect, run_replicates,
-    with_contiguous_row_window, with_row_subset,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, map_problem_replicates,
+    refit_effect_shared, with_contiguous_row_window, with_row_subset,
 };
 use crate::error::ValidationError;
 
@@ -82,24 +82,31 @@ impl DataSubsetRefuter {
         // Centre on the same estimator's full-sample refit, not the published number: see
         // `full_sample_refit_ate` (a Bayesian posterior mean is not the least-squares refit).
         let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
-        let ates = run_replicates(ctx, self.replicates, |r| {
-            let stream = 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r));
-            let data = if is_temporal_series {
-                with_contiguous_row_window(problem.data, self.subset_fraction, ctx, stream)?
-            } else {
-                with_row_subset(problem.data, self.subset_fraction, ctx, stream)?
-            };
-            let est = refit_effect(
-                problem,
-                &data,
-                problem.estimand,
-                &[],
-                &self.estimator,
-                workspace,
-                ctx,
-            )?;
-            Ok(est.ate)
-        })?;
+        let ates = map_problem_replicates(
+            ctx,
+            problem,
+            self.replicates,
+            EstimationWorkspace::default,
+            |problem, refit, workspace, ctx, r| {
+                let stream = 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r));
+                let data = if is_temporal_series {
+                    with_contiguous_row_window(problem.data, self.subset_fraction, ctx, stream)?
+                } else {
+                    with_row_subset(problem.data, self.subset_fraction, ctx, stream)?
+                };
+                let est = refit_effect_shared(
+                    problem,
+                    refit,
+                    &data,
+                    problem.estimand,
+                    &[],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?;
+                Ok(est.ate)
+            },
+        )?;
         // OLS subset stability is not a falsifier of the causal claim.
         finish_p_report(
             "data.subset",

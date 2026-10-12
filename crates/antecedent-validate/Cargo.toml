@@ -42,3 +42,7 @@ thiserror = { workspace = true }
 # compiled only under `calibration-internal`.
 antecedent-validate = { path = ".", features = ["calibration-internal"] }
 serde_json = { workspace = true }
+
+[[bench]]
+name = "refuters"
+harness = false

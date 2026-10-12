@@ -11,8 +11,8 @@ use antecedent_identify::IdentifiedEstimand;
 
 use crate::common::{
     RefutationProblem, RefutationReport, check_replicate_count, fill_gaussian, finish_p_report,
-    full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect, run_replicates,
-    with_extra_float,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, map_problem_replicates,
+    refit_effect_shared, with_extra_float,
 };
 use crate::error::ValidationError;
 
@@ -73,30 +73,36 @@ impl RandomCommonCause {
         // Centre on the same estimator's full-sample refit, not the published number: see
         // `full_sample_refit_ate` (a Bayesian posterior mean is not the least-squares refit).
         let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
-        let mut noise = vec![0.0; n];
-        let ates = run_replicates(ctx, self.replicates, |r| {
-            fill_gaussian(&mut noise, ctx, 0xA7E0_0002_0000_u64.wrapping_add(u64::from(r)));
-            let (data, new_id) = with_extra_float(
-                problem.data,
-                &format!("__rcc_{r}"),
-                Arc::<[f64]>::from(noise.clone()),
-            )?;
-            let est = if temporal_ok {
-                refit_effect(
+        let ates = map_problem_replicates(
+            ctx,
+            problem,
+            self.replicates,
+            || (EstimationWorkspace::default(), vec![0.0; n]),
+            |problem, refit, (workspace, noise), ctx, r| {
+                fill_gaussian(noise, ctx, 0xA7E0_0002_0000_u64.wrapping_add(u64::from(r)));
+                let (data, new_id) = with_extra_float(
+                    problem.data,
+                    &format!("__rcc_{r}"),
+                    Arc::<[f64]>::from(noise.clone()),
+                )?;
+                let (estimand, extra): (_, &[VariableId]) = if temporal_ok {
+                    (problem.estimand.clone(), &[new_id])
+                } else {
+                    (extend_adjustment(problem.estimand, new_id), &[])
+                };
+                let est = refit_effect_shared(
                     problem,
+                    refit,
                     &data,
-                    problem.estimand,
-                    &[new_id],
+                    &estimand,
+                    extra,
                     &self.estimator,
                     workspace,
                     ctx,
-                )?
-            } else {
-                let estimand = extend_adjustment(problem.estimand, new_id);
-                refit_effect(problem, &data, &estimand, &[], &self.estimator, workspace, ctx)?
-            };
-            Ok(est.ate)
-        })?;
+                )?;
+                Ok(est.ate)
+            },
+        )?;
         // Independent noise in the adjustment set cannot move the OLS ATE
         // enough to falsify a wrong claim.
         finish_p_report(

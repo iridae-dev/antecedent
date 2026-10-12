@@ -15,7 +15,7 @@ use antecedent_identify::IdentificationResult;
 
 use crate::ValidationError;
 use crate::common::{
-    RefutationReport, STABILITY_ALPHA, STABILITY_REPLICATES, finish_p_report, run_replicates,
+    RefutationReport, STABILITY_ALPHA, STABILITY_REPLICATES, finish_p_report, map_replicates,
     with_row_subset,
 };
 
@@ -43,21 +43,30 @@ pub fn refute_path(
     .iter()
     .enumerate()
     {
-        let values = run_replicates(ctx, STABILITY_REPLICATES, |replicate| {
-            let replicate = u64::from(replicate);
-            let subset =
-                with_row_subset(data, fraction, ctx, subset_stream(0xF012_0000, slot, replicate))?;
-            let prepared = estimator.prepare(
-                &subset,
-                estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-                &extra,
-            )?;
-            Ok(estimator
-                .estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?
-                .ate)
-        })?;
+        let values = map_replicates(
+            ctx,
+            STABILITY_REPLICATES,
+            || (),
+            |(), ctx, replicate| {
+                let replicate = u64::from(replicate);
+                let subset = with_row_subset(
+                    data,
+                    fraction,
+                    ctx,
+                    subset_stream(0xF012_0000, slot, replicate),
+                )?;
+                let prepared = estimator.prepare(
+                    &subset,
+                    estimand,
+                    &identification.arena,
+                    identification.required_assumptions.clone(),
+                    &extra,
+                )?;
+                Ok(estimator
+                    .estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?
+                    .ate)
+            },
+        )?;
         // Subsample refits are centred on the full-sample estimate by construction and
         // `original` is judged against single-replicate spread, so this cannot fail for a
         // wrong estimate: a pipeline stability check, not evidence for the effect.
@@ -113,25 +122,34 @@ pub fn refute_distribution(
     .iter()
     .enumerate()
     {
-        let distances = run_replicates(ctx, STABILITY_REPLICATES, |replicate| {
-            let replicate = u64::from(replicate);
-            let subset =
-                with_row_subset(data, fraction, ctx, subset_stream(0xF013_0000, slot, replicate))?;
-            let prepared = estimator.prepare(
-                &subset,
-                query,
-                estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-            )?;
-            let estimate = estimator.estimate(
-                &prepared,
-                &[],
-                &mut FunctionalDistributionWorkspace::default(),
-                ctx,
-            )?;
-            Ok(max_conditional_tv(&original.atoms, &estimate.atoms))
-        })?;
+        let distances = map_replicates(
+            ctx,
+            STABILITY_REPLICATES,
+            || (),
+            |(), ctx, replicate| {
+                let replicate = u64::from(replicate);
+                let subset = with_row_subset(
+                    data,
+                    fraction,
+                    ctx,
+                    subset_stream(0xF013_0000, slot, replicate),
+                )?;
+                let prepared = estimator.prepare(
+                    &subset,
+                    query,
+                    estimand,
+                    &identification.arena,
+                    identification.required_assumptions.clone(),
+                )?;
+                let estimate = estimator.estimate(
+                    &prepared,
+                    &[],
+                    &mut FunctionalDistributionWorkspace::default(),
+                    ctx,
+                )?;
+                Ok(max_conditional_tv(&original.atoms, &estimate.atoms))
+            },
+        )?;
         // Descriptive robustness threshold, not a calibrated hypothesis test.
         let mean = distances.iter().sum::<f64>() / distances.len() as f64;
         let passed = mean.is_finite() && mean <= 0.1;

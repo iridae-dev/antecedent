@@ -6,6 +6,7 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize};
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci};
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 use crate::stability::{lagged_link_family, null_rate_se};
 
@@ -64,7 +65,7 @@ impl FalsePositiveCheck {
         &self,
         data: &TimeSeriesData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<FalsePositiveCheckReport, ValidationError> {
         if self.replicates == 0 {
@@ -76,20 +77,28 @@ impl FalsePositiveCheck {
         let lags = &self.pcmci.engine().constraints.temporal;
         let family = lagged_link_family(variables.len(), lags.min_lag.raw(), lags.max_lag.raw())?;
         let mut rng = ctx.rng.stream(0xF41E_u64);
-        let mut hits_per_run = Vec::with_capacity(self.replicates as usize);
-        for _ in 0..self.replicates {
-            let null = match self.transform {
+        // The surrogates share one stream, drawn in order here; the discovery runs go to the
+        // pool.
+        let hits_per_run = map_drawn_replicates(
+            ctx,
+            self.replicates,
+            |_| match self.transform {
                 NullTransform::ColumnPermute => {
-                    surrogate_permute_columns(data, &mut rng).map_err(ValidationError::from)?
+                    surrogate_permute_columns(data, &mut rng).map_err(ValidationError::from)
                 }
                 NullTransform::PhaseRandomize => {
-                    surrogate_phase_randomize(data, &mut rng).map_err(ValidationError::from)?
+                    surrogate_phase_randomize(data, &mut rng).map_err(ValidationError::from)
                 }
-            };
-            let result =
-                self.pcmci.run(&null, variables, workspace, ctx).map_err(ValidationError::from)?;
-            hits_per_run.push(result.evidence.links.len() as u64);
-        }
+            },
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, null| {
+                let result = self
+                    .pcmci
+                    .run(null, variables, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                Ok(result.evidence.links.len() as u64)
+            },
+        )?;
         let mean_edge_count = hits_per_run.iter().sum::<u64>() as f64 / f64::from(self.replicates);
         let empirical_fpr = mean_edge_count / family as f64;
         let se = null_rate_se(alpha, family, &hits_per_run);

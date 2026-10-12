@@ -3288,7 +3288,7 @@ impl SimulationBasedCalibration {
         estimator: &BayesianGComputationAte,
         problem: &PreparedBayesianProblem,
         identification: IdentificationStatus,
-        workspace: &mut BayesianGCompWorkspace,
+        _workspace: &mut BayesianGCompWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<SbcReport, ValidationError> {
         if estimator.backend != antecedent_estimate::BayesianBackendKind::Hmc
@@ -3347,85 +3347,106 @@ impl SimulationBasedCalibration {
             None
         };
         let mut rng = CausalRng::from_seed(self.seed);
-        let mut ranks = Vec::with_capacity(self.n_reps as usize);
-        let mut rank_draw_count = None;
         let mut est = estimator.clone();
         est.n_draws = self.n_draws;
 
         let corr_chol = prior_correlation_cholesky(&prior)?;
-        for rep in 0..self.n_reps {
-            crate::common::check_cancelled(ctx)?;
-            let (sigma2, beta) = if let Some(variance) = variance {
-                draw_generating_parameters(coefficients, corr_chol.as_deref(), variance, &mut rng)
-            } else {
-                let z = prior_standard_normals(corr_chol.as_deref(), p, &mut rng);
-                (
-                    1.0,
-                    coefficients
-                        .mean
-                        .iter()
-                        .zip(coefficients.variance.iter())
-                        .zip(&z)
-                        .map(|((&mean, &variance), &z)| mean + variance.sqrt() * z)
-                        .collect(),
-                )
-            };
-            let sigma = sigma2.sqrt();
-            let mut true_effect = 0.0;
-            let mut y_rep = vec![0.0; n];
-            for r in 0..n {
-                let mut eta = 0.0;
-                for c in 0..p {
-                    eta += problem.design.matrix[c * n + r] * beta[c];
-                }
-                let observed_t = problem.design.matrix[t_col * n + r];
-                let eta_base = eta - observed_t * beta[t_col];
-                true_effect += family.mean_from_eta(eta_base + problem.active * beta[t_col])
-                    - family.mean_from_eta(eta_base + problem.control * beta[t_col]);
-                let mean = family.mean_from_eta(eta);
-                if !mean.is_finite() || (family == GlmFamily::PoissonLog && mean > 1.0e4) {
-                    return Err(ValidationError::NotApplicable {
-                        message: "SBC generating prior produced an unsupported outcome mean",
-                    });
-                }
-                y_rep[r] = match family {
-                    GlmFamily::GaussianIdentity => mean + sigma * standard_normal(&mut rng),
-                    GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
-                        f64::from(rng.next_f64() < mean)
-                    }
-                    GlmFamily::PoissonLog => sample_poisson(mean, &mut rng),
-                    GlmFamily::NegativeBinomial => unreachable!(),
+        // The generating draws share one RNG stream, so they are made in replicate order on this
+        // thread; the refits (each seeded from its replicate index) run on the pool. A refit's
+        // failure is carried as a value so a rank-count mismatch at an earlier replicate still
+        // wins, as in a serial loop.
+        let outcomes = crate::common::map_drawn_replicates(
+            ctx,
+            self.n_reps,
+            |_| {
+                let (sigma2, beta) = if let Some(variance) = variance {
+                    draw_generating_parameters(
+                        coefficients,
+                        corr_chol.as_deref(),
+                        variance,
+                        &mut rng,
+                    )
+                } else {
+                    let z = prior_standard_normals(corr_chol.as_deref(), p, &mut rng);
+                    (
+                        1.0,
+                        coefficients
+                            .mean
+                            .iter()
+                            .zip(coefficients.variance.iter())
+                            .zip(&z)
+                            .map(|((&mean, &variance), &z)| mean + variance.sqrt() * z)
+                            .collect(),
+                    )
                 };
-            }
-            true_effect /= n as f64;
-            let mut sim_problem = problem.clone();
-            let mut design = sim_problem.design.clone();
-            design.outcome = Arc::from(y_rep);
-            sim_problem.design = design;
-            est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0x9E37));
-            let post = est
-                .fit(&sim_problem, identification, workspace, ctx)
-                .map_err(|e| ValidationError::estimation_msg(format!("SBC refit failed: {e}")))?;
-            let col = post
-                .effect_column()
-                .ok_or_else(|| ValidationError::estimation_msg("SBC: no effect column"))?;
-            let draws = post
-                .draws
-                .column(col)
-                .map_err(|e| ValidationError::estimation_msg(format!("SBC draws: {e}")))?;
-            let rank_draws = sbc_rank_draws(draws, &post.diagnostics)?;
-            if rank_draw_count.is_some_and(|count| count != rank_draws.len()) {
+                let sigma = sigma2.sqrt();
+                let mut true_effect = 0.0;
+                let mut y_rep = vec![0.0; n];
+                for r in 0..n {
+                    let mut eta = 0.0;
+                    for c in 0..p {
+                        eta += problem.design.matrix[c * n + r] * beta[c];
+                    }
+                    let observed_t = problem.design.matrix[t_col * n + r];
+                    let eta_base = eta - observed_t * beta[t_col];
+                    true_effect += family.mean_from_eta(eta_base + problem.active * beta[t_col])
+                        - family.mean_from_eta(eta_base + problem.control * beta[t_col]);
+                    let mean = family.mean_from_eta(eta);
+                    if !mean.is_finite() || (family == GlmFamily::PoissonLog && mean > 1.0e4) {
+                        return Err(ValidationError::NotApplicable {
+                            message: "SBC generating prior produced an unsupported outcome mean",
+                        });
+                    }
+                    y_rep[r] = match family {
+                        GlmFamily::GaussianIdentity => mean + sigma * standard_normal(&mut rng),
+                        GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
+                            f64::from(rng.next_f64() < mean)
+                        }
+                        GlmFamily::PoissonLog => sample_poisson(mean, &mut rng),
+                        GlmFamily::NegativeBinomial => unreachable!(),
+                    };
+                }
+                Ok((y_rep, true_effect / n as f64))
+            },
+            BayesianGCompWorkspace::default,
+            |workspace, ctx, rep, (y_rep, true_effect)| {
+                let mut sim_problem = problem.clone();
+                let mut design = sim_problem.design.clone();
+                design.outcome = Arc::from(y_rep.as_slice());
+                sim_problem.design = design;
+                let mut est = est.clone();
+                est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0x9E37));
+                Ok((|| {
+                    let post =
+                        est.fit(&sim_problem, identification, workspace, ctx).map_err(|e| {
+                            ValidationError::estimation_msg(format!("SBC refit failed: {e}"))
+                        })?;
+                    let col = post
+                        .effect_column()
+                        .ok_or_else(|| ValidationError::estimation_msg("SBC: no effect column"))?;
+                    let draws = post
+                        .draws
+                        .column(col)
+                        .map_err(|e| ValidationError::estimation_msg(format!("SBC draws: {e}")))?;
+                    let rank_draws = sbc_rank_draws(draws, &post.diagnostics)?;
+                    let rank = rank_draws.iter().filter(|&&d| d < *true_effect).count();
+                    Ok::<_, ValidationError>((
+                        u32::try_from(rank).unwrap_or(u32::MAX),
+                        rank_draws.len(),
+                    ))
+                })())
+            },
+        )?;
+        let mut ranks = Vec::with_capacity(self.n_reps as usize);
+        let mut rank_draw_count = None;
+        for outcome in outcomes {
+            let (rank, draw_count) = outcome?;
+            if rank_draw_count.is_some_and(|count| count != draw_count) {
                 return Err(ValidationError::NotApplicable {
                     message: "SBC refits returned differing numbers of independent rank draws",
                 });
             }
-            rank_draw_count = Some(rank_draws.len());
-            let mut rank = 0u32;
-            for &d in &rank_draws {
-                if d < true_effect {
-                    rank += 1;
-                }
-            }
+            rank_draw_count = Some(draw_count);
             ranks.push(rank);
         }
 
@@ -3575,7 +3596,7 @@ impl PosteriorCalibrationOnSyntheticScm {
         estimator: &BayesianGComputationAte,
         problem: &PreparedBayesianProblem,
         identification: IdentificationStatus,
-        workspace: &mut BayesianGCompWorkspace,
+        _workspace: &mut BayesianGCompWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<PosteriorCalibrationReport, ValidationError> {
         let mut rng = CausalRng::from_seed(self.seed);
@@ -3585,50 +3606,64 @@ impl PosteriorCalibrationOnSyntheticScm {
             .design
             .treatment_column()
             .ok_or_else(|| ValidationError::estimation_msg("calibration: missing treatment"))?;
-        let mut covered = 0u32;
-        let mut abs_err = 0.0;
         let mut est = estimator.clone();
         est.n_draws = self.n_draws;
         let alpha = ((1.0 - self.level) / 2.0).clamp(0.0, 0.5);
 
-        for rep in 0..self.n_reps {
-            crate::common::check_cancelled(ctx)?;
-            let true_ate = standard_normal(&mut rng);
-            let mut beta = vec![0.0; p];
-            let diff = problem.active - problem.control;
-            beta[t_col] = if diff.abs() > 1e-12 { true_ate / diff } else { true_ate };
-            for c in 0..p {
-                if c != t_col {
-                    beta[c] = 0.5 * standard_normal(&mut rng);
-                }
-            }
-            let mut y = vec![0.0; n];
-            for r in 0..n {
-                let mut eta = 0.0;
+        // The simulated truths share one RNG stream and are drawn in replicate order here; the
+        // refits (seeded from the replicate index) run on the pool.
+        let outcomes = crate::common::map_drawn_replicates(
+            ctx,
+            self.n_reps,
+            |_| {
+                let true_ate = standard_normal(&mut rng);
+                let mut beta = vec![0.0; p];
+                let diff = problem.active - problem.control;
+                beta[t_col] = if diff.abs() > 1e-12 { true_ate / diff } else { true_ate };
                 for c in 0..p {
-                    eta += problem.design.matrix[c * n + r] * beta[c];
+                    if c != t_col {
+                        beta[c] = 0.5 * standard_normal(&mut rng);
+                    }
                 }
-                y[r] = eta + standard_normal(&mut rng);
-            }
-            let mut sim = problem.clone();
-            let mut design = sim.design.clone();
-            design.outcome = Arc::from(y);
-            sim.design = design;
-            est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0xC2B2));
-            let post = est
-                .fit(&sim, identification, workspace, ctx)
-                .map_err(|e| ValidationError::estimation_msg(format!("calibration refit: {e}")))?;
-            let col = post
-                .effect_column()
-                .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
-            let mut draws = post.draws.column(col).map_err(ValidationError::from)?.to_vec();
-            draws.sort_by(f64::total_cmp);
-            let lo = quantile_type7_sorted(&draws, alpha);
-            let hi = quantile_type7_sorted(&draws, 1.0 - alpha);
-            let mean = reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy)
-                .unwrap_or(0.0);
-            abs_err += (mean - true_ate).abs();
-            if true_ate >= lo && true_ate <= hi {
+                let mut y = vec![0.0; n];
+                for r in 0..n {
+                    let mut eta = 0.0;
+                    for c in 0..p {
+                        eta += problem.design.matrix[c * n + r] * beta[c];
+                    }
+                    y[r] = eta + standard_normal(&mut rng);
+                }
+                Ok((y, true_ate))
+            },
+            BayesianGCompWorkspace::default,
+            |workspace, ctx, rep, (y, true_ate)| {
+                let mut sim = problem.clone();
+                let mut design = sim.design.clone();
+                design.outcome = Arc::from(y.as_slice());
+                sim.design = design;
+                let mut est = est.clone();
+                est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0xC2B2));
+                let post = est.fit(&sim, identification, workspace, ctx).map_err(|e| {
+                    ValidationError::estimation_msg(format!("calibration refit: {e}"))
+                })?;
+                let col = post
+                    .effect_column()
+                    .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
+                let mut draws = post.draws.column(col).map_err(ValidationError::from)?.to_vec();
+                draws.sort_by(f64::total_cmp);
+                let lo = quantile_type7_sorted(&draws, alpha);
+                let hi = quantile_type7_sorted(&draws, 1.0 - alpha);
+                let mean =
+                    reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy)
+                        .unwrap_or(0.0);
+                Ok(((mean - true_ate).abs(), *true_ate >= lo && *true_ate <= hi))
+            },
+        )?;
+        let mut covered = 0u32;
+        let mut abs_err = 0.0;
+        for (err, inside) in outcomes {
+            abs_err += err;
+            if inside {
                 covered += 1;
             }
         }

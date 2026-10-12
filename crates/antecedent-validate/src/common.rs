@@ -278,6 +278,31 @@ impl<'a> RefutationProblem<'a> {
     }
 }
 
+/// What a refit reads of a [`RefutationProblem`] apart from its composed-estimator refit.
+///
+/// The refit is a `dyn` without a `Sync` bound, so it cannot be shared with worker threads;
+/// everything else can, and the refit travels beside this view as a separate argument.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SharedProblem<'a> {
+    pub(crate) data: &'a TabularData,
+    pub(crate) estimand: &'a IdentifiedEstimand,
+    pub(crate) query: &'a AverageEffectQuery,
+    pub(crate) temporal: Option<TemporalRefitContext<'a>>,
+    pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
+}
+
+impl<'a> RefutationProblem<'a> {
+    pub(crate) fn shared(&self) -> SharedProblem<'a> {
+        SharedProblem {
+            data: self.data,
+            estimand: self.estimand,
+            query: self.query,
+            temporal: self.temporal,
+            panel_slices: self.panel_slices,
+        }
+    }
+}
+
 impl RefutationProblem<'_> {
     /// Treatment variable from the query.
     #[must_use]
@@ -380,7 +405,34 @@ pub(crate) fn refit_effect(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
-    if let Some(refit) = problem.effect_refit {
+    refit_effect_shared(
+        &problem.shared(),
+        problem.effect_refit,
+        data,
+        estimand,
+        extra_contemporaneous,
+        caller_estimator,
+        workspace,
+        ctx,
+    )
+}
+
+/// [`refit_effect`] on the shareable part of a problem plus its composed-estimator refit.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the problem's refit travels beside its shared view, which keeps the view Sync"
+)]
+pub(crate) fn refit_effect_shared(
+    problem: &SharedProblem<'_>,
+    effect_refit: Option<&dyn EffectRefit>,
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    extra_contemporaneous: &[VariableId],
+    caller_estimator: &LinearAdjustmentAte,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<EffectEstimate, ValidationError> {
+    if let Some(refit) = effect_refit {
         return refit.refit(data, extra_contemporaneous, ctx);
     }
     let Some(temporal) = problem.temporal else {
@@ -756,7 +808,7 @@ pub(crate) struct NoiseReplaceSpec {
 /// [`ValidationError`] (rendered `Failed` by the suite), never a verdict.
 pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
+    _workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
     estimator: &LinearAdjustmentAte,
     spec: &NoiseReplaceSpec,
@@ -769,13 +821,28 @@ pub(crate) fn noise_replace_refute(
         NoiseReplaceTarget::Outcome => problem.outcome(),
     };
     let n = problem.data.row_count();
-    let ates = run_replicates(ctx, replicates, |r| {
-        let mut noise = vec![0.0; n];
-        fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
-        let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
-        let est = refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?;
-        Ok(est.ate)
-    })?;
+    let ates = map_problem_replicates(
+        ctx,
+        problem,
+        replicates,
+        EstimationWorkspace::default,
+        |problem, refit, workspace, ctx, r| {
+            let mut noise = vec![0.0; n];
+            fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
+            let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
+            let est = refit_effect_shared(
+                problem,
+                refit,
+                &data,
+                problem.estimand,
+                &[],
+                estimator,
+                workspace,
+                ctx,
+            )?;
+            Ok(est.ate)
+        },
+    )?;
     // OLS recovery of ~0 under independent noise cannot falsify the claim.
     finish_p_report(refuter_id, problem.original.ate, &ates, 0.0, alpha, |mean_ate, p_value| {
         format!(
@@ -874,23 +941,154 @@ pub(crate) const STABILITY_ALPHA: f64 = 0.05;
 /// Replicates per query-native stability check (mediation and functional refuters).
 pub(crate) const STABILITY_REPLICATES: u32 = 20;
 
-/// Serial replicate driver: poll cancellation, then run `one(r)` for `r in 0..replicates`.
+/// Run `one(state, ctx, r)` for `r in 0..replicates` and return the results in replicate order.
 ///
-/// Returns the per-replicate estimates in replicate order. The first error (including
-/// cancellation) aborts the loop. The closure owns any workspace it needs, so callers keep
-/// threading their `&mut EstimationWorkspace`; a closure may also push side outputs
-/// (interleaved refuters share one noise draw per replicate).
-pub(crate) fn run_replicates(
+/// The replicates are split into contiguous blocks, one per worker of `ctx`'s pool; every block
+/// builds its own scratch with `init` and the closure receives a serial context. A replicate's
+/// randomness must derive from `r` alone (a stream id built from `r`, never a shared stream),
+/// so the results are bit-identical for every thread count. Cancellation is polled before each
+/// replicate, and the error of the lowest failing replicate is the one returned.
+pub(crate) fn map_replicates<S, T: Send>(
     ctx: &ExecutionContext,
     replicates: u32,
-    mut one: impl FnMut(u32) -> Result<f64, ValidationError>,
-) -> Result<Vec<f64>, ValidationError> {
-    let mut ates = Vec::with_capacity(replicates as usize);
-    for r in 0..replicates {
-        check_cancelled(ctx)?;
-        ates.push(one(r)?);
+    init: impl Fn() -> S + Sync,
+    one: impl Fn(&mut S, &ExecutionContext, u32) -> Result<T, ValidationError> + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let total = replicates as usize;
+    if total == 0 {
+        return Ok(Vec::new());
     }
-    Ok(ates)
+    let blocks = (ctx.parallelism.max_threads.get() as usize).clamp(1, total);
+    let per_block = total.div_ceil(blocks);
+    let results = ctx.map_indexed(total.div_ceil(per_block), |block, inner| {
+        let mut state = init();
+        let start = block * per_block;
+        let end = (start + per_block).min(total);
+        let mut out = Vec::with_capacity(end - start);
+        for r in start..end {
+            check_cancelled(inner)?;
+            out.push(one(&mut state, inner, u32::try_from(r).unwrap_or(u32::MAX))?);
+        }
+        Ok::<_, ValidationError>(out)
+    })?;
+    Ok(results.into_iter().flatten().collect())
+}
+
+/// [`map_replicates`] for a refit loop over `problem`.
+///
+/// `one` receives the shareable view of the problem and its composed-estimator refit. That
+/// refit cannot be shared between threads, so a problem that carries one runs its replicates
+/// on the caller's thread; every other problem is shared by the workers.
+pub(crate) fn map_problem_replicates<S, T: Send>(
+    ctx: &ExecutionContext,
+    problem: &RefutationProblem<'_>,
+    replicates: u32,
+    init: impl Fn() -> S + Sync,
+    one: impl Fn(
+        &SharedProblem<'_>,
+        Option<&dyn EffectRefit>,
+        &mut S,
+        &ExecutionContext,
+        u32,
+    ) -> Result<T, ValidationError>
+    + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let shared = problem.shared();
+    if let Some(refit) = problem.effect_refit {
+        let mut state = init();
+        let mut out = Vec::with_capacity(replicates as usize);
+        for r in 0..replicates {
+            check_cancelled(ctx)?;
+            out.push(one(&shared, Some(refit), &mut state, ctx, r)?);
+        }
+        return Ok(out);
+    }
+    map_replicates(ctx, replicates, init, |state, ctx, r| one(&shared, None, state, ctx, r))
+}
+
+/// [`map_replicates`] for replicates whose inputs come from one shared sequential RNG stream.
+///
+/// `draw(r)` runs on the caller's thread in replicate order and owns that stream, so every
+/// replicate sees exactly the draws it saw in a serial loop. The drawn inputs are then
+/// computed on the pool, a bounded batch at a time (memory stays proportional to the worker
+/// count, not the replicate count). A failing draw is reported after the replicates drawn
+/// before it were computed, so a serial loop's error priority is kept.
+pub(crate) fn map_drawn_replicates<D: Sync, S, T: Send>(
+    ctx: &ExecutionContext,
+    replicates: u32,
+    mut draw: impl FnMut(u32) -> Result<D, ValidationError>,
+    init: impl Fn() -> S + Sync,
+    compute: impl Fn(&mut S, &ExecutionContext, u32, &D) -> Result<T, ValidationError> + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let workers = ctx.parallelism.max_threads.get() as usize;
+    let mut out = Vec::with_capacity(replicates as usize);
+    if workers <= 1 {
+        let mut state = init();
+        for r in 0..replicates {
+            check_cancelled(ctx)?;
+            let drawn = draw(r)?;
+            out.push(compute(&mut state, ctx, r, &drawn)?);
+        }
+        return Ok(out);
+    }
+    let batch = u32::try_from(workers.saturating_mul(2)).unwrap_or(u32::MAX);
+    let mut next = 0u32;
+    while next < replicates {
+        let end = next.saturating_add(batch).min(replicates);
+        let mut drawn = Vec::with_capacity((end - next) as usize);
+        let mut failed = None;
+        for r in next..end {
+            match check_cancelled(ctx).and_then(|()| draw(r)) {
+                Ok(d) => drawn.push(d),
+                Err(e) => {
+                    failed = Some(e);
+                    break;
+                }
+            }
+        }
+        let count = u32::try_from(drawn.len()).unwrap_or(u32::MAX);
+        out.extend(map_replicates(ctx, count, &init, |state, ctx, i| {
+            compute(state, ctx, next + i, &drawn[i as usize])
+        })?);
+        if let Some(e) = failed {
+            return Err(e);
+        }
+        next = end;
+    }
+    Ok(out)
+}
+
+/// [`map_drawn_replicates`] for a refit loop over `problem` (see [`map_problem_replicates`]).
+pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
+    ctx: &ExecutionContext,
+    problem: &RefutationProblem<'_>,
+    replicates: u32,
+    mut draw: impl FnMut(u32) -> Result<D, ValidationError>,
+    init: impl Fn() -> S + Sync,
+    compute: impl Fn(
+        &SharedProblem<'_>,
+        Option<&dyn EffectRefit>,
+        &mut S,
+        &ExecutionContext,
+        u32,
+        &D,
+    ) -> Result<T, ValidationError>
+    + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let shared = problem.shared();
+    if let Some(refit) = problem.effect_refit {
+        let mut state = init();
+        let mut out = Vec::with_capacity(replicates as usize);
+        for r in 0..replicates {
+            check_cancelled(ctx)?;
+            let drawn = draw(r)?;
+            out.push(compute(&shared, Some(refit), &mut state, ctx, r, &drawn)?);
+        }
+        return Ok(out);
+    }
+    map_drawn_replicates(ctx, replicates, draw, init, |state, ctx, r, drawn| {
+        compute(&shared, None, state, ctx, r, drawn)
+    })
 }
 
 /// Finish a replicate refuter: mean, p-value of `centre` as a typical single replicate

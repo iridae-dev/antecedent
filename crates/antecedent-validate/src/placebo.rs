@@ -11,8 +11,8 @@ use antecedent_kernels::shuffle;
 use crate::common::{
     NoiseReplaceSpec, NoiseReplaceTarget, RefutationProblem, RefutationReport,
     check_replicate_count, complete_case_rows, finish_p_report, float64_full,
-    linear_estimator_no_bootstrap, noise_replace_refute, refit_effect, run_replicates,
-    with_replaced_float,
+    linear_estimator_no_bootstrap, map_problem_replicates, noise_replace_refute,
+    refit_effect_shared, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -89,14 +89,13 @@ impl PlaceboTreatment {
                     failure_label: "placebo",
                 },
             ),
-            PlaceboMode::Permute => self.refute_permute(problem, workspace, ctx),
+            PlaceboMode::Permute => self.refute_permute(problem, ctx),
         }
     }
 
     fn refute_permute(
         &self,
         problem: &RefutationProblem<'_>,
-        workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
         check_replicate_count(self.replicates)?;
@@ -112,26 +111,33 @@ impl PlaceboTreatment {
         }
         let (_, eligible) = complete_case_rows(problem.data, &ids)?;
         let observed: Vec<f64> = eligible.iter().map(|&row| factual[row]).collect();
-        let ates = run_replicates(ctx, self.replicates, |r| {
-            let mut perm = factual.clone();
-            let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
-            let mut shuffled = observed.clone();
-            shuffle(&mut rng, &mut shuffled);
-            for (&row, value) in eligible.iter().zip(shuffled) {
-                perm[row] = value;
-            }
-            let data = with_replaced_float(problem.data, treatment, Arc::from(perm))?;
-            let est = refit_effect(
-                problem,
-                &data,
-                problem.estimand,
-                &[],
-                &self.estimator,
-                workspace,
-                ctx,
-            )?;
-            Ok(est.ate)
-        })?;
+        let ates = map_problem_replicates(
+            ctx,
+            problem,
+            self.replicates,
+            EstimationWorkspace::default,
+            |problem, refit, workspace, ctx, r| {
+                let mut perm = factual.clone();
+                let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
+                let mut shuffled = observed.clone();
+                shuffle(&mut rng, &mut shuffled);
+                for (&row, value) in eligible.iter().zip(shuffled) {
+                    perm[row] = value;
+                }
+                let data = with_replaced_float(problem.data, treatment, Arc::from(perm))?;
+                let est = refit_effect_shared(
+                    problem,
+                    refit,
+                    &data,
+                    problem.estimand,
+                    &[],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?;
+                Ok(est.ate)
+            },
+        )?;
         // Permuting T under OLS still yields ~0 coefficient when T ⊥ Y | Z in
         // the fitted linear model; this is not a falsifier of the causal claim.
         finish_p_report(
