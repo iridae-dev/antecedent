@@ -27,7 +27,15 @@ use antecedent_core::ExecutionContext;
 use antecedent_io::IoError;
 use antecedent_validate::JointDeviationSpec;
 
-pub use antecedent_design::sensitivity_decision::*;
+pub use antecedent_design::sensitivity_decision::{
+    ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
+    DecisionSwitch, IdentifiedBound, LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport,
+    SENSITIVITY_DECISION_INTERPRETATION, SamplingInterval, SamplingReport, SamplingStatus,
+    ScenarioCoverage, SensitivityArtifact, SensitivityDecisionError, SensitivityDecisionResult,
+    SensitivityDecisionSpec, SensitivityIdentity, SensitivityOutcome, SensitivityParts,
+    SensitivityProvenance, SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm,
+    contract_from_artifact, evaluate_sensitivity_decision,
+};
 pub use antecedent_io::sensitivity_artifact::{
     MAX_SENSITIVITY_ACTIONS, MAX_SENSITIVITY_ARTIFACT_BYTES, MAX_SENSITIVITY_GRID_POINTS,
     MAX_SENSITIVITY_QUANTITIES, MAX_SENSITIVITY_RANGED_QUANTITIES, MAX_SENSITIVITY_UTILITY_DEPTH,

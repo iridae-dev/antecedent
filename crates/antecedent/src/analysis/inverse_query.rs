@@ -27,7 +27,13 @@ pub use antecedent_design::decision_contract::{
 };
 pub use antecedent_design::decision_eval::{MeanSource, evaluate_functional};
 pub use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
-pub use antecedent_design::inverse_query::*;
+pub use antecedent_design::inverse_query::{
+    ActionReport, Comparison, ConstraintValue, EnumeratedForwardValue, ExistenceClaim,
+    FeasibilityStatus, ForwardClaim, ForwardEvidence, GridScope, INVERSE_QUERY_SCOPE_NOTE,
+    IdentifiedSet, IntervalRegion, InverseConstraint, InverseQuery, InverseQueryError,
+    InverseResult, MAX_INVERSE_GRID, MemberStatus, PosteriorFeasibility, SelectionOutcome,
+    SelectionRule, evaluate_inverse_query, finite_enumeration_baseline,
+};
 pub use antecedent_design::inverse_query_artifact::{
     INVERSE_QUERY_ARTIFACT_FEATURE, INVERSE_QUERY_ARTIFACT_VERSION, INVERSE_QUERY_INFERENCE_CLAIM,
     InverseQueryArtifact, InverseQueryIdentity, InverseQueryWire, InverseResultWire,

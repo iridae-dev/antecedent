@@ -187,7 +187,17 @@ pub use graph::{Dag, DenseNodeId, TemporalDag};
 pub use identify_api::{Identification, identify, identify_dag, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
-pub use query::*;
+pub use query::{
+    AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
+    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
+    DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping, GridSpec,
+    InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
+    LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast,
+    MediationQuery, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, RandomizationDesign,
+    RandomizedEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SyntheticControlQuery, SyntheticPanelMethod,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransportQuery, UnitChangeQuery,
+};
 pub use result::{
     AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract,
     LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,

@@ -25,11 +25,40 @@ mod support;
 #[cfg(test)]
 mod tests;
 
-pub use cached::*;
+pub(in crate::analysis) use cached::conditional_class_proof_is_complete;
+pub(crate) use cached::{
+    CachedCpdagIdentification, CachedPagIdentification, CachedTemporalClassIdentification,
+};
+pub use cached::{
+    CachedStaticIdentification, CachedTemporalHorizonIdentification, CachedTemporalIdentification,
+};
 pub(crate) use execution::*;
 pub(crate) use execution_accessors::*;
-pub use info::*;
-pub use operations::*;
+
+pub use info::{
+    CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo, CheckedBayesianBasisAteInfo,
+    CheckedBayesianClassConditionalInfo, CheckedBayesianGraphPosteriorAteInfo,
+    CheckedBayesianRobustAteInfo, CheckedBayesianTemporalClassEffectInfo,
+    CheckedBayesianTemporalDagEffectInfo, CheckedCellAipwResponseInfo,
+    CheckedClassGraphPosteriorEffectInfo, CheckedConditionalEffectInfo,
+    CheckedGraphPosteriorEffectInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
+    CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
+    CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
+    CheckedTemporalClassResponseInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
+    CheckedTemporalGraphPosteriorEffectInfo, CheckedTemporalGraphPosteriorResponseInfo,
+    CheckedTemporalMediationInfo,
+};
+pub(crate) use operations::{
+    CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
+    CheckedFrontDoorOperation, CheckedFunctionalEffectOperation, CheckedGlmAdjustmentOperation,
+    CheckedIvOperation, CheckedLinearOperation, CheckedPathSpecificEffectOperation,
+    CheckedRdOperation, CheckedStaticResponseCurve, CheckedUnknownTieredAverageOperation,
+};
+pub use operations::{
+    CheckedBayesianGcompOperation, CheckedFunctionalEffectResponseMember,
+    CheckedUnknownTieredAverageInfo,
+};
+use operations::{CheckedStaticResultMetadata, static_result_metadata};
 pub(crate) use prepare_identification::*;
 pub(crate) use sealed::Inspect;
 pub(crate) use support::*;

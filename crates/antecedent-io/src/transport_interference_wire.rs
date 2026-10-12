@@ -6,6 +6,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub use antecedent_io_core::transport_interference_wire::*;
+pub use antecedent_io_core::transport_interference_wire::{
+    ExposureProbabilityMethodWire, InterferenceEstimateWire, InterferenceTransportCertificateWire,
+    NotCertifiedCertificateWire, PopulationFactorWire, RandomizationContrastWire,
+    TransportCertificateWire, TransportEffectEstimateWire, TransportFormulaWire,
+    TransportIdentificationWire, TransportOverlapDiagnosticWire,
+    transport_identification_from_wire, transport_identification_to_wire,
+};
 
-pub use crate::transport_effect_wire::*;
+pub use crate::transport_effect_wire::{
+    interference_estimate_from_wire, interference_estimate_to_wire, transport_effect_from_wire,
+    transport_effect_to_wire,
+};
