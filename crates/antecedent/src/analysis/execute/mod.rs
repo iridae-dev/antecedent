@@ -297,6 +297,7 @@ mod class_posterior_response;
 mod completion_fit_memo;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
+mod compile_graph_posterior;
 pub(super) use compile::compile_logical_admg_response;
 mod route_input;
 pub(crate) use route_input::{RouteInput, StaticMediationSource};

@@ -665,49 +665,47 @@ impl super::Study {
         checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) = if let Some(operation) =
-            checked_bayesian
-        {
-            let target = operation.target();
-            if !target.matches_graph(graph)
-                || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
-            {
-                return Err(CausalError::Compile {
+        let (identification, estimand, indexer, identify_cached) =
+            if let Some(operation) = checked_bayesian {
+                let target = operation.target();
+                if !target.matches_graph(graph)
+                    || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
+                {
+                    return Err(CausalError::Compile {
                     message:
                         "checked Bayesian temporal target differs from the prepared graph or query"
                             .into(),
                 });
-            }
-            (
-                target.identification().clone(),
-                target.estimand().clone(),
-                target.indexer().clone(),
-                true,
-            )
-        } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
-            let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
-                message: format!(
-                    "prepared temporal identification missing horizon {}",
-                    query.horizon_steps
-                ),
-            })?;
-            (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
-        } else {
-            let id_res = TemporalBackdoorIdentifier::new()
-                .with_parent_adjustment_fallback()
-                .identify_temporal(graph, query)
-                .map_err(CausalError::from)?;
-            let estimand = select_estimand(
-                &id_res.result,
-                if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-                {
-                    EstimatorId::TemporalSequentialGcomp
-                } else {
-                    EstimatorId::TemporalLinearAdjustment
-                },
-            )?;
-            (id_res.result, estimand, id_res.indexer, false)
-        };
+                }
+                (
+                    target.identification().clone(),
+                    target.estimand().clone(),
+                    target.indexer().clone(),
+                    true,
+                )
+            } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
+                let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                    message: format!(
+                        "prepared temporal identification missing horizon {}",
+                        query.horizon_steps
+                    ),
+                })?;
+                (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
+            } else {
+                let id_res = TemporalBackdoorIdentifier::new()
+                    .with_parent_adjustment_fallback()
+                    .identify_temporal(graph, query)
+                    .map_err(CausalError::from)?;
+                let estimand = select_estimand(
+                    &id_res.result,
+                    if query.is_multi_step_sustained() {
+                        EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                )?;
+                (id_res.result, estimand, id_res.indexer, false)
+            };
         let fit = super::temporal_effect_core::fit_temporal_effect(
             &super::temporal_effect_core::TemporalEffectInputs {
                 data,

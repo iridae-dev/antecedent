@@ -1,7 +1,7 @@
-use antecedent_core::StreamDomain;
-
-// Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Free functions supporting Study execute paths.
+
+use antecedent_core::StreamDomain;
 
 pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
     match query {
@@ -862,10 +862,6 @@ impl super::Study {
             .map_err(CausalError::from)?;
         run_functional(&est, &prepared, &self.inference, identification.status, ctx)
     }
-}
-
-pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
-    query.is_multi_step_sustained()
 }
 
 pub(super) fn identified_envelope_keys(

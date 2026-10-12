@@ -1,4 +1,7 @@
 //! Validation of composed temporal effects using the same sequential mechanisms.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
 use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, DenseNodeId, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimationWorkspace, ExecutionContext,

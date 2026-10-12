@@ -170,7 +170,7 @@ pub(super) fn assemble_temporal_class_conditional(
     CausalError,
 > {
     if query.effect_modifiers.len() != 1
-        || matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+        || query.is_multi_step_sustained()
         || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
     {
         return Err(CausalError::Unsupported {

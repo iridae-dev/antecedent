@@ -318,8 +318,7 @@ impl super::Study {
             if let Some(est) = &self.estimator {
                 let multi_step = matches!(
                     &self.query,
-                    CausalQuery::TemporalEffect(q)
-                        if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                    CausalQuery::TemporalEffect(q) if q.is_multi_step_sustained()
                 );
                 let bayesian = self.inference.is_bayesian();
                 let ok = *est == EstimatorId::TemporalLinearAdjustment
