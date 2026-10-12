@@ -125,29 +125,57 @@ fn dag_wire_and_names_from_networkx_node_link(
 ) -> Result<(DagWire, Vec<String>), IoError> {
     let doc: NetworkXNodeLink =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
-    if !doc.directed {
+    require_simple_directed(doc.directed, doc.multigraph)?;
+    let (order, edges) = bind_node_link(&doc.nodes, &doc.links)?;
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    Ok((DagWire { node_count, edges }, order))
+}
+
+pub(crate) fn require_simple_directed(directed: bool, multigraph: bool) -> Result<(), IoError> {
+    if !directed {
         return Err(IoError::Convert("NetworkX graph must be directed".into()));
     }
-    if doc.multigraph {
+    if multigraph {
         return Err(IoError::Convert("NetworkX multigraph not supported".into()));
     }
+    Ok(())
+}
+
+/// Endpoints of one node-link record. Marks stay on the record for the class.
+pub(crate) trait NodeLinkEndpoints {
+    /// Source and target ids, in document order.
+    fn endpoints(&self) -> (&JsonValue, &JsonValue);
+}
+
+impl NodeLinkEndpoints for NetworkXLink {
+    fn endpoints(&self) -> (&JsonValue, &JsonValue) {
+        (&self.source, &self.target)
+    }
+}
+
+/// Intern node-link ids in document order. Edge marks stay on `T` for the
+/// graph class to accept or refuse.
+pub(crate) fn bind_node_link<T: NodeLinkEndpoints>(
+    nodes: &[NetworkXNode],
+    links: &[T],
+) -> Result<(Vec<String>, Vec<(u32, u32)>), IoError> {
     let mut order = Vec::new();
     let mut index = HashMap::new();
     let mut kinds = NodeIdKinds::default();
-    for n in &doc.nodes {
-        let name = kinds.name(&n.id)?;
+    for node in nodes {
+        let name = kinds.name(&node.id)?;
         graph_dot::intern(&name, &mut order, &mut index)?;
     }
-    let mut edges = Vec::new();
-    for link in &doc.links {
-        let s = kinds.name(&link.source)?;
-        let t = kinds.name(&link.target)?;
-        let from = graph_dot::intern(&s, &mut order, &mut index)?;
-        let to = graph_dot::intern(&t, &mut order, &mut index)?;
+    let mut edges = Vec::with_capacity(links.len());
+    for link in links {
+        let (source, target) = link.endpoints();
+        let from_name = kinds.name(source)?;
+        let to_name = kinds.name(target)?;
+        let from = graph_dot::intern(&from_name, &mut order, &mut index)?;
+        let to = graph_dot::intern(&to_name, &mut order, &mut index)?;
         edges.push((from, to));
     }
-    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    Ok((DagWire { node_count, edges }, order))
+    Ok((order, edges))
 }
 
 /// Build node-link document from wire.

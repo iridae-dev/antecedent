@@ -69,22 +69,84 @@ pub(crate) fn is_default_attribute_statement(id: &str, quoted: bool, next: Optio
 
 /// Parse DOT into [`DagWire`] plus node labels in dense-id order.
 fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoError> {
+    let parsed = parse_dot_graph(
+        dot,
+        DotParseOptions {
+            allow_graph_keyword: false,
+            allow_undirected: false,
+            empty_message: "DOT digraph has no nodes",
+        },
+    )?;
+    let mut edges = Vec::with_capacity(parsed.edges.len());
+    for edge in &parsed.edges {
+        refuse_unrepresentable_dag_edge_attrs(&edge.attrs)?;
+        edges.push((edge.from, edge.to));
+    }
+    finish_dag_wire(&parsed.names, edges, parsed.node_count)
+}
+
+fn finish_dag_wire(
+    names: &[String],
+    edges: Vec<(u32, u32)>,
+    node_count: u32,
+) -> Result<(DagWire, Vec<String>), IoError> {
+    match remap_numeric_dense(names, &edges)? {
+        Some(wire) => {
+            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
+            Ok((wire, names))
+        }
+        None => Ok((DagWire { node_count, edges }, names.to_vec())),
+    }
+}
+
+/// How a class reads one DOT document. The parser records edges; the class
+/// decides which marks it can represent.
+pub(crate) struct DotParseOptions {
+    /// `graph` as well as `digraph`. A DAG document rejects `graph`.
+    pub allow_graph_keyword: bool,
+    /// `--` edges. A DAG document rejects them.
+    pub allow_undirected: bool,
+    /// Error when the document names no node.
+    pub empty_message: &'static str,
+}
+
+/// One edge before a graph class interprets its marks.
+pub(crate) struct ParsedDotEdge {
+    pub from: u32,
+    pub to: u32,
+    /// `->` rather than `--`.
+    pub directed: bool,
+    pub attrs: HashMap<String, String>,
+}
+
+/// Nodes in first-seen order and edges interned in that same order.
+pub(crate) struct ParsedDot {
+    pub node_count: u32,
+    pub names: Vec<String>,
+    pub edges: Vec<ParsedDotEdge>,
+}
+
+/// Parse DOT into a class-neutral document.
+///
+/// Endpoint order is first-seen, before any class swaps an edge to point a
+/// single arrowhead at `to`. Attribute meaning is left to the caller.
+pub(crate) fn parse_dot_graph(dot: &str, options: DotParseOptions) -> Result<ParsedDot, IoError> {
     let mut lexer = Lexer::new(dot);
     lexer.skip_ws_and_comments();
     let kw = lexer.expect_ident()?.to_ascii_lowercase();
-    if kw != "digraph" {
-        return Err(IoError::Convert(format!("expected digraph, found `{kw}`")));
+    let digraph = kw == "digraph";
+    if !digraph && !(options.allow_graph_keyword && kw == "graph") {
+        let expected = if options.allow_graph_keyword { "digraph/graph" } else { "digraph" };
+        return Err(IoError::Convert(format!("expected {expected}, found `{kw}`")));
     }
     lexer.skip_ws_and_comments();
     if lexer.peek_ident().is_some() {
         let _ = lexer.expect_ident()?;
-        lexer.skip_ws_and_comments();
     }
     lexer.expect_char('{')?;
-    let mut order: Vec<String> = Vec::new();
-    let mut index: HashMap<String, u32> = HashMap::new();
-    let mut edges: Vec<(u32, u32)> = Vec::new();
-
+    let mut order = Vec::new();
+    let mut index = HashMap::new();
+    let mut edges = Vec::new();
     loop {
         lexer.skip_ws_and_comments();
         if lexer.eat_char('}') {
@@ -93,7 +155,6 @@ fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoEr
         if lexer.eof() {
             return Err(IoError::Convert("unexpected end of DOT input".into()));
         }
-        // Skip empty statements.
         if lexer.eat_char(';') {
             continue;
         }
@@ -104,7 +165,6 @@ fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoEr
             let _ = lexer.eat_char(';');
             continue;
         }
-        // Optional attribute list after a lone node declaration.
         if lexer.peek_char() == Some('[') {
             lexer.skip_attr_list()?;
             lexer.skip_ws_and_comments();
@@ -116,48 +176,33 @@ fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoEr
             intern(&from, &mut order, &mut index)?;
             continue;
         }
-        if lexer.eat_str("->") {
-            lexer.skip_ws_and_comments();
-            let to = lexer.expect_node_id()?;
-            lexer.skip_ws_and_comments();
-            if lexer.peek_char() == Some('[') {
-                let attrs = lexer.parse_attr_list()?;
-                refuse_unrepresentable_dag_edge_attrs(&attrs)?;
-                lexer.skip_ws_and_comments();
-            }
-            let _ = lexer.eat_char(';');
-            let fi = intern(&from, &mut order, &mut index)?;
-            let ti = intern(&to, &mut order, &mut index)?;
-            edges.push((fi, ti));
-            continue;
+        let directed = lexer.eat_str("->");
+        let undirected = !directed && lexer.eat_str("--");
+        if !directed && !undirected {
+            return Err(IoError::Convert(format!(
+                "expected edge or node statement near `{}`",
+                lexer.snippet()
+            )));
         }
-        if lexer.eat_str("--") {
+        if undirected && !options.allow_undirected {
             return Err(IoError::Convert("undirected edges (--) are not supported".into()));
         }
-        return Err(IoError::Convert(format!(
-            "expected edge or node statement near `{}`",
-            lexer.snippet()
-        )));
+        lexer.skip_ws_and_comments();
+        let to = lexer.expect_node_id()?;
+        lexer.skip_ws_and_comments();
+        let attrs =
+            if lexer.peek_char() == Some('[') { lexer.parse_attr_list()? } else { HashMap::new() };
+        lexer.skip_ws_and_comments();
+        let _ = lexer.eat_char(';');
+        let from_id = intern(&from, &mut order, &mut index)?;
+        let to_id = intern(&to, &mut order, &mut index)?;
+        edges.push(ParsedDotEdge { from: from_id, to: to_id, directed, attrs });
     }
-
     if order.is_empty() {
-        return Err(IoError::Convert("DOT digraph has no nodes".into()));
+        return Err(IoError::Convert(options.empty_message.into()));
     }
-
-    // Prefer numeric dense ids when every label is an integer in 0..n.
-    let remapped = remap_numeric_dense(&order, &edges)?;
-    match remapped {
-        // Dense id == numeric label in this case, so the label carries no
-        // information beyond the dense index; fall back to index strings.
-        Some(wire) => {
-            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
-            Ok((wire, names))
-        }
-        None => {
-            let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-            Ok((DagWire { node_count, edges }, order))
-        }
-    }
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    Ok(ParsedDot { node_count, names: order, edges })
 }
 
 /// Emit DOT from [`DagWire`].

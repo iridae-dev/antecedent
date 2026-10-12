@@ -12,9 +12,9 @@ use crate::convert::{
     admg_from_wire, admg_to_wire, cpdag_from_wire, cpdag_to_wire, pag_from_wire, pag_to_wire,
 };
 use crate::error::IoError;
-use crate::graph_dot::{self, Lexer};
+use crate::graph_dot;
 use crate::graph_gml;
-use crate::graph_networkx::{NetworkXNode, NodeIdKinds};
+use crate::graph_networkx::NetworkXNode;
 use crate::wire::{AdmgWire, EndpointWire, GraphCpdagWire, MarkedEdgeWire, PagWire};
 
 // ── JSON ────────────────────────────────────────────────────────────────────
@@ -475,74 +475,21 @@ struct DotGraph {
 }
 
 fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
-    let mut lexer = Lexer::new(dot);
-    lexer.skip_ws_and_comments();
-    let kw = lexer.expect_ident()?.to_ascii_lowercase();
-    if kw != "digraph" && kw != "graph" {
-        return Err(IoError::Convert(format!("expected digraph/graph, found `{kw}`")));
+    let parsed = graph_dot::parse_dot_graph(
+        dot,
+        graph_dot::DotParseOptions {
+            allow_graph_keyword: true,
+            allow_undirected,
+            empty_message: "DOT graph has no nodes",
+        },
+    )?;
+    let mut edges = Vec::with_capacity(parsed.edges.len());
+    for edge in parsed.edges {
+        let (kind, swapped) = classify_edge(edge.directed, &edge.attrs)?;
+        let (from, to) = if swapped { (edge.to, edge.from) } else { (edge.from, edge.to) };
+        edges.push(DotEdge { from, to, kind });
     }
-    lexer.skip_ws_and_comments();
-    if lexer.peek_ident().is_some() {
-        let _ = lexer.expect_ident()?;
-    }
-    lexer.expect_char('{')?;
-    let mut order = Vec::new();
-    let mut index = HashMap::new();
-    let mut edges = Vec::new();
-    loop {
-        lexer.skip_ws_and_comments();
-        if lexer.eat_char('}') {
-            break;
-        }
-        if lexer.eof() {
-            return Err(IoError::Convert("unexpected end of DOT input".into()));
-        }
-        if lexer.eat_char(';') {
-            continue;
-        }
-        let (from, quoted) = lexer.expect_statement_id()?;
-        lexer.skip_ws_and_comments();
-        if graph_dot::is_default_attribute_statement(&from, quoted, lexer.peek_char()) {
-            lexer.skip_attr_list()?;
-            let _ = lexer.eat_char(';');
-            continue;
-        }
-        if lexer.peek_char() == Some('[') {
-            let _ = lexer.parse_attr_list()?;
-            graph_dot::intern(&from, &mut order, &mut index)?;
-            let _ = lexer.eat_char(';');
-            continue;
-        }
-        if lexer.eat_char(';') {
-            graph_dot::intern(&from, &mut order, &mut index)?;
-            continue;
-        }
-        let directed = lexer.eat_str("->");
-        let undirected = !directed && lexer.eat_str("--");
-        if !directed && !undirected {
-            return Err(IoError::Convert(format!(
-                "expected edge or node statement near `{}`",
-                lexer.snippet()
-            )));
-        }
-        if undirected && !allow_undirected {
-            return Err(IoError::Convert("undirected edges (--) are not supported".into()));
-        }
-        lexer.skip_ws_and_comments();
-        let to = lexer.expect_node_id()?;
-        lexer.skip_ws_and_comments();
-        let attrs =
-            if lexer.peek_char() == Some('[') { lexer.parse_attr_list()? } else { HashMap::new() };
-        let _ = lexer.eat_char(';');
-        let fi = graph_dot::intern(&from, &mut order, &mut index)?;
-        let ti = graph_dot::intern(&to, &mut order, &mut index)?;
-        let (kind, swapped) = classify_edge(directed, &attrs)?;
-        let (fi, ti) = if swapped { (ti, fi) } else { (fi, ti) };
-        edges.push(DotEdge { from: fi, to: ti, kind });
-    }
-    if order.is_empty() {
-        return Err(IoError::Convert("DOT graph has no nodes".into()));
-    }
+    let order = parsed.names;
     let pairs: Vec<(u32, u32)> = edges.iter().map(|e| (e.from, e.to)).collect();
     if let Some(remapped) = graph_dot::remap_numeric_dense(&order, &pairs)? {
         let map: HashMap<u32, u32> = order
@@ -1064,6 +1011,12 @@ struct NxLinkRaw {
     mark_b: Option<String>,
 }
 
+impl crate::graph_networkx::NodeLinkEndpoints for NxLinkRaw {
+    fn endpoints(&self) -> (&JsonValue, &JsonValue) {
+        (&self.source, &self.target)
+    }
+}
+
 struct NxLink {
     from: u32,
     to: u32,
@@ -1100,35 +1053,21 @@ struct NxOutLink {
 fn parse_nx(json: &str) -> Result<(Vec<String>, Vec<NxLink>), IoError> {
     let doc: NxDoc =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
-    if !doc.directed {
-        return Err(IoError::Convert("NetworkX graph must be directed".into()));
-    }
-    if doc.multigraph {
-        return Err(IoError::Convert("NetworkX multigraph not supported".into()));
-    }
-    let mut order = Vec::new();
-    let mut index = HashMap::new();
-    let mut kinds = NodeIdKinds::default();
-    for n in &doc.nodes {
-        let name = kinds.name(&n.id)?;
-        graph_dot::intern(&name, &mut order, &mut index)?;
-    }
-    let mut links = Vec::new();
-    for link in &doc.links {
-        let s = kinds.name(&link.source)?;
-        let t = kinds.name(&link.target)?;
-        let from = graph_dot::intern(&s, &mut order, &mut index)?;
-        let to = graph_dot::intern(&t, &mut order, &mut index)?;
-        links.push(NxLink {
+    crate::graph_networkx::require_simple_directed(doc.directed, doc.multigraph)?;
+    let (order, bound) = crate::graph_networkx::bind_node_link(&doc.nodes, &doc.links)?;
+    let links = bound
+        .into_iter()
+        .zip(doc.links)
+        .map(|((from, to), link)| NxLink {
             from,
             to,
             undirected: link.undirected,
             bidirected: link.bidirected,
-            dir: link.dir.clone(),
-            mark_a: link.mark_a.clone(),
-            mark_b: link.mark_b.clone(),
-        });
-    }
+            dir: link.dir,
+            mark_a: link.mark_a,
+            mark_b: link.mark_b,
+        })
+        .collect();
     Ok((order, links))
 }
 
