@@ -16,7 +16,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -61,6 +61,8 @@ thread_local! {
     static ACTIVE: RefCell<Option<Arc<Scope>>> = const { RefCell::new(None) };
     /// Tokens of contexts built on a Python thread ahead of the [`run`] that will execute them.
     static PENDING: RefCell<Vec<CancellationToken>> = const { RefCell::new(Vec::new()) };
+    /// Set when a token was refused because [`PENDING`] was already at [`MAX_PENDING`].
+    static PENDING_REFUSED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The interruptible run's token, if the current thread is a [`run`] worker.
@@ -83,11 +85,40 @@ pub(crate) fn link(token: &CancellationToken) {
         PENDING.with(|pending| {
             let mut pending = pending.borrow_mut();
             if pending.len() >= MAX_PENDING {
-                pending.remove(0);
+                // Refuse the new token. Evicting the oldest dropped a context that
+                // Ctrl-C was still supposed to cancel.
+                PENDING_REFUSED.set(true);
+                return;
             }
             pending.push(token.clone());
         });
     }
+}
+
+/// `Err` when a token was refused since the last call. Clears the flag.
+fn take_pending_refusal() -> Result<(), &'static str> {
+    if PENDING_REFUSED.replace(false) {
+        Err(
+            "too many cancellation tokens were queued on this thread before a native run; the extra token was refused instead of evicting an older one",
+        )
+    } else {
+        Ok(())
+    }
+}
+
+/// Release the GIL without the interrupt worker.
+///
+/// [`run`] gives every detached call a 64 MiB thread so Ctrl-C can cancel it.
+/// This is the cheap path for a call that does not poll a cancellation token.
+/// Call sites stay on [`run`] until each one is classified: switching one drops
+/// cooperative Ctrl-C for that call.
+#[allow(dead_code)]
+pub(crate) fn detach_fast<F, T>(py: Python<'_>, f: F) -> PyResult<T>
+where
+    F: FnOnce() -> PyResult<T> + Send,
+    T: Send,
+{
+    py.detach(|| catch_ffi(f))
 }
 
 /// Callback failures awaiting attribution, by the id their message carries.
@@ -148,6 +179,7 @@ where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
 {
+    take_pending_refusal().map_err(CausalError::new_err)?;
     let scope = Arc::new(Scope::default());
     scope
         .linked
@@ -214,5 +246,21 @@ mod tests {
         assert_eq!(tagged_ids(&wrapped).collect::<Vec<_>>(), vec![8]);
         assert_eq!(tagged_ids("no tag here").count(), 0);
         assert_eq!(tagged_ids(&format!("{TAG_OPEN}not a number]")).count(), 0);
+    }
+
+    #[test]
+    fn a_pending_token_past_the_cap_is_refused_instead_of_evicting() {
+        use super::{MAX_PENDING, PENDING, PENDING_REFUSED, link, take_pending_refusal};
+        use antecedent_core::CancellationToken;
+        PENDING.with(|pending| pending.borrow_mut().clear());
+        PENDING_REFUSED.set(false);
+        for _ in 0..MAX_PENDING {
+            link(&CancellationToken::new());
+        }
+        link(&CancellationToken::new());
+        assert_eq!(PENDING.with(|pending| pending.borrow().len()), MAX_PENDING);
+        assert!(take_pending_refusal().is_err());
+        PENDING.with(|pending| pending.borrow_mut().clear());
+        PENDING_REFUSED.set(false);
     }
 }
