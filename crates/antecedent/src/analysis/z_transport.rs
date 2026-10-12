@@ -11,7 +11,6 @@
 //! points.
 use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, TheoremScope};
-use antecedent_estimate::ReplicatePolicy;
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
     FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
@@ -22,11 +21,7 @@ use antecedent_io::IoError;
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use std::sync::Arc;
 
-use super::transport_common::{err, estimate_err};
-
-/// The facade's licensing floor for a nominal-0.95 posterior interval.
-const PERCENTILE_FLOOR: ReplicatePolicy =
-    ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
+use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err};
 
 /// Prepared exact or empirical evaluation of a checked z-transport formula.
 #[derive(Clone, Debug)]

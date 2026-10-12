@@ -22,13 +22,9 @@ use antecedent_io::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
-fn assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
-    let mut values: Vec<_> =
-        request.entries().iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
-    values.sort_by_key(|x| x.0);
-    values
-}
+use super::transport_common::{
+    GraphFields, assignments, digest, err, rebind_snapshots, rebuild_checked_proof,
+};
 fn request(values: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(values.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
 }
