@@ -19,9 +19,9 @@ workspace = true
 [features]
 default = []
 # Interval-bearing mz-transport artifact construction and its bit-for-bit
-# recompute, for the calibration harness and lifecycle tests only. Enabled only by
-# the facade's dev-dependencies (resolver 2 keeps it out of normal builds); no
-# released build carries it, so no public route yields or accepts an interval.
+# recompute, for the calibration harness and lifecycle tests only. Pass
+# `--features calibration-internal` to compile it. No released build carries it,
+# so no public route yields or accepts an interval.
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-learn/calibration-internal"]
 
 [dependencies]
@@ -46,8 +46,5 @@ thiserror = { workspace = true }
 antecedent-kernels = { workspace = true }
 antecedent-test-support = { workspace = true }
 blake3 = { workspace = true }
-# Candidate artifact replay tests need the closed implementation. Resolver 2
-# excludes this self dev-dependency from ordinary released/Python builds.
-antecedent-io = { path = ".", features = ["calibration-internal"] }
 # The io interval tests recompute the closed mz bootstrap, compiled only under this feature.
 antecedent-estimate = { workspace = true, features = ["calibration-internal"] }

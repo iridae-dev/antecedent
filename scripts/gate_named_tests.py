@@ -52,7 +52,7 @@ LISTINGS = {
 }
 REST_FEATURES = os.getenv(
     "RUST_CI_REST_FEATURES",
-    "antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent/calibration-internal",
+    "antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent-validate/calibration-internal",
 )
 FACADE_FEATURES = os.getenv(
     "RUST_CI_FACADE_FEATURES", "ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow"

@@ -18,7 +18,7 @@ workspace = true
 
 [features]
 default = []
-calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal"]
+calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal", "antecedent-validate/calibration-internal"]
 ml-gbdt = ["antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
@@ -51,7 +51,6 @@ blake3 = { workspace = true }
 
 [dev-dependencies]
 antecedent-test-support = { workspace = true }
-antecedent = { path = ".", features = ["calibration-internal"] }
 criterion.workspace = true
 ciborium = { workspace = true }
 antecedent-identify = { workspace = true, features = ["test-util"] }
@@ -62,6 +61,18 @@ antecedent-io = { workspace = true, features = ["calibration-internal"] }
 antecedent-validate = { workspace = true, features = ["calibration-internal"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
+
+[[test]]
+name = "recalc_joint_bayesian"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "temporal_recalc_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "temporal_interval_activation"
+required-features = ["calibration-internal"]
 
 [[example]]
 name = "ate_quickstart"

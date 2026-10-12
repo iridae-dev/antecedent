@@ -3,14 +3,17 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    DerivativeScale, Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, ResponseFunctional, ResponseUncertainty, ResponseValue,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM,
     VariableId,
 };
+#[cfg(feature = "calibration-internal")]
+use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
 use antecedent_data::TabularData;
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, invert_square, normal_ppf,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, invert_square,
 };
+#[cfg(feature = "calibration-internal")]
+use antecedent_stats::normal_ppf;
 
 use crate::EstimationError;
 

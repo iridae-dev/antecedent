@@ -42,7 +42,7 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_INCREMENTAL: "0"
       SCCACHE_GHA_ENABLED: "true"
-      RUST_CI_REST_FEATURES: antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent/calibration-internal
+      RUST_CI_REST_FEATURES: antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent-validate/calibration-internal
       RUST_CI_FACADE_FEATURES: ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow
     strategy:
       fail-fast: false
@@ -151,8 +151,8 @@ jobs:
         run: |
           trap 'df -h /' EXIT
           # The facade's dev-dependencies enabled these features in the former
-          # full-workspace command, including its calibration-only self dependency.
-          # Keep that exact feature graph in this shard.
+          # full-workspace command. The calibration-internal self dev-dependencies
+          # are gone, so this shard passes the same feature set explicitly.
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
           cargo nextest run --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
@@ -161,11 +161,12 @@ jobs:
         if: matrix.suite == 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
           trap 'df -h /' EXIT
-          # Python's default features activate these three leaf features and
-          # data/arrow in the former full-workspace command.
-          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES" --no-run --timings
-          cargo nextest run -p antecedent --features "$RUST_CI_FACADE_FEATURES"
-          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES" --doc
+          # Python's default features activate ml-gbdt, ml-forest, ml-neural and
+          # data/arrow in the former full-workspace command. calibration-internal
+          # is not a default feature; the closed-estimator targets opt into it here.
+          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --no-run --timings
+          cargo nextest run -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
+          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --doc
 
       - name: Upload Cargo timings
         if: always() && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
@@ -270,6 +271,15 @@ jobs:
           cargo check -p antecedent-learn
           cargo check -p antecedent-data
           cargo check -p antecedent-model
+
+      # Both cfgs of the closed calibration estimators. Check only: the Rust job
+      # already runs the tests with the feature enabled.
+      - name: calibration-internal on and off
+        run: |
+          set -euo pipefail
+          pkgs="-p antecedent-estimate -p antecedent-io -p antecedent-validate -p antecedent-learn -p antecedent"
+          cargo check $pkgs
+          cargo check $pkgs --features calibration-internal
 
       - name: Each optional feature alone
         run: |

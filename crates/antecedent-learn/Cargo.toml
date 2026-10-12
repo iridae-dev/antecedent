@@ -36,11 +36,6 @@ forust-ml = { workspace = true, optional = true }
 smartcore = { workspace = true, optional = true }
 antecedent-learn-burn = { workspace = true, optional = true }
 
-[dev-dependencies]
-# Ordinary test targets exercise the closed Bayesian implementation; resolver 2
-# keeps this internal feature out of normal library and Python builds.
-antecedent-learn = { path = ".", features = ["calibration-internal"] }
-
 [[example]]
 name = "neural_crossfit_benchmark"
 required-features = ["ml-neural"]

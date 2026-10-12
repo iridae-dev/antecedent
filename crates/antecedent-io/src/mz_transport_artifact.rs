@@ -836,7 +836,10 @@ fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
 struct IntervalProblem<'a> {
     functional: &'a BoundMzTransportFunctional,
     data: &'a ExactTransportData,
+    // Read by the calibration-internal recompute. The public path refuses before that.
+    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
     requests: &'a [Assignment],
+    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
     limits: ExactEvaluationLimits,
 }
 

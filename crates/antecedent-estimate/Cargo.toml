@@ -25,8 +25,8 @@ ml-neural = ["antecedent-learn/ml-neural"]
 # Exposes the closed interval estimators (`learned_continuous_interval_internal`,
 # `mz_transport_bootstrap_interval` and its draw machinery, the Frequentist plug-in
 # gradient band `ContinuousResponseEstimator::plugin_gradient_interval_internal`) to the
-# calibration harness. Enabled only by dev-dependencies (resolver 2 keeps it out of normal
-# builds); no released build carries it.
+# calibration harness. Pass `--features calibration-internal` to compile it.
+# No released build carries it.
 calibration-internal = []
 
 [dependencies]
@@ -46,12 +46,16 @@ serde = { workspace = true }
 [dev-dependencies]
 antecedent-contract = { workspace = true }
 antecedent-test-support = { workspace = true }
-# Self dev-dependency: the integration tests and benches measure the closed mz bootstrap
-# estimator (and the learned continuous interval), compiled only under `calibration-internal`. Dev-dependencies
-# never reach a normal or Python build (resolver 2).
-antecedent-estimate = { path = ".", features = ["calibration-internal"] }
 criterion = { workspace = true }
 serde_json = { workspace = true }
+
+[[test]]
+name = "mz_transport_execution"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "quadratic_dose_calibration"
+required-features = ["calibration-internal"]
 
 [[bench]]
 name = "propensity_bootstrap"

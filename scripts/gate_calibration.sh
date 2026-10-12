@@ -255,7 +255,7 @@ check "effect_constancy_calibration: known_gaussian_null_power_and_holm" \
 # Actual checked temporal adapter, paired effects share whole-unit resampling.
 run_temporal_recalc() {
   local name="$1"
-  check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
+  check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --features calibration-internal --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== checked temporal response and paired effect candidates =="
 # Original response percentile/basic measurements failed. Their harnesses and
@@ -371,7 +371,7 @@ run_learned_joint learned_degree2_gaussian_two_varying_covariates_l95
 
 run_quadratic_dose() {
   local name="$1"
-  check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
+  check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== closed exact-quadratic dose pointwise candidates =="
 run_quadratic_dose randomized_exact_quadratic_level_l95

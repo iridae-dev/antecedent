@@ -1656,6 +1656,7 @@ fn published(data: &TabularData, functional: ResponseFunctional) -> CausalRespon
         .unwrap()
 }
 
+#[cfg(feature = "calibration-internal")]
 fn internal_band(
     data: &TabularData,
     functional: &ResponseFunctional,
@@ -1698,6 +1699,7 @@ fn frequentist_plugin_gradient_withholds_its_interval_and_says_why() {
 }
 
 /// The closed route's band is the coefficient sandwich of the published point.
+#[cfg(feature = "calibration-internal")]
 #[test]
 fn plugin_gradient_interval_internal_is_a_sandwich_band_around_the_published_point() {
     let data = plugin_gradient_data(1.0, 0.0);
@@ -1751,6 +1753,7 @@ fn plugin_gradient_interval_internal_is_a_sandwich_band_around_the_published_poi
     }
 }
 
+#[cfg(feature = "calibration-internal")]
 #[test]
 fn plugin_gradient_interval_internal_refuses_what_it_does_not_construct() {
     let data = plugin_gradient_data(1.0, 0.0);
