@@ -8,7 +8,7 @@ use antecedent_core::{ResponseFunctional, TransportOutcome, TransportQuery, Vari
 use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
 use crate::selection_separation::{
-    for_each_admissible_subset, MutilatedSelection, SubsetSearchEnd,
+    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset,
 };
 use crate::{IdentificationError, PreparedAdmg};
 
@@ -702,8 +702,21 @@ mod tests {
 
     use super::*;
 
-    const fn dense(variable: VariableId) -> DenseNodeId {
-        DenseNodeId::from_raw(variable.raw())
+    // Dense node of `variable` in this fixture graph. `with_variables` labels
+    // node `i` with raw id `i`; `graph_with_ids` does not, so the raw id is not an index.
+    fn dense(graph: &Admg, variable: VariableId) -> DenseNodeId {
+        graph
+            .dense_of_static(variable)
+            .unwrap_or_else(|| panic!("transport fixture has no static node {}", variable.raw()))
+    }
+
+    #[test]
+    fn dense_reads_the_node_table() {
+        let mut graph = Admg::empty();
+        graph.add_node(antecedent_graph::NodeRef::Static(VariableId::from_raw(17))).unwrap();
+        graph.add_node(antecedent_graph::NodeRef::Static(VariableId::from_raw(3))).unwrap();
+        assert_eq!(dense(&graph, VariableId::from_raw(17)), DenseNodeId::from_raw(0));
+        assert_eq!(dense(&graph, VariableId::from_raw(3)), DenseNodeId::from_raw(1));
     }
 
     fn query() -> TransportQuery {
@@ -725,7 +738,10 @@ mod tests {
     fn direct_transport_when_selection_is_irrelevant() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -739,10 +755,16 @@ mod tests {
     fn intervening_on_selected_treatment_removes_population_difference() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_bidirected(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_bidirected(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(0)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -756,10 +778,16 @@ mod tests {
     fn exogenous_pre_treatment_selection_standardizes() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -776,10 +804,16 @@ mod tests {
     fn singleton_c_components_use_recursive_population_factors() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(1)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(1)),
+            )
             .unwrap();
         graph
-            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -796,13 +830,22 @@ mod tests {
     fn general_s_admissibility_accepts_nonexogenous_pre_treatment_standardizer() {
         let mut graph = Admg::with_variables(4);
         graph
-            .insert_directed(dense(VariableId::from_raw(3)), dense(VariableId::from_raw(1)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(3)),
+                dense(&graph, VariableId::from_raw(1)),
+            )
             .unwrap();
         graph
-            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -851,8 +894,8 @@ mod tests {
         // wrong: the target's observational law of M is not its law under do(x).
         let (x, m, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
         let mut graph = Admg::with_variables(3);
-        graph.insert_directed(dense(x), dense(m)).unwrap();
-        graph.insert_directed(dense(m), dense(y)).unwrap();
+        graph.insert_directed(dense(&graph, x), dense(&graph, m)).unwrap();
+        graph.insert_directed(dense(&graph, m), dense(&graph, y)).unwrap();
         let diagram = SelectionDiagram::try_new(graph, [m]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
         let TransportIdentification::Transportable { formula, certificate } = &result else {
@@ -870,10 +913,16 @@ mod tests {
     fn multi_node_district_returns_scoped_negative_certificate() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_bidirected(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .insert_bidirected(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -885,13 +934,22 @@ mod tests {
     fn selection_upstream_of_intervened_treatment_needs_no_target_covariate_law() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(0)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(0)),
+            )
             .unwrap();
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_bidirected(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_bidirected(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
@@ -920,9 +978,11 @@ mod tests {
         };
         match formula {
             TransportFormula::RecursiveFactorization { factors, .. } => {
-                assert!(factors
-                    .iter()
-                    .all(|f| f.population.as_ref() == "target" && f.interventions.is_empty()));
+                assert!(
+                    factors
+                        .iter()
+                        .all(|f| f.population.as_ref() == "target" && f.interventions.is_empty())
+                );
             }
             other => panic!("expected observational target factorization, got {other:?}"),
         }
@@ -991,10 +1051,15 @@ mod tests {
             RegimeKind,
         };
         let mut graph = Admg::with_variables(3);
-        let dense = |v: u32| DenseNodeId::from_raw(v);
-        graph.insert_directed(dense(1), dense(0)).unwrap();
-        graph.insert_directed(dense(1), dense(2)).unwrap();
-        graph.insert_directed(dense(0), dense(2)).unwrap();
+        let node = |v: u32| {
+            graph
+                .dense_of_static(VariableId::from_raw(v))
+                .unwrap_or_else(|| panic!("transport fixture has no static node {v}"))
+        };
+        let (n0, n1, n2) = (node(0), node(1), node(2));
+        graph.insert_directed(n1, n0).unwrap();
+        graph.insert_directed(n1, n2).unwrap();
+        graph.insert_directed(n0, n2).unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let source_do_x = EvidenceRegime::try_new(
             RegimeId::from_raw(1),
@@ -1133,13 +1198,22 @@ mod tests {
     fn missing_source_experiment_is_missing_evidence_not_not_certified() {
         let mut graph = Admg::with_variables(3);
         graph
-            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(1)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         graph
-            .insert_bidirected(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .insert_bidirected(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
             .unwrap();
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &empty_catalog_query()).unwrap();

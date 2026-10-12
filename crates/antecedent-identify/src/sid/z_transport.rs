@@ -1134,8 +1134,10 @@ pub fn decide_two_source_z_transport(
     // the union is one of them: the sources declare the same controllable set
     // on the same selection diagram. Otherwise a factor from each source might
     // still combine, which this decision does not search.
-    if let [ZTransportDecision::ProvenNonTransportable(left), ZTransportDecision::ProvenNonTransportable(right)] =
-        decisions.as_slice()
+    if let [
+        ZTransportDecision::ProvenNonTransportable(left),
+        ZTransportDecision::ProvenNonTransportable(right),
+    ] = decisions.as_slice()
     {
         let [first, second] = &query.sources;
         let same_family = same_variable_set(&first.controllable, &second.controllable)
@@ -3700,14 +3702,16 @@ mod tests {
         .unwrap();
         let mut altered = query.clone();
         altered.controllable = Arc::from([VariableId::from_raw(0)]);
-        assert!(verify_z_transport_derivation(
-            &diagram,
-            &altered,
-            &proof,
-            super::super::SidLimits::default(),
-            &antecedent_core::ExecutionContext::for_tests(0)
-        )
-        .is_err());
+        assert!(
+            verify_z_transport_derivation(
+                &diagram,
+                &altered,
+                &proof,
+                super::super::SidLimits::default(),
+                &antecedent_core::ExecutionContext::for_tests(0)
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -3772,14 +3776,16 @@ mod tests {
                 value: Value::Bool(false),
             },
         ]);
-        assert!(verify_z_transport_derivation(
-            &diagram,
-            &changed,
-            &proof,
-            super::super::SidLimits::default(),
-            &antecedent_core::ExecutionContext::for_tests(0)
-        )
-        .is_err());
+        assert!(
+            verify_z_transport_derivation(
+                &diagram,
+                &changed,
+                &proof,
+                super::super::SidLimits::default(),
+                &antecedent_core::ExecutionContext::for_tests(0)
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -4308,6 +4314,14 @@ mod tests {
         assert_eq!(exhausted.to_string(), "z_transport.exhausted_computation");
     }
 
+    /// Dense slot of `variable` in the `Admg::with_variables(4)` fixture this SCM evaluates.
+    fn exchange_slot(variable: VariableId) -> usize {
+        Admg::with_variables(4)
+            .dense_of_static(variable)
+            .unwrap_or_else(|| panic!("sequential exchange fixture has no node {}", variable.raw()))
+            .as_usize()
+    }
+
     struct SequentialExchangeScm;
 
     #[allow(clippy::float_cmp, reason = "The provider accepts only binary values 0.0 and 1.0")]
@@ -4321,7 +4335,7 @@ mod tests {
             let mut intervention = [None; 4];
             for item in spec.intervention {
                 let value = item.value.as_f64().ok_or(EvalError::MissingBinding(item.variable))?;
-                intervention[item.variable.raw() as usize] = Some(usize::from(value == 1.0));
+                intervention[exchange_slot(item.variable)] = Some(usize::from(value == 1.0));
             }
             let mut denominator = 0.0;
             let mut numerator = 0.0;
@@ -4338,7 +4352,7 @@ mod tests {
                 let matches = |variables: &[VariableId]| {
                     variables.iter().all(|variable| {
                         assignment.get(*variable).and_then(Value::as_f64).is_some_and(|value| {
-                            usize::from(value == 1.0) == state[variable.raw() as usize]
+                            usize::from(value == 1.0) == state[exchange_slot(*variable)]
                         })
                     })
                 };
@@ -4739,10 +4753,12 @@ mod tests {
         };
         marginal_only.regimes = altered.into();
         let inspection = proof.inspect_proof(&marginal_only);
-        assert!(inspection
-            .factors
-            .iter()
-            .any(|factor| factor.failure.as_deref() == Some("joint_law_required")));
+        assert!(
+            inspection
+                .factors
+                .iter()
+                .any(|factor| factor.failure.as_deref() == Some("joint_law_required"))
+        );
         assert!(matches!(
             validate_z_experiment_family(&diagram, &query, &marginal_only),
             Err(ZExperimentFamilyError::MissingJointLaw { .. })
