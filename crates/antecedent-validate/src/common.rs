@@ -359,8 +359,9 @@ pub struct RefutationProblem<'a> {
     /// Optional refit of the original composed causal model.
     pub effect_refit: Option<&'a dyn EffectRefit>,
     /// Prepare-time per-unit slice plan. Filled by [`crate::PreparedRefutation::compile`];
-    /// callers constructing a problem directly leave this unset and the panel refit
-    /// compiles a plan from [`Self::temporal`] on first use.
+    /// callers constructing a problem directly leave this unset. A replicate loop
+    /// compiles one plan from [`Self::temporal`] and reuses it; a single refit
+    /// compiles its own.
     pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
 }
 
@@ -406,16 +407,17 @@ impl<'a> RefutationProblem<'a> {
 /// The refit is a `dyn` without a `Sync` bound, so it cannot be shared with worker threads;
 /// everything else can, and the refit travels beside this view as a separate argument.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct SharedProblem<'a> {
+pub(crate) struct SharedProblem<'a, 'plan> {
     pub(crate) data: &'a TabularData,
     pub(crate) estimand: &'a IdentifiedEstimand,
     pub(crate) query: &'a AverageEffectQuery,
     pub(crate) temporal: Option<TemporalRefitContext<'a>>,
-    pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
+    /// `'plan` may be shorter than `'a` when a replicate loop owns the plan.
+    pub(crate) panel_slices: Option<&'plan PanelSliceTemplate<'a>>,
 }
 
 impl<'a> RefutationProblem<'a> {
-    pub(crate) fn shared(&self) -> SharedProblem<'a> {
+    pub(crate) fn shared(&self) -> SharedProblem<'a, 'a> {
         SharedProblem {
             data: self.data,
             estimand: self.estimand,
@@ -575,7 +577,7 @@ pub(crate) fn refit_effect(
     reason = "the problem's refit travels beside its shared view, which keeps the view Sync"
 )]
 pub(crate) fn refit_effect_shared(
-    problem: &SharedProblem<'_>,
+    problem: &SharedProblem<'_, '_>,
     effect_refit: Option<&dyn EffectRefit>,
     data: &TabularData,
     estimand: &IdentifiedEstimand,
@@ -1133,7 +1135,7 @@ pub(crate) fn map_problem_replicates<S, T: Send>(
     replicates: u32,
     init: impl Fn() -> S + Sync,
     one: impl Fn(
-        &SharedProblem<'_>,
+        &SharedProblem<'_, '_>,
         Option<&dyn EffectRefit>,
         &mut S,
         &ExecutionContext,
@@ -1141,7 +1143,8 @@ pub(crate) fn map_problem_replicates<S, T: Send>(
     ) -> Result<T, ValidationError>
     + Sync,
 ) -> Result<Vec<T>, ValidationError> {
-    let shared = problem.shared();
+    let plan = compile_replicate_plan(problem)?;
+    let shared = shared_for_replicates(problem, &plan);
     if let Some(refit) = problem.effect_refit {
         let mut state = init();
         let mut out = Vec::with_capacity(replicates as usize);
@@ -1214,7 +1217,7 @@ pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
     mut draw: impl FnMut(u32) -> Result<D, ValidationError>,
     init: impl Fn() -> S + Sync,
     compute: impl Fn(
-        &SharedProblem<'_>,
+        &SharedProblem<'_, '_>,
         Option<&dyn EffectRefit>,
         &mut S,
         &ExecutionContext,
@@ -1223,7 +1226,8 @@ pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
     ) -> Result<T, ValidationError>
     + Sync,
 ) -> Result<Vec<T>, ValidationError> {
-    let shared = problem.shared();
+    let plan = compile_replicate_plan(problem)?;
+    let shared = shared_for_replicates(problem, &plan);
     if let Some(refit) = problem.effect_refit {
         let mut state = init();
         let mut out = Vec::with_capacity(replicates as usize);
@@ -1237,6 +1241,34 @@ pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
     map_drawn_replicates(ctx, replicates, draw, init, |state, ctx, r, drawn| {
         compute(&shared, None, state, ctx, r, drawn)
     })
+}
+
+/// Compile one panel slice plan for a replicate loop, when the problem has a
+/// panel and no plan yet.
+///
+/// The mutated table is still sliced and prepared on each replicate; only the
+/// offset plan is shared. A plan already on the problem is left in place.
+fn compile_replicate_plan<'a>(
+    problem: &RefutationProblem<'a>,
+) -> Result<Option<PanelSliceTemplate<'a>>, ValidationError> {
+    if problem.panel_slices.is_some() {
+        return Ok(None);
+    }
+    let Some(panel) = problem.temporal.and_then(|temporal| temporal.panel) else {
+        return Ok(None);
+    };
+    Ok(Some(PanelSliceTemplate::from_panel(panel, problem.data)?))
+}
+
+fn shared_for_replicates<'a, 'plan>(
+    problem: &'plan RefutationProblem<'a>,
+    plan: &'plan Option<PanelSliceTemplate<'a>>,
+) -> SharedProblem<'a, 'plan> {
+    let mut shared = problem.shared();
+    if let Some(plan) = plan.as_ref() {
+        shared.panel_slices = Some(plan);
+    }
+    shared
 }
 
 /// Finish a replicate refuter: mean, p-value of `centre` as a typical single replicate
