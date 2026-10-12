@@ -1140,7 +1140,6 @@ impl TemporalPag {
 #[derive(Clone)]
 pub struct TemporalAdmg {
     pub(crate) graph: RustTemporalAdmg,
-    pub(crate) names: Vec<String>,
 }
 
 #[pymethods]
@@ -1184,7 +1183,7 @@ impl TemporalAdmg {
             let right = ensure(&mut graph, &b, b_lag)?;
             graph.insert_bidirected(left, right).map_err(py_err)?;
         }
-        Ok(Self { graph, names })
+        Ok(Self { graph })
     }
 
     fn node_count(&self) -> usize {

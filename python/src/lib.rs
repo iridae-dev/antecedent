@@ -215,17 +215,11 @@ use antecedent::gcm::{
     mechanism_change_detection as facade_mechanism_change_detection, sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
 };
-use antecedent::io::{
-    dag_from_dot as facade_dag_from_dot,
-    dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
-    dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
-    dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
-    encode_causal_posterior_bytes,
-};
+use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
-    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, EstimatorId, FdrControl,
-    IdentifierId, InferenceMode, RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, FdrControl, InferenceMode,
+    RefuteSuite, Study,
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
@@ -1687,8 +1681,7 @@ pub(crate) fn shared_study_sections(
         assumption_count: estimate.provenance.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
     };
-    let (distribution_atoms, mean_interval) =
-        distribution_sections(names, result.distribution());
+    let (distribution_atoms, mean_interval) = distribution_sections(names, result.distribution());
     let overlap_ess = estimate.diagnostics.overlap_report.as_ref().and_then(|r| r.ess);
     let overlap_propensity_min =
         estimate.diagnostics.overlap_report.as_ref().map(|r| r.propensity_min);
