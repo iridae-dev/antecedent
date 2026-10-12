@@ -12,15 +12,17 @@ use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Static directed acyclic graph over variables.
+///
+/// The node table and directed edges are the shared directed core.
+/// This type adds the static-node check.
 #[derive(Clone, Debug)]
 pub struct Dag {
-    nodes: Arc<Vec<NodeRef>>,
     directed: DirectedCore,
 }
 
 impl PartialEq for Dag {
     fn eq(&self, other: &Self) -> bool {
-        self.nodes == other.nodes && self.directed.same_edges(&other.directed)
+        self.directed.same_directed(&other.directed)
     }
 }
 
@@ -30,7 +32,7 @@ impl Dag {
     /// Empty DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Arc::new(Vec::new()), directed: DirectedCore::new() }
+        Self { directed: DirectedCore::new() }
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
@@ -140,19 +142,19 @@ impl Dag {
     /// Number of nodes.
     #[must_use]
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.directed.node_count()
     }
 
     /// Whether empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.directed.is_empty()
     }
 
     /// Node refs in dense order.
     #[must_use]
     pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
+        self.directed.nodes()
     }
 
     /// Add a static node; returns its dense id.
@@ -166,11 +168,7 @@ impl Dag {
                 message: "Dag accepts only Static or Unfolded nodes",
             });
         }
-        let nodes = Arc::make_mut(&mut self.nodes);
-        let id = u32::try_from(nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        nodes.push(node);
-        self.directed.push_node();
-        Ok(DenseNodeId::from_raw(id))
+        self.directed.push_labeled(node)
     }
 
     /// Insert a directed edge `from -> to` if it preserves acyclicity.
@@ -195,8 +193,9 @@ impl Dag {
     }
 
     /// Node labels. A copy shares the allocation until one side adds a node.
+    #[cfg(test)]
     pub(crate) fn shared_nodes(&self) -> Arc<Vec<NodeRef>> {
-        Arc::clone(&self.nodes)
+        self.directed.shared_nodes()
     }
 
     /// Shared directed tables. Cloning bumps the adjacency refcount.
@@ -209,9 +208,19 @@ impl Dag {
         &mut self.directed
     }
 
-    /// A DAG over `nodes` with already-validated directed edges.
-    pub(crate) fn from_directed(nodes: Arc<Vec<NodeRef>>, directed: DirectedCore) -> Self {
-        Self { nodes, directed }
+    /// A DAG over an already-validated directed core.
+    pub(crate) fn from_directed(directed: DirectedCore) -> Self {
+        Self { directed }
+    }
+
+    /// Directed parent lists, one per node, for separation.
+    pub(crate) fn parent_rows(&self) -> &[Vec<DenseNodeId>] {
+        self.directed.parent_adj()
+    }
+
+    /// Directed child lists, one per node, for separation.
+    pub(crate) fn child_rows(&self) -> &[Vec<DenseNodeId>] {
+        self.directed.child_adj()
     }
 
     /// Children of `id` (empty for an id outside the graph).
@@ -254,7 +263,7 @@ impl Dag {
     ///
     /// Cycle detected.
     pub fn validate(&self) -> Result<(), GraphError> {
-        if self.topological_order().is_none() {
+        if !crate::algo::is_dag(self.directed.parent_adj(), self.directed.child_adj()) {
             return Err(GraphError::Cycle { from: 0, to: 0 });
         }
         Ok(())

@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-
 use antecedent_core::VariableId;
 
 use crate::algo::{closure_into, components_by, is_dag};
@@ -25,9 +23,12 @@ pub enum CopyLabels {
 }
 
 /// ADMG: directed edges and bidirected (latent-confounder) edges; no directed cycles.
+///
+/// Directed nodes and edges are the shared directed core a [`Dag`](crate::Dag)
+/// and a [`TemporalDag`](crate::TemporalDag) also wrap. This type adds the
+/// bidirected adjacency and the ADMG endpoint checks.
 #[derive(Clone, Debug)]
 pub struct Admg {
-    nodes: Arc<Vec<NodeRef>>,
     directed: DirectedCore,
     /// Bidirected neighbors (symmetric adjacency).
     bidirected: Vec<Vec<DenseNodeId>>,
@@ -35,9 +36,7 @@ pub struct Admg {
 
 impl PartialEq for Admg {
     fn eq(&self, other: &Self) -> bool {
-        self.nodes == other.nodes
-            && self.directed.same_edges(&other.directed)
-            && self.bidirected == other.bidirected
+        self.directed.same_directed(&other.directed) && self.bidirected == other.bidirected
     }
 }
 
@@ -47,7 +46,7 @@ impl Admg {
     /// Empty ADMG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Arc::new(Vec::new()), directed: DirectedCore::new(), bidirected: Vec::new() }
+        Self { directed: DirectedCore::new(), bidirected: Vec::new() }
     }
 
     /// One static node per variable `0..n`.
@@ -167,7 +166,6 @@ impl Admg {
         // copies its own labels. [`Self::validate`] still checks the directed
         // part; [`crate::dag::Dag`] construction is what accepted the edges.
         let admg = Self {
-            nodes: dag.shared_nodes(),
             directed: dag.directed_core().clone(),
             bidirected: vec![Vec::new(); dag.node_count()],
         };
@@ -182,25 +180,25 @@ impl Admg {
     ///
     /// Node capacity (the directed part of an ADMG is acyclic by construction).
     pub fn directed_part(&self) -> Result<crate::dag::Dag, GraphError> {
-        Ok(crate::dag::Dag::from_directed(self.nodes.clone(), self.directed.clone()))
+        Ok(crate::dag::Dag::from_directed(self.directed.clone()))
     }
 
     /// Number of nodes.
     #[must_use]
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.directed.node_count()
     }
 
     /// Whether empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.directed.is_empty()
     }
 
     /// Node refs in dense order.
     #[must_use]
     pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
+        self.directed.nodes()
     }
 
     /// Add a static node.
@@ -214,12 +212,9 @@ impl Admg {
                 message: "Admg accepts only Static or Unfolded nodes",
             });
         }
-        let nodes = Arc::make_mut(&mut self.nodes);
-        let id = u32::try_from(nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        nodes.push(node);
-        self.directed.push_node();
+        let id = self.directed.push_labeled(node)?;
         self.bidirected.push(Vec::new());
-        Ok(DenseNodeId::from_raw(id))
+        Ok(id)
     }
 
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
@@ -293,6 +288,21 @@ impl Admg {
         } else {
             Err(GraphError::InvalidEndpoints { message: "unrecognized ADMG edge" })
         }
+    }
+
+    /// Directed parent lists, one per node, for separation.
+    pub(crate) fn parent_rows(&self) -> &[Vec<DenseNodeId>] {
+        self.directed.parent_adj()
+    }
+
+    /// Directed child lists, one per node, for separation.
+    pub(crate) fn child_rows(&self) -> &[Vec<DenseNodeId>] {
+        self.directed.child_adj()
+    }
+
+    /// Bidirected neighbor lists, one per node, for separation.
+    pub(crate) fn bidirected_rows(&self) -> &[Vec<DenseNodeId>] {
+        &self.bidirected
     }
 
     /// Children of `id` (directed; empty for an id outside the graph).
@@ -406,7 +416,7 @@ impl Admg {
     /// The variable a static node stands for, or `None` for a non-static or unknown node.
     #[must_use]
     pub fn static_variable(&self, id: DenseNodeId) -> Option<VariableId> {
-        match self.nodes.get(id.as_usize()) {
+        match self.nodes().get(id.as_usize()) {
             Some(NodeRef::Static(v)) => Some(*v),
             _ => None,
         }
@@ -415,7 +425,7 @@ impl Admg {
     /// The dense id of the static node standing for `variable`, if present.
     #[must_use]
     pub fn dense_of_static(&self, variable: VariableId) -> Option<DenseNodeId> {
-        self.nodes
+        self.nodes()
             .iter()
             .position(|node| *node == NodeRef::Static(variable))
             .map(DenseNodeId::from_index)
@@ -609,7 +619,7 @@ impl Admg {
     /// Number of districts.
     #[must_use]
     pub fn district_count(&self) -> usize {
-        self.districts().into_iter().max().map_or(0, |m| m as usize + 1)
+        self.districts_into(None, &mut Vec::new(), &mut Vec::new()) as usize
     }
 
     /// Validate invariants.
@@ -653,7 +663,7 @@ mod tests {
         let mut dag = Dag::with_variables(2);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let admg = Admg::from_dag(&dag).unwrap();
-        assert!(std::sync::Arc::ptr_eq(&dag.shared_nodes(), &admg.nodes));
+        assert!(std::sync::Arc::ptr_eq(&dag.shared_nodes(), &admg.directed.shared_nodes()));
         let mut looped = Admg::with_variables(2);
         let loop_err = looped.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(0));
         let mut batched = Admg::with_variables(2);

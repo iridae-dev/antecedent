@@ -1,10 +1,11 @@
-//! Directed adjacency shared by [`Dag`](crate::Dag), [`Admg`](crate::Admg), and
+//! One directed graph shared by [`Dag`](crate::Dag), [`Admg`](crate::Admg), and
 //! [`TemporalDag`](crate::TemporalDag).
 //!
-//! Edge lists live behind `Arc` so a copy that keeps the same directed edges
-//! bumps a refcount instead of walking every edge. Mutation copies the lists
-//! only when they are already shared. Equality compares the lists, never the
-//! insertion scratch.
+//! Those public types are wrappers: an ADMG adds bidirected edges, and a
+//! temporal DAG adds lag rules. The node table and the directed edges live
+//! here. Both are behind `Arc`, so a wrapper copy bumps refcounts until one
+//! side adds a node or a directed edge. Equality compares the tables, never
+//! the insertion scratch.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,12 +13,16 @@ use std::sync::Arc;
 
 use crate::algo::{bfs_reaches, kahn_order};
 use crate::error::GraphError;
-use crate::types::{DenseNodeId, MarkedEdge};
+use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
-/// Outgoing and incoming directed adjacency, plus scratch for the insert-time cycle check.
+/// Node labels plus outgoing and incoming directed adjacency.
+///
+/// [`Dag`](crate::Dag), [`Admg`](crate::Admg), and [`TemporalDag`](crate::TemporalDag)
+/// each own one of these and add only the checks that belong to that type.
 #[derive(Clone, Debug)]
 pub(crate) struct DirectedCore {
+    nodes: Arc<Vec<NodeRef>>,
     children: Arc<Vec<Vec<DenseNodeId>>>,
     parents: Arc<Vec<Vec<DenseNodeId>>>,
     insert_ws: GraphWorkspace,
@@ -30,13 +35,48 @@ impl Default for DirectedCore {
 }
 
 impl DirectedCore {
-    /// Empty adjacency.
+    /// Empty node table and adjacency.
     pub(crate) fn new() -> Self {
         Self {
+            nodes: Arc::new(Vec::new()),
             children: Arc::new(Vec::new()),
             parents: Arc::new(Vec::new()),
             insert_ws: GraphWorkspace::default(),
         }
+    }
+
+    /// Node labels in dense order.
+    pub(crate) fn nodes(&self) -> &[NodeRef] {
+        &self.nodes
+    }
+
+    /// Shared node labels. A copy shares the allocation until one side adds a node.
+    #[cfg(test)]
+    pub(crate) fn shared_nodes(&self) -> Arc<Vec<NodeRef>> {
+        Arc::clone(&self.nodes)
+    }
+
+    /// Node count.
+    pub(crate) fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Whether the node table is empty.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Append `node` and one empty adjacency row.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::TooManyNodes`] when the dense id would not fit in `u32`.
+    pub(crate) fn push_labeled(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
+        let nodes = Arc::make_mut(&mut self.nodes);
+        let id = u32::try_from(nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        nodes.push(node);
+        self.push_node();
+        Ok(DenseNodeId::from_raw(id))
     }
 
     /// One empty adjacency row. Called once per added node.
@@ -150,6 +190,11 @@ impl DirectedCore {
     pub(crate) fn same_edges(&self, other: &Self) -> bool {
         self.children.as_slice() == other.children.as_slice()
             && self.parents.as_slice() == other.parents.as_slice()
+    }
+
+    /// Node-table and edge-list equality. The insertion scratch is not part of the graph.
+    pub(crate) fn same_directed(&self, other: &Self) -> bool {
+        self.nodes.as_slice() == other.nodes.as_slice() && self.same_edges(other)
     }
 
     /// Whether appending `edges` in order adds only new edges and stays acyclic.

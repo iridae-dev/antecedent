@@ -11,15 +11,17 @@ use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Directed acyclic graph over lagged (`VariableId`, `Lag`) nodes.
+///
+/// Directed nodes and edges are the shared directed core an [`Admg`](crate::Admg)
+/// also wraps. This type adds the lag rules.
 #[derive(Clone, Debug)]
 pub struct TemporalDag {
-    nodes: Vec<NodeRef>,
     directed: DirectedCore,
 }
 
 impl PartialEq for TemporalDag {
     fn eq(&self, other: &Self) -> bool {
-        self.nodes == other.nodes && self.directed.same_edges(&other.directed)
+        self.directed.same_directed(&other.directed)
     }
 }
 
@@ -29,25 +31,25 @@ impl TemporalDag {
     /// Empty temporal DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), directed: DirectedCore::new() }
+        Self { directed: DirectedCore::new() }
     }
 
     /// Node count.
     #[must_use]
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.directed.node_count()
     }
 
     /// Whether empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.directed.is_empty()
     }
 
     /// Nodes in dense order.
     #[must_use]
     pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
+        self.directed.nodes()
     }
 
     /// Add a lagged node.
@@ -64,10 +66,7 @@ impl TemporalDag {
                 });
             }
         }
-        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
-        self.directed.push_node();
-        Ok(DenseNodeId::from_raw(id))
+        self.directed.push_labeled(node)
     }
 
     /// Convenience: add `variable` at `lag`.
@@ -109,12 +108,12 @@ impl TemporalDag {
         if let (
             NodeRef::Lagged { variable: v1, lag: l1 },
             NodeRef::Lagged { variable: v2, lag: l2 },
-        ) = (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
+        ) = (self.nodes()[from.as_usize()], self.nodes()[to.as_usize()])
         {
             if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
                 return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
             }
-            crate::types::reject_future_to_past(&self.nodes, from, to)?;
+            crate::types::reject_future_to_past(self.nodes(), from, to)?;
         }
         self.directed.try_insert(from, to)
     }
@@ -145,14 +144,14 @@ impl TemporalDag {
             return false;
         }
         let (NodeRef::Lagged { variable: v1, lag: l1 }, NodeRef::Lagged { variable: v2, lag: l2 }) =
-            (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
+            (self.nodes()[from.as_usize()], self.nodes()[to.as_usize()])
         else {
             return false;
         };
         if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
             return false;
         }
-        crate::types::reject_future_to_past(&self.nodes, from, to).is_ok()
+        crate::types::reject_future_to_past(self.nodes(), from, to).is_ok()
     }
 
     /// Children.
@@ -197,7 +196,7 @@ impl TemporalDag {
     /// Map dense id to a serializable [`TemporalNodeKey`].
     #[must_use]
     pub fn temporal_key(&self, id: DenseNodeId) -> Option<TemporalNodeKey> {
-        match self.nodes.get(id.as_usize())? {
+        match self.nodes().get(id.as_usize())? {
             NodeRef::Lagged { variable, lag } => {
                 let offset = -i32::try_from(lag.raw()).ok()?;
                 Some(TemporalNodeKey { variable: *variable, offset })
