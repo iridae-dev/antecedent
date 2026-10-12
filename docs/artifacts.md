@@ -52,6 +52,22 @@ magic (CAUSAL\0\0) | container_version (u32 LE = 1)
 Manifest fields: `format_version`, `minimum_reader_version`, `artifact_kind`,
 `library_version`, `artifact_id`, `sections[]`, `provenance`.
 
+### External-execution artifacts
+
+The three artifacts that record a foreign execution use the shared container
+and load through `antecedent.artifacts.loads`, which returns the *declared*
+header (a producer's `trust` is a claim there, never evidence):
+
+| Kind | Sections | `payload_kind` |
+|---|---|---|
+| `provider_result_v1` | `provider_result.header` (CBOR), `provider_result.artifact` (the provider's opaque bytes) | `provider_result` |
+| `external_callback_v1` | `external_callback.meta` (CBOR: request and provider digests, policy, claim identity), `external_callback.claim` (the original claim artifact) | `external_callback` |
+| `external_column_claim_v1` | `external_column_claim.meta` (CBOR: claim identity, row count, element type, support counts) | loaded with `ExternalSpec.load` under a retained identity |
+
+The earlier `ANTEPROV2` and `ANTCALLBACK1` frames are read, validated and
+resealed into these kinds, but never written. A provider result is opened as
+verified only against a registry's evidence digests (`open_verified_provider_envelope`).
+
 ### Section compression
 
 Sections may use Zstandard (`compression = "zstd"`). The length prefix and

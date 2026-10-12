@@ -45,6 +45,48 @@ Identification-to-result binding and an executable provider lifecycle have
 separate gates. A declaration or provider label alone
 does not certify a causal or inferential claim.
 
+## The four inbound surfaces
+
+A number computed outside Antecedent reaches a result through one of four
+surfaces. They share the provider-trust vocabulary, the verification receipt
+(`ProviderVerificationReceipt`), the provider identity (`ProviderObject`), the
+canonical JSON digest and the shared artifact container; they differ in what is
+being brought in and what the consumer already holds.
+
+| | Registry and handoff | `external.bind` | `recalc_external` callbacks | Distribution artifacts and priors |
+|---|---|---|---|---|
+| Use it when | A Python package runs the estimator (EconML, CausalML, a lab model) and Antecedent should record exactly what ran, or an adjustment set is handed to a learner you fit yourself | You already hold the numbers (a response grid, a scalar effect, a column of per-row effects) and want them bound to an identified contract | The foreign mean must be recomputed when a dependency changes (a new seed, grid or provider version) under declared replay rules | The foreign object is a joint law, draws or a prior that a decision or composition consumes |
+| Entry point | `providers.register`, `handoff.adjustment(...).attach(...)` / `.as_provider(...)` | `external.response(...)` then `spec.bind(Response \| ColumnResponse)` | `recalc_external.ExternalCallbackSession` | `JointDistributionArtifact`, `DistributionIdentity`, prior artifacts |
+| Identity shape | `ProviderObject` derived by `providers.provider_object(name, request)`: registered name, query family, spec digest as version, request digest | `ProviderObject` plus the contract identity, and for a column the column's digest | `CallbackDescriptor(ProviderObject, environment, policy)` and the request digest | `DistributionIdentity(provider_id, snapshot_id, source_id, rng_id, causal_contract_id)` |
+| Verification | `providers.verify(name, fixtures, evidence_origin=)` issues a `ProviderVerificationReceipt`; a request outside the receipt stays attested | `Response(probes=...)` verifies the exact provider object in Rust; `attested_by=` attests | Always attested; a stateful or side-effecting policy is not replayable | A claimed trust is never believed: trust comes from `TrustEvidence` (a native record, an attestation, or an exact-request receipt) matched on provider and snapshot |
+| What you get | `ProviderResult` (sealed `provider_result_v1` artifact), `ExternalEstimate` with `.claim` for a labelled effect | `BoundExternalClaim` (grid) or `BoundExternalColumn` (row-level): lineage, support labels, provider fingerprint | A bound claim and an `external_callback_v1` artifact that replays | A distribution artifact and its trust label, consumed by composition |
+| Wire | `provider_result_v1`, `provider_verification_receipt_v1`; the original `ANTEPROV2` frame still reads | `external_response_claim_v1` (grid), `external_column_claim_v1` (column) | `external_callback_v1`; the original `ANTCALLBACK1` frame still reads | `joint_distribution_v1` and the prior artifacts |
+
+Choosing between them:
+
+- You have the numbers already: `external.bind`. A scalar or a short grid is a
+  `Response`; a per-row effect is a `ColumnResponse`, which binds one
+  scientific quantity and the column's digest instead of one coordinate per
+  row.
+- Something must run Python to produce them, and you want that run recorded and
+  optionally verified: the registry. `handoff.attach` is the bring-your-own-fit
+  form of the same thing and binds through `external.bind` itself.
+- The number has to follow a changing dependency: a callback.
+- It is a law or a prior rather than an effect: a distribution artifact.
+
+All four load through `antecedent.artifacts.loads` as their declared header
+(`payload_kind` `provider_result` or `external_callback` for the first and third;
+the bound claim artifacts load through `ExternalSpec.load` under the identity
+the consumer retained). A decoded header never raises trust: `trust` there is a
+producer's claim, and a `verified_extension` result is believed only by the
+registry that holds the receipt.
+
+Every refusal on these surfaces carries a registered `reason_code` and a
+`remedy`: `ExternalRefusal` for binding and verification, and `ProviderRefusal`
+(also a `CausalUnsupportedError`, and a `ValueError` for a malformed argument)
+for the registry and the adjustment handoff, with a `handoff.*` or `provider.*`
+detail. Branch on `reason_code`; read `remedy` for what to change.
+
 ## Binding to a checked contract
 
 `bind_external_result` takes a `CheckedCausalContract` (graph identity,
@@ -76,6 +118,27 @@ equivalences, and records `native_estimation = false`. Loading requires an
 identity the consumer retained independently; a resealed change to any field
 (including values, trust, uncertainty or coordinate order) refuses. The
 artifact grants no interval, calibration or native licence.
+
+## Exporting a row-level column
+
+A conditional effect per unit is not a response grid: one coordinate per row
+would put thousands of coordinates (each a full scientific quantity) in the
+identity. `ExternalColumn` carries *one* quantity, the finite values, a
+provider-declared support (one label for all rows, or one per row; absent means
+`missing_evidence`) and the usual provider object and trust. `bind_external_result`
+checks the single quantity against the contract exactly as a coordinate, then
+keeps a `ColumnClaim`: the row count, the digest of the ordered values (the same
+canonical writer as a grid's values), the element type and the rows per support
+label. The worst label is the claim's one `point_status`, so
+`support_status()` and `DecisionInput` read it the same way.
+
+`antecedent_io::external_column_claim_artifact::ExternalColumnClaimArtifact`
+serializes it (`external_column_claim_v1`) without the rows. The consumer holds
+the column and `covers(values)` checks it against the digest, so one changed row
+is a different claim. The artifact is a different kind from a grid's, so
+a consumer that expects a response grid refuses a column instead of reading
+it with no values. In Python, `ColumnResponse` and `BoundExternalColumn` mirror
+`Response` and `BoundExternalClaim`.
 
 ## Lineage
 

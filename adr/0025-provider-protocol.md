@@ -70,9 +70,22 @@ The four inbound surfaces (registry and handoff, `external.bind`,
   derives its provider and snapshot from it. A spec declares `capabilities` and
   `meaning` once, typed.
 - One inbound estimate path. `attach(label="ate")` binds the scalar through
-  `external.bind`, so it carries lineage, support labels and a provider version.
-  An unlabelled array payload stays opaque attested evidence: it asserts no
-  per-coordinate values, and a row-level grid is not a bounded response grid.
+  `external.bind`, and `attach(label="cate")` binds a row-level effect array as
+  a column claim: one scientific quantity and the digest, size and support
+  counts of the column, not one coordinate per row (a response grid is the
+  wrong shape for thousands of rows). Both carry lineage, support labels and a
+  provider version. An unlabelled array stays opaque attested evidence.
+- One container and one digest. The provider result envelope (`ANTEPROV2`) and
+  the callback output (`ANTCALLBACK1`) are written as `provider_result_v1` and
+  `external_callback_v1` in the shared sectioned container, load through
+  `artifacts.loads`, and the original frames stay readable. Every Python
+  identity digest is Rust's `canonical_json_digest` under a named domain;
+  nothing in Python hashes `json.dumps` output any more, and a request that has
+  no canonical form (an arbitrary object) is refused instead of hashed by its
+  `repr`.
+- One refusal shape. Registry and handoff refusals are `ProviderRefusal`s with a
+  registered reason code, a namespaced detail and a remedy, as `ExternalRefusal`
+  is for binding.
 
 ## Consequences
 

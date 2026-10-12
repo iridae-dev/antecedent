@@ -1486,6 +1486,15 @@ with its provider id, query family, spec digest as version, and request digest,
 and `ProviderObject.distribution_identity(...)` derives the draw identity from
 it, so none of the three identity shapes is restated by hand.
 
+A request is identified by its content. The registry's request digest is
+Rust's canonical BLAKE3 digest over the request's JSON values, with NumPy
+arrays and column tables (a dict of arrays, a pandas `DataFrame`, an Arrow
+table) entering by dtype, shape and the digest of their bytes. Two datasets
+that differ in one cell have different digests however they print. A request
+with no canonical form (an arbitrary Python object, a `NaN` in a list) is
+refused with `provider.request_not_canonical` and a remedy; it is never hashed
+by its `repr`. The result's `request_digest_method` is `canonical_json_v2`.
+
 A host can promote an externally attested provider to `verified_extension` by
 calling `ProviderRegistry.verify(name, fixtures, evidence_origin=...)`. Each
 `ProviderVerificationFixture` supplies an independent known-truth request,
@@ -1542,12 +1551,17 @@ receipt = providers.verify(
 
 `AdjustmentHandoff.attach` (alias `EconMLSpec.attach`) accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
-identification and data-snapshot identities. A scalar effect labelled
-`label="ate"` is also bound through `external.bind`: the identified contract, the
-learner as a provider with its declared `learner_version`, per-coordinate
-`support` labels, and the lineage are `ExternalEstimate.claim`, and a mismatch
-refuses with the same structured refusal as any foreign response. A row-level
-CATE array is not a bounded response grid and stays an opaque attested payload.
+identification and data-snapshot identities. A labelled effect is also bound
+through `external.bind`: the identified contract, the learner as a provider with
+its declared `learner_version`, `support` labels, and the lineage are
+`ExternalEstimate.claim`, and a mismatch refuses with the same structured
+refusal as any foreign response. `label="ate"` binds a scalar as one
+coordinate; `label="cate"` binds a row-level effect array (one value per row of
+`columns(data)`) as one scientific quantity and a digest of the column
+(`BoundExternalColumn`), so a CATE of any length carries lineage, support counts
+and a provider version without one coordinate per row. An unlabelled payload
+stays an opaque attested payload. Every handoff refusal is a `ProviderRefusal`
+with a registered `reason_code` and a `remedy`.
 It does not rerun the learner or
 verify its provenance, fold ownership, or uncertainty calibration. Loaded
 external results start externally attested with calibration unavailable. They
