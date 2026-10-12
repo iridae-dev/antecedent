@@ -641,7 +641,7 @@ mod tests {
         assert!((est.ate - 3.0).abs() < 0.3);
         // Noiseless design → analytic SE ≈ 0 but must not claim exact certainty via a hard 0
         // when noise is present; with this noiseless fit SE is 0 or NaN-free.
-        assert!(est.se_analytic.is_finite());
+        assert!(est.se_analytic().is_finite());
     }
 
     #[test]
@@ -707,7 +707,11 @@ mod tests {
         let est = ConditionalLinearAdjustment::new()
             .estimate(&data, &estimand, &cq, &ExecutionContext::for_tests(2))
             .unwrap();
-        assert!(est.se_analytic.is_finite() && est.se_analytic > 0.0, "se={}", est.se_analytic);
+        assert!(
+            est.se_analytic().is_finite() && est.se_analytic() > 0.0,
+            "se={}",
+            est.se_analytic()
+        );
     }
 
     #[test]
@@ -797,13 +801,13 @@ mod tests {
         let w_bar = fixture["reference"]["modifier_mean"].as_f64().unwrap();
         let w_var_of_mean = (0..n).map(|i| ((i % 7) as f64 - 3.0 - w_bar).powi(2)).sum::<f64>()
             / (n as f64 * (n as f64 - 1.0));
-        let coefficient_part = (actual.se_analytic.powi(2) - b_tw * b_tw * w_var_of_mean).sqrt();
+        let coefficient_part = (actual.se_analytic().powi(2) - b_tw * b_tw * w_var_of_mean).sqrt();
         assert!(
             (coefficient_part - fixture["reference"]["analytic_se"].as_f64().unwrap()).abs()
                 <= tolerance,
             "coefficient-part SE {coefficient_part} vs statsmodels oracle"
         );
-        assert!(actual.se_analytic > coefficient_part, "the modifier-mean term must be added");
+        assert!(actual.se_analytic() > coefficient_part, "the modifier-mean term must be added");
     }
 
     /// Both one-modifier refusals keep their message and name the
@@ -914,10 +918,10 @@ mod tests {
             .estimate_with_arm_scores(&data, &estimand, &cq)
             .unwrap();
         assert_eq!(scores.influence[0].len(), n);
-        assert!(estimate.overlap_report.is_some(), "overlap report missing");
-        assert_eq!(estimate.overlap, crate::propensity::default_propensity_overlap());
+        assert!(estimate.diagnostics.overlap_report.is_some(), "overlap report missing");
+        assert_eq!(estimate.provenance.overlap, crate::propensity::default_propensity_overlap());
         let substituted = crossfit_substitution_record();
-        assert!(estimate.assumptions.entries.iter().any(|r| *r == substituted));
+        assert!(estimate.provenance.assumptions.entries.iter().any(|r| *r == substituted));
         assert!(scores.influence[0].iter().all(|v| v.is_finite()));
         assert!(scores.influence[1].iter().all(|v| v.is_finite()));
         let contrast: Vec<f64> =

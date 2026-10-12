@@ -315,8 +315,8 @@ impl DrLearner {
             &cate,
             retained.as_deref(),
         ));
-        effect.crossfit_folds = Some(self.folds);
-        effect.crossfit_seed = Some(ctx.rng.master_seed());
+        effect.crossfit.folds = Some(self.folds);
+        effect.crossfit.seed = Some(ctx.rng.master_seed());
         if crate::dml::scores_retargetable(problem) {
             effect = effect.with_score_table(Some(crate::dml::aipw_score_table(
                 problem,
@@ -326,8 +326,8 @@ impl DrLearner {
                 "dr_learner",
             )?));
         }
-        effect.learner_provenance.clone_from(&treat.model_provenance);
-        effect.learner_provenance.push(fitted.provenance());
+        effect.crossfit.learner_provenance.clone_from(&treat.model_provenance);
+        effect.crossfit.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
             Ok(predictor) => {
                 let model = crate::FittedEffect {
@@ -337,7 +337,7 @@ impl DrLearner {
                     predictor,
                 };
                 model.validate()?;
-                effect.fitted_effect = Some(Arc::new(model));
+                effect.heterogeneity.fitted_effect = Some(Arc::new(model));
             }
             Err(antecedent_learn::LearnError::Unsupported { .. }) => {}
             Err(error) => return Err(learn_err(error)),
@@ -702,7 +702,7 @@ mod tests {
         let est = DrLearner::new();
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        let cate = effect.cate.as_ref().expect("cate");
+        let cate = effect.heterogeneity.cate.as_ref().expect("cate");
         let mut pairs: Vec<(f64, f64)> =
             z.iter().zip(cate.iter()).map(|(&zi, &c)| (zi, c)).collect();
         pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -711,11 +711,13 @@ mod tests {
         let hi = pairs[3 * pairs.len() / 4..].iter().map(|p| p.1).sum::<f64>()
             / (pairs.len() - 3 * pairs.len() / 4) as f64;
         assert!(hi > lo + 0.2, "cate should rise with z: lo={lo} hi={hi}");
-        let mean_phi = effect.influence.as_ref().map(|p| p.iter().sum::<f64>() / p.len() as f64);
+        let mean_phi =
+            effect.scores.influence.as_ref().map(|p| p.iter().sum::<f64>() / p.len() as f64);
         if let Some(m) = mean_phi {
             assert!(m.abs() < 1e-10, "influence must be centered: {m}");
         }
-        let se = effect.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
+        let se =
+            effect.heterogeneity.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s > 0.0));
     }
@@ -731,8 +733,8 @@ mod tests {
         let prepared = learner.prepare(&data, &estimand, &query).unwrap();
         let effect =
             learner.fit(&prepared, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        let cate = effect.cate.as_ref().expect("pointwise CATE estimates");
-        let se = effect.cate_se.as_ref().expect("linear final-stage CATE inference");
+        let cate = effect.heterogeneity.cate.as_ref().expect("pointwise CATE estimates");
+        let se = effect.heterogeneity.cate_se.as_ref().expect("linear final-stage CATE inference");
         for profile in [-1.0, 0.0, 1.0] {
             let row = z
                 .iter()
@@ -772,7 +774,10 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        assert!(effect.cate.is_some(), "rowwise fitted CATE remains a separate diagnostic");
+        assert!(
+            effect.heterogeneity.cate.is_some(),
+            "rowwise fitted CATE remains a separate diagnostic"
+        );
         let result = &results[0];
         assert_eq!(result.profile.values.as_ref(), &[1.0]);
         assert!(result.control_count > 0 && result.treated_count > 0);
@@ -809,8 +814,8 @@ mod tests {
             DrLearner::new().with_final_learner(LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        assert!(effect.cate.is_some());
-        assert!(effect.cate_se.is_none());
+        assert!(effect.heterogeneity.cate.is_some());
+        assert!(effect.heterogeneity.cate_se.is_none());
     }
 
     #[test]

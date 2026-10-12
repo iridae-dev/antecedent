@@ -32,7 +32,7 @@ use crate::se::{AnalyticSeKind, SeSpec};
 /// unit-dependent. A caliper, when set, is in that standardized Euclidean metric.
 ///
 /// A propensity model is still fit to populate mandatory positivity diagnostics
-/// ([`EffectEstimate::overlap_report`]) and — when the overlap policy sets a trim threshold —
+/// ([`crate::EstimateDiagnostics::overlap_report`]) and — when the overlap policy sets a trim threshold —
 /// to restrict matching to common-support rows; it does not otherwise influence the
 /// covariate-space matched contrast. Positivity is mandatory:
 /// [`OverlapPolicy::ExplicitOverride`] is refused.
@@ -416,13 +416,13 @@ mod tests {
         let effect =
             est.fit(&prep, &mut ws, &ExecutionContext::for_tests(7), AssumptionSet::new()).unwrap();
         assert!(
-            effect.se_bootstrap.is_none(),
+            effect.se_bootstrap().is_none(),
             "NN matching must not store the invalid bootstrap SE"
         );
         assert!(
-            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            effect.se_analytic().is_finite() && effect.se_analytic() > 0.0,
             "se_analytic={}",
-            effect.se_analytic
+            effect.se_analytic()
         );
     }
 }

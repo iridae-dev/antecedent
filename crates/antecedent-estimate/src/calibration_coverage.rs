@@ -433,7 +433,7 @@ fn linear_adjustment_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("linear_adjustment");
 }
@@ -457,7 +457,7 @@ fn linear_adjustment_hc1_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("linear_adjustment_hc1");
 }
@@ -479,14 +479,14 @@ fn ipw_hajek_bootstrap_ci_coverage() {
         est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
     });
     for effect in &effects {
-        let Some(se_b) = effect.se_bootstrap else {
+        let Some(se_b) = effect.se_bootstrap() else {
             // Missing SE is a miss in the coverage rate, not a dropped replicate.
             if let Some((record, _)) = tally.record.as_mut() {
                 record.skip();
             }
             continue;
         };
-        tally.bind(grid_n(500), effect.bootstrap_replicates_ok);
+        tally.bind(grid_n(500), effect.uncertainty.bootstrap.replicates_ok);
         tally.record(effect.ate, se_b, TRUE_ATE);
     }
     tally.assert("ipw_hajek_bootstrap");
@@ -508,7 +508,7 @@ fn ipw_hajek_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(grid_n(500), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     // Grid point 0 (n=250) measured 0.939 at 2000 replicates, 0.001 under the
     // precision floor. Points 1 and 2 pass the nominal band.
@@ -560,7 +560,7 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n, None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     // Grid point 0 measures 0.931 at 8000 replicates (mcse 0.0024, extending a 2000-rep
     // recheck's 0.930): stable, not noise (deviation from nominal holds in MCSE units
@@ -585,7 +585,7 @@ fn aipw_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     // Grid point 0 measures 0.939 at 2000 replicates against the precision floor
     // 0.940 (1878/2000): a named boundary, not a band failure.
@@ -670,16 +670,16 @@ fn penalized_aipw_coverage(
     for effect in &effects {
         if bootstrap_replicates == 0 {
             tally.bind(grid_n(base_n), None);
-            tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+            tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
         } else {
-            let Some(se_b) = effect.se_bootstrap else {
+            let Some(se_b) = effect.se_bootstrap() else {
                 // A withheld SE is a miss in the coverage rate, not a dropped replicate.
                 if let Some((record, _)) = tally.record.as_mut() {
                     record.skip();
                 }
                 continue;
             };
-            tally.bind(grid_n(base_n), effect.bootstrap_replicates_ok);
+            tally.bind(grid_n(base_n), effect.uncertainty.bootstrap.replicates_ok);
             tally.record(effect.ate, se_b, TRUE_ATE);
         }
     }
@@ -814,7 +814,7 @@ fn aipw_residualized_tally(
     });
     for effect in &effects {
         tally.bind(grid_n(600), None);
-        tally.record(effect.ate, effect.se_analytic, truth);
+        tally.record(effect.ate, effect.se_analytic(), truth);
     }
     let _ = label;
     tally
@@ -910,7 +910,7 @@ fn matching_homoskedastic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("matching_ai");
 }
@@ -984,11 +984,11 @@ fn wald_coverage_on(
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
         assert!(
-            !effect.se_analytic.is_finite(),
+            !effect.se_analytic().is_finite(),
             "{label}: Wald SE must not be published (replicate {s})"
         );
-        assert!(effect.se_bootstrap.is_none(), "{label}: bootstrap SE must not be published");
-        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
+        assert!(effect.se_bootstrap().is_none(), "{label}: bootstrap SE must not be published");
+        let diag = effect.diagnostics.first_stage.as_ref().expect("first-stage diagnostics");
         let weak = diag.f_statistic.is_finite() && diag.f_statistic < 10.0;
         let set = if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
             let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
@@ -1127,9 +1127,9 @@ fn two_sls_coverage(
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        assert!(!effect.se_analytic.is_finite(), "{label}: Wald SE must not be published");
-        assert!(effect.se_bootstrap.is_none());
-        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
+        assert!(!effect.se_analytic().is_finite(), "{label}: Wald SE must not be published");
+        assert!(effect.se_bootstrap().is_none());
+        let diag = effect.diagnostics.first_stage.as_ref().expect("first-stage diagnostics");
         let set = if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
             let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
             if interval.is_none()
@@ -1240,7 +1240,7 @@ fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, 
     });
     for effect in &effects {
         tally.bind(grid_n(400), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert(label);
 }
@@ -1335,7 +1335,7 @@ fn frontdoor_functional_coverage(
         let data = frontdoor_functional_scm(grid_n(400), seed + s, discrete);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
-        let recorded = effect.assumptions.entries.iter().any(|r| match &r.assumption {
+        let recorded = effect.provenance.assumptions.entries.iter().any(|r| match &r.assumption {
             antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == model,
             antecedent_core::Assumption::Custom { id, .. } => id.as_ref() == model,
             _ => false,
@@ -1345,7 +1345,7 @@ fn frontdoor_functional_coverage(
     });
     for effect in &effects {
         tally.bind(grid_n(400), None);
-        tally.record(effect.ate, effect.se_analytic, truth);
+        tally.record(effect.ate, effect.se_analytic(), truth);
     }
     tally.assert_boundary_at(label, measured);
 }
@@ -1439,7 +1439,7 @@ fn rd_sharp_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("rd_sharp_analytic");
 }
@@ -1498,7 +1498,7 @@ fn rd_sharp_hc1_curved_heterogeneous_probe() {
             est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
         });
         for effect in &effects {
-            probe.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
+            probe.record(effect.ate, effect.se_analytic(), CUTOFF_EFFECT);
         }
         probe.report(&format!("rd_sharp_hc1_curved_heterogeneous_probe_h{bandwidth}"));
     }
@@ -1531,8 +1531,8 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     });
     for (effect, naive) in &fits {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
-        probe.record(naive.ate, naive.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
+        probe.record(naive.ate, naive.se_analytic(), TRUE_ATE);
     }
     probe.report("rd_sharp_homoskedastic_se_heteroskedastic_probe");
     tally.assert("rd_sharp_hc1_heteroskedastic");
@@ -1588,10 +1588,9 @@ fn score_learner_replicate(
                 unidentified_mass: 0.0,
             },
         );
-        let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some((
-            effect.ate - Z95 * effect.se_analytic,
-            effect.ate + Z95 * effect.se_analytic,
-        ));
+        let interval = (effect.se_analytic().is_finite() && effect.se_analytic() > 0.0).then_some(
+            (effect.ate - Z95 * effect.se_analytic(), effect.ate + Z95 * effect.se_analytic()),
+        );
         tally.record(interval, TRUE_ATE);
     } else {
         *skipped += 1;
@@ -1769,7 +1768,7 @@ fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
         match effect {
             Ok(effect) => {
                 tally.bind(grid_n(500), None);
-                tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+                tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
             }
             Err(_) => tally.skip(),
         }
@@ -1802,7 +1801,7 @@ fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(10 * n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
+        tally.record(effect.ate, effect.se_analytic(), CUTOFF_EFFECT);
     }
     tally.emit_boundary("rd_sharp_hc1_curved_adversarial");
 }
@@ -1835,7 +1834,7 @@ fn matching_coverage_on(
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, truth);
+        tally.record(effect.ate, effect.se_analytic(), truth);
     }
     tally.emit_boundary(label);
 }
@@ -1951,7 +1950,7 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(grid_n(400), None);
-        tally.record(effect.ate, effect.se_analytic, CURVED_TRUTH);
+        tally.record(effect.ate, effect.se_analytic(), CURVED_TRUTH);
     }
     tally.emit_boundary("frontdoor_stacked_hc1_curved_mediator");
 }

@@ -234,13 +234,16 @@ mod tests {
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let point_only = PropensityWeighting { bootstrap_replicates: 0, ..boot.clone() };
         let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(point.se_bootstrap.is_none());
+        assert!(point.se_bootstrap().is_none());
         let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
         assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-        assert_eq!(attached.se_analytic.to_bits(), full.se_analytic.to_bits());
-        assert!(full.se_bootstrap.is_some());
-        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        assert_eq!(attached.se_analytic().to_bits(), full.se_analytic().to_bits());
+        assert!(full.se_bootstrap().is_some());
+        assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+        assert_eq!(
+            attached.uncertainty.bootstrap.replicates_ok,
+            full.uncertainty.bootstrap.replicates_ok
+        );
     }
 
     #[test]
@@ -257,12 +260,15 @@ mod tests {
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let point_only = PropensityStratification { bootstrap_replicates: 0, ..boot.clone() };
         let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(point.se_bootstrap.is_none());
+        assert!(point.se_bootstrap().is_none());
         let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
         assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-        assert!(full.se_bootstrap.is_some());
-        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        assert!(full.se_bootstrap().is_some());
+        assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+        assert_eq!(
+            attached.uncertainty.bootstrap.replicates_ok,
+            full.uncertainty.bootstrap.replicates_ok
+        );
     }
 
     #[test]
@@ -275,8 +281,8 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
-        assert!(effect.overlap_report.is_some());
+        assert!(effect.se_bootstrap().is_some());
+        assert!(effect.diagnostics.overlap_report.is_some());
     }
 
     #[test]
@@ -317,8 +323,8 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        assert!(raw.se_analytic.is_finite() && clean.se_analytic.is_finite());
-        assert!(clean.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
+        assert!(raw.se_analytic().is_finite() && clean.se_analytic().is_finite());
+        assert!(clean.diagnostics.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
     }
 
     #[test]
@@ -347,7 +353,7 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap().is_some());
     }
 
     #[test]
@@ -374,8 +380,8 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
-        assert!(effect.se_bootstrap.is_none());
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        assert!(effect.se_bootstrap().is_none());
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
     }
 
     #[test]
@@ -440,9 +446,9 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
-        assert!(effect.se_bootstrap.is_none());
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
-        assert!(effect.overlap_report.is_some());
+        assert!(effect.se_bootstrap().is_none());
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+        assert!(effect.diagnostics.overlap_report.is_some());
     }
 
     #[test]
@@ -518,7 +524,7 @@ mod tests {
 
         assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed ate={}", raw.ate);
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed ate={}", clean.ate);
-        let report = clean.overlap_report.as_ref().unwrap();
+        let report = clean.diagnostics.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 
@@ -539,7 +545,7 @@ mod tests {
 
         assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed att={}", raw.ate);
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed att={}", clean.ate);
-        let report = clean.overlap_report.as_ref().unwrap();
+        let report = clean.diagnostics.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 
@@ -594,7 +600,7 @@ mod tests {
 
         assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed att={}", raw.ate);
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed att={}", clean.ate);
-        let report = clean.overlap_report.as_ref().unwrap();
+        let report = clean.diagnostics.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 
@@ -694,7 +700,7 @@ mod tests {
             let mut ws = PropensityEstimationWorkspace::default();
             let prep = licensed.prepare(&data, &estimand, &query).unwrap();
             let fit = licensed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-            assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0, "{target:?}");
+            assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0, "{target:?}");
         }
     }
 

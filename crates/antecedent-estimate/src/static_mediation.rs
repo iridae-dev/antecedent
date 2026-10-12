@@ -504,7 +504,7 @@ fn estimate_static_mediation_bayesian_impl(
     )
     .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
     let summaries = draws.summarize();
-    let mut posterior_assumptions = point.effect.assumptions.clone();
+    let mut posterior_assumptions = point.effect.provenance.assumptions.clone();
     posterior_assumptions.entries.extend(mechanism_assumptions.entries);
     posterior_assumptions.push(AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
@@ -568,8 +568,8 @@ fn estimate_static_mediation_bayesian_impl(
         .ok_or_else(|| EstimationError::stats_msg("mediation posterior missing effect column"))?;
     let mut effect = point.effect.clone();
     effect.ate = posterior.summaries.mean[eq];
-    effect.se_analytic = posterior.summaries.sd[eq];
-    effect.assumptions = posterior.assumptions.clone();
+    effect.uncertainty.analytic.se = posterior.summaries.sd[eq];
+    effect.provenance.assumptions = posterior.assumptions.clone();
     Ok((
         TemporalMediationEstimate {
             effect,
@@ -1026,7 +1026,7 @@ mod tests {
                 &ctx,
             )
             .unwrap();
-            assert_eq!(declares(&freq.effect.assumptions), expected, "{contrast:?}");
+            assert_eq!(declares(&freq.effect.provenance.assumptions), expected, "{contrast:?}");
         }
         let q = MediationQuery::binary(
             VariableId::from_raw(0),
@@ -1043,7 +1043,7 @@ mod tests {
             &ctx,
         )
         .unwrap();
-        assert!(declares(&bayes.effect.assumptions) && declares(&posterior.assumptions));
+        assert!(declares(&bayes.effect.provenance.assumptions) && declares(&posterior.assumptions));
     }
 
     /// A rare binary mediator makes some pairs resamples singular (the mediator
@@ -1080,10 +1080,10 @@ mod tests {
         let out =
             estimate_static_mediation(&data, &graph, &query, AssumptionSet::new(), 60, &[], &ctx)
                 .unwrap();
-        let ok = out.effect.bootstrap_replicates_ok.unwrap();
-        let failed = out.effect.bootstrap_replicates_failed.unwrap();
+        let ok = out.effect.uncertainty.bootstrap.replicates_ok.unwrap();
+        let failed = out.effect.uncertainty.bootstrap.replicates_failed.unwrap();
         assert_eq!(ok + failed, 60);
         assert!(failed > 0, "a constant-mediator resample must be counted as failed");
-        assert!(out.effect.se_bootstrap.is_some_and(f64::is_finite));
+        assert!(out.effect.se_bootstrap().is_some_and(f64::is_finite));
     }
 }

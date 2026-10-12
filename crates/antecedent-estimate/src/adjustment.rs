@@ -23,13 +23,18 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
-    LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
-    predict_lasso, ridge_gram_inverse,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, LassoOptions, LeastSquaresWorkspace,
+    MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
+    ridge_gram_inverse,
 };
 
+pub use crate::effect_estimate::{
+    AnalyticSe, BlockResampling, BlockSeRecord, BootstrapAccounting, CandidateSelectionRecord,
+    CrossfitRecord, EffectEstimate, EstimateDiagnostics, EstimateHeterogeneity, EstimateProvenance,
+    EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, ScenarioBand,
+};
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::OverlapPolicy;
 use crate::prepare::{
     require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
 };
@@ -158,448 +163,6 @@ pub struct CheckedAdjustmentLowering {
 pub struct EstimationWorkspace {
     /// OLS scratch.
     pub ols: LeastSquaresWorkspace,
-}
-
-/// Point estimate with uncertainty.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-#[allow(clippy::struct_excessive_bools)]
-pub struct EffectEstimate {
-    /// Reported scalar.
-    ///
-    /// For average-effect claims this is the ATE contrast. For `cell.aipw`
-    /// joint cells it is the requested interventional **level**
-    /// (`E[Y | do(A=a,…)]` or a single-threshold `F_a(c)`), not a contrast.
-    /// Testing this field against zero is only valid when it is a contrast.
-    /// Family p-values on joint cells use [`Self::family_contrast`].
-    pub ate: f64,
-    /// Analytic IID standard error (homoskedastic).
-    pub se_analytic: f64,
-    /// Bootstrap standard error (if requested and enough survivors).
-    pub se_bootstrap: Option<f64>,
-    /// Successful bootstrap replicates when bootstrap was requested.
-    pub bootstrap_replicates_ok: Option<u32>,
-    /// Soft-failed bootstrap replicates when bootstrap was requested.
-    pub bootstrap_replicates_failed: Option<u32>,
-    /// Bootstrap loop observed cooperative cancellation (partial replicates).
-    pub bootstrap_cancelled: bool,
-    /// Adaptive bootstrap early-stop (SE relative change).
-    pub bootstrap_early_stopped: bool,
-    /// Assumptions carried from identification.
-    pub assumptions: AssumptionSet,
-    /// Overlap policy recorded on the artifact.
-    pub overlap: OverlapPolicy,
-    /// Propensity overlap diagnostics when computed.
-    pub overlap_report: Option<OverlapReport>,
-    /// Weak-instrument diagnostic (IV / 2SLS estimators only); `None` for every other
-    /// estimator family. When `f_statistic < 10`, [`Self::se_analytic`] is NaN.
-    pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
-    /// Estimated retained-memory cost of fitted scratch (bytes), when known.
-    pub retained_memory_bytes: Option<u64>,
-    /// Degrees of freedom of the Student-t reference the analytic SE is published with
-    /// (`G - 1` for a cluster-DML result, `min(G_a, G_b) - 1` dyadic); `None` is the normal
-    /// reference.
-    pub se_reference_df: Option<f64>,
-    /// Cross-fitted AIPW score table when the estimator exported one.
-    pub score_table: Option<crate::scores::ScoreTable>,
-    /// Simultaneous score-family bands and target-local support.
-    pub score_inference: Option<crate::scores::ScoreInference>,
-    /// Effects under declared canonical orientation scenarios, in estimand order.
-    pub scenario_effects: Option<Arc<[f64]>>,
-    /// Simultaneous batch interval (lower, upper, level).
-    ///
-    /// Joint-cell batches keep this on cell **levels**. Contrast-family bands
-    /// live on [`Self::family_contrast_interval`].
-    pub simultaneous_interval: Option<(f64, f64, f64)>,
-    /// BH and BY adjusted p-values for the fixed batch family.
-    pub adjusted_p_values: Option<(f64, f64)>,
-    /// Declared family contrast `(value, se)` when batch inference tested a
-    /// contrast rather than [`Self::ate`]. `None` for average-effect claims
-    /// (`ate` is already the contrast) and when no cell contrast was declared.
-    pub family_contrast: Option<(f64, f64)>,
-    /// Simultaneous interval `(lower, upper, level)` for [`Self::family_contrast`].
-    ///
-    /// Formed from contrast-family max-t, not the cell-level covariance used
-    /// by [`Self::simultaneous_interval`]. `None` when no contrast was declared
-    /// or contrast max-t could not form.
-    pub family_contrast_interval: Option<(f64, f64, f64)>,
-    /// Simultaneous intervals for canonical scenarios; not bounds on all completions.
-    pub scenario_intervals: Option<Arc<[(f64, f64)]>>,
-    /// Joint IF covariance across arms / thresholds / cells / claims.
-    pub joint_covariance: Option<crate::joint_if::JointCovariance>,
-    /// Per-threshold `F_a(c) = 1 - P(Y(a) > c)` after monotone rearrangement.
-    pub exceedance_cdf: Option<Arc<[f64]>>,
-    /// `true` when `exceedance_cdf` / grid means were isotonically rearranged.
-    /// Joint covariance and score-inference bands always describe the raw AIPW scores.
-    pub monotone_rearranged: bool,
-    /// Whether an additive joint path makes the interaction contrast structurally zero.
-    pub interaction_structurally_zero: bool,
-    /// Whether the fitted mechanisms on every treatment → outcome path admit no
-    /// effect modification, so the reported per-unit effects are equal by
-    /// construction of the selected mechanism families, not by measurement.
-    pub unit_effects_homogeneous: bool,
-    /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
-    pub influence: Option<Arc<[f64]>>,
-    /// Held-out outcome R².
-    pub outcome_oof_r2: Option<f64>,
-    /// Held-out treatment probability log loss.
-    pub treatment_oof_logloss: Option<f64>,
-    /// Number of nuisance cross-fitting folds.
-    pub crossfit_folds: Option<usize>,
-    /// Master seed used for nuisance cross-fitting.
-    pub crossfit_seed: Option<u64>,
-    /// Actual fitted learner identities, in fold order (control, treated, propensity
-    /// for AIPW; outcome folds then treatment folds for PLR; final CATE fit last).
-    pub learner_provenance: Vec<antecedent_learn::LearnerProvenance>,
-    /// Point E-value for the reported effect when a named no-latent premise is in force.
-    pub evalue: Option<f64>,
-    /// Threshold [`Self::evalue`] was judged against, when it came from an
-    /// E-value refuter that reported a pass/fail verdict. `None` when no refuter
-    /// ran, or when the E-value is an attached premise diagnostic with no gate.
-    pub evalue_threshold: Option<f64>,
-    /// Candidate-selection screen recorded on a batch family (artifact payload).
-    pub candidate_selection: Option<CandidateSelectionRecord>,
-    /// Circular-block geometry of a one-series block-bootstrap SE (the block
-    /// length the estimator chose and the lag-aligned rows it resampled).
-    pub block_resampling: Option<BlockResampling>,
-    /// Observations that actually informed the fit (complete-case / trimmed /
-    /// lag-aligned rows). Distinct from the input snapshot row count.
-    pub n_obs: Option<u64>,
-    /// Analytic SE formula behind [`Self::se_analytic`], recorded by the
-    /// estimator that computed it. `None` when the SE is not an
-    /// estimator-configured analytic kind (influence-function envelopes,
-    /// bootstrap-only paths, posterior summaries).
-    pub se_kind: Option<crate::se::AnalyticSeKind>,
-    /// Circular-block SE family behind a one-series [`Self::se_bootstrap`],
-    /// recorded by the path that ran the circular-block bootstrap.
-    pub block_family: Option<crate::temporal_block::CircularBlockFamily>,
-    /// Per-row CATE when a heterogeneous-effect estimator produced one.
-    pub cate: Option<Arc<[f64]>>,
-    /// Retained portable CATE model, separate from the marginal estimate.
-    pub fitted_effect: Option<Arc<crate::FittedEffect>>,
-    /// Per-row CATE standard errors, when a licensed pointwise formula produced them.
-    ///
-    /// Linear DR-Learner finals use the HC0 sandwich of the orthogonal scores.
-    /// Nonlinear or penalized CATE regressions, and forests (see
-    /// [`Self::cate_leaf_dispersion`]), withhold this field rather than inventing an SE.
-    pub cate_se: Option<Arc<[f64]>>,
-    /// Per-row leaf-dispersion diagnostic of an honest forest: the square root of the
-    /// mean over trees of the two-sample leaf variance of the row's leaf.
-    ///
-    /// This is NOT a standard error. Trees are half-samples of the same rows, so they
-    /// are strongly positively correlated and the tree-averaged CATE does not have this
-    /// variance; `cate ± 1.96·cate_leaf_dispersion` is not a confidence interval.
-    /// Read it as "how noisy the typical honest leaf around this row is".
-    pub cate_leaf_dispersion: Option<Arc<[f64]>>,
-    /// What a penalized propensity (ridge or lasso) or a GLM-to-penalized fallback recorded
-    /// beside the point: the failed GLM fit and the fallback that replaced it, the support a
-    /// lasso kept on each fold, and the refit bootstrap's per-replicate penalties. `None` for
-    /// every other estimator and for an unpenalized AIPW that needed no fallback.
-    pub penalized: Option<Box<crate::propensity::PenalizedReport>>,
-}
-
-/// Bootstrap bookkeeping reported beside a point estimate.
-///
-/// The all-default value means no bootstrap ran: no SE, no replicate counts, not
-/// cancelled and not early-stopped.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct BootstrapAccounting {
-    /// Bootstrap standard error, when requested and enough replicates survived.
-    pub se: Option<f64>,
-    /// Successful replicates when bootstrap was requested.
-    pub replicates_ok: Option<u32>,
-    /// Soft-failed replicates when bootstrap was requested.
-    pub replicates_failed: Option<u32>,
-    /// The loop observed cooperative cancellation (partial replicates).
-    pub cancelled: bool,
-    /// Adaptive early stop (SE relative change).
-    pub early_stopped: bool,
-}
-
-impl BootstrapAccounting {
-    /// Accounting for a run that was cancelled or not, with no bootstrap SE or counts.
-    #[must_use]
-    pub fn cancelled(cancelled: bool) -> Self {
-        Self { cancelled, ..Self::default() }
-    }
-}
-
-/// Circular-block geometry an estimator used for its one-series bootstrap SE.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BlockResampling {
-    /// Circular-block length in lag-aligned rows.
-    pub block_length: usize,
-    /// Lag-aligned rows resampled.
-    pub rows: usize,
-    /// Bartlett kernel-bias factor of the target influence at `block_length`
-    /// (`antecedent_estimate::kernel_bias_scale`), applied to the SE together
-    /// with the fixed-b factor.
-    pub kernel_bias: f64,
-}
-
-/// Screen / estimate split recorded on a batch result artifact.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CandidateSelectionRecord {
-    /// Caller-stable screen run id, or `"unrecorded"`.
-    pub screen_id: Arc<str>,
-    /// Selection rule wire name (`max_t`, `bh`, `by`, `unrecorded`).
-    pub procedure: Arc<str>,
-    /// Winning query index in the supplied family, or `None` when ranking is unavailable.
-    pub winner_index: Option<usize>,
-    /// Family size.
-    pub family_size: usize,
-    /// Row indexes used to screen candidates.
-    pub screen_rows: Arc<[u32]>,
-    /// Row indexes used to estimate the surfaced family.
-    pub estimate_rows: Arc<[u32]>,
-    /// Whether the two halves are disjoint.
-    pub disjoint: bool,
-}
-
-impl EffectEstimate {
-    /// Construct a point estimate without bootstrap accounting.
-    #[must_use]
-    pub fn new(
-        ate: f64,
-        se_analytic: f64,
-        assumptions: AssumptionSet,
-        overlap: OverlapPolicy,
-    ) -> Self {
-        Self {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap,
-            overlap_report: None,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: None,
-            se_reference_df: None,
-            score_table: None,
-            score_inference: None,
-            scenario_effects: None,
-            simultaneous_interval: None,
-            adjusted_p_values: None,
-            family_contrast: None,
-            family_contrast_interval: None,
-            scenario_intervals: None,
-            joint_covariance: None,
-            exceedance_cdf: None,
-            monotone_rearranged: false,
-            interaction_structurally_zero: false,
-            unit_effects_homogeneous: false,
-            influence: None,
-            outcome_oof_r2: None,
-            treatment_oof_logloss: None,
-            crossfit_folds: None,
-            crossfit_seed: None,
-            learner_provenance: Vec::new(),
-            evalue: None,
-            evalue_threshold: None,
-            candidate_selection: None,
-            block_resampling: None,
-            n_obs: None,
-            se_kind: None,
-            block_family: None,
-            cate: None,
-            fitted_effect: None,
-            cate_se: None,
-            cate_leaf_dispersion: None,
-            penalized: None,
-        }
-    }
-
-    /// Record the analysis sample size that produced this interval.
-    #[must_use]
-    pub fn with_n_obs(mut self, n_obs: u64) -> Self {
-        self.n_obs = Some(n_obs);
-        self
-    }
-
-    /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
-    #[must_use]
-    pub fn from_parts(
-        ate: f64,
-        se_analytic: f64,
-        bootstrap: BootstrapAccounting,
-        assumptions: AssumptionSet,
-        overlap: OverlapPolicy,
-        overlap_report: Option<OverlapReport>,
-        retained_memory_bytes: Option<u64>,
-    ) -> Self {
-        Self {
-            ate,
-            se_analytic,
-            se_bootstrap: bootstrap.se,
-            bootstrap_replicates_ok: bootstrap.replicates_ok,
-            bootstrap_replicates_failed: bootstrap.replicates_failed,
-            bootstrap_cancelled: bootstrap.cancelled,
-            bootstrap_early_stopped: bootstrap.early_stopped,
-            assumptions,
-            overlap,
-            overlap_report,
-            first_stage_diagnostics: None,
-            retained_memory_bytes,
-            se_reference_df: None,
-            score_table: None,
-            score_inference: None,
-            scenario_effects: None,
-            simultaneous_interval: None,
-            adjusted_p_values: None,
-            family_contrast: None,
-            family_contrast_interval: None,
-            scenario_intervals: None,
-            joint_covariance: None,
-            exceedance_cdf: None,
-            monotone_rearranged: false,
-            interaction_structurally_zero: false,
-            unit_effects_homogeneous: false,
-            influence: None,
-            outcome_oof_r2: None,
-            treatment_oof_logloss: None,
-            crossfit_folds: None,
-            crossfit_seed: None,
-            learner_provenance: Vec::new(),
-            evalue: None,
-            evalue_threshold: None,
-            candidate_selection: None,
-            block_resampling: None,
-            n_obs: None,
-            se_kind: None,
-            block_family: None,
-            cate: None,
-            fitted_effect: None,
-            cate_se: None,
-            cate_leaf_dispersion: None,
-            penalized: None,
-        }
-    }
-
-    /// Attach a weak-instrument diagnostic (IV / 2SLS estimators only).
-    #[must_use]
-    pub fn with_first_stage_diagnostics(
-        mut self,
-        diagnostics: Option<FirstStageDiagnostics>,
-    ) -> Self {
-        self.first_stage_diagnostics = diagnostics;
-        self
-    }
-
-    /// Attach propensity overlap diagnostics (propensity-based estimators only).
-    #[must_use]
-    pub fn with_overlap_report(mut self, overlap_report: Option<OverlapReport>) -> Self {
-        self.overlap_report = overlap_report;
-        self
-    }
-
-    /// Attach a cross-fitted score table.
-    #[must_use]
-    pub fn with_score_table(mut self, table: Option<crate::scores::ScoreTable>) -> Self {
-        self.score_table = table;
-        self
-    }
-
-    /// Attach joint IF covariance.
-    #[must_use]
-    pub fn with_joint_covariance(mut self, cov: Option<crate::joint_if::JointCovariance>) -> Self {
-        self.joint_covariance = cov;
-        self
-    }
-
-    /// Attach per-threshold CDF values `F_a(c)`.
-    #[must_use]
-    pub fn with_exceedance_cdf(mut self, cdf: Option<Arc<[f64]>>) -> Self {
-        self.exceedance_cdf = cdf;
-        self
-    }
-
-    /// Record whether exceedance means were isotonically rearranged.
-    ///
-    /// When `true`, [`Self::simultaneous_interval`] is cleared: those intervals
-    /// must not mix rearranged means with raw covariance.
-    #[must_use]
-    pub fn with_monotone_rearranged(mut self, rearranged: bool) -> Self {
-        self.monotone_rearranged = rearranged;
-        if rearranged {
-            self.simultaneous_interval = None;
-        }
-        self
-    }
-
-    /// Attach a per-row influence sequence for the reported scalar.
-    #[must_use]
-    pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
-        self.influence = influence;
-        self
-    }
-
-    /// Record the analytic SE formula behind [`Self::se_analytic`].
-    #[must_use]
-    pub fn with_se_kind(mut self, se_kind: crate::se::AnalyticSeKind) -> Self {
-        self.se_kind = Some(se_kind);
-        self
-    }
-
-    /// Attach a per-row CATE (`DrLearner` / `CausalForest`).
-    #[must_use]
-    pub fn with_cate(mut self, cate: Option<Arc<[f64]>>) -> Self {
-        self.cate = cate;
-        self
-    }
-
-    /// Attach licensed per-row CATE standard errors, or withhold them.
-    #[must_use]
-    pub fn with_cate_se(mut self, cate_se: Option<Arc<[f64]>>) -> Self {
-        self.cate_se = cate_se;
-        self
-    }
-
-    /// Attach the forest leaf-dispersion diagnostic (not a standard error).
-    #[must_use]
-    pub fn with_cate_leaf_dispersion(mut self, dispersion: Option<Arc<[f64]>>) -> Self {
-        self.cate_leaf_dispersion = dispersion;
-        self
-    }
-
-    /// Record the circular-block SE family behind a one-series [`Self::se_bootstrap`].
-    #[must_use]
-    pub fn with_block_family(mut self, family: crate::temporal_block::CircularBlockFamily) -> Self {
-        self.block_family = Some(family);
-        self
-    }
-
-    /// Attach the estimated retained-memory cost of fitted scratch (bytes), when known.
-    #[must_use]
-    pub fn with_retained_memory_bytes(mut self, retained_memory_bytes: Option<u64>) -> Self {
-        self.retained_memory_bytes = retained_memory_bytes;
-        self
-    }
-
-    /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).
-    #[must_use]
-    pub fn with_bootstrap(mut self, boot: Option<crate::util::BootstrapSeResult>) -> Self {
-        match boot {
-            None => {
-                self.se_bootstrap = None;
-                self.bootstrap_replicates_ok = None;
-                self.bootstrap_replicates_failed = None;
-                self.bootstrap_cancelled = false;
-                self.bootstrap_early_stopped = false;
-            }
-            Some(b) => {
-                self.se_bootstrap = b.se;
-                self.bootstrap_replicates_ok = Some(b.replicates_ok);
-                self.bootstrap_replicates_failed = Some(b.replicates_failed);
-                self.bootstrap_cancelled = b.cancelled;
-                self.bootstrap_early_stopped = b.early_stopped;
-            }
-        }
-        self
-    }
 }
 
 /// Linear fit family for [`LinearAdjustmentAte`].
@@ -1690,6 +1253,8 @@ mod tests {
     use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
     use antecedent_stats::{form_xtx, invert_square};
 
+    use crate::overlap::OverlapReport;
+
     use super::*;
 
     fn toy() -> (TabularData, IdentifiedEstimand) {
@@ -2016,7 +1581,7 @@ mod tests {
         }
         // The residuals are non-trivial, so the comparison above is not 0 == 0.
         assert!(residuals.iter().any(|e| e.abs() > 0.5));
-        assert_eq!(point.n_obs, Some(n as u64));
+        assert_eq!(point.provenance.n_obs, Some(n as u64));
 
         let ridge = LinearAdjustmentAte {
             fit_kind: LinearFitKind::Ridge { lambda: 1.0 },
@@ -2044,7 +1609,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-8);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap().is_some());
         let identity: Vec<usize> = (0..prep.design.nrows).collect();
         let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
         assert!((resampled - effect.ate).abs() < 1e-12);
@@ -2071,8 +1636,8 @@ mod tests {
         let inv = invert_square(&xtx, p).unwrap();
         let sigma2 = fit.rss / (n - p) as f64;
         let se = (sigma2 * inv[t_col * p + t_col]).sqrt() * prep.treatment_delta.abs();
-        assert_eq!(effect.se_analytic.to_bits(), se.to_bits());
-        let influence = effect.influence.as_ref().unwrap();
+        assert_eq!(effect.se_analytic().to_bits(), se.to_bits());
+        let influence = effect.scores.influence.as_ref().unwrap();
         let row = &inv[t_col * p..(t_col + 1) * p];
         let scale = prep.treatment_delta * n as f64;
         for i in 0..n {
@@ -2156,7 +1721,7 @@ mod tests {
             let effect = est
                 .fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
                 .unwrap();
-            assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0, "{kind:?}");
+            assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0, "{kind:?}");
         }
     }
 
@@ -2200,8 +1765,8 @@ mod tests {
         let effect = no_boot
             .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
             .unwrap();
-        assert!(effect.se_analytic.is_nan(), "lasso se_analytic={}", effect.se_analytic);
-        assert!(effect.se_bootstrap.is_none());
+        assert!(effect.se_analytic().is_nan(), "lasso se_analytic={}", effect.se_analytic());
+        assert!(effect.se_bootstrap().is_none());
 
         let with_boot = LinearAdjustmentAte {
             bootstrap_replicates: 40,
@@ -2211,8 +1776,8 @@ mod tests {
         let effect = with_boot
             .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
             .unwrap();
-        assert!(effect.se_analytic.is_nan());
-        let boot = effect.se_bootstrap.expect("bootstrap SE");
+        assert!(effect.se_analytic().is_nan());
+        let boot = effect.se_bootstrap().expect("bootstrap SE");
         assert!(boot.is_finite() && boot >= 0.0, "se_bootstrap={boot}");
     }
 
@@ -2249,9 +1814,15 @@ mod tests {
             let ols = fit_kind_effect(&data, &estimand, LinearFitKind::Ols, se_kind);
             let hub = fit_kind_effect(&data, &estimand, LinearFitKind::Huber { c: 1e9 }, se_kind);
             assert!((hub.ate - ols.ate).abs() < 1e-8, "{se_kind:?}");
-            let rel = (hub.se_analytic - ols.se_analytic).abs() / ols.se_analytic;
-            assert!(rel < 1e-7, "{se_kind:?}: huber {} ols {}", hub.se_analytic, ols.se_analytic);
-            let (hi, oi) = (hub.influence.as_ref().unwrap(), ols.influence.as_ref().unwrap());
+            let rel = (hub.se_analytic() - ols.se_analytic()).abs() / ols.se_analytic();
+            assert!(
+                rel < 1e-7,
+                "{se_kind:?}: huber {} ols {}",
+                hub.se_analytic(),
+                ols.se_analytic()
+            );
+            let (hi, oi) =
+                (hub.scores.influence.as_ref().unwrap(), ols.scores.influence.as_ref().unwrap());
             for (a, b) in hi.iter().zip(oi.iter()) {
                 assert!((a - b).abs() < 1e-6 * (1.0 + b.abs()));
             }
@@ -2278,10 +1849,10 @@ mod tests {
         );
         assert!((hub.ate - 2.0).abs() < 0.1, "huber ate {}", hub.ate);
         assert!(
-            hub.se_analytic < 0.1 * ols.se_analytic,
+            hub.se_analytic() < 0.1 * ols.se_analytic(),
             "huber se {} vs ols se {}",
-            hub.se_analytic,
-            ols.se_analytic
+            hub.se_analytic(),
+            ols.se_analytic()
         );
     }
 
@@ -2296,9 +1867,10 @@ mod tests {
             LinearFitKind::Ridge { lambda: 0.0 },
             AnalyticSeKind::Homoskedastic,
         );
-        assert!(ridge0.se_analytic.is_nan());
+        assert!(ridge0.se_analytic().is_nan());
         // λ = 0 ridge is OLS, so its influence must be the OLS one.
-        let (ri, oi) = (ridge0.influence.as_ref().unwrap(), ols.influence.as_ref().unwrap());
+        let (ri, oi) =
+            (ridge0.scores.influence.as_ref().unwrap(), ols.scores.influence.as_ref().unwrap());
         for (a, b) in ri.iter().zip(oi.iter()) {
             assert!((a - b).abs() < 1e-6 * (1.0 + b.abs()));
         }
@@ -2309,9 +1881,9 @@ mod tests {
             LinearFitKind::Ridge { lambda: 20.0 },
             AnalyticSeKind::Homoskedastic,
         );
-        assert!(ridge.se_analytic.is_nan());
+        assert!(ridge.se_analytic().is_nan());
         assert!(ridge.ate < ols.ate - 1e-3);
-        let heavy = ridge.influence.as_ref().unwrap();
+        let heavy = ridge.scores.influence.as_ref().unwrap();
         assert!(heavy.iter().zip(oi.iter()).any(|(a, b)| (a - b).abs() > 1e-3));
         let lasso = fit_kind_effect(
             &data,
@@ -2319,8 +1891,8 @@ mod tests {
             LinearFitKind::Lasso { lambda: 1e-4 },
             AnalyticSeKind::Homoskedastic,
         );
-        assert!(lasso.se_analytic.is_nan());
-        assert!(lasso.influence.is_none());
+        assert!(lasso.se_analytic().is_nan());
+        assert!(lasso.scores.influence.is_none());
     }
 
     #[test]

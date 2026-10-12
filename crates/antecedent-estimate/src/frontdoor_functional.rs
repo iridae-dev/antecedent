@@ -706,7 +706,7 @@ mod tests {
     }
 
     fn records(effect: &EffectEstimate, id: &str) -> bool {
-        effect.assumptions.entries.iter().any(|r| match &r.assumption {
+        effect.provenance.assumptions.entries.iter().any(|r| match &r.assumption {
             Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
             Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
             _ => false,
@@ -877,8 +877,8 @@ mod tests {
         let effect =
             fit(&no_bootstrap(FrontDoorOutcomeModel::Auto), &data, &frontdoor_estimand()).unwrap();
         assert!(records(&effect, ARM_LINEAR_ASSUMPTION_ID), "continuous M must select arm-linear");
-        assert!(effect.se_analytic < 0.05, "se={}", effect.se_analytic);
-        assert!((effect.ate - 2.0).abs() < 4.0 * effect.se_analytic, "ate={}", effect.ate);
+        assert!(effect.se_analytic() < 0.05, "se={}", effect.se_analytic());
+        assert!((effect.ate - 2.0).abs() < 4.0 * effect.se_analytic(), "ate={}", effect.ate);
 
         let linear = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
         let prep = linear.prepare(&data, &frontdoor_estimand(), &query()).unwrap();
@@ -903,8 +903,8 @@ mod tests {
         for seed in 0..reps {
             let effect = fit(&est, &draw(1000 + seed), &frontdoor_estimand()).unwrap();
             estimates.push(effect.ate);
-            mean_se += effect.se_analytic / reps as f64;
-            if (effect.ate - truth).abs() <= antecedent_stats::NORMAL_Q975 * effect.se_analytic {
+            mean_se += effect.se_analytic() / reps as f64;
+            if (effect.ate - truth).abs() <= antecedent_stats::NORMAL_Q975 * effect.se_analytic() {
                 covered += 1.0 / reps as f64;
             }
         }
@@ -971,8 +971,8 @@ mod tests {
         let data = binary_scm_draw(3000, 77);
         let est = FrontDoorFunctional::new().with_bootstrap_replicates(400);
         let effect = fit(&est, &data, &frontdoor_estimand()).unwrap();
-        let boot = effect.se_bootstrap.expect("bootstrap SE");
-        let rel = (effect.se_analytic - boot).abs() / boot;
-        assert!(rel < 0.15, "analytic={} boot={boot}", effect.se_analytic);
+        let boot = effect.se_bootstrap().expect("bootstrap SE");
+        let rel = (effect.se_analytic() - boot).abs() / boot;
+        assert!(rel < 0.15, "analytic={} boot={boot}", effect.se_analytic());
     }
 }

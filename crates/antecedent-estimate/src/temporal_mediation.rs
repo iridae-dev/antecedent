@@ -930,7 +930,7 @@ mod tests {
             assert!((actual - expected).abs() <= tolerance, "{field}: {actual} != {expected}");
         }
         assert!(
-            est.effect.se_analytic.is_nan(),
+            est.effect.se_analytic().is_nan(),
             "iid Sobel SE is refused on lagged rows unless allow_iid_sobel_se"
         );
         let with_sobel = TemporalMediationEstimator::new()
@@ -939,9 +939,9 @@ mod tests {
             .unwrap();
         let expected_se = fixture["reference"]["se_mediated_sobel"].as_f64().unwrap();
         assert!(
-            (with_sobel.effect.se_analytic - expected_se).abs() <= tolerance,
+            (with_sobel.effect.se_analytic() - expected_se).abs() <= tolerance,
             "se_mediated_sobel: {} != {expected_se}",
-            with_sobel.effect.se_analytic
+            with_sobel.effect.se_analytic()
         );
         // total = c*delta, direct = c'*delta, mediated = a*b*delta come from three separate
         // OLS fits, but T is identical across the reduced-form and full regressions, so

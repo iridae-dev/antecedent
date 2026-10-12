@@ -497,7 +497,7 @@ impl TemporalLinearAdjustment {
         let fitter = self.point_fitter();
         let mut workspace = EstimationWorkspace::default();
         let mut point = fitter.fit_point(prep, &mut workspace, assumptions)?;
-        point.se_analytic = f64::NAN;
+        point.uncertainty.analytic.se = f64::NAN;
 
         let replicates = self.inner.bootstrap_replicates;
         // The dependence-aware length refits the design for its normal-equation
@@ -505,12 +505,12 @@ impl TemporalLinearAdjustment {
         // interval is published, so the rule length stands in (the diagnostic
         // says so through `replicates_attempted == 0`).
         let block_length = if replicates > 0 {
-            single_window_block_length(prep, indexer, point.influence.as_deref())?
+            single_window_block_length(prep, indexer, point.scores.influence.as_deref())?
         } else {
             let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
             antecedent_data::circular_block_length(structural_span, rows)
         };
-        let target: Vec<&[f64]> = point.influence.as_deref().into_iter().collect();
+        let target: Vec<&[f64]> = point.scores.influence.as_deref().into_iter().collect();
         let kernel_bias = crate::temporal_block::kernel_bias_scale(&target, block_length);
         let boot = (replicates > 0).then(|| {
             let mut x_boot = vec![0.0; rows * prep.design.ncols];
@@ -539,7 +539,7 @@ impl TemporalLinearAdjustment {
             block_length,
             rows,
             effective_rows: crate::temporal_block::score_effective_rows(
-                &point.influence.as_deref().into_iter().collect::<Vec<_>>(),
+                &point.scores.influence.as_deref().into_iter().collect::<Vec<_>>(),
                 block_length,
             ),
             replicates_attempted: boot.as_ref().map_or(0, |b| b.attempted),
@@ -552,7 +552,7 @@ impl TemporalLinearAdjustment {
         let mut estimate = point.with_bootstrap(boot);
         // The geometry the interval resampled, so a check of that interval
         // (`bootstrap.ci_coverage`) can reuse the length instead of re-deriving it.
-        estimate.block_resampling =
+        estimate.uncertainty.block.resampling =
             Some(crate::adjustment::BlockResampling { block_length, rows, kernel_bias });
         Ok((estimate, info))
     }
@@ -574,7 +574,7 @@ impl TemporalLinearAdjustment {
             &mut EstimationWorkspace::default(),
             AssumptionSet::default(),
         )?;
-        single_window_block_length(prep, indexer, point.influence.as_deref())
+        single_window_block_length(prep, indexer, point.scores.influence.as_deref())
     }
 
     /// The OLS point fitter of [`Self::fit_dependence_honest`] (no iid bootstrap or

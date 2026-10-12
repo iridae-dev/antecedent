@@ -191,7 +191,7 @@ impl CausalForest {
         let mut effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
         let model = portable_forest(&trees, problem, p);
         model.validate()?;
-        effect.fitted_effect = Some(Arc::new(model));
+        effect.heterogeneity.fitted_effect = Some(Arc::new(model));
         if hits.iter().any(|&count| count == 0.0) {
             return Err(EstimationError::data_msg(
                 "CausalForest has no honest two-arm estimate for a row; increase tree count or sample size",
@@ -730,15 +730,15 @@ mod tests {
         let est = CausalForest::new().with_n_trees(80).with_max_depth(4).with_min_leaf(8);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ExecutionContext::for_tests(2), AssumptionSet::new()).unwrap();
-        let cate = effect.cate.as_ref().expect("cate");
+        let cate = effect.heterogeneity.cate.as_ref().expect("cate");
         assert_eq!(cate.len(), z.len());
-        let model = effect.fitted_effect.as_ref().expect("portable forest");
+        let model = effect.heterogeneity.fitted_effect.as_ref().expect("portable forest");
         let predicted = model
             .predict(&prep.adjustment_set, &[&z], z.len(), &ExecutionContext::for_tests(2))
             .unwrap();
         assert_eq!(predicted.as_slice(), cate.as_ref());
-        assert!(effect.se_analytic > 0.0);
-        assert!(effect.influence.as_ref().unwrap().iter().sum::<f64>().abs() < 1e-8);
+        assert!(effect.se_analytic() > 0.0);
+        assert!(effect.scores.influence.as_ref().unwrap().iter().sum::<f64>().abs() < 1e-8);
         let mut pairs: Vec<(f64, f64)> =
             z.iter().zip(cate.iter()).map(|(&zi, &c)| (zi, c)).collect();
         pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -746,8 +746,9 @@ mod tests {
         let lo = pairs[..q].iter().map(|p| p.1).sum::<f64>() / q as f64;
         let hi = pairs[3 * q..].iter().map(|p| p.1).sum::<f64>() / (pairs.len() - 3 * q) as f64;
         assert!(hi > lo + 0.15, "cate should rise with z: lo={lo} hi={hi}");
-        assert!(effect.cate_se.is_none(), "a forest publishes no pointwise SE");
-        let se = effect.cate_leaf_dispersion.as_ref().expect("honest leaf dispersion");
+        assert!(effect.heterogeneity.cate_se.is_none(), "a forest publishes no pointwise SE");
+        let se =
+            effect.heterogeneity.cate_leaf_dispersion.as_ref().expect("honest leaf dispersion");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s >= 0.0));
         assert!(se.iter().any(|&s| s > 0.0));

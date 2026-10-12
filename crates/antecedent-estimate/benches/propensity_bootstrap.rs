@@ -104,7 +104,7 @@ fn bench_propensity_bootstrap(c: &mut Criterion) {
         let scratch_ptr = ws.propensity.ols.scratch.as_ptr();
         b.iter(|| {
             let effect = est.fit(black_box(&prep), &mut ws, &ctx, AssumptionSet::new()).unwrap();
-            black_box(effect.se_bootstrap);
+            black_box(effect.se_bootstrap());
             assert_eq!(
                 ws.propensity.ols.grow_count, grows_after_warm,
                 "OLS scratch must not grow across bootstrap fits of fixed n"

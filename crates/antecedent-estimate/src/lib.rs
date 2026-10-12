@@ -38,6 +38,7 @@ pub mod design_compile;
 pub mod dml;
 pub mod dr;
 pub mod effect_constancy;
+pub mod effect_estimate;
 pub mod empirical_table;
 pub mod envelope;
 pub mod error;
@@ -113,9 +114,13 @@ pub mod vector_treatment;
 mod calibration_coverage;
 
 pub use adjustment::{
-    BlockResampling, BootstrapAccounting, CandidateSelectionRecord, CheckedLinearAdjustmentAte,
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
+    CheckedLinearAdjustmentAte, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
     PreparedEstimationProblem,
+};
+pub use effect_estimate::{
+    AnalyticSe, BlockResampling, BlockSeRecord, BootstrapAccounting, CandidateSelectionRecord,
+    CrossfitRecord, EffectEstimate, EstimateDiagnostics, EstimateHeterogeneity, EstimateProvenance,
+    EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, ScenarioBand,
 };
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;

@@ -707,7 +707,7 @@ impl AipwAte {
     /// A penalized propensity (declared, or the destination of a fallback that ran) repeats the
     /// fold plan, the penalty (and lasso support) selection and every nuisance fit on each
     /// resample, and records the penalties each replicate selected in
-    /// [`EffectEstimate::penalized`]. When the point came from a fallback, the replicates run
+    /// [`crate::EstimateDiagnostics::penalized`]. When the point came from a fallback, the replicates run
     /// the destination (the claim is the destination's); when it came from the GLM, they run
     /// the GLM without the fallback, so a failing replicate is counted rather than replaced.
     ///
@@ -1034,37 +1034,39 @@ impl AipwAte {
                 .with_joint_covariance(iid_se.then_some(summary.covariance))
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
-        result.score_inference = iid_se.then_some(inference);
+        result.scores.inference = iid_se.then_some(inference);
         if penalized_route {
             // The penalized route publishes the same cross-fitted scores, influence values and
             // iid / robust SE as the unpenalized one (the interval rests on the remainder
             // condition of `docs/guides/penalized-aipw.md`) and records which nuisances it
             // selected, which fold selected them, and any fallback that replaced a failed fit.
-            result.crossfit_folds = Some(n_folds);
-            result.crossfit_seed = Some(problem.fold_seed);
-            result.learner_provenance = penalized_provenance;
+            result.crossfit.folds = Some(n_folds);
+            result.crossfit.seed = Some(problem.fold_seed);
+            result.crossfit.learner_provenance = penalized_provenance;
         }
         if !report.is_empty() {
-            result.penalized = Some(Box::new(report));
+            result.diagnostics.penalized = Some(Box::new(report));
         }
         if self.cluster_dml.is_some() {
             // The cluster-DML route publishes the cluster-sandwich SE below; the iid
             // covariance and influence values of these scores are not a licensed sampling
             // distribution for it (see `docs/guides/clustered-dml.md`).
-            result.se_analytic = f64::NAN;
-            result.se_kind = None;
-            result.joint_covariance = None;
-            result.score_inference = None;
-            result.influence = None;
-            result.crossfit_folds = Some(n_folds);
-            result.crossfit_seed = Some(problem.fold_seed);
-            result.learner_provenance = selections.into_iter().map(|s| s.provenance).collect();
+            result.uncertainty.analytic.se = f64::NAN;
+            result.uncertainty.analytic.kind = None;
+            result.joint.covariance = None;
+            result.scores.inference = None;
+            result.scores.influence = None;
+            result.crossfit.folds = Some(n_folds);
+            result.crossfit.seed = Some(problem.fold_seed);
+            result.crossfit.learner_provenance =
+                selections.into_iter().map(|s| s.provenance).collect();
             if let Some((se, df)) = cluster_se {
                 // The cluster sandwich replaces the iid standard error; the iid joint
                 // covariance and influence values stay withheld (wrong dependence).
-                result.se_analytic = se;
-                result.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
-                result.se_kind = Some(if self.cluster_ids_second.is_some() {
+                result.uncertainty.analytic.se = se;
+                result.uncertainty.analytic.reference_df =
+                    Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+                result.uncertainty.analytic.kind = Some(if self.cluster_ids_second.is_some() {
                     AnalyticSeKind::Multiway
                 } else {
                     AnalyticSeKind::Cluster
@@ -1135,7 +1137,8 @@ impl AipwAte {
     /// The nuisance configuration a bootstrap replicate runs: the fallback destination when
     /// the point came from a fallback, the declared penalized propensity, or the plain GLM.
     fn replicate_nuisance(&self, point: &EffectEstimate) -> PropensityNuisance {
-        let fell_back = point.penalized.as_ref().is_some_and(|report| report.fallback.is_some());
+        let fell_back =
+            point.diagnostics.penalized.as_ref().is_some_and(|report| report.fallback.is_some());
         if fell_back {
             self.propensity.fallback_destination().unwrap_or_default()
         } else if self.propensity.is_penalized() {
@@ -1234,11 +1237,11 @@ impl AipwAte {
             }
         }
         let boot = crate::util::finalize_bootstrap_se_ex(&ates, attempted, cancelled, false);
-        let influence_se = match point.score_table.as_ref() {
+        let influence_se = match point.scores.table.as_ref() {
             Some(table) => crossfit_influence_se(table)?,
             None => f64::NAN,
         };
-        let mut report = point.penalized.as_deref().cloned().unwrap_or_default();
+        let mut report = point.diagnostics.penalized.as_deref().cloned().unwrap_or_default();
         report.variance = Some(PenalizedVarianceReport {
             uncertainty_kind: REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
             refit_bootstrap_se: boot.se,
@@ -1250,7 +1253,7 @@ impl AipwAte {
             influence_se,
         });
         let mut estimate = point.with_bootstrap(Some(boot));
-        estimate.penalized = Some(Box::new(report));
+        estimate.diagnostics.penalized = Some(Box::new(report));
         Ok(estimate)
     }
 
@@ -1870,11 +1873,15 @@ mod tests {
             .fit(&problem, &mut workspace, &ExecutionContext::for_tests(441), AssumptionSet::new())
             .unwrap();
         assert_eq!(sealed.ate.to_bits(), plain.ate.to_bits());
-        assert_eq!(sealed.se_analytic.to_bits(), plain.se_analytic.to_bits());
-        assert_eq!(sealed.se_bootstrap.map(f64::to_bits), plain.se_bootstrap.map(f64::to_bits));
-        assert!(sealed.score_table.is_none(), "the trimmed fit has no cross-fitted score table");
+        assert_eq!(sealed.se_analytic().to_bits(), plain.se_analytic().to_bits());
+        assert_eq!(sealed.se_bootstrap().map(f64::to_bits), plain.se_bootstrap().map(f64::to_bits));
+        assert!(sealed.scores.table.is_none(), "the trimmed fit has no cross-fitted score table");
         assert!(
-            sealed.overlap_report.as_ref().is_some_and(|report| report.excluded_fraction > 0.0)
+            sealed
+                .diagnostics
+                .overlap_report
+                .as_ref()
+                .is_some_and(|report| report.excluded_fraction > 0.0)
         );
 
         // An estimator whose policy differs from the receipt cannot execute it.
@@ -1901,12 +1908,15 @@ mod tests {
             let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
             let point_only = AipwAte { bootstrap_replicates: 0, ..boot.clone() };
             let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-            assert!(point.se_bootstrap.is_none());
+            assert!(point.se_bootstrap().is_none());
             let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
             assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-            assert!(full.se_bootstrap.is_some());
-            assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-            assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+            assert!(full.se_bootstrap().is_some());
+            assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+            assert_eq!(
+                attached.uncertainty.bootstrap.replicates_ok,
+                full.uncertainty.bootstrap.replicates_ok
+            );
         }
     }
 
@@ -1920,8 +1930,8 @@ mod tests {
         let mut ws = AipwWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
-        assert!(effect.overlap_report.is_some());
+        assert!(effect.se_bootstrap().is_some());
+        assert!(effect.diagnostics.overlap_report.is_some());
     }
 
     #[test]
@@ -2114,7 +2124,7 @@ mod tests {
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let mut ws = AipwWorkspace::default();
             let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-            assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0, "kind={kind:?}");
+            assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0, "kind={kind:?}");
         }
     }
 
@@ -2144,7 +2154,7 @@ mod tests {
 
         assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed ate={}", raw.ate);
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed ate={}", clean.ate);
-        let report = clean.overlap_report.as_ref().unwrap();
+        let report = clean.diagnostics.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 
@@ -2214,8 +2224,8 @@ mod tests {
         let fit = est.fit(&prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new());
         let fit = fit.unwrap();
         let jk = jackknife_se(&t, &y, &z, &est);
-        let rel = (fit.se_analytic - jk).abs() / jk;
-        assert!(rel < 0.15, "analytic {} vs jackknife {jk}", fit.se_analytic);
+        let rel = (fit.se_analytic() - jk).abs() / jk;
+        assert!(rel < 0.15, "analytic {} vs jackknife {jk}", fit.se_analytic());
     }
 
     #[test]
@@ -2239,8 +2249,8 @@ mod tests {
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
             assert_eq!(fit.ate.to_bits(), iid.ate.to_bits(), "{:?}", est.se_kind);
-            assert!(fit.score_table.is_some());
-            assert!(fit.joint_covariance.is_none() && fit.score_inference.is_none());
+            assert!(fit.scores.table.is_some());
+            assert!(fit.joint.covariance.is_none() && fit.scores.inference.is_none());
         }
     }
 

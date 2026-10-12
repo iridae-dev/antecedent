@@ -1070,12 +1070,15 @@ mod tests {
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let point_only = GlmAdjustmentAte { bootstrap_replicates: 0, ..boot.clone() };
         let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(point.se_bootstrap.is_none());
+        assert!(point.se_bootstrap().is_none());
         let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
         assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-        assert!(full.se_bootstrap.is_some());
-        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        assert!(full.se_bootstrap().is_some());
+        assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+        assert_eq!(
+            attached.uncertainty.bootstrap.replicates_ok,
+            full.uncertainty.bootstrap.replicates_ok
+        );
     }
 
     #[test]
@@ -1131,7 +1134,7 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.ate > 0.0, "ate={}", effect.ate);
         assert!(effect.ate < 1.0, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap().is_some());
     }
 
     #[test]
@@ -1256,12 +1259,12 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic > 0.0, "se_analytic={}", effect.se_analytic);
-        let boot = effect.se_bootstrap.unwrap();
+        assert!(effect.se_analytic() > 0.0, "se_analytic={}", effect.se_analytic());
+        let boot = effect.se_bootstrap().unwrap();
         assert!(
-            effect.se_analytic < 3.0 * boot && effect.se_analytic > boot / 3.0,
+            effect.se_analytic() < 3.0 * boot && effect.se_analytic() > boot / 3.0,
             "se_analytic={} se_bootstrap={boot}",
-            effect.se_analytic
+            effect.se_analytic()
         );
     }
 
@@ -1283,7 +1286,7 @@ mod tests {
         // (numerical quadrature); the probit fit approximates it to sampling error at n = 200
         // (SD about 0.05). A constant or sign-flipped effect would miss it.
         assert!((effect.ate - 0.4338).abs() < 0.15, "probit ATE {} vs 0.4338", effect.ate);
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
     }
 
     #[test]
@@ -1337,12 +1340,12 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        assert!(ate.se_analytic.is_finite() && att.se_analytic.is_finite());
+        assert!(ate.se_analytic().is_finite() && att.se_analytic().is_finite());
         assert!(
-            (ate.se_analytic - att.se_analytic).abs() > 1e-8,
+            (ate.se_analytic() - att.se_analytic()).abs() > 1e-8,
             "logit ATT SE must not reuse the ATE gradient; ate_se={} att_se={}",
-            ate.se_analytic,
-            att.se_analytic
+            ate.se_analytic(),
+            att.se_analytic()
         );
     }
 
@@ -1497,6 +1500,6 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
     }
 }

@@ -216,7 +216,7 @@ fn run(est: &AipwAte, raw: &Raw, seed: u64) -> Result<EffectEstimate, Estimation
 }
 
 fn table(estimate: &EffectEstimate) -> &ScoreTable {
-    estimate.score_table.as_ref().expect("the cluster-DML route keeps its score table")
+    estimate.scores.table.as_ref().expect("the cluster-DML route keeps its score table")
 }
 
 fn code_of(error: &EstimationError, code: &str) {
@@ -268,7 +268,7 @@ fn whole_clusters_own_their_folds_and_the_point_recovers_the_truth() {
     }
     assert!(per_fold.iter().all(|&c| c == 12), "{per_fold:?}");
     // The table's folds are the public whole-cluster plan at the recorded seed.
-    let plan = cluster_fold_plan(&raw.cluster, FOLDS, a.crossfit_seed.unwrap()).unwrap();
+    let plan = cluster_fold_plan(&raw.cluster, FOLDS, a.crossfit.seed.unwrap()).unwrap();
     assert_eq!(t.fold_ids.to_vec(), plan);
 
     let again = run(&est, &raw, 5).unwrap();
@@ -322,14 +322,18 @@ fn a_cluster_dml_fit_publishes_the_cluster_sandwich_se_but_no_iid_covariance() {
     let est = declared(&raw, 10);
     let fit = run(&est, &raw, 2).unwrap();
     assert!(fit.ate.is_finite());
-    assert_eq!(fit.se_kind, Some(antecedent_estimate::AnalyticSeKind::Cluster));
+    assert_eq!(fit.uncertainty.analytic.kind, Some(antecedent_estimate::AnalyticSeKind::Cluster));
     let oracle = oracle_cluster_se(table(&fit), &raw.cluster);
-    assert!((fit.se_analytic - oracle).abs() <= 1e-12 * oracle, "{} vs {oracle}", fit.se_analytic);
-    assert!(fit.joint_covariance.is_none());
-    assert!(fit.score_inference.is_none());
-    assert!(fit.influence.is_none());
-    assert_eq!(fit.crossfit_folds, Some(FOLDS));
-    assert!(fit.crossfit_seed.is_some());
+    assert!(
+        (fit.se_analytic() - oracle).abs() <= 1e-12 * oracle,
+        "{} vs {oracle}",
+        fit.se_analytic()
+    );
+    assert!(fit.joint.covariance.is_none());
+    assert!(fit.scores.inference.is_none());
+    assert!(fit.scores.influence.is_none());
+    assert_eq!(fit.crossfit.folds, Some(FOLDS));
+    assert!(fit.crossfit.seed.is_some());
 
     let t = table(&fit);
     // The point is the score-contrast mean exactly.
@@ -632,7 +636,7 @@ fn two_way_components_own_their_folds_and_the_point_recovers_the_truth() {
     // The components are the blocks, named by their smallest first endpoint.
     let na32 = u32::try_from(na).unwrap();
     let units: Vec<u32> = raw.cluster.iter().map(|&c| c / na32 * na32).collect();
-    let plan = cluster_fold_plan(&units, FOLDS, a.crossfit_seed.unwrap()).unwrap();
+    let plan = cluster_fold_plan(&units, FOLDS, a.crossfit.seed.unwrap()).unwrap();
     assert_eq!(t.fold_ids.to_vec(), plan);
     let mut components_per_fold = [0usize; FOLDS];
     let mut seen = std::collections::BTreeSet::new();
@@ -646,9 +650,9 @@ fn two_way_components_own_their_folds_and_the_point_recovers_the_truth() {
     assert!(t.nuisance_provenance.contains(";cluster_dml=unit=dyad;components=30;digest="));
     assert!(provenance_withholds_interval(&t.nuisance_provenance));
     assert_eq!(&ScoreTable::from_wire(t.to_wire()).unwrap(), t);
-    assert_eq!(a.se_kind, Some(antecedent_estimate::AnalyticSeKind::Multiway));
-    assert!(a.se_analytic.is_finite() && a.se_analytic > 0.0 && a.joint_covariance.is_none());
-    assert!(a.score_inference.is_none() && a.influence.is_none());
+    assert_eq!(a.uncertainty.analytic.kind, Some(antecedent_estimate::AnalyticSeKind::Multiway));
+    assert!(a.se_analytic().is_finite() && a.se_analytic() > 0.0 && a.joint.covariance.is_none());
+    assert!(a.scores.inference.is_none() && a.scores.influence.is_none());
 
     let again = run(&est, &raw, 5).unwrap();
     assert_eq!(a.ate.to_bits(), again.ate.to_bits());

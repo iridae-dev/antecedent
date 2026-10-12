@@ -861,7 +861,7 @@ mod tests {
         let prep = est.prepare(&data, &rd_estimand(), &local_query(0.0)).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic < 0.02, "se={}", effect.se_analytic);
+        assert!(effect.se_analytic() < 0.02, "se={}", effect.se_analytic());
         assert!((effect.ate - TAU_AT_CUTOFF).abs() < 0.06, "jump={}", effect.ate);
         assert!((effect.ate - TAU_WINDOW_AVERAGE).abs() > 0.25, "jump={}", effect.ate);
         assert!((effect.ate - TAU_POPULATION).abs() > 5.0, "jump={}", effect.ate);
@@ -984,7 +984,7 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), declared).unwrap();
         let status = |id: &str| {
             effect
-                .assumptions
+                .provenance.assumptions
                 .entries
                 .iter()
                 .find(|r| {
@@ -1015,7 +1015,7 @@ mod tests {
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 3.0).abs() < 0.5, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap().is_some());
     }
 
     /// HC1 is the default analytic SE; the homoskedastic SE is an explicit
@@ -1037,11 +1037,11 @@ mod tests {
         let b = robust.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let c = explicit_hc1.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert_eq!(a.ate.to_bits(), b.ate.to_bits());
-        assert_eq!(b.se_analytic.to_bits(), c.se_analytic.to_bits());
-        assert!(b.se_analytic.is_finite() && b.se_analytic > 0.0);
-        assert!((a.se_analytic - b.se_analytic).abs() > 1e-9);
+        assert_eq!(b.se_analytic().to_bits(), c.se_analytic().to_bits());
+        assert!(b.se_analytic().is_finite() && b.se_analytic() > 0.0);
+        assert!((a.se_analytic() - b.se_analytic()).abs() > 1e-9);
         let declares = |e: &EffectEstimate, id: &str| {
-            e.assumptions.entries.iter().any(|r| {
+            e.provenance.assumptions.entries.iter().any(|r| {
                 matches!(
                     &r.assumption,
                     antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == id

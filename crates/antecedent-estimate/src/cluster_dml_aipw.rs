@@ -11,7 +11,7 @@
 //! cluster-sandwich standard error of the scores (`se_analytic`, also the named
 //! [`ClusterDmlReceipt`]; the derivation and its conditions are in
 //! `docs/guides/clustered-dml.md`), with the few-cluster Student-t reference
-//! (`EffectEstimate::se_reference_df`). A retarget of the table uses the cluster-summed joint
+//! (`EffectEstimate.uncertainty.analytic.reference_df`). A retarget of the table uses the cluster-summed joint
 //! covariance ([`ClusterDml::influence_covariance`]). Its coverage is measured by the
 //! calibration harness, not asserted here. A cluster count below the declared minimum is a
 //! typed refusal.
@@ -485,7 +485,7 @@ pub struct ClusterDmlReceipt {
     pub n_components: Option<usize>,
     /// The few-cluster reference convention `min(G_a, G_b) - 1` (`G - 1` for a cluster
     /// unit): the degrees of freedom a t reference would use. The facade's published interval
-    /// uses this as its Student-t reference (`EffectEstimate::se_reference_df`).
+    /// uses this as its Student-t reference (`EffectEstimate.uncertainty.analytic.reference_df`).
     pub reference_df: usize,
     /// The declared minimum the count satisfied.
     pub min_clusters: usize,

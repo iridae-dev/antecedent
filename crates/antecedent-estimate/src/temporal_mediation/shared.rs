@@ -399,7 +399,7 @@ mod tests {
                 assert!(a > 0.0 && (a - b).abs() < 1e-12 * b.max(1.0), "{a} vs {b}");
             }
             assert_eq!(shared.requested, shared.block.mediated);
-            assert_eq!(single.effect.se_bootstrap, block.mediated);
+            assert_eq!(single.effect.se_bootstrap(), block.mediated);
         }
     }
 

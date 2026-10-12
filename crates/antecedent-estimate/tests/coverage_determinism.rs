@@ -149,8 +149,8 @@ fn analytic_cell_rows(rows: usize, base: u64) -> Fingerprint {
         let prepared = estimator.prepare(&data, &backdoor_z(), &query()).unwrap();
         let mut workspace = EstimationWorkspace::default();
         let effect = estimator.fit(&prepared, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
-        tally.record(normal_interval(effect.ate, Some(effect.se_analytic), Z95), TRUE_ATE);
-        estimates.push((effect.ate.to_bits(), effect.se_analytic.to_bits()));
+        tally.record(normal_interval(effect.ate, Some(effect.se_analytic()), Z95), TRUE_ATE);
+        estimates.push((effect.ate.to_bits(), effect.se_analytic().to_bits()));
     }
     fingerprint(&tally, estimates)
 }
@@ -169,7 +169,11 @@ fn bootstrap_cell(base: u64) -> Fingerprint {
         let prepared = estimator.prepare(&data, &backdoor_z(), &query()).unwrap();
         let mut workspace = PropensityEstimationWorkspace::default();
         let effect = estimator.fit(&prepared, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
-        let se = effect.se_bootstrap.expect("a 12-replicate bootstrap on 120 rows reports an SE");
+        let se = effect
+            .uncertainty
+            .bootstrap
+            .se
+            .expect("a 12-replicate bootstrap on 120 rows reports an SE");
         tally.record(normal_interval(effect.ate, Some(se), Z95), TRUE_ATE);
         estimates.push((effect.ate.to_bits(), se.to_bits()));
     }
@@ -204,7 +208,9 @@ fn bootstrap_coverage_tally_is_reproducible_bit_for_bit() {
                 AssumptionSet::new(),
             )
             .unwrap()
-            .se_bootstrap
+            .uncertainty
+            .bootstrap
+            .se
             .unwrap()
             .to_bits()
     };

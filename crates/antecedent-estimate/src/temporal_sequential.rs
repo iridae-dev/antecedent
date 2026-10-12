@@ -1429,8 +1429,8 @@ fn estimate_sequential(
         None,
         None,
     );
-    effect.influence = influence.map(Arc::from);
-    effect.block_resampling =
+    effect.scores.influence = influence.map(Arc::from);
+    effect.uncertainty.block.resampling =
         Some(crate::adjustment::BlockResampling { block_length, rows: setup.n, kernel_bias });
     Ok((effect, None))
 }

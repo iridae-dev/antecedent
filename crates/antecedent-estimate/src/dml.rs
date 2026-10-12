@@ -242,9 +242,9 @@ impl DmlAte {
                 "dml",
             )?));
         }
-        effect.crossfit_folds = Some(self.folds);
-        effect.crossfit_seed = Some(ctx.rng.master_seed());
-        effect.learner_provenance.clone_from(&treat.model_provenance);
+        effect.crossfit.folds = Some(self.folds);
+        effect.crossfit.seed = Some(ctx.rng.master_seed());
+        effect.crossfit.learner_provenance.clone_from(&treat.model_provenance);
         Ok(effect)
     }
 
@@ -333,12 +333,12 @@ impl DmlAte {
             .with_n_obs(u64::try_from(keep.iter().filter(|&&v| v).count()).unwrap_or(u64::MAX))
             .with_se_kind(AnalyticSeKind::Homoskedastic)
             .with_influence(Some(Arc::from(psi)));
-        effect.crossfit_folds = Some(self.folds);
-        effect.crossfit_seed = Some(ctx.rng.master_seed());
-        effect.outcome_oof_r2 = m.validation.r2;
-        effect.treatment_oof_logloss = e.validation.logloss;
-        effect.learner_provenance = m.model_provenance;
-        effect.learner_provenance.extend(e.model_provenance);
+        effect.crossfit.folds = Some(self.folds);
+        effect.crossfit.seed = Some(ctx.rng.master_seed());
+        effect.crossfit.outcome_oof_r2 = m.validation.r2;
+        effect.crossfit.treatment_oof_logloss = e.validation.logloss;
+        effect.crossfit.learner_provenance = m.model_provenance;
+        effect.crossfit.learner_provenance.extend(e.model_provenance);
         Ok(effect)
     }
 }
@@ -458,8 +458,8 @@ pub(crate) fn finish_dml(
         .with_n_obs(u64::try_from(kept).unwrap_or(u64::MAX))
         .with_se_kind(AnalyticSeKind::Homoskedastic)
         .with_influence(Some(Arc::from(influence)));
-    effect.outcome_oof_r2 = outcome_r2;
-    effect.treatment_oof_logloss = treat_logloss;
+    effect.crossfit.outcome_oof_r2 = outcome_r2;
+    effect.crossfit.treatment_oof_logloss = treat_logloss;
     Ok(effect)
 }
 
@@ -581,7 +581,7 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.overlap_report.is_some());
+        assert!(effect.diagnostics.overlap_report.is_some());
     }
 
     #[test]
@@ -648,10 +648,10 @@ mod tests {
         let mut problem = estimator.prepare(&data, &estimand, &query).unwrap();
         let ctx = ExecutionContext::for_tests(44);
         let first = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
-        assert!(first.outcome_oof_r2.is_some());
-        assert!(first.treatment_oof_logloss.is_some());
-        assert_eq!(first.crossfit_folds, Some(5));
-        assert_eq!(first.crossfit_seed, Some(44));
+        assert!(first.crossfit.outcome_oof_r2.is_some());
+        assert!(first.crossfit.treatment_oof_logloss.is_some());
+        assert_eq!(first.crossfit.folds, Some(5));
+        assert_eq!(first.crossfit.seed, Some(44));
         let again = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
         assert_eq!(first.ate.to_bits(), again.ate.to_bits());
         // Concurrent callers must initialize one shared bundle, not four fits.
@@ -772,8 +772,8 @@ mod tests {
         )
         .unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12);
-        assert_eq!(effect.n_obs, Some(2));
-        assert_eq!(effect.influence.as_deref().unwrap(), &[0.0, -2.0, 2.0, 0.0]);
+        assert_eq!(effect.provenance.n_obs, Some(2));
+        assert_eq!(effect.scores.influence.as_deref().unwrap(), &[0.0, -2.0, 2.0, 0.0]);
     }
 
     fn prepared(n: usize, seed: u64, est: &DmlAte) -> PreparedPropensityProblem {
@@ -800,7 +800,7 @@ mod tests {
         let problem = prepared(300, 21, &est);
         let ctx = ctx();
         let fit = est.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
-        let table = fit.score_table.as_ref().expect("an untrimmed AIPW fit keeps its scores");
+        let table = fit.scores.table.as_ref().expect("an untrimmed AIPW fit keeps its scores");
         assert_eq!(table.n_rows, problem.nrows);
         assert_eq!(table.row_index, problem.row_index);
         assert_eq!(table.adjustment_set, problem.adjustment_set);
@@ -811,11 +811,11 @@ mod tests {
         // Score-mean identity and the iid covariance, both from raw sums in this test.
         let (mean, se) = oracle_se(table);
         assert!((fit.ate - mean).abs() < 1e-10, "{} vs {mean}", fit.ate);
-        assert!((fit.se_analytic - se).abs() < 1e-10, "{} vs {se}", fit.se_analytic);
+        assert!((fit.se_analytic() - se).abs() < 1e-10, "{} vs {se}", fit.se_analytic());
         let summary = table.summarize(None).unwrap();
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0]).unwrap();
         assert!((contrast.value - fit.ate).abs() < 1e-10);
-        assert!((contrast.se - fit.se_analytic).abs() < 1e-10);
+        assert!((contrast.se - fit.se_analytic()).abs() < 1e-10);
         // Fold ids are the nuisance fold plan; the propensity columns are complementary.
         assert_eq!(table.n_folds, 5);
         assert!(table.fold_ids.iter().all(|&f| f < 5));
@@ -828,7 +828,7 @@ mod tests {
         let again = est.score_table(&problem, &ctx).unwrap().unwrap();
         assert_eq!(&again, table);
         let replay = est.fit(&problem, &ExecutionContext::for_tests(7), AssumptionSet::new());
-        assert_eq!(replay.unwrap().score_table.as_ref(), Some(table));
+        assert_eq!(replay.unwrap().scores.table.as_ref(), Some(table));
     }
 
     #[test]
@@ -900,13 +900,15 @@ mod tests {
         // Partially linear: the final stage is a Robinson slope, not an AIPW arm score.
         let plr = DmlAte::new().with_score(DmlScore::PartiallyLinear);
         let problem = prepared(200, 5, &plr);
-        assert!(plr.fit(&problem, &ctx(), AssumptionSet::new()).unwrap().score_table.is_none());
+        assert!(plr.fit(&problem, &ctx(), AssumptionSet::new()).unwrap().scores.table.is_none());
         assert!(plr.score_table(&problem, &ctx()).unwrap().is_none());
         // Trimming redefines the population: the fitted point is a trimmed mean, so no table.
         let mut trimmed = DmlAte::new();
         trimmed.overlap = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.1) };
         let problem = prepared(200, 5, &trimmed);
-        assert!(trimmed.fit(&problem, &ctx(), AssumptionSet::new()).unwrap().score_table.is_none());
+        assert!(
+            trimmed.fit(&problem, &ctx(), AssumptionSet::new()).unwrap().scores.table.is_none()
+        );
         assert!(trimmed.score_table(&problem, &ctx()).unwrap().is_none());
     }
 
@@ -919,7 +921,7 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let prep = dr.prepare(&data, &estimand, &query).unwrap();
         let fit = dr.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
-        let table = fit.score_table.as_ref().expect("DR-Learner keeps the marginal scores");
+        let table = fit.scores.table.as_ref().expect("DR-Learner keeps the marginal scores");
         assert!(table.nuisance_provenance.contains("route=dr_learner"));
         let (mean, _) = oracle_se(table);
         assert!((fit.ate - mean).abs() < 1e-10);
@@ -928,7 +930,7 @@ mod tests {
         let forest = crate::CausalForest::new().with_n_trees(20);
         let forest_prep = forest.prepare(&data, &estimand, &query).unwrap();
         let forest_fit = forest.fit(&forest_prep, &ctx(), AssumptionSet::new()).unwrap();
-        let forest_table = forest_fit.score_table.as_ref().expect("the forest keeps DML scores");
+        let forest_table = forest_fit.scores.table.as_ref().expect("the forest keeps DML scores");
         let (forest_mean, _) = oracle_se(forest_table);
         assert!((forest_fit.ate - forest_mean).abs() < 1e-10);
         assert_eq!(forest.score_table(&forest_prep, &ctx()).unwrap().as_ref(), Some(forest_table));
@@ -973,13 +975,13 @@ mod tests {
                     ),
                 }
                 .unwrap();
-                assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
-                let influence = effect.influence.as_ref().unwrap();
+                assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+                let influence = effect.scores.influence.as_ref().unwrap();
                 assert!(influence.iter().sum::<f64>().abs() < 1e-7);
-                assert!((iid_se(influence) - effect.se_analytic).abs() < 1e-10);
+                assert!((iid_se(influence) - effect.se_analytic()).abs() < 1e-10);
                 covered += usize::from(
                     (effect.ate - truth).abs()
-                        <= antecedent_stats::NORMAL_Q975 * effect.se_analytic,
+                        <= antecedent_stats::NORMAL_Q975 * effect.se_analytic(),
                 );
                 bias += effect.ate - truth;
             }

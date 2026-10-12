@@ -1237,12 +1237,15 @@ pub(crate) mod tests {
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let point_only = FrontDoorTwoStage { bootstrap_replicates: 0, ..boot.clone() };
         let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(point.se_bootstrap.is_none());
+        assert!(point.se_bootstrap().is_none());
         let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
         assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-        assert!(full.se_bootstrap.is_some());
-        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        assert!(full.se_bootstrap().is_some());
+        assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+        assert_eq!(
+            attached.uncertainty.bootstrap.replicates_ok,
+            full.uncertainty.bootstrap.replicates_ok
+        );
     }
 
     #[test]
@@ -1253,8 +1256,8 @@ pub(crate) mod tests {
         let mut ws = FrontDoorWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 6.0).abs() < 0.5, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
-        assert!(effect.se_analytic.is_finite());
+        assert!(effect.se_bootstrap().is_some());
+        assert!(effect.se_analytic().is_finite());
     }
 
     #[test]
@@ -1454,9 +1457,9 @@ pub(crate) mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 11.0).abs() < 0.5, "ate={}", effect.ate);
         assert!(
-            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            effect.se_analytic().is_finite() && effect.se_analytic() > 0.0,
             "se={}",
-            effect.se_analytic
+            effect.se_analytic()
         );
     }
 
@@ -1558,9 +1561,9 @@ pub(crate) mod tests {
         );
 
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        let boot = effect.se_bootstrap.expect("bootstrap SE");
-        let rel = (effect.se_analytic - boot).abs() / boot.max(1e-8);
-        assert!(rel < 0.25, "analytic={} boot={} rel={}", effect.se_analytic, boot, rel);
+        let boot = effect.se_bootstrap().expect("bootstrap SE");
+        let rel = (effect.se_analytic() - boot).abs() / boot.max(1e-8);
+        assert!(rel < 0.25, "analytic={} boot={} rel={}", effect.se_analytic(), boot, rel);
     }
 
     #[test]
@@ -1646,10 +1649,10 @@ pub(crate) mod tests {
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
-        let boot = effect.se_bootstrap.expect("bootstrap SE");
-        let rel = (effect.se_analytic - boot).abs() / boot.max(1e-8);
-        assert!(rel < 0.3, "analytic={} boot={} rel={}", effect.se_analytic, boot, rel);
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+        let boot = effect.se_bootstrap().expect("bootstrap SE");
+        let rel = (effect.se_analytic() - boot).abs() / boot.max(1e-8);
+        assert!(rel < 0.3, "analytic={} boot={} rel={}", effect.se_analytic(), boot, rel);
     }
 
     #[test]
@@ -1786,7 +1789,8 @@ pub(crate) mod tests {
             ..FrontDoorTwoStage::new()
         };
         let mut ws = FrontDoorWorkspace::default();
-        let se1 = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().se_analytic;
+        let se1 =
+            est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().uncertainty.analytic.se;
 
         // Relabel clusters by a fixed permutation of ids.
         for g in &mut groups {
@@ -1798,7 +1802,8 @@ pub(crate) mod tests {
             cluster_ids: Some(Arc::from(groups.as_slice())),
             ..FrontDoorTwoStage::new()
         };
-        let se2 = est2.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().se_analytic;
+        let se2 =
+            est2.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().uncertainty.analytic.se;
         assert!((se1 - se2).abs() < 1e-12, "relabel changed SE: {se1} vs {se2}");
         assert!(se1.is_finite() && se1 > 0.0);
     }
@@ -1857,7 +1862,7 @@ pub(crate) mod tests {
         assert!((effect.ate - truth).abs() > 0.04);
         // The shortcut must therefore say what it assumes.
         assert!(
-            effect.assumptions.entries.iter().any(|r| matches!(
+            effect.provenance.assumptions.entries.iter().any(|r| matches!(
                 &r.assumption,
                 antecedent_core::Assumption::ParametricRestriction(p)
                     if p.id.as_ref() == LINEAR_PATH_PRODUCT_ASSUMPTION_ID

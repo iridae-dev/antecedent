@@ -660,7 +660,7 @@ impl WaldIv {
     /// Compute the Wald ratio (constant effect, or complier LATE; see [`WaldIv`]).
     ///
     /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
-    /// [`EffectEstimate::first_stage_diagnostics`]. Wald analytic and bootstrap
+    /// [`crate::EstimateDiagnostics::first_stage`]. Wald analytic and bootstrap
     /// standard errors are never published.
     ///
     /// # Errors
@@ -1066,7 +1066,7 @@ impl TwoStageLeastSquares {
     /// instrument-weighted complier effect; see the module docs).
     ///
     /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
-    /// [`EffectEstimate::first_stage_diagnostics`]. Wald analytic and bootstrap
+    /// [`crate::EstimateDiagnostics::first_stage`]. Wald analytic and bootstrap
     /// standard errors are never published.
     ///
     /// # Errors
@@ -1336,9 +1336,9 @@ mod tests {
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_none(), "IV must not publish bootstrap SE");
-        assert!(!effect.se_analytic.is_finite(), "IV must not publish Wald SE");
-        let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+        assert!(effect.se_bootstrap().is_none(), "IV must not publish bootstrap SE");
+        assert!(!effect.se_analytic().is_finite(), "IV must not publish Wald SE");
+        let diag = effect.diagnostics.first_stage.as_ref().unwrap();
         let (lo, hi, level) = diag.anderson_rubin.expect("homoskedastic AR set");
         assert_eq!(level, 0.95);
         assert!(lo <= 2.0 && 2.0 <= hi, "AR [{lo}, {hi}]");
@@ -1420,9 +1420,9 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_bootstrap.is_none());
-        assert!(!effect.se_analytic.is_finite());
-        let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+        assert!(effect.se_bootstrap().is_none());
+        assert!(!effect.se_analytic().is_finite());
+        let diag = effect.diagnostics.first_stage.as_ref().unwrap();
         assert!(diag.anderson_rubin.is_some());
         assert!(diag.uncertainty_withheld.is_none());
     }
@@ -1437,7 +1437,7 @@ mod tests {
         let strong_effect =
             est.fit(&strong_prep, &mut strong_ws, &ctx(), AssumptionSet::new()).unwrap();
         let strong_diag =
-            strong_effect.first_stage_diagnostics.expect("2SLS always reports diagnostics");
+            strong_effect.diagnostics.first_stage.expect("2SLS always reports diagnostics");
         assert_eq!(strong_diag.df1, 1);
         assert!(
             strong_diag.f_statistic > 50.0,
@@ -1450,15 +1450,15 @@ mod tests {
         let mut weak_ws = TwoStageLeastSquaresWorkspace::default();
         let weak_effect = est.fit(&weak_prep, &mut weak_ws, &ctx(), AssumptionSet::new()).unwrap();
         let weak_diag =
-            weak_effect.first_stage_diagnostics.expect("2SLS always reports diagnostics");
+            weak_effect.diagnostics.first_stage.expect("2SLS always reports diagnostics");
         assert!(
             weak_diag.f_statistic < 10.0,
             "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
             weak_diag.f_statistic
         );
-        assert!(!weak_effect.se_analytic.is_finite());
-        assert!(weak_effect.se_bootstrap.is_none());
-        assert!(!strong_effect.se_analytic.is_finite());
+        assert!(!weak_effect.uncertainty.analytic.se.is_finite());
+        assert!(weak_effect.uncertainty.bootstrap.se.is_none());
+        assert!(!strong_effect.uncertainty.analytic.se.is_finite());
         match &weak_diag.anderson_rubin {
             Some((lo, hi, level)) => {
                 assert_eq!(*level, 0.95);
@@ -1500,11 +1500,11 @@ mod tests {
         let result = estimator
             .fit_checked(&rebound, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
             .unwrap();
-        let diagnostics = result.first_stage_diagnostics.expect("2SLS reports first stage");
+        let diagnostics = result.diagnostics.first_stage.expect("2SLS reports first stage");
         assert!(diagnostics.f_statistic < 10.0, "F={}", diagnostics.f_statistic);
         assert!(diagnostics.anderson_rubin.is_some() || diagnostics.uncertainty_withheld.is_some());
-        assert!(result.se_bootstrap.is_none());
-        assert!(!result.se_analytic.is_finite());
+        assert!(result.uncertainty.bootstrap.se.is_none());
+        assert!(!result.uncertainty.analytic.se.is_finite());
     }
 
     #[test]
@@ -1515,7 +1515,7 @@ mod tests {
         let strong_prep = est.prepare(&strong_data, &strong_estimand, &query()).unwrap();
         let strong_effect = est.fit(&strong_prep, &ctx(), AssumptionSet::new()).unwrap();
         let strong_diag =
-            strong_effect.first_stage_diagnostics.expect("WaldIv always reports diagnostics");
+            strong_effect.diagnostics.first_stage.expect("WaldIv always reports diagnostics");
         assert_eq!(strong_diag.df1, 1);
         assert!(
             strong_diag.f_statistic > 50.0,
@@ -1527,15 +1527,15 @@ mod tests {
         let weak_prep = est.prepare(&weak_data, &weak_estimand, &query()).unwrap();
         let weak_effect = est.fit(&weak_prep, &ctx(), AssumptionSet::new()).unwrap();
         let weak_diag =
-            weak_effect.first_stage_diagnostics.expect("WaldIv always reports diagnostics");
+            weak_effect.diagnostics.first_stage.expect("WaldIv always reports diagnostics");
         assert!(
             weak_diag.f_statistic < 10.0,
             "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
             weak_diag.f_statistic
         );
-        assert!(!weak_effect.se_analytic.is_finite());
-        assert!(weak_effect.se_bootstrap.is_none());
-        assert!(!strong_effect.se_analytic.is_finite());
+        assert!(!weak_effect.uncertainty.analytic.se.is_finite());
+        assert!(weak_effect.uncertainty.bootstrap.se.is_none());
+        assert!(!strong_effect.uncertainty.analytic.se.is_finite());
         match &weak_diag.anderson_rubin {
             Some((lo, hi, level)) => {
                 assert_eq!(*level, 0.95);
@@ -1592,10 +1592,10 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.6, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_none());
-        assert!(!effect.se_analytic.is_finite());
+        assert!(effect.se_bootstrap().is_none());
+        assert!(!effect.se_analytic().is_finite());
         let (lo, hi, _) =
-            effect.first_stage_diagnostics.as_ref().unwrap().anderson_rubin.expect("AR set");
+            effect.diagnostics.first_stage.as_ref().unwrap().anderson_rubin.expect("AR set");
         assert!(lo <= 2.0 && 2.0 <= hi);
     }
 
@@ -1606,9 +1606,9 @@ mod tests {
             WaldIv { bootstrap_replicates: 20, se_kind: AnalyticSeKind::Hc1, ..WaldIv::new() };
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(!effect.se_analytic.is_finite());
-        assert!(effect.se_bootstrap.is_none());
-        let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+        assert!(!effect.se_analytic().is_finite());
+        assert!(effect.se_bootstrap().is_none());
+        let diag = effect.diagnostics.first_stage.as_ref().unwrap();
         assert!(diag.anderson_rubin.is_none());
         assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
     }
@@ -1628,9 +1628,9 @@ mod tests {
             let (data, estimand) = moderate_binary_iv_scm(n, 90_000 + u64::from(s));
             let prep = est.prepare(&data, &estimand, &query()).unwrap();
             let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
-            assert!(!effect.se_analytic.is_finite());
-            assert!(effect.se_bootstrap.is_none());
-            let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+            assert!(!effect.se_analytic().is_finite());
+            assert!(effect.se_bootstrap().is_none());
+            let diag = effect.diagnostics.first_stage.as_ref().unwrap();
             if diag.f_statistic.is_finite() && diag.f_statistic < 10.0 {
                 weak_f += 1;
             }

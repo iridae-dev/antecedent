@@ -2513,13 +2513,17 @@ mod tests {
             est.prepare(&data, &estimand, &arena, AssumptionSet::default(), &extra).unwrap();
         let mut ews = FunctionalDistributionWorkspace::default();
         let out = est.estimate(&prepared, &mut ews, &ExecutionContext::for_tests(0)).unwrap();
-        assert!(out.bootstrap_replicates_ok.is_none(), "ok={:?}", out.bootstrap_replicates_ok);
         assert!(
-            out.bootstrap_replicates_failed.is_none(),
-            "failed={:?}",
-            out.bootstrap_replicates_failed
+            out.uncertainty.bootstrap.replicates_ok.is_none(),
+            "ok={:?}",
+            out.uncertainty.bootstrap.replicates_ok
         );
-        assert!(out.se_bootstrap.is_none());
+        assert!(
+            out.uncertainty.bootstrap.replicates_failed.is_none(),
+            "failed={:?}",
+            out.uncertainty.bootstrap.replicates_failed
+        );
+        assert!(out.se_bootstrap().is_none());
     }
 
     #[test]
@@ -2785,7 +2789,7 @@ mod tests {
             .unwrap();
         let truth = pin["truth"]["path_specific_effect"].as_f64().unwrap();
         assert!((out.ate - truth).abs() < 1e-9, "ate={} truth={truth}", out.ate);
-        assert!(out.se_bootstrap.is_some_and(|s| s.is_finite() && s > 0.0));
+        assert!(out.se_bootstrap().is_some_and(|s| s.is_finite() && s > 0.0));
     }
 
     /// Each Bayesian draw evaluates the edge g-formula on one reweighted row law:
