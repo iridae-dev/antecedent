@@ -9,7 +9,7 @@ use antecedent_core::{
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
@@ -104,13 +104,15 @@ fn recursive_frontdoor_matches_independent_latent_scm_enumeration() {
                     }
                 }
                 let plan = ExactEvaluationPlan::compile(
-                    functional.arena(),
-                    functional.root(),
+                    ExactEvaluationSpec {
+                        arena: functional.arena(),
+                        root: functional.root(),
+                        outcomes: [v(2)].into(),
+                        request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                        limits: ExactEvaluationLimits::default(),
+                        tolerance: LawTolerance::default(),
+                    },
                     data.clone(),
-                    [v(2)],
-                    Assignment::from_pairs([(v(0), Value::Int64(x))]),
-                    ExactEvaluationLimits::default(),
-                    LawTolerance::default(),
                     &ctx,
                 )
                 .unwrap();
@@ -430,18 +432,9 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             .map(|(_, mass)| *mass)
                             .sum();
                         let plan =
-                            ExactEvaluationPlan::compile(
-                                bound.arena(),
-                                bound.root(),
-                                data.clone(),
-                                [v(outcome)],
-                                Assignment::from_pairs(treatments.iter().enumerate().map(
+                            ExactEvaluationPlan::compile(ExactEvaluationSpec { arena: bound.arena(), root: bound.root(), outcomes: [v(outcome)].into(), request: Assignment::from_pairs(treatments.iter().enumerate().map(
                                     |(j, t)| (v(*t), Value::Int64(((level >> j) & 1) as i64)),
-                                )),
-                                ExactEvaluationLimits::default(),
-                                LawTolerance::default(),
-                                ctx,
-                            )
+                                )), limits: ExactEvaluationLimits::default(), tolerance: LawTolerance::default() }, data.clone(), ctx)
                             .unwrap();
                         let result = plan.evaluate(ctx).unwrap();
                         assert!(
@@ -577,13 +570,15 @@ fn two_population_district_recursion_fails_truth_under_kernel_population_substit
 
     let mean = |laws: Vec<ExactDiscreteLaw>, x: i64| {
         ExactEvaluationPlan::compile(
-            bound.arena(),
-            bound.root(),
+            ExactEvaluationSpec {
+                arena: bound.arena(),
+                root: bound.root(),
+                outcomes: [v(2)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             ExactTransportData::try_new(laws, 1000).unwrap(),
-            [v(2)],
-            Assignment::from_pairs([(v(0), Value::Int64(x))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .and_then(|plan| plan.evaluate(&ctx))
@@ -1147,16 +1142,7 @@ fn four_node_formula_matches_scm(
     let bound = proof.bind_catalog(catalog).map_err(|err| format!("bind: {err}"))?;
     let data = ExactTransportData::try_new(laws, 10_000).map_err(|err| format!("data: {err}"))?;
     for (x, expected_truth) in truth.iter().enumerate() {
-        let result = ExactEvaluationPlan::compile(
-            bound.arena(),
-            bound.root(),
-            data.clone(),
-            [v(3)],
-            Assignment::from_pairs([(v(0), Value::Int64(i64::try_from(x).expect("x is binary")))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
-            ctx,
-        )
+        let result = ExactEvaluationPlan::compile(ExactEvaluationSpec { arena: bound.arena(), root: bound.root(), outcomes: [v(3)].into(), request: Assignment::from_pairs([(v(0), Value::Int64(i64::try_from(x).expect("x is binary")))]), limits: ExactEvaluationLimits::default(), tolerance: LawTolerance::default() }, data.clone(), ctx)
         .and_then(|plan| plan.evaluate(ctx))
         .map_err(|err| format!("evaluate x={x} directed={directed} bidirected={bidirected} selections={selections}: {err}"))?;
         let got = result.mean(v(3)).map_err(|err| format!("mean: {err}"))?;
@@ -1285,13 +1271,15 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
                 }
             }
             let result = ExactEvaluationPlan::compile(
-                functional.arena(),
-                functional.root(),
+                ExactEvaluationSpec {
+                    arena: functional.arena(),
+                    root: functional.root(),
+                    outcomes: [v(3)].into(),
+                    request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                    limits: ExactEvaluationLimits::default(),
+                    tolerance: LawTolerance::default(),
+                },
                 data.clone(),
-                [v(3)],
-                Assignment::from_pairs([(v(0), Value::Int64(x))]),
-                ExactEvaluationLimits::default(),
-                LawTolerance::default(),
                 &ctx,
             )
             .unwrap()
@@ -1426,13 +1414,15 @@ fn four_node_graph_parameter_sweep_matches_target_interventions() {
                         }
                     }
                     let result = ExactEvaluationPlan::compile(
-                        functional.arena(),
-                        functional.root(),
+                        ExactEvaluationSpec {
+                            arena: functional.arena(),
+                            root: functional.root(),
+                            outcomes: [v(3)].into(),
+                            request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                            limits: ExactEvaluationLimits::default(),
+                            tolerance: LawTolerance::default(),
+                        },
                         data.clone(),
-                        [v(3)],
-                        Assignment::from_pairs([(v(0), Value::Int64(x))]),
-                        ExactEvaluationLimits::default(),
-                        LawTolerance::default(),
                         &ctx,
                     )
                     .unwrap()
@@ -1529,16 +1519,18 @@ fn six_node_recursive_districts_match_joint_latent_scm_truth() {
         for x0 in 0..2 {
             for x1 in 0..2 {
                 let result = ExactEvaluationPlan::compile(
-                    functional.arena(),
-                    functional.root(),
+                    ExactEvaluationSpec {
+                        arena: functional.arena(),
+                        root: functional.root(),
+                        outcomes: [v(2), v(5)].into(),
+                        request: Assignment::from_pairs([
+                            (v(0), Value::Int64(x0 as i64)),
+                            (v(3), Value::Int64(x1 as i64)),
+                        ]),
+                        limits: ExactEvaluationLimits { operations: 100_000_000, depth: 256 },
+                        tolerance: LawTolerance::default(),
+                    },
                     data.clone(),
-                    [v(2), v(5)],
-                    Assignment::from_pairs([
-                        (v(0), Value::Int64(x0 as i64)),
-                        (v(3), Value::Int64(x1 as i64)),
-                    ]),
-                    ExactEvaluationLimits { operations: 100_000_000, depth: 256 },
-                    LawTolerance::default(),
                     &ctx,
                 )
                 .unwrap()
@@ -1634,13 +1626,15 @@ fn enlargement_does_not_require_the_child_at_levels_the_data_cannot_reach() {
     let data = ExactTransportData::try_new([law], 1000).unwrap();
     for x in 0..2i64 {
         let plan = ExactEvaluationPlan::compile(
-            functional.arena(),
-            functional.root(),
+            ExactEvaluationSpec {
+                arena: functional.arena(),
+                root: functional.root(),
+                outcomes: [v(2)].into(),
+                request: Assignment::from_pairs([(v(1), Value::Int64(x))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data.clone(),
-            [v(2)],
-            Assignment::from_pairs([(v(1), Value::Int64(x))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -1721,13 +1715,15 @@ fn irrelevant_selection_upstream_of_the_treatment_is_direct_transport_at_the_roo
     let data = ExactTransportData::try_new(laws, 1000).unwrap();
     for x in 0..2i64 {
         let plan = ExactEvaluationPlan::compile(
-            bound.arena(),
-            bound.root(),
+            ExactEvaluationSpec {
+                arena: bound.arena(),
+                root: bound.root(),
+                outcomes: [v(2)].into(),
+                request: Assignment::from_pairs([(v(1), Value::Int64(x))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data.clone(),
-            [v(2)],
-            Assignment::from_pairs([(v(1), Value::Int64(x))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();

@@ -814,7 +814,7 @@ pub(crate) fn compile_exact_z_transport(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
     use antecedent_core::same_intervention_level;
-    use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
+    use antecedent_expr::{EvalError, ExactEvaluationPlan, ExactEvaluationSpec, LawTolerance};
 
     require_treatment_request(functional.treatments(), &request)?;
     // A source factor that exchanged a treatment cites the experiment at the
@@ -844,13 +844,15 @@ pub(crate) fn compile_exact_z_transport(
     // A factor whose exchanged coordinate is bound by an enclosing summation
     // names no single regime; the concrete world selects its law.
     ExactEvaluationPlan::compile(
-        functional.arena(),
-        functional.root(),
+        ExactEvaluationSpec {
+            arena: functional.arena(),
+            root: functional.root(),
+            outcomes: functional.outcomes().clone().into(),
+            request,
+            limits,
+            tolerance: LawTolerance::default(),
+        },
         data.with_world_bound_leaves(functional.cited_regimes()),
-        functional.outcomes().clone(),
-        request,
-        limits,
-        LawTolerance::default(),
         ctx,
     )
 }
@@ -1031,13 +1033,15 @@ pub fn prepare_exact_transport(
     require_treatment_request(&query.treatments, &request)?;
     validate_exact_laws(functional.catalog(), &data)?;
     antecedent_expr::ExactEvaluationPlan::compile(
-        functional.arena(),
-        functional.root(),
+        antecedent_expr::ExactEvaluationSpec {
+            arena: functional.arena(),
+            root: functional.root(),
+            outcomes: query.outcomes.clone().into(),
+            request,
+            limits,
+            tolerance: antecedent_expr::LawTolerance::default(),
+        },
         data,
-        query.outcomes.clone(),
-        request,
-        limits,
-        antecedent_expr::LawTolerance::default(),
         ctx,
     )
 }

@@ -22,7 +22,8 @@ pub use exact::{
     DiscreteAxis, ExactDiscreteLaw, ExactLawError, ExactTransportData, LawOrigin, LawTolerance,
 };
 pub use exact_plan::{
-    ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactSupportRecord,
+    ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactEvaluationSpec,
+    ExactSupportRecord,
 };
 pub mod latex;
 pub mod pretty;

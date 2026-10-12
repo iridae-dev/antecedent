@@ -1104,13 +1104,15 @@ mod tests {
         let root = ratio_form_conditional(&mut arena);
         let ctx = antecedent_core::ExecutionContext::for_tests(0);
         let plan = crate::ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            crate::ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(0))]),
+                limits: crate::ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data,
-            [v(1)],
-            Assignment::from_pairs([(v(0), Value::Int64(0))]),
-            crate::ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -1130,13 +1132,15 @@ mod tests {
         let root = ratio_form_conditional(&mut arena);
         let ctx = antecedent_core::ExecutionContext::for_tests(0);
         let plan = crate::ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            crate::ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(0))]),
+                limits: crate::ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data,
-            [v(1)],
-            Assignment::from_pairs([(v(0), Value::Int64(0))]),
-            crate::ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();

@@ -14,7 +14,8 @@ use antecedent_design::{
 };
 use antecedent_expr::execution_counts::{StaticWorkCounts, count_static_work};
 use antecedent_expr::{
-    Assignment, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData, LawTolerance,
+    Assignment, ExactEvaluationLimits, ExactEvaluationPlan, ExactEvaluationSpec,
+    ExactTransportData, LawTolerance,
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
@@ -438,13 +439,15 @@ pub fn execute(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<ArrivalPoin
             r.assignment.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())),
         );
         let plan = ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: outcomes.clone().into(),
+                request,
+                limits: ExactEvaluationLimits { operations: r.operations, depth: r.depth },
+                tolerance: LawTolerance::default(),
+            },
             data,
-            outcomes.clone(),
-            request,
-            ExactEvaluationLimits { operations: r.operations, depth: r.depth },
-            LawTolerance::default(),
             ctx,
         )
         .map_err(native_error)?;

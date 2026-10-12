@@ -28,7 +28,7 @@ use antecedent_estimate::{
 use antecedent_expr::execution_counts::{StaticWorkCounts, count_static_work};
 use antecedent_expr::{
     Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::sid::{
@@ -572,13 +572,15 @@ fn prepare_shift(
         (v(3), Value::f64(f64::from(sequence[1]))),
     ]);
     let program = ExactEvaluationPlan::compile(
-        proof.arena(),
-        proof.root(),
+        ExactEvaluationSpec {
+            arena: proof.arena(),
+            root: proof.root(),
+            outcomes: Arc::from([v(0), v(4)]),
+            request,
+            limits: ExactEvaluationLimits::default(),
+            tolerance: LawTolerance::default(),
+        },
         laws,
-        Arc::from([v(0), v(4)]),
-        request,
-        ExactEvaluationLimits::default(),
-        LawTolerance::default(),
         ctx,
     )
     .map_err(|error| antecedent_estimate::transport::refuse_eval(&error))?;

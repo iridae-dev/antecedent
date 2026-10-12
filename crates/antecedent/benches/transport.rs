@@ -16,7 +16,7 @@ use antecedent_core::{
 use antecedent_estimate::{EmpiricalTableOptions, RegimeSample, StatisticalTransportInput};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, InterventionAssignment, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, InterventionAssignment, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
@@ -152,13 +152,15 @@ fn evaluate(
     ctx: &ExecutionContext,
 ) {
     let plan = ExactEvaluationPlan::compile(
-        functional.arena(),
-        functional.root(),
+        ExactEvaluationSpec {
+            arena: functional.arena(),
+            root: functional.root(),
+            outcomes: outcomes.into(),
+            request,
+            limits: ExactEvaluationLimits::default(),
+            tolerance: LawTolerance::default(),
+        },
         data,
-        outcomes,
-        request,
-        ExactEvaluationLimits::default(),
-        LawTolerance::default(),
         ctx,
     )
     .unwrap();

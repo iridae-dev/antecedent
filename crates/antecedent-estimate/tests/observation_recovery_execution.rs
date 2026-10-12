@@ -15,7 +15,7 @@ use antecedent_estimate::posterior_mean::{
 use antecedent_estimate::{evaluate_exact_recovery, evaluate_recovered_effect};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
@@ -222,13 +222,15 @@ fn the_recovered_law_feeds_a_backdoor_effect_equal_to_the_complete_data_effect()
             .unwrap()
             .with_world_bound_leaves(vec![model.complete_law().regime()]);
         let plan = ExactEvaluationPlan::compile(
-            identified.arena(),
-            identified.root(),
+            ExactEvaluationSpec {
+                arena: identified.arena(),
+                root: identified.root(),
+                outcomes: vec![v(1)].into(),
+                request: at_level(0, level as f64),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             complete,
-            vec![v(1)],
-            at_level(0, level as f64),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx(),
         )
         .unwrap();

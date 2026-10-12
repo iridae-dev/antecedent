@@ -9,7 +9,7 @@ use antecedent_core::{
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, InterventionAssignment, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, InterventionAssignment, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
@@ -243,13 +243,18 @@ fn ordered_three_node_meta_graphs_match_every_target_atom_and_contrast() {
                             let (_, truth) = enumerate(directed, bidirected, 0, setting, 1, x);
                             let expected = truth[1] + truth[3];
                             let plan = ExactEvaluationPlan::compile(
-                                bound.arena(),
-                                bound.root(),
+                                ExactEvaluationSpec {
+                                    arena: bound.arena(),
+                                    root: bound.root(),
+                                    outcomes: outcomes.clone().into(),
+                                    request: Assignment::from_pairs([(
+                                        v(0),
+                                        Value::Int64(x as i64),
+                                    )]),
+                                    limits: ExactEvaluationLimits::default(),
+                                    tolerance: LawTolerance::default(),
+                                },
                                 data.clone(),
-                                outcomes.clone(),
-                                Assignment::from_pairs([(v(0), Value::Int64(x as i64))]),
-                                ExactEvaluationLimits::default(),
-                                LawTolerance::default(),
                                 &ctx,
                             )
                             .unwrap();

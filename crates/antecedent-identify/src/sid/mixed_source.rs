@@ -2788,7 +2788,8 @@ mod tests {
     fn every_derived_quantity_matches_the_enumerated_model() {
         use antecedent_expr::{
             Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-            ExactTransportData, InterventionAssignment as ExprAssignment, LawTolerance,
+            ExactEvaluationSpec, ExactTransportData, InterventionAssignment as ExprAssignment,
+            LawTolerance,
         };
         let ctx = ExecutionContext::for_tests(1);
         let mut state = 0x5EED_u64;
@@ -2950,13 +2951,15 @@ mod tests {
                         assign.iter().map(|(v, l)| (*v, antecedent_core::Value::Bool(*l == 1))),
                     );
                     let plan = ExactEvaluationPlan::compile(
-                        arena,
-                        step.expression,
+                        ExactEvaluationSpec {
+                            arena,
+                            root: step.expression,
+                            outcomes: y.clone().into(),
+                            request,
+                            limits: ExactEvaluationLimits::default(),
+                            tolerance: LawTolerance::default(),
+                        },
                         data.clone(),
-                        y.clone(),
-                        request,
-                        ExactEvaluationLimits::default(),
-                        LawTolerance::default(),
                         &ctx,
                     )
                     .unwrap_or_else(|e| panic!("{directed:?} {bidirected:?} {label}: {e:?}"));
