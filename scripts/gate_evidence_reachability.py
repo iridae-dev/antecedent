@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-from pathlib import Path
+import json
+import os
 import re
+import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 root = Path(".")
 fail = []
@@ -26,7 +29,9 @@ def referenced(fixture: str) -> bool:
 declared = {}
 unex_path = root / "conformance/UNEXERCISED.toml"
 if unex_path.exists():
-    for entry in tomllib.load(open(unex_path, "rb")).get("unexercised", []):
+    with open(unex_path, "rb") as handle:
+        unexercised = tomllib.load(handle).get("unexercised", [])
+    for entry in unexercised:
         d = entry.get("dir", "")
         if not entry.get("reason") or not entry.get("blocked_on"):
             fail.append(f"UNEXERCISED.toml entry {d!r} missing reason/blocked_on")
@@ -56,7 +61,8 @@ for d in declared:
 
 # ------------------------- 2. unexercised fixtures are not "active evidence"
 # (a) No closed oracle-ledger row may point at one.
-ledger = tomllib.load(open("parity/oracle_closure.toml", "rb"))
+with open("parity/oracle_closure.toml", "rb") as handle:
+    ledger = tomllib.load(handle)
 for method in ledger.get("method", []):
     if method.get("fixture_dir") in declared and method.get("status") == "closed":
         fail.append(
@@ -107,7 +113,8 @@ record_ids = set()
 for p in sorted(root.glob("provenance/*.toml")):
     if p.name == "_template.toml":
         continue
-    d = tomllib.load(open(p, "rb"))
+    with open(p, "rb") as handle:
+        d = tomllib.load(handle)
     fid = d["feature_id"]
     record_ids.add(fid)
     has_field = "implementation_deviations" in d
@@ -141,7 +148,8 @@ for stale in backlog - record_ids:
 licensed_obs = []
 lic_path = root / "parity" / "support_licensed.toml"
 if lic_path.exists():
-    lic = tomllib.load(open(lic_path, "rb"))
+    with open(lic_path, "rb") as handle:
+        lic = tomllib.load(handle)
     for cell in lic.get("cell", []):
         lim = str(cell.get("limitations", ""))
         if "observation_primitives" in lim:
@@ -171,7 +179,6 @@ if licensed_obs:
 # block says so (`generator_retained = false`), so a reader can tell a frozen value
 # that cannot be regenerated from one that can. An external-oracle block with no
 # command at all has no audit trail.
-import json
 
 
 def command_blocks(obj):
@@ -199,19 +206,23 @@ for expected in sorted((root / "conformance").glob("**/expected.json")):
         continue
     for block in command_blocks(document):
         command = block["command"]
+        if "/tmp/" in command and block.get("generator_retained") is not False:
+            fail.append(
+                f"{expected}: command runs a /tmp script but the block does not state "
+                "generator_retained = false; commit the generator or say it is gone"
+            )
         if "/tmp/" in command:
-            if block.get("generator_retained") is not False:
-                fail.append(
-                    f"{expected}: command runs a /tmp script but the block does not state "
-                    "generator_retained = false; commit the generator or say it is gone"
-                )
             continue
         for script in re.findall(r"(?:conformance|scripts)/[\w./-]+\.(?:py|R)", command):
             if not (root / script).is_file():
                 fail.append(f"{expected}: command names {script}, which is not in the repository")
-    if isinstance(document, dict) and isinstance(document.get("oracle"), str):
-        if "command" not in document and "reference" not in document:
-            fail.append(f"{expected}: names an external oracle but records no command")
+    if (
+        isinstance(document, dict)
+        and isinstance(document.get("oracle"), str)
+        and "command" not in document
+        and "reference" not in document
+    ):
+        fail.append(f"{expected}: names an external oracle but records no command")
     # Every `oracle` block says what kind of truth it is, from one closed vocabulary; a
     # frozen output of this library is a regression_pin, never truth.
     if isinstance(document, dict) and "oracle" in document:
@@ -264,9 +275,6 @@ for _fixture, _cited_by in sorted(_kt_cited.items()):
 # its suite, or a cargo filter contained in its name. An orphan is silently never
 # measured while the diagnostics and registries describe the coverage in the
 # present tense.
-import os
-import subprocess
-
 _gate_env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
 _gate_env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
 _dry = subprocess.run(

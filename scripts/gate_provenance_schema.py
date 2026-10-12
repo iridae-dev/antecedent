@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import re
 import sys
 import tomllib
+from pathlib import Path
 
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))

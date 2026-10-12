@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import json
 import re
 import sys
 import tomllib
+from pathlib import Path
 
 root = Path(".")
 fail = []
 
 # ---------------------------------------------------------------- 1. version
 # Canonical: [workspace.package].version in Cargo.toml.
-cargo = tomllib.load(open("Cargo.toml", "rb"))
+with open("Cargo.toml", "rb") as handle:
+    cargo = tomllib.load(handle)
 version = cargo["workspace"]["package"]["version"]
 
-pyproject = tomllib.load(open("python/pyproject.toml", "rb"))
+with open("python/pyproject.toml", "rb") as handle:
+    pyproject = tomllib.load(handle)
 if pyproject["project"]["version"] != version:
     fail.append(
         f"python/pyproject.toml version {pyproject['project']['version']!r} != Cargo.toml {version!r}"
@@ -149,7 +151,8 @@ for path in list(root.glob("crates/**/*.rs")) + list(root.glob("python/**/*.py")
         fail.append(f"{path} still names the workspace 'causal-library' (it is 'antecedent')")
 
 for path in sorted(root.glob("parity/*.toml")):
-    data = tomllib.load(open(path, "rb"))
+    with open(path, "rb") as handle:
+        data = tomllib.load(handle)
     lib = data.get("library")
     if lib is not None and lib != "antecedent":
         fail.append(f"{path} declares library = {lib!r}; expected 'antecedent'")
@@ -160,7 +163,8 @@ DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 for path in sorted(root.glob("provenance/*.toml")):
     if path.name in ("_template.toml",):
         continue
-    data = tomllib.load(open(path, "rb"))
+    with open(path, "rb") as handle:
+        data = tomllib.load(handle)
     fid = data.get("feature_id")
 
     # Duplicate feature_id across files: the gate checked stem==feature_id but
@@ -200,7 +204,8 @@ UPSTREAM = [
     "statsmodels", "pymc", "causal-learn", "lingam", "tigramite", "dowhy",
     "sensemakr", "arviz", "bpbounds",
 ]
-ledger = tomllib.load(open("parity/oracle_closure.toml", "rb"))
+with open("parity/oracle_closure.toml", "rb") as handle:
+    ledger = tomllib.load(handle)
 
 # A closed oracle row is only evidence when an executing conformance test
 # consumes its frozen fixture: a test function (with the helpers it calls) that

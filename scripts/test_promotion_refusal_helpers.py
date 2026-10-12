@@ -1,11 +1,11 @@
 """Strict finite refusal and shared-owner proof regressions."""
 
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import tomllib
 from promotion_source import (
     defensive_carrier_route_problems,
     finite_refusal_helpers,

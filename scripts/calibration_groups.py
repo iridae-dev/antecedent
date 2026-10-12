@@ -63,7 +63,7 @@ import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -174,7 +174,7 @@ def measures(head: str, test_filter: str, rec: dict) -> bool:
     return same_file and test_filter in fn
 
 
-@lru_cache(maxsize=None)
+@cache
 def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
     """Actual Cargo member names and directories, including member globs."""
     workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
@@ -188,7 +188,7 @@ def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
     return tuple(packages)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _suite_owner(root: Path, head: str) -> str | None:
     owners = []
     for package, member in _workspace_packages(root):

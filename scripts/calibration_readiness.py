@@ -13,11 +13,14 @@ from __future__ import annotations
 import argparse
 import collections
 import re
+import tomllib
 from pathlib import Path
 
-import tomllib
-
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _slug(value: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 SUPPORT = ROOT / "parity/support_licensed.toml"
 OUTPUT = ROOT / "parity/calibration_readiness.md"
 
@@ -60,9 +63,8 @@ def calibration_groups() -> list[tuple[str, str]]:
 def candidate_routes(key: tuple[str, str, str, str], groups: list[tuple[str, str]]) -> str:
     """List semantically similar group labels; these are candidates, not proof of fit."""
     query, graph, _structure, inference = key
-    slug = lambda value: re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
-    graph_alias = {"Cpdag": "cpdag", "Pag": "pag", "Admg": "admg"}.get(graph, slug(graph))
-    needles = (slug(query), graph_alias, inference.lower())
+    graph_alias = {"Cpdag": "cpdag", "Pag": "pag", "Admg": "admg"}.get(graph, _slug(graph))
+    needles = (_slug(query), graph_alias, inference.lower())
     labels = [f"{head}: {filter_}" if filter_ else head for head, filter_ in groups]
     candidates = [label for label in labels if all(needle in label.lower() for needle in needles)]
     return "<br>".join(candidates) if candidates else "none (no query/graph/inference candidate group)"
@@ -71,9 +73,8 @@ def candidate_routes(key: tuple[str, str, str, str], groups: list[tuple[str, str
 def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, str]]) -> bool:
     """Whether a semantically matching gate group reaches a record-emitting test."""
     query, graph, structure, inference = key
-    slug = lambda value: re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
-    graph_alias = {"Cpdag": "cpdag", "Pag": "pag", "Admg": "admg"}.get(graph, slug(graph))
-    needles = (slug(query), graph_alias, inference.lower())
+    graph_alias = {"Cpdag": "cpdag", "Pag": "pag", "Admg": "admg"}.get(graph, _slug(graph))
+    needles = (_slug(query), graph_alias, inference.lower())
     for head, test_filter in groups:
         label = f"{head} {test_filter}".lower()
         if not all(needle in label for needle in needles):

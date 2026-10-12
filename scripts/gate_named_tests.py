@@ -102,7 +102,7 @@ if sys.argv[1:] == ["--self-test"]:
 
     def good() -> dict[str, dict]:
         suites: dict[str, dict] = {}
-        for listing, package, target, needle in NAMED:
+        for _listing, package, target, needle in NAMED:
             sid = package if target in ("lib", "*") else f"{package}::{target}"
             kind = "lib" if target in ("lib", "*") else "test"
             suites.setdefault(sid, suite(package, kind, {}))["testcases"][f"m::{needle}_t"] = {"ignored": False}

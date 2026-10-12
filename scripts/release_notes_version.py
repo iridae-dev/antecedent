@@ -7,9 +7,8 @@ package. When it is absent, the workspace package version in ``Cargo.toml`` is
 the fallback. A missing file is not an error.
 """
 
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 notes = Path("docs/release-notes/preparation.toml")
 if notes.is_file():

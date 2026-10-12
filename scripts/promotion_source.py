@@ -383,7 +383,8 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         for i in io_items
         if i.kind == "fn" and i.name == "consume"
     ]
-    arms = lambda text: set(re.findall(r'"([a-z_]+)"\s*=>', text))
+    def arms(text: str) -> set[str]:
+        return set(re.findall(r'"([a-z_]+)"\s*=>', text))
     if (
         len(source) != 1
         or len(consume) != 1

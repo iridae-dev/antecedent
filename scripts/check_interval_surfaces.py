@@ -50,7 +50,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("INTERVAL_SURFACES_ROOT", REPO))
 sys.path.insert(0, str(REPO / "scripts"))
-from promotion_source import closure_code  # noqa: E402  (the one reader of test bodies for the gates)
+from promotion_source import (  # noqa: E402  (the one reader of test bodies for the gates)
+    closure_code,
+)
 
 NOMINAL = "estimator_grid_not_measured"
 # Closed reasons an interval or an aggregate can be refused with; their refusal tests are the

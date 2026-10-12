@@ -8,11 +8,10 @@ designs must still cover diagnostics inside point-only records.
 from __future__ import annotations
 
 import argparse
+import tomllib
 from collections import Counter
 from copy import deepcopy
 from pathlib import Path
-
-import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "parity/support_licensed.toml"

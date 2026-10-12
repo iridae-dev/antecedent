@@ -11,9 +11,8 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 

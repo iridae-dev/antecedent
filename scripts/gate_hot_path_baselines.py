@@ -97,7 +97,6 @@ def registry_problems(data: dict | None = None) -> list[str]:
             problems.append(f"{REGISTRY.as_posix()}: baseline row is not a table")
             continue
         bid = rec.get("id")
-        label = bid if isinstance(bid, str) and bid else "<missing id>"
         if not isinstance(bid, str) or not bid:
             problems.append(f"{REGISTRY.as_posix()}: baseline record missing id")
             continue

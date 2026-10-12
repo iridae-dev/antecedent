@@ -13,10 +13,10 @@ import re
 import shutil
 import subprocess
 import sys
-import tomllib
 import time
+import tomllib
 from collections import defaultdict
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 root = Path(sys.argv[1]).resolve()
@@ -107,7 +107,7 @@ def child_module_dir(test_rel: str) -> Path:
     return path.with_suffix("")
 
 
-@lru_cache(maxsize=None)
+@cache
 def rust_listing(crate: str, target: tuple[str, ...], ignored: bool = False):
     command = ["cargo", "test", "-p", crate, *target, "--", "--list"]
     if ignored:

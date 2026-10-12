@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import re
 from pathlib import Path
+
 text = Path("Cargo.toml").read_text(encoding="utf-8")
 m = re.search(r"(?ms)^\[workspace\.package\]\n(.*?)(?=\n\[|\Z)", text)
 if not m:

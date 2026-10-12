@@ -19,7 +19,7 @@ for name in files:
     target = any(part in f"/{name}" for part in TARGETS)
     for m in ATTR.finditer(text):
         body = m.group("body")
-        named = [l for l in LINTS if re.search(rf"\b(?:clippy::)?{l}\b", body)]
+        named = [lint for lint in LINTS if re.search(rf"\b(?:clippy::)?{lint}\b", body)]
         if not named:
             continue
         line = text.count("\n", 0, m.start()) + 1

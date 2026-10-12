@@ -67,8 +67,8 @@ Environment: DECISION_EXIT_ROOT (tree to read, default the repo).
 
 from __future__ import annotations
 
-import json
 import argparse
+import json
 import os
 import re
 import sys

@@ -1,7 +1,6 @@
 """Strict evidence for stateless measured factories with retained native source replay."""
 
 import ast
-
 import tomllib
 
 CONTRACTS = {

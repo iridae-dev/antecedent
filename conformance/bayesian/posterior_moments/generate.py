@@ -172,7 +172,8 @@ def nelder_mead(f, x0):
             break
         centroid = np.mean([v for v, _ in simplex[:dim]], axis=0)
         worst, f_worst = simplex[dim]
-        point = lambda coef: centroid + coef * (centroid - worst)
+        def point(coef, centroid=centroid, worst=worst):
+            return centroid + coef * (centroid - worst)
         reflected = point(1.0)
         fr = f(reflected)
         if fr < simplex[0][1]:
@@ -281,7 +282,7 @@ def tempering(x, y, directions):
     ratios, df_loss, scale = kappa_terms(z, x, weights)
     taus = kappa_log_sd(z, x, y, weights)
     best = None
-    for wt, ratio, tau in zip(weights, ratios, taus):
+    for wt, ratio, tau in zip(weights, ratios, taus, strict=True):
         hac, _, score_order = score_hac_ratio(wt * resid, rows)
         unbounded = scale * ratio * np.exp(0.5 * tau * tau)
         bound = HAC_BOUND * hac * fb**2
@@ -303,7 +304,8 @@ def mediation_tempering(x_m, y_m, x_o, y_o):
     (e_1 + a_hat e_2) gradients, kappa the largest (a_hat the OLS mediator slope).
     """
     a_hat = np.linalg.lstsq(x_m, y_m, rcond=None)[0][1]
-    unit = lambda p, entries: np.array([entries.get(i, 0.0) for i in range(p)])
+    def unit(p, entries):
+        return np.array([entries.get(i, 0.0) for i in range(p)])
     mediator = tempering(x_m, y_m, [unit(x_m.shape[1], {1: 1.0})])
     cols = x_o.shape[1]
     outcome = tempering(x_o, y_o, [unit(cols, d) for d in ({1: 1.0}, {2: 1.0}, {1: 1.0, 2: a_hat})])

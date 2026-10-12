@@ -5,7 +5,6 @@ from pathlib import Path
 
 from verify_wheel_matrix import problems
 
-
 with tempfile.TemporaryDirectory() as temp:
     root = Path(temp)
     for minor in (11, 12, 13, 14):

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import json, sys
+import json
+import sys
 from pathlib import Path
+
 tmp = Path(sys.argv[1])
 green = json.loads((tmp / "green.json").read_text(encoding="utf-8"))
 def write(name, payload):

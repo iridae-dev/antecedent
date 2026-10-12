@@ -5,9 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "parity/support_graphless.toml"

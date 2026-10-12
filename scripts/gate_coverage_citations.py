@@ -8,7 +8,8 @@ from pathlib import Path
 
 root = Path(".")
 tests_dir = root / "crates/antecedent/tests"
-lic = tomllib.load(open(root / "parity/support_licensed.toml", "rb"))
+with open(root / "parity/support_licensed.toml", "rb") as handle:
+    lic = tomllib.load(handle)
 
 # ------------------------------------------------ test functions per module
 FN_RE = re.compile(r"^\s*(?:pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*[<(]", re.M)

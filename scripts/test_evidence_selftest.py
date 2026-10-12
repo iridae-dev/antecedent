@@ -250,7 +250,9 @@ def main() -> int:
             estimators = [f"e{i}" for i in range(len(assertions))]
             return {
                 "estimators": estimators,
-                "checked_execution": [checked_entry(e, a) for e, a in zip(estimators, assertions)],
+                "checked_execution": [
+                    checked_entry(e, a) for e, a in zip(estimators, assertions, strict=True)
+                ],
             }
 
         cases = [

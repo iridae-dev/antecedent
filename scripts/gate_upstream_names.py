@@ -5,11 +5,11 @@ Scans code and TOML only. Hand-written markdown is not read, so rewording
 CONTRIBUTING, ROADMAP, SECURITY, or a file under docs/guides cannot fail
 this gate.
 """
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 root = Path(".")
 allowlist_path = root / "parity/upstream_name_allowlist.toml"
@@ -109,9 +109,7 @@ def rule_matches(path: str, name: str, rule: dict) -> bool:
     if "path_contains" in rule and rule["path_contains"].lower() not in path.lower():
         return False
     any_of = rule.get("path_contains_any")
-    if any_of is not None and not any(item.lower() in path.lower() for item in any_of):
-        return False
-    return True
+    return any_of is None or any(item.lower() in path.lower() for item in any_of)
 
 
 def allowed(path: Path, spec: dict) -> bool:
@@ -141,9 +139,12 @@ for raw_path in tracked:
     parts = set(path.parts)
     if parts & skip_dirs:
         continue
-    if any(p.startswith(".") and p not in {".github"} for p in path.parts if p != "."):
-        if ".github" not in path.parts and any(p.startswith(".") for p in path.parts[1:]):
-            continue
+    if (
+        any(p.startswith(".") and p not in {".github"} for p in path.parts if p != ".")
+        and ".github" not in path.parts
+        and any(p.startswith(".") for p in path.parts[1:])
+    ):
+        continue
     if path.suffix.lower() not in spec["suffixes"]:
         continue
     if allowed(path, spec):

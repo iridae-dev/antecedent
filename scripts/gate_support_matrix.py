@@ -41,9 +41,12 @@ def regression_pin_problem(fixture: str, inference: str) -> str | None:
         oracle = json.loads(path.read_text(encoding="utf-8")).get("oracle")
     except (OSError, ValueError):
         return None
-    if isinstance(oracle, dict) and oracle.get("kind") == "regression_pin":
-        if inference not in (oracle.get("independent_inferences") or []):
-            return (
+    if (
+        isinstance(oracle, dict)
+        and oracle.get("kind") == "regression_pin"
+        and inference not in (oracle.get("independent_inferences") or [])
+    ):
+        return (
                 f"known_truth_fixture {fixture} is a regression_pin fixture (frozen output of "
                 f"this library) and lists no independent {inference} reference; the cell is "
                 "evidence_kind = regression_pin, not known truth"
@@ -185,7 +188,7 @@ if unknown_extras:
         "parity/support_axes.toml graph_classes has extras that are not "
         f"GraphClass or tier-rule axes: {sorted(unknown_extras)}"
     )
-if not TIER_EXTRAS <= set(graph_classes):
+if not set(graph_classes) >= TIER_EXTRAS:
     fail.append(
         "parity/support_axes.toml graph_classes must include "
         f"{sorted(TIER_EXTRAS)} (classification-only tier-rule axes)"
@@ -545,11 +548,12 @@ _truthful = {
     if c.get("evidence_kind") in _truth_kinds
 }
 for row in cells:
-    if row.get("evidence_kind") in {"internal_cross_check", "regression_pin"} and not row.get(
-        "calibration"
+    if (
+        row.get("evidence_kind") in {"internal_cross_check", "regression_pin"}
+        and not row.get("calibration")
+        and (row.get("query"), row.get("inference")) not in _truthful
     ):
-        if (row.get("query"), row.get("inference")) not in _truthful:
-            fail.append(
+        fail.append(
                 f"{row.get('query')}/{row.get('graph_class')}/{row.get('structure')}/"
                 f"{row.get('inference')}/{row.get('validation')}: {row.get('evidence_kind')} with no "
                 "calibration and no known-truth sibling cell of the same query and inference "

@@ -213,7 +213,7 @@ def shared_table() -> list[dict]:
         counts[key] = counts.get(key, 0) + 1
     common = math.gcd(*counts.values())
     return [
-        {**{k: float(v) for k, v in zip(SHARED_COLUMNS, key)}, "count": n // common}
+        {**{k: float(v) for k, v in zip(SHARED_COLUMNS, key, strict=True)}, "count": n // common}
         for key, n in sorted(counts.items())
     ]
 

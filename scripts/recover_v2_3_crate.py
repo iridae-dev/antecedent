@@ -6,9 +6,8 @@ import argparse
 import json
 import os
 import subprocess
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 REPOSITORY = "iridae-dev/antecedent"
 TAG = "v2.3.0"

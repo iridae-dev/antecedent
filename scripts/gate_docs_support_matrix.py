@@ -26,7 +26,8 @@ for rel in DOCS:
 # optional changelog paraphrase.  Verify that their refusal section accounts
 # for every root query with zero licensed cells; otherwise a newly added root
 # query (or a removed license) can leave the release notes silently stale.
-cargo = tomllib.load(open(root / "Cargo.toml", "rb"))
+with open(root / "Cargo.toml", "rb") as handle:
+    cargo = tomllib.load(handle)
 version = cargo["workspace"]["package"]["version"]
 # Optional. Absent means the workspace package version; only a present file
 # with an invalid target_version is an error.
@@ -50,10 +51,10 @@ else:
         fail.append(f"{notes_path}: missing {refusal_heading!r}")
     else:
         refusal_text = notes.split(refusal_heading, 1)[1].split("\n## ", 1)[0]
-        axes = tomllib.load(open(root / "parity/support_axes.toml", "rb"))
-        licensed = tomllib.load(open(root / "parity/support_licensed.toml", "rb")).get(
-            "cell", []
-        )
+        with open(root / "parity/support_axes.toml", "rb") as handle:
+            axes = tomllib.load(handle)
+        with open(root / "parity/support_licensed.toml", "rb") as handle:
+            licensed = tomllib.load(handle).get("cell", [])
         licensed_queries = {row["query"] for row in licensed}
         zero_cell_queries = set(axes["queries"]) - licensed_queries
         for query in sorted(zero_cell_queries):

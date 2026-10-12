@@ -86,7 +86,11 @@ def _is_binary_open(node: ast.Call) -> bool:
 def _helper_module_names(tree: ast.AST) -> set[str]:
     names: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module in {"_repo", "scripts._repo", "_repo_text"}:
+        if isinstance(node, ast.ImportFrom) and node.module in {
+            "_repo",
+            "scripts._repo",
+            "_repo_text",
+        }:
             for alias in node.names:
                 if alias.name == "*" or alias.name in _HELPER_FUNCS:
                     names.add(alias.asname or alias.name)
@@ -117,8 +121,10 @@ def _text_io_offenders(path: Path, root: Path) -> list[str]:
                 continue
             found.append(f"{path.relative_to(root)}:{node.lineno}")
             continue
-        if isinstance(func, ast.Name) and func.id == "open" or (
-            isinstance(func, ast.Attribute) and func.attr == "open"
+        if (
+            isinstance(func, ast.Name)
+            and func.id == "open"
+            or (isinstance(func, ast.Attribute) and func.attr == "open")
         ):
             if _is_binary_open(node):
                 continue

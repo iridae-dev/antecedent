@@ -106,7 +106,7 @@ def mixture(d, atoms, fit):
     weights = np.asarray([a["weight"] for a in atoms], dtype=float)
     weights /= weights.sum()
     effects, phi = [], np.zeros(n)
-    for w, atom in zip(weights, atoms):
+    for w, atom in zip(weights, atoms, strict=True):
         est, psi = fit(atom["adjustment_set"])
         effects.append(est)
         phi += w * psi

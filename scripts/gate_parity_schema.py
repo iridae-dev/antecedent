@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import json
 import re
 import sys
 import tomllib
+from pathlib import Path
 
 root = Path(".")
 
@@ -61,7 +61,8 @@ EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 # reader gate_evidence_reachability.sh uses).
 baseline_versions = {}
 for path in sorted(root.glob("parity/baselines/*.toml")):
-    baseline = tomllib.load(open(path, "rb"))
+    with open(path, "rb") as handle:
+        baseline = tomllib.load(handle)
     project = str(baseline.get("project", "")).lower()
     if not project:
         continue
@@ -212,11 +213,12 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
         elif row.get("smoke_fixture") is not None:
             problems.append(f"{rel}: {label} smoke_fixture is only legal on implementation_exists")
 
-        if fixture is not None:
-            if not isinstance(fixture, str) or not (root / fixture).exists():
-                problems.append(
-                    f"{rel}: {label} known_truth_fixture {fixture!r} does not exist"
-                )
+        if fixture is not None and (
+            not isinstance(fixture, str) or not (root / fixture).exists()
+        ):
+            problems.append(
+                f"{rel}: {label} known_truth_fixture {fixture!r} does not exist"
+            )
 
         if kind in EXTERNAL_KINDS:
             if not isinstance(oracle, str) or not oracle.strip():

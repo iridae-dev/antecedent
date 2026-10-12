@@ -52,9 +52,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("INTERVAL_COORDINATES_ROOT", REPO))
@@ -656,11 +655,10 @@ def check() -> dict:
             )
             scoped_routes.add(name)
             row = stage_rows.get(name)
-            if status == "licensed" and row is not None:
-                if row.get("calibration_reason") == NOMINAL or NOMINAL in json.dumps(
-                    row
-                ):
-                    errors.append(
+            if status == "licensed" and row is not None and (
+                row.get("calibration_reason") == NOMINAL or NOMINAL in json.dumps(row)
+            ):
+                errors.append(
                         f"{rid}: licensed route {name} has a transport_stages row carrying {NOMINAL}"
                     )
             if status == "licensed" and route.get("registry") == "support_licensed":
@@ -921,7 +919,6 @@ inference_claim = "point_only"
 surface = ["python/antecedent/synth_inherited.py"]
 inherited_interval_fields = ["interval"]
 """
-        b_record = synth_records
         promo = base / "parity/promotion.toml"
         promo.parent.mkdir(parents=True, exist_ok=True)
         promo.write_text("version = 1\n" + synth_records, encoding="utf-8", newline="\n")

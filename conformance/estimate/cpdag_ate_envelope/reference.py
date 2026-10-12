@@ -62,7 +62,7 @@ def envelope(pin: dict, atoms: list[dict]) -> tuple[float, float, list[float]]:
     weights = weights / weights.sum()
     effects = []
     phi = np.zeros(n)
-    for w, atom in zip(weights, atoms):
+    for w, atom in zip(weights, atoms, strict=True):
         tau, psi = completion_fit(data, t, y, atom["adjustment_set"])
         effects.append(tau)
         phi += w * psi

@@ -7,12 +7,12 @@ allocator measurements live in the companion native-release.json report.
 import importlib.util
 import json
 import os
-from pathlib import Path
 import platform
 import resource
 import statistics
 import time
 import tracemalloc
+from pathlib import Path
 
 import antecedent as ac
 from antecedent.prediction import FittedEffectModel

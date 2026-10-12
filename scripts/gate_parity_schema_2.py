@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import json
 import re
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 root = Path(".")
 print_counts = "--print-counts" in sys.argv
@@ -37,7 +37,7 @@ for path in sorted(root.glob("parity/*.toml")):
     except tomllib.TOMLDecodeError as exc:
         problems.append(f"{path}: {exc}")
         continue
-    def walk(obj):
+    def walk(obj, path=path):
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if key in applies_fields and isinstance(value, str) and value.strip():
@@ -285,7 +285,7 @@ if cr.is_file():
         role = str(rec["role"])
         boundary = bool(rec["boundary"])
 
-        def nominal_pass(point: dict) -> bool:
+        def nominal_pass(point: dict, nominal=nominal) -> bool:
             lo, hi, floor, ceiling = _band(nominal, int(point["replicates"]))
             observed = float(point["observed"])
             # The harness reruns a point that shortfalls the level by more than
@@ -303,7 +303,7 @@ if cr.is_file():
                 return False
             return lo <= observed <= hi
 
-        def one_sided_pass(point: dict) -> bool:
+        def one_sided_pass(point: dict, nominal=nominal) -> bool:
             # A one-sided (at least nominal) target: the lower edge of the band and,
             # from PRECISION_N_SIM, the precision floor; no upper band and no ceiling,
             # since over-coverage is what a conservative interval claims
@@ -337,7 +337,10 @@ if cr.is_file():
             continue
         if [int(p["point"]) for p in grid] != list(range(collector.GRID_POINTS)):
             problems.append(f"{label}: grid points must be 0..{collector.GRID_POINTS - 1} in order")
-        if any(int(lo["n_max"]) >= int(hi["n_min"]) for lo, hi in zip(grid, grid[1:])):
+        if any(
+            int(lo["n_max"]) >= int(hi["n_min"])
+            for lo, hi in zip(grid, grid[1:], strict=False)
+        ):
             problems.append(f"{label}: grid sample sizes must strictly increase point to point")
         if (int(rec["n_min"]), int(rec["n_max"])) != (
             min(int(p["n_min"]) for p in grid),
@@ -633,7 +636,8 @@ problems.extend(f"external evidence: {p}" for p in external_evidence.check())
 
 # Identity-only migrations cannot rewrite their original measurements or become
 # active merely because a metadata status is changed.
-import calibration_key_aliases
+import calibration_key_aliases  # noqa: E402  (scripts/ is on sys.path above)
+
 try:
     calibration_key_aliases.validated_aliases(root)
 except (ValueError, KeyError, StopIteration, OSError, subprocess.CalledProcessError) as exc:

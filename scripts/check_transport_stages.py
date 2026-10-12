@@ -1,9 +1,9 @@
 """Validate the transport stage registry independently of the analyze axes."""
 
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
 from test_evidence import (
     checked_execution_body_problems,
     closure,
