@@ -219,6 +219,19 @@ impl ExprListId {
     }
 }
 
+/// The coordinates of a distribution leaf before population and regime tagging.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct DistributionLeaf {
+    /// Variables in the factor.
+    pub variables: VarSetId,
+    /// Conditioning set.
+    pub conditioned_on: VarSetId,
+    /// Intervention set (empty for observational).
+    pub intervention: InterventionSetId,
+    /// Domain.
+    pub domain: DomainRef,
+}
+
 /// Semantic expression node (no derivation metadata).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ExprNode {
@@ -579,20 +592,14 @@ impl CausalExprArena {
     /// # Errors
     ///
     /// [`ExprError::RegimeDomainMismatch`] when `regime_kind` disagrees with `domain`.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "mirrors the fields of ExprNode::Distribution plus its regime check, one call per distribution leaf"
-    )]
     pub fn intern_distribution_tagged(
         &mut self,
-        variables: VarSetId,
-        conditioned_on: VarSetId,
-        intervention: InterventionSetId,
-        domain: DomainRef,
+        leaf: DistributionLeaf,
         population: impl Into<Arc<str>>,
         regime: Option<RegimeId>,
         regime_kind: Option<DomainRef>,
     ) -> Result<ExprId, ExprError> {
+        let DistributionLeaf { variables, conditioned_on, intervention, domain } = leaf;
         if let (Some(_), Some(kind)) = (regime, regime_kind) {
             if kind != domain {
                 return Err(ExprError::RegimeDomainMismatch);

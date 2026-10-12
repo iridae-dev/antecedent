@@ -351,6 +351,7 @@ fn collect_leaves(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DistributionLeaf;
 
     #[test]
     fn kernel_parameters_are_free_and_rename_with_the_body() {
@@ -383,10 +384,12 @@ mod tests {
         let leaf = |arena: &mut CausalExprArena, vars, given, population: &str| {
             arena
                 .intern_distribution_tagged(
-                    vars,
-                    given,
-                    none,
-                    DomainRef::Observational,
+                    DistributionLeaf {
+                        variables: vars,
+                        conditioned_on: given,
+                        intervention: none,
+                        domain: DomainRef::Observational,
+                    },
                     population,
                     regime,
                     None,

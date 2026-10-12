@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 use antecedent_expr::{
-    CausalExprArena, DerivationMeta, DomainRef, ExprId, ExprNode, OutcomeExprId,
+    CausalExprArena, DerivationMeta, DistributionLeaf, DomainRef, ExprId, ExprNode, OutcomeExprId,
 };
 
 use crate::transport::{PopulationFactor, TransportCertificate, TransportFormula};
@@ -128,10 +128,7 @@ fn lower_factor(
     };
     let dist = arena
         .intern_distribution_tagged(
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
+            DistributionLeaf { variables, conditioned_on, intervention, domain },
             Arc::clone(&factor.population),
             factor.regime,
             None,
@@ -302,10 +299,12 @@ mod tests {
         let empty_i = arena.empty_intervention_set();
         let err = arena
             .intern_distribution_tagged(
-                empty,
-                empty,
-                empty_i,
-                DomainRef::Observational,
+                DistributionLeaf {
+                    variables: empty,
+                    conditioned_on: empty,
+                    intervention: empty_i,
+                    domain: DomainRef::Observational,
+                },
                 "trial",
                 Some(RegimeId::from_raw(1)),
                 Some(DomainRef::Interventional),
@@ -322,10 +321,12 @@ mod tests {
         let empty_i = arena.empty_intervention_set();
         let a = arena
             .intern_distribution_tagged(
-                y,
-                empty,
-                empty_i,
-                DomainRef::Observational,
+                DistributionLeaf {
+                    variables: y,
+                    conditioned_on: empty,
+                    intervention: empty_i,
+                    domain: DomainRef::Observational,
+                },
                 "target",
                 Some(RegimeId::from_raw(1)),
                 Some(DomainRef::Observational),
@@ -333,10 +334,12 @@ mod tests {
             .unwrap();
         let b = arena
             .intern_distribution_tagged(
-                y,
-                empty,
-                empty_i,
-                DomainRef::Observational,
+                DistributionLeaf {
+                    variables: y,
+                    conditioned_on: empty,
+                    intervention: empty_i,
+                    domain: DomainRef::Observational,
+                },
                 "target",
                 Some(RegimeId::from_raw(2)),
                 Some(DomainRef::Observational),

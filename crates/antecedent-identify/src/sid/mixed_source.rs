@@ -106,7 +106,9 @@ use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, ExecutionContext, LawOrigin, RegimeId, RegimeKind,
     SamplingSelection, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
 };
-use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode, LeafBinding};
+use antecedent_expr::{
+    CausalExprArena, DistributionLeaf, DomainRef, ExprId, ExprNode, LeafBinding,
+};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
 
 use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
@@ -871,10 +873,7 @@ fn build_expression(
             };
             arena
                 .intern_distribution_tagged(
-                    variables,
-                    conditioned_on,
-                    intervention,
-                    domain,
+                    DistributionLeaf { variables, conditioned_on, intervention, domain },
                     target,
                     Some(leaf.regime),
                     Some(domain),

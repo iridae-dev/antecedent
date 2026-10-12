@@ -4,9 +4,9 @@
 
 use antecedent_core::{RegimeId, Value, VariableId};
 use antecedent_expr::{
-    CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, FunctionalProgram,
-    InterventionAssignment, InterventionSetId, OutcomeExprId, ProgramLimits, ProgramSchema,
-    ProgramVariable, VarSetId,
+    CausalExprArena, ContrastOp, DistributionLeaf, DomainRef, ExprId, ExprListId, ExprNode,
+    FunctionalProgram, InterventionAssignment, InterventionSetId, OutcomeExprId, ProgramLimits,
+    ProgramSchema, ProgramVariable, VarSetId,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -454,10 +454,12 @@ fn intern_node_from_wire(arena: &mut CausalExprArena, n: &ExprNodeWire) -> Resul
             let domain = parse_domain(domain)?;
             arena
                 .intern_distribution_tagged(
-                    VarSetId::from_raw(*variables),
-                    VarSetId::from_raw(*conditioned_on),
-                    InterventionSetId::from_raw(*intervention),
-                    domain,
+                    DistributionLeaf {
+                        variables: VarSetId::from_raw(*variables),
+                        conditioned_on: VarSetId::from_raw(*conditioned_on),
+                        intervention: InterventionSetId::from_raw(*intervention),
+                        domain,
+                    },
                     population.as_str(),
                     regime.map(RegimeId::from_raw),
                     None,
@@ -581,10 +583,12 @@ mod tests {
         let intervention = arena.empty_intervention_set();
         let conditional = arena
             .intern_distribution_tagged(
-                ys,
-                xs,
-                intervention,
-                DomainRef::Observational,
+                DistributionLeaf {
+                    variables: ys,
+                    conditioned_on: xs,
+                    intervention,
+                    domain: DomainRef::Observational,
+                },
                 "trial",
                 Some(RegimeId::from_raw(4)),
                 None,
@@ -593,10 +597,12 @@ mod tests {
         let kernel = arena.intern_kernel(conditional, xs, "derived", None);
         let marginal = arena
             .intern_distribution_tagged(
-                xs,
-                empty,
-                intervention,
-                DomainRef::Observational,
+                DistributionLeaf {
+                    variables: xs,
+                    conditioned_on: empty,
+                    intervention,
+                    domain: DomainRef::Observational,
+                },
                 "target",
                 Some(RegimeId::from_raw(5)),
                 None,
@@ -762,10 +768,12 @@ mod tests {
         let empty_i = arena.empty_intervention_set();
         let body = arena
             .intern_distribution_tagged(
-                y,
-                z,
-                empty_i,
-                DomainRef::Observational,
+                DistributionLeaf {
+                    variables: y,
+                    conditioned_on: z,
+                    intervention: empty_i,
+                    domain: DomainRef::Observational,
+                },
                 "source",
                 Some(RegimeId::from_raw(3)),
                 Some(DomainRef::Observational),
