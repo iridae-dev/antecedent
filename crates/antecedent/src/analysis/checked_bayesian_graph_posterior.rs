@@ -33,6 +33,10 @@ pub(crate) struct CheckedBayesianGraphPosteriorAte {
 }
 
 impl CheckedBayesianGraphPosteriorAte {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed Bayesian graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         target: GraphPosteriorEffectTarget,

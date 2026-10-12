@@ -67,6 +67,10 @@ impl StaticClassIdentification {
 }
 
 impl CheckedStaticClassEffect {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn prepare(
         graph: StaticClassGraph,
         query: AverageEffectQuery,
@@ -298,6 +302,10 @@ impl CheckedGraphPosteriorEffect {
     ///
     /// Rejects unsupported graph classes, estimator choices, malformed query
     /// bindings, and identification caches from another atom/weight ensemble.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         target: GraphPosteriorEffectTarget,

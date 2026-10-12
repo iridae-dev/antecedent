@@ -225,6 +225,10 @@ pub(crate) struct CheckedStaticDagResponseOperation {
 
 impl CheckedStaticDagResponseOperation {
     /// Check and retain an explicit or accepted static DAG response route.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed DAG response, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn checked(
         graph: &Dag,
         query: &ResponseQuery,

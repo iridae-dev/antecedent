@@ -42,6 +42,10 @@ impl CheckedGraphPosteriorResponse {
     /// the complete-observation mean response family, a validation suite the
     /// family does not license, a procedure that does not match the inference
     /// mode, or a cache that does not describe the frozen posterior.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed graph-posterior response, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         query: ResponseQuery,

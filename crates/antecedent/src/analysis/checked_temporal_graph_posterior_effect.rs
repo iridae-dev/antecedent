@@ -78,6 +78,10 @@ impl CheckedTemporalGraphPosteriorEffect {
                 .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed temporal graph-posterior effect, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
         query: TemporalEffectQuery,

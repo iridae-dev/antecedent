@@ -53,6 +53,10 @@ impl StudyBuilder {
     /// coordinate schema; invalid query, catalog or laws; or a request that fails
     /// for every completion. A budget or cancellation stop is not an error: it
     /// comes back in the report's receipt.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "public preparation entry point: the completion input, coordinates, query, evidence, search budget, laws, request and limits are each a premise of the preparation"
+    )]
     pub fn cpdag_completion_scenarios(
         input: CpdagCompletionInput,
         coordinates: Arc<[ScenarioCoordinate]>,

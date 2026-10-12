@@ -83,6 +83,10 @@ impl CheckedBayesianDagAteExecution {
         self.validators = validators;
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed Bayesian DAG average effect, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn checked(
         graph: &Dag,
         operation: super::super::prepared::CheckedBayesianGcompOperation,

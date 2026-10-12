@@ -34,6 +34,10 @@ pub(crate) struct CheckedTemporalEffectOperation {
 
 impl CheckedTemporalEffectOperation {
     /// Check and freeze the graph, query, selected proof, and estimator family.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed temporal effect, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn checked(
         graph: &TemporalDag,
         query: &TemporalEffectQuery,

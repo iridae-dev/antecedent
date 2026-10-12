@@ -63,6 +63,10 @@ impl CheckedStaticClassResponse {
     /// Refuses a query outside the complete-observation mean response family,
     /// a validation suite other than `none`, a procedure that does not match the
     /// inference mode, or an envelope identified for another target.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed static class response, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn prepare(
         graph: StaticClassGraph,
         query: ResponseQuery,

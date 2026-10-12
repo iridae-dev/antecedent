@@ -1607,6 +1607,10 @@ impl super::Study {
 
     /// Execute the prepared two-scenario Unknown-tier product without looking
     /// up or rebuilding its identification from the retained Study cache.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the sealed tiered-average operation retains the identification, background and strategy ids as separate fields and passes them as they are"
+    )]
     pub(crate) fn execute_checked_unknown_tiered_average(
         &self,
         data: &TabularData,

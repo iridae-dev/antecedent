@@ -66,6 +66,10 @@ impl CheckedCellAipwResponseOperation {
         clippy::float_cmp,
         reason = "joint binary intervention levels are exact discrete contract values"
     )]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the frozen premises of a sealed cell-AIPW response, resolved one at a time by the sealer in prepared/ that constructs it"
+    )]
     pub(crate) fn checked(
         structure: &CellAipwStructure,
         query: &ResponseQuery,
