@@ -300,6 +300,7 @@ mod completion_fit_memo;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
 mod compile_graph_posterior;
+mod plan_id;
 pub(super) use compile::compile_logical_admg_response;
 mod route_input;
 pub(crate) use route_input::{RouteInput, StaticMediationSource};
@@ -309,6 +310,7 @@ use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechan
 mod checked_static_response;
 mod dispatch;
 mod identified_set_diagnostics;
+mod multi_env_path;
 mod pag_path;
 mod panel_path;
 mod response_path;
@@ -357,7 +359,10 @@ pub(crate) use checked_static_class_response::{
     CheckedStaticClassResponse, CheckedStaticClassResponsePremises,
 };
 pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
-include!("execute_helpers.rs");
+include!("execute_helpers_route.rs");
+include!("execute_helpers_result.rs");
+include!("execute_helpers_envelope.rs");
+include!("execute_helpers_parametric.rs");
 
 #[cfg(test)]
 pub(super) use class_envelope_se::{

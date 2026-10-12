@@ -10,6 +10,7 @@ use antecedent_core::{
 use antecedent_data::MultiEnvironmentData;
 
 use super::dispatch::wire_pair;
+use super::plan_id::PlanId;
 use super::{
     Admg, Arc, CausalError, CausalQuery, DataClassification, EstimatorId, ExecutionContext,
     GraphClass, GraphRef, IdentifierId, InferenceMode, Intervention, LogicalAnalysisPlan,
@@ -102,8 +103,8 @@ impl super::Study {
                     data,
                     query,
                     classification,
-                    "temporal_cpdag_effect",
-                    "temporal_pag_effect",
+                    PlanId::TemporalCpdagEffect.as_str(),
+                    PlanId::TemporalPagEffect.as_str(),
                 ),
             RouteInput::TemporalEffectDag { data, query: q, graph, classification } => {
                 self.compile_logical_temporal_effect_dag(data, q, graph, classification)
@@ -186,12 +187,12 @@ impl super::Study {
             }
             RouteInput::GcmDag { data, .. } => self.compile_logical_gcm(
                 data.row_count() as u64,
-                "gcm_query",
+                PlanId::GcmQuery.as_str(),
                 DataClassification::Tabular,
             ),
             RouteInput::GcmTemporal { data } => self.compile_logical_gcm(
                 data.row_count() as u64,
-                "gcm_temporal_query",
+                PlanId::GcmTemporalQuery.as_str(),
                 DataClassification::Temporal,
             ),
             RouteInput::TemporalCrossWorldClass { data, class } => {
@@ -378,7 +379,7 @@ impl super::Study {
             message: "distribution query requires an outcome".into(),
         })?;
         let record = antecedent_contract::LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("static_admg_distribution"),
+            plan_id: Arc::from(PlanId::StaticAdmgDistribution.as_str()),
             data_classification: antecedent_contract::DataClassification::Tabular,
             discovery_algorithm: None,
             graph_review_required: false,
@@ -566,7 +567,7 @@ impl super::Study {
             identifier,
             estimator,
         })?;
-        plan.record.plan_id = Arc::from("static_conditional");
+        plan.record.plan_id = Arc::from(PlanId::StaticConditional.as_str());
         plan.query = CausalQuery::ConditionalEffect(q.clone());
         Ok(plan)
     }
@@ -587,7 +588,7 @@ impl super::Study {
                 identifier,
                 estimator,
             })?;
-        plan.record.plan_id = Arc::from("static_cpdag_conditional");
+        plan.record.plan_id = Arc::from(PlanId::StaticCpdagConditional.as_str());
         plan.query = CausalQuery::ConditionalEffect(q.clone());
         Ok(plan)
     }
@@ -607,7 +608,7 @@ impl super::Study {
             identifier,
             estimator,
         })?;
-        plan.record.plan_id = Arc::from("static_pag_conditional");
+        plan.record.plan_id = Arc::from(PlanId::StaticPagConditional.as_str());
         plan.query = CausalQuery::ConditionalEffect(q.clone());
         Ok(plan)
     }
@@ -626,7 +627,7 @@ impl super::Study {
             self.split,
             false,
         )?;
-        plan.record.plan_id = Arc::from("temporal_mediation");
+        plan.record.plan_id = Arc::from(PlanId::TemporalMediation.as_str());
         plan.record.identifier = Some(Arc::from("temporal.mediation"));
         plan.record.estimator = Some(Arc::from(if self.inference.is_bayesian() {
             "temporal.mediation.bayesian"
@@ -653,7 +654,7 @@ impl super::Study {
             false,
             DataClassification::Temporal,
         )?;
-        plan.record.plan_id = Arc::from("temporal_mediation_class");
+        plan.record.plan_id = Arc::from(PlanId::TemporalMediationClass.as_str());
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator = Some(Arc::from(if self.inference.is_bayesian() {
             EstimatorId::BayesianTemporalMediation.as_str()
@@ -702,7 +703,7 @@ impl super::Study {
             identifier: Arc::from("path_specific.natural"),
             estimator: Arc::from("functional.effect"),
         })?;
-        plan.record.plan_id = Arc::from("static_mediation");
+        plan.record.plan_id = Arc::from(PlanId::StaticMediation.as_str());
         plan.record.estimator = Some(Arc::from("mediation.linear"));
         plan.query = match source {
             StaticMediationSource::Nested(nested) => CausalQuery::NestedCounterfactual(*nested),
@@ -723,13 +724,11 @@ impl super::Study {
             });
         }
         let (treatment, outcome) =
-            q.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                message: "TransportQuery inner response has no treatment/outcome".into(),
-            })?;
+            crate::analysis::proof_support::require_primary_pair(&q.response.functional)?;
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            "transport_trial",
+            PlanId::TransportTrial.as_str(),
             "transport.sid",
             if self.inference.is_bayesian() {
                 "transport.trial_bayesian_bootstrap"
@@ -756,7 +755,7 @@ impl super::Study {
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            "interference_design",
+            PlanId::InterferenceDesign.as_str(),
             "interference.design",
             if self.inference.is_bayesian() {
                 "interference.bayesian_gaussian"
@@ -796,7 +795,7 @@ impl super::Study {
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            "randomized_trial_itt",
+            PlanId::RandomizedTrialItt.as_str(),
             "randomized.design",
             match &q.design {
                 antecedent_core::RandomizationDesign::Bernoulli => {
@@ -840,11 +839,11 @@ impl super::Study {
             data.row_count() as u64,
             DataClassification::Tabular,
             if q.multi_action.is_some() {
-                "randomized_policy_value_multi_action_ipw"
+                PlanId::RandomizedPolicyValueMultiActionIpw.as_str()
             } else if q.mu0.is_empty() {
-                "randomized_policy_value_ipw"
+                PlanId::RandomizedPolicyValueIpw.as_str()
             } else {
-                "randomized_policy_value_dr"
+                PlanId::RandomizedPolicyValueDr.as_str()
             },
             "randomized.design",
             if q.multi_action.is_some() {
@@ -918,7 +917,7 @@ impl super::Study {
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            "policy.continuous_dose_response",
+            PlanId::PolicyContinuousDoseResponse.as_str(),
             IdentifierId::ContinuousDoseExchangeability.as_str(),
             EstimatorId::ContinuousDoseKernel.as_str(),
             Arc::from([q.outcome, q.dose, q.dose_density]),
@@ -961,9 +960,9 @@ impl super::Study {
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            "randomized.survival_product_limit",
+            PlanId::RandomizedSurvivalProductLimit.as_str(),
             "randomized.design",
-            "randomized.survival_product_limit",
+            PlanId::RandomizedSurvivalProductLimit.as_str(),
             Arc::from([q.duration, q.event, q.treatment]),
         ))
     }
@@ -981,15 +980,18 @@ impl super::Study {
         }
         data.schema().get(q.outcome).map_err(CausalError::rejected)?;
         let method_id = match q.method {
-            antecedent_core::LongitudinalRegimeMethod::Ipw => "longitudinal.ipw_regime",
-            antecedent_core::LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula_regime",
+            antecedent_core::LongitudinalRegimeMethod::Ipw => PlanId::LongitudinalIpwRegime,
+            antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                PlanId::LongitudinalGFormulaRegime
+            }
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
-                "longitudinal.sequential_dr_regime"
+                PlanId::LongitudinalSequentialDrRegime
             }
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
-                "longitudinal.marginal_structural_model"
+                PlanId::LongitudinalMarginalStructuralModel
             }
-        };
+        }
+        .as_str();
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -1034,8 +1036,8 @@ impl super::Study {
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
         let plan_id = match class {
-            GraphClass::TemporalCpdag => "temporal_cpdag_cross_world",
-            GraphClass::TemporalPag => "temporal_pag_cross_world",
+            GraphClass::TemporalCpdag => PlanId::TemporalCpdagCrossWorld.as_str(),
+            GraphClass::TemporalPag => PlanId::TemporalPagCrossWorld.as_str(),
             _ => {
                 return Err(CausalError::Compile {
                     message: "temporal cross-world class plan needs a TemporalCpdag or TemporalPag"
@@ -1063,7 +1065,7 @@ impl super::Study {
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Temporal,
-            "temporal.cross_world.linear",
+            PlanId::TemporalCrossWorldLinear.as_str(),
             IdentifierId::TemporalBackdoorUnfolded.as_str(),
             EstimatorId::TemporalLinearAdjustment.as_str(),
             Arc::from([treatment, outcome]),
@@ -1179,7 +1181,7 @@ impl super::Study {
             let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
             q.validate()?;
             let record = antecedent_contract::LogicalAnalysisPlanRecord {
-                plan_id: Arc::from("static_admg_ate"),
+                plan_id: Arc::from(PlanId::StaticAdmgAte.as_str()),
                 data_classification: antecedent_contract::DataClassification::Tabular,
                 discovery_algorithm: None,
                 graph_review_required: false,
@@ -1228,8 +1230,8 @@ impl super::Study {
             panel_compile_series(panel)?,
             query,
             DataClassification::Panel,
-            "panel_cpdag_effect",
-            "panel_pag_effect",
+            PlanId::PanelCpdagEffect.as_str(),
+            PlanId::PanelPagEffect.as_str(),
         )
     }
 
@@ -1256,9 +1258,9 @@ impl super::Study {
         plan.record.estimator =
             Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
         plan.record.plan_id = Arc::from(match self.graph.class() {
-            GraphClass::TemporalCpdag => "panel_cpdag_response",
-            GraphClass::TemporalPag => "panel_pag_response",
-            _ => "panel_class_response",
+            GraphClass::TemporalCpdag => PlanId::PanelCpdagResponse.as_str(),
+            GraphClass::TemporalPag => PlanId::PanelPagResponse.as_str(),
+            _ => PlanId::PanelClassResponse.as_str(),
         });
         Ok(plan)
     }
@@ -1339,7 +1341,7 @@ pub(crate) fn compile_logical_admg_response(
     let (treatment, outcome) =
         crate::analysis::proof_support::require_primary_pair(&query.functional)?;
     let record = antecedent_contract::LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_admg_response"),
+        plan_id: Arc::from(PlanId::StaticAdmgResponse.as_str()),
         data_classification: antecedent_contract::DataClassification::Tabular,
         discovery_algorithm: None,
         graph_review_required: false,
