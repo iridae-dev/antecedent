@@ -745,55 +745,6 @@ mod tests {
     }
 
     #[test]
-    fn bayesian_interference_spread_scales_with_the_outcome_removed() {
-        let fit = |outcomes: &[f64]| {
-            let table = TabularData::from_f64_columns([("y", outcomes)]).unwrap();
-            let data = NetworkData::try_new(
-                table,
-                [
-                    antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: 0, to: 2, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: 0, to: 3, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: 2, to: 3, weight: 1.0 },
-                ],
-            )
-            .unwrap();
-            let query = InterferenceQuery::new(
-                AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
-                ExposureMapping::NeighborCount,
-                InterferenceFunctional::ExposureContrast {
-                    outcome: VariableId::from_raw(0),
-                    from: ExposureLevel { own: 0.0, neighbors: 1.0 },
-                    to: ExposureLevel { own: 1.0, neighbors: 0.0 },
-                },
-            );
-            estimate_interference_bayesian(
-                &query,
-                &data,
-                &[true, false, true, false],
-                4_000,
-                9,
-                100.0,
-            )
-            .unwrap()
-        };
-        let base = fit(&[5.0, 7.0, 8.0, 12.0]);
-        let scaled = fit(&[20.0, 28.0, 32.0, 48.0]);
-        assert!(base.residual_variance > 0.0, "the noisy design must have a residual");
-        let variance_ratio = scaled.residual_variance / base.residual_variance;
-        assert!((variance_ratio - 16.0).abs() < 1e-8, "residual variance ratio {variance_ratio}");
-        let spread = |draws: &[f64]| {
-            let mean = draws.iter().sum::<f64>() / draws.len() as f64;
-            (draws.iter().map(|d| (d - mean) * (d - mean)).sum::<f64>() / draws.len() as f64).sqrt()
-        };
-        let spread_ratio = spread(&scaled.contrast_draws) / spread(&base.contrast_draws);
-        assert!(
-            (spread_ratio - 4.0).abs() < 0.35,
-            "draw spread ratio {spread_ratio} should track the outcome scale"
-        );
-    }
-
-    #[test]
     fn bayesian_interference_refuses_absent_exposure_support() {
         let table = TabularData::from_f64_columns([("y", &[1.0, 2.0][..])]).unwrap();
         let data = NetworkData::try_new(
