@@ -15,7 +15,7 @@
 //! quantile the median `inf { x : F(x) >= 1/2 }` is `0, 0, 1`: `F_a1(0) = 1/2`
 //! reaches the level exactly, so a1's median is 0, not 1/2 or 1.
 
-use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, Tail, UtilityExpr,
@@ -45,18 +45,13 @@ const A0: [f64; 4] = [1.0, 0.0, 0.0, 0.0];
 const A1: [f64; 4] = [1.0, 1.0, 0.0, 0.0];
 const A2: [f64; 4] = [1.0, 1.0, 1.0, 0.0];
 
+mod common;
+
 fn quantity(variable: &str, regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
         regime_id: regime.into(),
-        horizon: 0,
         functional_id: functional.into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(variable)
     }
 }
 

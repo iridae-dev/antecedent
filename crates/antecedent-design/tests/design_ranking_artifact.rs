@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use antecedent_contract::{
     ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SignalProviderContract,
+    ScientificQuantity, SignalProviderContract,
 };
 use antecedent_core::CancellationToken;
 use antecedent_design::design_ranking_artifact::{
@@ -43,18 +43,13 @@ use antecedent_test_support::within as near;
 
 const EVSI_GAUSSIAN: f64 = 0.041_657_735_293_843_15;
 
+mod common;
+
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
-        role: QuantityRole::Outcome,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 

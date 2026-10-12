@@ -12,7 +12,7 @@
 //! `EU(safe) = 3`, `EVPI = 0.5` and the verdict is uniquely optimal `safe`.
 //! Every consumer-side identity is built from constants here.
 
-use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };
@@ -49,19 +49,10 @@ fn flip_last_byte(bytes: &[u8]) -> Vec<u8> {
     copy
 }
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn columns() -> Vec<ScientificQuantity> {

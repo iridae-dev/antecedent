@@ -1,6 +1,6 @@
 //! Independent-process consumption and replay of decision artifacts.
 
-use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };
@@ -15,19 +15,10 @@ use antecedent_io_core::distribution_artifact::{
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn columns() -> Vec<ScientificQuantity> {

@@ -21,18 +21,14 @@ use antecedent_design::signal::{
 };
 use antecedent_design::{CandidateDesign, DesignCost, SamplingPlan};
 
+mod common;
+
 fn quantity(role: QuantityRole, id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
         role,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 

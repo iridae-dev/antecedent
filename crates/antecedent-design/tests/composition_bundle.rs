@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::composition_bundle::{
     BundleConsumer, BundleError, BundleLimits, BundleNode, BundleStage, ClaimLabel,
     CompositionBundle, ConsumedBundle, EvidenceRelationship, FACT_LAW, FACT_QUANTITY_DIGEST,
@@ -38,19 +38,10 @@ const BODY: &str = "bundle.body";
 // Real embedded artifacts: a joint law and a decision contract/result over it.
 // ---------------------------------------------------------------------------
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn columns() -> Vec<ScientificQuantity> {

@@ -73,18 +73,13 @@ fn fixture_dir() -> std::path::PathBuf {
 
 // -- the frozen guess decision (copied constants of design_ranking_artifact.rs) --------
 
+mod common;
+
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
-        role: QuantityRole::Outcome,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 

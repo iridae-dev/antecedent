@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use antecedent_contract::{
     ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SignalProviderContract,
+    ScientificQuantity, SignalProviderContract,
 };
 use antecedent_core::{
     CancellationToken, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
@@ -148,18 +148,13 @@ fn transport_family() -> TransportRepairFamily {
     .unwrap()
 }
 
+mod common;
+
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
-        role: QuantityRole::Outcome,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 

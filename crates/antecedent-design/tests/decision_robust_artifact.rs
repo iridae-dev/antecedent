@@ -3,7 +3,7 @@
 //! and external-callback receipts that never read as native verification.
 //! Expected values are the hand-set payoffs of each structure.
 
-use antecedent_contract::{CompositionStage, QuantityRole, ScientificQuantity};
+use antecedent_contract::{CompositionStage, ScientificQuantity};
 use antecedent_core::SupportStatus;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, MAX_DECISION_ARTIFACT_BYTES, contract_to_json,
@@ -42,19 +42,10 @@ type ReceiptEdit = Box<dyn Fn(&mut ExternalCallbackReceipt)>;
 // law of the payoffs of A and B on two equally likely rows.
 // ---------------------------------------------------------------------------
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn law(a: f64, b: f64) -> Box<DistributionArtifact> {

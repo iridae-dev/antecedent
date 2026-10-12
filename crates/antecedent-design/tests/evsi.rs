@@ -51,18 +51,14 @@ use antecedent_test_support::within as near;
 const EVSI_GAUSSIAN: f64 = 0.041_657_735_293_843_15;
 const EVPI_GAUSSIAN: f64 = 0.197_796_557_401_306_07;
 
+mod common;
+
 fn quantity(role: QuantityRole, id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
         role,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 

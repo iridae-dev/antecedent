@@ -55,7 +55,7 @@ use crate::decision::{DecisionProblem, DecisionTable};
 use crate::error::DesignError;
 use crate::evsi::{CostToUtilityMap, EvsiReport, EvsiRequest, IntegrationMethod, SearchReceipt};
 use crate::preposterior::{DecisionPrior, DecisionSignal, expected_max_affine};
-use crate::ranking::{DesignRanking, DesignRankingBasis, RankingEntry, RankingError};
+use crate::ranking::{DesignRankingBasis, DesignRankingValue, RankingEntry, RankingError};
 use crate::signal::{
     PreparedLaw, SignalError, SignalLimits, SignalReceipt, SignalRequest, SignalTrustLabel,
     SignalUpdateMode, make_refusal,
@@ -368,7 +368,7 @@ pub struct DesignRankingArtifactWire {
     pub ties: Vec<(String, String)>,
     /// Search receipt.
     pub search: SearchWire,
-    /// Identity of the in-memory [`DesignRanking`] value.
+    /// Identity of the in-memory [`DesignRankingValue`] value.
     pub ranking_identity: String,
     /// Digest over the canonical body.
     pub digest: String,
@@ -954,7 +954,7 @@ impl ConsumedCandidate {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConsumedDesignRanking {
     /// The ranking value rebuilt from the artifact.
-    pub ranking: DesignRanking,
+    pub ranking: DesignRankingValue,
     /// The artifact digest.
     pub identity: String,
     /// Candidates in rank order.
@@ -1275,7 +1275,7 @@ fn provider_wire(identity: &ProviderObjectIdentity) -> ProviderWire {
 /// retained, or an empty report.
 pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifactWire> {
     let report = inputs.report;
-    let ranking = DesignRanking::from_evsi(report, inputs.source_digests)?;
+    let ranking = DesignRankingValue::from_evsi(report, inputs.source_digests)?;
     let decision = decision_wire(inputs)?;
     let mut candidates = Vec::with_capacity(report.candidates.len());
     for row in &report.candidates {
@@ -1767,7 +1767,7 @@ fn verify_search(wire: &DesignRankingArtifactWire) -> Result<()> {
     Ok(())
 }
 
-fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRanking> {
+fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRankingValue> {
     let basis =
         rank_basis(&wire.basis).ok_or(DesignRankingArtifactError::InvalidWire("ranking basis"))?;
     if (basis == DesignRankingBasis::NetValue) != wire.cost_map.is_some() {
@@ -1799,7 +1799,7 @@ fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRanking> {
     let mut digests = wire.source_digests.clone();
     digests.sort();
     digests.dedup();
-    Ok(DesignRanking {
+    Ok(DesignRankingValue {
         basis,
         decision_contract_identity: Some(wire.decision.contract_identity.clone()),
         utility_unit: Some(wire.decision.utility_unit.clone()),

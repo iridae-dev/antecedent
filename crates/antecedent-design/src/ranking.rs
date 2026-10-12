@@ -1,10 +1,10 @@
 //! In-memory design ranking value: the record a later wave serializes as a
 //! `DesignRankingArtifact`.
 //!
-//! A [`DesignRanking`] binds the decision contract identity, the semantic candidate
+//! A [`DesignRankingValue`] binds the decision contract identity, the semantic candidate
 //! ids, each candidate's signal provider identity and update mode, the source
 //! distribution digests, RNG and error, and the cost mapping to a deterministic
-//! canonical order. Its [`DesignRanking::identity`] is invariant to the order the
+//! canonical order. Its [`DesignRankingValue::identity`] is invariant to the order the
 //! candidates were supplied in and changes with any altered signal, update, source,
 //! cost mapping, value or order. When no probabilistic model is licensed the structural
 //! ordering is preserved: verified structural sufficiency first, then lower cost
@@ -107,7 +107,7 @@ pub struct StructuralEntry {
 
 /// The in-memory ranking value.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DesignRanking {
+pub struct DesignRankingValue {
     /// Basis of the order.
     pub basis: DesignRankingBasis,
     /// Decision contract identity (`None` for a structural ranking).
@@ -177,7 +177,7 @@ impl RankingError {
     }
 }
 
-impl DesignRanking {
+impl DesignRankingValue {
     /// Build the probabilistic ranking from an EVSI report and the digests of the
     /// source distributions (prior sources and external laws) it was computed from.
     ///

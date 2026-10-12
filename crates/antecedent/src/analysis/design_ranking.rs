@@ -47,7 +47,7 @@ pub use antecedent_design::design_ranking_artifact::{
     DESIGN_RANKING_ARTIFACT_KIND, DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION,
     DesignRankingArtifactError, DesignRankingArtifactWire, ReplayKind, consume, consume_wire,
 };
-pub use antecedent_design::ranking::{DesignRanking, DesignRankingBasis};
+pub use antecedent_design::ranking::{DesignRankingValue, DesignRankingBasis};
 pub use antecedent_design::signal::{SignalTrustLabel, SignalUpdateMode};
 
 fn default_mc_error_tolerance() -> f64 {
@@ -553,7 +553,7 @@ fn prepare(wire: &DesignRankingRequestWire) -> Result<Prepared, DesignRankingErr
 #[derive(Clone, Debug)]
 pub struct DesignRankingEvaluation {
     report: EvsiReport,
-    ranking: DesignRanking,
+    ranking: DesignRankingValue,
     wire: DesignRankingArtifactWire,
 }
 
@@ -566,7 +566,7 @@ impl DesignRankingEvaluation {
 
     /// The order-invariant in-memory ranking value.
     #[must_use]
-    pub fn ranking(&self) -> &DesignRanking {
+    pub fn ranking(&self) -> &DesignRankingValue {
         &self.ranking
     }
 
@@ -615,7 +615,7 @@ pub fn evaluate(
         report: &report,
         source_digests: &wire.source_digests,
     })?;
-    let ranking = DesignRanking::from_evsi(&report, &wire.source_digests)?;
+    let ranking = DesignRankingValue::from_evsi(&report, &wire.source_digests)?;
     Ok(DesignRankingEvaluation { report, ranking, wire: artifact })
 }
 
@@ -626,7 +626,7 @@ pub fn evaluate(
 /// No candidates, or a repeated semantic id.
 pub fn rank_structural(
     candidates: &[StructuralCandidateDeclWire],
-) -> Result<DesignRanking, DesignRankingError> {
+) -> Result<DesignRankingValue, DesignRankingError> {
     let declared: Vec<StructuralCandidate> = candidates
         .iter()
         .map(|c| StructuralCandidate {
@@ -635,5 +635,5 @@ pub fn rank_structural(
             cost: StudyCost { units: c.cost_units, sample_budget: c.sample_budget },
         })
         .collect();
-    Ok(DesignRanking::from_structural(&declared)?)
+    Ok(DesignRankingValue::from_structural(&declared)?)
 }

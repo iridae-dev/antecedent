@@ -4,7 +4,7 @@
 //! realizations below, `E[P] * E[Q] = 4.5` but `E[P * Q] = 2`; only genuine
 //! joint rows give the second value, and only they choose the safe action.
 
-use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
     StructuralPolicy, UtilityExpr,
@@ -17,19 +17,10 @@ use antecedent_io_core::distribution_artifact::{
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 use antecedent_test_support::near_lt_1e12 as near;
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn columns() -> Vec<ScientificQuantity> {

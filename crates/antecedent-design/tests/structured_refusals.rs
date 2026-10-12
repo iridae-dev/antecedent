@@ -10,8 +10,7 @@ use std::collections::BTreeSet;
 
 use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalCapabilityRequest, ExternalRefusal,
-    ExternalScientificObject, LawProviderContract, ProviderObjectIdentity, QuantityRole,
-    ScientificQuantity,
+    ExternalScientificObject, LawProviderContract, ProviderObjectIdentity, ScientificQuantity,
 };
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
@@ -26,19 +25,10 @@ use antecedent_io_core::external_binding_wire::{ContractWire, ResponseWire, bind
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 use serde_json::{Value, json};
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn action(id: &str, inputs: Vec<ScientificQuantity>, utility: UtilityExpr) -> DecisionAction {
