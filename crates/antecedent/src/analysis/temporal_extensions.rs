@@ -481,6 +481,7 @@ fn validated_interval(
 ///
 /// # Errors
 /// Original panel/design/history refusals or failed original engine/artifact replay.
+// doc(hidden): called by the python bindings and the activation tests.
 #[doc(hidden)]
 pub fn temporal_dependent_interval_candidate(
     snapshot_id: &str,

@@ -136,6 +136,7 @@ impl From<antecedent_identify::IdentificationError> for IoError {
 }
 
 /// Wrap any displayable failure as [`IoError::Convert`].
+// doc(hidden): shared by antecedent-io conversions.
 #[doc(hidden)]
 pub fn convert_err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())

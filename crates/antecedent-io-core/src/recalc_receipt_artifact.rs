@@ -812,8 +812,16 @@ fn check(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &RecalcReceiptMeta,
+    artifact_id: &str,
+) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
+    encode_parts_impl(meta, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &RecalcReceiptMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
@@ -846,6 +854,7 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+// doc(hidden): the facade reads the historical receipt metadata.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
     let parts = crate::decode_container(
@@ -962,7 +971,7 @@ impl RecalcReceiptArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-        encode_parts(&self.meta, artifact_id)
+        encode_parts_impl(&self.meta, artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -979,18 +988,6 @@ impl RecalcReceiptArtifact {
         expected_identity: Option<&str>,
     ) -> Result<Self, RecalcReceiptArtifactError> {
         check(decode_parts(bytes)?, expected_identity)
-    }
-
-    /// Validate metadata as a consumer would, for hidden test reseals.
-    ///
-    /// # Errors
-    /// The same refusals as [`Self::from_bytes`].
-    #[doc(hidden)]
-    pub fn from_meta(
-        meta: RecalcReceiptMeta,
-        expected_identity: Option<&str>,
-    ) -> Result<Self, RecalcReceiptArtifactError> {
-        check(meta, expected_identity)
     }
 }
 

@@ -603,8 +603,17 @@ fn request_of(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &EffectConstancyMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, EffectConstancyArtifactError> {
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &EffectConstancyMeta,
     numbers: &[u8],
     artifact_id: &str,
@@ -645,8 +654,15 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
+    bytes: &[u8],
+) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
     let parts = crate::decode_container(
@@ -774,7 +790,7 @@ impl EffectConstancyArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, EffectConstancyArtifactError> {
-        encode_parts(&self.meta, &numbers_of(&self.request), artifact_id)
+        encode_parts_impl(&self.meta, &numbers_of(&self.request), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -791,7 +807,7 @@ impl EffectConstancyArtifact {
         bytes: &[u8],
         expected: Option<&EffectConstancyIdentity>,
     ) -> Result<Self, EffectConstancyArtifactError> {
-        let (meta, numbers) = decode_parts(bytes)?;
+        let (meta, numbers) = decode_parts_impl(bytes)?;
         if meta.feature != EFFECT_CONSTANCY_ARTIFACT_FEATURE {
             return Err(EffectConstancyArtifactError::UnsupportedSemantics("feature marker"));
         }

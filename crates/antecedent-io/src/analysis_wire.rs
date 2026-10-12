@@ -8,9 +8,8 @@
 
 pub use antecedent_io_core::analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, HedgeProblemWire, IdentificationResultWire,
-    IdentifiedEstimandWire, RdDesignWire, RefutationReportWire, STATUS_SPELLINGS,
-    diagnostic_from_wire, diagnostic_to_wire, identification_from_wire,
-    identification_status_from_any, identification_status_pascal, identification_status_snake,
+    IdentifiedEstimandWire, RdDesignWire, RefutationReportWire, diagnostic_from_wire,
+    diagnostic_to_wire, identification_from_wire, identification_status_pascal,
     identification_to_wire, identification_to_wire_with_registry,
 };
 

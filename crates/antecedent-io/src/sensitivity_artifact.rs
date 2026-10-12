@@ -16,10 +16,14 @@ pub use antecedent_io_core::sensitivity_artifact::{
     SENSITIVITY_INFERENCE_CLAIM, SamplingInterval, SamplingStatus, SensitivityArtifact,
     SensitivityIdentity, SensitivityMeta, SensitivityOutcome, SensitivityParts,
     SensitivityProvenance, SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm,
-    classify_decision_points, decode_parts, encode_parts,
+    classify_decision_points,
 };
 pub use antecedent_validate::{
     AxisTipping, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
     JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
     JointSensitivityUncertainty, TippingBracket, TippingStatus,
 };
+
+#[cfg(feature = "test-util")]
+#[doc(hidden)]
+pub use antecedent_io_core::sensitivity_artifact::{decode_parts, encode_parts};

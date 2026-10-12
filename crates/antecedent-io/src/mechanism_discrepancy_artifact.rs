@@ -600,8 +600,17 @@ fn request_of(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &MechanismDiscrepancyMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &MechanismDiscrepancyMeta,
     numbers: &[u8],
     artifact_id: &str,
@@ -642,8 +651,15 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
+    bytes: &[u8],
+) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
     let parts = crate::decode_container(
@@ -804,7 +820,7 @@ impl MechanismDiscrepancyArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
-        encode_parts(&self.meta, &numbers_of(&self.request), artifact_id)
+        encode_parts_impl(&self.meta, &numbers_of(&self.request), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -822,7 +838,7 @@ impl MechanismDiscrepancyArtifact {
         bytes: &[u8],
         expected: Option<&MechanismDiscrepancyIdentity>,
     ) -> Result<Self, MechanismDiscrepancyArtifactError> {
-        let (meta, numbers) = decode_parts(bytes)?;
+        let (meta, numbers) = decode_parts_impl(bytes)?;
         check_semantics(&meta)?;
         let request = request_of(&meta, &numbers)?;
         let computed = compute(&request)?;

@@ -546,6 +546,7 @@ macro_rules! support_reason {
 }
 
 /// Compile-time check used by [`unsupported_reason!`] and [`support_reason!`].
+// doc(hidden): expanded by the exported `unsupported_reason!` and `support_reason!` macros.
 #[doc(hidden)]
 #[must_use]
 pub const fn is_runtime_refusal_code(code: &str) -> bool {
@@ -598,8 +599,7 @@ macro_rules! compile_reason {
 }
 
 /// Wire prefix of a reason-coded message (see `antecedent_core::reason_code::PREFIX`).
-#[doc(hidden)]
-pub const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
+pub(crate) const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
 
 impl CausalError {
     /// Refuse compilation because `cause` refused its input, keeping the typed

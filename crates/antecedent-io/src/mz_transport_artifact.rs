@@ -69,6 +69,7 @@ pub use antecedent_io_core::transport_query_wire::{MzSourceWire, MzTransportQuer
 /// `reason=<code>: <detail>: ...` refusal when the route owns it, else the
 /// generic conversion.
 #[must_use]
+// doc(hidden): the facade maps refusals through it.
 #[doc(hidden)]
 pub fn mz_identification_error(error: IdentificationError) -> IoError {
     match antecedent_identify::mz_transport_refusal(&error) {
@@ -149,6 +150,7 @@ pub struct MzContrastWire {
 ///
 /// # Errors
 /// An outcome without a finite numeric mean.
+// doc(hidden): the facade derives contrasts with it.
 #[doc(hidden)]
 pub fn mz_point_contrasts(
     distributions: &[ExactDistribution],
@@ -798,6 +800,7 @@ impl MzTransportArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_with_limits`].
+    #[cfg(any(test, feature = "test-util"))]
     #[doc(hidden)]
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<ConsumedMzTransport, IoError> {
         Self::consume_with_limits(bytes, MzTransportConsumeLimits::default(), ctx)
@@ -812,6 +815,7 @@ impl MzTransportArtifactWire {
 /// # Errors
 /// [`IoError::Refused`] with `cell_not_licensed` and detail
 /// [`MZ_INTERVAL_NOT_LICENSED_DETAIL`].
+// doc(hidden): the facade and the python bindings apply it after consuming.
 #[doc(hidden)]
 pub fn refuse_unlicensed_interval(uncertainty: &MzUncertaintyWire) -> Result<(), IoError> {
     if uncertainty.seed.is_some() || uncertainty.available() {

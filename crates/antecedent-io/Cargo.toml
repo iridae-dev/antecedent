@@ -24,6 +24,11 @@ default = []
 # so no public route yields or accepts an interval.
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-learn/calibration-internal"]
 
+# Hidden seams that seal and open artifact containers from raw parts, for the
+# tamper and resealed-edit tests. Not part of the supported API; the crate's
+# own tests and the facade tests enable it as a dev-dependency.
+test-util = ["antecedent-io-core/test-util"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
@@ -43,6 +48,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-io = { workspace = true, features = ["test-util"] }
 antecedent-kernels = { workspace = true }
 antecedent-test-support = { workspace = true }
 blake3 = { workspace = true }

@@ -51,6 +51,7 @@ pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 /// A refused sequence, window or bound as a reason-coded refusal.
 #[must_use]
 #[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
+// doc(hidden): the facade and the python bindings map refusals through it.
 #[doc(hidden)]
 pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
     IoError::Refused {
@@ -61,6 +62,7 @@ pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
 
 /// A decision failure as an IO error: a refusal keeps its code.
 #[must_use]
+// doc(hidden): the facade maps decision errors through it.
 #[doc(hidden)]
 pub fn temporal_decision_error(error: TemporalSequenceError) -> IoError {
     match error {
@@ -337,8 +339,13 @@ fn data_digest(
 ///
 /// # Errors
 /// Encoding failure.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result<String, IoError> {
+    temporal_sequence_identity_impl(wire)
+}
+
+fn temporal_sequence_identity_impl(wire: &TemporalSequenceArtifactWire) -> Result<String, IoError> {
     let mut graph = wire.graph.clone();
     graph.directed.sort_unstable();
     graph.bidirected.sort_unstable();
@@ -460,7 +467,7 @@ impl TemporalSequenceArtifactWire {
             report: TemporalReportWire::from_report(prepared, report)?,
             premises_digest: String::new(),
         };
-        wire.premises_digest = temporal_sequence_identity(&wire)?;
+        wire.premises_digest = temporal_sequence_identity_impl(&wire)?;
         Ok(wire)
     }
 
@@ -574,7 +581,7 @@ impl TemporalSequenceArtifactWire {
         wire.check_limits(&limits, ctx)?;
         crate::require_digest(
             &wire.premises_digest,
-            temporal_sequence_identity(&wire),
+            temporal_sequence_identity_impl(&wire),
             std::convert::identity,
             || TemporalTransportArtifactError::PremisesMismatch.into(),
         )?;

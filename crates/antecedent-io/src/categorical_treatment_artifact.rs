@@ -846,8 +846,17 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmen
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &CategoricalTreatmentMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &CategoricalTreatmentMeta,
     numbers: &[u8],
     artifact_id: &str,
@@ -888,8 +897,15 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
+    bytes: &[u8],
+) -> Result<(CategoricalTreatmentMeta, Vec<u8>), CategoricalTreatmentArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(CategoricalTreatmentMeta, Vec<u8>), CategoricalTreatmentArtifactError> {
     let parts = crate::decode_container(
@@ -1048,7 +1064,7 @@ impl CategoricalTreatmentArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-        encode_parts(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
+        encode_parts_impl(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -1065,7 +1081,7 @@ impl CategoricalTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&CategoricalTreatmentIdentity>,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
-        let (meta, raw) = decode_parts(bytes)?;
+        let (meta, raw) = decode_parts_impl(bytes)?;
         if meta.feature != CATEGORICAL_TREATMENT_ARTIFACT_FEATURE {
             return Err(CategoricalTreatmentArtifactError::UnsupportedSemantics("feature marker"));
         }

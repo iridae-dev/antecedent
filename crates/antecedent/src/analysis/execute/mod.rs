@@ -101,6 +101,7 @@ pub(super) use super::helpers::{
 /// `Arc` and a clone costs a reference-count bump instead of a field-by-field
 /// copy. Only build and prepare (never a click) write them, through
 /// `Arc::make_mut` on the owning study.
+// Hidden, but public: it is `Study`'s `Deref` target.
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct StudyConfig {

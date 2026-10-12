@@ -16,6 +16,11 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+# Hidden seams that seal and open artifact containers from raw parts, for the
+# tamper and resealed-edit tests. Not part of the supported API.
+test-util = []
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }

@@ -311,7 +311,7 @@ pub struct CounterfactualIdArtifactWire {
     pub point: CounterfactualIdPointWire,
     /// Digest of the law ([`counterfactual_id_data_digest`]).
     pub data_digest: String,
-    /// Digest of the premises ([`counterfactual_id_identity`]).
+    /// Digest of the premises (`counterfactual_id_identity`).
     pub premises_digest: String,
 }
 
@@ -320,6 +320,7 @@ pub struct CounterfactualIdArtifactWire {
 ///
 /// # Errors
 /// Encoding failure.
+// doc(hidden): the facade binds the data digest into its identity.
 #[doc(hidden)]
 pub fn counterfactual_id_data_digest(law: &CounterfactualIdLawWire) -> Result<String, IoError> {
     crate::digest_hex(IdentityDomain::DataSnapshot, &("counterfactual_id_admg_v1.law", law))
@@ -331,8 +332,9 @@ pub fn counterfactual_id_data_digest(law: &CounterfactualIdLawWire) -> Result<St
 ///
 /// # Errors
 /// Encoding failure.
-#[doc(hidden)]
-pub fn counterfactual_id_identity(wire: &CounterfactualIdArtifactWire) -> Result<String, IoError> {
+pub(crate) fn counterfactual_id_identity(
+    wire: &CounterfactualIdArtifactWire,
+) -> Result<String, IoError> {
     crate::digest_hex(
         IdentityDomain::Program,
         &(

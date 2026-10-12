@@ -36,6 +36,7 @@ impl MzTransportPointWire {
 
     /// Bit-exact replay; non-finite probabilities fail closed.
     #[must_use]
+    // doc(hidden): antecedent-io artifacts replay stored points with it.
     #[doc(hidden)]
     pub fn replays(&self, recomputed: &Self) -> bool {
         self.outcomes == recomputed.outcomes

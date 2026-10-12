@@ -70,6 +70,7 @@ pub use antecedent_io_core::transport_errors::AdmgConditionalArtifactError;
 /// A conditional-route identification error as the io error a caller sees: the
 /// record's `reason=<code>: <detail>: ...` refusal when the route owns it.
 #[must_use]
+// doc(hidden): the facade maps refusals through it.
 #[doc(hidden)]
 pub fn admg_conditional_identification_error(error: IdentificationError) -> IoError {
     match admg_conditional_refusal(&error) {

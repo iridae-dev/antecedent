@@ -359,6 +359,7 @@ impl CancellationToken {
     /// A token that cancels itself on its `checks + 1`-th observation, so a
     /// test can stop a search deterministically in the middle (every budget
     /// charge observes the token once). Not for production use.
+    // doc(hidden): test helper called from integration tests across the workspace.
     #[doc(hidden)]
     #[must_use]
     pub fn cancel_after_checks(checks: usize) -> Self {

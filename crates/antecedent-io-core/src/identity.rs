@@ -90,6 +90,7 @@ pub fn digest_wire<T: Serialize>(
 /// # Errors
 ///
 /// CBOR encode failure.
+// doc(hidden): shared by antecedent-io wire digests.
 #[doc(hidden)]
 pub fn digest_wire_hex<T: Serialize>(domain: IdentityDomain, value: &T) -> Result<String, IoError> {
     Ok(digest_wire(domain, value)?.to_hex())

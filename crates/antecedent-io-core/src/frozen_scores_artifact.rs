@@ -322,8 +322,16 @@ fn check(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &FrozenScoresMeta,
+    artifact_id: &str,
+) -> Result<Vec<u8>, FrozenScoresArtifactError> {
+    encode_parts_impl(meta, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &FrozenScoresMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, FrozenScoresArtifactError> {
@@ -356,8 +364,13 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
     let parts = crate::decode_container(
         ARTIFACT_KIND,
         MAX_FROZEN_SCORES_ARTIFACT_BYTES,
@@ -483,7 +496,7 @@ impl FrozenScoreTable {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, FrozenScoresArtifactError> {
-        encode_parts(&self.meta, artifact_id)
+        encode_parts_impl(&self.meta, artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -498,13 +511,14 @@ impl FrozenScoreTable {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, FrozenScoresArtifactError> {
-        check(decode_parts(bytes)?, expected_identity)
+        check(decode_parts_impl(bytes)?, expected_identity)
     }
 
     /// Validate metadata as a consumer would, for hidden test reseals.
     ///
     /// # Errors
     /// The same refusals as [`Self::from_bytes`].
+    #[cfg(feature = "test-util")]
     #[doc(hidden)]
     pub fn from_meta(
         meta: FrozenScoresMeta,
@@ -517,6 +531,7 @@ impl FrozenScoreTable {
     ///
     /// # Errors
     /// Malformed digests or declarations.
+    #[cfg(feature = "test-util")]
     #[doc(hidden)]
     pub fn reseal_identity(meta: &mut FrozenScoresMeta) -> Result<(), FrozenScoresArtifactError> {
         let declared = identities_from_wire(&meta.declared)

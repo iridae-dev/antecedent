@@ -122,8 +122,7 @@ pub struct HedgeProblemWire {
 
 impl HedgeCertificateWire {
     /// Every variable named by the witness.
-    #[doc(hidden)]
-    pub fn variables(&self) -> impl Iterator<Item = u32> + '_ {
+    pub(crate) fn variables(&self) -> impl Iterator<Item = u32> + '_ {
         let problem = self
             .problem
             .iter()
@@ -205,8 +204,7 @@ pub struct RefutationReportWire {
 /// The one table of identification-status spellings: `snake_case` on the analysis and
 /// response wires, `PascalCase` on posterior artifacts and prior-bank metadata (the
 /// host-facing label those durable formats and their consumers already carry).
-#[doc(hidden)]
-pub const STATUS_SPELLINGS: [(IdentificationStatus, &str, &str); 6] = [
+pub(crate) const STATUS_SPELLINGS: [(IdentificationStatus, &str, &str); 6] = [
     (
         IdentificationStatus::NonparametricallyIdentified,
         "nonparametrically_identified",
@@ -228,13 +226,13 @@ pub const STATUS_SPELLINGS: [(IdentificationStatus, &str, &str); 6] = [
 ];
 
 /// `snake_case` spelling of a status.
-#[doc(hidden)]
 #[must_use]
-pub fn identification_status_snake(status: IdentificationStatus) -> &'static str {
+pub(crate) fn identification_status_snake(status: IdentificationStatus) -> &'static str {
     STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("not_identified", |row| row.1)
 }
 
 /// `PascalCase` spelling of a status.
+// doc(hidden): shared with antecedent-io posterior conversion.
 #[doc(hidden)]
 #[must_use]
 pub fn identification_status_pascal(status: IdentificationStatus) -> &'static str {
@@ -242,9 +240,8 @@ pub fn identification_status_pascal(status: IdentificationStatus) -> &'static st
 }
 
 /// Status named by either spelling.
-#[doc(hidden)]
 #[must_use]
-pub fn identification_status_from_any(spelling: &str) -> Option<IdentificationStatus> {
+pub(crate) fn identification_status_from_any(spelling: &str) -> Option<IdentificationStatus> {
     STATUS_SPELLINGS
         .iter()
         .find(|(_, snake, pascal)| *snake == spelling || *pascal == spelling)

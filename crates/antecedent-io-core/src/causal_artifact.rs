@@ -222,8 +222,7 @@ fn validate_header(header: &CausalPayloadHeader) -> Result<(), IoError> {
     validate_variable_names(&header.variable_names)
 }
 
-#[doc(hidden)]
-pub fn validate_variable_names(variable_names: &[String]) -> Result<(), IoError> {
+pub(crate) fn validate_variable_names(variable_names: &[String]) -> Result<(), IoError> {
     let mut names = HashSet::with_capacity(variable_names.len());
     for name in variable_names {
         if name.trim().is_empty() {
@@ -431,12 +430,14 @@ fn validate_response_query_ids(
 }
 
 // allow(too_many_lines): exhaustive per-variant id validation; one match arm per query kind
-#[doc(hidden)]
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per query kind, each checking that kind variable ids"
 )]
-pub fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<(), IoError> {
+pub(crate) fn validate_query_ids(
+    query: &CausalQueryWire,
+    variable_count: usize,
+) -> Result<(), IoError> {
     use CausalQueryWire as Q;
     match query {
         Q::AverageEffect { treatment, outcome, effect_modifiers, control, active, .. } => {
@@ -1099,8 +1100,7 @@ fn validate_response_estimate(
     })
 }
 
-#[doc(hidden)]
-pub fn validate_response_result(
+pub(crate) fn validate_response_result(
     wire: &CausalResponseWire,
     variable_count: usize,
 ) -> Result<(), IoError> {

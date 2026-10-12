@@ -671,8 +671,17 @@ fn reals_of(bytes: &[u8]) -> Vec<f64> {
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &TemporalCounterfactualMeta,
+    values: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, TemporalCounterfactualArtifactError> {
+    encode_parts_impl(meta, values, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &TemporalCounterfactualMeta,
     values: &[u8],
     artifact_id: &str,
@@ -713,8 +722,15 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
+    bytes: &[u8],
+) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
     let parts = crate::decode_container(
@@ -893,7 +909,7 @@ impl TemporalCounterfactualArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, TemporalCounterfactualArtifactError> {
-        encode_parts(&self.meta, &values_of(&self.request, &self.result), artifact_id)
+        encode_parts_impl(&self.meta, &values_of(&self.request, &self.result), artifact_id)
     }
 
     /// Consume an artifact by recomputing both worlds.
@@ -910,7 +926,7 @@ impl TemporalCounterfactualArtifact {
         expected: Option<&TemporalCounterfactualIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalCounterfactualArtifactError> {
-        let (meta, values) = decode_parts(bytes)?;
+        let (meta, values) = decode_parts_impl(bytes)?;
         if meta.feature != TEMPORAL_COUNTERFACTUAL_ARTIFACT_FEATURE {
             return Err(TemporalCounterfactualArtifactError::UnsupportedSemantics(
                 "feature marker",

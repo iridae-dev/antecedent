@@ -564,7 +564,6 @@ surface_values = ["MixedSourceResult", "MixedSourceQuery", "PreparedMixedSource"
 surface_internal = [
   { name = "mixed_source_rule_names", why = "Frozen-rule-set introspection consumed only by the x9.rule_set.invariance test; re-exported by sid.rs so it cannot be narrowed to pub(crate) from this cell." },
   { name = "render_quantity", why = "Pure display helper (quantity to text) used by the pyo3 proof JSON and the search's own frontier text; not an execution entry point. Re-exported by sid.rs, so it stays pub but hidden." },
-  { name = "consume", why = "Default-limits convenience over MixedSourceArtifactWire::consume_with_limits (the routed consumer); no caller outside the io crate." },
   { name = "identify_mixed_source_transport_stage", why = "Native entry wrapped by the public Python function identify_mixed_source_transport (routed); the wrapper owns the documented surface." },
 ]
 bounds = { max_observed = 10, max_distributions = 16, max_search_states = 20000, max_depth = 16, max_move = 2, max_intervention_set = 3, max_sources = 4, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
@@ -1271,7 +1270,6 @@ surface_values = ["CounterfactualEvent", "CounterfactualEventQuery", "Counterfac
 surface_internal = [
   { name = "evaluate_counterfactual_functional", why = "The exact evaluation of a derivation on a law, called by the routed PreparedCounterfactualId.evaluate (facade) and by the identification tests; hidden so the facade route is the public entry." },
   { name = "counterfactual_id_data_digest", why = "Digest helper the facade seals and consumes artifacts with (the data identity a caller compares); no execution, hidden so the consume route is the public entry." },
-  { name = "counterfactual_id_identity", why = "Premises-digest helper shared by the sealer and the consumer's digest check; no execution, hidden so the consume route is the public entry." },
 ]
 bounds = { max_variables = 6, max_levels = 4, max_search_operations = 100000, max_search_depth = 64, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "SearchBudget memory cap, never absent: min(ExecutionContext.memory.hard_limit_bytes, 64 MiB default), live-state bytes cumulative across every ID* call and ID sub-call of one decision" }
 refusals = [

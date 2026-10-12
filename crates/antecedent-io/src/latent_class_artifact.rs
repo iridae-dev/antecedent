@@ -591,8 +591,17 @@ fn identity_diff(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &LatentClassMeta,
+    data: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, LatentClassArtifactError> {
+    encode_parts_impl(meta, data, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &LatentClassMeta,
     data: &[u8],
     artifact_id: &str,
@@ -629,8 +638,13 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(LatentClassMeta, Vec<u8>), LatentClassArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(bytes: &[u8]) -> Result<(LatentClassMeta, Vec<u8>), LatentClassArtifactError> {
     let parts = crate::decode_container(
         ARTIFACT_KIND,
         MAX_LATENT_CLASS_ARTIFACT_BYTES,
@@ -711,7 +725,7 @@ impl LatentClassArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, LatentClassArtifactError> {
-        encode_parts(&self.meta, &data_bytes(&self.request.data), artifact_id)
+        encode_parts_impl(&self.meta, &data_bytes(&self.request.data), artifact_id)
     }
 
     /// Consume an artifact by refitting under the stored seed and configuration.
@@ -728,7 +742,7 @@ impl LatentClassArtifact {
         bytes: &[u8],
         expected: Option<&LatentClassIdentity>,
     ) -> Result<Self, LatentClassArtifactError> {
-        let (meta, data) = decode_parts(bytes)?;
+        let (meta, data) = decode_parts_impl(bytes)?;
         let unsupported = LatentClassArtifactError::UnsupportedSemantics;
         if meta.feature != LATENT_CLASS_ARTIFACT_FEATURE {
             return Err(unsupported("feature marker"));

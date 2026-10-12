@@ -1074,6 +1074,7 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
 /// (`batch_retarget.covariance_unavailable`) when `correlation` is not a symmetric positive
 /// semidefinite matrix with a unit diagonal; `cancelled_no_claim`
 /// (`batch_retarget.cancelled`) when the context is cancelled before every draw is made.
+// doc(hidden): public evaluator named by the promotion record; hidden until it is documented.
 #[doc(hidden)]
 pub fn max_t_critical_value(
     correlation: &JointCovariance,
@@ -1175,6 +1176,7 @@ pub struct SimultaneousBand {
 /// # Errors
 ///
 /// As [`BatchRetargetReport::simultaneous_interval`].
+// doc(hidden): calibration harness entry for the closed family band.
 #[doc(hidden)]
 pub fn simultaneous_band_unpublished(
     report: &BatchRetargetReport,

@@ -71,6 +71,7 @@ pub const TRANSPORT_SCENARIO_CONDITIONAL_FEATURE: &str = "transport_scenario_adm
 pub use antecedent_io_core::transport_errors::TransportScenarioArtifactError;
 /// A refused scenario set, schema or law as a reason-coded refusal.
 #[must_use]
+// doc(hidden): the facade and the python bindings map refusals through it.
 #[doc(hidden)]
 #[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 pub fn scenario_refusal(refusal: ScenarioSetRefusal) -> IoError {

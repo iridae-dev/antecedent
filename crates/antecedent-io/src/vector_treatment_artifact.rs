@@ -670,8 +670,17 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, VectorTreatmentArti
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &VectorTreatmentMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &VectorTreatmentMeta,
     numbers: &[u8],
     artifact_id: &str,
@@ -712,8 +721,15 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
+    bytes: &[u8],
+) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
     let parts = crate::decode_container(
@@ -881,7 +897,7 @@ impl VectorTreatmentArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-        encode_parts(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
+        encode_parts_impl(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -899,7 +915,7 @@ impl VectorTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&VectorTreatmentIdentity>,
     ) -> Result<Self, VectorTreatmentArtifactError> {
-        let (meta, raw) = decode_parts(bytes)?;
+        let (meta, raw) = decode_parts_impl(bytes)?;
         if meta.feature != VECTOR_TREATMENT_ARTIFACT_FEATURE {
             return Err(VectorTreatmentArtifactError::UnsupportedSemantics("feature marker"));
         }

@@ -450,6 +450,7 @@ pub const fn search_bounds(
 }
 
 /// Count words enter the canonical stream as `u64`, saturating at `u64::MAX`.
+// doc(hidden): implemented by antecedent-io artifact metadata.
 #[doc(hidden)]
 pub trait CanonicalSize {
     /// Write `value` as one canonical word.

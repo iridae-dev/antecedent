@@ -894,8 +894,16 @@ fn result_diff(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
+    meta: &TransportedCounterfactualMeta,
+    artifact_id: &str,
+) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
+    encode_parts_impl(meta, artifact_id)
+}
+
+fn encode_parts_impl(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
@@ -928,8 +936,15 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
+    bytes: &[u8],
+) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
     let parts = crate::decode_container(
@@ -1034,7 +1049,7 @@ impl TransportedCounterfactualArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-        encode_parts(&self.meta, artifact_id)
+        encode_parts_impl(&self.meta, artifact_id)
     }
 
     /// Consume an artifact by recomputing the transported contrast.
@@ -1051,7 +1066,7 @@ impl TransportedCounterfactualArtifact {
         bytes: &[u8],
         expected: Option<&TransportedCounterfactualIdentity>,
     ) -> Result<Self, TransportedCounterfactualArtifactError> {
-        let meta = decode_parts(bytes)?;
+        let meta = decode_parts_impl(bytes)?;
         if meta.feature != TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE {
             return Err(Failure::UnsupportedSemantics("feature marker"));
         }

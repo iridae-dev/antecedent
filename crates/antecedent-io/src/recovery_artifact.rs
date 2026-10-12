@@ -111,6 +111,7 @@ impl From<RecoveryArtifactError> for IoError {
 
 /// Convert a route refusal into an io refusal that keeps its reason code.
 #[must_use]
+// doc(hidden): the facade maps recovery refusals through it.
 #[doc(hidden)]
 pub fn recovery_io_error(error: &RecoveryError) -> IoError {
     IoError::Refused { code: error.reason_code(), message: error.to_string() }
@@ -656,6 +657,7 @@ impl RecoveryArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_with_limits`].
+    // doc(hidden): the facade and the python bindings consume the typed result.
     #[doc(hidden)]
     pub fn consume_typed(
         bytes: &[u8],

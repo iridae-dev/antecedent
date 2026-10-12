@@ -240,6 +240,7 @@ pub struct CrossWorldArtifactWire {
 ///
 /// # Errors
 /// Encoding failure.
+// doc(hidden): the facade binds the data digest into its identity.
 #[doc(hidden)]
 pub fn cross_world_data_digest(names: &[String], columns: &[Vec<f64>]) -> Result<String, IoError> {
     let table: Vec<Vec<u64>> =
@@ -257,6 +258,7 @@ pub fn cross_world_data_digest(names: &[String], columns: &[Vec<f64>]) -> Result
 ///
 /// # Errors
 /// Encoding failure.
+// doc(hidden): the facade recomputes the premises identity.
 #[doc(hidden)]
 pub fn cross_world_identity(wire: &CrossWorldArtifactWire) -> Result<String, IoError> {
     let mut edges = wire.graph_edges.clone();
