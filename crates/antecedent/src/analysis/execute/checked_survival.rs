@@ -7,8 +7,8 @@ use antecedent_core::{
     SurvivalFunctional,
 };
 use antecedent_estimate::survival::{
-    SurvivalEndpoint, randomized_survival_bootstrap_difference_band,
-    randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary_with_entry,
+    KnownCensoring, SurvivalEndpoint, SurvivalRows, randomized_survival_bootstrap_difference_band,
+    randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary,
     randomized_survival_summary,
 };
 
@@ -126,6 +126,12 @@ impl CheckedSurvivalOperation {
                 SurvivalEndpoint::CumulativeIncidence { target_cause }
             }
         };
+        let rows = SurvivalRows {
+            duration: &duration,
+            event_code: &event,
+            treated: &treated,
+            delayed_entry: entry.as_deref(),
+        };
         let mut censoring_grid = None;
         let (summary, minimum_censoring_survival) = if let Some(known) = &self.query.known_censoring
         {
@@ -140,43 +146,37 @@ impl CheckedSurvivalOperation {
             }
             censoring_grid = Some((known.times.as_ref(), probabilities, known.minimum_probability));
             let (_, probabilities, _) = censoring_grid.as_ref().expect("just set");
-            let (summary, minimum) = randomized_survival_ipcw_summary_with_entry(
-                &duration,
-                &event,
-                &treated,
-                entry.as_deref(),
-                &known.times,
-                probabilities,
+            let (summary, minimum) = randomized_survival_ipcw_summary(
+                &rows,
+                &KnownCensoring {
+                    times: &known.times,
+                    survival: probabilities,
+                    minimum_probability: known.minimum_probability,
+                },
                 self.query.tau,
-                known.minimum_probability,
                 endpoint,
             )
             .map_err(|message| CausalError::Unsupported { message })?;
             (summary, Some(minimum))
         } else {
             (
-                randomized_survival_summary(
-                    &duration,
-                    &event,
-                    &treated,
-                    entry.as_deref(),
-                    self.query.tau,
-                    endpoint,
-                )
-                .map_err(|message| CausalError::Unsupported { message })?,
+                randomized_survival_summary(&rows, self.query.tau, endpoint)
+                    .map_err(|message| CausalError::Unsupported { message })?,
                 None,
             )
         };
         let intervals = if bootstrap_replicates > 0 {
             Some(
                 randomized_survival_bootstrap_intervals(
-                    &duration,
-                    &event,
-                    &treated,
-                    entry.as_deref(),
-                    censoring_grid.as_ref().map(|(times, probabilities, floor)| {
-                        (*times, probabilities.as_slice(), *floor)
-                    }),
+                    &rows,
+                    censoring_grid
+                        .as_ref()
+                        .map(|(times, probabilities, floor)| KnownCensoring {
+                            times,
+                            survival: probabilities,
+                            minimum_probability: *floor,
+                        })
+                        .as_ref(),
                     self.query.tau,
                     endpoint,
                     bootstrap_replicates,

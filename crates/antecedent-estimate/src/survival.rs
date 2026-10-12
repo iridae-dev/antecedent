@@ -21,6 +21,33 @@ pub enum SurvivalEndpoint {
     },
 }
 
+/// Subject rows of a randomized survival evaluation, aligned by row.
+///
+/// Event code zero means censoring.
+#[derive(Clone, Copy, Debug)]
+pub struct SurvivalRows<'a> {
+    /// Follow-up time per subject.
+    pub duration: &'a [f64],
+    /// Event cause per subject (zero is censored).
+    pub event_code: &'a [i64],
+    /// Randomized arm per subject.
+    pub treated: &'a [bool],
+    /// Left-truncation (delayed-entry) time per subject, when entry is delayed.
+    pub delayed_entry: Option<&'a [f64]>,
+}
+
+/// A caller-supplied subject-specific censoring survival grid, known independently of
+/// the outcomes it weights.
+#[derive(Clone, Copy, Debug)]
+pub struct KnownCensoring<'a> {
+    /// Increasing time grid from zero through the restriction horizon.
+    pub times: &'a [f64],
+    /// Row-major censoring survival, one value per subject and grid time.
+    pub survival: &'a [f64],
+    /// Declared positivity floor the survival values must stay above.
+    pub minimum_probability: f64,
+}
+
 /// Arm curves on one event-time grid and, for survival, restricted means.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RandomizedSurvivalSummary {
@@ -108,7 +135,11 @@ pub fn randomized_survival_bootstrap_difference_band(
             "survival simultaneous band requires at least 80 subjects in each randomized arm",
         );
     }
-    let original = randomized_survival_summary(duration, event_code, treated, None, tau, endpoint)?;
+    let original = randomized_survival_summary(
+        &SurvivalRows { duration, event_code, treated, delayed_entry: None },
+        tau,
+        endpoint,
+    )?;
     let difference = original
         .treated
         .iter()
@@ -133,7 +164,8 @@ pub fn randomized_survival_bootstrap_difference_band(
                 a.push(arm_index == 1);
             }
         }
-        let Ok(sample) = randomized_survival_summary(&d, &e, &a, None, tau, endpoint) else {
+        let rows = SurvivalRows { duration: &d, event_code: &e, treated: &a, delayed_entry: None };
+        let Ok(sample) = randomized_survival_summary(&rows, tau, endpoint) else {
             continue;
         };
         let sup = original
@@ -180,26 +212,23 @@ pub fn randomized_survival_bootstrap_difference_band(
 /// least 90% of requested draws and at least 199 valid draws are required for
 /// a two-sided 95% interval; otherwise the interval is refused. The resampling
 /// seed is an explicit input so results are independent of execution threads.
-#[allow(clippy::too_many_arguments)]
 pub fn randomized_survival_bootstrap_intervals(
-    duration: &[f64],
-    event_code: &[i64],
-    treated: &[bool],
-    delayed_entry: Option<&[f64]>,
-    known_censoring: Option<(&[f64], &[f64], f64)>,
+    rows: &SurvivalRows<'_>,
+    known_censoring: Option<&KnownCensoring<'_>>,
     tau: f64,
     endpoint: SurvivalEndpoint,
     replicates: u32,
     seed: u64,
 ) -> Result<SurvivalBootstrapIntervals, &'static str> {
+    let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
     if !(199..=100_000).contains(&replicates) {
         return Err("survival pointwise bootstrap requires 199 to 100000 replicates");
     }
     if duration.len() != event_code.len()
         || duration.len() != treated.len()
         || delayed_entry.is_some_and(|entry| entry.len() != duration.len())
-        || known_censoring.is_some_and(|(grid, weights, _)| {
-            weights.len() != duration.len().saturating_mul(grid.len())
+        || known_censoring.is_some_and(|known| {
+            known.survival.len() != duration.len().saturating_mul(known.times.len())
         })
     {
         return Err("survival bootstrap subject arrays must be row-aligned");
@@ -210,7 +239,7 @@ pub fn randomized_survival_bootstrap_intervals(
     if arms.iter().any(|arm| arm.len() < 8) {
         return Err("survival bootstrap requires at least eight subjects in each randomized arm");
     }
-    let grid_width = known_censoring.map_or(0, |(grid, _, _)| grid.len());
+    let grid_width = known_censoring.map_or(0, |known| known.times.len());
     let mut rng = seed ^ 0x8BB8_E832_F975_6D5D;
     let mut draws_rmst = Vec::with_capacity(replicates as usize);
     let mut draws_tau = Vec::with_capacity(replicates as usize);
@@ -233,25 +262,30 @@ pub fn randomized_survival_bootstrap_intervals(
                 if let (Some(source), Some(out)) = (delayed_entry, left.as_mut()) {
                     out.push(source[i]);
                 }
-                if let (Some((_, source, _)), Some(out)) = (known_censoring, g.as_mut()) {
-                    out.extend_from_slice(&source[i * grid_width..(i + 1) * grid_width]);
+                if let (Some(known), Some(out)) = (known_censoring, g.as_mut()) {
+                    out.extend_from_slice(&known.survival[i * grid_width..(i + 1) * grid_width]);
                 }
             }
         }
+        let replicate = SurvivalRows {
+            duration: &d,
+            event_code: &e,
+            treated: &a,
+            delayed_entry: left.as_deref(),
+        };
         let estimate = match known_censoring {
-            Some((grid, _, floor)) => randomized_survival_ipcw_summary_with_entry(
-                &d,
-                &e,
-                &a,
-                left.as_deref(),
-                grid,
-                g.as_deref().unwrap_or(&[]),
+            Some(known) => randomized_survival_ipcw_summary(
+                &replicate,
+                &KnownCensoring {
+                    times: known.times,
+                    survival: g.as_deref().unwrap_or(&[]),
+                    minimum_probability: known.minimum_probability,
+                },
                 tau,
-                floor,
                 endpoint,
             )
             .map(|(summary, _)| summary),
-            None => randomized_survival_summary(&d, &e, &a, left.as_deref(), tau, endpoint),
+            None => randomized_survival_summary(&replicate, tau, endpoint),
         };
         let Ok(estimate) = estimate else { continue };
         let last = estimate.treated.last().zip(estimate.control.last());
@@ -297,13 +331,11 @@ fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
 /// observations must have follow-up to a common `tau` in each arm. No interval
 /// is constructed by this kernel.
 pub fn randomized_survival_summary(
-    duration: &[f64],
-    event_code: &[i64],
-    treated: &[bool],
-    delayed_entry: Option<&[f64]>,
+    rows: &SurvivalRows<'_>,
     tau: f64,
     endpoint: SurvivalEndpoint,
 ) -> Result<RandomizedSurvivalSummary, &'static str> {
+    let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
     let n = duration.len();
     if n == 0
         || event_code.len() != n
@@ -394,58 +426,28 @@ pub fn randomized_survival_summary(
 
 /// Evaluate arm curves with a caller supplied, subject-specific censoring survival grid.
 ///
-/// `censoring_survival` is row-major with one value per subject and time. The
+/// [`KnownCensoring::survival`] is row-major with one value per subject and time. The
 /// probabilities must be known independently of the outcomes used here; this
 /// point kernel does not fit or verify a censoring model. No interval is
-/// constructed by this function.
+/// constructed by this function. Optional marginally independent left entry
+/// ([`SurvivalRows::delayed_entry`]) and censoring probabilities remain attached
+/// to their subject in a subject-resampling interval; conditional or informative
+/// entry is not adjusted.
 ///
 /// # Errors
 ///
 /// Returns an error for misaligned rows or times, invalid event codes, absent
 /// arm support through `tau`, or censoring probabilities that violate the
 /// declared positivity and monotonicity contract.
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
-pub fn randomized_survival_ipcw_summary(
-    duration: &[f64],
-    event_code: &[i64],
-    treated: &[bool],
-    times: &[f64],
-    censoring_survival: &[f64],
-    tau: f64,
-    minimum_probability: f64,
-    endpoint: SurvivalEndpoint,
-) -> Result<(RandomizedSurvivalSummary, f64), &'static str> {
-    randomized_survival_ipcw_summary_with_entry(
-        duration,
-        event_code,
-        treated,
-        None,
-        times,
-        censoring_survival,
-        tau,
-        minimum_probability,
-        endpoint,
-    )
-}
-
-/// Evaluate a fixed-known-censoring curve with marginally independent left entry.
-/// Entry and censoring probabilities remain attached to their subject in a
-/// subject-resampling interval. Conditional or informative entry is not adjusted.
-// arity and length mirror the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
-pub fn randomized_survival_ipcw_summary_with_entry(
-    duration: &[f64],
-    event_code: &[i64],
-    treated: &[bool],
-    delayed_entry: Option<&[f64]>,
-    times: &[f64],
-    censoring_survival: &[f64],
+pub fn randomized_survival_ipcw_summary(
+    rows: &SurvivalRows<'_>,
+    censoring: &KnownCensoring<'_>,
     tau: f64,
-    minimum_probability: f64,
     endpoint: SurvivalEndpoint,
 ) -> Result<(RandomizedSurvivalSummary, f64), &'static str> {
+    let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
+    let KnownCensoring { times, survival: censoring_survival, minimum_probability } = *censoring;
     let n = duration.len();
     let m = times.len();
     if n == 0
@@ -721,10 +723,12 @@ mod tests {
             }
         }
         let first = randomized_survival_bootstrap_intervals(
-            &durations,
-            &events,
-            &treated,
-            None,
+            &SurvivalRows {
+                duration: &durations,
+                event_code: &events,
+                treated: &treated,
+                delayed_entry: None,
+            },
             None,
             3.0,
             SurvivalEndpoint::Survival,
@@ -733,10 +737,12 @@ mod tests {
         )
         .unwrap();
         let repeated = randomized_survival_bootstrap_intervals(
-            &durations,
-            &events,
-            &treated,
-            None,
+            &SurvivalRows {
+                duration: &durations,
+                event_code: &events,
+                treated: &treated,
+                delayed_entry: None,
+            },
             None,
             3.0,
             SurvivalEndpoint::Survival,
@@ -750,44 +756,54 @@ mod tests {
         assert!(first.rmst_difference.unwrap()[1] >= 0.2);
         assert!(
             randomized_survival_bootstrap_intervals(
-                &durations[..8],
-                &events[..8],
-                &treated[..8],
-                None,
+                &SurvivalRows {
+                    duration: &durations[..8],
+                    event_code: &events[..8],
+                    treated: &treated[..8],
+                    delayed_entry: None
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
                 399,
-                17,
+                17
             )
             .is_err()
         );
         let short_censoring = vec![1.0; 79];
         assert_eq!(
             randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
-                Some((&[3.0], &short_censoring, 0.05)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: None
+                },
+                Some(&KnownCensoring {
+                    times: &[3.0],
+                    survival: &short_censoring,
+                    minimum_probability: 0.05
+                }),
                 3.0,
                 SurvivalEndpoint::Survival,
                 399,
-                17,
+                17
             ),
             Err("survival bootstrap subject arrays must be row-aligned")
         );
         assert!(
             randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: None
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
                 198,
-                17,
+                17
             )
             .is_err()
         );
@@ -796,15 +812,17 @@ mod tests {
         // so supplying entry times is accepted rather than refused.
         assert!(
             randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&vec![0.0; 80]),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&vec![0.0; 80])
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
                 399,
-                17,
+                17
             )
             .is_ok()
         );
@@ -827,11 +845,17 @@ mod tests {
             g.extend_from_slice(&[1.0, if i % 2 == 0 { 0.8 } else { 0.9 }, 0.7]);
         }
         let result = randomized_survival_bootstrap_intervals(
-            &durations,
-            &events,
-            &treated,
-            None,
-            Some((&[0.0, 1.0, 3.0], &g, 0.01)),
+            &SurvivalRows {
+                duration: &durations,
+                event_code: &events,
+                treated: &treated,
+                delayed_entry: None,
+            },
+            Some(&KnownCensoring {
+                times: &[0.0, 1.0, 3.0],
+                survival: &g,
+                minimum_probability: 0.01,
+            }),
             3.0,
             SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
             399,
@@ -863,10 +887,12 @@ mod tests {
                 treated.push(arm);
             }
             let intervals = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: None,
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
@@ -911,10 +937,12 @@ mod tests {
                 }
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &duration,
-                &event,
-                &treated,
-                None,
+                &SurvivalRows {
+                    duration: &duration,
+                    event_code: &event,
+                    treated: &treated,
+                    delayed_entry: None,
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
@@ -976,10 +1004,12 @@ mod tests {
                 }
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
@@ -1042,11 +1072,17 @@ mod tests {
                 g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
-                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: None,
+                },
+                Some(&KnownCensoring {
+                    times: &[0.0, 0.5, 1.0, 3.0],
+                    survival: &g,
+                    minimum_probability: 0.01,
+                }),
                 3.0,
                 SurvivalEndpoint::Survival,
                 299,
@@ -1131,11 +1167,13 @@ mod tests {
                 }
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
-                Some((&times, &g, 0.01)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
+                Some(&KnownCensoring { times: &times, survival: &g, minimum_probability: 0.01 }),
                 3.0,
                 SurvivalEndpoint::Survival,
                 299,
@@ -1200,10 +1238,12 @@ mod tests {
                 }
             }
             let intervals = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::Survival,
@@ -1266,10 +1306,12 @@ mod tests {
                 }
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
                 None,
                 3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
@@ -1342,26 +1384,28 @@ mod tests {
                     observed += 1;
                 }
             }
-            let estimate = randomized_survival_ipcw_summary_with_entry(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
-                &times,
-                &g,
+            let estimate = randomized_survival_ipcw_summary(
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
+                &KnownCensoring { times: &times, survival: &g, minimum_probability: 0.01 },
                 3.0,
-                0.01,
                 SurvivalEndpoint::Survival,
             )
             .unwrap()
             .0;
             assert!(estimate.rmst_control.is_some());
             let interval = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
-                Some((&times, &g, 0.01)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
+                Some(&KnownCensoring { times: &times, survival: &g, minimum_probability: 0.01 }),
                 3.0,
                 SurvivalEndpoint::Survival,
                 299,
@@ -1439,11 +1483,13 @@ mod tests {
                 }
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&entries),
-                Some((&times, &g, 0.01)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: Some(&entries),
+                },
+                Some(&KnownCensoring { times: &times, survival: &g, minimum_probability: 0.01 }),
                 3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
                 299,
@@ -1631,11 +1677,17 @@ mod tests {
                 g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
-                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: None,
+                },
+                Some(&KnownCensoring {
+                    times: &[0.0, 0.5, 1.0, 3.0],
+                    survival: &g,
+                    minimum_probability: 0.01,
+                }),
                 3.0,
                 SurvivalEndpoint::Survival,
                 299,
@@ -1691,11 +1743,17 @@ mod tests {
                 ]);
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
-                Some((&[0.0, 0.5, 1.0, 2.0, 3.0], &g, 0.01)),
+                &SurvivalRows {
+                    duration: &durations,
+                    event_code: &events,
+                    treated: &treated,
+                    delayed_entry: None,
+                },
+                Some(&KnownCensoring {
+                    times: &[0.0, 0.5, 1.0, 2.0, 3.0],
+                    survival: &g,
+                    minimum_probability: 0.01,
+                }),
                 3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
                 299,
@@ -1711,13 +1769,18 @@ mod tests {
     #[test]
     fn known_censoring_ipcw_survival_matches_unweighted_truth_when_g_is_one() {
         let (summary, minimum_g) = randomized_survival_ipcw_summary(
-            &[1.0, 2.0, 2.0, 2.0],
-            &[1, 0, 0, 0],
-            &[false, false, true, true],
-            &[0.0, 1.0, 2.0],
-            &[1.0; 12],
+            &SurvivalRows {
+                duration: &[1.0, 2.0, 2.0, 2.0],
+                event_code: &[1, 0, 0, 0],
+                treated: &[false, false, true, true],
+                delayed_entry: None,
+            },
+            &KnownCensoring {
+                times: &[0.0, 1.0, 2.0],
+                survival: &[1.0; 12],
+                minimum_probability: 0.1,
+            },
             2.0,
-            0.1,
             SurvivalEndpoint::Survival,
         )
         .unwrap();
@@ -1734,14 +1797,15 @@ mod tests {
         g[4] = 0.05;
         assert!(
             randomized_survival_ipcw_summary(
-                &[1.0, 2.0, 2.0, 2.0],
-                &[1, 0, 0, 0],
-                &[false, false, true, true],
-                &[0.0, 1.0, 2.0],
-                &g,
+                &SurvivalRows {
+                    duration: &[1.0, 2.0, 2.0, 2.0],
+                    event_code: &[1, 0, 0, 0],
+                    treated: &[false, false, true, true],
+                    delayed_entry: None
+                },
+                &KnownCensoring { times: &[0.0, 1.0, 2.0], survival: &g, minimum_probability: 0.1 },
                 2.0,
-                0.1,
-                SurvivalEndpoint::Survival,
+                SurvivalEndpoint::Survival
             )
             .is_err()
         );
@@ -1750,13 +1814,18 @@ mod tests {
     #[test]
     fn known_censoring_ipcw_competing_risk_known_truth() {
         let (summary, _) = randomized_survival_ipcw_summary(
-            &[1.0, 2.0, 2.0, 1.0, 2.0, 2.0],
-            &[1, 2, 0, 1, 2, 0],
-            &[false, false, false, true, true, true],
-            &[0.0, 1.0, 2.0],
-            &[1.0; 18],
+            &SurvivalRows {
+                duration: &[1.0, 2.0, 2.0, 1.0, 2.0, 2.0],
+                event_code: &[1, 2, 0, 1, 2, 0],
+                treated: &[false, false, false, true, true, true],
+                delayed_entry: None,
+            },
+            &KnownCensoring {
+                times: &[0.0, 1.0, 2.0],
+                survival: &[1.0; 18],
+                minimum_probability: 0.1,
+            },
             2.0,
-            0.1,
             SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
         )
         .unwrap();
@@ -1769,10 +1838,12 @@ mod tests {
     #[test]
     fn randomized_rmst_and_survival_known_truth() {
         let result = randomized_survival_summary(
-            &[1.0, 2.0, 2.0, 2.0],
-            &[1, 0, 0, 0],
-            &[false, false, true, true],
-            None,
+            &SurvivalRows {
+                duration: &[1.0, 2.0, 2.0, 2.0],
+                event_code: &[1, 0, 0, 0],
+                treated: &[false, false, true, true],
+                delayed_entry: None,
+            },
             2.0,
             SurvivalEndpoint::Survival,
         )
@@ -1787,10 +1858,12 @@ mod tests {
     #[test]
     fn delayed_entry_risk_sets_and_competing_incidence_known_truth() {
         let survival = randomized_survival_summary(
-            &[1.0, 2.0, 2.0, 2.0],
-            &[1, 0, 0, 0],
-            &[false, false, true, true],
-            Some(&[0.0, 0.5, 0.0, 0.5]),
+            &SurvivalRows {
+                duration: &[1.0, 2.0, 2.0, 2.0],
+                event_code: &[1, 0, 0, 0],
+                treated: &[false, false, true, true],
+                delayed_entry: Some(&[0.0, 0.5, 0.0, 0.5]),
+            },
             2.0,
             SurvivalEndpoint::Survival,
         )
@@ -1799,10 +1872,12 @@ mod tests {
         assert_eq!(survival.minimum_event_risk_set, Some(2));
 
         let incidence = randomized_survival_summary(
-            &[1.0, 2.0, 1.0, 2.0],
-            &[1, 2, 1, 1],
-            &[false, false, true, true],
-            None,
+            &SurvivalRows {
+                duration: &[1.0, 2.0, 1.0, 2.0],
+                event_code: &[1, 2, 1, 1],
+                treated: &[false, false, true, true],
+                delayed_entry: None,
+            },
             2.0,
             SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
         )
@@ -1816,23 +1891,27 @@ mod tests {
     fn refuses_unsupported_risk_sets_and_codes() {
         assert!(
             randomized_survival_summary(
-                &[1.0, 2.0],
-                &[1, 2],
-                &[false, true],
-                None,
+                &SurvivalRows {
+                    duration: &[1.0, 2.0],
+                    event_code: &[1, 2],
+                    treated: &[false, true],
+                    delayed_entry: None
+                },
                 2.0,
-                SurvivalEndpoint::Survival,
+                SurvivalEndpoint::Survival
             )
             .is_err()
         );
         assert!(
             randomized_survival_summary(
-                &[1.0, 2.0],
-                &[1, 0],
-                &[false, true],
-                Some(&[0.0, 2.0]),
+                &SurvivalRows {
+                    duration: &[1.0, 2.0],
+                    event_code: &[1, 0],
+                    treated: &[false, true],
+                    delayed_entry: Some(&[0.0, 2.0])
+                },
                 2.0,
-                SurvivalEndpoint::Survival,
+                SurvivalEndpoint::Survival
             )
             .is_err()
         );

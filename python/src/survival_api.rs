@@ -165,13 +165,18 @@ fn randomized_survival_ipcw(
     let event_codes = event_observed.iter().map(|event| i64::from(*event)).collect::<Vec<_>>();
     let (summary, kernel_minimum_g) =
         antecedent_estimate::survival::randomized_survival_ipcw_summary(
-            &duration.to_vec(),
-            &event_codes,
-            &treated,
-            &times,
-            &g.iter().copied().collect::<Vec<_>>(),
+            &antecedent_estimate::survival::SurvivalRows {
+                duration: &duration.to_vec(),
+                event_code: &event_codes,
+                treated: &treated,
+                delayed_entry: None,
+            },
+            &antecedent_estimate::survival::KnownCensoring {
+                times: &times,
+                survival: &g.iter().copied().collect::<Vec<_>>(),
+                minimum_probability,
+            },
             tau,
-            minimum_probability,
             antecedent_estimate::survival::SurvivalEndpoint::Survival,
         )
         .map_err(PyValueError::new_err)?;
@@ -277,13 +282,18 @@ fn randomized_cumulative_incidence_ipcw(
     }
     let (summary, kernel_minimum_g) =
         antecedent_estimate::survival::randomized_survival_ipcw_summary(
-            &duration.to_vec(),
-            &event_cause,
-            &treated,
-            &times,
-            &g.iter().copied().collect::<Vec<_>>(),
+            &antecedent_estimate::survival::SurvivalRows {
+                duration: &duration.to_vec(),
+                event_code: &event_cause,
+                treated: &treated,
+                delayed_entry: None,
+            },
+            &antecedent_estimate::survival::KnownCensoring {
+                times: &times,
+                survival: &g.iter().copied().collect::<Vec<_>>(),
+                minimum_probability,
+            },
             tau,
-            minimum_probability,
             antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
         )
         .map_err(PyValueError::new_err)?;
