@@ -787,7 +787,7 @@ def uplift_by_score(
     raw = _uplift_by_score(
         values,
         [bool(value) for value in assignment],
-        bin_ids.tolist(),
+        bin_ids,
         np.asarray(propensity_values, dtype=np.float64),
         int(bins),
     )

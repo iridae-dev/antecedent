@@ -1965,8 +1965,9 @@ class PreparedAnalysis(Generic[ResultT]):
             )
         import numpy as np
 
+        weights_array = np.asarray(weights, dtype=float)
         raw = self._native.retarget(
-            np.asarray(weights, dtype=float).tolist(),
+            weights_array if weights_array.ndim == 1 else weights_array.tolist(),
             list(depends_on),
             seed=seed,
             threads=threads,

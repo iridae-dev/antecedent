@@ -532,8 +532,8 @@ def categorical_effects(
         },
     }
     report, artifact, refusal = _evaluate(
-        y.tolist(),
-        [v.tolist() for v in adjustment.values()],
+        y,
+        list(adjustment.values()),
         labels,
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),

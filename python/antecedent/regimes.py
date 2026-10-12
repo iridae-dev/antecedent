@@ -753,7 +753,7 @@ def evaluate_sequential_gformula(
             p,
             censor,
             list(ids),
-            folds.tolist(),
+            folds,
             float(minimum_probability),
         )
     except ValueError as error:
@@ -927,8 +927,8 @@ def evaluate_sequential_doubly_robust(
                 p,
                 censor,
                 list(ids),
-                folds.tolist(),
-                prediction_folds.tolist(),
+                folds,
+                prediction_folds,
                 float(minimum_probability),
             )
         )

@@ -471,9 +471,9 @@ def joint_effects(
         "contrasts": declared_contrasts,
     }
     report, artifact, refusal = _evaluate(
-        y.tolist(),
-        [v.tolist() for v in adjustment.values()],
-        [v.tolist() for _, v, _ in prepared],
+        y,
+        list(adjustment.values()),
+        [v for _, v, _ in prepared],
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
     )

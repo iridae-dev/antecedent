@@ -749,11 +749,12 @@ class PreparedBatch:
                 label = _retarget_estimand(self._queries[index])
                 if label is not None:
                     labels[claim.name] = label
+            weights_array = np.asarray(claim.weights, dtype=float)
             native_claims.append(
                 (
                     claim.name,
                     index,
-                    np.asarray(claim.weights, dtype=float).tolist(),
+                    weights_array if weights_array.ndim == 1 else weights_array.tolist(),
                     [str(n) for n in claim.depends_on],
                 )
             )
