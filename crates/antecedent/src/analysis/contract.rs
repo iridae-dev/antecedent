@@ -34,8 +34,8 @@ use antecedent_io::{
     ProgramIdentityWire, ReasoningSectionWire, ScoreReuseIdentityWire, SlotSectionWire,
     SupportSlotWire, TargetIdentityWire, TargetWeightsIdentityWire, TargetWeightsSectionWire,
     TemporalIdentificationWire, UncertaintyComponentWire, UncertaintySlotWire, admg_identity,
-    causal_query_to_wire, causal_query_to_wire_with_registry, claim_digest, cpdag_identity,
-    dag_identity, data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
+    causal_query_to_wire_with_registry, claim_digest, cpdag_identity, dag_identity,
+    data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
     execution_digest, execution_identity_from_context, graph_posterior_atom_identities,
     identification_digest, identification_product_digest_wire, identification_product_wire,
     identification_to_wire_with_registry, inference_binding_digest, observation_identity_wire,
@@ -57,6 +57,7 @@ use super::prepared::{
     PreparedStudy,
 };
 
+mod program_wire;
 mod result_wire;
 
 use result_wire::{LicensedWire, distribution_wire};
@@ -1756,74 +1757,8 @@ fn program_payloads(
     resolved_estimator: Option<&str>,
     binding: CheckedProgramBinding<'_>,
 ) -> Result<ProgramPayloads, CausalError> {
-    let (
-        checked_aipw,
-        checked_frontdoor,
-        checked_iv,
-        checked_linear,
-        checked_functional_effect,
-        checked_functional_response_members,
-        checked_distribution,
-        checked_nested_counterfactual,
-    ) = match binding {
-        CheckedProgramBinding::None => (None, None, None, None, None, None, None, None),
-        CheckedProgramBinding::Aipw(x) => (Some(x), None, None, None, None, None, None, None),
-        CheckedProgramBinding::FrontDoor(x) => (None, Some(x), None, None, None, None, None, None),
-        CheckedProgramBinding::Iv(x) => (None, None, Some(x), None, None, None, None, None),
-        CheckedProgramBinding::Linear(x) => (None, None, None, Some(x), None, None, None, None),
-        CheckedProgramBinding::FunctionalEffect(x) => {
-            (None, None, None, None, Some(x), None, None, None)
-        }
-        CheckedProgramBinding::FunctionalResponse(x) => {
-            (None, None, None, None, None, Some(x), None, None)
-        }
-        CheckedProgramBinding::Distribution(x) => {
-            (None, None, None, None, None, None, Some(x), None)
-        }
-        CheckedProgramBinding::NestedCounterfactual(x) => {
-            (None, None, None, None, None, None, None, Some(x))
-        }
-    };
     let selected = resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok());
-    let binding_matches = match binding {
-        CheckedProgramBinding::None => true,
-        CheckedProgramBinding::Aipw(_) => {
-            selected == Some(crate::EstimatorId::Aipw)
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::FrontDoor(_) => {
-            selected == Some(crate::EstimatorId::FrontDoorTwoStage)
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::Iv(_) => {
-            matches!(selected, Some(crate::EstimatorId::IvWald | crate::EstimatorId::Iv2Sls))
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::Linear(_) => {
-            selected == Some(crate::EstimatorId::LinearAdjustmentAte)
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::FunctionalEffect(_) => {
-            selected == Some(crate::EstimatorId::FunctionalEffect)
-                && matches!(
-                    study.query,
-                    CausalQuery::AverageEffect(_) | CausalQuery::PathSpecific(_)
-                )
-        }
-        CheckedProgramBinding::FunctionalResponse(_) => {
-            selected == Some(crate::EstimatorId::FunctionalEffect)
-                && matches!(study.query, CausalQuery::Response(_))
-        }
-        CheckedProgramBinding::Distribution(_) => {
-            selected == Some(crate::EstimatorId::FunctionalDistribution)
-                && matches!(study.query, CausalQuery::Distribution(_))
-        }
-        CheckedProgramBinding::NestedCounterfactual(_) => {
-            selected == Some(crate::EstimatorId::StaticMediationLinear)
-                && matches!(study.query, CausalQuery::NestedCounterfactual(_))
-        }
-    };
-    if !binding_matches {
+    if !program_wire::binding_agrees(binding, selected, &study.query) {
         return Err(CausalError::Compile {
             message: "checked program binding disagrees with the selected estimator or query"
                 .into(),
@@ -1891,265 +1826,9 @@ fn program_payloads(
         None => None,
     };
     let mut commitments = inferential_commitments(study, resolved_estimator);
-    let checked_aipw_lowering = checked_aipw.map(|checked| {
-        let lowering = checked.lowering();
-        commitments.se_kind = Some(lowering.se_kind.as_str().to_string());
-        let se_lag = match lowering.se_kind {
-            antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
-            | antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => Some(lag as u64),
-            _ => None,
-        };
-        antecedent_io::CheckedAipwLoweringWire {
-            format: 1,
-            functional: lowering.functional.raw(),
-            treatment: lowering.treatment.raw(),
-            outcome: lowering.outcome.raw(),
-            adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
-            population: "all_observed".into(),
-            procedure: lowering.procedure.as_str().into(),
-            folds: lowering.folds as u64,
-            se_kind: lowering.se_kind.as_str().into(),
-            se_lag,
-            bootstrap_replicates: lowering.bootstrap_replicates,
-            trim_bits: match lowering.overlap {
-                antecedent_estimate::OverlapPolicy::RequireDiagnostics {
-                    trim: Some(trim), ..
-                } => Some(trim.to_bits()),
-                _ => None,
-            },
-        }
-    });
-    let checked_frontdoor_lowering =
-        checked_frontdoor
-            .map(|checked| {
-                let lowering = checked.lowering();
-                let procedure = match lowering.procedure {
-            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct => {
-                "linear_path_product"
-            }
-            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::Functional => "functional",
-        };
-                let problem = checked.problem();
-                Ok::<_, CausalError>(antecedent_io::CheckedFrontDoorLoweringWire {
-                    format: 1,
-                    functional: lowering.functional.raw(),
-                    executable: lowering.executable.raw(),
-                    treatment: lowering.treatment.raw(),
-                    outcome: lowering.outcome.raw(),
-                    mediators: lowering.mediators.iter().map(|id| id.raw()).collect(),
-                    active_bits: lowering.active.to_bits(),
-                    control_bits: lowering.control.to_bits(),
-                    procedure: procedure.into(),
-                    complete_case_rows: problem.nrows as u64,
-                    overlap: overlap_policy_tag(problem.overlap),
-                    uncertainty: format!(
-                        "{}:{}",
-                        commitments.interval_method,
-                        commitments.se_kind.as_deref().unwrap_or("unspecified")
-                    ),
-                    arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
-                        .map_err(|error| io_err(&error))?,
-                })
-            })
-            .transpose()?;
-    let checked_iv_lowering = checked_iv.map(|checked| {
-        let lowering = checked.lowering();
-        commitments.se_kind = Some(lowering.se_kind.as_str().to_string());
-        let procedure = match lowering.procedure {
-            antecedent_estimate::CheckedIvProcedure::Wald => "wald",
-            antecedent_estimate::CheckedIvProcedure::TwoStageLeastSquares => {
-                "two_stage_least_squares"
-            }
-        };
-        let weak_instrument_uncertainty =
-            if lowering.se_kind == antecedent_estimate::AnalyticSeKind::Homoskedastic {
-                "anderson_rubin_if_weak"
-            } else {
-                "withheld_non_homoskedastic"
-            };
-        antecedent_io::CheckedIvLoweringWire {
-            format: 1,
-            functional: lowering.functional.raw(),
-            treatment: lowering.treatment.raw(),
-            outcome: lowering.outcome.raw(),
-            instrument: lowering.instruments.first().map_or(u32::MAX, |id| id.raw()),
-            adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
-            active_bits: lowering.active.to_bits(),
-            control_bits: lowering.control.to_bits(),
-            instrument_active_bits: lowering.instrument_active.to_bits(),
-            instrument_control_bits: lowering.instrument_control.to_bits(),
-            procedure: procedure.into(),
-            se_kind: lowering.se_kind.as_str().into(),
-            weak_instrument_uncertainty: weak_instrument_uncertainty.into(),
-            complete_case_rows: u64::try_from(checked.problem().nrows).unwrap_or(u64::MAX),
-        }
-    });
-    let checked_linear_adjustment_lowering = checked_linear
-        .filter(|_| resolved_estimator == Some("linear.adjustment.ate"))
-        .filter(|_| {
-            study.graph.class() == GraphClass::Dag
-                && matches!(
-                    study.structure_source,
-                    StructureSource::Explicit | StructureSource::Accepted
-                )
-                && matches!(study.inference, InferenceMode::Frequentist)
-        })
-        .map(|operation| {
-            let checked = &operation.preparation;
-            let lowering = checked.lowering();
-            let problem = checked.problem();
-            let fit_kind = match operation.fitter.fit_kind {
-                antecedent_estimate::LinearFitKind::Ols => "ols".to_string(),
-                antecedent_estimate::LinearFitKind::Ridge { lambda } => {
-                    format!("ridge:{:016x}", lambda.to_bits())
-                }
-                antecedent_estimate::LinearFitKind::Lasso { lambda } => {
-                    format!("lasso:{:016x}", lambda.to_bits())
-                }
-                antecedent_estimate::LinearFitKind::Huber { c } => {
-                    format!("huber:{:016x}", c.to_bits())
-                }
-            };
-            let design_columns = problem
-                .design
-                .columns
-                .iter()
-                .map(|column| match column.role {
-                    antecedent_stats::DesignColumnRole::Intercept => "intercept".to_string(),
-                    antecedent_stats::DesignColumnRole::Treatment => "treatment".to_string(),
-                    antecedent_stats::DesignColumnRole::Covariate(id) => {
-                        format!("covariate:{}", id.raw())
-                    }
-                })
-                .collect();
-            let se_kind = operation.fitter.se_kind;
-            commitments.se_kind = Some(se_kind.as_str().to_string());
-            Ok::<_, CausalError>(antecedent_io::CheckedLinearAdjustmentLoweringWire {
-                format: 1,
-                functional: lowering.source.raw(),
-                executable: lowering.executable.raw(),
-                treatment: lowering.treatment.raw(),
-                outcome: lowering.outcome.raw(),
-                adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
-                active_bits: lowering.active.to_bits(),
-                control_bits: lowering.control.to_bits(),
-                population: antecedent_io::TargetPopulationWire::from_domain(&lowering.population)
-                    .map_err(|error| io_err(&error))?,
-                design_columns,
-                fit_kind,
-                backend: "faer".into(),
-                se_kind: se_kind.as_str().into(),
-                se_lag: match se_kind {
-                    antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
-                    | antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => {
-                        Some(lag as u64)
-                    }
-                    _ => None,
-                },
-                bootstrap_replicates: operation.fitter.bootstrap_replicates,
-                interval_method: commitments.interval_method.clone(),
-                complete_case_rows: problem.design.nrows as u64,
-                arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
-                    .map_err(|error| io_err(&error))?,
-            })
-        })
-        .transpose()?;
-    let functional_program = if resolved_estimator
-        .and_then(|name| name.parse::<crate::EstimatorId>().ok())
-        == Some(crate::EstimatorId::FunctionalEffect)
-    {
-        checked_functional_effect
-            .map(antecedent_io::functional_program_to_wire)
-            .transpose()
-            .map_err(|err| io_err(&err))?
-    } else if resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok())
-        == Some(crate::EstimatorId::FunctionalDistribution)
-    {
-        if let Some(program) = checked_distribution {
-            Some(antecedent_io::functional_program_to_wire(program).map_err(|err| io_err(&err))?)
-        } else {
-            cached
-                .map(|identification| {
-                    let estimand = crate::strategy_table::select_estimand(
-                        identification,
-                        crate::EstimatorId::FunctionalDistribution,
-                    )?;
-                    let schema = data_schema(&study.data);
-                    let program_schema = antecedent_expr::ProgramSchema::new(
-                        schema.variables().iter().map(|variable| {
-                            (
-                                variable.id,
-                                antecedent_expr::ProgramVariable {
-                                    name: Arc::clone(&variable.name),
-                                },
-                            )
-                        }),
-                    );
-                    let root = estimand.functional;
-                    let program = antecedent_expr::FunctionalProgram::new(
-                        identification.arena.clone(),
-                        program_schema,
-                        root,
-                        root,
-                        antecedent_expr::ProgramLimits::default(),
-                    )
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                    antecedent_io::functional_program_to_wire(&program)
-                        .map_err(|error| io_err(&error))
-                })
-                .transpose()?
-        }
-    } else {
-        None
-    };
-    let checked_functional_response_members = checked_functional_response_members.filter(|_| {
-        matches!(
-            &study.query,
-            CausalQuery::Response(query)
-                if matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
-        )
-    });
-    let checked_functional_response_grid = checked_functional_response_members
-        .map(|members| {
-            let (treatment, outcome) = match &study.query {
-                CausalQuery::Response(query) => match &query.functional {
-                    antecedent_core::ResponseFunctional::MeanCurve { treatment, outcome } => {
-                        (treatment.variable.raw(), outcome.raw())
-                    }
-                    _ => {
-                        return Err(CausalError::Compile {
-                            message: "checked response members require a mean-curve target".into(),
-                        });
-                    }
-                },
-                _ => {
-                    return Err(CausalError::Compile {
-                        message: "checked response members require a response target".into(),
-                    });
-                }
-            };
-            let members = members
-                .iter()
-                .map(|member| {
-                    let query = CausalQuery::Response(member.query().clone());
-                    Ok(antecedent_io::CheckedFunctionalResponseMemberWire {
-                        grid_value_bits: member.grid_value().to_bits(),
-                        query: causal_query_to_wire(&query).map_err(|error| io_err(&error))?,
-                        identification: identification_product_wire(member.identification(), false)
-                            .map_err(|error| io_err(&error))?,
-                        program: antecedent_io::functional_program_to_wire(member.program())
-                            .map_err(|error| io_err(&error))?,
-                    })
-                })
-                .collect::<Result<Vec<_>, CausalError>>()?;
-            Ok::<_, CausalError>(antecedent_io::CheckedFunctionalResponseGridWire {
-                format: 1,
-                treatment,
-                outcome,
-                members,
-            })
-        })
-        .transpose()?;
+    let lowerings =
+        program_wire::ProgramLowerings::bind(binding, study, resolved_estimator, &mut commitments)?;
+    let functional_program = program_wire::functional_program(binding, study, cached, selected)?;
     let program = ProgramIdentityWire {
         format: IDENTITY_FORMAT,
         target: *target_digest.as_bytes(),
@@ -2158,24 +1837,12 @@ fn program_payloads(
         completion_budget: study.max_completions.map(|cap| cap as u64),
         commitments: commitments.clone(),
         functional_program,
-        checked_aipw_lowering,
-        checked_frontdoor_lowering,
-        checked_iv_lowering,
-        checked_linear_adjustment_lowering,
-        checked_functional_response_grid,
-        checked_nested_counterfactual: checked_nested_counterfactual.map(|operation| {
-            let query = operation.query();
-            antecedent_io::CheckedNestedCounterfactualWire {
-                format: 1,
-                treatment: query.treatment.raw(),
-                mediator: query.mediator.raw(),
-                outcome: query.outcome.raw(),
-                control_bits: query.control_value().to_bits(),
-                active_bits: query.active_value().to_bits(),
-                model: "linear_gaussian".into(),
-                procedure: "natural_direct_shared_exogenous".into(),
-            }
-        }),
+        checked_aipw_lowering: lowerings.aipw,
+        checked_frontdoor_lowering: lowerings.frontdoor,
+        checked_iv_lowering: lowerings.iv,
+        checked_linear_adjustment_lowering: lowerings.linear_adjustment,
+        checked_functional_response_grid: lowerings.functional_response_grid,
+        checked_nested_counterfactual: lowerings.nested_counterfactual,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
