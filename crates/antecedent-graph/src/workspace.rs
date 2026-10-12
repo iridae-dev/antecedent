@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::error::GraphError;
 use crate::types::DenseNodeId;
 
 /// Bitset over dense node ids.
@@ -65,11 +66,42 @@ impl BitSet {
         &self.words
     }
 
-    /// Set bit.
-    pub fn insert(&mut self, id: DenseNodeId) {
+    /// Set bit `id`.
+    ///
+    /// # Errors
+    ///
+    /// `id` is outside `0..bit_len`. Callers that hold an arbitrary dense id use this
+    /// instead of [`Self::insert`], which treats an out-of-range id as a programming bug.
+    pub fn try_insert(&mut self, id: DenseNodeId) -> Result<(), GraphError> {
         let i = id.as_usize();
-        debug_assert!(i < self.len);
-        self.words[i / 64] |= 1u64 << (i % 64);
+        if i >= self.len {
+            return Err(GraphError::UnknownNode { id: id.raw() });
+        }
+        let word = i / 64;
+        let bit = i % 64;
+        let Some(slot) = self.words.get_mut(word) else {
+            return Err(GraphError::UnknownNode { id: id.raw() });
+        };
+        *slot |= 1u64 << bit;
+        Ok(())
+    }
+
+    /// Set bit.
+    ///
+    /// # Panics
+    ///
+    /// If `id` is outside `0..bit_len`. An out-of-range insert used to set a tail bit
+    /// past the addressable length in release builds, so equal sets no longer compared
+    /// equal when used as memo keys. In-range ids are unchanged. Arbitrary ids belong
+    /// in [`Self::try_insert`].
+    pub fn insert(&mut self, id: DenseNodeId) {
+        if self.try_insert(id).is_err() {
+            panic!(
+                "BitSet::insert: dense id {} is outside 0..{} (programming bug: the id is not in this set's domain)",
+                id.as_usize(),
+                self.len
+            );
+        }
     }
 
     /// Clear one bit.
@@ -129,41 +161,72 @@ impl BitSet {
     }
 
     /// Whether `self` and `other` share a member (same length).
+    ///
+    /// # Panics
+    ///
+    /// If the sets were sized for different node counts. Zipping unequal word
+    /// vectors used to drop a tail word in release builds.
     #[must_use]
     pub fn intersects(&self, other: &Self) -> bool {
-        debug_assert_eq!(self.len, other.len);
+        self.require_same_domain(other);
         self.words.iter().zip(other.words.iter()).any(|(a, b)| a & b != 0)
     }
 
     /// Union `other` into `self` (same length).
+    ///
+    /// # Panics
+    ///
+    /// If the sets were sized for different node counts.
     pub fn union_with(&mut self, other: &Self) {
-        debug_assert_eq!(self.len, other.len);
+        self.require_same_domain(other);
         for (a, b) in self.words.iter_mut().zip(other.words.iter()) {
             *a |= *b;
         }
     }
 
     /// Intersect `other` into `self` (same length).
+    ///
+    /// # Panics
+    ///
+    /// If the sets were sized for different node counts.
     pub fn intersect_with(&mut self, other: &Self) {
-        debug_assert_eq!(self.len, other.len);
+        self.require_same_domain(other);
         for (a, b) in self.words.iter_mut().zip(other.words.iter()) {
             *a &= *b;
         }
     }
 
     /// Subtract `other` from `self` (same length).
+    ///
+    /// # Panics
+    ///
+    /// If the sets were sized for different node counts.
     pub fn difference_with(&mut self, other: &Self) {
-        debug_assert_eq!(self.len, other.len);
+        self.require_same_domain(other);
         for (a, b) in self.words.iter_mut().zip(other.words.iter()) {
             *a &= !*b;
         }
     }
 
     /// Whether `self` is a subset of `other`.
+    ///
+    /// # Panics
+    ///
+    /// If the sets were sized for different node counts.
     #[must_use]
     pub fn is_subset_of(&self, other: &Self) -> bool {
-        debug_assert_eq!(self.len, other.len);
+        self.require_same_domain(other);
         self.words.iter().zip(other.words.iter()).all(|(a, b)| a & !b == 0)
+    }
+
+    /// Both sets address the same bits, including the same word vector length.
+    fn require_same_domain(&self, other: &Self) {
+        assert!(
+            self.len == other.len && self.words.len() == other.words.len(),
+            "BitSet operation requires equal lengths ({} vs {})",
+            self.len,
+            other.len
+        );
     }
 
     /// Whether `self` equals `other`.
@@ -224,6 +287,7 @@ impl GraphWorkspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::GraphError;
 
     fn id(i: u32) -> DenseNodeId {
         DenseNodeId::from_raw(i)
@@ -278,6 +342,40 @@ mod tests {
         a.resize(64);
         assert_eq!(a.to_dense_ids(), vec![id(3), id(9)]);
         assert_eq!(a.count_ones(), 2);
+    }
+
+    #[test]
+    fn insert_rejects_a_tail_bit_past_the_addressable_length() {
+        let mut set = BitSet::with_len(65);
+        let err = set.try_insert(id(70)).unwrap_err();
+        assert!(matches!(err, GraphError::UnknownNode { id: 70 }));
+        assert_eq!(set.count_ones(), 0);
+        assert_eq!(set.words()[1], 0, "an out-of-range insert must not dirty the tail word");
+    }
+
+    #[test]
+    #[should_panic(expected = "outside 0..65")]
+    fn insert_panics_on_a_tail_bit_past_the_addressable_length() {
+        let mut set = BitSet::with_len(65);
+        set.insert(id(70));
+    }
+
+    #[test]
+    fn in_range_insert_still_sets_the_last_addressable_bit() {
+        let mut set = BitSet::with_len(65);
+        set.insert(id(64));
+        assert!(set.contains(id(64)));
+        assert_eq!(set.count_ones(), 1);
+        assert_eq!(set.words()[1], 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "equal lengths")]
+    fn union_rejects_mismatched_lengths() {
+        let mut a = BitSet::with_len(64);
+        a.insert(id(1));
+        let b = BitSet::with_len(128);
+        a.union_with(&b);
     }
 
     #[test]
