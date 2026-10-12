@@ -207,6 +207,7 @@ impl MatchingIndex {
     /// # Errors
     ///
     /// Shape mismatch, `k == 0`, too few donors, or a non-finite query.
+    #[cfg(test)]
     pub fn kth_distances(
         &self,
         queries_rowmajor: &[f64],

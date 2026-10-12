@@ -155,7 +155,7 @@ impl ProvenanceGraph {
 
     /// Parent artifact ids that are not nodes in this graph.
     #[must_use]
-    pub fn unresolved_parents(&self) -> Arc<[ArtifactId]> {
+    fn unresolved_parents(&self) -> Arc<[ArtifactId]> {
         let present: BTreeSet<&str> = self.nodes.iter().map(|n| n.artifact_id.as_ref()).collect();
         let mut missing = BTreeSet::new();
         for node in &self.nodes {

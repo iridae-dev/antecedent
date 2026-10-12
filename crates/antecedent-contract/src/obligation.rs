@@ -137,13 +137,6 @@ impl ObligationRecord {
         self
     }
 
-    /// Attach an evidence reference.
-    #[must_use]
-    pub fn with_evidence(mut self, evidence: impl Into<Arc<str>>) -> Self {
-        self.evidence = Some(evidence.into());
-        self
-    }
-
     /// Attach the underlying assumption.
     #[must_use]
     pub fn with_assumption(mut self, assumption: Assumption) -> Self {

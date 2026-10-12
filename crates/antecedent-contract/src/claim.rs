@@ -114,7 +114,7 @@ impl DomainStatus {
 
     /// Whether the status asserts something (identified, supported, evaluated).
     #[must_use]
-    pub const fn is_positive(self) -> bool {
+    const fn is_positive(self) -> bool {
         matches!(self, Self::Identified | Self::Supported | Self::Evaluated)
     }
 }

@@ -178,7 +178,7 @@ impl RollingMechanismDiagnostics {
 
     /// Approximate bytes retained by this slot.
     #[must_use]
-    pub fn bytes_estimate(&self) -> u64 {
+    fn bytes_estimate(&self) -> u64 {
         self.bytes_for(self.ring.len(), self.beta.len())
     }
 

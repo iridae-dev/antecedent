@@ -459,7 +459,7 @@ impl EvidenceObligation {
     /// The `EstablishAssumption` obligation of an unresolved assumption record,
     /// or `None` when the record no longer blocks a claim.
     #[must_use]
-    pub fn from_unresolved_record(record: &ObligationRecord) -> Option<Self> {
+    fn from_unresolved_record(record: &ObligationRecord) -> Option<Self> {
         if !record.is_unresolved() {
             return None;
         }

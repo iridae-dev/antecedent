@@ -87,15 +87,6 @@ impl ResamplingPlan {
             Self::ClusterBootstrap { .. } | Self::Permutation(PermutationScheme::WithinCluster)
         )
     }
-
-    /// Cluster variable recorded on [`ResamplingPlan::ClusterBootstrap`], if any.
-    #[must_use]
-    pub const fn cluster_variable(self) -> Option<VariableId> {
-        match self {
-            Self::ClusterBootstrap { cluster } => Some(cluster),
-            _ => None,
-        }
-    }
 }
 
 /// Fill `out` with a length-`n` row-index plan under `plan`.

@@ -15,8 +15,6 @@ pub struct FitDiagnostics {
     pub backend: &'static str,
     /// Workspace grow count observed at fit time.
     pub grow_count: u32,
-    /// Length of the design row-selection vector when known.
-    pub row_selection_len: Option<usize>,
 }
 
 impl FitDiagnostics {
@@ -28,20 +26,13 @@ impl FitDiagnostics {
         backend: &'static str,
         grow_count: u32,
     ) -> Self {
-        Self { rank, rcond, backend, grow_count, row_selection_len: None }
-    }
-
-    /// Attach row-selection provenance length.
-    #[must_use]
-    pub const fn with_row_selection_len(mut self, len: usize) -> Self {
-        self.row_selection_len = Some(len);
-        self
+        Self { rank, rcond, backend, grow_count }
     }
 }
 
 impl Default for FitDiagnostics {
     fn default() -> Self {
-        Self { rank: 0, rcond: None, backend: "unknown", grow_count: 0, row_selection_len: None }
+        Self { rank: 0, rcond: None, backend: "unknown", grow_count: 0 }
     }
 }
 

@@ -541,12 +541,6 @@ impl Intervention {
             }
         }
     }
-
-    /// Whether this is a hard `Set` .
-    #[must_use]
-    pub const fn is_hard_set(&self) -> bool {
-        matches!(self, Self::Set { .. })
-    }
 }
 
 /// Errors from intervention construction or validation.
@@ -587,7 +581,7 @@ mod tests {
         let v = VariableId::from_raw(3);
         let i = Intervention::set(v, Value::f64(1.0));
         assert_eq!(i.primary_variable(), Some(v));
-        assert!(i.is_hard_set());
+        assert!(matches!(i, Intervention::Set { .. }));
         i.validate().unwrap();
     }
 

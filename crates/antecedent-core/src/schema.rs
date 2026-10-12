@@ -102,16 +102,6 @@ impl SmallRoleSet {
         Self(hint as u16)
     }
 
-    /// Construct from an iterator of hints.
-    #[must_use]
-    pub fn from_hints(hints: impl IntoIterator<Item = RoleHint>) -> Self {
-        let mut set = Self::empty();
-        for hint in hints {
-            set.insert(hint);
-        }
-        set
-    }
-
     /// Insert a role hint.
     pub fn insert(&mut self, hint: RoleHint) {
         self.0 |= hint as u16;
@@ -484,8 +474,8 @@ mod tests {
     #[test]
     fn role_set_is_bitmask_not_heap() {
         assert_eq!(size_of::<SmallRoleSet>(), 2);
-        let mut set =
-            SmallRoleSet::from_hints([RoleHint::TreatmentCandidate, RoleHint::OutcomeCandidate]);
+        let mut set = SmallRoleSet::from_hint(RoleHint::TreatmentCandidate);
+        set.insert(RoleHint::OutcomeCandidate);
         assert!(set.contains(RoleHint::TreatmentCandidate));
         assert!(set.contains(RoleHint::OutcomeCandidate));
         assert!(!set.contains(RoleHint::InstrumentCandidate));

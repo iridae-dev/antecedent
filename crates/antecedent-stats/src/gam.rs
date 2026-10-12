@@ -73,6 +73,7 @@ impl SmoothSpec {
 
     /// Attach a variable id for [`RecordedSmooth`] provenance.
     #[must_use]
+    #[cfg(test)]
     pub fn with_variable(mut self, id: VariableId) -> Self {
         self.variable = Some(id);
         self

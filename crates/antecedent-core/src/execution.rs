@@ -64,15 +64,6 @@ impl Parallelism {
     pub const fn bounded(max_threads: NonZeroThreadCount) -> Self {
         Self { max_threads }
     }
-
-    /// [`default_user_threads`] as a [`Parallelism`].
-    #[must_use]
-    pub fn default_user() -> Self {
-        Self {
-            max_threads: NonZeroThreadCount::new(default_user_threads())
-                .unwrap_or_else(NonZeroThreadCount::one),
-        }
-    }
 }
 
 /// Determinism requirements for reductions and scheduling.

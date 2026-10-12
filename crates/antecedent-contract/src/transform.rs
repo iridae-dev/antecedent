@@ -114,7 +114,7 @@ impl LayerEffect {
 
     /// Whether this layer was refused.
     #[must_use]
-    pub fn is_refused(&self) -> bool {
+    fn is_refused(&self) -> bool {
         self.effects.contains(&TransformEffect::Refused)
     }
 }
