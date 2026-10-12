@@ -60,6 +60,10 @@ pub struct BayesianInterferenceEstimate {
     pub contrast_draws: Vec<f64>,
     /// Posterior mean contrast.
     pub mean: f64,
+    /// Residual variance of the additive exposure regression, `RSS / n`.
+    /// Zero when the observed outcomes lie in the column space up to rounding,
+    /// in which case every draw equals the least-squares contrast.
+    pub residual_variance: f64,
 }
 
 /// Fit the declared Gaussian additive potential-outcome model on a fixed network.
@@ -68,11 +72,13 @@ pub struct BayesianInterferenceEstimate {
 /// same unit disturbance `epsilon_i` is shared across that unit's exposures. The
 /// finite-network target is the mean potential-outcome contrast over these units.
 /// This is model based and does not inherit the design-based HT guarantee. The
-/// prior is independent `Normal(0, prior_sd²)` on all three coefficients, and the
-/// residual variance stays fixed at one. A fitted `σ²` would reweight that prior
-/// and move the posterior mean, so exposing it waits on a calibration pin
-/// (B1-12). A full-rank observed design and empirical support for both requested
-/// exposure levels are required.
+/// prior is independent `Normal(0, prior_sd²)` on the coefficient scale. The
+/// Gaussian likelihood is scaled by the residual variance `RSS / n` of the
+/// observed additive exposure regression, so the posterior spread follows the
+/// outcome units. An exact fit (residual sum of squares within rounding of the
+/// outcome scale) is a point mass at the least-squares contrast. A full-rank
+/// observed design and empirical support for both requested exposure levels are
+/// required.
 pub fn estimate_interference_bayesian(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -107,44 +113,64 @@ pub fn estimate_interference_bayesian(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let observed = exposures(assignment, &incoming, &query.exposure)?;
-    // Strict `<` tolerance. The closed helper used for realized-unit matching
-    // would accept a level exactly one tolerance away, which this refusal excluded.
-    let level_supported = |level: ExposureLevel| {
-        observed.iter().any(|e| {
-            (e.own - level.own).abs() < EXPOSURE_LEVEL_TOLERANCE
-                && (e.neighbors - level.neighbors).abs() < EXPOSURE_LEVEL_TOLERANCE
-        })
-    };
+    let level_supported =
+        |level: ExposureLevel| observed.iter().any(|e| exposure_levels_approx_eq(*e, level));
     if !level_supported(from) || !level_supported(to) {
         return Err(EstimationError::unsupported(
             "Bayesian interference refuses an exposure level absent from the realized assignment",
         ));
     }
     // X = [1, own treatment, treated-neighbor count], row-major for local algebra.
-    // Likelihood precision is 1 (residual variance fixed). See the function docs.
     let x: Vec<[f64; 3]> = observed.iter().map(|e| [1.0, e.own, e.neighbors]).collect();
-    let mut precision = [[0.0; 3]; 3];
-    let mut rhs = [0.0; 3];
-    let prior_precision = 1.0 / prior_sd.powi(2);
-    for (j, row) in precision.iter_mut().enumerate() {
-        row[j] = prior_precision;
-    }
+    let mut xtx = [[0.0; 3]; 3];
+    let mut xty = [0.0; 3];
     for i in 0..n {
-        for (j, (rhs_value, row)) in rhs.iter_mut().zip(precision.iter_mut()).enumerate() {
-            *rhs_value += x[i][j] * outcomes[i];
-            for (k, value) in row.iter_mut().enumerate() {
-                *value += x[i][j] * x[i][k];
+        for j in 0..3 {
+            xty[j] += x[i][j] * outcomes[i];
+            for k in 0..3 {
+                xtx[j][k] += x[i][j] * x[i][k];
             }
         }
     }
-    let mut observed_gram = precision;
-    for (j, row) in observed_gram.iter_mut().enumerate() {
-        row[j] -= prior_precision;
+    let xtx_inv = crate::util::invert_fixed(&xtx).ok_or_else(|| {
+        EstimationError::unsupported("observed interference exposure design is rank deficient")
+    })?;
+    let mut beta = [0.0; 3];
+    for j in 0..3 {
+        for k in 0..3 {
+            beta[j] += xtx_inv[j][k] * xty[k];
+        }
     }
-    if crate::util::invert_fixed(&observed_gram).is_none() {
-        return Err(EstimationError::unsupported(
-            "observed interference exposure design is rank deficient",
-        ));
+    let mut rss = 0.0;
+    for i in 0..n {
+        let fitted = (0..3).map(|j| x[i][j] * beta[j]).sum::<f64>();
+        let residual = outcomes[i] - fitted;
+        rss += residual * residual;
+    }
+    let outcome_scale = outcomes.iter().fold(0.0_f64, |scale, y| scale.max(y.abs())).max(1.0);
+    let rounding = (n as f64) * f64::EPSILON * outcome_scale * outcome_scale * 64.0;
+    let from_x = [0.0, from.own, from.neighbors];
+    let to_x = [0.0, to.own, to.neighbors];
+    let contrast = [0, 1, 2].map(|j| to_x[j] - from_x[j]);
+    let ols_effect = (0..3).map(|j| contrast[j] * beta[j]).sum::<f64>();
+    let residual_variance = if rss <= rounding { 0.0 } else { rss / n as f64 };
+    if residual_variance == 0.0 {
+        return Ok(BayesianInterferenceEstimate {
+            contrast_draws: vec![ols_effect; n_draws],
+            mean: ols_effect,
+            residual_variance,
+        });
+    }
+    let prior_precision = 1.0 / prior_sd.powi(2);
+    let inv_sigma = 1.0 / residual_variance;
+    let mut precision = [[0.0; 3]; 3];
+    let mut rhs = [0.0; 3];
+    for j in 0..3 {
+        rhs[j] = xty[j] * inv_sigma;
+        for k in 0..3 {
+            precision[j][k] = xtx[j][k] * inv_sigma;
+        }
+        precision[j][j] += prior_precision;
     }
     let covariance = crate::util::invert_fixed(&precision)
         .ok_or_else(|| EstimationError::unsupported("posterior precision matrix is singular"))?;
@@ -154,9 +180,6 @@ pub fn estimate_interference_bayesian(
             *value += covariance_value * rhs[k];
         }
     }
-    let from_x = [0.0, from.own, from.neighbors];
-    let to_x = [0.0, to.own, to.neighbors];
-    let contrast = [0, 1, 2].map(|j| to_x[j] - from_x[j]);
     let effect_mean = (0..3).map(|j| contrast[j] * mean[j]).sum::<f64>();
     let mut effect_variance = 0.0;
     for j in 0..3 {
@@ -179,7 +202,7 @@ pub fn estimate_interference_bayesian(
     .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
     let contrast_draws = (0..n_draws).map(|i| draws[i]).collect::<Vec<_>>();
     let mean = contrast_draws.iter().sum::<f64>() / n_draws as f64;
-    Ok(BayesianInterferenceEstimate { contrast_draws, mean })
+    Ok(BayesianInterferenceEstimate { contrast_draws, mean, residual_variance })
 }
 
 /// Estimate a randomized exposure contrast on a fixed network.
@@ -739,9 +762,61 @@ mod tests {
         .unwrap();
         // Rows have design [1,1,0], [1,0,1], [1,1,1], [1,0,2].
         // Their outcomes equal 2 + 3*own + 4*neighbors exactly, so the
-        // independent finite-sample target contrast is 3 - 4 = -1.
-        assert!((result.mean + 1.0).abs() < 0.08, "posterior mean {}", result.mean);
+        // independent finite-sample target contrast is 3 - 4 = -1. An exact
+        // fit is a point mass at that least-squares contrast.
+        assert_eq!(result.residual_variance, 0.0);
+        assert!((result.mean + 1.0).abs() < 1e-8, "posterior mean {}", result.mean);
         assert_eq!(result.contrast_draws.len(), 20_000);
+        assert!(result.contrast_draws.iter().all(|draw| (*draw + 1.0).abs() < 1e-8));
+    }
+
+    #[test]
+    fn bayesian_interference_spread_scales_with_the_outcome() {
+        let fit = |outcomes: &[f64]| {
+            let table = TabularData::from_f64_columns([("y", outcomes)]).unwrap();
+            let data = NetworkData::try_new(
+                table,
+                [
+                    antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: 0, to: 2, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: 0, to: 3, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: 2, to: 3, weight: 1.0 },
+                ],
+            )
+            .unwrap();
+            let query = InterferenceQuery::new(
+                AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+                ExposureMapping::NeighborCount,
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+                    to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+                },
+            );
+            estimate_interference_bayesian(
+                &query,
+                &data,
+                &[true, false, true, false],
+                4_000,
+                9,
+                100.0,
+            )
+            .unwrap()
+        };
+        let base = fit(&[5.0, 7.0, 8.0, 12.0]);
+        let scaled = fit(&[20.0, 28.0, 32.0, 48.0]);
+        assert!(base.residual_variance > 0.0, "the noisy design must have a residual");
+        let variance_ratio = scaled.residual_variance / base.residual_variance;
+        assert!((variance_ratio - 16.0).abs() < 1e-8, "residual variance ratio {variance_ratio}");
+        let spread = |draws: &[f64]| {
+            let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+            (draws.iter().map(|d| (d - mean) * (d - mean)).sum::<f64>() / draws.len() as f64).sqrt()
+        };
+        let spread_ratio = spread(&scaled.contrast_draws) / spread(&base.contrast_draws);
+        assert!(
+            (spread_ratio - 4.0).abs() < 0.35,
+            "draw spread ratio {spread_ratio} should track the outcome scale"
+        );
     }
 
     #[test]
