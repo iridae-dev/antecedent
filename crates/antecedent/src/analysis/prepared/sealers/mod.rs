@@ -35,11 +35,15 @@ mod static_query;
 mod temporal;
 
 use super::{ExecutionKind, PreparedExecution};
-use crate::analysis::execute::Study;
+use crate::analysis::execute::{RouteInput, StaticMediationSource, Study};
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::{EstimatorId, IdentifierId};
-use antecedent_core::ExecutionContext;
+use antecedent_core::{
+    AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, InterventionalDistributionQuery,
+    ResponseQuery,
+};
+use antecedent_data::TabularData;
 
 /// Everything a sealer reads to decide admission and to build its operation.
 #[derive(Clone, Copy)]
@@ -52,13 +56,102 @@ pub(super) struct SealContext<'a> {
     /// The physical plan compiled once for this prepare.
     pub(super) plan: &'a PhysicalExecutionPlan,
     pub(super) ctx: &'a ExecutionContext,
+    /// The data, query and graph payload of `source`, parsed once by the
+    /// admission compile ran: `None` is a study no compiled cell covers.
+    ///
+    /// A sealer reads the cell it serves from here instead of re-deriving the
+    /// `(data, query, graph class)` triple; the gates that are about the
+    /// retained proof (identification cache) or the plan record stay in the
+    /// sealer. The graph-posterior and class-envelope sealers and the
+    /// attribution and class-mediation sealers do not read it: the first two
+    /// groups are admitted by `compile_graph_posterior` and by their own
+    /// `admits`, and the cell of an attribution carries no query.
+    pub(super) route: Option<RouteInput<'a>>,
     /// The compiled cross-world operation of a tabular counterfactual query.
     pub(super) counterfactual: Option<&'a crate::gcm::CheckedCounterfactualOperation>,
     /// The compiled cross-world operation of a nested counterfactual query.
     pub(super) nested_counterfactual: Option<&'a crate::gcm::NestedCounterfactualOperation>,
 }
 
-impl SealContext<'_> {
+impl<'a> SealContext<'a> {
+    /// The data and query of a tabular average-effect study over a DAG.
+    pub(super) fn static_ate_dag(&self) -> Option<(&'a TabularData, &'a AverageEffectQuery)> {
+        match self.route {
+            Some(RouteInput::StaticAteDag { data, query, .. }) => Some((data, query)),
+            _ => None,
+        }
+    }
+
+    /// The query of a tabular average-effect study over any graph class the
+    /// static average-effect route compiles.
+    pub(super) fn static_ate(&self) -> Option<&'a AverageEffectQuery> {
+        match self.route {
+            Some(
+                RouteInput::StaticAteDag { query, .. }
+                | RouteInput::StaticAtePag { query, .. }
+                | RouteInput::StaticAteCpdag { query, .. }
+                | RouteInput::StaticAteMixed { query, .. },
+            ) => Some(query),
+            _ => None,
+        }
+    }
+
+    /// The query of a tabular static response study over a DAG.
+    pub(super) fn static_response_dag(&self) -> Option<&'a ResponseQuery> {
+        match self.route {
+            Some(RouteInput::StaticResponseDag { query, .. }) => Some(query),
+            _ => None,
+        }
+    }
+
+    /// The data and query of a tabular conditional-effect study over a DAG.
+    pub(super) fn conditional_dag(&self) -> Option<(&'a TabularData, &'a ConditionalEffectQuery)> {
+        match self.route {
+            Some(RouteInput::ConditionalDag { data, query, .. }) => Some((data, query)),
+            _ => None,
+        }
+    }
+
+    /// The data and query of a tabular conditional-effect study over a DAG,
+    /// CPDAG or PAG.
+    pub(super) fn conditional(&self) -> Option<(&'a TabularData, &'a ConditionalEffectQuery)> {
+        match self.route {
+            Some(
+                RouteInput::ConditionalDag { data, query, .. }
+                | RouteInput::ConditionalCpdag { data, query, .. }
+                | RouteInput::ConditionalPag { data, query, .. },
+            ) => Some((data, query)),
+            _ => None,
+        }
+    }
+
+    /// The data and query of a tabular interventional-distribution study over
+    /// a DAG or a mixed graph.
+    pub(super) fn distribution(
+        &self,
+    ) -> Option<(&'a TabularData, &'a InterventionalDistributionQuery)> {
+        match self.route {
+            Some(
+                RouteInput::DistributionDag { data, query, .. }
+                | RouteInput::DistributionMixed { data, query },
+            ) => Some((data, query)),
+            _ => None,
+        }
+    }
+
+    /// The data of a tabular static mediation study over a DAG (a nested
+    /// counterfactual shares the cell and is not a mediation query).
+    pub(super) fn static_mediation_dag(&self) -> Option<&'a TabularData> {
+        match self.route {
+            Some(RouteInput::StaticMediationDag {
+                data,
+                source: StaticMediationSource::Mediation(_),
+                ..
+            }) => Some(data),
+            _ => None,
+        }
+    }
+
     /// The plan record's identifier, or `default` when it names none.
     pub(super) fn plan_identifier(&self, default: &str) -> Result<IdentifierId, CausalError> {
         Ok(self.plan.logical.record.identifier.as_deref().unwrap_or(default).parse()?)

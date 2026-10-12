@@ -29,7 +29,7 @@ pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
 
 /// Named execute / compile cell. Graph-completion arms still specialize on class.
 #[derive(Clone, Copy)]
-pub(super) enum AnalysisRoute {
+pub(crate) enum AnalysisRoute {
     Response,
     TemporalResponse,
     StaticAte,

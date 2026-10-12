@@ -242,7 +242,7 @@ impl Study {
     /// `None` is the logical ladder's previous catch-all: the data, query, and
     /// graph class are not one of the compiled cells. One-shot dispatch uses
     /// this so a sealed route is not refused early by compile admission.
-    pub(super) fn route_input_classified(&self) -> Option<RouteInput<'_>> {
+    pub(crate) fn route_input_classified(&self) -> Option<RouteInput<'_>> {
         let route = classify_analysis_route(&self.data, &self.query)?;
         let class = self.graph.class();
         Some(match (route, class) {

@@ -4,23 +4,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
-use crate::accepted::GraphClass;
-use crate::analysis::builder::{DataInput, RefuteSuite};
+use crate::analysis::builder::RefuteSuite;
+use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{CheckedStaticResponseCurve, PreparedExecution};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use antecedent_core::{CausalQuery, OutcomeFunctional, TargetPopulation};
+use antecedent_core::{OutcomeFunctional, TargetPopulation};
 use std::sync::Arc;
 
 pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+    let SealContext { analysis, .. } = *cx;
+    let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_deref()) {
+        (Some(query), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && analysis.refute == RefuteSuite::None
@@ -61,14 +56,9 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+    let SealContext { analysis, .. } = *cx;
+    let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_deref()) {
+        (Some(query), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -134,14 +124,9 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, ctx, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+    let SealContext { analysis, plan, ctx, .. } = *cx;
+    let sealed = match (cx.route, analysis.identification_cache.as_deref()) {
+        (Some(RouteInput::StaticResponseDag { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -180,12 +165,9 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                 None
             }
         }
-        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Admg)
+        (Some(RouteInput::CodeterminedJoint { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.structure_source == crate::support::StructureSource::Explicit
-                && analysis.tiered.as_ref().is_some_and(|background| {
-                    background.within_tier == antecedent_graph::WithinTier::CoDetermined
-                })
                 && analysis.custom_validators.is_empty()
                 && analysis.shared_batch_design.is_none()
                 && analysis.continuous_cell.is_none()
@@ -226,14 +208,9 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_deref()) {
+        (Some(query), Some(cache))
             if query.temporal.is_none()
                 && query.observation == antecedent_core::ObservationSpec::Complete
                 && query.target_population == TargetPopulation::AllObserved

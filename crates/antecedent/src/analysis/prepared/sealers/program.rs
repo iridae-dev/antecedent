@@ -5,8 +5,9 @@
 
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;
-use crate::analysis::builder::{DataInput, RefuteSuite};
+use crate::analysis::builder::RefuteSuite;
 use crate::analysis::execute::CheckedStaticCommon;
+use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{
     CheckedAdmgResponseCurveOperation, CheckedDistributionOperation,
     CheckedFunctionalEffectOperation, CheckedFunctionalEffectResponseMember,
@@ -18,15 +19,9 @@ use antecedent_core::{CausalQuery, Intervention, OutcomeFunctional, TargetPopula
 use std::sync::Arc;
 
 pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-        &analysis.inference,
-    ) {
-        (DataInput::Tabular(data), CausalQuery::Distribution(query), Some(cache), _, _) => {
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.distribution(), analysis.identification_cache.as_deref()) {
+        (Some((data, query)), Some(cache)) => {
             let identifier =
                 cx.plan_identifier(crate::strategy_table::DEFAULT_DISTRIBUTION_IDENTIFIER)?;
             let estimator =
@@ -55,40 +50,29 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-        &analysis.inference,
-    ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
-            Some(cache),
-            GraphClass::Admg | GraphClass::TemporalAdmg,
-            _,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && cache.estimand.method_kind().ok()
-                == Some(antecedent_expr::EstimandMethod::GeneralId)
-            && plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
-                == crate::strategy_table::IdentifierId::GeneralId.as_str()
-            && plan
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
-                == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
-            && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && matches!(query.target_population, TargetPopulation::AllObserved) =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.identification_cache.as_deref()) {
+        (Some(RouteInput::StaticAteMixed { data, query }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && cache.estimand.method_kind().ok()
+                    == Some(antecedent_expr::EstimandMethod::GeneralId)
+                && plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
+                    == crate::strategy_table::IdentifierId::GeneralId.as_str()
+                && plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
+                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved) =>
         {
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
             fitter.bootstrap_replicates = analysis.bootstrap_replicates;
@@ -119,39 +103,28 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-        &analysis.inference,
-    ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::PathSpecific(query),
-            Some(cache),
-            GraphClass::Dag,
-            _,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && cache.estimand.method_kind().ok()
-                == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
-            && plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .unwrap_or(crate::strategy_table::DEFAULT_PATH_IDENTIFIER)
-                == crate::strategy_table::IdentifierId::PathSpecificNatural.as_str()
-            && plan
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .unwrap_or(crate::strategy_table::DEFAULT_PATH_ESTIMATOR)
-                == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
-            && matches!(query.target_population, TargetPopulation::AllObserved) =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.identification_cache.as_deref()) {
+        (Some(RouteInput::PathSpecificDag { data, query, .. }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && cache.estimand.method_kind().ok()
+                    == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
+                && plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_PATH_IDENTIFIER)
+                    == crate::strategy_table::IdentifierId::PathSpecificNatural.as_str()
+                && plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_PATH_ESTIMATOR)
+                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && matches!(query.target_population, TargetPopulation::AllObserved) =>
         {
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
             fitter.bootstrap_replicates = analysis.bootstrap_replicates;
@@ -184,49 +157,46 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (&source.data, &source.query, analysis.graph.class()) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::Response(query),
-            GraphClass::Admg | GraphClass::TemporalAdmg,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && query.temporal.is_none()
-            && query.observation == antecedent_core::ObservationSpec::Complete
-            && query.target_population == TargetPopulation::AllObserved
-            && query.outcome_functional == OutcomeFunctional::Mean
-            && matches!(
-                (&query.functional, analysis.refute),
-                (_, RefuteSuite::None)
-                    | (
-                        antecedent_core::ResponseFunctional::InterventionResponse { .. },
-                        RefuteSuite::Cheap | RefuteSuite::Full,
-                    )
-            )
-            && plan
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
-                == crate::strategy_table::IdentifierId::GeneralId.as_str()
-            && plan
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
-                == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
-            && matches!(
-                query.functional,
-                antecedent_core::ResponseFunctional::MeanCurve { .. }
-                    | antecedent_core::ResponseFunctional::InterventionResponse { .. }
-            )
-            && matches!(
-                analysis.inference,
-                InferenceMode::Frequentist | InferenceMode::Bayesian(_)
-            ) =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match cx.route {
+        Some(RouteInput::MixedAdmgResponse { data, query })
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && query.temporal.is_none()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == TargetPopulation::AllObserved
+                && query.outcome_functional == OutcomeFunctional::Mean
+                && matches!(
+                    (&query.functional, analysis.refute),
+                    (_, RefuteSuite::None)
+                        | (
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            RefuteSuite::Cheap | RefuteSuite::Full,
+                        )
+                )
+                && plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
+                    == crate::strategy_table::IdentifierId::GeneralId.as_str()
+                && plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
+                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && matches!(
+                    query.functional,
+                    antecedent_core::ResponseFunctional::MeanCurve { .. }
+                        | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                )
+                && matches!(
+                    analysis.inference,
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                ) =>
         {
             let (treatment, outcome, grid) = match &query.functional {
                 antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => (

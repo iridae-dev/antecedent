@@ -6,11 +6,12 @@
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;
 use crate::analysis::CheckedConditionalOperation;
-use crate::analysis::builder::{DataInput, RefuteSuite};
+use crate::analysis::builder::RefuteSuite;
 use crate::analysis::checked_propensity::{
     CheckedPropensityContext, CheckedPropensityEstimator, CheckedPropensityOperation,
 };
 use crate::analysis::execute::CheckedStaticCommon;
+use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{
     CheckedAipwOperation, CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation,
     CheckedIvOperation, CheckedLinearOperation, CheckedRdOperation,
@@ -26,26 +27,16 @@ use antecedent_identify::IdentificationStatus;
 pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
-        source.graph.class(),
         source.graph_posterior.is_none(),
         source.tiered.is_none(),
     ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
-            Some(cache),
-            GraphClass::Dag,
-            GraphClass::Dag,
-            true,
-            true,
-        ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && matches!(query.target_population, TargetPopulation::AllObserved)
-            && plan.logical.record.estimator.as_deref()
-                == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str()) =>
+        (Some((data, query)), Some(cache), true, true)
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str()) =>
         {
             let default_id = !matches!(
                 &source.estimator_spec,
@@ -80,40 +71,33 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
+    let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
         &analysis.inference,
     ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
-            Some(cache),
-            GraphClass::Dag,
-            InferenceMode::Frequentist,
-        ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && !matches!(query.active, Intervention::Set { variable, .. } if variable != query.treatment)
-            && !matches!(query.control, Intervention::Set { variable, .. } if variable != query.treatment)
-            && plan.logical.record.estimator.as_deref()
-                == Some(crate::strategy_table::EstimatorId::GlmAdjustment.as_str())
-            && analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && analysis.custom_validators.is_empty()
-            && matches!(
-                analysis.refute,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            ) =>
+        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && !matches!(query.active, Intervention::Set { variable, .. } if variable != query.treatment)
+                && !matches!(query.control, Intervention::Set { variable, .. } if variable != query.treatment)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::GlmAdjustment.as_str())
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
+                ) =>
         {
             let mut fitter =
                 if let Some(crate::estimator_spec::EstimatorSpec::GlmAdjustment(config)) =
@@ -147,18 +131,10 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.graph.as_dag(),
-        analysis.rd,
-        &analysis.inference,
-    ) {
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.rd, &analysis.inference) {
         (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
-            Some(graph),
+            Some(RouteInput::StaticAteDag { data, query, graph }),
             Some(config),
             InferenceMode::Frequentist,
         ) if plan.logical.record.estimator.as_deref()
@@ -241,31 +217,26 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (&source.data, &source.query, analysis.graph.class(), &analysis.inference) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::ConditionalEffect(query),
-            graph_class,
-            InferenceMode::Frequentist,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(graph_class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag)
-            && query.inner.effect_modifiers.len() == 1
-            && analysis.custom_validators.is_empty()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && matches!(
-                analysis.refute,
-                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-            )
-            && plan.logical.record.estimator.as_deref()
-                == Some(
-                    crate::strategy_table::EstimatorId::ConditionalLinearAdjustment.as_str(),
-                ) =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.conditional(), analysis.graph.class(), &analysis.inference) {
+        (Some((data, query)), graph_class, InferenceMode::Frequentist)
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && query.inner.effect_modifiers.len() == 1
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                )
+                && plan.logical.record.estimator.as_deref()
+                    == Some(
+                        crate::strategy_table::EstimatorId::ConditionalLinearAdjustment.as_str(),
+                    ) =>
         {
             let class_proof = match graph_class {
                 GraphClass::Cpdag => {
@@ -381,40 +352,33 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
+    let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
         &analysis.inference,
     ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
-            Some(cache),
-            GraphClass::Dag,
-            InferenceMode::Frequentist,
-        ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && analysis.custom_validators.is_empty()
-            && matches!(
-                analysis.refute,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
-            && matches!(
-                plan.logical.record.estimator.as_deref(),
-                Some("propensity.weighting" | "propensity.matching")
-            ) =>
+        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
+                )
+                && matches!(
+                    plan.logical.record.estimator.as_deref(),
+                    Some("propensity.weighting" | "propensity.matching")
+                ) =>
         {
             let estimator: crate::strategy_table::EstimatorId = plan
                 .logical
@@ -475,28 +439,26 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.route,
         analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
         &analysis.inference,
         source.graph.class(),
         source.graph_posterior.is_none(),
         source.tiered.as_ref(),
     ) {
         (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
+            Some(
+                RouteInput::StaticAteDag { data, query, .. }
+                | RouteInput::StaticAteMixed { data, query },
+            ),
             Some(cache),
-            graph_class,
             InferenceMode::Frequentist,
-            source_graph_class,
+            graph_class,
             true,
             tiered_background,
         ) if matches!(
-            (graph_class, source_graph_class, tiered_background),
-            (GraphClass::Dag, GraphClass::Dag, None)
-                | (GraphClass::Admg, GraphClass::Admg, Some(_))
+            (graph_class, tiered_background),
+            (GraphClass::Dag, None) | (GraphClass::Admg, Some(_))
         ) && tiered_background.is_none_or(|background| {
             background.within_tier == antecedent_graph::WithinTier::CoDetermined
         }) && matches!(query.outcome_functional, OutcomeFunctional::Mean)
@@ -534,24 +496,17 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
+    let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
         &analysis.inference,
     ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(query),
-            Some(cache),
-            GraphClass::Dag,
-            InferenceMode::Frequentist,
-        ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && matches!(query.target_population, TargetPopulation::AllObserved)
-            && plan.logical.record.estimator.as_deref()
-                == Some(crate::strategy_table::EstimatorId::FrontDoorTwoStage.as_str()) =>
+        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::FrontDoorTwoStage.as_str()) =>
         {
             let fitter = match &analysis.estimator_spec {
                 Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
@@ -568,21 +523,13 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
+    let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.static_ate_dag(),
         analysis.identification_cache.as_deref(),
-        analysis.graph.class(),
         &analysis.inference,
     ) {
-        (
-            DataInput::Tabular(data),
-            CausalQuery::AverageEffect(_),
-            Some(cache),
-            GraphClass::Dag,
-            InferenceMode::Frequentist,
-        ) => {
+        (Some((data, _)), Some(cache), InferenceMode::Frequentist) => {
             let estimator = plan.logical.record.estimator.as_deref().unwrap_or("");
             match (&analysis.estimator_spec, estimator) {
                 (Some(crate::estimator_spec::EstimatorSpec::IvWald(cfg)), "iv.wald") => {
@@ -637,31 +584,27 @@ pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
+    let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
-        &source.data,
-        &source.query,
+        cx.static_ate(),
         analysis.tiered.as_ref(),
         analysis.identification_cache.as_deref(),
         &analysis.inference,
     ) {
-        (
-            DataInput::Tabular(_),
-            CausalQuery::AverageEffect(query),
-            Some(background),
-            Some(cache),
-            InferenceMode::Frequentist,
-        ) if background.within_tier == antecedent_graph::WithinTier::Unknown
-            && analysis.structure_source == crate::support::StructureSource::Explicit
-            && analysis.graph_posterior.is_none()
-            && analysis.custom_validators.is_empty()
-            && matches!(analysis.refute, RefuteSuite::None)
-            && plan.logical.record.estimator.as_deref()
-                == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str())
-            && plan.logical.record.identifier.as_deref()
-                == Some(crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str())
-            && cache.identification.query == CausalQuery::AverageEffect(query.clone())
-            && cache.identification.estimands.len() == 2 =>
+        (Some(query), Some(background), Some(cache), InferenceMode::Frequentist)
+            if background.within_tier == antecedent_graph::WithinTier::Unknown
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.graph_posterior.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(analysis.refute, RefuteSuite::None)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str())
+                && plan.logical.record.identifier.as_deref()
+                    == Some(
+                        crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str(),
+                    )
+                && cache.identification.query == CausalQuery::AverageEffect(query.clone())
+                && cache.identification.estimands.len() == 2 =>
         {
             Some(Box::new(CheckedUnknownTieredAverageOperation {
                 query: query.clone(),

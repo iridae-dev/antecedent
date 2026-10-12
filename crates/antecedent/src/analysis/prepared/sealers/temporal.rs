@@ -4,40 +4,31 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
-use crate::accepted::GraphClass;
 use crate::analysis::builder::{DataInput, RefuteSuite};
+use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{PreparedExecution, single_step_dose};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::strategy_table::EstimatorId;
-use antecedent_core::{CausalQuery, OutcomeFunctional, TargetPopulation, TemporalEffectQuery};
+use antecedent_core::{OutcomeFunctional, TargetPopulation, TemporalEffectQuery};
 
 pub(super) fn temporal_mediation(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.temporal_identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (
-            DataInput::Temporal(data) | DataInput::Event(data),
-            CausalQuery::Mediation(_),
-            Some(cache),
-            GraphClass::TemporalDag,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && analysis.split.is_none()
-            && analysis.custom_validators.is_empty()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && matches!(
-                analysis.refute,
-                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-            ) =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+        (Some(RouteInput::TemporalMediationDag { data, .. }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                ) =>
         {
             Some(crate::analysis::execute::CheckedTemporalMediationOperation::checked(
                 analysis, data, plan, cache,
@@ -70,33 +61,24 @@ pub(super) fn temporal_class_mediation(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.temporal_identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (
-            DataInput::Temporal(_) | DataInput::Event(_),
-            CausalQuery::TemporalEffect(query),
-            Some(cache),
-            GraphClass::TemporalDag,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && analysis.split.is_none()
-            && analysis.custom_validators.is_empty()
-            && matches!(analysis.inference, InferenceMode::Frequentist)
-            && matches!(
-                analysis.refute,
-                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-            )
-            && query.policy.is_pulse_or_sustained() =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+        (Some(RouteInput::TemporalEffectDag { query, .. }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.split.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                )
+                && query.policy.is_pulse_or_sustained() =>
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
@@ -143,30 +125,21 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.temporal_identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (
-            DataInput::Temporal(_) | DataInput::Event(_),
-            CausalQuery::TemporalEffect(query),
-            Some(cache),
-            GraphClass::TemporalDag,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && analysis.split.is_none()
-            && analysis.custom_validators.is_empty()
-            && matches!(analysis.inference, InferenceMode::Bayesian(_))
-            && query.policy.is_pulse_or_sustained()
-            && analysis.point_validation() =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+        (Some(RouteInput::TemporalEffectDag { query, .. }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.split.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(analysis.inference, InferenceMode::Bayesian(_))
+                && query.policy.is_pulse_or_sustained()
+                && analysis.point_validation() =>
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_effect_procedure(query, true);
@@ -214,27 +187,18 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
 }
 
 pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.temporal_class_identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (
-            DataInput::Temporal(_) | DataInput::Event(_),
-            CausalQuery::TemporalEffect(query),
-            Some(cache),
-            GraphClass::TemporalCpdag | GraphClass::TemporalPag,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && matches!(analysis.inference, InferenceMode::Frequentist)
-            && query.policy.is_pulse_or_sustained() =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.temporal_class_identification_cache.as_deref()) {
+        (Some(RouteInput::TemporalEffectClass { query, .. }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && query.policy.is_pulse_or_sustained() =>
         {
             let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
@@ -278,41 +242,32 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, .. } = *cx;
-    let sealed = match (
-        &source.data,
-        &source.query,
-        analysis.temporal_identification_cache.as_deref(),
-        analysis.graph.class(),
-    ) {
-        (
-            DataInput::Temporal(_) | DataInput::Event(_),
-            CausalQuery::Response(query),
-            Some(cache),
-            GraphClass::TemporalDag,
-        ) if analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
-            && matches!(
-                analysis.structure_source,
-                crate::support::StructureSource::Explicit
-                    | crate::support::StructureSource::Accepted
-            )
-            && analysis.custom_validators.is_empty()
-            && matches!(
-                analysis.inference,
-                InferenceMode::Frequentist | InferenceMode::Bayesian(_)
-            )
-            && analysis.refute == RefuteSuite::None
-            && query.temporal.is_some()
-            && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
-                antecedent_core::TemporalPolicy::Pulse { .. } => true,
-                antecedent_core::TemporalPolicy::Sustained { from, until } => from == until,
-                _ => false,
-            })
-            && query.observation == antecedent_core::ObservationSpec::Complete
-            && query.target_population == TargetPopulation::AllObserved
-            && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && crate::analysis::temporal_response_is_direct(query) =>
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+        (Some(RouteInput::TemporalResponseDag { query, .. }), Some(cache))
+            if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.inference,
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                )
+                && analysis.refute == RefuteSuite::None
+                && query.temporal.is_some()
+                && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
+                    antecedent_core::TemporalPolicy::Pulse { .. } => true,
+                    antecedent_core::TemporalPolicy::Sustained { from, until } => from == until,
+                    _ => false,
+                })
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && crate::analysis::temporal_response_is_direct(query) =>
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_response_for(&analysis.inference);

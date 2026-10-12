@@ -99,6 +99,7 @@ impl Study {
             analysis: &analysis,
             plan: &plan,
             ctx,
+            route: self.route_input_classified(),
             counterfactual: counterfactual.as_ref(),
             nested_counterfactual: nested_counterfactual.as_ref(),
         })?;

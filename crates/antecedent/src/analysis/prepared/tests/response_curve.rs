@@ -117,3 +117,33 @@ fn prepared_curve_refuses_a_tampered_grid() {
         )
     );
 }
+
+/// The legacy mean-curve operation admits every study the static DAG response
+/// admits at the default response procedure. The table ranks the DAG response
+/// first and declares the overlap; both must admit this study for that
+/// declaration to be needed, and the DAG response must be the one retained.
+#[test]
+fn legacy_mean_curve_overlaps_the_static_dag_response_and_yields_to_it() {
+    use crate::analysis::prepared::ExecutionKind;
+    use crate::analysis::prepared::sealers::{SEALERS, SealContext, seal_execution};
+
+    let context = ExecutionContext::for_tests(17);
+    let prepared = study(data(0.0), &[-0.5, 0.0, 0.5]).prepare(&context).unwrap();
+    let source = study(data(0.0), &[-0.5, 0.0, 0.5]);
+    let cx = SealContext {
+        source: &source,
+        analysis: &prepared.analysis,
+        plan: &prepared.plan,
+        ctx: &context,
+        route: source.route_input_classified(),
+        counterfactual: None,
+        nested_counterfactual: None,
+    };
+    let admitting: Vec<_> = SEALERS
+        .iter()
+        .filter(|sealer| (sealer.seal)(&cx).unwrap().is_some())
+        .map(|sealer| sealer.kind)
+        .collect();
+    assert_eq!(admitting, [ExecutionKind::StaticDagResponse, ExecutionKind::StaticResponseCurve]);
+    assert_eq!(seal_execution(&cx).unwrap().kind(), ExecutionKind::StaticDagResponse);
+}
