@@ -350,7 +350,7 @@ impl SequentialPass<'_> {
         // than validate against a prior the mechanisms were not fitted under.
         if estimator.prior.is_some() {
             return Err(CausalError::Unsupported {
-                message: "multi-step sustained validation requires isotropic per-mechanism acc.priors",
+                message: "multi-step sustained validation requires isotropic per-mechanism priors",
             });
         }
         for mechanism in &atom.mechanisms {

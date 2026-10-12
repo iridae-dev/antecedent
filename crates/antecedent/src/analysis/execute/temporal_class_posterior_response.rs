@@ -449,7 +449,7 @@ fn temporal_class_posterior_tag(
         antecedent_discovery::GraphPosteriorAtomKind::Cpdag => Ok("temporal_cpdag"),
         antecedent_discovery::GraphPosteriorAtomKind::Pag => Ok("temporal_pag"),
         _ => Err(CausalError::Compile {
-            message: "temporal class graph-posterior response requires Cpdag or Pag \\
+            message: "temporal class graph-posterior response requires Cpdag or Pag \
                       atom_kind"
                 .into(),
         }),
@@ -469,7 +469,7 @@ fn class_posterior_diagnostics(
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "each {class_tag} posterior atom was evaluated with the existing temporal class \\
+            "each {class_tag} posterior atom was evaluated with the existing temporal class \
              response envelope; outer weights are frozen posterior probabilities"
         ),
     )];
@@ -486,7 +486,7 @@ fn class_posterior_diagnostics(
             "estimate.response.graph_posterior.uncertainty_withheld",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
-            "multi-atom temporal class-posterior response withholds an aggregate band: \\
+            "multi-atom temporal class-posterior response withholds an aggregate band: \
              atom surfaces are mixed by frozen graph weight",
         ));
     }

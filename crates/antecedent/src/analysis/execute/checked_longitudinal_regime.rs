@@ -349,10 +349,10 @@ impl CheckedLongitudinalRegimeOperation {
                 Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score")
             }
             LongitudinalRegimeMethod::SequentialDoublyRobust if intervals.dr.is_none() => Some(
-                "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_intervals.dr",
+                "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval",
             ),
             LongitudinalRegimeMethod::MarginalStructuralModel if intervals.msm.is_none() => {
-                Some("insufficient_independent_subject_support_for_intervals.msm")
+                Some("insufficient_independent_subject_support_for_msm_intervals")
             }
             _ => None,
         }
