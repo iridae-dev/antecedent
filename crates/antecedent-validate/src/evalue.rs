@@ -149,8 +149,7 @@ impl EValue {
 fn evalue_sample(problem: &RefutationProblem<'_>) -> Result<EvalueSample, ValidationError> {
     if problem.effect_refit.is_some() {
         // A composed estimator has no single adjustment regression to residualize on.
-        let (mask, _) =
-            complete_case_rows(problem.data, &[problem.outcome(), problem.treatment()])?;
+        let (mask, _) = complete_case_rows(problem.data, &problem.estimation_ids(false))?;
         return Ok(EvalueSample {
             outcome: problem.data.float64_masked(problem.outcome(), &mask)?,
             treatment: problem.data.float64_masked(problem.treatment(), &mask)?,
@@ -169,8 +168,7 @@ fn evalue_sample(problem: &RefutationProblem<'_>) -> Result<EvalueSample, Valida
             covariates,
         });
     }
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    let ids = problem.estimation_ids(true);
     let (mask, _) = complete_case_rows(problem.data, &ids)?;
     let mut covariates = Vec::with_capacity(problem.estimand.adjustment_set.len());
     for &z in problem.estimand.adjustment_set.iter() {

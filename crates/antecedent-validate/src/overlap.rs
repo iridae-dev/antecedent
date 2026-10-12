@@ -110,9 +110,7 @@ impl OverlapRefuter {
         problem: &RefutationProblem<'_>,
     ) -> Result<Option<RefutationReport>, ValidationError> {
         if problem.original.diagnostics.overlap_report.is_none() {
-            let mut ids = vec![problem.treatment(), problem.outcome()];
-            ids.extend_from_slice(&problem.estimand.adjustment_set);
-            ids.extend_from_slice(&problem.query.effect_modifiers);
+            let ids = problem.estimation_ids(true);
             let mask = problem.data.complete_case_mask(&ids)?;
             let treatment = problem.data.float64_masked(problem.treatment(), &mask)?;
             if treatment.iter().any(|&t| t != 0.0 && t != 1.0) {
@@ -213,11 +211,8 @@ impl OverlapRefuter {
             treatment,
             &mut LeastSquaresWorkspace::default(),
         )?;
-        let means: Vec<f64> = (0..n)
-            .map(|r| {
-                fit.coefficients.iter().enumerate().map(|(c, beta)| beta * design[c * n + r]).sum()
-            })
-            .collect();
+        let mut means = vec![0.0; n];
+        crate::common::column_major_dot(&design, n, &fit.coefficients, &mut means);
         let mut residuals: Vec<_> =
             treatment.iter().zip(&means).map(|(t, mean)| t - mean).collect();
         residuals.sort_by(f64::total_cmp);
@@ -252,8 +247,97 @@ impl OverlapRefuter {
 }
 
 fn estimation_row_count(problem: &RefutationProblem<'_>) -> Result<usize, ValidationError> {
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    let ids = problem.estimation_ids(true);
     let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
     Ok(mask.iter().filter(|&&k| k).count())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+    use antecedent_estimate::{EffectEstimate, OverlapPolicy};
+    use antecedent_expr::ExprId;
+    use antecedent_identify::IdentifiedEstimand;
+
+    use super::*;
+
+    /// A missing effect modifier used to stay in the ESS denominator. The diagnostic
+    /// propensity is fit on the modifier-complete rows, so `ess / n` counted rows the
+    /// estimate never used and reported half the effective-sample fraction.
+    #[test]
+    fn missing_modifier_does_not_inflate_the_ess_denominator() {
+        let n = 8usize;
+        let t: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+        let y: Vec<f64> = t.iter().map(|ti| 1.0 + 2.0 * ti).collect();
+        let modifier: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("w", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(role),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let valid = ValidityBitmap::all_valid(n);
+        let mut modifier_flags = vec![true; n];
+        modifier_flags[4..].fill(false);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), valid.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), valid.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(modifier),
+                    crate::common::validity_from_flags(&modifier_flags).unwrap(),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data = antecedent_data::TabularData::new(
+            OwnedColumnarStorage::try_new(builder.build().unwrap(), cols, None, None).unwrap(),
+        );
+        let estimand =
+            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_effect_modifiers([VariableId::from_raw(2)]);
+        let original =
+            EffectEstimate::new(2.0, 0.1, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("conditional.linear.adjustment"),
+            None,
+        );
+        let report = OverlapRefuter::new().refute(&problem).unwrap();
+        // Balanced intercept-only propensity on the 4 complete rows has ESS = 4.
+        // Dividing by all 8 rows reported comparison = 1 - 0.5 = 0.5.
+        assert!(
+            report.comparison < 0.05,
+            "ess fraction should use the 4 modifier-complete rows, comparison={}",
+            report.comparison
+        );
+        assert!(report.passed, "{report:?}");
+    }
 }

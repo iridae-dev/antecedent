@@ -87,8 +87,7 @@ impl GraphRefuter {
                 replicates: 0,
             });
         }
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        ids.extend_from_slice(&problem.estimand.adjustment_set);
+        let ids = problem.estimation_ids(true);
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
         let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?;
         let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?;
