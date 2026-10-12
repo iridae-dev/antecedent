@@ -30,6 +30,7 @@ from typing import Any
 
 from .. import _native
 from .._freeze import freeze as _frozen
+from .._transport_results import _thaw
 from ..errors import CausalTypeError, CausalValueError
 from ..learners import Logistic, Ridge, _learner_wire
 from ._impl import TrialAipwData, TrialAipwQuery
@@ -232,14 +233,6 @@ class LearnedContinuousEstimate:
             "evidence_digest": self.evidence_digest,
             "execution_id": self.execution_id,
         }
-
-
-def _thaw(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {k: _thaw(v) for k, v in value.items()}
-    if isinstance(value, tuple):
-        return [_thaw(v) for v in value]
-    return value
 
 
 def _estimate(payload: str) -> LearnedContinuousEstimate:

@@ -17,6 +17,7 @@ from .._native import learned_joint_transport_closed as _learned_joint_transport
 from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
+from ._closed_pilots import _has_bidirected_edge
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
     JointTransportPriors,
@@ -64,10 +65,6 @@ _names = partial(
     duplicate_message="{what} must not repeat a name",
     as_list=True,
 )
-
-
-def _has_bidirected_edge(graph: Admg) -> bool:
-    return any(graph.bidirected_neighbors(node) for node in graph.nodes())
 
 
 def learned_joint_transport(

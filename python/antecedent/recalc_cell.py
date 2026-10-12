@@ -68,6 +68,8 @@ from .recalc import (
     Stage,
     TargetWeights,
     Utility,
+    _column,
+    _seed,
     stage_identity,
 )
 
@@ -164,22 +166,6 @@ class ResumeReceipt(RecalcReceipt):
             reason_code="route_not_supported",
             remedy="read the receipt's table and counts, or export it from the live session",
         )
-
-
-def _column(name: str, values: ArrayLike) -> NDArray[np.float64]:
-    try:
-        array = np.ascontiguousarray(np.asarray(values, dtype=np.float64))
-    except (TypeError, ValueError) as error:
-        raise CausalValueError(f"column {name!r} must be numeric") from error
-    if array.ndim != 1:
-        raise CausalValueError(f"column {name!r} must be one-dimensional")
-    return array
-
-
-def _seed(seed: int) -> int:
-    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
-        raise CausalValueError(f"seed must be a non-negative integer, got {seed!r}")
-    return seed
 
 
 def _quantity(quantity: str) -> str:
