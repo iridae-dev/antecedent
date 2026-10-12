@@ -405,10 +405,10 @@ impl PyCausalState {
             .get(key)
             .ok_or_else(|| crate::value_err(format!("unknown cov key `{key}`")))?;
         let d = PyDict::new(py);
-        d.set_item("n", cov.n)?;
-        d.set_item("dim", cov.dim)?;
-        d.set_item("mean", cov.mean.clone())?;
-        d.set_item("m2", cov.m2.clone())?;
+        d.set_item("n", cov.n())?;
+        d.set_item("dim", cov.dim())?;
+        d.set_item("mean", cov.mean().to_vec())?;
+        d.set_item("m2", cov.m2().to_vec())?;
         Ok(d)
     }
 

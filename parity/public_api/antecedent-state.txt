@@ -458,10 +458,6 @@ pub field antecedent_state::RollingMechanismDiagnostics::residual_var: core::opt
 pub field antecedent_state::RollingMechanismDiagnostics::retention: antecedent_state::RetentionPolicy
 pub field antecedent_state::RollingMechanismDiagnostics::state_version: antecedent_core::ids::StateVersion
 pub field antecedent_state::RollingMechanismDiagnostics::window: usize
-pub field antecedent_state::StreamingCovariance::dim: usize
-pub field antecedent_state::StreamingCovariance::m2: alloc::vec::Vec<f64>
-pub field antecedent_state::StreamingCovariance::mean: alloc::vec::Vec<f64>
-pub field antecedent_state::StreamingCovariance::n: u64
 pub field antecedent_state::SuffStatStore::cov: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::StreamingCovariance>
 pub field antecedent_state::SuffStatStore::graph_scores: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::LocalScoreCache>
 pub field antecedent_state::SuffStatStore::lag_indexes: std::collections::hash::map::HashMap<antecedent_state::LagIndexCacheKey, antecedent_state::LagIndexCacheEntry>
@@ -513,6 +509,10 @@ pub fn <antecedent_state::RollingMechanismDiagnostics>::fn new(ncols: usize, win
 pub fn <antecedent_state::RollingMechanismDiagnostics>::fn refresh_summaries(&mut self) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::RollingMechanismDiagnostics>::fn worst_case_bytes(&self) -> u64
 pub fn <antecedent_state::StreamingCovariance>::fn append(&mut self, x: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::StreamingCovariance>::fn dim(&self) -> usize
+pub fn <antecedent_state::StreamingCovariance>::fn m2(&self) -> &[f64]
+pub fn <antecedent_state::StreamingCovariance>::fn mean(&self) -> &[f64]
+pub fn <antecedent_state::StreamingCovariance>::fn n(&self) -> u64
 pub fn <antecedent_state::StreamingCovariance>::fn new(dim: usize) -> Self
 pub fn <antecedent_state::StreamingCovariance>::fn sample_covariance(&self) -> core::option::Option<alloc::vec::Vec<f64>>
 pub fn antecedent_state::evict_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: &str, budget: &mut antecedent_core::execution::CacheBudget) -> core::option::Option<antecedent_state::RollingMechanismDiagnostics>

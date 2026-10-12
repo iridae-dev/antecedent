@@ -10,6 +10,7 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 
 ### Changed
 
+- `StreamingCovariance`'s count, dimension, mean, and scatter are accessed by methods; the values Python's cov summary returns are unchanged.
 - Kernel length checks return `ViewError::InvalidShape` instead of panicking: masked sum, mean, variance and covariance; pairwise L1 fill; contingency accumulation; weighted means; and midranks. A call whose lengths already matched returns the same value, and a refused contingency or pairwise fill leaves its output buffer unchanged. Length mismatches on `weighted_sum` and `shuffled_fold_assignment` return `ViewError::InvalidShape`, and a call that already satisfied the lengths returns the same value / the same fold assignment. `WeightingDoSampler::weighted_mean` reports `NaN` when a non-empty weight vector differs in length from the outcomes.
 - `ParCorrWorkspace` keeps `design` public and makes the Gram, coefficients, and residuals crate-private.
 - `ForeignBufferOwner` is no longer implemented for every `Debug + Send + Sync` type. The Arrow import owner implements it explicitly.

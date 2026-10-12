@@ -181,13 +181,13 @@ impl LinearOlsSuffStats {
 #[derive(Clone, Debug, PartialEq)]
 pub struct StreamingCovariance {
     /// Dimension.
-    pub dim: usize,
+    dim: usize,
     /// Observation count.
-    pub n: u64,
+    n: u64,
     /// Running mean.
-    pub mean: Vec<f64>,
+    mean: Vec<f64>,
     /// Upper-triangular packed? — store full `dim×dim` unnormalized scatter `M2`.
-    pub m2: Vec<f64>,
+    m2: Vec<f64>,
     /// Retention.
     retention: RetentionPolicy,
 }
@@ -203,6 +203,30 @@ impl StreamingCovariance {
             m2: vec![0.0; dim * dim],
             retention: RetentionPolicy::SufficientStatisticsOnly,
         }
+    }
+
+    /// Observation count.
+    #[must_use]
+    pub fn n(&self) -> u64 {
+        self.n
+    }
+
+    /// Dimension.
+    #[must_use]
+    pub fn dim(&self) -> usize {
+        self.dim
+    }
+
+    /// Running mean.
+    #[must_use]
+    pub fn mean(&self) -> &[f64] {
+        &self.mean
+    }
+
+    /// Unnormalized `dim×dim` scatter `M2`.
+    #[must_use]
+    pub fn m2(&self) -> &[f64] {
+        &self.m2
     }
 
     /// Append one observation.
@@ -228,7 +252,7 @@ impl StreamingCovariance {
         }
         // Same rank-one update this type has always applied, now shared with the
         // kernel crate. It is not `Welford::push`: the two evaluation orders can
-        // differ in the last bit of a diagonal entry. Public fields stay the state.
+        // differ in the last bit of a diagonal entry. Accessors expose that state.
         antecedent_kernels::update_scatter(&mut self.mean, &mut self.m2, self.n, x);
         self.n = next_n;
         Ok(())
