@@ -195,7 +195,13 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::GraphPosteriorEffect, posterior::graph_posterior_effect),
     sealer(ExecutionKind::ClassGraphPosteriorEffect, posterior::class_graph_posterior_effect),
     sealer(ExecutionKind::BayesianGraphPosteriorAte, posterior::bayesian_graph_posterior_ate),
-    sealer(ExecutionKind::StaticClassEffect, posterior::static_class_effect),
+    // An unknown within-tier order is also a class study, so the class-effect
+    // sealer admits it too; the unknown-tiered average has always won it.
+    Sealer {
+        kind: ExecutionKind::StaticClassEffect,
+        seal: posterior::static_class_effect,
+        yields_to: &[ExecutionKind::UnknownTieredAverage],
+    },
     sealer(ExecutionKind::CheckedAipw, adjustment::checked_aipw),
     sealer(ExecutionKind::FrontDoorLinear, adjustment::frontdoor_linear),
     sealer(ExecutionKind::Iv, adjustment::iv),
