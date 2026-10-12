@@ -132,7 +132,10 @@ similar_names = "allow"
 
 # Numerical kernels stay optimized in `cargo test` debug builds. Library crates
 # that change in the 1.x working loop stay at opt-level 0 so incremental
-# compiles stay cheap.
+# compiles stay cheap. Line tables keep panic locations without full debuginfo.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package.faer]
 opt-level = 2
 
@@ -140,6 +143,9 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package.antecedent-kernels]
+opt-level = 2
+
+[profile.dev.package.antecedent-estimate]
 opt-level = 2
 
 [profile.release]
