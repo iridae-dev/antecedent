@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import math
-import random
 
 import antecedent
 import numpy as np
 import pytest
 from antecedent.graph import TemporalCpdag, TemporalPag
+
+from _scm import confounded_scm
 
 
 def _patch_discovery(monkeypatch, name, fn):
@@ -23,24 +24,8 @@ def _patch_discovery(monkeypatch, name, fn):
     monkeypatch.setattr(f"antecedent.accepted_graph.{name}", fn)
 
 
-def _confounded_scm(n: int = 500, seed: int = 19):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}
-
-
 def test_from_discovery_estimates_without_rediscover(monkeypatch):
-    data = _confounded_scm()
+    data, _edges = confounded_scm(n=500, seed=19)
     calls = {"n": 0}
     real = antecedent.discovery.run_static_discovery
 
@@ -83,7 +68,7 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
 
 
 def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
-    data = _confounded_scm(seed=23)
+    data, _edges = confounded_scm(n=500, seed=23)
     dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id=None)
     calls = {"n": 0}
@@ -103,7 +88,7 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
 
 
 def test_accepted_graph_prepare_records_accepted_structure():
-    data = _confounded_scm(n=200, seed=31)
+    data, _edges = confounded_scm(n=200, seed=31)
     dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     q = antecedent.AverageEffect(treatment="t", outcome="y")
@@ -118,7 +103,7 @@ def test_accepted_graph_prepare_records_accepted_structure():
 
 
 def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
-    data = _confounded_scm(seed=29)
+    data, _edges = confounded_scm(n=500, seed=29)
     dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     calls = {"n": 0}
@@ -141,7 +126,7 @@ def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
 
 
 def test_analyze_rejects_discovery_kwarg():
-    data = _confounded_scm(n=200, seed=3)
+    data, _edges = confounded_scm(n=200, seed=3)
     accepted = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id=None
     )
@@ -227,7 +212,7 @@ def test_temporal_pag_to_json_refuses_rather_than_fabricating():
 
 
 def test_prepare_on_accepted_graph():
-    data = _confounded_scm(n=300, seed=41)
+    data, _edges = confounded_scm(n=300, seed=41)
     accepted = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id="supplied"
     )

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import random
 
 import antecedent
 import numpy as np
@@ -20,28 +19,11 @@ from antecedent.identify import (
     identify,
 )
 
-
-def _confounded_scm(n: int = 500, seed: int = 5):
-    """Confounded Z->T, Z->Y, T->Y with structural ATE=2."""
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    data = {"t": t, "y": y, "z": z}
-    edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    return data, edges
+from _scm import confounded_scm
 
 
 def test_identify_returns_identification_and_bool():
-    _, edges = _confounded_scm()
+    _, edges = confounded_scm(n=500, seed=5)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     result = identify(graph=edges, query=query, names=["z", "t", "y"])
     assert isinstance(result, Identification)
@@ -58,7 +40,7 @@ def test_identify_returns_identification_and_bool():
 
 
 def test_identification_estimate_matches_analyze():
-    data, edges = _confounded_scm(seed=7)
+    data, edges = confounded_scm(n=500, seed=7)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
     staged = identification.estimate(data, refute=False, bootstrap=0, seed=1)
@@ -113,7 +95,7 @@ def test_response_curve_staged_validate_refuses_scalar_suite_by_default():
 
 
 def test_identification_validate_runs_refutation_suite():
-    data, edges = _confounded_scm(seed=11)
+    data, edges = confounded_scm(n=500, seed=11)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
     validated = identification.validate(data, refute="cheap", seed=1, threads=1)
@@ -122,7 +104,7 @@ def test_identification_validate_runs_refutation_suite():
 
 
 def test_identification_to_identify_result_projects_fields():
-    _, edges = _confounded_scm()
+    _, edges = confounded_scm(n=500, seed=5)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
     legacy = identification.to_identify_result()
@@ -133,7 +115,7 @@ def test_identification_to_identify_result_projects_fields():
 
 
 def test_module_level_estimate_and_validate_mirror_methods():
-    data, edges = _confounded_scm(seed=13)
+    data, edges = confounded_scm(n=500, seed=13)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
     via_function = estimate(identification, data, refute=False, bootstrap=0, seed=2)
@@ -171,7 +153,7 @@ def test_identification_statement_is_honest_about_graph_dependence():
 
 
 def test_from_view_carries_assumption_counts():
-    data, edges = _confounded_scm(seed=17)
+    data, edges = confounded_scm(n=500, seed=17)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     result = antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
     identification = Identification.from_view(result.identification, graph=edges, query=query)

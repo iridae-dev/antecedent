@@ -28,6 +28,8 @@ import random
 import antecedent
 import numpy as np
 
+from _scm import confounded_scm
+
 
 def _mirrors(section, flat) -> bool:
     """Equal, or both NaN (e.g. a dependence-honest temporal ``se_analytic``)."""
@@ -38,22 +40,6 @@ def _mirrors(section, flat) -> bool:
     ):
         return math.isnan(section) and math.isnan(flat)
     return section == flat
-
-
-def _confounded_scm(n: int = 300, seed: int = 7):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
 def _pulse_series(n: int = 300, seed: int = 11):
@@ -74,7 +60,7 @@ _PULSE_QUERY_KWARGS = dict(
 
 
 def test_static_nested_sections_mirror_flat_fields():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=300, seed=7)
     result = antecedent.analyze(
         data,
         graph=edges,
@@ -129,7 +115,7 @@ def test_static_nested_sections_mirror_flat_fields():
 
 
 def test_static_posterior_section_mirrors_flat_fields_when_bayesian():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=300, seed=7)
     result = antecedent.analyze(
         data,
         graph=edges,
@@ -154,7 +140,7 @@ def test_static_posterior_section_mirrors_flat_fields_when_bayesian():
 
 
 def test_static_validation_nothing_ran_is_false_not_true():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=300, seed=7)
     result = antecedent.analyze(
         data,
         graph=edges,

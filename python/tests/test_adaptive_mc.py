@@ -14,21 +14,7 @@ import antecedent
 import numpy as np
 import pytest
 
-
-def _confounded_scm(n: int = 500, seed: int = 19):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
+from _scm import confounded_scm
 
 
 def _mediation_scm(n: int = 500, seed: int = 11):
@@ -55,7 +41,7 @@ def _assert_full(result, requested: int) -> None:
 
 @pytest.mark.parametrize("estimator", [None, "propensity.weighting", "aipw"])
 def test_static_ate_evaluates_requested_bootstrap(estimator):
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=500, seed=19)
     kwargs = {} if estimator is None else {"estimator": estimator}
     result = antecedent.analyze(
         data,
@@ -84,7 +70,7 @@ def test_static_mediation_evaluates_requested_bootstrap(contrast):
 
 
 def test_bayesian_laplace_materializes_requested_draws():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=500, seed=19)
     max_draws = 256
     result = antecedent.analyze(
         data,

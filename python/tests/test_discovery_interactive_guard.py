@@ -3,31 +3,16 @@
 from __future__ import annotations
 
 import math
-import random
 
 import antecedent
 import numpy as np
 import pytest
 
-
-def _confounded_scm(n: int = 400, seed: int = 11):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
+from _scm import confounded_scm
 
 
 def test_discovery_plus_interactive_raises_unsupported():
-    data, _edges = _confounded_scm()
+    data, _edges = confounded_scm(n=400, seed=11)
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="interactive estimate path"):
         antecedent.analyze(
             data,
@@ -60,7 +45,7 @@ def test_discovery_plus_standard_still_allowed():
 
 
 def test_interactive_with_supplied_graph_ok():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=400, seed=11)
     result = antecedent.analyze(
         data,
         graph=edges,

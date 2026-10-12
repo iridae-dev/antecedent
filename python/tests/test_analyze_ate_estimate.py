@@ -8,35 +8,17 @@ with Rust `end_to_end_propensity_weighting_recovers_confounded_effect`
 
 from __future__ import annotations
 
-import math
 import random
 
 import antecedent
 import numpy as np
 import pytest
 
-
-def _confounded_scm(n: int = 800, seed: int = 5):
-    """Confounded Z→T, Z→Y, T→Y with structural ATE=2 (Python dual of Rust IPW fixture)."""
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    data = {"t": t, "y": y, "z": z}
-    edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    return data, edges
+from _scm import confounded_scm
 
 
 def test_analyze_default_pair_schema_and_fields():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=800, seed=5)
     result = antecedent.analyze(
         data,
         graph=edges,
@@ -52,7 +34,7 @@ def test_analyze_default_pair_schema_and_fields():
 
 def test_analyze_propensity_weighting_recovers_ate_and_overlap():
     # Shared dual band with Rust IPW ATE≈2 (see module docstring).
-    data, edges = _confounded_scm(n=800, seed=5)
+    data, edges = confounded_scm(n=800, seed=5)
     result = antecedent.analyze(
         data,
         graph=edges,
@@ -79,7 +61,7 @@ def test_analyze_propensity_weighting_recovers_ate_and_overlap():
     ],
 )
 def test_analyze_estimate_estimators_smoke(estimator):
-    data, edges = _confounded_scm(n=1000, seed=9)
+    data, edges = confounded_scm(n=1000, seed=9)
     result = antecedent.analyze(
         data,
         graph=edges,
