@@ -43,7 +43,8 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use antecedent_core::{CanonicalWriter, ExecutionContext, ScientificQuantity, blake3_hex};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionMetadata, DistributionTrust, DrawAlignment,

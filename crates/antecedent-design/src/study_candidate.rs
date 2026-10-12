@@ -18,10 +18,10 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use antecedent_contract::{EvidenceOffer, MAX_OBLIGATION_COORDINATES};
 use antecedent_core::{
-    DistributionAvailability, EvidenceKind, EvidenceOffer, EvidenceRegime, InterventionAssignment,
-    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, blake3_hex, is_blank,
-    reason_code,
+    DistributionAvailability, EvidenceKind, EvidenceRegime, InterventionAssignment, RegimeId,
+    RegimeKind, VariableId, blake3_hex, is_blank, reason_code,
 };
 
 use crate::{CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, SamplingPlan};
@@ -330,7 +330,7 @@ impl DurableStudyCandidate {
     }
 
     /// What the study could supply, as screens an obligation can test with
-    /// [`antecedent_core::EvidenceObligation::addressed_by`]. A sample increase
+    /// [`antecedent_contract::EvidenceObligation::addressed_by`]. A sample increase
     /// offers its rows over the declared design.
     #[must_use]
     pub fn offers(&self) -> Vec<EvidenceOffer> {

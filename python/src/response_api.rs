@@ -183,7 +183,7 @@ impl ResponseAnalysisResult {
 }
 
 type CoordinateSkeleton =
-    Result<Vec<antecedent_core::ResponseCoordinateSkeleton>, antecedent_core::ExternalRefusal>;
+    Result<Vec<antecedent_contract::ResponseCoordinateSkeleton>, antecedent_contract::ExternalRefusal>;
 
 #[pymethods]
 impl ResponseAnalysisResult {
@@ -229,7 +229,7 @@ impl ResponseAnalysisResult {
         population: &str,
         transform: &str,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let labels = antecedent_core::ResponseCoordinateLabels {
+        let labels = antecedent_contract::ResponseCoordinateLabels {
             outcome_units,
             population_id: population,
             transform_id: transform,
@@ -237,7 +237,7 @@ impl ResponseAnalysisResult {
         let labelled = self
             .coordinates
             .clone()
-            .and_then(|cells| antecedent_core::label_coordinates(&cells, &labels));
+            .and_then(|cells| antecedent_contract::label_coordinates(&cells, &labels));
         match labelled {
             Ok(quantities) => {
                 let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
@@ -264,7 +264,7 @@ fn coordinate_skeleton(
     response: &antecedent_core::CausalResponse,
     names: &[String],
 ) -> CoordinateSkeleton {
-    antecedent_core::response_coordinate_skeleton(response, &|id| names.get(id.as_usize()).cloned())
+    antecedent_contract::response_coordinate_skeleton(response, &|id| names.get(id.as_usize()).cloned())
 }
 
 #[pyfunction]

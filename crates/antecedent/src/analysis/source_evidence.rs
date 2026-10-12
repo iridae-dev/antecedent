@@ -1,5 +1,6 @@
 //! Original diagnostic evidence shared with native decision/inverse artifacts.
-use antecedent_core::{ExecutionContext, ResponseCoordinateLabels, reason_code};
+use antecedent_contract::ResponseCoordinateLabels;
+use antecedent_core::{ExecutionContext, reason_code};
 pub use antecedent_design::source_evidence::*;
 use std::sync::Arc;
 

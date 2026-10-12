@@ -39,7 +39,8 @@ records the corresponding engineering rules; crate-level detail follows it.
 ## Implementation architecture
 
 ```text
-antecedent-core          ids, schemas, queries, interventions, provenance, plans, errors
+antecedent-core          ids, schemas, queries, interventions, identities, execution policy, errors
+antecedent-contract      claim envelopes, external-evidence contracts, program bindings, obligations (no estimator uses it)
 antecedent-kernels       borrowed views + scalar/portable/arch kernels (no causal semantics)
 antecedent-data          tabular / temporal / panel / multi-env views, sample planning, Arrow
 antecedent-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfold

@@ -6,7 +6,7 @@
 //! any scientific, provider, trust or premise field is refused. The artifact
 //! never claims native estimation and grants no interval or calibration.
 
-use antecedent_core::{
+use antecedent_contract::{
     BoundExternalClaim, BoundTrustLevel, CompositionLink, CompositionStage,
     ExternalUncertaintyMeaning, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
@@ -275,7 +275,7 @@ impl ExternalClaimIdentity {
                 let mut names: Vec<String> = claim
                     .capabilities()
                     .iter()
-                    .map(|c| antecedent_core::capability_name(*c).to_owned())
+                    .map(|c| antecedent_contract::capability_name(*c).to_owned())
                     .collect();
                 names.sort();
                 names
@@ -287,7 +287,7 @@ impl ExternalClaimIdentity {
                         .verification()
                         .iter()
                         .map(|p| VerificationProbeWire {
-                            kind: antecedent_core::probe_name(p.kind).to_owned(),
+                            kind: antecedent_contract::probe_name(p.kind).to_owned(),
                             observed: p.observed,
                             expected: p.expected,
                             tolerance: p.tolerance,
@@ -373,7 +373,7 @@ impl ExternalClaimIdentity {
             (Some(probes), ExternalClaimTrust::ExactRequestVerified) => {
                 let passed = !probes.is_empty()
                     && probes.iter().all(|p| {
-                        antecedent_core::probe_from_name(&p.kind).is_some()
+                        antecedent_contract::probe_from_name(&p.kind).is_some()
                             && p.observed.is_finite()
                             && p.expected.is_finite()
                             && p.tolerance.is_finite()

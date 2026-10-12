@@ -12,7 +12,8 @@
 mod calibration;
 use std::sync::Arc;
 
-use antecedent_core::{CancellationToken, ExecutionContext, QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_design::design_ranking_artifact::{
     ConsumeExpectation, ReplayKind, SealInputs, consume, seal,
 };

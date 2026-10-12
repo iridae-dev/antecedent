@@ -35,11 +35,14 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationKind, ObligationProvenance, ObligationRecord,
+    ObligationRegime, ObligationScope,
+};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, EvidenceCatalog, EvidenceCatalogDelta, EvidenceObligation,
-    EvidenceObligationKind, EvidenceRegime, ExecutionContext, IdentificationStatus,
-    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope, SearchBudget,
-    SearchLimits, SearchReceipt, SearchStop, VariableId, reason_code,
+    AverageEffectQuery, CausalQuery, EvidenceCatalog, EvidenceCatalogDelta, EvidenceRegime,
+    ExecutionContext, IdentificationStatus, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+    VariableId, reason_code,
 };
 use antecedent_graph::{
     BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace, NodeRef, SelectionDiagram,
@@ -1067,7 +1070,7 @@ impl BackdoorRepairFamily {
                 needed.insert(self.outcome);
                 let list = needed.iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(",");
                 out.push(
-                    EvidenceObligation::try_new(antecedent_core::EvidenceObligationSpec {
+                    EvidenceObligation::try_new(antecedent_contract::EvidenceObligationSpec {
                         quantities: std::collections::BTreeMap::new(),
                         kind: EvidenceObligationKind::ProvideJointLaw,
                         scope: ObligationScope::Factor,
@@ -1088,7 +1091,7 @@ impl BackdoorRepairFamily {
             }
             LawAnalysis::NotIdentified(reason) | LawAnalysis::Failed(reason) => {
                 out.push(
-                    EvidenceObligation::try_new(antecedent_core::EvidenceObligationSpec {
+                    EvidenceObligation::try_new(antecedent_contract::EvidenceObligationSpec {
                         quantities: std::collections::BTreeMap::new(),
                         kind: EvidenceObligationKind::EstablishAssumption,
                         scope: ObligationScope::Program,

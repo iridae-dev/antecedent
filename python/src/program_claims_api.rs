@@ -12,10 +12,8 @@ use crate::bridge::check_declared_size;
 use antecedent::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
-use antecedent_core::{
-    ExternalProgramClaim, ExternalRefusal, ProgramBinding, ResponseUncertainty, ScientificQuantity,
-    check_external_against_program,
-};
+use antecedent_core::ResponseUncertainty;
+use antecedent_contract::{ExternalProgramClaim, ExternalRefusal, ProgramBinding, ScientificQuantity, check_external_against_program};
 use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_design::decision_contract::SourceRepresentation;
 use antecedent_io::distribution_artifact::DistributionCalibration;

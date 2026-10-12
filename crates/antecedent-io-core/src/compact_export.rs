@@ -18,7 +18,8 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::{CanonicalWriter, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::CanonicalWriter;
 use serde::{Deserialize, Serialize};
 
 use crate::artifact_codec::CanonicalSize;

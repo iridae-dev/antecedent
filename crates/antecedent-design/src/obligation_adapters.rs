@@ -12,11 +12,14 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
+    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope,
+    unresolved_assumption_obligations,
+};
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceObligation,
-    EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec, FactorNeed,
-    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope, RegimeKind,
-    SupportReport, SupportStatus, VariableId, unresolved_assumption_obligations,
+    DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, FactorNeed, RegimeKind,
+    SupportReport, SupportStatus, VariableId,
 };
 use antecedent_identify::{CatalogTransportResult, ClassicalTransportQuery};
 

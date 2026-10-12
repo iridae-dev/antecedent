@@ -8,12 +8,14 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    BufferMaterialization, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
+    PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode,
+};
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, BufferMaterialization, ConditionalEffectQuery, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, Intervention,
-    InterventionSequence, LogicalAnalysisPlanRecord, OutcomeFunctional,
-    PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode, SequencedIntervention, VERSION,
-    VariableId,
+    AssumptionSet, AverageEffectQuery, ConditionalEffectQuery, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, ExecutionContext, Intervention, InterventionSequence, OutcomeFunctional,
+    SequencedIntervention, VERSION, VariableId,
 };
 use antecedent_data::{IdRemap, TableView, TabularData, dedupe_variable_ids};
 use antecedent_estimate::{

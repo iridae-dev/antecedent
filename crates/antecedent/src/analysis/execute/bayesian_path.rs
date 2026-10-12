@@ -803,9 +803,9 @@ impl super::Study {
                     _ => "temporal_cpdag_cross_world",
                 };
                 let logical = LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(plan_id),
-                        data_classification: antecedent_core::DataClassification::Temporal,
+                        data_classification: antecedent_contract::DataClassification::Temporal,
                         discovery_algorithm: Some(
                             self.graph_posterior
                                 .as_ref()

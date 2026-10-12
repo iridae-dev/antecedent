@@ -12,6 +12,6 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent-core/src/external_binding.rs",
+  "crates/antecedent-contract/src/external_binding.rs",
   "crates/antecedent-io/tests/external_binding_wire.rs",
 ]

@@ -13,9 +13,9 @@ pub struct TransportGridFailure {
     /// Original expression coordinate for a failed ratio.
     pub expression: Option<u32>,
     /// Located original variable assignments.
-    pub assignment: Vec<(u32, crate::Value)>,
+    pub assignment: Vec<(u32, antecedent_core::Value)>,
     /// Population/regime dependencies of the failing factor.
     pub bindings: Vec<(String, Option<u32>)>,
     /// Concrete intervention world required by this factor.
-    pub interventions: Vec<(u32, crate::Value)>,
+    pub interventions: Vec<(u32, antecedent_core::Value)>,
 }

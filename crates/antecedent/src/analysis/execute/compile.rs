@@ -153,9 +153,9 @@ impl super::Study {
                 let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
                     message: "distribution query requires an outcome".into(),
                 })?;
-                let record = antecedent_core::LogicalAnalysisPlanRecord {
+                let record = antecedent_contract::LogicalAnalysisPlanRecord {
                     plan_id: Arc::from("static_admg_distribution"),
-                    data_classification: antecedent_core::DataClassification::Tabular,
+                    data_classification: antecedent_contract::DataClassification::Tabular,
                     discovery_algorithm: None,
                     graph_review_required: false,
                     identifier: Some(identifier),
@@ -448,9 +448,9 @@ impl super::Study {
                         message: "TransportQuery inner response has no treatment/outcome".into(),
                     })?;
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("transport_trial"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("transport.sid")),
@@ -479,9 +479,9 @@ impl super::Study {
                 let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
                     q.functional;
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("interference_design"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("interference.design")),
@@ -524,9 +524,9 @@ impl super::Study {
                     });
                 }
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("randomized_trial_itt"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
@@ -575,7 +575,7 @@ impl super::Study {
                     });
                 }
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(if q.multi_action.is_some() {
                             "randomized_policy_value_multi_action_ipw"
                         } else if q.mu0.is_empty() {
@@ -583,7 +583,7 @@ impl super::Study {
                         } else {
                             "randomized_policy_value_dr"
                         }),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
@@ -612,9 +612,9 @@ impl super::Study {
                 let (plan_id, identifier, estimator) =
                     super::checked_panel_did::panel_did_plan_ids(q.design);
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(plan_id),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from(identifier)),
@@ -638,9 +638,9 @@ impl super::Study {
                 let (plan_id, identifier, estimator) =
                     super::checked_synthetic_control::synthetic_panel_plan_ids(q.method);
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(plan_id),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from(identifier)),
@@ -663,9 +663,9 @@ impl super::Study {
                     });
                 }
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("policy.continuous_dose_response"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from(
@@ -691,9 +691,9 @@ impl super::Study {
                 let (plan_id, identifier, estimator) =
                     super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink);
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(plan_id),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from(identifier)),
@@ -717,9 +717,9 @@ impl super::Study {
                         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 }
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("randomized.survival_product_limit"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
@@ -744,7 +744,7 @@ impl super::Study {
                     .get(q.outcome)
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(match q.method {
                             antecedent_core::LongitudinalRegimeMethod::Ipw => {
                                 "longitudinal.ipw_regime"
@@ -759,7 +759,7 @@ impl super::Study {
                                 "longitudinal.marginal_structural_model"
                             }
                         }),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
@@ -792,9 +792,9 @@ impl super::Study {
                     .validate()
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("gcm_query"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("gcm.parametric")),
@@ -821,7 +821,7 @@ impl super::Study {
                     .validate()
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("gcm_temporal_query"),
                         data_classification: DataClassification::Temporal,
                         discovery_algorithm: None,
@@ -852,9 +852,9 @@ impl super::Study {
                     _ => unreachable!(),
                 };
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(plan_id),
-                        data_classification: antecedent_core::DataClassification::Temporal,
+                        data_classification: antecedent_contract::DataClassification::Temporal,
                         discovery_algorithm: self.graph.algorithm_id().map(Arc::from),
                         graph_review_required: false,
                         identifier: Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str())),
@@ -870,9 +870,9 @@ impl super::Study {
             RouteInput::TemporalCrossWorldDag { data, .. } => {
                 let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
                 Ok(LogicalAnalysisPlan {
-                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("temporal.cross_world.linear"),
-                        data_classification: antecedent_core::DataClassification::Temporal,
+                        data_classification: antecedent_contract::DataClassification::Temporal,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from(
@@ -931,9 +931,9 @@ impl super::Study {
                         estimator.parse::<EstimatorId>()?,
                     )?;
                     q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                    let record = antecedent_core::LogicalAnalysisPlanRecord {
+                    let record = antecedent_contract::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("static_admg_ate"),
-                        data_classification: antecedent_core::DataClassification::Tabular,
+                        data_classification: antecedent_contract::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(identifier),
@@ -1156,9 +1156,9 @@ pub(crate) fn compile_logical_admg_response(
     let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
         CausalError::Compile { message: "response query has no treatment/outcome pair".into() }
     })?;
-    let record = antecedent_core::LogicalAnalysisPlanRecord {
+    let record = antecedent_contract::LogicalAnalysisPlanRecord {
         plan_id: Arc::from("static_admg_response"),
-        data_classification: antecedent_core::DataClassification::Tabular,
+        data_classification: antecedent_contract::DataClassification::Tabular,
         discovery_algorithm: None,
         graph_review_required: false,
         identifier: Some(identifier),

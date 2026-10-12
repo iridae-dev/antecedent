@@ -17,10 +17,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CanonicalWriter, CausalRng, ExternalCapability, ExternalRefusal, ExternalScientificObject,
-    ExternalTrustState, ProviderObjectIdentity, ScientificQuantity, is_blank,
+use antecedent_contract::{
+    ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
+    ProviderObjectIdentity, ScientificQuantity,
 };
+use antecedent_core::{CanonicalWriter, CausalRng, is_blank};
 
 use crate::candidate::CandidateDesign;
 use crate::error::DesignError;

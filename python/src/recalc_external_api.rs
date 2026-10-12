@@ -8,7 +8,7 @@ use antecedent::analysis::recalc_external::{
     ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider, ProviderDescriptor,
 };
 use antecedent_core::recalc::Branch;
-use antecedent_core::{ExternalResponse, ProviderObjectIdentity};
+use antecedent_contract::{ExternalResponse, ProviderObjectIdentity};
 use antecedent_io::external_binding_wire::{
     ContractWire, ProviderWire, RefusalWire, ResponseWire, core_contract, response_from_wire,
 };

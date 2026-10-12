@@ -14,11 +14,12 @@ use std::sync::Arc;
 use antecedent::analysis::native_claims::{
     NativeDecisionSource, NativeResponseClaim, NativeResponseContext, native_response_coordinates,
 };
+use antecedent_contract::{ProgramBinding, QuantityRole, ScientificQuantity};
 use antecedent_core::{
     AssumptionSet, CausalResponse, CausalSchema, CausalSchemaBuilder, ContinuousDomain,
-    CredibleDraws, GridSpec, IdentificationStatus, IntervalInterpretation, ProgramBinding,
-    QuantityRole, ResponseFunctional, ResponseIdentification, ResponseUncertainty, ResponseValue,
-    ScientificQuantity, SupportRegion, SupportReport, SupportStatus,
+    CredibleDraws, GridSpec, IdentificationStatus, IntervalInterpretation, ResponseFunctional,
+    ResponseIdentification, ResponseUncertainty, ResponseValue, SupportRegion, SupportReport,
+    SupportStatus,
 };
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,

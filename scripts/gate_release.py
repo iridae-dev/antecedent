@@ -72,6 +72,7 @@ for path in [
 # lives in antecedent-io-core; antecedent-io itself forbids unsafe).
 forbid_crates = [
     "crates/antecedent-core",
+    "crates/antecedent-contract",
     "crates/antecedent-graph",
     "crates/antecedent-expr",
     "crates/antecedent-identify",

@@ -33,9 +33,8 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{
-    CanonicalWriter, ExternalRefusal, IdentifiedSet, ScientificQuantity, SupportStatus, VariableId,
-};
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, IdentifiedSet, SupportStatus, VariableId};
 use antecedent_design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, AdapterError, ClaimKind, ClaimProbability, IdentifiedUtility,
     SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims, utility_interval,

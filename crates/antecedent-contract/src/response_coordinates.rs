@@ -17,10 +17,8 @@
 // A refusal is the cold path of a once-per-response derivation; boxing would not pay.
 #![allow(clippy::result_large_err)]
 
-use crate::{
-    CausalResponse, ExternalRefusal, Intervention, QuantityRole, ResponseFunctional,
-    ScientificQuantity, Value, VariableId, dose_label,
-};
+use crate::{ExternalRefusal, QuantityRole, ScientificQuantity, dose_label};
+use antecedent_core::{CausalResponse, Intervention, ResponseFunctional, Value, VariableId};
 
 /// Everything a response fixes about one value coordinate.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -101,7 +99,7 @@ fn named(
 ) -> Result<String, ExternalRefusal> {
     name_of(id).filter(|name| !name.trim().is_empty()).ok_or_else(|| {
         refuse(
-            crate::reason_code!("unknown_variable"),
+            antecedent_core::reason_code!("unknown_variable"),
             "coordinate_support.unknown_variable",
             None,
             Some(id.raw().to_string()),
@@ -119,7 +117,7 @@ fn mean_curve_skeleton(
     };
     let doses = treatment.grid.values().map_err(|error| {
         refuse(
-            crate::reason_code!("invalid_argument"),
+            antecedent_core::reason_code!("invalid_argument"),
             "coordinate_support.invalid_grid",
             Some("a valid finite dose grid"),
             Some(error.to_string()),
@@ -151,7 +149,7 @@ fn mean_curve_skeleton(
 
 fn not_describable(kind: &str) -> ExternalRefusal {
     refuse(
-        crate::reason_code!("route_not_supported"),
+        antecedent_core::reason_code!("route_not_supported"),
         "coordinate_support.regime_not_describable",
         Some("hard set or additive shift to a finite numeric level"),
         Some(kind.to_owned()),
@@ -183,6 +181,8 @@ fn regime_part(
         Intervention::Stochastic { .. } => Err(not_describable("stochastic")),
         Intervention::Soft { .. } => Err(not_describable("soft")),
         Intervention::Sequence(_) => Err(not_describable("sequence")),
+        // `Intervention` is non-exhaustive across the crate boundary.
+        _ => Err(not_describable("unsupported")),
     }
 }
 
@@ -196,7 +196,7 @@ fn intervention_skeleton(
     };
     if response.horizon_identification.is_some() {
         return Err(refuse(
-            crate::reason_code!("route_not_supported"),
+            antecedent_core::reason_code!("route_not_supported"),
             "coordinate_support.temporal_path_not_described",
             Some("a static intervention response"),
             Some("a horizon-indexed intervention path".to_owned()),
@@ -241,7 +241,7 @@ pub fn response_coordinate_skeleton(
         ResponseFunctional::MeanCurve { .. } => mean_curve_skeleton(response, name_of),
         ResponseFunctional::InterventionResponse { .. } => intervention_skeleton(response, name_of),
         other => Err(refuse(
-            crate::reason_code!("route_not_supported"),
+            antecedent_core::reason_code!("route_not_supported"),
             "coordinate_support.functional_not_described",
             Some("mean_curve or intervention_response"),
             Some(functional_name(other).to_owned()),
@@ -264,7 +264,7 @@ pub fn label_coordinates(
         .any(|field| field.trim().is_empty())
     {
         return Err(refuse(
-            crate::reason_code!("invalid_argument"),
+            antecedent_core::reason_code!("invalid_argument"),
             "coordinate_support.units_required",
             Some("non-blank outcome units, population and transform"),
             None,

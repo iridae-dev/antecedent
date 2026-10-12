@@ -14,10 +14,11 @@ use antecedent::StudyBuilder;
 use antecedent::analysis::{
     TransportGridData, TransportGridPoint, TransportGridQuery, TransportGridState,
 };
+use antecedent_contract::check_static_point_labels;
 use antecedent_core::{
     DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
     ExecutionContext, RegimeId, RegimeKind, SupportStatus, Value, VariableCoordinate,
-    VariableDomain, VariableId, check_static_point_labels,
+    VariableDomain, VariableId,
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,

@@ -1,6 +1,6 @@
 //! `composition_provenance`: predecessor digests in the provenance chain.
 
-use antecedent_core::{
+use antecedent_contract::{
     CompositionLink, CompositionStage as S, ProvenanceChain, ProvenanceChainError,
 };
 
@@ -199,7 +199,7 @@ fn fresh_reader_reconstructs_the_lineage_from_digests_not_labels() {
             wire.iter()
                 .map(|(id, stage, parents, digests)| CompositionLink {
                     id: id.clone(),
-                    stage: antecedent_core::CompositionStage::from_name(stage).unwrap(),
+                    stage: antecedent_contract::CompositionStage::from_name(stage).unwrap(),
                     parents: parents.clone(),
                     declared_parent_digests: Some(digests.clone()),
                 })

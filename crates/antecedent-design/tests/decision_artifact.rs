@@ -1,6 +1,6 @@
 //! Independent-process consumption and replay of decision artifacts.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };
@@ -269,7 +269,7 @@ fn source_with_p(p: [f64; 4]) -> DistributionArtifact {
 
 #[test]
 fn result_names_the_exact_stages_and_identities_behind_it() {
-    use antecedent_core::{CompositionStage as S, ProvenanceChainError};
+    use antecedent_contract::{CompositionStage as S, ProvenanceChainError};
     let c = contract();
     let s = source();
     let artifact = DecisionResultArtifact::new(evaluate_contract(&c, &s).unwrap(), &s);
@@ -376,7 +376,7 @@ fn result_json_carries_the_lineage_and_replay_still_compares_like_with_like() {
 
 #[test]
 fn result_lineage_carries_merkle_digests_that_change_with_the_source() {
-    use antecedent_core::ProvenanceChainError;
+    use antecedent_contract::ProvenanceChainError;
     let c = contract();
     let first = source();
     let second = source_with_p([2.0, 3.0, 2.0, 0.0]);

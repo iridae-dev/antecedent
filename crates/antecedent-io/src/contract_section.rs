@@ -9,10 +9,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AcceptanceReport, ConsumerProfile, ContractIdentities, HandoffReceipt, IdentityDomain,
-    SemanticDigest,
-};
+use antecedent_contract::{AcceptanceReport, ConsumerProfile, HandoffReceipt};
+use antecedent_core::{ContractIdentities, IdentityDomain, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
 pub use crate::contract_reason::ContractReason;
@@ -4193,7 +4191,7 @@ mod tests {
             !consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim")
         );
         let (accepted, receipt) =
-            accept_claim(&bytes, &antecedent_core::ConsumerProfile::full()).unwrap();
+            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
         assert!(!accepted.acceptance.accepts_as_claim());
         assert_ne!(receipt.input.as_bytes(), &[0u8; 32]);
         assert_eq!(receipt.input.as_bytes(), &payload_digest("analysis_result.bytes", &bytes));
@@ -4220,17 +4218,17 @@ mod tests {
         seal_claim(&mut contract, &body);
         let bytes = to_bytes(&body, names, Some(&contract));
         let (full, lossless) =
-            accept_claim(&bytes, &antecedent_core::ConsumerProfile::full()).unwrap();
+            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
         assert!(full.acceptance.accepts_as_claim());
         assert!(lossless.equivalent_claim());
         let (restricted, receipt) =
-            accept_claim(&bytes, &antecedent_core::ConsumerProfile::restricted()).unwrap();
+            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::restricted()).unwrap();
         assert!(!restricted.acceptance.accepts_as_claim());
         assert_eq!(restricted.acceptance.restriction.as_deref(), Some("unknown_required_feature"));
         assert!(restricted.acceptance.supported_operations.iter().any(|op| &**op == "forward"));
         assert!(!receipt.equivalent_claim());
         let (_forward, forwarded) =
-            accept_claim(&bytes, &antecedent_core::ConsumerProfile::forwarding()).unwrap();
+            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::forwarding()).unwrap();
         let chained = receipt.chain(&forwarded);
         assert!(!chained.equivalent_claim());
         assert!(chained.omitted.iter().any(|field| &**field == "required_semantics"));

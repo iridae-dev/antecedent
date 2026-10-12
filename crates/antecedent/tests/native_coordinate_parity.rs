@@ -8,12 +8,14 @@
 use std::sync::Arc;
 
 use antecedent::analysis::native_claims::{NativeResponseContext, native_response_coordinates};
+use antecedent_contract::{
+    ProgramBinding, QuantityRole, ResponseCoordinateLabels, ScientificQuantity,
+    response_coordinates,
+};
 use antecedent_core::{
     AssumptionSet, CausalResponse, CausalSchema, CausalSchemaBuilder, ContinuousDomain, GridSpec,
-    IdentificationStatus, ProgramBinding, QuantityRole, ResponseCoordinateLabels,
-    ResponseFunctional, ResponseIdentification, ResponseUncertainty, ResponseValue,
-    ScientificQuantity, SupportRegion, SupportReport, SupportStatus, VariableId,
-    response_coordinates,
+    IdentificationStatus, ResponseFunctional, ResponseIdentification, ResponseUncertainty,
+    ResponseValue, SupportRegion, SupportReport, SupportStatus, VariableId,
 };
 use antecedent_io::distribution_artifact::DistributionCalibration;
 use antecedent_io::quantity_wire::ScientificQuantityWire;

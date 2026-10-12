@@ -3,13 +3,15 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    ExternalRefusal, ProgramBinding, QuantityRole, ResponseCoordinateLabels, response_coordinates,
+};
 use antecedent_core::{
-    AssumptionSet, CausalResponse, ContinuousDomain, ExternalRefusal, GridSpec,
-    HorizonIdentification, IdentificationStatus, Intervention, InterventionSequence,
-    MechanismOverride, ProgramBinding, QuantityRole, ResponseCoordinateLabels, ResponseFunctional,
-    ResponseIdentification, ResponseUncertainty, ResponseValue, SequencedIntervention,
-    StochasticPolicy, SupportRegion, SupportReport, SupportStatus, TemporalPolicy, Value,
-    VariableId, response_coordinates,
+    AssumptionSet, CausalResponse, ContinuousDomain, GridSpec, HorizonIdentification,
+    IdentificationStatus, Intervention, InterventionSequence, MechanismOverride,
+    ResponseFunctional, ResponseIdentification, ResponseUncertainty, ResponseValue,
+    SequencedIntervention, StochasticPolicy, SupportRegion, SupportReport, SupportStatus,
+    TemporalPolicy, Value, VariableId,
 };
 
 const A: u32 = 0;

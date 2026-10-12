@@ -1468,7 +1468,7 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
 
 #[test]
 fn prepared_temporal_class_contract_binds_its_envelope() {
-    use antecedent_core::SlotAvailability;
+    use antecedent_contract::SlotAvailability;
 
     let data = series_from_law(400, false);
     let ctx = ExecutionContext::for_tests(7);

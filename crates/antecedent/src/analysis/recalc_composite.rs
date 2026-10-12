@@ -8,11 +8,12 @@ use super::recalc_receipt::{Counter, RecalcReceipt, RecalcRunError, ReceiptRecor
 use super::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
 };
+use antecedent_contract::{ExternalTrustState, ProgramBinding};
+use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{
     Boundary, Branch, RecalcCapabilities, RecalcPlan, RequestSupport, RetargetSupport, Stage,
     StageIdentities, StageIdentity, StageStatus,
 };
-use antecedent_core::{ExecutionContext, ExternalTrustState, ProgramBinding};
 use antecedent_design::composition_boundary::{
     DecisionInput, NativeExecutionRecord, SupportPolicy, SupportedDecision, TrustEvidence,
     TrustRequirement, evaluate_with_support,
@@ -53,7 +54,7 @@ pub enum CompositeError {
         cause: ExternalCallbackError,
     },
     /// Original scientific binding or decision refusal.
-    Binding(Box<antecedent_core::ExternalRefusal>),
+    Binding(Box<antecedent_contract::ExternalRefusal>),
     /// Original shared dependency refusal.
     Refused(Box<RecalcPlan>),
     /// Actual receipt construction failure.

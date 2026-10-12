@@ -7,9 +7,10 @@ use std::sync::Arc;
 
 use antecedent::analysis::{ExactPreparedState, PreparedStudy, StudyBuilder};
 use antecedent::prelude::*;
+use antecedent_contract::ReasoningView;
 use antecedent_core::{
-    DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ReasoningView, RegimeId, RegimeKind, TargetSampling, VariableCoordinate, VariableDomain,
+    DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeId,
+    RegimeKind, TargetSampling, VariableCoordinate, VariableDomain,
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,

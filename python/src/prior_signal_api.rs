@@ -137,7 +137,7 @@ pub(crate) fn adapt_prior_signal(
             Some(refusal("prior_signal.target_population_mismatch", "invalid_argument")),
         ));
     }
-    let _: antecedent_core::ScientificQuantity =
+    let _: antecedent_contract::ScientificQuantity =
         wire.state.clone().try_into().map_err(|e| value_err(format!("{e:?}")))?;
     let family = match wire.signal {
         ProviderDeclWire::Binomial => NativeSignalFamily::Binomial,

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use antecedent_contract::{DataClassification, LogicalAnalysisPlanRecord};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, ExecutionContext,
-    LogicalAnalysisPlanRecord, MemoryBudget, TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, MemoryBudget, TemporalEffectQuery,
+    VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TabularData, TimeSeriesData};
 use antecedent_graph::{Dag, TemporalDag};

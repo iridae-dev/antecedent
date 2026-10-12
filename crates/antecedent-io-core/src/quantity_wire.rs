@@ -3,7 +3,9 @@
 //! This wire carries semantics only. It does not turn a numerical payload into
 //! a licensed causal estimate or reinterpret a posterior-draw artifact.
 
-use antecedent_core::{DistributionMeaning, QuantityCondition, QuantityRole, ScientificQuantity};
+use antecedent_contract::{
+    DistributionMeaning, QuantityCondition, QuantityRole, ScientificQuantity,
+};
 use serde::{Deserialize, Serialize};
 
 /// First version of the scientific quantity wire contract.

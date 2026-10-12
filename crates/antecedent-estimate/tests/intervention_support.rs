@@ -10,10 +10,10 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{ResponseCoordinateLabels, response_coordinates};
 use antecedent_core::{
-    AssumptionSet, IdentificationStatus, Intervention, ResponseCoordinateLabels,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, StochasticPolicy,
-    SupportStatus, Value, VariableId, response_coordinates,
+    AssumptionSet, IdentificationStatus, Intervention, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseValue, StochasticPolicy, SupportStatus, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseEstimator;

@@ -20,10 +20,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
-pub use antecedent_core::{
+pub use antecedent_contract::{
     EvidenceObligation, EvidenceObligationKind, ObligationProvenance, ObligationRegime,
 };
+use antecedent_core::ExecutionContext;
 pub use antecedent_design::{
     BackdoorRepairFamily, DurableStudyCandidate, ExpectedEvidence, FamilyVerdict,
     RepairArtifactError, RepairClassification, RepairConsumeLimits, RepairError, RepairFamily,

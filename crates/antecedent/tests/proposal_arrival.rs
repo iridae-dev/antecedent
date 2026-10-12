@@ -2,10 +2,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, execute};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
-    DependenceGroup, Environment, EvidenceCatalog, EvidenceKind, ExecutionContext, QuantityRole,
-    RegimeBinding, SamplingDesign, ScientificQuantity, VariableCoordinate, VariableDomain,
-    VariableId,
+    DependenceGroup, Environment, EvidenceCatalog, EvidenceKind, ExecutionContext, RegimeBinding,
+    SamplingDesign, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::{
     DurableStudyCandidate, ExpectedEvidence, RepairFamilyRef, RepairLimits, RepairObjective,

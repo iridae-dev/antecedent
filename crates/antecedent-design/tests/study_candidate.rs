@@ -5,10 +5,13 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationKind, EvidenceObligationSpec, ObligationProvenance,
+    ObligationRegime, ObligationScope,
+};
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind,
-    EvidenceObligation, EvidenceObligationKind, EvidenceObligationSpec, InterventionAssignment,
-    ObligationProvenance, ObligationRegime, ObligationScope, RegimeKind, Value, VariableId,
+    InterventionAssignment, RegimeKind, Value, VariableId,
 };
 use antecedent_design::{
     CandidateDesign, DurableStudyCandidate, ExpectedEvidence, StudyCostDeclaration, StudyKind,

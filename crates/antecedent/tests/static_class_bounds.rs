@@ -13,10 +13,10 @@
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study, StudyResult};
+use antecedent_contract::ClaimKind;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ClaimKind, ConditionalEffectQuery, ContinuousDomain,
-    ExecutionContext, GridSpec, Intervention, ResponseFunctional, ResponseQuery, ResponseValue,
-    Value, VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
+    GridSpec, Intervention, ResponseFunctional, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};

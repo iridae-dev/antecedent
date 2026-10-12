@@ -1,13 +1,13 @@
 //! Independent foreign mean callbacks, actual invocation receipts and portable replay.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_external::*;
-use antecedent_core::recalc::Branch;
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalProgramClaim,
     ExternalResponse, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProgramBinding,
-    ProviderObjectIdentity, SupportStatus,
+    ExternalUncertaintyMeaning, LawProviderContract, ProgramBinding, ProviderObjectIdentity,
 };
+use antecedent_core::recalc::Branch;
+use antecedent_core::{IdentificationStatus, SupportStatus};
 
 pub(crate) fn request(branch: u8, policy: CallbackPolicy) -> ExternalCallbackRequest {
     let program = ProgramBinding {

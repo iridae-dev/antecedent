@@ -44,6 +44,7 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+antecedent-contract = { path = "../antecedent-contract" }
 antecedent-test-support = { path = "../antecedent-test-support" }
 # Self dev-dependency: the integration tests and benches measure the closed mz bootstrap
 # estimator (and the learned continuous interval), compiled only under `calibration-internal`. Dev-dependencies

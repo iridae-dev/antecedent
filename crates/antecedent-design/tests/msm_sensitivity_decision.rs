@@ -9,7 +9,7 @@
 //!   switching in [2, 3] because the ATE is at most 1;
 //! * no robust action: `treat = ate` against `skip = 0.2` on {1, 2, 3}; mixed at {2, 3}.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_structural::StructuralVerdict;
 use antecedent_design::sensitivity_decision::{

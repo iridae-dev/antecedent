@@ -1,7 +1,8 @@
 //! Admissibility rules and robustness states for decisions under structural
 //! uncertainty. Expected values are enumerated by hand in each test.
 
-use antecedent_core::{QuantityRole, ScientificQuantity, SupportStatus};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::SupportStatus;
 use antecedent_design::decision_contract::{
     ActionKind, AdmissibilityError, AdmissibilityRules, AdmissibleDecisionContract, DecisionAction,
     DecisionContract, DecisionCriterion, DeclaredExclusion, HardConstraint, StructuralPolicy,

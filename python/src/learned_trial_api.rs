@@ -32,7 +32,7 @@ impl PreparedLearnedTrial {
     /// Native four-slot reasoning: the executed result's own view once estimated, else
     /// the not-yet-executed view of the prepared identification (identification is a
     /// property of the accepted certificate, not of a fitted estimate).
-    fn reasoning(&self) -> Option<antecedent_core::ReasoningView> {
+    fn reasoning(&self) -> Option<antecedent_contract::ReasoningView> {
         self.last.as_ref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
             self.inner
                 .as_ref()

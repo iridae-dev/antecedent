@@ -185,7 +185,7 @@ mod stage;
 mod transport_common;
 pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
 
-pub use antecedent_core::{
+pub use antecedent_contract::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
     OperationReport, PremiseChange, SemanticApplicability,
 };

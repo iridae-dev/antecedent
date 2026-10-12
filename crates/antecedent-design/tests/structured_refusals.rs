@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{
+use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalCapabilityRequest, ExternalRefusal,
     ExternalScientificObject, LawProviderContract, ProviderObjectIdentity, QuantityRole,
     ScientificQuantity,

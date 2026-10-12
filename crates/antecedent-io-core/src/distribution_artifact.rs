@@ -6,7 +6,7 @@
 //! The caller must supply an independently retained expected identity on load;
 //! an artifact's own checksum cannot establish its causal premises after resealing.
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use serde::{Deserialize, Serialize};
 
 use crate::container::{EncodedArtifact, SectionBytes, section_descriptor};
@@ -766,7 +766,7 @@ fn validate(meta: &DistributionMetadata, draws: &[f64]) -> Result<(), IoError> {
 
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{QuantityRole, ScientificQuantity};
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
 
     use super::*;
 

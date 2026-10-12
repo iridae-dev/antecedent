@@ -19,7 +19,7 @@
 
 #![allow(clippy::float_cmp, reason = "exact grid endpoints and copied surface values")]
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::error::IoError;
 use antecedent_io::msm_sensitivity_adapter::{
     MSM_COORDINATE_ID, MSM_COORDINATE_SCALE, MSM_SOURCE_KIND, MsmOutcomeLaw, MsmSensitivityResult,

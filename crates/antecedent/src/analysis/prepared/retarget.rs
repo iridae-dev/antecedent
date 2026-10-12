@@ -43,10 +43,12 @@ impl PreparedStudy {
     /// The reason-coded refusal the apply raises.
     pub fn transform_capability(
         &self,
-        intent: antecedent_core::TransformIntent,
+        intent: antecedent_contract::TransformIntent,
     ) -> Result<(), CausalError> {
         match intent {
-            antecedent_core::TransformIntent::Retarget => self.retarget_score_table().map(|_| ()),
+            antecedent_contract::TransformIntent::Retarget => {
+                self.retarget_score_table().map(|_| ())
+            }
             _ => Ok(()),
         }
     }
@@ -374,7 +376,7 @@ impl PreparedStudy {
                 unit_change: None,
                 refutations: Vec::new(),
                 diagnostics,
-                provenance: antecedent_core::ProvenanceGraph::new(),
+                provenance: antecedent_contract::ProvenanceGraph::new(),
                 treatment,
                 outcome,
                 wall_time_ns: 0,

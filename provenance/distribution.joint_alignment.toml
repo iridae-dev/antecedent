@@ -15,7 +15,7 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent-core/src/quantity.rs",
+  "crates/antecedent-contract/src/quantity.rs",
   "crates/antecedent-io-core/src/quantity_wire.rs",
   "crates/antecedent-io/tests/distribution_artifact.rs",
   "python/tests/test_composition.py",

@@ -112,10 +112,10 @@ fn equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
     let signal_request = SignalRequest {
         candidate_id: "study".into(),
         prior_id: result.prior_id.clone(),
-        state_quantity: antecedent_core::ScientificQuantity {
+        state_quantity: antecedent_contract::ScientificQuantity {
             variable_id: "schema:p".into(),
             variable_name: "p".into(),
-            role: antecedent_core::QuantityRole::Outcome,
+            role: antecedent_contract::QuantityRole::Outcome,
             units: "probability".into(),
             population_id: "target".into(),
             regime_id: "observational".into(),
@@ -124,10 +124,10 @@ fn equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
             conditioning: vec![],
             transform_id: "identity".into(),
         },
-        observation_quantity: antecedent_core::ScientificQuantity {
+        observation_quantity: antecedent_contract::ScientificQuantity {
             variable_id: "schema:k".into(),
             variable_name: "k".into(),
-            role: antecedent_core::QuantityRole::Outcome,
+            role: antecedent_contract::QuantityRole::Outcome,
             units: "count".into(),
             population_id: "target".into(),
             regime_id: "observational".into(),

@@ -15,13 +15,13 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, CheckedCausalContract, DistributionMeaning, ExternalCapability,
-    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalScientificObject,
-    ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
-    SupportStatus, bind_external_result,
+use antecedent_contract::{
+    CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
+    ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
+    ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
+    ScientificQuantity, SignalProviderContract, bind_external_result,
 };
+use antecedent_core::{CancellationToken, IdentificationStatus, SupportStatus};
 use antecedent_design::composition_bundle::{
     BundleLimits, BundleNode, BundleStage, ClaimLabel, CompositionBundle, ConsumedBundle,
     EvidenceRelationship, FACT_LAW, FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT,

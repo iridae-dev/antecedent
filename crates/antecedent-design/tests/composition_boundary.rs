@@ -6,11 +6,12 @@
 //! = 3.75` and `EVPI = 0.75`. The mean fixture has `E[Y | do(a=0)] = 1` and
 //! `E[Y | do(a=1)] = 3` under the affine utility `2x - 1`, so `wait = 1`, `treat = 5`.
 
-use antecedent_core::{
+use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    LawProviderContract, ProviderObjectIdentity, QuantityRole, ScientificQuantity, SupportStatus,
+    LawProviderContract, ProviderObjectIdentity, QuantityRole, ScientificQuantity,
     VerificationProbe, VerificationProbeKind, verify_external_object,
 };
+use antecedent_core::SupportStatus;
 use antecedent_design::composition_boundary::{
     ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
     CompositionOperation, CoordinateIssue, DecisionInput, DependenceRoute, EvidenceRelation,

@@ -27,7 +27,7 @@
 //! Evaluation happens only at the declared grid points. Between grid points nothing is
 //! evaluated; the interpolated crossing of a switch is labelled as an interpolation.
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,

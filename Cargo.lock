@@ -64,6 +64,7 @@ version = "2.4.0"
 dependencies = [
  "antecedent",
  "antecedent-attribution",
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-counterfactual",
  "antecedent-data",
@@ -111,6 +112,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "antecedent-contract"
+version = "2.4.0"
+dependencies = [
+ "antecedent-core",
+ "blake3",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "antecedent-core"
 version = "2.4.0"
 dependencies = [
@@ -122,6 +132,7 @@ dependencies = [
 name = "antecedent-counterfactual"
 version = "2.4.0"
 dependencies = [
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-data",
  "antecedent-graph",
@@ -150,6 +161,7 @@ dependencies = [
 name = "antecedent-design"
 version = "2.4.0"
 dependencies = [
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-graph",
  "antecedent-identify",
@@ -187,6 +199,7 @@ dependencies = [
 name = "antecedent-estimate"
 version = "2.4.0"
 dependencies = [
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-data",
  "antecedent-estimate",
@@ -240,6 +253,7 @@ dependencies = [
 name = "antecedent-io"
 version = "2.4.0"
 dependencies = [
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-estimate",
  "antecedent-expr",
@@ -265,6 +279,7 @@ dependencies = [
 name = "antecedent-io-core"
 version = "2.4.0"
 dependencies = [
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-counterfactual",
  "antecedent-discovery",
@@ -349,6 +364,7 @@ version = "2.4.0"
 dependencies = [
  "antecedent",
  "antecedent-attribution",
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-data",
  "antecedent-design",

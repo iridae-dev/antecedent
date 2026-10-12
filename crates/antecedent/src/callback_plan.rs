@@ -4,10 +4,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, KernelSelection, ParallelTaskSpec,
-    PhysicalExecutionPlanRecord,
-};
+use antecedent_contract::{KernelSelection, ParallelTaskSpec, PhysicalExecutionPlanRecord};
+use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity};
 
 /// Force serial execution and record a callback region on a physical plan.
 #[must_use]

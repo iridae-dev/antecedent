@@ -4,7 +4,7 @@
 //! realizations below, `E[P] * E[Q] = 4.5` but `E[P * Q] = 2`; only genuine
 //! joint rows give the second value, and only they choose the safe action.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
     StructuralPolicy, UtilityExpr,

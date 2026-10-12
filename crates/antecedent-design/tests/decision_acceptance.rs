@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };

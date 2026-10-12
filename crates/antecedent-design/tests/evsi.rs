@@ -28,10 +28,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
+use antecedent_contract::{
+    ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, SignalProviderContract,
 };
+use antecedent_core::CancellationToken;
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, IntegrationMethod, RankingBasis,
     StudyCostSpec, evaluate_evsi,

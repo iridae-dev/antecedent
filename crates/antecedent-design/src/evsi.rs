@@ -22,7 +22,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CancellationToken, ExecutionContext, ExternalRefusal, is_blank};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::{CancellationToken, ExecutionContext, is_blank};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use crate::candidate::CandidateDesign;

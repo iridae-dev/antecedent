@@ -1172,7 +1172,7 @@ fn validate_response_coordinates(
     }
     let mut seen = HashSet::with_capacity(coordinates.len());
     for wire in coordinates {
-        let quantity = antecedent_core::ScientificQuantity::try_from(wire.clone())
+        let quantity = antecedent_contract::ScientificQuantity::try_from(wire.clone())
             .map_err(|reason| IoError::Convert(format!("response coordinates: {reason}")))?;
         let identity = (
             quantity.variable_id,
@@ -1537,7 +1537,7 @@ fn validate_support(
                 .map(|cell| crate::response_wire::support_status_from_wire(*cell))
                 .collect();
             let summary = crate::response_wire::support_status_from_wire(support.status);
-            antecedent_core::check_static_point_labels(&labels, summary, len).map_err(|r| {
+            antecedent_contract::check_static_point_labels(&labels, summary, len).map_err(|r| {
                 IoError::Refused {
                     code: r.code,
                     message: format!("{}: support labels do not match their response", r.detail),

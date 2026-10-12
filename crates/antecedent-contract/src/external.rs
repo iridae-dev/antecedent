@@ -938,7 +938,7 @@ mod tests {
 
     /// A deterministic seeded sampler standing in for the provider's callback.
     fn seeded_draws(seed: u64, n: usize) -> Vec<f64> {
-        let mut rng = crate::CausalRng::from_seed(seed);
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
         (0..n).map(|_| f64::from(u8::from(rng.next_f64() >= 0.75))).collect()
     }
 

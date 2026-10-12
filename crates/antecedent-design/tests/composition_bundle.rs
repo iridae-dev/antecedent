@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::composition_bundle::{
     BundleConsumer, BundleError, BundleLimits, BundleNode, BundleStage, ClaimLabel,
     CompositionBundle, ConsumedBundle, EvidenceRelationship, FACT_LAW, FACT_QUANTITY_DIGEST,

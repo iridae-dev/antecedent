@@ -16,10 +16,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
+use antecedent_contract::{
+    ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, SignalProviderContract,
 };
+use antecedent_core::CancellationToken;
 use antecedent_design::design_ranking_artifact::{
     CandidateWire, ConsumeExpectation, ConsumedCandidate, DESIGN_RANKING_CALIBRATION,
     DesignRankingArtifactError, DesignRankingArtifactWire, LawWire, MAX_RANKING_CANDIDATES,

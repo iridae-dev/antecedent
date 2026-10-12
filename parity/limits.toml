@@ -368,11 +368,11 @@ scope_fixture = { path = "crates/antecedent-design/tests/decision_acceptance.rs"
 [[bound]]
 record = "design.evidence_obligations"
 key = "max_coordinates"
-implementation = [{ path = "crates/antecedent-core/src/evidence_obligation.rs", constant = "MAX_OBLIGATION_COORDINATES" }]
-documentation = [{ path = "crates/antecedent-core/src/evidence_obligation.rs", constant = "MAX_OBLIGATION_COORDINATES" }]
-guard = { path = "crates/antecedent-core/src/evidence_obligation.rs", pattern = "if\\ coordinates\\ >\\ MAX_OBLIGATION_COORDINATES" }
-refusal = { path = "crates/antecedent-core/src/evidence_obligation.rs", pattern = "if\\ coordinates\\ >\\ MAX_OBLIGATION_COORDINATES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-core/tests/evidence_obligation.rs", pattern = "\\bscientific_obligation_screen_refuses_missing_or_incompatible_measurement_semantics\\b" }
+implementation = [{ path = "crates/antecedent-contract/src/evidence_obligation.rs", constant = "MAX_OBLIGATION_COORDINATES" }]
+documentation = [{ path = "crates/antecedent-contract/src/evidence_obligation.rs", constant = "MAX_OBLIGATION_COORDINATES" }]
+guard = { path = "crates/antecedent-contract/src/evidence_obligation.rs", pattern = "if\\ coordinates\\ >\\ MAX_OBLIGATION_COORDINATES" }
+refusal = { path = "crates/antecedent-contract/src/evidence_obligation.rs", pattern = "if\\ coordinates\\ >\\ MAX_OBLIGATION_COORDINATES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent-contract/tests/evidence_obligation.rs", pattern = "\\bscientific_obligation_screen_refuses_missing_or_incompatible_measurement_semantics\\b" }
 
 [[bound]]
 record = "design.identification_repair"

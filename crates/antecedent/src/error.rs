@@ -582,8 +582,8 @@ impl CausalError {
     /// Stable capability-report blocker id, when this error is a preflight/execution
     /// refusal. Budget and cancel are marked non-scientific.
     #[must_use]
-    pub fn blocker_id(&self) -> Option<antecedent_core::BlockedOperation> {
-        use antecedent_core::BlockedOperation;
+    pub fn blocker_id(&self) -> Option<antecedent_contract::BlockedOperation> {
+        use antecedent_contract::BlockedOperation;
         match self.peeled() {
             Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
                 Some(BlockedOperation::not_applicable(*message))

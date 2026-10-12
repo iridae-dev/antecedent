@@ -405,7 +405,7 @@ pub enum ContractReason {
 }
 
 impl ContractReason {
-    /// Historical reason spelling stored on [`antecedent_core::AcceptanceReport`].
+    /// Historical reason spelling stored on [`antecedent_contract::AcceptanceReport`].
     #[must_use]
     #[expect(
         clippy::too_many_lines,

@@ -13,11 +13,12 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, LatencyMode,
     PreparedStudy, RefuteSuite, Study,
 };
+use antecedent_contract::TransformIntent;
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext,
     IdentificationStatus, Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec,
-    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet,
-    TransformIntent, Value, ValueType, VariableId,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value,
+    ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
@@ -829,7 +830,7 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     );
     assert!(contract.identities.identification_product.is_some());
     match &contract.reasoning.identification {
-        antecedent_core::SlotAvailability::Available(slot) => {
+        antecedent_contract::SlotAvailability::Available(slot) => {
             assert_eq!(slot.status, IdentificationStatus::NonparametricallyIdentified);
         }
         other => panic!("prepared distribution has no identification product: {other:?}"),

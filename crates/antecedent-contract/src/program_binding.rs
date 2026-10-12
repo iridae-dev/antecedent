@@ -16,12 +16,12 @@
 
 use std::num::FpCategory;
 
-use crate::identity::CanonicalWriter;
-use crate::text::is_blank;
 use crate::{
     BoundExternalClaim, CheckedCausalContract, ExternalRefusal, ExternalResult, QuantityRole,
     ScientificQuantity, bind_external_result,
 };
+use antecedent_core::identity::CanonicalWriter;
+use antecedent_core::text::is_blank;
 
 const IDENTITY_KEY: &str = "antecedent.program_binding.v1";
 const GRAPH_ONLY_KEY: &str = "antecedent.program_binding.graph_only.v1";
@@ -251,7 +251,7 @@ fn refuse(
 
 fn invalid(field: &str) -> ExternalRefusal {
     ExternalRefusal {
-        code: crate::reason_code!("invalid_argument"),
+        code: antecedent_core::reason_code!("invalid_argument"),
         stage: "bind",
         detail: "program_binding.invalid_binding".to_owned(),
         offending: Some(field.to_owned()),
@@ -264,7 +264,7 @@ fn invalid(field: &str) -> ExternalRefusal {
 
 fn substitution(offending: &str, expected: &str, supplied: &str) -> ExternalRefusal {
     refuse(
-        crate::reason_code!("external_binding_mismatch"),
+        antecedent_core::reason_code!("external_binding_mismatch"),
         "program_binding.treatment_outcome_substitution",
         Some(offending.to_owned()),
         expected.to_owned(),
@@ -275,7 +275,7 @@ fn substitution(offending: &str, expected: &str, supplied: &str) -> ExternalRefu
 
 fn population(offending: &str, expected: &str, supplied: &str) -> ExternalRefusal {
     refuse(
-        crate::reason_code!("quantity_semantics_mismatch"),
+        antecedent_core::reason_code!("quantity_semantics_mismatch"),
         "program_binding.population_mismatch",
         Some(offending.to_owned()),
         expected.to_owned(),
@@ -286,7 +286,7 @@ fn population(offending: &str, expected: &str, supplied: &str) -> ExternalRefusa
 
 fn grid_changed(offending: &str, expected: String, supplied: String) -> ExternalRefusal {
     refuse(
-        crate::reason_code!("quantity_semantics_mismatch"),
+        antecedent_core::reason_code!("quantity_semantics_mismatch"),
         "program_binding.dose_grid_changed",
         Some(offending.to_owned()),
         expected,
@@ -297,7 +297,7 @@ fn grid_changed(offending: &str, expected: String, supplied: String) -> External
 
 fn identity_mismatch(offending: &str, expected: &str, supplied: &str) -> ExternalRefusal {
     refuse(
-        crate::reason_code!("external_binding_mismatch"),
+        antecedent_core::reason_code!("external_binding_mismatch"),
         "program_binding.contract_identity_mismatch",
         Some(offending.to_owned()),
         expected.to_owned(),
@@ -334,7 +334,7 @@ fn check_identity(
 ) -> Result<(), ExternalRefusal> {
     if graph_only(binding, claim) {
         return Err(refuse(
-            crate::reason_code!("external_binding_mismatch"),
+            antecedent_core::reason_code!("external_binding_mismatch"),
             "program_binding.graph_only_identity",
             Some("declared_identity".to_owned()),
             binding.identity(),
@@ -414,7 +414,7 @@ fn check_quantity(
     }
     expected.require_same_coordinate(supplied).map_err(|mismatch| {
         refuse(
-            crate::reason_code!("quantity_semantics_mismatch"),
+            antecedent_core::reason_code!("quantity_semantics_mismatch"),
             "program_binding.quantities_override_mismatch",
             Some(at.clone()),
             format!("{expected:?}"),

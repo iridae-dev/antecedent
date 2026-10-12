@@ -15,5 +15,5 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent-core/tests/composition_provenance.rs",
+  "crates/antecedent-contract/tests/composition_provenance.rs",
 ]

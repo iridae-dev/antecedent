@@ -9,8 +9,8 @@
 
 use std::sync::Arc;
 
-use crate::identity::{IdentityRef, SemanticDigest};
 use crate::obligation::ObligationRecord;
+use antecedent_core::identity::{IdentityRef, SemanticDigest};
 
 /// One semantic layer a transformation can affect.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -235,9 +235,9 @@ impl TransformationReport {
     /// Whether this preview still matches the supplied program identity.
     #[must_use]
     pub fn binds_program(&self, program: SemanticDigest) -> bool {
-        self.input_identities
-            .iter()
-            .any(|id| id.domain == crate::identity::IdentityDomain::Program && id.digest == program)
+        self.input_identities.iter().any(|id| {
+            id.domain == antecedent_core::identity::IdentityDomain::Program && id.digest == program
+        })
     }
 
     /// Whether all frozen contract inputs still match, including the data snapshot.
@@ -245,7 +245,10 @@ impl TransformationReport {
     /// Program equality alone cannot detect a refresh that preserves the target
     /// and identification. This is a freshness check, not an execution license.
     #[must_use]
-    pub fn binds_contract(&self, identities: &crate::identity::ContractIdentities) -> bool {
+    pub fn binds_contract(
+        &self,
+        identities: &antecedent_core::identity::ContractIdentities,
+    ) -> bool {
         self.input_identities == identities.refs()
     }
 
@@ -373,9 +376,9 @@ pub fn intent_effects(intent: TransformIntent) -> Arc<[LayerEffect]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assumption::{AssumptionSource, AssumptionStatus};
-    use crate::identity::{IdentityDomain, SemanticDigest};
     use crate::obligation::{ObligationKind, ObligationRecord, ObligationScope};
+    use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
+    use antecedent_core::identity::{IdentityDomain, SemanticDigest};
 
     fn digest(byte: u8) -> SemanticDigest {
         let mut bytes = [0u8; 32];

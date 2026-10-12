@@ -16,7 +16,8 @@ use antecedent::analysis::sensitivity_decision::{
     SensitivityIdentity, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, contract_from_artifact, decide,
 };
-use antecedent_core::{ScientificQuantity, reason_code};
+use antecedent_core::reason_code;
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_eval::Verdict;

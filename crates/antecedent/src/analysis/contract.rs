@@ -9,15 +9,17 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use antecedent_core::{
-    Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus,
-    AttestedEvidence, CalibrationView, CausalQuery, CausalSchema, ClaimDomains, ClaimEnvelope,
-    ClaimKind, ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT,
-    IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalInterpretation,
-    IntervalMethod, NextAction, ObligationKind, ObligationRecord, ObligationScope, OperationKind,
-    OperationReadiness, OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability,
-    SemanticLayer, SlotAvailability, SupportSlot, TargetPopulation, TransformIntent,
+use antecedent_contract::{
+    AssumptionSlot, AttestedEvidence, CalibrationView, ClaimDomains, ClaimEnvelope, ClaimKind,
+    DomainStatus, IdentificationSlot, NextAction, ObligationKind, ObligationRecord,
+    ObligationScope, OperationKind, OperationReadiness, OperationReport, ReasoningView,
+    SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot, TransformIntent,
     TransformationReport, UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
+};
+use antecedent_core::{
+    Assumption, AssumptionSet, AssumptionSource, AssumptionStatus, CausalQuery, CausalSchema,
+    ContractIdentities, ExecutionContext, IDENTITY_FORMAT, IdentificationStatus, IdentityDomain,
+    IntervalInterpretation, IntervalMethod, ResponseUncertainty, TargetPopulation,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{
@@ -931,14 +933,14 @@ impl PreparedStudy {
         result: &StudyResult,
         artifact_id: &str,
         ctx: &ExecutionContext,
-        labels: Option<&antecedent_core::ResponseCoordinateLabels<'_>>,
+        labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
     ) -> Result<Vec<u8>, CausalError> {
         let quantities = labels
             .map(|labels| {
                 let response = result.response.as_ref().ok_or_else(|| CausalError::Compile {
                     message: "scientific coordinates require a native response".into(),
                 })?;
-                antecedent_core::response_coordinates(
+                antecedent_contract::response_coordinates(
                     response,
                     &|id| {
                         self.schema()
@@ -1156,7 +1158,7 @@ impl StudyResult {
         &self,
         contract: &CausalContract,
         ctx: &ExecutionContext,
-        quantities: Option<&[antecedent_core::ScientificQuantity]>,
+        quantities: Option<&[antecedent_contract::ScientificQuantity]>,
     ) -> Result<(ClaimEnvelope, AnalysisResultWire), CausalError> {
         // A claim seals the result under the contract's identities, so the result must
         // prove which contract it ran under. An unstamped result (a plain `Study::run`, a
@@ -2938,20 +2940,21 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
             );
             (
                 SemanticApplicability::Unlicensed,
-                vec![antecedent_core::BlockedOperation::refused(reason)],
+                vec![antecedent_contract::BlockedOperation::refused(reason)],
             )
         }
         Some(CellStatus::NotApplicable { reason }) => (
             SemanticApplicability::Impossible,
-            vec![antecedent_core::BlockedOperation::not_applicable(reason)],
+            vec![antecedent_contract::BlockedOperation::not_applicable(reason)],
         ),
         Some(CellStatus::Allowlisted { reason, .. }) => (
             SemanticApplicability::Unlicensed,
-            vec![antecedent_core::BlockedOperation::refused(reason)],
+            vec![antecedent_contract::BlockedOperation::refused(reason)],
         ),
-        None => {
-            (SemanticApplicability::Unknown, vec![antecedent_core::BlockedOperation::off_axis()])
-        }
+        None => (
+            SemanticApplicability::Unknown,
+            vec![antecedent_contract::BlockedOperation::off_axis()],
+        ),
     };
     let neighbors = match contract.support_status {
         Some(CellStatus::Refused | CellStatus::NotApplicable { .. }) => {
@@ -2967,11 +2970,11 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
             OperationKind::Export => crate::error::EXPORT_REQUIRES_LICENSE,
             _ => crate::error::OPERATION_REQUIRES_LICENSE,
         };
-        blockers = vec![antecedent_core::BlockedOperation::operation_unlicensed(reason)];
+        blockers = vec![antecedent_contract::BlockedOperation::operation_unlicensed(reason)];
     } else if operation == OperationKind::RankDesigns
         && contract.identities.identification_product.is_none()
     {
-        blockers.push(antecedent_core::BlockedOperation::binding("identification_product"));
+        blockers.push(antecedent_contract::BlockedOperation::binding("identification_product"));
     }
 
     let readiness = if !blockers.is_empty() {

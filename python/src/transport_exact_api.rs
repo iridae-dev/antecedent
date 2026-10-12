@@ -845,7 +845,7 @@ impl PreparedExactStage {
             .as_ref()
             .map_or("unavailable", |slot| slot.status.as_str());
         let uncertainty_reason = match &view.reasoning.uncertainty {
-            antecedent_core::SlotAvailability::Unavailable { reason } => reason.as_ref(),
+            antecedent_contract::SlotAvailability::Unavailable { reason } => reason.as_ref(),
             _ => "",
         };
         serde_json::json!({

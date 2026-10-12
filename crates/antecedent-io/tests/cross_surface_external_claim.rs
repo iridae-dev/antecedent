@@ -10,12 +10,13 @@
 //! Truth is the enumerated closed form `E[Y | do(a)] = 1 + 2a` over `a` in
 //! `0, 1, 2`, i.e. `[1, 3, 5]`, with every identity built from constants.
 
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, CompositionStage, DistributionMeaning, ExternalCapability,
     ExternalResponse, ExternalResult, ExternalResultHeader, ExternalScientificObject,
-    ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalTrustState, ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_io::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire, values_digest,
 };

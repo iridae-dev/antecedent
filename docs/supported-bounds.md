@@ -68,7 +68,7 @@ markers below and compares it. Prose outside those markers is not read.
 | decision.functionals | max_actions | 1024 | `crates/antecedent-design/src/decision_contract.rs` |
 | decision.functionals | max_inputs | 256 | `crates/antecedent-design/src/decision_contract.rs` |
 | decision.functionals | max_utility_depth | 64 | `crates/antecedent-design/src/decision_contract.rs` |
-| design.evidence_obligations | max_coordinates | 1024 | `crates/antecedent-core/src/evidence_obligation.rs` |
+| design.evidence_obligations | max_coordinates | 1024 | `crates/antecedent-contract/src/evidence_obligation.rs` |
 | design.identification_repair | max_candidates | 16 | `crates/antecedent-design/src/repair.rs` |
 | design.identification_repair | max_subset_size | 4 | `crates/antecedent-design/src/repair.rs` |
 | design.identification_repair | max_operations | 100000 | `crates/antecedent-design/src/repair.rs` |

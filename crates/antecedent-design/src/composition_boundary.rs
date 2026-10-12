@@ -26,10 +26,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ProviderTrust,
-    ScientificQuantity, SupportStatus,
+use antecedent_contract::{
+    ExternalCapability, ExternalRefusal, ExternalTrustState, ProviderTrust, ScientificQuantity,
 };
+use antecedent_core::{CanonicalWriter, SupportStatus};
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
@@ -507,7 +507,7 @@ impl DecisionInput {
             ExternalCapability::Mean,
             ExternalCapability::Covariance,
         ];
-        let meaning = antecedent_core::DistributionMeaning::from(artifact.semantic());
+        let meaning = antecedent_contract::DistributionMeaning::from(artifact.semantic());
         if meaning.answers_interventional_outcome_threshold() {
             capabilities.push(ExternalCapability::Intervention);
         }

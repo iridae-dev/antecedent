@@ -142,7 +142,7 @@ the same enumerated fixture as the Rust integration tests.
 
 ## Refusals
 
-Decision refusals share one shape, `antecedent_core::StructuredRefusal` (an alias
+Decision refusals share one shape, `antecedent_contract::StructuredRefusal` (an alias
 of `ExternalRefusal`): registered `code`, `stage`, namespaced `detail`,
 `offending` action input (`action[input]`), `expected` and `supplied` semantics,
 `capability` and `remedy`. `DecisionContractError`, `DecisionEvalError`,

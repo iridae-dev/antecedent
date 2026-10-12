@@ -717,7 +717,7 @@ fn licensed_staggered_event_study_publishes_its_own_matrix_coordinate() {
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let contract = prepared.contract_for_result(&result).unwrap();
     match &contract.reasoning.support {
-        antecedent_core::SlotAvailability::Available(slot) => assert_eq!(
+        antecedent_contract::SlotAvailability::Available(slot) => assert_eq!(
             slot.matrix_coordinate.as_deref(),
             Some(
                 "graphless:difference_in_differences/staggered_event_study/never_treated_event_study_cluster_cr1/post_adoption_event_time_pointwise_95_normal_intervals"

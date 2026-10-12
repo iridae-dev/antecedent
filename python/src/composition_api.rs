@@ -21,13 +21,8 @@ use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::decision_claims::{
     ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
 };
-use antecedent_core::{
-    DistributionAvailability, DistributionMeaning, EvidenceKind, EvidenceRegime,
-    ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
-    LawProviderContract, ProviderObjectIdentity, ProviderTrust, RegimeId, RegimeKind,
-    ScientificQuantity, SupportStatus, VariableId, VerificationProbe, capability_from_name,
-    probe_from_name, verify_external_object,
-};
+use antecedent_core::{DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeId, RegimeKind, SupportStatus, VariableId};
+use antecedent_contract::{DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust, ScientificQuantity, VerificationProbe, capability_from_name, probe_from_name, verify_external_object};
 use antecedent_design::composition_boundary::{
     ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
     CompositionOperation, CoordinateIssue, DecisionInput, DependenceRoute, EvidenceRelation,

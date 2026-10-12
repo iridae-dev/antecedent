@@ -7,7 +7,7 @@ copied_tests = false
 
 # Scientific response coordinates: a native getter that reads, from a
 # CausalResponse alone, the outcome, intervention regime, horizon and functional of each value
-# coordinate (crates/antecedent-core/src/response_coordinates.rs), and the per-point support label
+# coordinate (crates/antecedent-contract/src/response_coordinates.rs), and the per-point support label
 # now set on the frequentist intervention_response route and the cell-AIPW multi-treatment route.
 # It estimates and rescales nothing. papers = [] is an explicit judgment: this is bookkeeping of
 # coordinate identity and support labels (original engineering) over estimators cited by their own
@@ -29,7 +29,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-core/tests/native_response_coordinates.rs",
+  "crates/antecedent-contract/tests/native_response_coordinates.rs",
   "crates/antecedent-estimate/tests/intervention_support.rs",
   "crates/antecedent/tests/native_coordinate_parity.rs",
   "python/tests/test_native_response_coordinates.py",

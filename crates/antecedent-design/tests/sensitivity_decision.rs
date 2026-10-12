@@ -13,7 +13,8 @@
 //!   each lead at one of three points.
 #![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
-use antecedent_core::{QuantityRole, RegimeId, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::RegimeId;
 use antecedent_design::decision_contract::{DecisionCriterion, StructuralPolicy};
 use antecedent_design::decision_structural::StructuralVerdict;
 use antecedent_design::sensitivity_decision::{

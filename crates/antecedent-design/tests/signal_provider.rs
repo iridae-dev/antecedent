@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
+use antecedent_contract::{
     ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
     QuantityRole, ScientificQuantity, SignalProviderContract,
 };
@@ -380,7 +380,7 @@ fn native_trust_capability_and_object_claims_refuse() {
     assert_eq!(error.to_refusal().capability, Some(ExternalCapability::Factor));
 
     // A non-signal object is not a signal declaration.
-    let utility = ExternalScientificObject::Utility(antecedent_core::UtilityProviderContract {
+    let utility = ExternalScientificObject::Utility(antecedent_contract::UtilityProviderContract {
         identity: ProviderObjectIdentity {
             provider_id: "p".into(),
             object_id: "o".into(),
@@ -393,7 +393,7 @@ fn native_trust_capability_and_object_claims_refuse() {
         action_ids: vec!["a".into()],
         stochastic: false,
         bounds: None,
-        monotonicity: vec![antecedent_core::UtilityMonotonicity::Unspecified],
+        monotonicity: vec![antecedent_contract::UtilityMonotonicity::Unspecified],
         capabilities: vec![ExternalCapability::EvaluateUtility],
     });
     let trust = ExternalTrustState::ExternallyAttested { attestor: "x".into() };

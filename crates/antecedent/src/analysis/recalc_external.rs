@@ -2,14 +2,15 @@
 //! Planning never invokes a provider. Metadata establishes no native causal proof or coupling.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_receipt::{Counter, RecalcReceipt, ReceiptRecorder};
+use antecedent_contract::{
+    BoundExternalClaim, CheckedCausalContract, ExternalProgramClaim, ExternalResponse,
+    ExternalResult, ExternalTrustState, ExternalUncertaintyMeaning, ProgramBinding,
+    ProviderObjectIdentity,
+};
+use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{
     Boundary, Branch, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext,
     RetargetSupport, Stage, StageIdentities, StageIdentity, StageStatus,
-};
-use antecedent_core::{
-    BoundExternalClaim, CheckedCausalContract, ExecutionContext, ExternalProgramClaim,
-    ExternalResponse, ExternalResult, ExternalTrustState, ExternalUncertaintyMeaning,
-    ProgramBinding, ProviderObjectIdentity,
 };
 use antecedent_io::external_callback_artifact::ExternalCallbackArtifact;
 use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
@@ -140,11 +141,11 @@ pub enum ExternalCallbackError {
     /// Preflight or output validation refusal.
     Request(&'static str),
     /// Original scientific binding refusal.
-    Binding(Box<antecedent_core::ExternalRefusal>),
+    Binding(Box<antecedent_contract::ExternalRefusal>),
     /// Original binding refusal after a counted callback invocation.
     BindingAttempt {
         /// Original typed scientific refusal.
-        refusal: Box<antecedent_core::ExternalRefusal>,
+        refusal: Box<antecedent_contract::ExternalRefusal>,
         /// Actual callback entries before the refusal.
         report: InvocationAttempt,
     },
@@ -248,7 +249,7 @@ pub fn count_external_invocations<T>(work: impl FnOnce() -> T) -> (T, u64) {
 fn text_identity(domain: &str, text: &str) -> StageIdentity {
     StageIdentity::of(domain, &[text.as_bytes()])
 }
-pub(crate) fn quantity_bounded(quantity: &antecedent_core::ScientificQuantity) -> bool {
+pub(crate) fn quantity_bounded(quantity: &antecedent_contract::ScientificQuantity) -> bool {
     quantity.conditioning.len() <= 64
         && [
             &quantity.variable_id,
@@ -269,7 +270,7 @@ pub(crate) fn quantity_bounded(quantity: &antecedent_core::ScientificQuantity) -
         })
 }
 fn response_bounded(response: &ExternalResponse) -> bool {
-    let antecedent_core::ExternalScientificObject::Law(law) = &response.header.object else {
+    let antecedent_contract::ExternalScientificObject::Law(law) = &response.header.object else {
         return false;
     };
     response.header.graph_id.len() <= 256
@@ -278,7 +279,7 @@ fn response_bounded(response: &ExternalResponse) -> bool {
         && law.quantities.len() <= 64
         && law.quantities.iter().all(quantity_bounded)
         && law.capabilities.len() <= 32
-        && law.capabilities.contains(&antecedent_core::ExternalCapability::Mean)
+        && law.capabilities.contains(&antecedent_contract::ExternalCapability::Mean)
         && response.header.evidence_ids.len() <= 128
         && response.header.assumption_ids.len() <= 128
         && response
@@ -358,7 +359,7 @@ impl ExternalCallbackRequest {
         {
             return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
         }
-        antecedent_core::check_external_against_program(&self.program, &self.claim)
+        antecedent_contract::check_external_against_program(&self.program, &self.claim)
             .map_err(|error| ExternalCallbackError::Binding(Box::new(error)))?;
         if self.program.functional_id != "mean" || self.program.transform_id != "identity" {
             return Err(ExternalCallbackError::Request("external_recalc.quantity_unsupported"));
@@ -725,7 +726,7 @@ impl ExternalCallbackSession {
         response.header.trust = ExternalTrustState::ExternallyAttested {
             attestor: request.descriptor.identity.provider_id.clone(),
         };
-        let bound = antecedent_core::bind_external_result_to_program(
+        let bound = antecedent_contract::bind_external_result_to_program(
             &request.program,
             &request.claim,
             &request.contract,

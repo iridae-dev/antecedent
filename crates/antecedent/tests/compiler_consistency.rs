@@ -9,7 +9,8 @@
 use antecedent::{
     BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
-use antecedent_core::{ExecutionContext, IdentificationStatus, SlotAvailability, TransformIntent};
+use antecedent_contract::{SlotAvailability, TransformIntent};
+use antecedent_core::{ExecutionContext, IdentificationStatus};
 use antecedent_graph::{Admg, DenseNodeId};
 
 mod common;

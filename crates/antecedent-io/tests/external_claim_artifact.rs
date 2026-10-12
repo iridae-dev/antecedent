@@ -1,11 +1,12 @@
 //! Independent-process consumption of a bound external response-grid claim.
 
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
+    ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_io::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire, values_digest,
 };
@@ -166,9 +167,9 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
         let chain = loaded.metadata().identity.provenance_chain().unwrap();
         let behind = chain.stages_behind("claim").unwrap();
         for stage in [
-            antecedent_core::CompositionStage::CausalContract,
-            antecedent_core::CompositionStage::Evidence,
-            antecedent_core::CompositionStage::ExternalProvider,
+            antecedent_contract::CompositionStage::CausalContract,
+            antecedent_contract::CompositionStage::Evidence,
+            antecedent_contract::CompositionStage::ExternalProvider,
         ] {
             assert!(behind.contains(&stage));
         }

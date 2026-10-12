@@ -4589,7 +4589,7 @@ impl PyPreparedAnalysis {
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
-        let quantities: Option<Vec<antecedent_core::ScientificQuantity>> = quantities_json
+        let quantities: Option<Vec<antecedent_contract::ScientificQuantity>> = quantities_json
             .map(|json| {
                 let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
                     serde_json::from_str(json)
@@ -4597,7 +4597,7 @@ impl PyPreparedAnalysis {
                 wires
                     .into_iter()
                     .map(|wire| {
-                        antecedent_core::ScientificQuantity::try_from(wire)
+                        antecedent_contract::ScientificQuantity::try_from(wire)
                             .map_err(crate::value_err)
                     })
                     .collect::<PyResult<Vec<_>>>()
@@ -4609,7 +4609,7 @@ impl PyPreparedAnalysis {
                 let first = quantities
                     .first()
                     .ok_or_else(|| crate::value_err("scientific coordinates cannot be empty"))?;
-                Ok::<_, PyErr>(antecedent_core::ResponseCoordinateLabels {
+                Ok::<_, PyErr>(antecedent_contract::ResponseCoordinateLabels {
                     outcome_units: &first.units,
                     population_id: &first.population_id,
                     transform_id: &first.transform_id,
@@ -4621,7 +4621,7 @@ impl PyPreparedAnalysis {
                 .response
                 .as_ref()
                 .ok_or_else(|| crate::value_err("scientific coordinates require a response"))?;
-            let expected = antecedent_core::response_coordinates(
+            let expected = antecedent_contract::response_coordinates(
                 response,
                 &|id| self.names.get(id.as_usize()).cloned(),
                 labels,
@@ -4883,18 +4883,18 @@ fn extract_temporal_class(
     }
 }
 
-pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_core::TransformIntent> {
+pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_contract::TransformIntent> {
     let intent = match intent {
-        "display_precision" => antecedent_core::TransformIntent::DisplayPrecision,
-        "compatible_data_replace" => antecedent_core::TransformIntent::CompatibleDataReplace,
-        "retarget" => antecedent_core::TransformIntent::Retarget,
-        "filter_display" => antecedent_core::TransformIntent::FilterDisplay,
-        "filter_population" => antecedent_core::TransformIntent::FilterPopulation,
-        "new_conditional_query" => antecedent_core::TransformIntent::NewConditionalQuery,
-        "change_graph" => antecedent_core::TransformIntent::ChangeGraph,
-        "change_prior" => antecedent_core::TransformIntent::ChangePrior,
-        "change_physical_policy" => antecedent_core::TransformIntent::ChangePhysicalPolicy,
-        "average_unweighted_class" => antecedent_core::TransformIntent::AverageUnweightedClass,
+        "display_precision" => antecedent_contract::TransformIntent::DisplayPrecision,
+        "compatible_data_replace" => antecedent_contract::TransformIntent::CompatibleDataReplace,
+        "retarget" => antecedent_contract::TransformIntent::Retarget,
+        "filter_display" => antecedent_contract::TransformIntent::FilterDisplay,
+        "filter_population" => antecedent_contract::TransformIntent::FilterPopulation,
+        "new_conditional_query" => antecedent_contract::TransformIntent::NewConditionalQuery,
+        "change_graph" => antecedent_contract::TransformIntent::ChangeGraph,
+        "change_prior" => antecedent_contract::TransformIntent::ChangePrior,
+        "change_physical_policy" => antecedent_contract::TransformIntent::ChangePhysicalPolicy,
+        "average_unweighted_class" => antecedent_contract::TransformIntent::AverageUnweightedClass,
         other => {
             return Err(PyValueError::new_err(format!("unknown transform intent {other:?}")));
         }
@@ -4902,7 +4902,7 @@ pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_core::
     Ok(intent)
 }
 pub(crate) fn transform_report_map(
-    report: &antecedent_core::TransformationReport,
+    report: &antecedent_contract::TransformationReport,
 ) -> std::collections::HashMap<String, String> {
     let mut out = std::collections::HashMap::new();
     out.insert("intent".into(), report.intent.as_str().to_string());

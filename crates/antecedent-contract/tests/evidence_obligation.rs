@@ -6,13 +6,15 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationKind, EvidenceObligationSpec, EvidenceOffer,
+    ObligationKind, ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope,
+    unresolved_assumption_obligations,
+};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{
-    DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceObligation,
-    EvidenceObligationKind, EvidenceObligationSpec, EvidenceOffer, EvidenceRegime, FactorNeed,
-    ObligationKind, ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope,
-    RegimeId, RegimeKind, VariableCoordinate, VariableDomain, VariableId,
-    unresolved_assumption_obligations,
+    DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
+    FactorNeed, RegimeId, RegimeKind, VariableCoordinate, VariableDomain, VariableId,
 };
 
 const X: u32 = 0;
@@ -336,16 +338,16 @@ fn increase_sample_is_addressed_only_by_enough_rows() {
 }
 
 fn scientific_coordinates()
--> std::collections::BTreeMap<VariableId, antecedent_core::ScientificQuantity> {
+-> std::collections::BTreeMap<VariableId, antecedent_contract::ScientificQuantity> {
     [Y, Z]
         .into_iter()
         .map(|id| {
             (
                 VariableId::from_raw(id),
-                antecedent_core::ScientificQuantity {
+                antecedent_contract::ScientificQuantity {
                     variable_id: format!("schema:{id}"),
                     variable_name: format!("measurement {id}"),
-                    role: antecedent_core::QuantityRole::Outcome,
+                    role: antecedent_contract::QuantityRole::Outcome,
                     units: "kg".into(),
                     population_id: "source".into(),
                     regime_id: "observational".into(),
@@ -382,13 +384,13 @@ fn scientific_obligations_bind_every_semantic_dimension_and_ignore_display_label
         let q = coordinates.get_mut(&VariableId::from_raw(Y)).unwrap();
         match dimension {
             "variable" => q.variable_id = "different".into(),
-            "role" => q.role = antecedent_core::QuantityRole::Mediator,
+            "role" => q.role = antecedent_contract::QuantityRole::Mediator,
             "units" => q.units = "lb".into(),
             "regime" => q.regime_id = "do(t=1)".into(),
             "horizon" => q.horizon = 4,
             "functional" => q.functional_id = "mean".into(),
             "conditioning" => {
-                q.conditioning = vec![antecedent_core::QuantityCondition {
+                q.conditioning = vec![antecedent_contract::QuantityCondition {
                     variable_id: "schema:c".into(),
                     value_id: "high".into(),
                 }]

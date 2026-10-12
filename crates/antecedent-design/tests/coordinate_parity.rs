@@ -27,13 +27,14 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, CompositionStage, EvidenceObligation, EvidenceObligationError,
-    EvidenceObligationKind, EvidenceObligationSpec, ExternalCapability, ExternalRefusal,
-    ExternalScientificObject, ExternalTrustState, ObligationProvenance, ObligationRegime,
-    ObligationScope, ProvenanceChain, ProvenanceChainError, ProviderObjectIdentity, QuantityRole,
-    ScientificQuantity, SignalProviderContract, VariableId,
+use antecedent_contract::{
+    CompositionStage, EvidenceObligation, EvidenceObligationError, EvidenceObligationKind,
+    EvidenceObligationSpec, ExternalCapability, ExternalRefusal, ExternalScientificObject,
+    ExternalTrustState, ObligationProvenance, ObligationRegime, ObligationScope, ProvenanceChain,
+    ProvenanceChainError, ProviderObjectIdentity, QuantityRole, ScientificQuantity,
+    SignalProviderContract,
 };
+use antecedent_core::{CancellationToken, VariableId};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_eval::DecisionEvalError;
 use antecedent_design::design_ranking_artifact::{

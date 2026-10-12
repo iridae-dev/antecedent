@@ -4,11 +4,14 @@
 
 use super::exact::{ExactFactorRequirement, ExactStudyIdentities};
 use super::{PreparedStudy, StudyBuilder};
+use antecedent_contract::{
+    AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+    ReasoningView, SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot,
+    UncertaintySource,
+};
 use antecedent_core::{
-    AssumptionSlot, AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationSlot,
-    IdentificationStatus, IdentityDomain, NodeRef, ObligationKind, ObligationRecord,
-    ObligationScope, ReasoningView, SlotAvailability, SupportSlot, TheoremScope,
-    UncertaintyComponent, UncertaintySlot, UncertaintySource, VariableId,
+    AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationStatus, IdentityDomain,
+    NodeRef, TheoremScope, VariableId,
 };
 use antecedent_estimate::{
     EmpiricalTableOptions, INTERVAL_NUMERICAL_FAILURE, ReplicatePolicy,
@@ -969,8 +972,8 @@ impl PreparedStudy<StatisticalPreparedState> {
     /// Invalid retained identity.
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
         super::exact::preview_transform_report(&self.state.identities, intent, "statistical")
     }
 

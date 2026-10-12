@@ -15,7 +15,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use antecedent_core::{ExternalRefusal, is_blank};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::is_blank;
 use antecedent_io::{CompatibilityReport, PriorCatalog, TargetDesign};
 
 use crate::preposterior::DecisionPrior;

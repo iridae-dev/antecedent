@@ -5,7 +5,8 @@
 //! They do not authenticate observations, issue native authority, or license
 //! uncertainty. Native unresolved operations require a separate actual executor.
 
-use antecedent_core::{ScientificQuantity, SemanticDigest, blake3_hex};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::{SemanticDigest, blake3_hex};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::error::IoError;
 use antecedent_io::external_claim_artifact::{

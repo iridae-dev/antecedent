@@ -9,15 +9,15 @@
 // variant is not worth boxing at every `?`.
 #![allow(clippy::result_large_err)]
 
-use antecedent_core::{
+use antecedent_contract::{
     BoundExternalClaim, CheckedCausalContract, CheckedEquivalence, EquivalenceScope,
     ExternalBindingError, ExternalContractError, ExternalProgramClaim, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProgramBinding,
-    ProviderObjectIdentity, ScientificQuantity, SupportStatus, VerificationProbe,
-    bind_external_result, bind_external_result_to_program, capability_from_name, probe_from_name,
-    verify_external_object,
+    ExternalUncertaintyMeaning, LawProviderContract, ProgramBinding, ProviderObjectIdentity,
+    ScientificQuantity, VerificationProbe, bind_external_result, bind_external_result_to_program,
+    capability_from_name, probe_from_name, verify_external_object,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use serde::{Deserialize, Serialize};
 
 use crate::external_claim_artifact::ExternalClaimArtifact;
@@ -157,8 +157,8 @@ pub struct ExternalBindingRefusalWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type RefusalWire = ExternalBindingRefusalWire;
 
-impl From<antecedent_core::ExternalRefusal> for ExternalBindingRefusalWire {
-    fn from(value: antecedent_core::ExternalRefusal) -> Self {
+impl From<antecedent_contract::ExternalRefusal> for ExternalBindingRefusalWire {
+    fn from(value: antecedent_contract::ExternalRefusal) -> Self {
         Self {
             code: value.code.to_owned(),
             stage: value.stage.to_owned(),
@@ -166,7 +166,9 @@ impl From<antecedent_core::ExternalRefusal> for ExternalBindingRefusalWire {
             offending: value.offending,
             expected: value.expected,
             supplied: value.supplied,
-            capability: value.capability.map(|c| antecedent_core::capability_name(c).to_owned()),
+            capability: value
+                .capability
+                .map(|c| antecedent_contract::capability_name(c).to_owned()),
             remedy: value.remedy.map(str::to_owned),
         }
     }

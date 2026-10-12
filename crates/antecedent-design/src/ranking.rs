@@ -14,7 +14,8 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::{CanonicalWriter, ExternalRefusal};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::CanonicalWriter;
 
 use crate::evsi::{CostToUtilityMap, EvsiReport, IntegrationMethod, SearchReceipt};
 use crate::signal::{SignalTrustLabel, SignalUpdateMode, make_refusal};

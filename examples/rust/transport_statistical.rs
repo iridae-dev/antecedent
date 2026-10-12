@@ -8,10 +8,11 @@ use std::sync::Arc;
 
 use antecedent::analysis::{PreparedStudy, StatisticalPreparedState, StudyBuilder};
 use antecedent::prelude::*;
+use antecedent_contract::ReasoningView;
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceRegime, ReasoningView, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
-    TargetSampling, VariableCoordinate, VariableDomain,
+    EvidenceRegime, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, TargetSampling,
+    VariableCoordinate, VariableDomain,
 };
 use antecedent_estimate::{EmpiricalTableOptions, RegimeSample, StatisticalTransportInput};
 use antecedent_expr::{Assignment, ExactEvaluationLimits, InterventionAssignment};

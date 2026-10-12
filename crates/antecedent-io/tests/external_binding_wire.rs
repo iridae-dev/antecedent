@@ -326,7 +326,7 @@ fn trust_tier_and_lineage_survive_without_upgrade() {
             .unwrap()
             .stages_behind("claim")
             .unwrap();
-        assert!(stages.contains(&antecedent_core::CompositionStage::ExternalProvider));
+        assert!(stages.contains(&antecedent_contract::CompositionStage::ExternalProvider));
     }
     // Upgrading an attested claim to verified, even with fabricated passing probes
     // and a coherent artifact, differs from the retained identity.

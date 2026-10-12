@@ -8,9 +8,10 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
-    ResponseValue, SlotAvailability, VariableId,
+    ResponseValue, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg};

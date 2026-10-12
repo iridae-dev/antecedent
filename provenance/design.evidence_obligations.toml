@@ -26,7 +26,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-core/tests/evidence_obligation.rs",
+  "crates/antecedent-contract/tests/evidence_obligation.rs",
   "crates/antecedent-design/tests/repair_facade.rs",
   "crates/antecedent-design/tests/repair_artifact.rs",
   "crates/antecedent-design/src/repair_artifact.rs",

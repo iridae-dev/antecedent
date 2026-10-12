@@ -12,12 +12,13 @@ use antecedent::analysis::composition::{
     ProviderOrData, SuppliedSources, TRUST_ATTESTED, consume, export_bundle, mean_result_to_bytes,
     mean_source_of,
 };
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
+    ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_design::decision_artifact::{DecisionContractArtifact, DecisionResultArtifact};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,

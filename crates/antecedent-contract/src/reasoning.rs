@@ -8,8 +8,8 @@
 
 use std::sync::Arc;
 
-use crate::identification::IdentificationStatus;
 use crate::obligation::ObligationRecord;
+use antecedent_core::identification::IdentificationStatus;
 
 /// Whether a semantic field is present.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -341,7 +341,7 @@ impl ReasoningView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identification::IdentificationStatus;
+    use antecedent_core::identification::IdentificationStatus;
 
     #[test]
     fn unavailable_is_not_an_empty_success() {

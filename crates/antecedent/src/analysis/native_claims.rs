@@ -23,11 +23,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    CausalResponse, CausalSchema, CredibleDraws, ExternalProgramClaim, ExternalRefusal,
-    IntervalInterpretation, ProgramBinding, ResponseFunctional, ResponseIdentification,
-    ResponseUncertainty, ResponseValue, ScientificQuantity, SupportStatus, VariableId,
+use antecedent_contract::{
+    ExternalProgramClaim, ExternalRefusal, ProgramBinding, ScientificQuantity,
     check_external_against_program, check_static_point_labels,
+};
+use antecedent_core::{
+    CausalResponse, CausalSchema, CredibleDraws, IntervalInterpretation, ResponseFunctional,
+    ResponseIdentification, ResponseUncertainty, ResponseValue, SupportStatus, VariableId,
 };
 use antecedent_design::decision_contract::{
     DecisionContractError, SourceRepresentation, SourceRequirement,

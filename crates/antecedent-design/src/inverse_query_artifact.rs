@@ -37,7 +37,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{CanonicalWriter, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::CanonicalWriter;
 use antecedent_io::convert::to_cbor;
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionMetadata};
 use antecedent_io::error::IoError;
@@ -91,7 +92,7 @@ fn wrong_contract(text: &str) -> IoError {
 /// remainder of the message as the offending item. Any other I/O failure is
 /// `functional_inverse_query.invalid_artifact` under `invalid_argument`.
 #[must_use]
-pub fn artifact_refusal(error: &IoError) -> antecedent_core::ExternalRefusal {
+pub fn artifact_refusal(error: &IoError) -> antecedent_contract::ExternalRefusal {
     let (code, detail, offending) = match error {
         IoError::Refused { code, message } => {
             let (detail, text) =
@@ -104,7 +105,7 @@ pub fn artifact_refusal(error: &IoError) -> antecedent_core::ExternalRefusal {
             other.to_string(),
         ),
     };
-    antecedent_core::ExternalRefusal {
+    antecedent_contract::ExternalRefusal {
         code,
         stage: "inverse_query",
         detail,

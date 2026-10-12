@@ -2,7 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{EvidenceObligation, EvidenceRegime, ExecutionContext, reason_code};
+use antecedent_contract::EvidenceObligation;
+use antecedent_core::{EvidenceRegime, ExecutionContext, reason_code};
 use antecedent_identify::{
     IdentificationError, SidLimits, bind_z_transport_catalog, verify_z_transport_derivation,
 };

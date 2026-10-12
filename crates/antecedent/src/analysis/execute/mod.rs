@@ -14,11 +14,12 @@ pub(super) use std::time::Instant;
 
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use super::stage::elapsed_ns;
+pub(super) use antecedent_contract::{DataClassification, ProvenanceGraph};
 pub(super) use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
-    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec, PopulationRegistry,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TemporalIndexer, TimeIndex,

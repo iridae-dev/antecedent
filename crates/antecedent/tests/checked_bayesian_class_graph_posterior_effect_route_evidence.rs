@@ -7,7 +7,8 @@
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
-use antecedent_core::{AverageEffectQuery, ExecutionContext, SlotAvailability, VariableId};
+use antecedent_contract::SlotAvailability;
+use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
 use antecedent_io::consume_analysis_result;

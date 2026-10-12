@@ -35,7 +35,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use antecedent_core::{ExternalRefusal, ScientificQuantity};
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 
 use crate::distribution_api::PyJointDistributionArtifact;
 

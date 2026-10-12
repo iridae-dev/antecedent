@@ -24,19 +24,22 @@ use antecedent::{
     OperationKind, OperationReadiness, RefuteSuite, SemanticApplicability, StructureSource, Study,
     StudyResult,
 };
+use antecedent_contract::{
+    ClaimDomainAxis, ClaimKind, ClaimOperation, ConsumerProfile, DerivedClaimOutcome, DomainStatus,
+    HostOperation, ObligationKind, SharedEvidenceRef, SlotAvailability, TransformIntent,
+    compose_claims,
+};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AverageEffectQuery, CacheBudget, CausalQuery, CausalRng, CausalSchemaBuilder, ClaimDomainAxis,
-    ClaimKind, ClaimOperation, ConditionalEffectQuery, ConsumerProfile, ContinuousDomain,
-    CounterfactualQuery, DerivedClaimOutcome, DomainStatus, ExecutionContext, ExecutionReceipt,
-    ExecutionRequestState, GridSpec, HostOperation, IdentificationStatus, Intervention,
+    AverageEffectQuery, CacheBudget, CausalQuery, CausalRng, CausalSchemaBuilder,
+    ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery, ExecutionContext,
+    ExecutionReceipt, ExecutionRequestState, GridSpec, IdentificationStatus, Intervention,
     InterventionSequence, InterventionalDistributionQuery, Lag, MeasurementSpec, MediationContrast,
-    MediationQuery, ObligationKind, ObservationAssumption, ObservationSpec,
-    PathSpecificEffectQuery, ProgressSink, QueryId, RequestIdentity, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseValue, RoleHint, SemanticDigest,
-    SequencedIntervention, SharedEvidenceRef, SlotAvailability, SmallRoleSet,
+    MediationQuery, ObservationAssumption, ObservationSpec, PathSpecificEffectQuery, ProgressSink,
+    QueryId, RequestIdentity, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseValue, RoleHint, SemanticDigest, SequencedIntervention, SmallRoleSet,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
-    TransformIntent, Value, ValueType, VariableId, compose_claims,
+    Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TabularData,
@@ -225,11 +228,11 @@ fn preview_does_not_authorize_a_changed_program() {
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     assert!(preview.binds_program(contract.identities.program.expect("prepared program")));
     assert!(!preview.refused);
-    let support = preview.layer(antecedent_core::SemanticLayer::Support).unwrap();
-    assert!(support.effects.contains(&antecedent_core::TransformEffect::Invalidates));
-    assert!(support.effects.contains(&antecedent_core::TransformEffect::RequiresReestimation));
-    let identification = preview.layer(antecedent_core::SemanticLayer::Identification).unwrap();
-    assert!(identification.effects.contains(&antecedent_core::TransformEffect::Preserves));
+    let support = preview.layer(antecedent_contract::SemanticLayer::Support).unwrap();
+    assert!(support.effects.contains(&antecedent_contract::TransformEffect::Invalidates));
+    assert!(support.effects.contains(&antecedent_contract::TransformEffect::RequiresReestimation));
+    let identification = preview.layer(antecedent_contract::SemanticLayer::Identification).unwrap();
+    assert!(identification.effects.contains(&antecedent_contract::TransformEffect::Preserves));
 }
 
 #[test]
@@ -410,11 +413,11 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     );
     let graph_change = prepared.preview_transform(TransformIntent::ChangeGraph).unwrap();
     let identification =
-        graph_change.layer(antecedent_core::SemanticLayer::Identification).unwrap();
+        graph_change.layer(antecedent_contract::SemanticLayer::Identification).unwrap();
     assert!(
         identification
             .effects
-            .contains(&antecedent_core::TransformEffect::RequiresReidentification)
+            .contains(&antecedent_contract::TransformEffect::RequiresReidentification)
     );
     let result = prepared.estimate(&data, &ctx).unwrap();
     let claim = result.claim(&contract, &ctx).unwrap();
@@ -2143,11 +2146,11 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
 
     let graph_change = prepared.preview_transform(TransformIntent::ChangeGraph).unwrap();
     let identification =
-        graph_change.layer(antecedent_core::SemanticLayer::Identification).unwrap();
+        graph_change.layer(antecedent_contract::SemanticLayer::Identification).unwrap();
     assert!(
         identification
             .effects
-            .contains(&antecedent_core::TransformEffect::RequiresReidentification)
+            .contains(&antecedent_contract::TransformEffect::RequiresReidentification)
     );
 
     let mixture = Study::tabular(mixture_data())
@@ -4549,7 +4552,7 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
     assert!(!forwarded.acceptance.accepts_as_claim());
     let chained = unknown_receipt.chain(&forward_receipt);
     assert!(!chained.equivalent_claim());
-    let reserialized = chained.chain(&antecedent_core::HandoffReceipt::lossless(
+    let reserialized = chained.chain(&antecedent_contract::HandoffReceipt::lossless(
         chained.output.unwrap_or(claim.claim_id),
         "reserialize",
     ));
@@ -5114,7 +5117,7 @@ fn calibration_of(
     prepared: &antecedent::PreparedStudy,
     result: &StudyResult,
     ctx: &ExecutionContext,
-) -> antecedent_core::CalibrationView {
+) -> antecedent_contract::CalibrationView {
     let contract = prepared.contract().unwrap();
     result.claim(&contract, ctx).unwrap().calibration
 }
@@ -6081,7 +6084,7 @@ fn retarget_preserves_identification_digest() {
 
 #[test]
 fn retarget_report_matches_identity_deltas() {
-    use antecedent_core::{SemanticLayer, TransformEffect};
+    use antecedent_contract::{SemanticLayer, TransformEffect};
     let ctx = ExecutionContext::for_tests(14);
     let (data, dag, query) = confounded_scm(128, 14);
     let prepared = Study::tabular(data.clone())

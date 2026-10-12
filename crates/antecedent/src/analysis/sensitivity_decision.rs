@@ -22,7 +22,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::ExecutionContext;
 use antecedent_io::IoError;
 use antecedent_validate::JointDeviationSpec;
 

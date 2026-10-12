@@ -9,9 +9,9 @@
 
 use std::sync::Arc;
 
-use crate::identity::{ContractIdentities, SemanticDigest};
 use crate::provenance::{ProvenanceGraph, ProvenanceNode};
 use crate::reasoning::ReasoningView;
+use antecedent_core::{CalibrationBasis, ContractIdentities, SemanticDigest};
 
 /// Kind of value a claim carries. Refusals and bounds are first-class.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -203,7 +203,7 @@ impl Default for CalibrationView {
         Self {
             status: Arc::from("unavailable"),
             record_id: None,
-            reason: Some(Arc::from(crate::reason_code!("not_executed"))),
+            reason: Some(Arc::from(antecedent_core::reason_code!("not_executed"))),
             scope_n: None,
             scope_dependence: None,
             calibration_sha: None,
@@ -212,96 +212,6 @@ impl Default for CalibrationView {
             observed: None,
             basis: None,
             secondary: Arc::from([]),
-        }
-    }
-}
-
-/// Construction and scope facts of one reported interval: the calibration
-/// match key (`antecedent_io::calibration::CalibrationKeyWire`) and the
-/// execution facts its record's scope is checked against.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct CalibrationBasis {
-    /// Support-matrix query axis name.
-    pub query: Arc<str>,
-    /// Support-matrix graph axis.
-    pub graph_class: Arc<str>,
-    /// `fixed` or `graph_posterior`.
-    pub structure: Arc<str>,
-    /// Data modality the execution ran on.
-    pub modality: Arc<str>,
-    /// `Frequentist` or `Bayesian`.
-    pub inference: Arc<str>,
-    /// Resolved plan estimator; empty when none.
-    pub estimator: Arc<str>,
-    /// Interval method name.
-    pub interval_method: Arc<str>,
-    /// Analytic SE kind; empty when not analytic.
-    pub se_kind: Arc<str>,
-    /// Dependence rule.
-    pub dependence: Arc<str>,
-    /// Posterior construction; empty for Frequentist executions.
-    pub posterior: Arc<str>,
-    /// Population / functional / contrast / horizon label.
-    pub functional: Arc<str>,
-    /// Nominal level of the reported interval.
-    pub level: f64,
-    /// `point` or `partial`.
-    pub identification: Arc<str>,
-    /// Data-snapshot rows.
-    pub row_count: u64,
-    /// Resampling replicates that succeeded.
-    pub replicates_ok: Option<u32>,
-    /// Posterior draws.
-    pub posterior_draws: Option<u32>,
-    /// Structural mass that is not identified.
-    pub unidentified_mass: f64,
-}
-
-impl CalibrationBasis {
-    /// Construct from every field, in declaration order.
-    #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        key: [Arc<str>; 11],
-        level: f64,
-        identification: Arc<str>,
-        row_count: u64,
-        replicates_ok: Option<u32>,
-        posterior_draws: Option<u32>,
-        unidentified_mass: f64,
-    ) -> Self {
-        let [
-            query,
-            graph_class,
-            structure,
-            modality,
-            inference,
-            estimator,
-            interval_method,
-            se_kind,
-            dependence,
-            posterior,
-            functional,
-        ] = key;
-        Self {
-            query,
-            graph_class,
-            structure,
-            modality,
-            inference,
-            estimator,
-            interval_method,
-            se_kind,
-            dependence,
-            posterior,
-            functional,
-            level,
-            identification,
-            row_count,
-            replicates_ok,
-            posterior_draws,
-            unidentified_mass,
         }
     }
 }
@@ -1255,8 +1165,8 @@ fn provenance_node(
         artifact_id: Arc::from(claim_id.to_hex()),
         operation: Arc::from(operation),
         parents: parents.iter().cloned().collect(),
-        assumptions: crate::assumption::AssumptionSet::new(),
-        library_version: Arc::from(crate::VERSION),
+        assumptions: antecedent_core::assumption::AssumptionSet::new(),
+        library_version: Arc::from(antecedent_core::VERSION),
         config_digest: None,
     }
 }
@@ -1454,7 +1364,7 @@ mod tests {
 
     fn with_identification(
         mut claim: ClaimEnvelope,
-        status: crate::identification::IdentificationStatus,
+        status: antecedent_core::identification::IdentificationStatus,
         masses: [f64; 4],
     ) -> ClaimEnvelope {
         use crate::reasoning::{IdentificationSlot, SlotAvailability};
@@ -1501,7 +1411,7 @@ mod tests {
 
     #[test]
     fn nan_identified_mass_cannot_pass_the_strengthening_gate() {
-        use crate::identification::IdentificationStatus::NonparametricallyIdentified as Np;
+        use antecedent_core::identification::IdentificationStatus::NonparametricallyIdentified as Np;
         let parent = sample_claim(1, 0.4);
         let nan_child = with_identification(sample_claim(3, 0.4), Np, [f64::NAN, 0.6, 0.0, 0.0]);
         assert_eq!(
@@ -1524,7 +1434,7 @@ mod tests {
 
     #[test]
     fn derived_status_cannot_be_stronger_than_the_weakest_parent() {
-        use crate::identification::IdentificationStatus::{
+        use antecedent_core::identification::IdentificationStatus::{
             NonparametricallyIdentified as Np, NotIdentified as No, PartiallyIdentified as Pi,
         };
         let parent = with_identification(sample_claim(1, 0.0), No, [0.0, 1.0, 0.0, 0.0]);
@@ -1545,8 +1455,8 @@ mod tests {
 
     #[test]
     fn identification_slot_try_new_requires_a_probability_partition() {
-        use crate::identification::IdentificationStatus::NonparametricallyIdentified as Np;
         use crate::reasoning::IdentificationSlot;
+        use antecedent_core::identification::IdentificationStatus::NonparametricallyIdentified as Np;
         let build = |m: [f64; 4]| {
             IdentificationSlot::try_new(Np, m[0], m[1], m[2], m[3], true, None, false)
         };
@@ -1623,11 +1533,11 @@ mod tests {
     }
 
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {
-        use crate::identification::IdentificationStatus;
         use crate::reasoning::{
             AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
             UncertaintySlot,
         };
+        use antecedent_core::identification::IdentificationStatus;
         ClaimEnvelope::new(
             digest(byte),
             ContractIdentities::new(

@@ -1,7 +1,7 @@
 //! Exact heterogeneous-design Gaussian transfer and independent replay.
 
 use antecedent::inference::mapped_posterior_transfer;
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,

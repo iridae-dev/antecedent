@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::{
-    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, ObligationKind,
-    ObligationRecord, ObligationScope, SemanticDigest,
+    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, SemanticDigest,
 };
 
 use crate::analysis::CausalContract;

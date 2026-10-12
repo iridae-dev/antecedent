@@ -6,7 +6,8 @@
 //! cannot depend on `antecedent-io`. Calibration is unmeasured and the artifact says so.
 #![allow(clippy::cast_precision_loss, reason = "small deterministic fixtures")]
 
-use antecedent_core::{ExecutionContext, QuantityRole, ScientificQuantity, VariableId};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JointPriors, JointTransportFit, JointTransportModel,
     JointTransportOptions, PriorProvenance, SourceData, SourceDependence, SourceSharing,

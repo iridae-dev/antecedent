@@ -33,12 +33,14 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationKind, EvidenceObligationSpec, ObligationKind,
+    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope,
+};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceObligation, EvidenceObligationKind,
-    EvidenceObligationSpec, EvidenceRegime, ExecutionContext, IdentityDomain,
-    InterventionAssignment, NodeRef, ObligationKind, ObligationProvenance, ObligationRecord,
-    ObligationRegime, ObligationScope, SearchLimits, SearchReceipt, SearchStop, VariableId,
+    DistributionAvailability, EvidenceCatalog, EvidenceRegime, ExecutionContext, IdentityDomain,
+    InterventionAssignment, NodeRef, SearchLimits, SearchReceipt, SearchStop, VariableId,
     reason_code,
 };
 use antecedent_graph::SelectionDiagram;
@@ -667,7 +669,7 @@ fn obligation_from_wire(wire: &ObligationWire) -> Result<EvidenceObligation, Rep
         quantities: {
             let mut quantities = std::collections::BTreeMap::new();
             for (variable, wire) in &wire.quantities {
-                let quantity = antecedent_core::ScientificQuantity::try_from(wire.clone())
+                let quantity = antecedent_contract::ScientificQuantity::try_from(wire.clone())
                     .map_err(RepairArtifactError::invalid)?;
                 if quantities.insert(VariableId::from_raw(*variable), quantity).is_some() {
                     return Err(RepairArtifactError::invalid(
@@ -1536,10 +1538,10 @@ mod scientific_obligation_tests {
         let obligation = EvidenceObligation::try_new(EvidenceObligationSpec {
             quantities: std::collections::BTreeMap::from([(
                 variable,
-                antecedent_core::ScientificQuantity {
+                antecedent_contract::ScientificQuantity {
                     variable_id: "schema:y".into(),
                     variable_name: "Outcome".into(),
-                    role: antecedent_core::QuantityRole::Outcome,
+                    role: antecedent_contract::QuantityRole::Outcome,
                     units: "kg".into(),
                     population_id: "target".into(),
                     regime_id: "observational".into(),

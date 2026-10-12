@@ -11,7 +11,7 @@
 //! inputs a single draw source does not carry; they refuse here rather than
 //! run a generic scorer.
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DrawAlignment,
 };
@@ -218,7 +218,7 @@ fn build_table(
             },
         });
     }
-    let meaning = antecedent_core::DistributionMeaning::from(source.semantic());
+    let meaning = antecedent_contract::DistributionMeaning::from(source.semantic());
     let [n_draws, width] = source.shape();
     let draws = source.draws();
     let mask = source.metadata().supported.as_deref();

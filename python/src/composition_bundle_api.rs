@@ -16,7 +16,8 @@ use antecedent::analysis::composition::{
     SuppliedSources, consume, describe_artifact, detect_node_kind, export_bundle,
     mean_decision_bytes,
 };
-use antecedent_core::{ExternalRefusal, reason_code};
+use antecedent_core::reason_code;
+use antecedent_contract::ExternalRefusal;
 use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_io::IoError;
 use pyo3::exceptions::PyValueError;

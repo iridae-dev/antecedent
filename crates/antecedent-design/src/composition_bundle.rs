@@ -33,10 +33,10 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use antecedent_core::{
-    CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
-    ProvenanceChainError, blake3_hex,
+use antecedent_contract::{
+    CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
+use antecedent_core::{CanonicalWriter, blake3_hex};
 use antecedent_io::convert::to_cbor;
 use antecedent_io::error::IoError;
 use antecedent_io::reader::ArtifactReader;

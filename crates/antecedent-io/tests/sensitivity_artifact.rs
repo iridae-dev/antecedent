@@ -7,7 +7,8 @@
 //! the exact tie at `gamma = 1`.
 #![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
-use antecedent_core::{QuantityRole, RegimeId, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::RegimeId;
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::sensitivity_artifact::{

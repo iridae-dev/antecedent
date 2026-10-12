@@ -145,7 +145,7 @@ pub(crate) fn artifact_refusal_json(
 /// Every `ExternalRefusal` a binding returns to Python is spelled here once,
 /// through the same `RefusalWire` the external-binding bridge uses, so the
 /// missing operation of a capability refusal (`capability`) reaches Python.
-pub(crate) fn external_refusal_json(value: &antecedent_core::ExternalRefusal) -> String {
+pub(crate) fn external_refusal_json(value: &antecedent_contract::ExternalRefusal) -> String {
     serde_json::to_string(&antecedent_io::external_binding_wire::RefusalWire::from(value.clone()))
         .expect("a refusal of strings and options always serialises")
 }
@@ -153,7 +153,7 @@ pub(crate) fn external_refusal_json(value: &antecedent_core::ExternalRefusal) ->
 #[cfg(test)]
 mod tests {
     use super::external_refusal_json;
-    use antecedent_core::{ExternalCapability, ExternalRefusal};
+    use antecedent_contract::{ExternalCapability, ExternalRefusal};
 
     fn refusal(capability: Option<ExternalCapability>) -> ExternalRefusal {
         ExternalRefusal {

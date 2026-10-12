@@ -1,6 +1,6 @@
 //! A mean-only source answers only the expectation of an affine utility.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
     SourceRepresentation, StructuralPolicy, UtilityExpr,

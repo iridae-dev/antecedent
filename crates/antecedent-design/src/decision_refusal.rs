@@ -7,7 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExternalRefusal;
+use antecedent_contract::ExternalRefusal;
 
 use crate::decision_contract::SourceRepresentation;
 use crate::decision_eval::DecisionEvalError;

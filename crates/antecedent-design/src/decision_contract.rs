@@ -12,9 +12,8 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{
-    CanonicalWriter, ExternalRefusal, ScientificQuantity, SupportStatus, is_blank,
-};
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, SupportStatus, is_blank};
 
 /// What kind of thing an action is. The kind is part of the action identity.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -1062,7 +1061,7 @@ fn encode_support_rule(rule: &SupportRule) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
-    use antecedent_core::QuantityRole;
+    use antecedent_contract::QuantityRole;
 
     use super::*;
 

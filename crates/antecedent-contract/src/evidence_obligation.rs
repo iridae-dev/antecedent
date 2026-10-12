@@ -28,9 +28,8 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    EvidenceCatalog, FactorNeed, ObligationRecord, ObligationScope, ScientificQuantity, VariableId,
-};
+use crate::{ObligationRecord, ObligationScope, ScientificQuantity};
+use antecedent_core::{EvidenceCatalog, FactorNeed, VariableId};
 
 /// Declared bound on the variable coordinates of one obligation.
 pub const MAX_OBLIGATION_COORDINATES: usize = 1024;
@@ -181,7 +180,7 @@ pub struct EvidenceObligationError {
 impl EvidenceObligationError {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
-            code: crate::reason_code!("invalid_argument"),
+            code: antecedent_core::reason_code!("invalid_argument"),
             detail: "evidence_obligations.invalid_obligation",
             message: message.into(),
         }
@@ -192,7 +191,7 @@ impl EvidenceObligationError {
     #[must_use]
     pub fn wrong_contract(message: impl Into<String>) -> Self {
         Self {
-            code: crate::reason_code!("transport_missing_evidence"),
+            code: antecedent_core::reason_code!("transport_missing_evidence"),
             detail: "evidence_obligations.wrong_contract",
             message: message.into(),
         }
@@ -596,7 +595,7 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
 }
 
 fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
-    let digest = crate::identity::blake3_hex(canonical_content(spec).as_bytes());
+    let digest = antecedent_core::identity::blake3_hex(canonical_content(spec).as_bytes());
     Arc::from(format!("eo1:{}:{}", spec.kind.as_str(), &digest[..32]))
 }
 

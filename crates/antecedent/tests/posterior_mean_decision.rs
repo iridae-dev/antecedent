@@ -2,7 +2,7 @@
 //! The published number is the functional of that mean. A tiny concentration
 //! stays at the hand pin. A mapped prior refuses.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, UtilityExpr,

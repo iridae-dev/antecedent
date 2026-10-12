@@ -80,7 +80,7 @@ impl PreparedTransportGridStage {
     }
     /// Native four-slot reasoning: the executed grid's, or the prepared stage's
     /// pre-execution inspection.
-    fn reasoning(&self) -> antecedent_core::ReasoningView {
+    fn reasoning(&self) -> antecedent_contract::ReasoningView {
         self.last.as_ref().map_or_else(|| self.inner.inspect(), TransportGridResult::reasoning)
     }
 }

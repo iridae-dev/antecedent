@@ -10,9 +10,9 @@
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};

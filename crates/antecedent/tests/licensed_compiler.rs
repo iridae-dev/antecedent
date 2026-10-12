@@ -23,6 +23,7 @@ use antecedent::{
     InterferenceSpec, RefuteSuite, Study, StudyBuilder, TransportTrialSpec, cell_coordinate,
     licensed_support_cells,
 };
+use antecedent_contract::{SlotAvailability, TransformIntent};
 use antecedent_core::{
     AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
@@ -30,8 +31,8 @@ use antecedent_core::{
     GridSpec, InterferenceFunctional, InterferenceQuery, Intervention,
     InterventionalDistributionQuery, Lag, MediationContrast, MediationQuery,
     NestedCounterfactualQuery, PathSpecificEffectQuery, PopulationSelector, ResponseFunctional,
-    ResponseQuery, SlotAvailability, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
-    TransformIntent, TransportQuery, Value, VariableId,
+    ResponseQuery, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransportQuery,
+    Value, VariableId,
 };
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
@@ -1353,7 +1354,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
     // A partially identified answer must carry its bounds. `mixture` is the
     // kind a claim takes when it withholds the scalar and publishes no
     // identified set, which leaves a consumer with neither.
-    if claim.kind == antecedent_core::ClaimKind::Mixture {
+    if claim.kind == antecedent_contract::ClaimKind::Mixture {
         return Err(format!("{expected}: partial claim carries no identified set"));
     }
     let bytes = prepared

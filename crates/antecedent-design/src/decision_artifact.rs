@@ -7,10 +7,10 @@
 //! the decision is recomputed and must reproduce the stored result exactly, so
 //! a stored number never needs the producing process to be explained.
 
-use antecedent_core::{
-    CanonicalWriter, CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError,
-    ScientificQuantity,
+use antecedent_contract::{
+    CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
+use antecedent_core::CanonicalWriter;
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use antecedent_io::error::IoError;
@@ -792,8 +792,8 @@ pub fn contract_from_json(json: &str) -> Result<DecisionContract, IoError> {
 #[allow(clippy::result_large_err)]
 pub fn contract_from_json_refusal(
     json: &str,
-) -> Result<DecisionContract, antecedent_core::ExternalRefusal> {
-    let malformed = |why: String| antecedent_core::ExternalRefusal {
+) -> Result<DecisionContract, antecedent_contract::ExternalRefusal> {
+    let malformed = |why: String| antecedent_contract::ExternalRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
         stage: "declare",
         detail: "decision_contract.invalid_declaration".to_owned(),

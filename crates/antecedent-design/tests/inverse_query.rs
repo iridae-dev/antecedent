@@ -15,7 +15,7 @@
 //! quantile the median `inf { x : F(x) >= 1/2 }` is `0, 0, 1`: `F_a1(0) = 1/2`
 //! reaches the level exactly, so a1's median is 0, not 1/2 or 1.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, Tail, UtilityExpr,

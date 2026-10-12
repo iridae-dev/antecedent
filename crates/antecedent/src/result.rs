@@ -5,9 +5,12 @@
 use antecedent_attribution::{
     AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
 };
+use antecedent_contract::{
+    ExecutionPerformanceRecord, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
+    ProvenanceGraph,
+};
 use antecedent_core::{
-    CausalResponse, Diagnostic, DiagnosticKind, ExecutionPerformanceRecord, IdentificationStatus,
-    LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph, ResponseEnvelope,
+    CausalResponse, Diagnostic, DiagnosticKind, IdentificationStatus, ResponseEnvelope,
     ResponseValue, VariableId,
 };
 use antecedent_estimate::{
@@ -1043,7 +1046,7 @@ impl StudyResult {
     /// family: panel executions cluster by unit, every other modality is `iid`
     /// unless a circular-block construction names its family.
     fn base_dependence(&self) -> &'static str {
-        if self.logical_plan.data_classification == antecedent_core::DataClassification::Panel {
+        if self.logical_plan.data_classification == antecedent_contract::DataClassification::Panel {
             "panel_cluster"
         } else {
             "iid"
@@ -1062,7 +1065,7 @@ impl StudyResult {
     /// posterior's serial-dependence handling (long-run tempering) is part of its construction
     /// and named by its posterior key, not by this dimension.
     fn se_dependence(&self, se_kind: Option<antecedent_estimate::AnalyticSeKind>) -> &'static str {
-        use antecedent_core::DataClassification as C;
+        use antecedent_contract::DataClassification as C;
         match self.logical_plan.data_classification {
             C::Temporal | C::Event => match se_kind {
                 Some(antecedent_estimate::AnalyticSeKind::NeweyWest { .. }) => "serial_hac",

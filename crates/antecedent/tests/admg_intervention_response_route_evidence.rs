@@ -10,9 +10,10 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseValue, SlotAvailability, Value, VariableId,
+    ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{

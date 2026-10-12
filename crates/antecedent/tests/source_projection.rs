@@ -5,9 +5,10 @@ use antecedent::analysis::composition::{
 use antecedent::analysis::source_evidence::{SourceEvidence, SourceResolution};
 use antecedent::analysis::source_projection::source_resolved_consumer;
 use antecedent::{PreparedStudy, RefuteSuite, Study};
+use antecedent_contract::ResponseCoordinateLabels;
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseCoordinateLabels,
-    ResponseFunctional, ResponseQuery, VariableId,
+    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
+    VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_design::decision_artifact::contract_to_json;
@@ -307,12 +308,13 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
 }
 
 fn external(evidence: &SourceEvidence, means: Vec<f64>) -> Vec<u8> {
-    use antecedent_core::{
+    use antecedent_contract::{
         CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
         ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-        ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract,
-        ProviderObjectIdentity, SupportStatus, bind_external_result,
+        ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity,
+        bind_external_result,
     };
+    use antecedent_core::{IdentificationStatus, SupportStatus};
     let quantities = evidence.coordinates().to_vec();
     let object = ExternalScientificObject::Law(LawProviderContract {
         identity: ProviderObjectIdentity {

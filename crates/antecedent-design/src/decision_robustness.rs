@@ -20,7 +20,8 @@
 //! mass is read from the structural result and never renormalized. The
 //! per-structure outcomes are consumed as computed; nothing is re-evaluated.
 
-use antecedent_core::{ExternalRefusal, SupportStatus};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::SupportStatus;
 
 use crate::decision_contract::{
     AdmissibilityError, AdmissibleDecisionContract, UncertaintyKind, UncertaintyRequirement,

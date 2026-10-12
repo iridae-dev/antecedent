@@ -10,7 +10,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use crate::assumption::AssumptionSet;
+use antecedent_core::assumption::AssumptionSet;
 
 /// Stable artifact identifier string.
 pub type ArtifactId = Arc<str>;
@@ -235,7 +235,7 @@ impl ProvenanceGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assumption::AssumptionSet;
+    use antecedent_core::assumption::AssumptionSet;
 
     fn node(id: &str, parents: &[&str]) -> ProvenanceNode {
         ProvenanceNode {

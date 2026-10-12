@@ -30,7 +30,8 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{CanonicalWriter, ExecutionContext, StructuredRefusal};
+use antecedent_contract::StructuredRefusal;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use thiserror::Error;
 
 /// Maximum number of units.

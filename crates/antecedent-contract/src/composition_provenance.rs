@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use crate::identity::CanonicalWriter;
+use antecedent_core::identity::CanonicalWriter;
 
 /// Maximum links in one chain.
 pub const MAX_CHAIN_LINKS: usize = 4_096;
@@ -138,8 +138,8 @@ impl ProvenanceChainError {
     /// Structured refusal with a `composition_provenance` detail.
     #[must_use]
     pub fn to_refusal(&self) -> crate::ExternalRefusal {
-        let mismatch = crate::reason_code!("external_binding_mismatch");
-        let invalid = crate::reason_code!("invalid_argument");
+        let mismatch = antecedent_core::reason_code!("external_binding_mismatch");
+        let invalid = antecedent_core::reason_code!("invalid_argument");
         match self {
             Self::InvalidLink => crate::ExternalRefusal {
                 offending: None,

@@ -104,7 +104,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::StructuredRefusal;
+use antecedent_contract::StructuredRefusal;
 use antecedent_graph::{Dag, DenseNodeId};
 
 use crate::transported_gate::{

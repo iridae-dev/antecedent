@@ -9,7 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::StructuredRefusal;
+use antecedent_contract::StructuredRefusal;
 
 /// A prerequisite of the transported counterfactual composition.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

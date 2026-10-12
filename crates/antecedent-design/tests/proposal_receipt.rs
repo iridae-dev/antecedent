@@ -16,11 +16,13 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, SignalProviderContract,
+};
 use antecedent_core::{
     CancellationToken, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    ExecutionContext, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
-    VariableCoordinate, VariableDomain, VariableId,
+    ExecutionContext, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::design_ranking_artifact::{DesignRankingArtifactWire, SealInputs, seal};
 use antecedent_design::evsi::{

@@ -19,12 +19,13 @@
 //! Every consumer-side identity is built here from constants: the expected bundle is
 //! assembled from Rust builders, and the identity file Python writes is only compared.
 
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
+    ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_design::composition_bundle::{
     BundleLimits, BundleNode, ClaimLabel, CompositionBundle, ConsumedBundle, FACT_LAW,
     FACT_REQUIRES_LAW, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY, NodeStatus, SuppliedSources,

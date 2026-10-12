@@ -110,7 +110,7 @@ impl ScientificQuantity {
     /// Write every identity field into `stream`: each id as text, the role as a tag word
     /// (never its `Debug` name, so a derive change cannot move a digest), the horizon, then
     /// the conditioning count and each condition.
-    pub fn write_canonical(&self, stream: &mut crate::identity::CanonicalWriter) {
+    pub fn write_canonical(&self, stream: &mut antecedent_core::identity::CanonicalWriter) {
         stream
             .text(&self.variable_id)
             .text(&self.variable_name)
@@ -294,7 +294,7 @@ mod tests {
     }
 
     fn digest_of(quantity: &ScientificQuantity) -> String {
-        let mut stream = crate::identity::CanonicalWriter::new("test.quantity");
+        let mut stream = antecedent_core::identity::CanonicalWriter::new("test.quantity");
         quantity.write_canonical(&mut stream);
         stream.finish_hex()
     }

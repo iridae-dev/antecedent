@@ -44,9 +44,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{
-    CanonicalWriter, ExternalRefusal, ProviderObjectIdentity, ScientificQuantity, is_blank,
-};
+use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, is_blank};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
@@ -963,7 +962,7 @@ pub struct ConsumedDesignRanking {
     /// `unmeasured`.
     pub calibration: &'static str,
     /// Checked derivation chain retained after independent artifact consumption.
-    pub provenance_chain: antecedent_core::ProvenanceChain,
+    pub provenance_chain: antecedent_contract::ProvenanceChain,
 }
 
 /// Identities the consumer retained independently of the bytes. A `None` field is not
@@ -1014,9 +1013,11 @@ impl DesignRankingArtifactWire {
     /// A blank contract, source digest, semantic id or signal identity refuses.
     pub fn provenance_chain(
         &self,
-    ) -> std::result::Result<antecedent_core::ProvenanceChain, antecedent_core::ProvenanceChainError>
-    {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    ) -> std::result::Result<
+        antecedent_contract::ProvenanceChain,
+        antecedent_contract::ProvenanceChainError,
+    > {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         let link = |id: String, stage: CompositionStage, parents: Vec<String>| CompositionLink {
             id,
             stage,

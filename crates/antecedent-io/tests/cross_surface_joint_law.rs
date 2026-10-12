@@ -11,7 +11,7 @@
 //! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io --test
 //! cross_surface_joint_law -- --ignored regenerate_rust_fixtures`.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,

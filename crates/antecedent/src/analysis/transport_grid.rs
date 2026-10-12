@@ -3,7 +3,7 @@ use super::{
     ExactPreparedState, ExactStudyResult, PreparedStudy, StatisticalPreparedState,
     StatisticalStudyResult, StudyBuilder,
 };
-pub use antecedent_core::TransportGridFailure;
+pub use antecedent_contract::TransportGridFailure;
 use antecedent_core::{ExecutionContext, IdentityDomain, NodeRef, VariableDomain, VariableId};
 use antecedent_estimate::{EmpiricalTableOptions, StatisticalTransportInput};
 use antecedent_expr::{
@@ -238,7 +238,7 @@ impl TransportGridResult {
     }
     /// All four durable reasoning slots; per-point inference is retained in each point.
     #[must_use]
-    pub fn reasoning(&self) -> antecedent_core::ReasoningView {
+    pub fn reasoning(&self) -> antecedent_contract::ReasoningView {
         let kinds = self.points.iter().map(|point| match point {
             TransportGridPoint::Unavailable(failure) => Some(failure.kind.as_str()),
             _ => None,
@@ -287,7 +287,7 @@ impl TransportGridResult {
         &self,
         point: usize,
         outcome: VariableId,
-    ) -> Result<(f64, antecedent_core::HandoffReceipt), IoError> {
+    ) -> Result<(f64, antecedent_contract::HandoffReceipt), IoError> {
         let distribution = self
             .points
             .get(point)
@@ -298,7 +298,7 @@ impl TransportGridResult {
         );
         Ok((
             distribution.mean(outcome).map_err(err)?,
-            antecedent_core::HandoffReceipt::lossy_scalar(identity, "transport_grid_scalar"),
+            antecedent_contract::HandoffReceipt::lossy_scalar(identity, "transport_grid_scalar"),
         ))
     }
     /// Export a sectioned artifact with explicit required transport features.
@@ -335,12 +335,12 @@ impl TransportGridResult {
 fn grid_reasoning_view(
     execution: Option<GridTally>,
     legacy: bool,
-) -> antecedent_core::ReasoningView {
-    use antecedent_core::{
-        AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
-        IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
-        SlotAvailability, SupportSlot,
+) -> antecedent_contract::ReasoningView {
+    use antecedent_contract::{
+        AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+        ReasoningView, SlotAvailability, SupportSlot,
     };
+    use antecedent_core::{AssumptionSource, AssumptionStatus, IdentificationStatus};
     ReasoningView::new(
         SlotAvailability::Available(IdentificationSlot::identified_singleton(
             IdentificationStatus::NonparametricallyIdentified,
@@ -638,7 +638,7 @@ impl PreparedStudy<TransportGridState> {
     /// property of the accepted proof and the assumptions are declared; support
     /// and uncertainty stay execution-specific until the grid runs.
     #[must_use]
-    pub fn inspect(&self) -> antecedent_core::ReasoningView {
+    pub fn inspect(&self) -> antecedent_contract::ReasoningView {
         grid_reasoning_view(None, false)
     }
     /// Whether the retained native providers permit estimator replay without refresh.
@@ -884,16 +884,17 @@ impl PreparedStudy<TransportGridState> {
     /// Identity serialization failure.
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
+        use antecedent_contract::{TransformIntent, TransformationReport};
+        use antecedent_core::{IdentityRef, SemanticDigest};
         let id = SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
             &digest(IdentityDomain::Execution, &self.state.template)?,
         )?);
         let report = TransformationReport::new(
             intent,
             vec![IdentityRef::new(IdentityDomain::Execution, id)],
-            antecedent_core::intent_effects(intent).iter().cloned(),
+            antecedent_contract::intent_effects(intent).iter().cloned(),
             vec![],
         );
         Ok(

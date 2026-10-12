@@ -12,7 +12,7 @@
 //! `EU(safe) = 3`, `EVPI = 0.5` and the verdict is uniquely optimal `safe`.
 //! Every consumer-side identity is built from constants here.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };

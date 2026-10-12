@@ -3,10 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::JointSensitivityArtifactWire;
-use antecedent_core::{
-    CompositionLink, CompositionStage, ExecutionContext, ProvenanceChain, ScientificQuantity,
-    reason_code,
-};
+use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain, ScientificQuantity};
+use antecedent_core::{ExecutionContext, reason_code};
 use antecedent_io::sensitivity_artifact::SensitivityArtifact;
 use antecedent_io::{IoError, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize};

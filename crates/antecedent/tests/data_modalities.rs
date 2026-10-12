@@ -13,11 +13,11 @@ mod common;
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
+use antecedent_contract::DataClassification;
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ContinuousDomain, DataClassification, ExecutionContext,
-    GridSpec, IdentificationStatus, Lag, MeasurementSpec, ResponseFunctional, ResponseQuery,
-    RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, ValueType,
-    VariableId,
+    CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
+    IdentificationStatus, Lag, MeasurementSpec, ResponseFunctional, ResponseQuery, RoleHint,
+    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, ValueType, VariableId,
 };
 use antecedent_data::{
     DiscoveryEstimationSplit, EventData, Float64Column, OwnedColumn, OwnedColumnarStorage,

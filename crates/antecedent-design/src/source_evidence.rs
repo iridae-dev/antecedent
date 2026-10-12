@@ -5,7 +5,8 @@
 
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::DecisionContract;
-use antecedent_core::{ScientificQuantity, blake3_hex, reason_code, to_hex};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::{blake3_hex, reason_code, to_hex};
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::response_wire::{ResponseIdentificationWire, ResponseValueWire};
 use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
@@ -358,8 +359,8 @@ impl SourceEvidence {
     /// Recognition and derivation identity do not resolve the original numerical dependencies.
     pub fn provenance_chain(
         &self,
-    ) -> Result<antecedent_core::ProvenanceChain, SourceEvidenceError> {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    ) -> Result<antecedent_contract::ProvenanceChain, SourceEvidenceError> {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         if let Some(external) = &self.external {
             let chain = external
                 .metadata()

@@ -23,10 +23,10 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{
-    CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
-    ProvenanceChainError, SupportStatus,
+use antecedent_contract::{
+    CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
+use antecedent_core::{CanonicalWriter, SupportStatus};
 use antecedent_io::convert::to_cbor;
 use antecedent_io::error::IoError;
 use antecedent_io::external_claim_artifact::{LineageLinkWire, wire_from_chain};

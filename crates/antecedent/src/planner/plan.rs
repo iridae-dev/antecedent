@@ -13,10 +13,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    BufferMaterialization, CausalQuery, DataClassification, ExecutionContext, KernelSelection,
-    LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
+use antecedent_contract::{
+    BufferMaterialization, DataClassification, KernelSelection, LogicalAnalysisPlanRecord,
+    ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
+use antecedent_core::{CausalQuery, ExecutionContext};
 use antecedent_data::DiscoveryEstimationSplit;
 use antecedent_graph::{Dag, Pag, TemporalDag};
 

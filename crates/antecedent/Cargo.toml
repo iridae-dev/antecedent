@@ -26,6 +26,7 @@ ml-neural = ["antecedent-estimate/ml-neural"]
 
 [dependencies]
 antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
+antecedent-contract = { version = "2.4.0", path = "../antecedent-contract" }
 antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
 antecedent-discovery = { version = "2.4.0", path = "../antecedent-discovery" }
 antecedent-estimate = { version = "2.4.0", path = "../antecedent-estimate" }

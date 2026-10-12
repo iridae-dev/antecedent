@@ -1,7 +1,8 @@
 //! Adapters from claim types to decision inputs under a declared policy.
 //! Expected values are enumerated by hand in each test.
 
-use antecedent_core::{IdentifiedSet, QuantityRole, ScientificQuantity, SupportStatus};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::{IdentifiedSet, SupportStatus};
 use antecedent_design::decision_adapters::{
     AdapterError, ClaimKind, ClaimProbability, IdentifiedUtility, IdentifiedVerdict, SuppliedClaim,
     adapt_finite_scenarios, adapt_graph_dependent_claims, adapt_point_claim,

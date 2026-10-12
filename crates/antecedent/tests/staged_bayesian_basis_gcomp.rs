@@ -3,9 +3,9 @@
 #![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
 
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};

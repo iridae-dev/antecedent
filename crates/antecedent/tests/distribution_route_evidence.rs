@@ -6,9 +6,9 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Intervention, InterventionalDistributionQuery, SlotAvailability,
-    Value, VariableId,
+    CausalQuery, ExecutionContext, Intervention, InterventionalDistributionQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Dag, DenseNodeId};

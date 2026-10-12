@@ -39,7 +39,8 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use antecedent_core::{ScientificQuantity, is_blank};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::is_blank;
 // Re-exported so a design-level consumer can adapt a joint mechanism sensitivity result without depending on
 // the validation crate directly.
 pub use antecedent_validate::{
@@ -1315,8 +1316,8 @@ impl SensitivityArtifact {
     ///
     /// # Errors
     /// A blank causal-contract or snapshot identity refuses (`InvalidLink`).
-    pub fn provenance_chain(&self) -> Result<antecedent_core::ProvenanceChain, IoError> {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    pub fn provenance_chain(&self) -> Result<antecedent_contract::ProvenanceChain, IoError> {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         let provenance = &self.parts.provenance;
         let contract = format!("causal_contract:{}", provenance.causal_contract_id);
         let snapshot = format!("snapshot:{}", provenance.provider_snapshot);

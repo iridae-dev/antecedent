@@ -174,6 +174,7 @@ core Cargo.lock
 core rust-toolchain.toml
 core crates/antecedent/Cargo.toml
 core crates/antecedent-attribution/Cargo.toml
+core crates/antecedent-contract/Cargo.toml
 core crates/antecedent-core/Cargo.toml
 core crates/antecedent-counterfactual/Cargo.toml
 core crates/antecedent-data/Cargo.toml
@@ -192,6 +193,7 @@ core crates/antecedent-state/Cargo.toml
 core crates/antecedent-stats/Cargo.toml
 core crates/antecedent-validate/Cargo.toml
 core crates/antecedent/src/
+core crates/antecedent-contract/src/
 core crates/antecedent-core/src/
 core crates/antecedent-data/src/
 core crates/antecedent-discovery/src/

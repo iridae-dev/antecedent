@@ -7,11 +7,13 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligationKind, ObligationKind, ObligationRecord, ObligationScope,
+};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{
-    DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta,
-    EvidenceObligationKind, ExecutionContext, FactorNeed, InterventionAssignment, ObligationKind,
-    ObligationRecord, ObligationScope, SearchLimits, SearchStop, SupportRegion, SupportReport,
+    DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta, ExecutionContext,
+    FactorNeed, InterventionAssignment, SearchLimits, SearchStop, SupportRegion, SupportReport,
     SupportStatus, Value, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::obligation_adapters::{

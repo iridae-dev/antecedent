@@ -3,7 +3,8 @@
 //! and external-callback receipts that never read as native verification.
 //! Expected values are the hand-set payoffs of each structure.
 
-use antecedent_core::{CompositionStage, QuantityRole, ScientificQuantity, SupportStatus};
+use antecedent_contract::{CompositionStage, QuantityRole, ScientificQuantity};
+use antecedent_core::SupportStatus;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, MAX_DECISION_ARTIFACT_BYTES, contract_to_json,
 };

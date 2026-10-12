@@ -5,9 +5,8 @@
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::{DecisionContract, DecisionFunctional};
 use crate::decision_eval::{FunctionalValue, evaluate_functional};
-use antecedent_core::{
-    CompositionLink, CompositionStage, ProvenanceChain, blake3_hex, reason_code,
-};
+use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
+use antecedent_core::{blake3_hex, reason_code};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
 use antecedent_io::{IoError, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize};
@@ -77,7 +76,7 @@ impl LawFunctionalArtifact {
             .quantities()
             .iter()
             .cloned()
-            .map(antecedent_core::ScientificQuantity::try_from)
+            .map(antecedent_contract::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| functional_invalid("functional_source.invalid_source"))?;
         evidence

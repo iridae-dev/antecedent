@@ -44,13 +44,16 @@ use antecedent::analysis::design_ranking::{self, DesignRankingRequestWire};
 use antecedent::analysis::native_claims::{
     NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
+use antecedent_contract::{
+    CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
+    ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
+    ExternalUncertaintyMeaning, LawProviderContract, ProgramBinding, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, bind_external_result,
+};
 use antecedent_core::{
-    AssumptionSet, CausalResponse, CausalSchema, CausalSchemaBuilder, CheckedCausalContract,
-    ContinuousDomain, DistributionMeaning, ExternalCapability, ExternalResponse, ExternalResult,
-    ExternalResultHeader, ExternalScientificObject, ExternalTrustState, ExternalUncertaintyMeaning,
-    GridSpec, IdentificationStatus, LawProviderContract, ProgramBinding, ProviderObjectIdentity,
-    QuantityRole, ResponseFunctional, ResponseIdentification, ResponseUncertainty, ResponseValue,
-    ScientificQuantity, SupportRegion, SupportReport, SupportStatus, bind_external_result,
+    AssumptionSet, CausalResponse, CausalSchema, CausalSchemaBuilder, ContinuousDomain, GridSpec,
+    IdentificationStatus, ResponseFunctional, ResponseIdentification, ResponseUncertainty,
+    ResponseValue, SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_design::composition_boundary::{
     ActionStatus, BoundaryError, CompositionOperation, CoordinateIssue, DecisionInput,

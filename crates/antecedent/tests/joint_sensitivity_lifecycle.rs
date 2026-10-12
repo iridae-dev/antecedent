@@ -883,7 +883,7 @@ fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
 #[test]
 fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_surface() {
     use antecedent::analysis::sensitivity_source::SourceBackedSensitivity;
-    use antecedent_core::{QuantityRole, ScientificQuantity};
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_io::sensitivity_artifact::{ActionUtility, SensitivityArtifact, UtilityTerm};
     let original = artifact();
     let prepared = prepare(&builder());

@@ -1,4 +1,4 @@
-//! Typed obligation references that extend [`crate::AssumptionRecord`].
+//! Typed obligation references that extend [`antecedent_core::AssumptionRecord`].
 //!
 //! This is not a parallel assumption taxonomy. Source, status, and the
 //! assumption itself reuse the existing records. Obligations add a stable
@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use crate::assumption::{Assumption, AssumptionSource, AssumptionStatus};
+use antecedent_core::assumption::{Assumption, AssumptionSource, AssumptionStatus};
 
 /// Scope at which an obligation applies.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

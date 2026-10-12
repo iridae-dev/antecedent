@@ -152,7 +152,7 @@ impl RolloutArtifact {
             .quantities
             .iter()
             .cloned()
-            .map(antecedent_core::ScientificQuantity::try_from)
+            .map(antecedent_contract::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| refused("rollout.source_evidence_mismatch"))?;
         evidence
@@ -319,8 +319,8 @@ impl RolloutArtifact {
     /// The finite state projection is bound to the original ordered ranking prior.
     /// # Errors
     /// Any original source/ranking refusal or invalid derivation chain.
-    pub fn provenance_chain(&self) -> Result<antecedent_core::ProvenanceChain, IoError> {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    pub fn provenance_chain(&self) -> Result<antecedent_contract::ProvenanceChain, IoError> {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         self.verify(&self.binding)?;
         let wire = DesignRankingArtifactWire::from_bytes(&self.ranking_artifact)
             .map_err(|_| refused("rollout.ranking_invalid"))?;

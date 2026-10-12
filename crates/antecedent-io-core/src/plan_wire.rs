@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
+use antecedent_contract::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };

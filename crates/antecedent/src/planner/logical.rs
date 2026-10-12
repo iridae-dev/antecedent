@@ -12,10 +12,10 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{DataClassification, LogicalAnalysisPlanRecord};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, Intervention, LogicalAnalysisPlanRecord,
-    ObservationSpec, ResponseFunctional, ResponseQuery, TargetPopulation, TemporalEffectQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, Intervention, ObservationSpec, ResponseFunctional,
+    ResponseQuery, TargetPopulation, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};

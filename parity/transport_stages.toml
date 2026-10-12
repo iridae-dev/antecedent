@@ -4140,7 +4140,7 @@ evidence = "bernoulli_quarter_law_declaring_sample_and_mean_under_do_a_1"
 functional = "typed_external_law_and_posterior_provider_contract_declaration"
 guarantee = "typed_provider_contract_declaration_only_no_causal_or_interval_claim"
 limits = "Declaration only: an outcome posterior meaning cannot be declared as an interventional law, a missing CDF or quantile is refused, and duplicate declarations refuse; no causal or interval claim."
-evidence_test = "crates/antecedent-core/src/external.rs"
+evidence_test = "crates/antecedent-contract/src/external.rs"
 evidence_assertion = "bernoulli_law_mean_and_seeded_samples_negotiate"
 notes = "Typed provider object declaration (law, posterior, signal, evidence, utility) with exact-request identity; declaration only, no causal or interval claim."
 
@@ -4166,7 +4166,7 @@ evidence = "provider_offering_sample_and_mean_but_no_cdf_quantile_or_interventio
 functional = "provider_capability_negotiation_at_an_exact_request_fingerprint"
 guarantee = "exact_operation_negotiation_only_no_approximation_license"
 limits = "A mean request accepts while threshold probability and quantile refuse; an absent capability is never inferred from another operation or provider label, and sampling approximation remains unlicensed."
-evidence_test = "crates/antecedent-core/src/external.rs"
+evidence_test = "crates/antecedent-contract/src/external.rs"
 evidence_assertion = "mean_request_accepts_and_threshold_and_quantile_refuse"
 notes = "Exact-operation negotiation at an independently retained request identity; sampling approximation remains unlicensed."
 
@@ -4179,7 +4179,7 @@ evidence = "bernoulli_quarter_law_with_independent_probes_normalization_mean_cdf
 functional = "object_level_verification_at_the_exact_request_fingerprint"
 guarantee = "object_verification_at_exact_request_fingerprint_only_not_general_trust"
 limits = "Covers the exact request fingerprint only: a wrong support, normalization, moment or seed behavior refuses, and a receipt does not cover another request; not general provider trust."
-evidence_test = "crates/antecedent-core/src/external.rs"
+evidence_test = "crates/antecedent-contract/src/external.rs"
 evidence_assertion = "bernoulli_verification_matches_enumeration_at_exact_fingerprint"
 notes = "Object-level verification from independent probes at the complete contract fingerprint; covers that request only and is not general provider trust."
 
@@ -4192,7 +4192,7 @@ evidence = "one_provider_object_externally_attested_then_independently_verified_
 functional = "external_trust_tier_and_provenance_boundary"
 guarantee = "trust_tier_preserved_without_upgrade_never_native_licensed"
 limits = "R1 carries verified_extension and R2 stays external_attested; neither becomes native licensed and a receipt reused after a changed quantity, provider version, snapshot or capability set refuses; no causal or interval claim."
-evidence_test = "crates/antecedent-core/src/external_binding.rs"
+evidence_test = "crates/antecedent-contract/src/external_binding.rs"
 evidence_assertion = "attested_stays_attested_and_verified_is_never_native"
 notes = "Trust tier (externally attested or verified extension) preserved through artifacts; never native licensed and never upgraded on load."
 
@@ -4218,7 +4218,7 @@ evidence = "response_through_one_external_provider_a_joint_distribution_transfor
 functional = "ordered_composition_provenance_lineage_from_contract_to_decision"
 guarantee = "ordered_predecessor_digest_lineage_only_no_causal_or_interval_claim"
 limits = "Lineage validation only: every score traces contract, snapshot, provider, artifact, transform and decision links in order, and a missing or changed predecessor digest refuses; no causal or interval claim."
-evidence_test = "crates/antecedent-core/tests/composition_provenance.rs"
+evidence_test = "crates/antecedent-contract/tests/composition_provenance.rs"
 evidence_assertion = "every_score_traces_contract_snapshot_provider_artifact_transform_and_decision_in_order"
 notes = "Composition provenance: ordered Merkle-style predecessor-digest lineage from contract to decision, refused on a missing or changed digest; no causal or interval claim."
 
@@ -4310,7 +4310,7 @@ evidence = "typed_obligation_with_exact_population_regime_variables_contract_slo
 functional = "obligation_construction_and_the_addressed_by_screen_on_population_regime_and_joint_law"
 guarantee = "sound_incomplete"
 limits = "An obligation is a request, never a verdict: addressed_by is a necessary screen and the owning theorem checker still decides. Separate marginal studies never meet one joint-regime factor and an assumption is never satisfiable by a study. The z-transport proof has an adapter only, no repair family. No causal or interval claim."
-evidence_test = "crates/antecedent-core/tests/evidence_obligation.rs"
+evidence_test = "crates/antecedent-contract/tests/evidence_obligation.rs"
 evidence_assertion = "unmet_factors_become_kind_specific_obligations"
 notes = "Machine-readable evidence obligations (nine kinds, ids eo1:<kind>:<hash>) with adapters; claim none."
 
@@ -4616,7 +4616,7 @@ evidence = "program_with_outcome_y_mmhg_dose_grid_0_5_1_2_mg_target_population_a
 functional = "refusal_of_any_claim_whose_declared_coordinates_or_identity_differ_from_the_full_program_and_request_identity"
 guarantee = "external_claim_bound_to_full_identified_program_and_request_identity_point_only_no_native_upgrade"
 limits = "Point-only: nothing is estimated, converted or rescaled; a graph-only identity, an incompatible quantities override, a treatment or outcome substitution, a population mismatch and a dose-grid or dose-unit change each refuse with their own program_binding detail; the first failing field in a fixed order names the refusal; the durable identity changes with any one of the 13 program fields."
-evidence_test = "crates/antecedent-core/tests/program_binding.rs"
+evidence_test = "crates/antecedent-contract/tests/program_binding.rs"
 evidence_assertion = "binding_faithful_claim_passes_with_derived_coordinates"
 notes = "Binding of an external claim to the identified program and request; the check reads declared identities only."
 
@@ -4629,7 +4629,7 @@ evidence = "external_response_values_10_12_15_over_the_program_grid_bound_to_a_c
 functional = "bound_external_claim_carrying_the_verified_program_identity_that_stays_external_and_never_native"
 guarantee = "external_claim_bound_to_full_identified_program_and_request_identity_point_only_no_native_upgrade"
 limits = "Point-only: the contract must itself carry the program's graph and exact coordinates, so a contract describing another request refuses before the result binds and a program refusal comes first; the bound claim keeps its external trust and is never promoted to native estimation; values are not converted."
-evidence_test = "crates/antecedent-core/tests/program_binding.rs"
+evidence_test = "crates/antecedent-contract/tests/program_binding.rs"
 evidence_assertion = "binding_binds_a_result_to_the_program_and_stays_external"
 notes = "External result bound to the checked contract and the program; stays external."
 

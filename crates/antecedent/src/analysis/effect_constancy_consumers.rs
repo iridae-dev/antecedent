@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{DecisionContract, UtilityExpr};
 use antecedent_design::decision_eval::{
     DecisionResult, MeanSource, Verdict, evaluate_contract_on_means,

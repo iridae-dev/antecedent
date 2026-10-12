@@ -68,8 +68,8 @@ impl ExternalRefusal {
     // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
     #[allow(clippy::result_large_err)]
     pub fn validate(&self) -> Result<(), ExternalRefusal> {
-        let invalid = crate::reason_code!("invalid_argument");
-        if !crate::reason_code::is_runtime_refusal(self.code) {
+        let invalid = antecedent_core::reason_code!("invalid_argument");
+        if !antecedent_core::reason_code::is_runtime_refusal(self.code) {
             return Err(ExternalRefusal {
                 offending: Some(self.code.to_owned()),
                 remedy: Some("use a reason code registered in parity/reason_codes.toml"),
@@ -216,17 +216,17 @@ impl ExternalContractError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         match self {
             Self::InvalidIdentity => refusal(
-                crate::reason_code!("invalid_argument"),
+                antecedent_core::reason_code!("invalid_argument"),
                 "declare",
                 "external_scientific_providers.invalid_identity",
             ),
             Self::InvalidDeclaration => refusal(
-                crate::reason_code!("invalid_argument"),
+                antecedent_core::reason_code!("invalid_argument"),
                 "declare",
                 "external_scientific_providers.invalid_declaration",
             ),
             Self::DuplicateDeclaration => refusal(
-                crate::reason_code!("invalid_argument"),
+                antecedent_core::reason_code!("invalid_argument"),
                 "declare",
                 "external_scientific_providers.duplicate_declaration",
             ),
@@ -237,13 +237,13 @@ impl ExternalContractError {
                     "declare the exact operation, or license a sampling approximation with a numerical-error and replicate receipt",
                 ),
                 ..refusal(
-                    crate::reason_code!("external_capability_missing"),
+                    antecedent_core::reason_code!("external_capability_missing"),
                     "negotiate",
                     "provider_capability_negotiation.capability_missing",
                 )
             },
             Self::RequestMismatch => refusal(
-                crate::reason_code!("external_binding_mismatch"),
+                antecedent_core::reason_code!("external_binding_mismatch"),
                 "negotiate",
                 "provider_capability_negotiation.request_mismatch",
             ),
@@ -255,7 +255,7 @@ impl ExternalVerificationError {
     /// Structured refusal for a verification failure.
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
-        let code = crate::reason_code!("external_verification_failed");
+        let code = antecedent_core::reason_code!("external_verification_failed");
         match self {
             Self::Contract(error) => {
                 let mut value = error.to_refusal();
@@ -265,7 +265,7 @@ impl ExternalVerificationError {
             Self::InvalidProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
                 ..refusal(
-                    crate::reason_code!("invalid_argument"),
+                    antecedent_core::reason_code!("invalid_argument"),
                     "verify",
                     "external_object_verification.invalid_probe",
                 )
@@ -273,7 +273,7 @@ impl ExternalVerificationError {
             Self::DuplicateProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
                 ..refusal(
-                    crate::reason_code!("invalid_argument"),
+                    antecedent_core::reason_code!("invalid_argument"),
                     "verify",
                     "external_object_verification.duplicate_probe",
                 )
@@ -301,7 +301,7 @@ impl ExternalBindingError {
         contract: &CheckedCausalContract,
         result: &ExternalResult,
     ) -> ExternalRefusal {
-        let binding = crate::reason_code!("external_binding_mismatch");
+        let binding = antecedent_core::reason_code!("external_binding_mismatch");
         let header = match result {
             ExternalResult::Response(r) => &r.header,
             ExternalResult::Distribution(d) => &d.header,
@@ -313,12 +313,12 @@ impl ExternalBindingError {
                 supplied: Some(status.as_str().to_owned()),
                 expected: Some("an identified estimand".to_owned()),
                 ..at(
-                    crate::reason_code!("effect_not_identified"),
+                    antecedent_core::reason_code!("effect_not_identified"),
                     "external_response_binding.contract_not_identified",
                 )
             },
             Self::InvalidContract => at(
-                crate::reason_code!("invalid_argument"),
+                antecedent_core::reason_code!("invalid_argument"),
                 "external_response_binding.invalid_contract",
             ),
             Self::Object(error) => {
@@ -358,7 +358,7 @@ impl ExternalBindingError {
                         "if this observational law is meant to answer the interventional request, provide a checked equivalence for the treatment conditioning",
                     ),
                     ..at(
-                        crate::reason_code!("quantity_semantics_mismatch"),
+                        antecedent_core::reason_code!("quantity_semantics_mismatch"),
                         coordinate_detail(*mismatch),
                     )
                 }
@@ -375,7 +375,7 @@ impl ExternalBindingError {
             Self::NonFiniteValue(index) => ExternalRefusal {
                 offending: Some(format!("coordinate[{index}]")),
                 ..at(
-                    crate::reason_code!("invalid_argument"),
+                    antecedent_core::reason_code!("invalid_argument"),
                     "external_response_binding.non_finite_value",
                 )
             },
@@ -396,7 +396,7 @@ impl ExternalBindingError {
                     _ => None,
                 },
                 ..at(
-                    crate::reason_code!("distribution_meaning_mismatch"),
+                    antecedent_core::reason_code!("distribution_meaning_mismatch"),
                     "external_response_binding.distribution_meaning",
                 )
             },
@@ -412,7 +412,7 @@ impl ExternalBindingError {
                 ..at(binding, "external_response_binding.missing_assumption")
             },
             Self::TrustMismatch => at(
-                crate::reason_code!("external_verification_failed"),
+                antecedent_core::reason_code!("external_verification_failed"),
                 "external_trust_receipt.receipt_mismatch",
             ),
         }
@@ -424,9 +424,10 @@ mod tests {
     use super::*;
     use crate::{
         DistributionMeaning, ExternalResponse, ExternalResultHeader, ExternalScientificObject,
-        ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract,
+        ExternalTrustState, ExternalUncertaintyMeaning, LawProviderContract,
         ProviderObjectIdentity, QuantityRole, bind_external_result,
     };
+    use antecedent_core::IdentificationStatus;
 
     fn quantity(horizon: u32, units: &str) -> ScientificQuantity {
         ScientificQuantity {
@@ -498,10 +499,11 @@ mod tests {
             assert_eq!(IdentificationStatus::from_name(status.as_str()), Some(status));
         }
         assert_eq!(
-            crate::SupportStatus::from_name("missing_evidence").map(crate::SupportStatus::as_str),
+            antecedent_core::SupportStatus::from_name("missing_evidence")
+                .map(antecedent_core::SupportStatus::as_str),
             Some("missing_evidence")
         );
-        assert_eq!(crate::SupportStatus::from_name("bad"), None);
+        assert_eq!(antecedent_core::SupportStatus::from_name("bad"), None);
     }
 
     #[test]
@@ -557,7 +559,7 @@ mod tests {
         for (response, code, detail) in cases {
             let value = refused(&contract, response);
             assert_eq!((value.code, value.detail.as_str()), (code, detail));
-            assert!(crate::reason_code::is_runtime_refusal(value.code), "{code}");
+            assert!(antecedent_core::reason_code::is_runtime_refusal(value.code), "{code}");
             assert!(seen.insert(value.detail));
         }
         let mut unidentified = contract.clone();
@@ -597,7 +599,7 @@ mod tests {
             .to_refusal();
         assert_eq!((contract.stage, contract.code), ("verify", "external_binding_mismatch"));
         for r in [value, missing, failed, contract] {
-            assert!(crate::reason_code::is_runtime_refusal(r.code), "{}", r.code);
+            assert!(antecedent_core::reason_code::is_runtime_refusal(r.code), "{}", r.code);
         }
     }
 }

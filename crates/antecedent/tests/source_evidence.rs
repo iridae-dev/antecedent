@@ -1,9 +1,10 @@
 //! Actual response diagnostics survive scientific coordinate/action mapping and native replay.
 use antecedent::analysis::source_evidence::SourceEvidence;
 use antecedent::{RefuteSuite, Study};
+use antecedent_contract::ResponseCoordinateLabels;
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseCoordinateLabels,
-    ResponseFunctional, ResponseQuery, VariableId,
+    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
+    VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_design::decision_artifact::contract_to_json;
@@ -283,15 +284,20 @@ fn original_native_source_chain_is_typed_and_independently_rederived() {
     assert_eq!(chain, loaded.provenance_chain().unwrap());
     assert_eq!(source.unresolved(), loaded.unresolved());
     assert_eq!(chain.links().last().unwrap().id, "claim");
-    assert!(chain.links().iter().any(|link| link.stage == antecedent_core::CompositionStage::Data));
+    assert!(
+        chain.links().iter().any(|link| link.stage == antecedent_contract::CompositionStage::Data)
+    );
     assert!(
         chain
             .links()
             .iter()
-            .any(|link| link.stage == antecedent_core::CompositionStage::CausalContract)
+            .any(|link| link.stage == antecedent_contract::CompositionStage::CausalContract)
     );
     assert!(
-        chain.links().iter().any(|link| link.stage == antecedent_core::CompositionStage::Evidence)
+        chain
+            .links()
+            .iter()
+            .any(|link| link.stage == antecedent_contract::CompositionStage::Evidence)
     );
 }
 

@@ -18,7 +18,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 pub use antecedent_validate::{
     MsmOutcomeLaw, MsmPoint, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmStratum, MsmTipping, MsmTippingDirection, msm_ate_bounds_at, msm_ate_sensitivity,

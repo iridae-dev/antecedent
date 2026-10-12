@@ -3,13 +3,14 @@
 //! Every refusal is asserted by its exact registered code and detail; every
 //! expected value is derived by hand from the declared program below.
 
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalProgramClaim,
     ExternalRefusal, ExternalResponse, ExternalResult, ExternalResultHeader,
-    ExternalScientificObject, ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus,
-    LawProviderContract, ProgramBinding, ProviderObjectIdentity, bind_external_result_to_program,
+    ExternalScientificObject, ExternalTrustState, ExternalUncertaintyMeaning, LawProviderContract,
+    ProgramBinding, ProviderObjectIdentity, bind_external_result_to_program,
     check_external_against_program, dose_label,
 };
+use antecedent_core::IdentificationStatus;
 
 fn binding() -> ProgramBinding {
     ProgramBinding {

@@ -8,8 +8,9 @@ use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent::analysis::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
 };
+use antecedent_contract::{ExternalProgramClaim, ProgramBinding};
 use antecedent_core::recalc::{Branch, Stage, StageStatus};
-use antecedent_core::{ExecutionContext, ExternalProgramClaim, ProgramBinding, VariableId};
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_design::composition_boundary::{SupportPolicy, SupportedVerdict};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,

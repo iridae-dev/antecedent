@@ -22,10 +22,10 @@ use antecedent::{
     AdmissibilityRules, AdmissibleDecisionContract, AtomSupport, BoundDecisionContract,
     IdentifiedVerdict, PreparedTransportScenarios, Study, StudyBuilder,
 };
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
-    QuantityRole, RegimeId, RegimeKind, ScientificQuantity, SearchLimits, SupportStatus, Value,
-    VariableDomain, VariableId,
+    RegimeId, RegimeKind, SearchLimits, SupportStatus, Value, VariableDomain, VariableId,
 };
 use antecedent_design::decision_adapters::ClaimKind;
 use antecedent_design::decision_contract::{

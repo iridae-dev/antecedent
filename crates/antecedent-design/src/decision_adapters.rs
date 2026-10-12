@@ -18,7 +18,8 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{ExternalRefusal, IdentifiedSet, SupportStatus};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::{IdentifiedSet, SupportStatus};
 
 use crate::decision_contract::{
     AdmissibilityError, AdmissibleDecisionContract, DecisionAction, DecisionContract,

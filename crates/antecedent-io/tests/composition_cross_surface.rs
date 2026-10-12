@@ -19,15 +19,16 @@
 //!
 //! Hand-derived external truth: `E[Y | do(a)] = 1 + 2a` on `a` in `0, 1, 2` is `[1, 3, 5]`.
 
-use antecedent_core::{BoundExternalClaim, BoundTrustLevel};
-use antecedent_core::{
+use antecedent_contract::{BoundExternalClaim, BoundTrustLevel};
+use antecedent_contract::{
     CheckedCausalContract, CompositionStage, DistributionMeaning, ExternalBindingError,
     ExternalCapability, ExternalResponse, ExternalResult, ExternalResultHeader,
     ExternalScientificObject, ExternalTrustState, ExternalUncertaintyMeaning,
-    ExternalVerificationError, IdentificationStatus, LawProviderContract, OBSERVATIONAL_REGIME,
-    ProviderObjectIdentity, QuantityMismatch, QuantityRole, ScientificQuantity, SupportStatus,
-    VerificationProbe, VerificationProbeKind, bind_external_result, verify_external_object,
+    ExternalVerificationError, LawProviderContract, OBSERVATIONAL_REGIME, ProviderObjectIdentity,
+    QuantityMismatch, QuantityRole, ScientificQuantity, VerificationProbe, VerificationProbeKind,
+    bind_external_result, verify_external_object,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,

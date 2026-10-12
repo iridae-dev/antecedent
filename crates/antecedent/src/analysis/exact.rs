@@ -2,10 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{PreparedStudy, StudyBuilder};
+use antecedent_contract::{
+    AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+    ReasoningView, SlotAvailability, SupportSlot,
+};
 use antecedent_core::{
-    AssumptionSlot, AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationSlot,
-    IdentificationStatus, IdentityDomain, NodeRef, ObligationKind, ObligationRecord,
-    ObligationScope, ReasoningView, SlotAvailability, SupportSlot, TheoremScope, VariableId,
+    AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationStatus, IdentityDomain,
+    NodeRef, TheoremScope, VariableId,
 };
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
@@ -621,8 +624,8 @@ impl PreparedStudy<ExactPreparedState> {
     /// Invalid retained identity (never manufactured from editable displays).
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
         preview_transform_report(&self.state.identities, intent, "exact")
     }
     /// Metadata-only replacement preview: a different evidence shape requires preparation.
@@ -695,10 +698,11 @@ impl PreparedStudy<ExactPreparedState> {
 /// names the study kind in the refusal message (`"exact"` / `"statistical"`).
 pub(crate) fn preview_transform_report(
     ids: &ExactStudyIdentities,
-    intent: antecedent_core::TransformIntent,
+    intent: antecedent_contract::TransformIntent,
     handle: &str,
-) -> Result<antecedent_core::TransformationReport, IoError> {
-    use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
+) -> Result<antecedent_contract::TransformationReport, IoError> {
+    use antecedent_contract::{TransformIntent, TransformationReport};
+    use antecedent_core::{IdentityRef, SemanticDigest};
     let inputs = [
         (IdentityDomain::Target, &ids.target),
         (IdentityDomain::Identification, &ids.identification),
@@ -720,7 +724,7 @@ pub(crate) fn preview_transform_report(
     let report = TransformationReport::new(
         intent,
         inputs,
-        antecedent_core::intent_effects(intent).iter().cloned(),
+        antecedent_contract::intent_effects(intent).iter().cloned(),
         Vec::new(),
     );
     Ok(

@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/antecedent-core",
+    "crates/antecedent-contract",
     "crates/antecedent-kernels",
     "crates/antecedent-data",
     "crates/antecedent-graph",
@@ -27,6 +28,7 @@ members = [
 ]
 default-members = [
     "crates/antecedent-core",
+    "crates/antecedent-contract",
     "crates/antecedent-kernels",
     "crates/antecedent-data",
     "crates/antecedent-graph",

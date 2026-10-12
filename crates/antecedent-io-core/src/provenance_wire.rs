@@ -4,7 +4,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ProvenanceGraph, ProvenanceNode};
+use antecedent_contract::{ProvenanceGraph, ProvenanceNode};
+use antecedent_core::AssumptionSet;
 use serde::{Deserialize, Serialize};
 
 use crate::trace::{AssumptionRecordWire, assumptions_to_wire};

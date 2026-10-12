@@ -44,7 +44,7 @@ impl LearnedTrialResult {
     }
     /// Core compiler reasoning; structural premises and estimation assumptions are distinct.
     #[must_use]
-    pub fn reasoning(&self) -> antecedent_core::ReasoningView {
+    pub fn reasoning(&self) -> antecedent_contract::ReasoningView {
         trial_reasoning(self.wire.result.uncertainty_reason.as_deref())
     }
     /// Verified portable consumption without model fitting or resampling.
@@ -56,12 +56,13 @@ impl LearnedTrialResult {
         Ok(Self { wire, identity })
     }
 }
-fn trial_reasoning(unavailable: Option<&str>) -> antecedent_core::ReasoningView {
-    use antecedent_core::{
-        AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
-        IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
-        SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot, UncertaintySource,
+fn trial_reasoning(unavailable: Option<&str>) -> antecedent_contract::ReasoningView {
+    use antecedent_contract::{
+        AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+        ReasoningView, SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot,
+        UncertaintySource,
     };
+    use antecedent_core::{AssumptionSource, AssumptionStatus, IdentificationStatus};
     ReasoningView::new(
         SlotAvailability::Available(IdentificationSlot::identified_singleton(
             IdentificationStatus::NonparametricallyIdentified,
@@ -126,9 +127,10 @@ impl PreparedStudy<LearnedTrialState> {
     /// Scientific identity encoding failure.
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityDomain, IdentityRef, TransformIntent, TransformationReport};
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
+        use antecedent_contract::{TransformIntent, TransformationReport};
+        use antecedent_core::{IdentityDomain, IdentityRef};
         let identity = antecedent_io::identity::digest_wire(
             IdentityDomain::Execution,
             &(
@@ -143,7 +145,7 @@ impl PreparedStudy<LearnedTrialState> {
         let report = TransformationReport::new(
             intent,
             vec![IdentityRef::new(IdentityDomain::Execution, identity)],
-            antecedent_core::intent_effects(intent).iter().cloned(),
+            antecedent_contract::intent_effects(intent).iter().cloned(),
             vec![],
         );
         Ok(
@@ -163,7 +165,7 @@ impl PreparedStudy<LearnedTrialState> {
     }
     /// Metadata-only compiler reasoning.
     #[must_use]
-    pub fn inspect(&self) -> antecedent_core::ReasoningView {
+    pub fn inspect(&self) -> antecedent_contract::ReasoningView {
         trial_reasoning(Some("not_executed"))
     }
     /// Frozen feature schema.

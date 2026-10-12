@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::effect_constancy::EffectConstancyIdentity;
 use antecedent::analysis::effect_constancy_consumers::{ConstancyConsumers, PriorPartitionBinding};
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{contract_from_json, mean_result_to_json};
 use antecedent_io::prior_bank::{
     EstimandFingerprint, PriorCatalog, PriorSourceMeta, PriorSourceRef, TargetDesign,

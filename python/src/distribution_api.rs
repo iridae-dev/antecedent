@@ -1,7 +1,7 @@
 //! Bounded Python bridge for the aligned distribution artifact.
 
 use crate::bridge::{check_declared_len, check_declared_size};
-use antecedent_core::ProviderTrust;
+use antecedent_contract::ProviderTrust;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, DistributionMetadata,
     MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,

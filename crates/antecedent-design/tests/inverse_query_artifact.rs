@@ -15,7 +15,7 @@
 //! the query, the embedded laws and means, and the per-action status table; the consumer
 //! re-evaluates through the same engine and refuses any resealed mutation.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };

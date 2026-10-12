@@ -39,7 +39,7 @@ impl PreparedStudy {
         data: TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
+        self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
         antecedent_estimate::CrossfitNuisanceCache::within_scope(|| self.refresh_scoped(data, ctx))
     }
@@ -501,7 +501,7 @@ impl PreparedStudy {
         data: PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
+        self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
@@ -537,7 +537,7 @@ impl PreparedStudy {
         data: antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
+        self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_multi_env_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::MultiEnv(data);
@@ -615,7 +615,7 @@ impl PreparedStudy {
         data: TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
+        self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = series_input(&self.analysis.data, data);

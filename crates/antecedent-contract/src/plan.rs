@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use crate::ids::VariableId;
+use antecedent_core::ids::VariableId;
 
 /// Data modality classification used by the logical planner.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

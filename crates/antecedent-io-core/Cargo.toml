@@ -18,6 +18,7 @@ workspace = true
 
 [dependencies]
 antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
+antecedent-contract = { version = "2.4.0", path = "../antecedent-contract" }
 antecedent-counterfactual = { version = "2.4.0", path = "../antecedent-counterfactual" }
 antecedent-discovery = { version = "2.4.0", path = "../antecedent-discovery" }
 antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }

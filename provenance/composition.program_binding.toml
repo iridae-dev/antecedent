@@ -26,6 +26,6 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-core/tests/program_binding.rs",
+  "crates/antecedent-contract/tests/program_binding.rs",
   "python/tests/test_program_claims.py",
 ]

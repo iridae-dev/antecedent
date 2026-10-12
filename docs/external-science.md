@@ -1,6 +1,6 @@
 # External scientific object contracts
 
-`antecedent_core::ExternalScientificObject` has five typed variants:
+`antecedent_contract::ExternalScientificObject` has five typed variants:
 
 | Variant | Required declaration |
 | --- | --- |

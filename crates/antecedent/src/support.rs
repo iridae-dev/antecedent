@@ -18,10 +18,8 @@
 //! two-stage front-door cannot inherit a license whose calibration never ran
 //! them.
 
-use antecedent_core::{
-    CausalQuery, DerivativeScale, LicensedNeighbor, PremiseChange, ResponseFunctional,
-    TemporalPolicy,
-};
+use antecedent_contract::{LicensedNeighbor, PremiseChange};
+use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
 use antecedent_graph::{
     Admg, Cpdag, Dag, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
