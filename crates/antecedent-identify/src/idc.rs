@@ -152,7 +152,9 @@ impl IdcIdentifier {
         let mut perf = IdentificationPerformanceRecord::default();
 
         let problem = IdcProblem { id: &self.inner, prepared, known_values: &known_values };
-        let expr_result = idc_recurse(&problem, &y, &x, &z, workspace, &mut derivation, &mut perf)?;
+        let surgical = mutilate_bar_x(prepared.admg(), &x)?;
+        let expr_result =
+            idc_recurse(&problem, &y, &x, &z, &surgical, workspace, &mut derivation, &mut perf)?;
 
         match expr_result {
             IdcOk::Identified { functional, arena } => {
@@ -208,6 +210,7 @@ fn idc_recurse(
     y: &BitSet,
     x: &BitSet,
     z: &BitSet,
+    surgical: &Admg,
     workspace: &mut IdentificationWorkspace,
     derivation: &mut DerivationTrace,
     perf: &mut IdentificationPerformanceRecord,
@@ -215,20 +218,31 @@ fn idc_recurse(
     let IdcProblem { id, prepared, known_values } = *problem;
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
 
-    // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}
+    // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}.
+    // `surgical` is G_{\bar X}. A candidate whose node has no outgoing edge in that
+    // graph is already G_{\bar X \underline Z}; the others drop that one node's
+    // outgoing edges. Both match rebuilding the surgical graph for the candidate.
     for z_node in z.iter() {
         let mut z_rest = z.clone();
         z_rest.remove(z_node);
         let mut cond = x.clone();
         cond.union_with(&z_rest);
-        if independent_in_mutilated(prepared.admg(), y, z_node, &cond, x, &mut workspace.dsep)? {
+        let candidate;
+        let graph = if surgical.children(z_node).is_empty() {
+            surgical
+        } else {
+            candidate = drop_outgoing_from(surgical, z_node)?;
+            &candidate
+        };
+        if y_separated_from(graph, y, z_node, &cond, &mut workspace.dsep)? {
             derivation.push(
                 "general.idc.line1",
                 format!("insert Z={} into intervention (rule 2)", z_node.raw()),
             );
             let mut x2 = x.clone();
             x2.insert(z_node);
-            return idc_recurse(problem, y, &x2, &z_rest, workspace, derivation, perf);
+            let surgical = mutilate_bar_x(prepared.admg(), &x2)?;
+            return idc_recurse(problem, y, &x2, &z_rest, &surgical, workspace, derivation, perf);
         }
     }
 
@@ -286,6 +300,7 @@ fn intern_bitset_vars(
 }
 
 /// Y ⊥ `z_node` | cond in `G_{\overline{x_nodes} \underline{z_node}}`.
+#[cfg(test)]
 fn independent_in_mutilated(
     admg: &Admg,
     y: &BitSet,
@@ -294,9 +309,24 @@ fn independent_in_mutilated(
     x_nodes: &BitSet,
     dsep: &mut DSeparationWorkspace,
 ) -> Result<bool, IdentificationError> {
-    let mut z_nodes = BitSet::with_len(admg.node_count());
-    z_nodes.insert(z_node);
-    let mutilated = mutilate_bar_x_underline_z(admg, x_nodes, &z_nodes)?;
+    let surgical = mutilate_bar_x(admg, x_nodes)?;
+    let candidate;
+    let graph = if surgical.children(z_node).is_empty() {
+        &surgical
+    } else {
+        candidate = drop_outgoing_from(&surgical, z_node)?;
+        &candidate
+    };
+    y_separated_from(graph, y, z_node, cond, dsep)
+}
+
+fn y_separated_from(
+    mutilated: &Admg,
+    y: &BitSet,
+    z_node: DenseNodeId,
+    cond: &BitSet,
+    dsep: &mut DSeparationWorkspace,
+) -> Result<bool, IdentificationError> {
     let cond_ids = cond.to_dense_ids();
     // Y may be a set — require every y ∈ Y independent of z_node.
     for y_node in y.iter() {
@@ -310,6 +340,28 @@ fn independent_in_mutilated(
     Ok(true)
 }
 
+/// `G_{\bar X}`: drop edges into `X` and latent arrows at `X`.
+fn mutilate_bar_x(admg: &Admg, x_nodes: &BitSet) -> Result<Admg, IdentificationError> {
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::Preserve,
+        |_from, to| !x_nodes.contains(to),
+        |a, b| !x_nodes.contains(a) && !x_nodes.contains(b),
+    )
+    .map_err(IdentificationError::from)
+}
+
+/// `G_{\underline{z}}` of a graph that is already `G_{\bar X}`.
+fn drop_outgoing_from(admg: &Admg, z_node: DenseNodeId) -> Result<Admg, IdentificationError> {
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::Preserve,
+        |from, _to| from != z_node,
+        |_, _| true,
+    )
+    .map_err(IdentificationError::from)
+}
+
+/// The graph IDC line 1 separates in, rebuilt in one pass.
+#[cfg(test)]
 fn mutilate_bar_x_underline_z(
     admg: &Admg,
     x_nodes: &BitSet,
@@ -505,5 +557,41 @@ mod tests {
                 .any(|r| matches!(r.assumption, antecedent_core::Assumption::CausalMarkov)),
             "IDC must record the Causal Markov assumption it relies on"
         );
+    }
+
+    #[test]
+    fn surgical_candidate_matches_rebuilding_it() {
+        // 0 -> 1 -> 2, 0 -> 2, and 1 <-> 2. X = {1}. Z candidates are 0 (has an
+        // outgoing edge in G_bar_X) and 2 (does not).
+        let mut graph = Admg::with_variables(3);
+        for (from, to) in [(0, 1), (1, 2), (0, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        graph.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let mut x = BitSet::with_len(3);
+        x.insert(DenseNodeId::from_raw(1));
+        let base = mutilate_bar_x(&graph, &x).unwrap();
+        for z_raw in [0_u32, 2] {
+            let z_node = DenseNodeId::from_raw(z_raw);
+            let mut z_nodes = BitSet::with_len(3);
+            z_nodes.insert(z_node);
+            let rebuilt = mutilate_bar_x_underline_z(&graph, &x, &z_nodes).unwrap();
+            let owned;
+            let candidate = if base.children(z_node).is_empty() {
+                &base
+            } else {
+                owned = drop_outgoing_from(&base, z_node).unwrap();
+                &owned
+            };
+            assert_eq!(candidate, &rebuilt, "z={z_raw}");
+            let mut ws = DSeparationWorkspace::default();
+            let y = DenseNodeId::from_raw(2);
+            let cond = [DenseNodeId::from_raw(1)];
+            assert_eq!(
+                candidate.is_m_separated(y, z_node, &cond, &mut ws).unwrap(),
+                rebuilt.is_m_separated(y, z_node, &cond, &mut ws).unwrap(),
+                "z={z_raw}"
+            );
+        }
     }
 }
