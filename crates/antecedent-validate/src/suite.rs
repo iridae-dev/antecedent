@@ -181,11 +181,123 @@ pub enum ValidationOutcome {
     },
 }
 
-/// Ordered suite of validators .
+/// A built-in validator with caller-chosen settings.
+///
+/// [`ValidationSuite::with`] runs that arm from its `::new()` default (Bayesian
+/// arms from `for_estimator`). [`ValidationSuite::with_configured`] runs this
+/// value instead, and appends the arm when the suite does not already list it.
+#[derive(Clone, Debug)]
+pub enum ConfiguredValidator {
+    /// Placebo treatment.
+    Placebo(PlaceboTreatment),
+    /// Random common cause.
+    RandomCommonCause(RandomCommonCause),
+    /// Bootstrap CI coverage.
+    Bootstrap(BootstrapRefute),
+    /// Unobserved common cause.
+    UnobservedCommonCause(UnobservedCommonCause),
+    /// Overlap / positivity.
+    Overlap(OverlapRefuter),
+    /// Overlap-rule / trimming.
+    OverlapRule(OverlapRuleRefuter),
+    /// Data subset.
+    DataSubset(DataSubsetRefuter),
+    /// Dummy outcome.
+    DummyOutcome(DummyOutcome),
+    /// E-value.
+    EValue(EValue),
+    /// Leave-one-out adjustment set.
+    Graph(GraphRefuter),
+    /// Linear sensitivity.
+    LinearSensitivity(LinearSensitivity),
+    /// Partial-linear sensitivity.
+    PartialLinearSensitivity(PartialLinearSensitivity),
+    /// Nonparametric sensitivity.
+    NonparametricSensitivity(NonparametricSensitivity),
+    /// Riesz-representer sensitivity.
+    Riesz(RieszSensitivity),
+    /// Prior predictive check. Replaces `for_estimator`, including family and seed.
+    PriorPredictive(PriorPredictiveCheck),
+    /// Posterior predictive check. Replaces `for_estimator`, including family and seed.
+    PosteriorPredictive(PosteriorPredictiveCheck),
+    /// Prior-sensitivity grid. Replaces `for_estimator`.
+    PriorSensitivity(PriorSensitivity),
+}
+
+impl ConfiguredValidator {
+    fn id(&self) -> ValidatorId {
+        match self {
+            Self::Placebo(_) => ValidatorId::Placebo,
+            Self::RandomCommonCause(_) => ValidatorId::RandomCommonCause,
+            Self::Bootstrap(_) => ValidatorId::Bootstrap,
+            Self::UnobservedCommonCause(_) => ValidatorId::UnobservedCommonCause,
+            Self::Overlap(_) => ValidatorId::Overlap,
+            Self::OverlapRule(_) => ValidatorId::OverlapRule,
+            Self::DataSubset(_) => ValidatorId::DataSubset,
+            Self::DummyOutcome(_) => ValidatorId::DummyOutcome,
+            Self::EValue(_) => ValidatorId::EValue,
+            Self::Graph(_) => ValidatorId::Graph,
+            Self::LinearSensitivity(_) => ValidatorId::LinearSensitivity,
+            Self::PartialLinearSensitivity(_) => ValidatorId::PartialLinearSensitivity,
+            Self::NonparametricSensitivity(_) => ValidatorId::NonparametricSensitivity,
+            Self::Riesz(_) => ValidatorId::Riesz,
+            Self::PriorPredictive(_) => ValidatorId::PriorPredictive,
+            Self::PosteriorPredictive(_) => ValidatorId::PosteriorPredictive,
+            Self::PriorSensitivity(_) => ValidatorId::PriorSensitivity,
+        }
+    }
+
+    fn store(self, arms: &mut SuiteArms) {
+        match self {
+            Self::Placebo(v) => arms.placebo = Some(v),
+            Self::RandomCommonCause(v) => arms.random_common_cause = Some(v),
+            Self::Bootstrap(v) => arms.bootstrap = Some(v),
+            Self::UnobservedCommonCause(v) => arms.unobserved_common_cause = Some(v),
+            Self::Overlap(v) => arms.overlap = Some(v),
+            Self::OverlapRule(v) => arms.overlap_rule = Some(v),
+            Self::DataSubset(v) => arms.data_subset = Some(v),
+            Self::DummyOutcome(v) => arms.dummy_outcome = Some(v),
+            Self::EValue(v) => arms.evalue = Some(v),
+            Self::Graph(v) => arms.graph = Some(v),
+            Self::LinearSensitivity(v) => arms.linear = Some(v),
+            Self::PartialLinearSensitivity(v) => arms.partial = Some(v),
+            Self::NonparametricSensitivity(v) => arms.nonparametric = Some(v),
+            Self::Riesz(v) => arms.riesz = Some(v),
+            Self::PriorPredictive(v) => arms.prior_predictive = Some(v),
+            Self::PosteriorPredictive(v) => arms.posterior_predictive = Some(v),
+            Self::PriorSensitivity(v) => arms.prior_sensitivity = Some(v),
+        }
+    }
+}
+
+/// Caller-supplied replacements for the `::new()` / `for_estimator` suite arms.
+#[derive(Clone, Debug, Default)]
+struct SuiteArms {
+    placebo: Option<PlaceboTreatment>,
+    random_common_cause: Option<RandomCommonCause>,
+    bootstrap: Option<BootstrapRefute>,
+    unobserved_common_cause: Option<UnobservedCommonCause>,
+    overlap: Option<OverlapRefuter>,
+    overlap_rule: Option<OverlapRuleRefuter>,
+    data_subset: Option<DataSubsetRefuter>,
+    dummy_outcome: Option<DummyOutcome>,
+    evalue: Option<EValue>,
+    graph: Option<GraphRefuter>,
+    linear: Option<LinearSensitivity>,
+    partial: Option<PartialLinearSensitivity>,
+    nonparametric: Option<NonparametricSensitivity>,
+    riesz: Option<RieszSensitivity>,
+    prior_predictive: Option<PriorPredictiveCheck>,
+    posterior_predictive: Option<PosteriorPredictiveCheck>,
+    prior_sensitivity: Option<PriorSensitivity>,
+}
+
+/// Ordered suite of validators.
 #[derive(Clone, Default)]
 pub struct ValidationSuite {
     validators: Vec<ValidatorId>,
     custom: Vec<Arc<dyn CustomEffectValidator>>,
+    arms: SuiteArms,
 }
 
 impl std::fmt::Debug for ValidationSuite {
@@ -193,6 +305,7 @@ impl std::fmt::Debug for ValidationSuite {
         f.debug_struct("ValidationSuite")
             .field("validators", &self.validators)
             .field("custom", &self.custom.len())
+            .field("configured", &self.arms)
             .finish()
     }
 }
@@ -208,6 +321,21 @@ impl ValidationSuite {
     #[must_use]
     pub fn with(mut self, id: ValidatorId) -> Self {
         self.validators.push(id);
+        self
+    }
+
+    /// Run `validator` in place of that arm's `::new()` or `for_estimator` default.
+    ///
+    /// Appends the arm when [`Self::with`] has not already listed it. A later call
+    /// for the same arm replaces the stored value. [`Self::with`] still appends a
+    /// duplicate id, and every copy of that id uses this value.
+    #[must_use]
+    pub fn with_configured(mut self, validator: ConfiguredValidator) -> Self {
+        let id = validator.id();
+        if !self.validators.contains(&id) {
+            self.validators.push(id);
+        }
+        validator.store(&mut self.arms);
         self
     }
 
@@ -304,7 +432,7 @@ impl ValidationSuite {
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
-            out.push(computation_outcome(id, Self::run_one(id, problem, workspace, ctx))?);
+            out.push(computation_outcome(id, self.run_one(id, problem, workspace, ctx))?);
         }
         out.extend(run_custom(&self.custom, |custom| custom.validate(problem, ctx))?);
         Ok(out)
@@ -331,25 +459,27 @@ impl ValidationSuite {
             // `NotApplicable` outcomes as the plain `run` path for these validators.
             let outcome = (|| -> Result<ValidationOutcome, ValidationError> {
                 Ok(match id {
-                    ValidatorId::Overlap if problem.temporal.is_none() => overlap_as_outcome(
-                        crate::overlap::OverlapRefuter::new()
-                            .refute_with_propensity(problem, propensity),
-                    )?,
+                    ValidatorId::Overlap if problem.temporal.is_none() => {
+                        let default = OverlapRefuter::new();
+                        let overlap = self.arms.overlap.as_ref().unwrap_or(&default);
+                        overlap_as_outcome(overlap.refute_with_propensity(problem, propensity))?
+                    }
                     ValidatorId::OverlapRule if problem.temporal.is_none() => {
-                        ValidationOutcome::Report(
-                            OverlapRuleRefuter::new()
-                                .refute_with_propensity(problem, propensity)?,
-                        )
+                        let default = OverlapRuleRefuter::new();
+                        let rule = self.arms.overlap_rule.as_ref().unwrap_or(&default);
+                        ValidationOutcome::Report(rule.refute_with_propensity(problem, propensity)?)
                     }
                     ValidatorId::Riesz
                         if problem.temporal.is_none()
                             && crate::common::binary_treatment(problem)? =>
                     {
+                        let default = RieszSensitivity::new();
+                        let riesz = self.arms.riesz.as_ref().unwrap_or(&default);
                         ValidationOutcome::Report(
-                            RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
+                            riesz.refute_with_propensity(problem, propensity)?,
                         )
                     }
-                    _ => Self::run_one(id, problem, workspace, ctx)?,
+                    _ => self.run_one(id, problem, workspace, ctx)?,
                 })
             })();
             out.push(computation_outcome(id, outcome)?);
@@ -421,12 +551,13 @@ impl ValidationSuite {
         }
         let mut out = Vec::with_capacity(self.validators.len());
         for &id in &self.validators {
-            out.push(computation_outcome(id, Self::run_one_bayesian(id, bayes, ctx))?);
+            out.push(computation_outcome(id, self.run_one_bayesian(id, bayes, ctx))?);
         }
         Ok(out)
     }
 
     fn run_one(
+        &self,
         id: ValidatorId,
         problem: &RefutationProblem<'_>,
         workspace: &mut EstimationWorkspace,
@@ -455,7 +586,7 @@ impl ValidationSuite {
         if let Some(reason) = (entry.gate)(problem)? {
             return Ok(na(id, reason));
         }
-        let report = (entry.run)(problem, workspace, ctx);
+        let report = self.execute(id, problem, workspace, ctx);
         if entry.overlap_failures_are_outcomes {
             overlap_as_outcome(report)
         } else {
@@ -464,13 +595,15 @@ impl ValidationSuite {
     }
 
     fn run_one_bayesian(
+        &self,
         id: ValidatorId,
         bayes: &mut BayesianSuiteContext<'_>,
         ctx: &ExecutionContext,
     ) -> Result<ValidationOutcome, ValidationError> {
         match id {
             ValidatorId::PriorPredictive => {
-                let check = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                let default = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                let check = self.arms.prior_predictive.as_ref().unwrap_or(&default);
                 let prior = bayes.estimator.prior_in_force(bayes.prepared.design.ncols);
                 let rep = check.check_with_prior(bayes.prepared, &prior, ctx)?;
                 Ok(ValidationOutcome::Report(
@@ -478,7 +611,8 @@ impl ValidationSuite {
                 ))
             }
             ValidatorId::PosteriorPredictive => {
-                let check = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                let default = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                let check = self.arms.posterior_predictive.as_ref().unwrap_or(&default);
                 let rep = check.check_with_context(bayes.prepared, bayes.posterior, ctx)?;
                 Ok(ValidationOutcome::Report(
                     rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),
@@ -487,7 +621,9 @@ impl ValidationSuite {
             ValidatorId::PriorSensitivity => {
                 // The grid perturbs the prior the estimator fits with (a supplied or transferred
                 // prior gets its variance-multiplier grid, none the isotropic scale grid).
-                let sens = PriorSensitivity::for_estimator(bayes.estimator);
+                // A configured grid replaces that choice, including which axis it perturbs.
+                let default = PriorSensitivity::for_estimator(bayes.estimator);
+                let sens = self.arms.prior_sensitivity.as_ref().unwrap_or(&default);
                 let (summary, _posts) = sens.evaluate_in_force(
                     bayes.estimator,
                     bayes.prepared,
@@ -512,6 +648,139 @@ impl ValidationSuite {
         }
     }
 
+    fn execute(
+        &self,
+        id: ValidatorId,
+        problem: &RefutationProblem<'_>,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError> {
+        match id {
+            ValidatorId::Placebo => {
+                let default = PlaceboTreatment::new();
+                run_validator(
+                    self.arms.placebo.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::RandomCommonCause => {
+                let default = RandomCommonCause::new();
+                run_validator(
+                    self.arms.random_common_cause.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::Bootstrap => {
+                let default = BootstrapRefute::new();
+                run_validator(
+                    self.arms.bootstrap.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::UnobservedCommonCause => {
+                let default = UnobservedCommonCause::new();
+                run_validator(
+                    self.arms.unobserved_common_cause.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::Overlap => {
+                let default = OverlapRefuter::new();
+                run_validator(
+                    self.arms.overlap.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::OverlapRule => {
+                let default = OverlapRuleRefuter::new();
+                run_validator(
+                    self.arms.overlap_rule.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::DataSubset => {
+                let default = DataSubsetRefuter::new();
+                run_validator(
+                    self.arms.data_subset.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::DummyOutcome => {
+                let default = DummyOutcome::new();
+                run_validator(
+                    self.arms.dummy_outcome.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::EValue => {
+                let default = EValue::new();
+                run_validator(
+                    self.arms.evalue.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::Graph => {
+                let default = GraphRefuter::new();
+                run_validator(self.arms.graph.as_ref().unwrap_or(&default), problem, workspace, ctx)
+            }
+            ValidatorId::LinearSensitivity => {
+                let default = LinearSensitivity::new();
+                run_validator(
+                    self.arms.linear.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::PartialLinearSensitivity => {
+                let default = PartialLinearSensitivity::new();
+                run_validator(
+                    self.arms.partial.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::NonparametricSensitivity => {
+                let default = NonparametricSensitivity::new();
+                run_validator(
+                    self.arms.nonparametric.as_ref().unwrap_or(&default),
+                    problem,
+                    workspace,
+                    ctx,
+                )
+            }
+            ValidatorId::Riesz => {
+                let default = RieszSensitivity::new();
+                run_validator(self.arms.riesz.as_ref().unwrap_or(&default), problem, workspace, ctx)
+            }
+            ValidatorId::PriorPredictive
+            | ValidatorId::PosteriorPredictive
+            | ValidatorId::PriorSensitivity
+            | ValidatorId::McmcDiagnostics => Err(ValidationError::NotApplicable {
+                message: "Bayesian PPC/prior-sensitivity/MCMC diagnostics require ValidationSuite::run_bayesian with a fitted posterior",
+            }),
+        }
+    }
+
     /// Prior predictive check only (cheap; no fitted posterior required beyond prepare).
     #[must_use]
     pub fn prior_predictive() -> Self {
@@ -519,16 +788,12 @@ impl ValidationSuite {
     }
 }
 
-/// One built-in suite arm: a gate, a default `::new()` runner, and whether a
-/// propensity failure is an outcome rather than a suite abort.
+/// One built-in suite arm: a gate, and whether a propensity failure is an
+/// outcome rather than a suite abort. The runner is [`ValidationSuite::execute`],
+/// which uses a configured arm or that arm's `::new()` default.
 struct SuiteEntry {
     id: ValidatorId,
     gate: fn(&RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError>,
-    run: fn(
-        &RefutationProblem<'_>,
-        &mut EstimationWorkspace,
-        &ExecutionContext,
-    ) -> Result<RefutationReport, ValidationError>,
     overlap_failures_are_outcomes: bool,
 }
 
@@ -573,105 +838,6 @@ fn gate_not_temporal(
     reason: &'static str,
 ) -> Result<Option<&'static str>, ValidationError> {
     Ok(problem.temporal.is_some().then_some(reason))
-}
-
-fn run_placebo(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&PlaceboTreatment::new(), problem, workspace, ctx)
-}
-fn run_rcc(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&RandomCommonCause::new(), problem, workspace, ctx)
-}
-fn run_bootstrap(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&BootstrapRefute::new(), problem, workspace, ctx)
-}
-fn run_ucc(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&UnobservedCommonCause::new(), problem, workspace, ctx)
-}
-fn run_overlap(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&OverlapRefuter::new(), problem, workspace, ctx)
-}
-fn run_overlap_rule(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&OverlapRuleRefuter::new(), problem, workspace, ctx)
-}
-fn run_subset(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&DataSubsetRefuter::new(), problem, workspace, ctx)
-}
-fn run_dummy(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&DummyOutcome::new(), problem, workspace, ctx)
-}
-fn run_evalue(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&EValue::new(), problem, workspace, ctx)
-}
-fn run_graph(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&GraphRefuter::new(), problem, workspace, ctx)
-}
-fn run_linear(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&LinearSensitivity::new(), problem, workspace, ctx)
-}
-fn run_partial(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&PartialLinearSensitivity::new(), problem, workspace, ctx)
-}
-fn run_nonparametric(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&NonparametricSensitivity::new(), problem, workspace, ctx)
-}
-fn run_riesz(
-    problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<RefutationReport, ValidationError> {
-    run_validator(&RieszSensitivity::new(), problem, workspace, ctx)
 }
 
 fn gate_placebo(problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
@@ -766,87 +932,61 @@ const ENTRIES: &[SuiteEntry] = &[
     SuiteEntry {
         id: ValidatorId::Placebo,
         gate: gate_placebo,
-        run: run_placebo,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::RandomCommonCause,
         gate: gate_rcc,
-        run: run_rcc,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::Bootstrap,
         gate: gate_bootstrap,
-        run: run_bootstrap,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::UnobservedCommonCause,
         gate: gate_ucc,
-        run: run_ucc,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::Overlap,
         gate: gate_overlap,
-        run: run_overlap,
         overlap_failures_are_outcomes: true,
     },
     SuiteEntry {
         id: ValidatorId::OverlapRule,
         gate: gate_overlap_rule,
-        run: run_overlap_rule,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::DataSubset,
         gate: gate_subset,
-        run: run_subset,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::DummyOutcome,
         gate: gate_dummy,
-        run: run_dummy,
         overlap_failures_are_outcomes: false,
     },
-    SuiteEntry {
-        id: ValidatorId::EValue,
-        gate: allow,
-        run: run_evalue,
-        overlap_failures_are_outcomes: false,
-    },
-    SuiteEntry {
-        id: ValidatorId::Graph,
-        gate: gate_graph,
-        run: run_graph,
-        overlap_failures_are_outcomes: false,
-    },
+    SuiteEntry { id: ValidatorId::EValue, gate: allow, overlap_failures_are_outcomes: false },
+    SuiteEntry { id: ValidatorId::Graph, gate: gate_graph, overlap_failures_are_outcomes: false },
     SuiteEntry {
         id: ValidatorId::LinearSensitivity,
         gate: gate_linear_sens,
-        run: run_linear,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::PartialLinearSensitivity,
         gate: gate_partial,
-        run: run_partial,
         overlap_failures_are_outcomes: false,
     },
     SuiteEntry {
         id: ValidatorId::NonparametricSensitivity,
         gate: allow,
-        run: run_nonparametric,
         overlap_failures_are_outcomes: false,
     },
-    SuiteEntry {
-        id: ValidatorId::Riesz,
-        gate: gate_riesz,
-        run: run_riesz,
-        overlap_failures_are_outcomes: false,
-    },
+    SuiteEntry { id: ValidatorId::Riesz, gate: gate_riesz, overlap_failures_are_outcomes: false },
 ];
 
 fn run_custom(
@@ -966,6 +1106,7 @@ mod tests {
 
     use super::*;
     use crate::common::RefutationProblem;
+    use crate::placebo::PlaceboTreatment;
 
     fn toy() -> (TabularData, IdentifiedEstimand) {
         let n = 120usize;
@@ -1184,6 +1325,41 @@ mod tests {
             ValidatorId::Riesz,
         ] {
             assert!(ids.contains(&required), "falsification_effect must keep {required:?}");
+        }
+    }
+
+    #[test]
+    fn configured_placebo_replaces_the_default_replicate_count() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let original =
+            EffectEstimate::new(0.0, 1.0, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = EstimationWorkspace::default();
+        let placebo = PlaceboTreatment { replicates: 1, ..PlaceboTreatment::new() };
+        let outcomes = ValidationSuite::new()
+            .with_configured(ConfiguredValidator::Placebo(placebo))
+            .run(&problem, &mut ws, &ctx)
+            .unwrap();
+        assert_eq!(outcomes.len(), 1);
+        match &outcomes[0] {
+            ValidationOutcome::NotApplicable { validator, reason } => {
+                assert_eq!(*validator, ValidatorId::Placebo);
+                assert!(
+                    reason.contains("replicates >= 2"),
+                    "configured replicate count was ignored: {reason}"
+                );
+            }
+            other => panic!("expected the configured bound, got {other:?}"),
         }
     }
 }

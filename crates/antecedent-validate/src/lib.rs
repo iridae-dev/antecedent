@@ -88,7 +88,9 @@ pub use stability::{
     NullTransform, OrientationStability, OrientationStabilityReport, RegimeStability,
     RegimeStabilityReport, SyntheticNullCalibration, UndirectedLinkStability,
 };
-pub use suite::{BayesianSuiteContext, ValidationOutcome, ValidationSuite, ValidatorId};
+pub use suite::{
+    BayesianSuiteContext, ConfiguredValidator, ValidationOutcome, ValidationSuite, ValidatorId,
+};
 pub use unobserved_common_cause::UnobservedCommonCause;
 pub use validator::{PreparedRefutation, Validator};
 
