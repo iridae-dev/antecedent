@@ -2576,6 +2576,7 @@ mod tests {
         });
         let s1 = observation_reliability(&one);
         let s2 = observation_reliability(&two);
+        let candidates = [one, two];
         let eval = DesignEvaluationContext::<(), ()> {
             graphs: &graphs,
             effect_width: None,
@@ -2586,20 +2587,52 @@ mod tests {
             identified_under_intervention: None,
             graph_features: None,
         };
-        let ranking = DesignRanker::new()
-            .with_config(DesignRankConfig {
-                min_batches: 4,
-                max_batches: 4,
-                batch_size: 8,
-                rank_uncertainty_threshold: 0.0,
-            })
+        let ranker = DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 4,
+            max_batches: 4,
+            batch_size: 8,
+            rank_uncertainty_threshold: 0.0,
+        });
+        let ctx = ExecutionContext::for_tests(3);
+        let ranking = ranker
             .rank(
                 &DesignObjective::DistinguishModels { models: Arc::from([m0, m1]) },
-                &[one, two],
+                &candidates,
                 &eval,
-                &ExecutionContext::for_tests(3),
+                &ctx,
             )
             .expect("rank");
+        let mut parallel_ctx = ExecutionContext::for_tests(3);
+        parallel_ctx.parallelism = antecedent_core::Parallelism::bounded(
+            antecedent_core::NonZeroThreadCount::new(4).unwrap(),
+        );
+        let parallel = ranker
+            .rank(
+                &DesignObjective::DistinguishModels { models: Arc::from([m0, m1]) },
+                &candidates,
+                &eval,
+                &parallel_ctx,
+            )
+            .expect("parallel rank");
+        let summary = |result: &ScoredDesignRanking| {
+            result
+                .ranked
+                .iter()
+                .map(|row| {
+                    (
+                        row.candidate_index,
+                        row.score.to_bits(),
+                        row.monte_carlo.stderr.to_bits(),
+                        row.monte_carlo.samples,
+                        row.rank,
+                        row.rank_uncertain,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(summary(&ranking), summary(&parallel));
+        assert_eq!(ranking.budget, parallel.budget);
+        assert_eq!(ranking.early_stopped, parallel.early_stopped);
         let score = |i: usize| {
             ranking.ranked.iter().find(|r| r.candidate_index == i).expect("ranked").score
         };

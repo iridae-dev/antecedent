@@ -230,19 +230,15 @@ fn candidate_directed_list(n: usize, undirected: Option<&[(u32, u32)]>) -> Vec<(
     out
 }
 
-/// Hastings factor `q(old|new) / q(new|old)` of one structure move.
+/// Hastings factor `q(old|new) / q(new|old)` for the symmetric directed-pair proposal.
 ///
-/// Add selects a directed pair and always inserts it (`q = 1/|pairs|`); the reverse delete
-/// succeeds on only half of the selections of that pair. Delete is the reciprocal. Reverse
-/// is symmetric when both directions are candidates. The sampler does **not** multiply by
-/// this factor (it uses 1), so these values describe the kernel, not the chain that runs.
+/// The candidate list contains both orientations of every pair. An add has probability
+/// `1/|pairs|`; its reverse delete has the same total probability because either orientation
+/// can select the existing edge and each takes the delete branch with probability 1/2.
+/// Reversals are symmetric too, so every valid structure move has ratio 1.
 #[must_use]
-pub(crate) fn structure_kernel_ratio(move_kind: StructureMove) -> f64 {
-    match move_kind {
-        StructureMove::Add => 0.5,
-        StructureMove::Delete => 2.0,
-        StructureMove::Reverse => 1.0,
-    }
+pub(crate) fn structure_kernel_ratio(_move_kind: StructureMove) -> f64 {
+    1.0
 }
 
 /// Which edit [`propose_structure`] attempted.
@@ -277,8 +273,7 @@ impl MaskChain for StructureWalker<'_> {
     }
 
     fn accept_policy(&self) -> MaskAccept {
-        // `propose_structure` still returns the kernel ratio. This policy does not
-        // read it, so add/delete keep Hastings factor 1.
+        // Every valid move has Hastings factor 1 for the symmetric directed-pair list.
         MaskAccept::FiniteOnly
     }
 
@@ -321,9 +316,7 @@ impl MaskChain for StructureWalker<'_> {
 }
 
 /// Propose add/delete/reverse; returns `(new_mask, kernel Hastings ratio, rejected)`.
-///
-/// `rejected` counts a proposal that is not a DAG. The ratio is [`structure_kernel_ratio`];
-/// the chain applies 1 instead, so seeds keep their historical graphs.
+/// `rejected` counts a proposal that is not a DAG.
 fn propose_structure(
     mask: u64,
     n: usize,
@@ -334,10 +327,22 @@ fn propose_structure(
         return (mask, 1.0, 0);
     }
     let idx = crate::indexing::bounded_index(rng.next_u64(), pairs.len());
+    let u = rng.next_f64();
+    propose_structure_at(mask, n, pairs, idx, u)
+}
+
+/// Apply a selected candidate and branch draw. Kept separate so the finite proposal
+/// kernel can be exhaustively checked on a two-node state space.
+fn propose_structure_at(
+    mask: u64,
+    n: usize,
+    pairs: &[(usize, usize)],
+    idx: usize,
+    u: f64,
+) -> (u64, f64, u64) {
     let (i, j) = pairs[idx];
     let forward = has_edge(mask, n, i, j);
     let backward = has_edge(mask, n, j, i);
-    let u = rng.next_f64();
     if !forward && !backward {
         let prop = set_edge(mask, n, i, j, true);
         let ratio = structure_kernel_ratio(StructureMove::Add);
@@ -456,9 +461,29 @@ mod tests {
     }
 
     #[test]
-    fn structure_kernel_ratio_is_not_one_for_add_or_delete() {
-        assert_eq!(structure_kernel_ratio(StructureMove::Add), 0.5);
-        assert_eq!(structure_kernel_ratio(StructureMove::Delete), 2.0);
+    fn structure_kernel_is_detailed_balanced_for_two_nodes() {
+        let pairs = candidate_directed_list(2, None);
+        assert_eq!(pairs, [(0, 1), (1, 0)]);
+        let states = [0, set_edge(0, 2, 0, 1, true), set_edge(0, 2, 1, 0, true)];
+        let mut transition_mass = [[0.0; 3]; 3];
+        // Each directed-pair choice has probability 1/2, and each branch interval
+        // below represents probability 1/2 under the uniform branch draw.
+        for (from, &mask) in states.iter().enumerate() {
+            for idx in 0..pairs.len() {
+                for u in [0.25, 0.75] {
+                    let (next, _, _) = propose_structure_at(mask, 2, &pairs, idx, u);
+                    let to = states.iter().position(|&state| state == next).unwrap();
+                    transition_mass[from][to] += 0.25;
+                }
+            }
+        }
+        for i in 0..states.len() {
+            for j in 0..states.len() {
+                assert_eq!(transition_mass[i][j], transition_mass[j][i]);
+            }
+        }
+        assert_eq!(structure_kernel_ratio(StructureMove::Add), 1.0);
+        assert_eq!(structure_kernel_ratio(StructureMove::Delete), 1.0);
         assert_eq!(structure_kernel_ratio(StructureMove::Reverse), 1.0);
     }
 }

@@ -1076,8 +1076,8 @@ mod tests {
     use super::*;
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec,
-        MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, TemporalPolicy,
-        ToleranceClass, Value, ValueType,
+        MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, StochasticPolicy,
+        TemporalPolicy, ToleranceClass, Value, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
@@ -1304,6 +1304,58 @@ mod tests {
         let m1 = res.streaming_outcome_mean(0, outcome);
         let m0 = res.streaming_outcome_mean(1, outcome);
         assert!((m1 - m0 - 2.0).abs() < 0.15, "E[Y|do(1)]-E[Y|do(0)]={}", m1 - m0);
+    }
+
+    #[test]
+    fn world_streams_are_independent_of_other_world_draws() {
+        let (engine, data) = toy();
+        let ctx = ExecutionContext::for_tests(0xCF_91);
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error, &ctx).unwrap();
+        let mut ws = MechanismWorkspace::default();
+        let treatment = VariableId::from_raw(0);
+        let outcome = DenseNodeId::from_raw(1);
+        let stochastic = Intervention::stochastic(treatment, StochasticPolicy::gaussian(0.0, 1.0));
+        let hard = Intervention::set(treatment, Value::f64(0.0));
+
+        // World 1 uses the same stream in both calls even though world 0 consumes a
+        // different number of draws (the hard intervention consumes none; the stochastic
+        // policy samples a column). World 0 of the second call must also match a standalone
+        // world-0 prediction, preserving the documented one-world stream.
+        let with_hard_first = [
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([hard]) },
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic.clone()]) },
+        ];
+        let with_stochastic_first = [
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic.clone()]) },
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic.clone()]) },
+        ];
+        let first = engine
+            .predict(&exo, &with_hard_first, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
+            .unwrap();
+        let second = engine
+            .predict(&exo, &with_stochastic_first, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
+            .unwrap();
+        let standalone = engine
+            .predict(
+                &exo,
+                &[CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic]) }],
+                &[VariableId::from_raw(1)],
+                false,
+                &mut ws,
+                &ctx,
+            )
+            .unwrap();
+
+        for unit in 0..exo.n_units {
+            assert_eq!(
+                first.get(1, outcome, unit).to_bits(),
+                second.get(1, outcome, unit).to_bits()
+            );
+            assert_eq!(
+                second.get(0, outcome, unit).to_bits(),
+                standalone.get(0, outcome, unit).to_bits()
+            );
+        }
     }
 
     /// Invertible linear SEM with pinned β: mean ITE must recover structural β

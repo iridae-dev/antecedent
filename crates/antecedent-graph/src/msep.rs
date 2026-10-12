@@ -442,6 +442,64 @@ mod tests {
         let bayes_sets = !chain.bayes_m_connected(&sources, &targets, &z, &mut ws);
         assert_eq!(bayes_sets, moral_sets);
     }
+
+    #[test]
+    fn bayes_ball_matches_moral_graph_on_all_four_node_admgs() {
+        // Every four-node DAG has a topological relabeling represented by one of
+        // these 64 forward-edge subsets. Bidirected masks cover all six possible
+        // latent-fork edges. The moral-graph implementation is a separate
+        // ancestral-moralization criterion, so this exhaustively differentially
+        // checks Bayes-ball across every pair and disjoint conditioning set.
+        let directed_edges = [(0_u32, 1_u32), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+        let bidirected_edges = [(0_u32, 1_u32), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+        let id = |raw| DenseNodeId::from_raw(raw);
+        let mut ws = DSeparationWorkspace::default();
+
+        for directed_mask in 0_u32..64 {
+            for bidirected_mask in 0_u32..64 {
+                let mut graph = Admg::with_variables(4);
+                for (bit, &(from, to)) in directed_edges.iter().enumerate() {
+                    if directed_mask & (1_u32 << bit) != 0 {
+                        graph.insert_directed(id(from), id(to)).unwrap();
+                    }
+                }
+                for (bit, &(a, b)) in bidirected_edges.iter().enumerate() {
+                    if bidirected_mask & (1_u32 << bit) != 0 {
+                        graph.insert_bidirected(id(a), id(b)).unwrap();
+                    }
+                }
+
+                for x in 0_u32..4 {
+                    for y in (x + 1)..4 {
+                        let remaining: Vec<_> =
+                            (0_u32..4).filter(|&node| node != x && node != y).collect();
+                        for conditioning_mask in 0_u32..(1_u32 << remaining.len()) {
+                            let conditioning: Vec<_> = remaining
+                                .iter()
+                                .enumerate()
+                                .filter(|(bit, _)| conditioning_mask & (1_u32 << bit) != 0)
+                                .map(|(_, &node)| id(node))
+                                .collect();
+                            let x = id(x);
+                            let y = id(y);
+                            let moral = graph.moral_m_separated(x, y, &conditioning, &mut ws);
+                            let bayes =
+                                !graph.bayes_m_connected(&[x], &[y], &conditioning, &mut ws);
+                            assert_eq!(
+                                bayes,
+                                moral,
+                                "directed={directed_mask:06b} bidirected={bidirected_mask:06b} \
+                                 x={} y={} z={:?}",
+                                x.raw(),
+                                y.raw(),
+                                conditioning.iter().map(|node| node.raw()).collect::<Vec<_>>(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // --- PAG m-separation over the whole equivalence class ---
