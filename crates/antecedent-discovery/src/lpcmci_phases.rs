@@ -382,6 +382,17 @@ struct RemovalPhase<'a> {
     max_p: usize,
 }
 
+/// Accumulators a removal phase writes. Link dedup stays in
+/// [`reconcile_evidence_with_pag`], after every phase has finished.
+struct PhaseWork<'a> {
+    pag: &'a mut TemporalPag,
+    state: &'a mut OrientationState,
+    sepsets: &'a mut PcSepsets,
+    scored: &'a mut Vec<ScoredLink>,
+    workspace: &'a mut DiscoveryWorkspace,
+    ctx: &'a ExecutionContext,
+}
+
 /// One ancestral removal phase (Algorithm S2).
 #[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 #[allow(
@@ -390,14 +401,10 @@ struct RemovalPhase<'a> {
 )]
 fn ancestral_removal_phase(
     phase: RemovalPhase<'_>,
-    pag: &mut TemporalPag,
-    state: &mut OrientationState,
-    sepsets_out: &mut PcSepsets,
-    scored: &mut Vec<ScoredLink>,
-    workspace: &mut DiscoveryWorkspace,
-    ctx: &ExecutionContext,
+    work: &mut PhaseWork<'_>,
 ) -> Result<u64, DiscoveryError> {
     let RemovalPhase { engine, frame, idx, variables, max_p } = phase;
+    let PhaseWork { pag, state, sepsets: sepsets_out, scored, workspace, ctx } = work;
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
@@ -642,13 +649,10 @@ fn ancestral_removal_phase(
 )]
 fn non_ancestral_removal_phase(
     phase: RemovalPhase<'_>,
-    pag: &mut TemporalPag,
-    state: &mut OrientationState,
-    sepsets_out: &mut PcSepsets,
-    workspace: &mut DiscoveryWorkspace,
-    ctx: &ExecutionContext,
+    work: &mut PhaseWork<'_>,
 ) -> Result<u64, DiscoveryError> {
     let RemovalPhase { engine, frame, idx, variables, max_p } = phase;
+    let PhaseWork { pag, state, sepsets: sepsets_out, workspace, ctx, .. } = work;
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
@@ -953,15 +957,17 @@ fn run_lpcmci_on_frame(
         let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
         apply_remembered_parents(&mut pag, &idx, &parents_mem);
         let phase = RemovalPhase { engine, frame, idx: &idx, variables, max_p: max_cond };
-        let t = ancestral_removal_phase(
-            phase,
-            &mut pag,
-            &mut state,
-            &mut sepsets,
-            &mut scored,
-            workspace,
-            ctx,
-        )?;
+        let t = {
+            let mut work = PhaseWork {
+                pag: &mut pag,
+                state: &mut state,
+                sepsets: &mut sepsets,
+                scored: &mut scored,
+                workspace,
+                ctx,
+            };
+            ancestral_removal_phase(phase, &mut work)?
+        };
         ci_tests += t;
         parents_mem = collect_parents(&pag, &idx, variables);
         iterations.push(DiscoveryIteration {
@@ -977,19 +983,31 @@ fn run_lpcmci_on_frame(
     let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
     apply_remembered_parents(&mut pag, &idx, &parents_mem);
     let phase = RemovalPhase { engine, frame, idx: &idx, variables, max_p: max_cond };
-    let t = ancestral_removal_phase(
-        phase,
-        &mut pag,
-        &mut state,
-        &mut sepsets,
-        &mut scored,
-        workspace,
-        ctx,
-    )?;
+    let t = {
+        let mut work = PhaseWork {
+            pag: &mut pag,
+            state: &mut state,
+            sepsets: &mut sepsets,
+            scored: &mut scored,
+            workspace,
+            ctx,
+        };
+        ancestral_removal_phase(phase, &mut work)?
+    };
     ci_tests += t;
     iterations.push(DiscoveryIteration { label: Arc::from("lpcmci.ancestral"), ci_tests: t });
 
-    let t = non_ancestral_removal_phase(phase, &mut pag, &mut state, &mut sepsets, workspace, ctx)?;
+    let t = {
+        let mut work = PhaseWork {
+            pag: &mut pag,
+            state: &mut state,
+            sepsets: &mut sepsets,
+            scored: &mut scored,
+            workspace,
+            ctx,
+        };
+        non_ancestral_removal_phase(phase, &mut work)?
+    };
     ci_tests += t;
     iterations.push(DiscoveryIteration { label: Arc::from("lpcmci.non_ancestral"), ci_tests: t });
 
