@@ -1484,12 +1484,20 @@ expected estimate and uncertainty, assumptions, support label, provenance,
 and an artifact SHA-256 digest. A caller-supplied decoder can check the artifact
 round trip. The host runs every fixture through the ordinary provider runtime,
 checks declared output shape and uncertainty semantics, and replays each
-fixture when the provider declares deterministic behavior. Only after every
-check passes does the registry record a `ProviderVerificationReport` and
-promote that provider. Only requests whose canonical digest matches one of the
-verified fixtures carry `verified_extension`; every other request remains
-`externally_attested`. Verified results carry the evidence digest and origin;
-changing the provider's declared spec invalidates execution. An installed
+fixture when the provider declares deterministic behavior. Fixtures are sugar
+for the one Rust verification mechanism: each becomes an exact request with
+numeric probes (shape, known truth, optional uncertainty, replay) that Rust
+checks and seals into a single `ProviderVerificationReceipt`, the same type
+that verifies a typed `ExternalScientificObject`. Only after every
+check passes does the registry store the receipt and promote that provider.
+Only requests whose canonical digest matches one of the verified fixtures carry
+`verified_extension`; every other request remains `externally_attested`.
+Verified results carry the receipt digest and origin; changing the provider's
+declared spec invalidates execution. The receipt exports
+(`receipt.export()`), reloads only under the digest a consumer retained
+(`ProviderVerificationReceipt.load(data, expected_digest=...)`), and backs a
+composition input through `receipt.trust_evidence()` when the input's provider
+and snapshot are ones the receipt verified. An installed
 entry-point provider can use this route without rebuilding Python or Rust.
 The scientific truth and independence of the reference cases remain the
 caller's responsibility. Verification covers those cases and does not grant
@@ -1507,7 +1515,7 @@ an external estimator or turn a fixture into interval calibration.
 from antecedent.extensibility import ProviderVerificationFixture, providers
 
 providers.load_entry_point("my_provider")
-report = providers.verify(
+receipt = providers.verify(
     "my_provider",
     [ProviderVerificationFixture(
         name="known-effect-1",

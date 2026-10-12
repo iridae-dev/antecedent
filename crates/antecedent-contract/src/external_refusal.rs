@@ -153,6 +153,7 @@ pub fn probe_from_name(name: &str) -> Option<VerificationProbeKind> {
         P::Support,
         P::UpdateCoherence,
         P::Monotonicity,
+        P::Uncertainty,
     ]
     .into_iter()
     .find(|kind| probe_name(*kind) == name)
@@ -170,6 +171,7 @@ pub const fn probe_name(kind: VerificationProbeKind) -> &'static str {
         VerificationProbeKind::Support => "support",
         VerificationProbeKind::UpdateCoherence => "update_coherence",
         VerificationProbeKind::Monotonicity => "monotonicity",
+        VerificationProbeKind::Uncertainty => "uncertainty",
     }
 }
 
@@ -287,6 +289,14 @@ impl ExternalVerificationError {
                 offending: Some(probe_name(*kind).to_owned()),
                 ..refusal(code, "verify", "external_object_verification.failed_probe")
             },
+            Self::Request { index, cause } => {
+                let mut value = cause.to_refusal();
+                value.offending = Some(match value.offending {
+                    Some(inner) => format!("request[{index}].{inner}"),
+                    None => format!("request[{index}]"),
+                });
+                value
+            }
         }
     }
 }

@@ -26,6 +26,7 @@ pub mod plan;
 pub mod program_binding;
 pub mod provenance;
 pub mod provider_trust;
+pub mod provider_verification;
 pub mod quantity;
 pub mod reasoning;
 pub mod response_coordinates;
@@ -55,9 +56,8 @@ pub use external::{
     EvidenceProviderContract, ExternalCapability, ExternalCapabilityRequest, ExternalContractError,
     ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
     ExternalVerificationError, LawProviderContract, NegotiatedExternalOperation,
-    ObjectVerificationReceipt, PosteriorProviderContract, ProviderObjectIdentity,
-    SignalProviderContract, UtilityMonotonicity, UtilityProviderContract, VerificationProbe,
-    VerificationProbeKind, verify_external_object,
+    PosteriorProviderContract, ProviderObjectIdentity, SignalProviderContract, UtilityMonotonicity,
+    UtilityProviderContract, VerificationProbe, VerificationProbeKind,
 };
 pub use external_binding::{
     BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence,
@@ -80,6 +80,10 @@ pub use program_binding::{
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use provider_trust::ProviderTrust;
+pub use provider_verification::{
+    ExecutionContract, ProviderVerificationReceipt, VerificationSubject, VerifiedContractKind,
+    VerifiedRequest, verify_external_object, verify_provider_requests,
+};
 pub use quantity::{
     DistributionMeaning, QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity,
 };

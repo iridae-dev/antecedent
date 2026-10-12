@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use crate::{DistributionMeaning, QuantityRole, ScientificQuantity};
+use crate::{DistributionMeaning, ProviderVerificationReceipt, QuantityRole, ScientificQuantity};
 
 /// Stable identity for one provider object and exact scientific request.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -20,6 +20,16 @@ pub struct ProviderObjectIdentity {
     pub snapshot_id: String,
     /// Exact request fingerprint; a different request needs a new check.
     pub request_id: String,
+}
+
+impl ProviderObjectIdentity {
+    /// Whether every identity field is present (non-blank).
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        [&self.provider_id, &self.object_id, &self.version_id, &self.snapshot_id, &self.request_id]
+            .into_iter()
+            .all(|value| nonblank(value))
+    }
 }
 
 /// Operations a provider may declare independently.
@@ -277,15 +287,7 @@ fn validate_common(
     quantities: &[ScientificQuantity],
     capabilities: &[ExternalCapability],
 ) -> Result<(), ExternalContractError> {
-    if ![
-        &identity.provider_id,
-        &identity.object_id,
-        &identity.version_id,
-        &identity.snapshot_id,
-        &identity.request_id,
-    ]
-    .into_iter()
-    .all(|value| nonblank(value))
+    if !identity.is_complete()
         || quantities.is_empty()
         || quantities.len() > 1_024
         || capabilities.is_empty()
@@ -472,6 +474,8 @@ pub enum VerificationProbeKind {
     UpdateCoherence,
     /// Declared utility monotonicity holds on probed inputs.
     Monotonicity,
+    /// Reported uncertainty against an independently known reference.
+    Uncertainty,
 }
 
 /// One observed value compared with an independent expected value.
@@ -500,36 +504,13 @@ pub enum ExternalVerificationError {
     MissingProbe(VerificationProbeKind),
     /// A probe differed from its expected value by more than its tolerance.
     FailedProbe(VerificationProbeKind),
-}
-
-/// Evidence that one complete contract passed its required probes.
-///
-/// It covers only an object equal in every declared field, including the
-/// exact request; any other contract needs its own verification.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ObjectVerificationReceipt {
-    contract: ExternalScientificObject,
-    probes: Vec<VerificationProbe>,
-}
-
-impl ObjectVerificationReceipt {
-    /// Contract that was verified.
-    #[must_use]
-    pub fn contract(&self) -> &ExternalScientificObject {
-        &self.contract
-    }
-
-    /// Probes that passed.
-    #[must_use]
-    pub fn probes(&self) -> &[VerificationProbe] {
-        &self.probes
-    }
-
-    /// Whether this receipt covers exactly the supplied contract.
-    #[must_use]
-    pub fn covers(&self, object: &ExternalScientificObject) -> bool {
-        &self.contract == object
-    }
+    /// One request of a multi-request verification failed; `index` is its position.
+    Request {
+        /// Position of the failing request in the verified sequence.
+        index: usize,
+        /// Why that request refused.
+        cause: Box<ExternalVerificationError>,
+    },
 }
 
 /// Trust held by a supplied scientific object.
@@ -543,7 +524,7 @@ pub enum ExternalTrustState {
         attestor: String,
     },
     /// The exact contract passed object-level verification.
-    ExactRequestVerified(Box<ObjectVerificationReceipt>),
+    ExactRequestVerified(Box<ProviderVerificationReceipt>),
 }
 
 impl ExternalTrustState {
@@ -574,107 +555,18 @@ impl ExternalTrustState {
     pub fn verifies(&self, object: &ExternalScientificObject) -> bool {
         matches!(self, Self::ExactRequestVerified(receipt) if receipt.covers(object))
     }
-}
 
-fn required_probes(object: &ExternalScientificObject) -> Vec<VerificationProbeKind> {
-    use VerificationProbeKind as P;
-    let has = |op| object.capabilities().contains(&op);
-    let mut required = vec![P::KnownTruth];
-    match object {
-        ExternalScientificObject::Law(_) => {
-            required.extend([P::Shape, P::Support]);
-            if has(ExternalCapability::Cdf)
-                || has(ExternalCapability::Quantile)
-                || has(ExternalCapability::LogProbability)
-            {
-                required.push(P::Normalization);
-            }
-            if has(ExternalCapability::Mean) || has(ExternalCapability::Covariance) {
-                required.push(P::Moments);
-            }
-            if has(ExternalCapability::Sample) {
-                required.push(P::SeededBehavior);
-            }
-        }
-        ExternalScientificObject::Posterior(_) => {
-            required.extend([P::Shape, P::Support]);
-            if has(ExternalCapability::Mean) || has(ExternalCapability::Covariance) {
-                required.push(P::Moments);
-            }
-            if has(ExternalCapability::Sample) {
-                required.push(P::SeededBehavior);
-            }
-        }
-        ExternalScientificObject::Signal(_) => {
-            required.push(P::UpdateCoherence);
-            if has(ExternalCapability::Factor) {
-                required.push(P::Normalization);
-            }
-            if has(ExternalCapability::Sample) {
-                required.push(P::SeededBehavior);
-            }
-        }
-        ExternalScientificObject::Evidence(_) => {
-            required.extend([P::Normalization, P::Support]);
-        }
-        ExternalScientificObject::Utility(value) => {
-            if value.bounds.is_some() {
-                required.push(P::Support);
-            }
-            if value.monotonicity.iter().any(|m| *m != UtilityMonotonicity::Unspecified) {
-                required.push(P::Monotonicity);
-            }
-            if value.stochastic {
-                required.push(P::SeededBehavior);
-            }
-        }
+    /// Whether this state is exact-request verification of an executable provider request.
+    #[must_use]
+    pub fn verifies_execution(&self, execution: &crate::ExecutionContract) -> bool {
+        matches!(self, Self::ExactRequestVerified(receipt) if receipt.covers_execution(execution))
     }
-    required
-}
-
-/// Verify one complete provider contract against independent probe values.
-///
-/// Every property required by the object kind and declared capabilities must
-/// be present once and within its predeclared tolerance. Extra probes of
-/// other kinds are accepted only if they also pass.
-///
-/// # Errors
-/// An invalid contract, ill-formed or duplicate probe, a missing required
-/// property or any out-of-tolerance probe refuses.
-pub fn verify_external_object(
-    object: &ExternalScientificObject,
-    probes: &[VerificationProbe],
-) -> Result<ObjectVerificationReceipt, ExternalVerificationError> {
-    object.validate().map_err(ExternalVerificationError::Contract)?;
-    let mut seen = HashSet::new();
-    for probe in probes {
-        if !probe.observed.is_finite()
-            || !probe.expected.is_finite()
-            || !probe.tolerance.is_finite()
-            || probe.tolerance < 0.0
-        {
-            return Err(ExternalVerificationError::InvalidProbe(probe.kind));
-        }
-        if !seen.insert(probe.kind) {
-            return Err(ExternalVerificationError::DuplicateProbe(probe.kind));
-        }
-    }
-    for kind in required_probes(object) {
-        if !seen.contains(&kind) {
-            return Err(ExternalVerificationError::MissingProbe(kind));
-        }
-    }
-    if let Some(bad) =
-        probes.iter().find(|probe| (probe.observed - probe.expected).abs() > probe.tolerance)
-    {
-        return Err(ExternalVerificationError::FailedProbe(bad.kind));
-    }
-    Ok(ObjectVerificationReceipt { contract: object.clone(), probes: probes.to_vec() })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::verify_external_object;
 
     fn identity() -> ProviderObjectIdentity {
         ProviderObjectIdentity {

@@ -228,6 +228,19 @@ impl DistributionMeaning {
     }
 }
 
+/// Stable name of a meaning, for canonical digests that must not move with a derive.
+pub(crate) const fn meaning_tag(meaning: DistributionMeaning) -> &'static str {
+    match meaning {
+        DistributionMeaning::ParameterPosterior => "parameter_posterior",
+        DistributionMeaning::CausalFunctionalPosterior => "causal_functional_posterior",
+        DistributionMeaning::PosteriorPredictive => "posterior_predictive",
+        DistributionMeaning::InterventionalPredictive => "interventional_predictive",
+        DistributionMeaning::EstimatorSampling => "estimator_sampling",
+        DistributionMeaning::Bootstrap => "bootstrap",
+        DistributionMeaning::EmpiricalOutcome => "empirical_outcome",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

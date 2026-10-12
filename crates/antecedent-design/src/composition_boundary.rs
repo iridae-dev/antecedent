@@ -288,18 +288,22 @@ fn resolve_trust(evidence: &TrustEvidence, provider_id: &str, snapshot_id: &str)
             receipt: Some(ReceiptRef::Attestation { attestor: attestor.clone() }),
         },
         TrustEvidence::External(ExternalTrustState::ExactRequestVerified(receipt)) => {
-            let object = receipt.contract().identity();
-            if object.provider_id == provider_id && object.snapshot_id == snapshot_id {
-                Resolved {
+            // A receipt may verify several exact requests of one provider; the
+            // input is backed only by one that names this provider and snapshot.
+            let verified =
+                receipt.requests().iter().map(|request| request.identity()).find(|object| {
+                    object.provider_id == provider_id && object.snapshot_id == snapshot_id
+                });
+            match verified {
+                Some(object) => Resolved {
                     kind: ProviderKind::ExternalExactRequestVerified,
                     trust: DistributionTrust::VerifiedExtension,
                     receipt: Some(ReceiptRef::Verification {
                         object_id: object.object_id.clone(),
                         request_id: object.request_id.clone(),
                     }),
-                }
-            } else {
-                unproven
+                },
+                None => unproven,
             }
         }
         // A missing record, a record for another provider or snapshot, and an

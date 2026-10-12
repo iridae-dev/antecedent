@@ -415,8 +415,10 @@ _EXPECTED_STAGE_ALL = {
         "ProviderResult",
         "ProviderQuery",
         "ProviderVerificationFixture",
+        "ProviderVerificationReceipt",
         "ProviderVerificationReport",
         "UtilityFn",
+        "VerifiedRequest",
         "providers",
     },
     "gcm": {

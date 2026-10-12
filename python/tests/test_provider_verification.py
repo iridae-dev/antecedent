@@ -12,6 +12,7 @@ from antecedent.extensibility import (
     ProviderRegistry,
     ProviderTrust,
     ProviderVerificationFixture,
+    ProviderVerificationReceipt,
 )
 from antecedent.results.provider import ProviderAnalysisResult
 
@@ -209,3 +210,101 @@ def test_point_only_uncertainty_and_non_deterministic_contract():
     registry.register("nondeterministic", NonDeterministic())
     report = registry.verify("nondeterministic", [_fixture()], evidence_origin="independent/v1")
     assert not report.deterministic_replay_checked
+
+
+def _verified_registry():
+    registry = ProviderRegistry()
+    registry.register("external", Provider())
+    receipt = registry.verify(
+        "external", [_fixture(2.0), _fixture(3.0)], evidence_origin="independent-fixtures/v1"
+    )
+    return registry, receipt
+
+
+def test_fixture_verification_is_one_typed_rust_receipt():
+    from antecedent import _native
+
+    _, receipt = _verified_registry()
+    assert isinstance(receipt, ProviderVerificationReceipt)
+    assert receipt.evidence_origin == "independent-fixtures/v1"
+    assert receipt.fixture_names == ("known-truth-2.0", "known-truth-3.0")
+    assert [r.kind for r in receipt.requests] == ["execution", "execution"]
+    first = receipt.requests[0]
+    assert first.provider == "external" and first.query_family == "effect"
+    assert first.spec_digest == receipt.spec_digest
+    assert first.snapshot == first.request_digest
+    assert {p.kind for p in first.probes} == {"shape", "known_truth", "seeded_behavior"}
+    # The digest is the shared canonical blake3 stream, not a Python json hash.
+    assert receipt.digest == receipt.evidence_digest
+    assert len(receipt.digest) == 64
+    assert receipt.digest != hashlib.sha256(json.dumps(receipt.to_dict()).encode()).hexdigest()
+    assert _native.canonical_json_digest_hex("d", '{"b":1,"a":[1,2]}') == (
+        _native.canonical_json_digest_hex("d", '{ "a": [1, 2], "b": 1 }')
+    )
+
+
+def test_receipt_exports_and_loads_only_under_the_retained_digest():
+    _, receipt = _verified_registry()
+    exported = receipt.export()
+    loaded = ProviderVerificationReceipt.load(exported, expected_digest=receipt.digest)
+    assert loaded == receipt
+    assert loaded.to_dict() == receipt.to_dict()
+    assert loaded.covers({"known_effect": 2.0}) and not loaded.covers({"known_effect": 9.0})
+    with pytest.raises(ValueError, match="retained"):
+        ProviderVerificationReceipt.load(exported, expected_digest="0" * 64)
+    changed = bytearray(exported)
+    changed[len(changed) // 2] ^= 1
+    with pytest.raises(ValueError, match="checksum|corrupt|layout"):
+        ProviderVerificationReceipt.load(bytes(changed), expected_digest=receipt.digest)
+
+
+def test_receipt_is_consumable_by_composition_as_exact_request_evidence():
+    import antecedent.composition as comp
+    from antecedent.joint_distribution import ScientificQuantity
+
+    _, receipt = _verified_registry()
+    request = receipt.requests[0]
+    evidence = receipt.trust_evidence()
+    assert evidence.kind == "verified_extension"
+    quantity = ScientificQuantity(
+        variable_id="y",
+        variable_name="y",
+        role="outcome",
+        units="u",
+        population_id="target",
+        regime_id="do(a=1)",
+        horizon=0,
+        functional_id="mean",
+        conditioning=(),
+        transform_id="identity",
+    )
+    backed = comp.DecisionInput.from_means(
+        "effect",
+        [quantity],
+        [2.0],
+        provider_id=request.provider,
+        snapshot_id=request.snapshot,
+        causal_contract_id="checked-contract",
+        support="supported",
+        evidence=evidence,
+        requirement="exact_request_verified",
+    )
+    assert backed.provenance.trust == "verified_extension"
+    # A different snapshot is not one the receipt verified.
+    with pytest.raises(Exception, match="verif"):
+        comp.DecisionInput.from_means(
+            "effect",
+            [quantity],
+            [2.0],
+            provider_id=request.provider,
+            snapshot_id="other-snapshot",
+            causal_contract_id="checked-contract",
+            support="supported",
+            evidence=evidence,
+            requirement="exact_request_verified",
+        )
+
+
+def test_receipt_cannot_be_built_from_python_values():
+    with pytest.raises(TypeError, match="library-issued"):
+        ProviderVerificationReceipt(object())

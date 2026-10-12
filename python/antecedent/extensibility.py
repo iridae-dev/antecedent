@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -317,10 +318,17 @@ class ProviderVerificationFixture:
     artifact_decoder: Any | None = None
     expected_decoded_artifact: Any | None = None
     atol: float = 0.0
+    #: Identity of the input data when the request refers to one by id. The request
+    #: digest stands in when it is omitted: a request carries its whole input.
+    snapshot: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
             raise ValueError("verification fixture needs a name")
+        if self.snapshot is not None and (
+            not isinstance(self.snapshot, str) or not self.snapshot.strip()
+        ):
+            raise ValueError("verification snapshot must be a non-empty string")
         if not isinstance(self.request, Mapping):
             raise TypeError("verification request must be a mapping")
         if self.atol < 0 or not np.isfinite(self.atol):
@@ -336,16 +344,192 @@ class ProviderVerificationFixture:
 
 
 @dataclass(frozen=True, slots=True)
-class ProviderVerificationReport:
-    """Host recorded evidence for a bounded set of external fixtures."""
+class VerifiedRequest:
+    """One exact request a provider was verified at.
+
+    ``spec_digest`` is the digest of the provider's declarative spec at that time;
+    ``request_digest`` identifies the exact request; ``contract_digest`` is the
+    digest of everything the probes were checked against.
+    """
 
     provider: str
-    fixture_names: tuple[str, ...]
+    query_family: str
     spec_digest: str
-    evidence_digest: str
-    deterministic_replay_checked: bool
-    evidence_origin: str
-    verified_request_digests: tuple[str, ...]
+    snapshot: str
+    request_digest: str
+    kind: str
+    contract_digest: str
+    probes: tuple[Any, ...]
+
+
+class ProviderVerificationReceipt:
+    """Evidence that a provider passed independent probes at exact requests.
+
+    Issued by Rust: the probe values are stated here, and whether they pass, what
+    the receipt covers, and its digest are decided natively. One receipt serves
+    every surface. It is exportable, loadable under the digest a consumer
+    retained, and consumable by composition through :meth:`trust_evidence`. It
+    covers only the listed requests and never grants native licensing or
+    calibration.
+    """
+
+    __slots__ = ("_fixture_names", "_native_value", "_requests")
+
+    def __init__(self, native: Any, fixture_names: Sequence[str] = ()) -> None:
+        from . import _native
+
+        if not isinstance(native, _native.ProviderVerificationReceipt):
+            raise TypeError("ProviderVerificationReceipt wraps library-issued receipts only")
+        self._native_value = native
+        self._fixture_names = tuple(fixture_names)
+        from .external import VerificationProbe
+
+        wire = json.loads(native.wire_json)
+        self._requests = tuple(
+            VerifiedRequest(
+                provider=item["identity"]["provider_id"],
+                query_family=item["identity"]["object_id"],
+                spec_digest=item["identity"]["version_id"],
+                snapshot=item["identity"]["snapshot_id"],
+                request_digest=item["identity"]["request_id"],
+                kind=item["kind"],
+                contract_digest=item["contract_digest"],
+                probes=tuple(
+                    VerificationProbe(p["kind"], p["observed"], p["expected"], p["tolerance"])
+                    for p in item["probes"]
+                ),
+            )
+            for item in wire["requests"]
+        )
+
+    @property
+    def digest(self) -> str:
+        """Canonical BLAKE3 digest of the whole receipt; retain it to load an export."""
+        return str(self._native_value.digest)
+
+    @property
+    def evidence_digest(self) -> str:
+        """Alias of :attr:`digest`, the name provenance records carry."""
+        return self.digest
+
+    @property
+    def evidence_origin(self) -> str | None:
+        """Who held the independent reference."""
+        return cast("str | None", json.loads(self._native_value.wire_json)["evidence_origin"])
+
+    @property
+    def requests(self) -> tuple[VerifiedRequest, ...]:
+        """Every exact request verified, in the order supplied."""
+        return self._requests
+
+    @property
+    def provider(self) -> str:
+        """The registered provider name every request belongs to."""
+        return self._requests[0].provider
+
+    @property
+    def spec_digest(self) -> str:
+        """Digest of the provider's spec at verification time."""
+        return self._requests[0].spec_digest
+
+    @property
+    def verified_request_digests(self) -> tuple[str, ...]:
+        """Digests of the exact requests covered, in order."""
+        return tuple(request.request_digest for request in self._requests)
+
+    @property
+    def fixture_names(self) -> tuple[str, ...]:
+        """Caller labels of the fixtures, when this receipt came from ``verify``.
+
+        Labels only: they are not part of the digest and are empty after ``load``.
+        """
+        return self._fixture_names
+
+    @property
+    def deterministic_replay_checked(self) -> bool:
+        """Whether every request was replayed and agreed exactly."""
+        return all(
+            any(probe.kind == "seeded_behavior" for probe in request.probes)
+            for request in self._requests
+        )
+
+    def covers(self, request: Mapping[str, Any], *, spec_digest: str | None = None) -> bool:
+        """Whether ``request`` is exactly one this receipt verified."""
+        try:
+            digest = _digest("request", request)
+        except TypeError:
+            return False
+        return any(
+            item.request_digest == digest
+            and (spec_digest is None or item.spec_digest == spec_digest)
+            for item in self._requests
+        )
+
+    def export(self, *, artifact_id: str = "provider-verification") -> bytes:
+        """Serialize through the shared container; reload with :meth:`load` and :attr:`digest`."""
+        return bytes(self._native_value.export(artifact_id))
+
+    @classmethod
+    def load(cls, data: bytes, *, expected_digest: str) -> ProviderVerificationReceipt:
+        """Load an export under the digest the consumer retained independently."""
+        from . import _native
+
+        return cls(_native.ProviderVerificationReceipt.load(data, expected_digest))
+
+    def trust_evidence(self):
+        """Composition evidence that the provider was verified at exactly these requests.
+
+        An input is backed only when its provider id and snapshot id are ones a
+        request here names (``provider`` and ``snapshot``).
+        """
+        from . import _native
+        from .composition import TrustEvidence
+
+        return TrustEvidence(_native.TrustEvidence.from_verification(self._native_value))
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: origin, digest and every request with its probes."""
+        return {
+            "digest": self.digest,
+            "evidence_origin": self.evidence_origin,
+            "requests": [
+                {
+                    "provider": r.provider,
+                    "query_family": r.query_family,
+                    "spec_digest": r.spec_digest,
+                    "snapshot": r.snapshot,
+                    "request_digest": r.request_digest,
+                    "kind": r.kind,
+                    "contract_digest": r.contract_digest,
+                    "probes": [
+                        {
+                            "kind": p.kind,
+                            "observed": p.observed,
+                            "expected": p.expected,
+                            "tolerance": p.tolerance,
+                        }
+                        for p in r.probes
+                    ],
+                }
+                for r in self._requests
+            ],
+        }
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, ProviderVerificationReceipt) and self.digest == other.digest
+
+    def __hash__(self) -> int:
+        return hash(self.digest)
+
+    def __repr__(self) -> str:
+        return (
+            f"<ProviderVerificationReceipt {self.provider} requests={len(self._requests)} "
+            f"digest={self.digest[:12]}>"
+        )
+
+
+#: Name of the pre-unification Python-only report; it is the shared receipt.
+ProviderVerificationReport = ProviderVerificationReceipt
 
 
 @dataclass(frozen=True, slots=True)
@@ -375,7 +559,7 @@ class ProviderRegistry:
     def __init__(self) -> None:
         self._providers: dict[str, tuple[ExecutableProvider, ProviderTrust]] = {}
         self._entry_points: dict[str, str] = {}
-        self._verification: dict[str, ProviderVerificationReport] = {}
+        self._verification: dict[str, ProviderVerificationReceipt] = {}
 
     def load_entry_point(self, name: str) -> CausalProvider:
         """Explicitly load one installed ``antecedent.providers`` entry point.
@@ -436,8 +620,8 @@ class ProviderRegistry:
         except KeyError as exc:
             raise KeyError(f"provider {name!r} is not explicitly registered") from exc
 
-    def verification_report(self, name: str) -> ProviderVerificationReport:
-        """Return the host's evidence receipt for a verified extension."""
+    def verification_report(self, name: str) -> ProviderVerificationReceipt:
+        """Return the host's verification receipt for a verified extension."""
         try:
             return self._verification[name]
         except KeyError as exc:
@@ -449,12 +633,17 @@ class ProviderRegistry:
         fixtures: Sequence[ProviderVerificationFixture],
         *,
         evidence_origin: str,
-    ) -> ProviderVerificationReport:
+    ) -> ProviderVerificationReceipt:
         """Run independent caller fixtures before promoting an external provider.
 
-        This checks the executable contract and supplied references; it does
-        not certify the scientific validity of caller supplied truth or grant
-        native licensing. Promotion is atomic after every fixture passes.
+        Fixtures are sugar: each becomes a typed request with numeric probes
+        (shape, known truth, replay, optional uncertainty) that Rust checks and
+        seals into one :class:`ProviderVerificationReceipt`. The non-numeric
+        references (assumptions, support label, provenance, artifact bytes) are
+        compared here and must hold before any probe is submitted. This checks
+        the executable contract and supplied references; it does not certify the
+        scientific validity of caller supplied truth or grant native licensing.
+        Promotion is atomic after every fixture passes.
         """
         provider, trust = self._providers[name]
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
@@ -467,99 +656,108 @@ class ProviderRegistry:
         if not fixtures or len({fixture.name for fixture in fixtures}) != len(fixtures):
             raise ValueError("verification requires distinct, non-empty fixtures")
         spec = provider.spec
-        spec_digest = _digest(_spec_evidence(spec))
-        observations = []
-        request_digests = []
+        spec_digest = _digest("spec", _spec_evidence(spec))
+        wire_requests = []
         for fixture in fixtures:
             result = self.execute(name, fixture.request)
-            expected = _provider_array(fixture.expected_estimate, "expected estimate")
-            if result.estimate.shape != expected.shape or not np.allclose(
-                result.estimate, expected, atol=fixture.atol, rtol=0
-            ):
-                raise ValueError(f"fixture {fixture.name!r}: estimate differs from reference")
-            if fixture.expected_uncertainty is None:
-                if result.uncertainty is not None:
-                    raise ValueError(f"fixture {fixture.name!r}: unexpected uncertainty")
-            else:
-                expected_uncertainty = _provider_array(
-                    fixture.expected_uncertainty, "expected uncertainty"
-                )
-                if (
-                    result.uncertainty is None
-                    or result.uncertainty.shape != expected_uncertainty.shape
-                    or not np.allclose(
-                        result.uncertainty, expected_uncertainty, atol=fixture.atol, rtol=0
-                    )
-                ):
-                    raise ValueError(
-                        f"fixture {fixture.name!r}: uncertainty differs from reference"
-                    )
-            if result.uncertainty is not None and spec.uncertainty_semantics == "point_only":
-                raise ValueError(
-                    f"fixture {fixture.name!r}: point-only provider returned uncertainty"
-                )
-            if result.assumptions != tuple(fixture.expected_assumptions):
-                raise ValueError(f"fixture {fixture.name!r}: assumptions differ from reference")
-            if result.support_status != fixture.expected_support_status:
-                raise ValueError(f"fixture {fixture.name!r}: support differs from reference")
-            for key, value in fixture.expected_provenance.items():
-                if result.provenance.get(key) != value:
-                    raise ValueError(f"fixture {fixture.name!r}: provenance {key!r} differs")
-            if fixture.artifact_digest is not None:
-                if (
-                    result.artifact is None
-                    or hashlib.sha256(result.artifact).hexdigest() != fixture.artifact_digest
-                ):
-                    raise ValueError(f"fixture {fixture.name!r}: artifact digest differs")
-            elif result.artifact is not None:
-                raise ValueError(f"fixture {fixture.name!r}: unverified artifact")
-            if fixture.artifact_decoder is not None:
-                decoded = fixture.artifact_decoder(result.artifact)
-                if decoded != fixture.expected_decoded_artifact:
-                    raise ValueError(f"fixture {fixture.name!r}: artifact round trip differs")
-            if spec.deterministic:
-                replay = self.execute(name, fixture.request)
-                if not _same_provider_result(result, replay):
-                    raise ValueError(f"fixture {fixture.name!r}: deterministic replay differs")
-            observations.append(
-                {
-                    "name": fixture.name,
-                    "request": fixture.request,
-                    "expected_estimate": expected,
-                    "expected_uncertainty": fixture.expected_uncertainty,
-                    "atol": fixture.atol,
-                    "result_estimate": result.estimate,
-                    "result_uncertainty": result.uncertainty,
-                    "assumptions": result.assumptions,
-                    "support_status": result.support_status,
-                    "provenance": dict(result.provenance),
-                    "artifact_digest": None
-                    if result.artifact is None
-                    else hashlib.sha256(result.artifact).hexdigest(),
-                    "artifact_round_trip_checked": fixture.artifact_decoder is not None,
-                }
-            )
-            request_digests.append(_digest(fixture.request))
-        if _digest(_spec_evidence(provider.spec)) != spec_digest:
+            wire_requests.append(self._fixture_request(name, spec, spec_digest, fixture, result))
+        if _digest("spec", _spec_evidence(provider.spec)) != spec_digest:
             raise ValueError("provider spec changed during verification")
-        report = ProviderVerificationReport(
-            name,
-            tuple(fixture.name for fixture in fixtures),
-            spec_digest,
-            _digest(
-                {
-                    "spec_digest": spec_digest,
-                    "evidence_origin": evidence_origin,
-                    "observations": observations,
-                }
-            ),
-            spec.deterministic,
-            evidence_origin,
-            tuple(request_digests),
+        from . import _native
+
+        native, refusal = _native.ProviderVerificationReceipt.verify(
+            json.dumps({"evidence_origin": evidence_origin, "requests": wire_requests})
         )
-        self._verification[name] = report
+        if refusal is not None or native is None:
+            raise _fixture_refusal(json.loads(refusal or "{}"), fixtures)
+        receipt = ProviderVerificationReceipt(native, tuple(fixture.name for fixture in fixtures))
+        self._verification[name] = receipt
         self._providers[name] = (provider, ProviderTrust.VERIFIED_EXTENSION)
-        return report
+        return receipt
+
+    def _fixture_request(
+        self,
+        name: str,
+        spec: CausalProviderSpec,
+        spec_digest: str,
+        fixture: ProviderVerificationFixture,
+        result: ProviderResult,
+    ) -> dict[str, Any]:
+        """Compare one fixture and state it as a typed request with numeric probes."""
+        label = f"fixture {fixture.name!r}"
+        expected = _provider_array(fixture.expected_estimate, "expected estimate")
+        if result.estimate.shape != expected.shape:
+            raise ValueError(f"{label}: estimate differs from reference")
+        probes = [
+            _probe("shape", float(result.estimate.size), float(expected.size), 0.0),
+            _probe("known_truth", _max_abs_diff(result.estimate, expected), 0.0, fixture.atol),
+        ]
+        if fixture.expected_uncertainty is None:
+            if result.uncertainty is not None:
+                raise ValueError(f"{label}: unexpected uncertainty")
+        else:
+            expected_uncertainty = _provider_array(
+                fixture.expected_uncertainty, "expected uncertainty"
+            )
+            if result.uncertainty is None or result.uncertainty.shape != expected_uncertainty.shape:
+                raise ValueError(f"{label}: uncertainty differs from reference")
+            probes.append(
+                _probe(
+                    "uncertainty",
+                    _max_abs_diff(result.uncertainty, expected_uncertainty),
+                    0.0,
+                    fixture.atol,
+                )
+            )
+        if result.uncertainty is not None and spec.uncertainty_semantics == "point_only":
+            raise ValueError(f"{label}: point-only provider returned uncertainty")
+        if result.assumptions != tuple(fixture.expected_assumptions):
+            raise ValueError(f"{label}: assumptions differ from reference")
+        if result.support_status != fixture.expected_support_status:
+            raise ValueError(f"{label}: support differs from reference")
+        for key, value in fixture.expected_provenance.items():
+            if result.provenance.get(key) != value:
+                raise ValueError(f"{label}: provenance {key!r} differs")
+        if fixture.artifact_digest is not None:
+            if (
+                result.artifact is None
+                or hashlib.sha256(result.artifact).hexdigest() != fixture.artifact_digest
+            ):
+                raise ValueError(f"{label}: artifact digest differs")
+        elif result.artifact is not None:
+            raise ValueError(f"{label}: unverified artifact")
+        if fixture.artifact_decoder is not None:
+            decoded = fixture.artifact_decoder(result.artifact)
+            if decoded != fixture.expected_decoded_artifact:
+                raise ValueError(f"{label}: artifact round trip differs")
+        if spec.deterministic:
+            replay = self.execute(name, fixture.request)
+            probes.append(
+                _probe(
+                    "seeded_behavior",
+                    0.0 if _same_provider_result(result, replay) else 1.0,
+                    0.0,
+                    0.0,
+                )
+            )
+        from . import _native
+
+        request_digest = _digest("request", fixture.request)
+        return {
+            "identity": {
+                "provider_id": name,
+                "object_id": spec.query_family,
+                "version_id": spec_digest,
+                "snapshot_id": fixture.snapshot or request_digest,
+                "request_id": request_digest,
+            },
+            "deterministic": spec.deterministic,
+            "reports_uncertainty": fixture.expected_uncertainty is not None,
+            "artifact_blake3": None
+            if result.artifact is None
+            else _native.blake3_digest_hex(result.artifact),
+            "probes": probes,
+        }
 
     def execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
         try:
@@ -568,16 +766,12 @@ class ProviderRegistry:
             raise KeyError(f"provider {name!r} is not explicitly registered") from exc
         spec = provider.spec
         report = self._verification.get(name)
-        if report is not None and _digest(_spec_evidence(spec)) != report.spec_digest:
+        current_spec_digest = _digest("spec", _spec_evidence(spec))
+        if report is not None and current_spec_digest != report.spec_digest:
             raise ValueError("verified provider spec changed after verification")
         effective_trust = trust
-        if report is not None:
-            try:
-                covered_request = _digest(request) in report.verified_request_digests
-            except TypeError:
-                covered_request = False
-            if not covered_request:
-                effective_trust = ProviderTrust.EXTERNALLY_ATTESTED
+        if report is not None and not report.covers(request, spec_digest=current_spec_digest):
+            effective_trust = ProviderTrust.EXTERNALLY_ATTESTED
         raw = provider.execute(MappingProxyType(dict(request)))
         if not isinstance(raw, ProviderExecution):
             raise TypeError("provider execute() must return ProviderExecution")
@@ -603,7 +797,7 @@ class ProviderRegistry:
             provenance["verification_evidence_digest"] = report.evidence_digest
             provenance["verification_evidence_origin"] = report.evidence_origin
         try:
-            request_digest = _digest(request)
+            request_digest = _digest("request", request)
         except TypeError:
             if effective_trust is ProviderTrust.VERIFIED_EXTENSION:
                 raise ValueError("verified request must have a canonical digest") from None
@@ -616,7 +810,7 @@ class ProviderRegistry:
             "provider": name,
             "query_family": spec.query_family,
             "trust": effective_trust.value,
-            "spec_digest": _digest(_spec_evidence(spec)),
+            "spec_digest": current_spec_digest,
             "request_digest": request_digest,
             "verification_evidence_digest": (
                 report.evidence_digest
@@ -665,7 +859,15 @@ def _spec_evidence(spec: CausalProviderSpec) -> dict[str, Any]:
     }
 
 
-def _digest(value: Any) -> str:
+_DIGEST_DOMAINS = {
+    "spec": "antecedent.provider.spec.v1",
+    "request": "antecedent.provider.request.v1",
+}
+
+
+def _digest(domain: str, value: Any) -> str:
+    """Rust's canonical BLAKE3 digest of a JSON-serializable value under ``domain``."""
+
     def encode(item: Any) -> Any:
         if isinstance(item, np.ndarray):
             return item.tolist()
@@ -679,8 +881,48 @@ def _digest(value: Any) -> str:
             return item
         raise TypeError("verification evidence must be JSON serializable")
 
-    payload = json.dumps(encode(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    from . import _native
+
+    return str(
+        _native.canonical_json_digest_hex(
+            _DIGEST_DOMAINS[domain], json.dumps(encode(value), allow_nan=False)
+        )
+    )
+
+
+def _probe(kind: str, observed: float, expected: float, tolerance: float) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "observed": float(observed),
+        "expected": float(expected),
+        "tolerance": float(tolerance),
+    }
+
+
+def _max_abs_diff(a: NDArray[np.float64], b: NDArray[np.float64]) -> float:
+    return float(np.max(np.abs(a - b))) if a.size else 0.0
+
+
+_PROBE_FAILURES = {
+    "shape": "estimate differs from reference",
+    "known_truth": "estimate differs from reference",
+    "uncertainty": "uncertainty differs from reference",
+    "seeded_behavior": "deterministic replay differs",
+}
+
+
+def _fixture_refusal(
+    refusal: Mapping[str, Any], fixtures: Sequence[ProviderVerificationFixture]
+) -> ValueError:
+    """The ``ValueError`` for a Rust verification refusal, naming the failing fixture."""
+    offending = str(refusal.get("offending") or "")
+    match = re.fullmatch(r"request\[(\d+)\]\.(\w+)", offending)
+    detail = str(refusal.get("detail", "provider verification refused"))
+    if match is not None:
+        fixture = fixtures[int(match.group(1))]
+        text = _PROBE_FAILURES.get(match.group(2), f"{detail} at {match.group(2)}")
+        return ValueError(f"fixture {fixture.name!r}: {text}")
+    return ValueError(f"{detail}: {offending}" if offending else detail)
 
 
 def _same_provider_result(a: ProviderResult, b: ProviderResult) -> bool:
@@ -717,7 +959,9 @@ __all__ = [
     "ProviderResult",
     "ProviderQuery",
     "ProviderVerificationFixture",
+    "ProviderVerificationReceipt",
     "ProviderVerificationReport",
     "UtilityFn",
+    "VerifiedRequest",
     "providers",
 ]

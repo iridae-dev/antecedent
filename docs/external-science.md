@@ -29,12 +29,17 @@ method and numerical-error/replicate receipt are licensed.
 `ExactRequestVerified` apart; a verified extension is never native.
 `verify_external_object` takes independent probe values (shape, normalization,
 moments, known truth, seeded behavior, support, update coherence,
-monotonicity). Required properties depend on the object kind and declared
-capabilities; each must be present once and within its predeclared tolerance.
-The receipt stores the complete contract, so it covers only an equal contract:
-a different request, snapshot, version or capability set needs its own check.
-Probe values are supplied by the caller, who must compute them independently;
-this layer does not invoke providers.
+monotonicity, uncertainty). Required properties depend on the object kind and
+declared capabilities; each must be present once and within its predeclared
+tolerance. The `ProviderVerificationReceipt` records each verified request's
+identity and a canonical digest of the complete contract, so it covers only an
+equal contract: a different request, snapshot, version or capability set needs
+its own check. One receipt type also covers an executable provider at exact
+requests (`ExecutionContract`, `verify_provider_requests`), which is what the
+Python registry's fixtures produce; it digests with the shared canonical writer
+and exports through the shared container. Probe values are supplied by the
+caller, who must compute them independently; this layer does not invoke
+providers.
 
 Identification-to-result binding and an executable provider lifecycle have
 separate gates. A declaration or provider label alone

@@ -21,8 +21,16 @@ use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::decision_claims::{
     ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
 };
-use antecedent_core::{DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeId, RegimeKind, SupportStatus, VariableId};
-use antecedent_contract::{DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust, ScientificQuantity, VerificationProbe, capability_from_name, probe_from_name, verify_external_object};
+use antecedent_contract::{
+    DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject,
+    ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust,
+    ScientificQuantity, VerificationProbe, capability_from_name, probe_from_name,
+    verify_external_object,
+};
+use antecedent_core::{
+    DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeId, RegimeKind, SupportStatus,
+    VariableId,
+};
 use antecedent_design::composition_boundary::{
     ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
     CompositionOperation, CoordinateIssue, DecisionInput, DependenceRoute, EvidenceRelation,
@@ -159,6 +167,13 @@ impl PyTrustEvidence {
     #[staticmethod]
     fn none() -> Self {
         Self { inner: DesignTrust::None }
+    }
+
+    /// Evidence from a Rust-issued provider verification receipt. The input's
+    /// provider and snapshot must be ones the receipt verified, or it proves nothing.
+    #[staticmethod]
+    fn from_verification(receipt: &crate::provider_api::PyProviderVerificationReceipt) -> Self {
+        Self::verified(ExternalTrustState::ExactRequestVerified(Box::new(receipt.inner.clone())))
     }
 
     /// An external party's attestation; never native, never verified.

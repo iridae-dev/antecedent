@@ -597,7 +597,9 @@ pub fn bind_external_result(
         },
         capabilities: header.object.capabilities().to_vec(),
         verification: match &header.trust {
-            ExternalTrustState::ExactRequestVerified(receipt) => receipt.probes().to_vec(),
+            ExternalTrustState::ExactRequestVerified(receipt) => {
+                receipt.probes_for(&header.object).map(<[_]>::to_vec).unwrap_or_default()
+            }
             _ => Vec::new(),
         },
         evidence_ids: header.evidence_ids.clone(),
