@@ -2878,10 +2878,9 @@ fn reasoning_view(
         view.identification = SlotAvailability::unavailable(IDENTIFIED_PER_EXECUTION);
         return view;
     }
-    if prepared.is_none() || cached.is_none() {
+    let (Some(_), Some(result)) = (prepared, cached) else {
         return ReasoningView::structural(support, assumptions);
-    }
-    let result = cached.expect("checked");
+    };
     let slot = identification_slot_from_prepared(study, result, search_capped);
     ReasoningView::new(
         SlotAvailability::Available(slot),

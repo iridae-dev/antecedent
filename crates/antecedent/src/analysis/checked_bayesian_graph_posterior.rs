@@ -16,6 +16,7 @@ use crate::{
 };
 
 use super::GraphPosteriorEffectTarget;
+use super::posterior_binding::{CacheKeys, posterior_cache_matches};
 
 /// Frozen graph family and per-atom Bayesian procedure for a mean average or
 /// conditional effect. The target records which query kind the click executes.
@@ -69,8 +70,7 @@ impl CheckedBayesianGraphPosteriorAte {
         let atom_query = target.atom_identification_query();
         let licensed = target.bayesian_estimator();
         if posterior.atom_kind != GraphPosteriorAtomKind::Dag
-            || identification.graphs.graph_keys != posterior.graph_keys
-            || identification.graphs.weights != posterior.weights
+            || !posterior_cache_matches(&posterior, &*identification, CacheKeys::PosteriorKeys)
             || identification.atoms.iter().any(|atom| atom.identification.query != atom_query)
             || query.treatment == query.outcome
             || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)

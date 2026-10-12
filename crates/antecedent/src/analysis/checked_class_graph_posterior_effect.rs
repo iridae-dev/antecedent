@@ -13,13 +13,16 @@ use std::sync::Arc;
 use antecedent_core::{AverageEffectQuery, PopulationRegistry};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_estimate::OverlapPolicy;
-use antecedent_prob::GraphIdentFlag;
+use antecedent_prob::WeightedGraphSamples;
 
 use crate::{CausalError, EstimatorSpec, InferenceMode, RefuteSuite};
 
 use super::GraphPosteriorEffectTarget;
 
 use super::latency::LatencyMode;
+use super::posterior_binding::{
+    CacheKeys, PosteriorProof, identified_key_set, validate_posterior_cache,
+};
 use super::prepared::CachedGraphPosteriorIdentification;
 
 /// A fixed effect procedure over posterior-weighted CPDAG/PAG atoms. Each
@@ -177,17 +180,6 @@ impl CheckedClassGraphPosteriorEffect {
         self.validation
     }
 
-    /// Posterior sample keys, weights, and identification flags retain the
-    /// sample-level mass, including failed/unidentified graph atoms.
-    #[must_use]
-    pub(crate) fn sample_mass(&self) -> (&[u64], &[f64], &[GraphIdentFlag]) {
-        (
-            &self.posterior.graph_keys,
-            &self.posterior.weights,
-            &self.identification.graphs.identified,
-        )
-    }
-
     /// Per-key completion envelopes retain identified, failed, and truncated
     /// completions for each identified graph-class posterior atom.
     #[must_use]
@@ -198,20 +190,26 @@ impl CheckedClassGraphPosteriorEffect {
     }
 }
 
+impl PosteriorProof for CheckedClassGraphPosteriorEffect {
+    fn graphs(&self) -> &WeightedGraphSamples {
+        &self.identification.graphs
+    }
+
+    fn atom_keys(&self) -> Vec<u64> {
+        self.identification.atom_keys()
+    }
+}
+
 fn validate_identification_binding(
     posterior: &GraphPosterior,
     target: &GraphPosteriorEffectTarget,
     identification: &CachedGraphPosteriorIdentification,
 ) -> Result<(), CausalError> {
-    if identification.graphs.weights.as_ref() != posterior.weights.as_ref()
-        || identification.graphs.graph_keys.as_ref() != posterior.graph_keys.as_ref()
-        || identification.graphs.n_samples != posterior.n_graphs
-        || identification.graphs.identified.len() != posterior.n_graphs
-        || !identification.atoms.is_empty()
-    {
-        return Err(CausalError::Unsupported {
-            message: "class graph-posterior cache does not match frozen samples or contains DAG atoms",
-        });
+    const CACHE_MISMATCH: &str =
+        "class graph-posterior cache does not match frozen samples or contains DAG atoms";
+    validate_posterior_cache(posterior, identification, CacheKeys::PosteriorKeys, CACHE_MISMATCH)?;
+    if !identification.atoms.is_empty() {
+        return Err(CausalError::Unsupported { message: CACHE_MISMATCH });
     }
     let atom_query = target.atom_identification_query();
     if identification.class_atoms.iter().any(|atom| atom.identification.query != atom_query) {
@@ -219,9 +217,12 @@ fn validate_identification_binding(
             message: "class graph-posterior cache identifies a different ATE query",
         });
     }
+    let posterior_keys: std::collections::HashSet<u64> =
+        posterior.graph_keys.iter().copied().collect();
+    let identified_keys = identified_key_set(&identification.graphs);
     let mut class_keys = std::collections::HashSet::with_capacity(identification.class_atoms.len());
     for atom in identification.class_atoms.iter() {
-        if !posterior.graph_keys.iter().any(|key| *key == atom.key)
+        if !posterior_keys.contains(&atom.key)
             || !class_keys.insert(atom.key)
             || !atom.identified_weight.is_finite()
             || atom.identified_weight <= 0.0
@@ -248,23 +249,16 @@ fn validate_identification_binding(
                 message: "class graph-posterior completion or identified masses are invalid",
             });
         }
-        if !posterior
-            .graph_keys
-            .iter()
-            .zip(identification.graphs.identified.iter())
-            .any(|(key, flag)| *key == atom.key && matches!(flag, GraphIdentFlag::Identified))
-        {
+        if !identified_keys.contains(&atom.key) {
             return Err(CausalError::Unsupported {
                 message: "retained class envelope has no identified posterior sample mass",
             });
         }
     }
-    for (key, flag) in posterior.graph_keys.iter().zip(identification.graphs.identified.iter()) {
-        if matches!(flag, GraphIdentFlag::Identified) && !class_keys.contains(key) {
-            return Err(CausalError::Unsupported {
-                message: "identified posterior sample has no retained class completion envelope",
-            });
-        }
+    if identified_keys.iter().any(|key| !class_keys.contains(key)) {
+        return Err(CausalError::Unsupported {
+            message: "identified posterior sample has no retained class completion envelope",
+        });
     }
     Ok(())
 }
@@ -330,7 +324,7 @@ mod tests {
     use crate::EstimatorId;
     use antecedent_core::VariableId;
     use antecedent_discovery::SamplingSummary;
-    use antecedent_prob::{InferenceDiagnostics, WeightedGraphSamples};
+    use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
     fn posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         GraphPosterior::new(
