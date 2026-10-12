@@ -62,7 +62,8 @@ use crate::decision_contract::{
     SourceRepresentation, Tail,
 };
 use crate::decision_eval::{
-    DecisionEvalError, MeanSource, SourceReceipt, evaluate_contract_on_means, evaluate_functional,
+    ActionLaw, DecisionEvalError, MeanSource, SourceReceipt, evaluate_contract_on_means,
+    evaluate_functional,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 
@@ -665,11 +666,45 @@ fn single_action_contract(
     }
 }
 
+/// What one (member, action) needs for every constraint, computed once.
+///
+/// Both forms are an optimization of a per-constraint call: when preparing fails, the
+/// constraint path calls the engine exactly as before and so raises the same refusal.
+enum Prepared {
+    /// The action's utility law on a distribution source.
+    Law(ActionLaw),
+    /// The action's `(expected utility, standard error)` on a mean source.
+    Mean((f64, Option<f64>)),
+    /// Not prepared: ask the engine per constraint.
+    None,
+}
+
+impl Prepared {
+    fn new(contract: &DecisionContract, action_id: &str, source: Source<'_>) -> Self {
+        match source {
+            Source::Law(artifact) => {
+                ActionLaw::of_action(contract, action_id, artifact).map_or(Self::None, Self::Law)
+            }
+            Source::Means(means) => evaluate_contract_on_means(contract, means)
+                .ok()
+                .and_then(|result| {
+                    result
+                        .actions
+                        .iter()
+                        .find(|o| o.id == action_id)
+                        .map(|o| (o.expected_utility, o.standard_error))
+                })
+                .map_or(Self::None, Self::Mean),
+        }
+    }
+}
+
 fn mean_value(
     contract: &DecisionContract,
     action_id: &str,
     functional: DecisionFunctional,
     means: &MeanSource,
+    prepared: Option<(f64, Option<f64>)>,
 ) -> Result<(f64, Option<f64>), DecisionEvalError> {
     let unknown =
         || DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.to_owned()));
@@ -682,6 +717,9 @@ fn mean_value(
             other => DecisionEvalError::Contract(other),
         },
     )?;
+    if let Some(value) = prepared {
+        return Ok(value);
+    }
     let result = evaluate_contract_on_means(contract, means)?;
     let outcome = result.actions.iter().find(|o| o.id == action_id).ok_or_else(unknown)?;
     Ok((outcome.expected_utility, outcome.standard_error))
@@ -692,11 +730,20 @@ fn engine_value(
     action_id: &str,
     functional: DecisionFunctional,
     source: Source<'_>,
+    prepared: &Prepared,
 ) -> Result<(f64, Option<f64>), DecisionEvalError> {
-    match source {
-        Source::Law(artifact) => evaluate_functional(contract, action_id, functional, artifact)
-            .map(|value| (value.value, value.standard_error)),
-        Source::Means(means) => mean_value(contract, action_id, functional, means),
+    match (source, prepared) {
+        (Source::Law(_), Prepared::Law(law)) => {
+            law.functional(contract, functional).map(|value| (value.value, value.standard_error))
+        }
+        (Source::Law(artifact), _) => {
+            evaluate_functional(contract, action_id, functional, artifact)
+                .map(|value| (value.value, value.standard_error))
+        }
+        (Source::Means(means), Prepared::Mean(value)) => {
+            mean_value(contract, action_id, functional, means, Some(*value))
+        }
+        (Source::Means(means), _) => mean_value(contract, action_id, functional, means, None),
     }
 }
 
@@ -718,11 +765,12 @@ fn constraint_value(
     tolerance: f64,
     contract: &DecisionContract,
     source: Source<'_>,
+    prepared: &Prepared,
     action_id: &str,
     index: usize,
     constraint: &InverseConstraint,
 ) -> Result<ConstraintValue, InverseQueryError> {
-    match engine_value(contract, action_id, constraint.functional(), source) {
+    match engine_value(contract, action_id, constraint.functional(), source, prepared) {
         Ok((value, standard_error)) => {
             let (target, comparison) = constraint.target();
             let status = if comparison.holds(value, target, tolerance) {
@@ -794,9 +842,18 @@ fn evaluate_member(
         return Ok(Member { status, values: Vec::new(), reason: Some(reason.to_owned()) });
     }
     let single = single_action_contract(&query.contract, action);
+    let prepared = Prepared::new(&single, action_id, source);
     let mut values = Vec::with_capacity(query.constraints.len());
     for (index, constraint) in query.constraints.iter().enumerate() {
-        match constraint_value(query.tolerance, &single, source, action_id, index, constraint) {
+        match constraint_value(
+            query.tolerance,
+            &single,
+            source,
+            &prepared,
+            action_id,
+            index,
+            constraint,
+        ) {
             Ok(value) => values.push(value),
             Err(InverseQueryError::Engine(error))
                 if lenient && !matches!(error, DecisionEvalError::Contract(_)) =>

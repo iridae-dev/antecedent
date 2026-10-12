@@ -200,9 +200,11 @@ fn locate(
     })
 }
 
+/// Utilities of the contract's actions (or of action `only` alone) on `source`.
 fn build_table(
     contract: &DecisionContract,
     source: &DistributionArtifact,
+    only: Option<usize>,
 ) -> Result<Table, DecisionEvalError> {
     let alignment = source.metadata().identity.alignment;
     if alignment != DrawAlignment::Joint {
@@ -223,7 +225,10 @@ fn build_table(
     let draws = source.draws();
     let mask = source.metadata().supported.as_deref();
     let mut utilities = Vec::with_capacity(contract.actions.len());
-    for action in &contract.actions {
+    for (action_index, action) in contract.actions.iter().enumerate() {
+        if only.is_some_and(|index| index != action_index) {
+            continue;
+        }
         let mut columns = Vec::with_capacity(action.inputs.len());
         for (position, quantity) in action.inputs.iter().enumerate() {
             let column = locate(source, &action.id, position, quantity)?;
@@ -297,7 +302,7 @@ pub fn evaluate_contract(
             "needs identified-set or structure inputs, not one draw source",
         ));
     }
-    let table = build_table(contract, source)?;
+    let table = build_table(contract, source, None)?;
     let n = source.n_draws();
     // An exact finite law has no sampling error: its draws are the distribution.
     let exact = source.metadata().calibration == DistributionCalibration::Exact;
@@ -576,10 +581,25 @@ pub fn evaluate_functional(
     functional: DecisionFunctional,
     source: &DistributionArtifact,
 ) -> Result<FunctionalValue, DecisionEvalError> {
+    let index = resolve_action(contract, action_id)?;
+    check_functional(functional)?;
+    ActionLaw::from_table(index, build_table(contract, source, None)?, source)
+        .functional(contract, functional)
+}
+
+/// Validate `contract` and find `action_id` in it.
+fn resolve_action(
+    contract: &DecisionContract,
+    action_id: &str,
+) -> Result<usize, DecisionEvalError> {
     contract.validate().map_err(DecisionEvalError::Contract)?;
-    let index = contract.actions.iter().position(|a| a.id == action_id).ok_or_else(|| {
+    contract.actions.iter().position(|a| a.id == action_id).ok_or_else(|| {
         DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.to_owned()))
-    })?;
+    })
+}
+
+/// Refuse a functional with an out-of-range level or a non-finite threshold.
+fn check_functional(functional: DecisionFunctional) -> Result<(), DecisionEvalError> {
     let level_ok = |p: f64| p.is_finite() && p > 0.0 && p < 1.0;
     let valid = match functional {
         DecisionFunctional::Expectation
@@ -590,55 +610,100 @@ pub fn evaluate_functional(
             level_ok(p)
         }
     };
-    if !valid {
-        return Err(DecisionEvalError::Contract(DecisionContractError::InvalidParameter(
-            "functional",
-        )));
+    if valid {
+        Ok(())
+    } else {
+        Err(DecisionEvalError::Contract(DecisionContractError::InvalidParameter("functional")))
     }
-    let table = build_table(contract, source)?;
-    let utility = &table.utilities[index];
-    let weights = &table.weights;
-    let exact = source.metadata().calibration == DistributionCalibration::Exact;
-    let source_mode = functional
-        .requirement(&contract.actions[index].utility)
-        .check(&[SourceRepresentation::JointDraws])
-        .map_err(DecisionEvalError::Contract)?;
-    let mean = weighted_mean(utility, weights);
-    let (value, sampled_error) = match functional {
-        DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
-            (mean, exact.then_some(0.0))
+}
+
+/// One action's finite utility law on one source: the per-draw utilities and normalized
+/// weights that several functionals can be taken of without re-binding the draws.
+pub(crate) struct ActionLaw {
+    index: usize,
+    utility: Vec<f64>,
+    weights: Vec<f64>,
+    exact: bool,
+}
+
+impl ActionLaw {
+    fn from_table(index: usize, mut table: Table, source: &DistributionArtifact) -> Self {
+        let slot = if table.utilities.len() == 1 { 0 } else { index };
+        Self {
+            index,
+            utility: table.utilities.swap_remove(slot),
+            weights: table.weights,
+            exact: source.metadata().calibration == DistributionCalibration::Exact,
         }
-        DecisionFunctional::Variance => {
-            let variance: f64 = utility
-                .iter()
-                .zip(weights)
-                .filter(|(_, w)| **w > 0.0)
-                .map(|(v, w)| w * (v - mean) * (v - mean))
-                .sum();
-            (variance, None)
-        }
-        DecisionFunctional::Probability { threshold, tail } => {
-            let mass: f64 = utility
-                .iter()
-                .zip(weights)
-                .filter(|(v, _)| match tail {
-                    Tail::Lower => **v <= threshold,
-                    Tail::Upper => **v >= threshold,
-                })
-                .map(|(_, w)| w)
-                .sum();
-            (mass, None)
-        }
-        DecisionFunctional::Quantile { p } => (left_inverse(utility, weights, p), None),
-        DecisionFunctional::TailExpectation { p, tail } => {
-            (fractional_tail_mean(utility, weights, p, tail), None)
-        }
-    };
-    if !value.is_finite() {
-        return Err(DecisionEvalError::NonFiniteUtility { action: action_id.to_owned() });
     }
-    let standard_error = if exact { Some(0.0) } else { sampled_error };
-    Ok(FunctionalValue { value, standard_error, source_mode })
+
+    /// The law of `action_id`'s utility. Only that action's column is evaluated, so a
+    /// refusal belonging to another action of `contract` is not raised here.
+    ///
+    /// # Errors
+    /// The refusals [`evaluate_functional`] raises before the functional is taken.
+    pub(crate) fn of_action(
+        contract: &DecisionContract,
+        action_id: &str,
+        source: &DistributionArtifact,
+    ) -> Result<Self, DecisionEvalError> {
+        let index = resolve_action(contract, action_id)?;
+        Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
+    }
+
+    /// `functional` of this law, as [`evaluate_functional`] defines it.
+    ///
+    /// # Errors
+    /// The functional's source requirement is unmet, or its value is not finite.
+    pub(crate) fn functional(
+        &self,
+        contract: &DecisionContract,
+        functional: DecisionFunctional,
+    ) -> Result<FunctionalValue, DecisionEvalError> {
+        let action = &contract.actions[self.index];
+        let utility = &self.utility;
+        let weights = &self.weights;
+        let source_mode = functional
+            .requirement(&action.utility)
+            .check(&[SourceRepresentation::JointDraws])
+            .map_err(DecisionEvalError::Contract)?;
+        let mean = weighted_mean(utility, weights);
+        let (value, sampled_error) = match functional {
+            DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
+                (mean, self.exact.then_some(0.0))
+            }
+            DecisionFunctional::Variance => {
+                let variance: f64 = utility
+                    .iter()
+                    .zip(weights)
+                    .filter(|(_, w)| **w > 0.0)
+                    .map(|(v, w)| w * (v - mean) * (v - mean))
+                    .sum();
+                (variance, None)
+            }
+            DecisionFunctional::Probability { threshold, tail } => {
+                let mass: f64 = utility
+                    .iter()
+                    .zip(weights)
+                    .filter(|(v, _)| match tail {
+                        Tail::Lower => **v <= threshold,
+                        Tail::Upper => **v >= threshold,
+                    })
+                    .map(|(_, w)| w)
+                    .sum();
+                (mass, None)
+            }
+            DecisionFunctional::Quantile { p } => (left_inverse(utility, weights, p), None),
+            DecisionFunctional::TailExpectation { p, tail } => {
+                (fractional_tail_mean(utility, weights, p, tail), None)
+            }
+        };
+        if !value.is_finite() {
+            return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+        }
+        let standard_error = if self.exact { Some(0.0) } else { sampled_error };
+        Ok(FunctionalValue { value, standard_error, source_mode })
+    }
 }
 
 /// A source that supplies only one mean per coordinate, such as an external
@@ -788,4 +853,110 @@ pub fn evaluate_contract_on_means(
             "no sampling error is claimed; indistinguishable means exactly equal values".into(),
         ],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_contract::QuantityRole;
+    use antecedent_io_core::distribution_artifact::{
+        DistributionIdentity, DistributionMetadata, DistributionProvenance, DistributionTrust,
+    };
+    use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+
+    use super::*;
+    use crate::decision_contract::{
+        ActionKind, DecisionAction, StructuralPolicy, Tail, UtilityExpr,
+    };
+
+    fn quantity(variable: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: variable.into(),
+            role: QuantityRole::Outcome,
+            units: "units".into(),
+            population_id: "target".into(),
+            regime_id: "do(a=1)".into(),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    /// Two actions on a weighted, sampled five-draw law.
+    fn fixture() -> (DecisionContract, DistributionArtifact) {
+        let columns = [quantity("p"), quantity("q")];
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::InterventionalPredictive,
+            &columns,
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: "s".into(),
+                provider_id: "p".into(),
+                rng_id: "r".into(),
+                snapshot_id: "n".into(),
+                causal_contract_id: "c".into(),
+            },
+        )
+        .unwrap();
+        let draws = vec![1.0, 4.0, 3.0, 1.0, 2.0, 2.0, 0.5, 6.0, 3.0, 3.0];
+        let artifact = DistributionArtifact::new(
+            DistributionMetadata {
+                version: 1,
+                identity,
+                axes: ["draw".into(), "quantity".into()],
+                shape: [5, 2],
+                weights: Some(vec![1.0, 2.0, 0.0, 3.0, 4.0]),
+                supported: None,
+                calibration: DistributionCalibration::Unmeasured,
+                trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
+                legacy_bindings: None,
+            },
+            draws,
+        )
+        .unwrap();
+        let action = |id: &str, column: usize| DecisionAction {
+            id: id.into(),
+            kind: ActionKind::Intervention,
+            inputs: vec![columns[column].clone()],
+            utility: UtilityExpr::Input(0),
+        };
+        let contract = DecisionContract {
+            actions: vec![action("a", 0), action("b", 1)],
+            utility_units: "units".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: vec![],
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+        };
+        (contract, artifact)
+    }
+
+    /// A law built once answers every functional bit-for-bit as the one-shot engine does.
+    #[test]
+    fn action_law_matches_evaluate_functional_for_every_functional() {
+        let (contract, artifact) = fixture();
+        let functionals = [
+            DecisionFunctional::Expectation,
+            DecisionFunctional::ExpectedUtility,
+            DecisionFunctional::Variance,
+            DecisionFunctional::Probability { threshold: 2.0, tail: Tail::Lower },
+            DecisionFunctional::Probability { threshold: 2.0, tail: Tail::Upper },
+            DecisionFunctional::Quantile { p: 0.35 },
+            DecisionFunctional::TailExpectation { p: 0.4, tail: Tail::Lower },
+            DecisionFunctional::TailExpectation { p: 0.4, tail: Tail::Upper },
+        ];
+        for id in ["a", "b"] {
+            let law = ActionLaw::of_action(&contract, id, &artifact).unwrap();
+            for functional in functionals {
+                let once = evaluate_functional(&contract, id, functional, &artifact).unwrap();
+                let hoisted = law.functional(&contract, functional).unwrap();
+                assert_eq!(hoisted.value.to_bits(), once.value.to_bits(), "{id} {functional:?}");
+                assert_eq!(hoisted.standard_error, once.standard_error);
+                assert_eq!(hoisted.source_mode, once.source_mode);
+            }
+        }
+    }
 }
