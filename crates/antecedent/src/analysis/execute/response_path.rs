@@ -983,6 +983,7 @@ fn cell_aipw_response(
 }
 
 /// Borrowed inputs of the plugin-level refutation of a scalar response.
+#[derive(Clone, Copy)]
 struct ResponseRefuteInput<'a> {
     data: &'a TabularData,
     query: &'a ResponseQuery,
@@ -1297,7 +1298,7 @@ impl super::Study {
         let conditional_refs =
             conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
         let conditional = mix_response_values(&conditional_refs)?;
-        let structural_set = response_envelope_from_weighted(&weighted);
+        let structural_set = response_envelope_from_weighted(weighted);
         let first = &weighted[0].2;
         // Unevaluable and subsampled-out mass are as incomplete as unidentified
         // mass: the published value covers only the evaluated atoms.
@@ -1320,7 +1321,7 @@ impl super::Study {
             && matches!(self.inference, InferenceMode::Frequentist)
             && matches!(conditional, ResponseValue::Scalar(_))
             && atom_scores.len() == weighted.len())
-        .then(|| mixed_response_scalar_se(&atom_scores, data.row_count()))
+        .then(|| mixed_response_scalar_se(atom_scores, data.row_count()))
         .flatten();
         let uncertainty = if weighted.len() == 1 {
             first.uncertainty.clone()
@@ -2013,8 +2014,8 @@ impl super::Study {
             est.fit_scores_with_assignment(
                 data,
                 &antecedent_estimate::CellScoreSpec {
-                    treatments: treatments,
-                    outcome: outcome,
+                    treatments,
+                    outcome,
                     adjustment: &estimand.adjustment_set,
                     functional: &query.outcome_functional,
                     continuous,
@@ -2030,6 +2031,7 @@ impl super::Study {
     }
 
     /// Level, standard error and influence column of the requested cell.
+    #[allow(clippy::float_cmp)] // Exact equality of duplicate threshold values.
     fn cell_aipw_level(
         table: &antecedent_estimate::ScoreTable,
         summary: &antecedent_estimate::ScoreSummary,
@@ -2060,9 +2062,7 @@ impl super::Study {
         let quantile = query
             .outcome_functional
             .quantile_level()
-            .map(|tau| {
-                antecedent_estimate::quantile::quantile_arm(&table, None, tau, requested_arm)
-            })
+            .map(|tau| antecedent_estimate::quantile::quantile_arm(table, None, tau, requested_arm))
             .transpose()?;
         let (scalar, se) = if let Some(q) = &quantile {
             functional_diagnostics.push(super::super::helpers::quantile_scope_diagnostic());
@@ -2085,6 +2085,7 @@ impl super::Study {
         Ok((scalar, se, influence))
     }
 
+    #[allow(clippy::float_cmp)] // Exact comparison of the requested cell with the control contrast.
     fn execute_cell_aipw_response(
         &self,
         data: &TabularData,

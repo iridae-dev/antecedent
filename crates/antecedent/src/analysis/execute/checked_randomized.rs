@@ -92,38 +92,15 @@ impl CheckedRandomizedOperation {
                 });
             }
         };
-        let n = outcomes.len();
         if outcomes.iter().any(|y| !y.is_finite()) {
             return Err(CausalError::Unsupported {
                 message: "randomized ITT requires complete finite outcomes",
             });
         }
-        let adjusted_outcomes;
-        let outcomes = if let Some((covariate, coefficient)) = self.query.fixed_cuped {
-            let values = match data.column(covariate).map_err(CausalError::from)? {
-                antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
-                _ => {
-                    return Err(CausalError::Unsupported {
-                        message: "fixed CUPED pre-assignment covariate must be continuous",
-                    });
-                }
-            };
-            if values.len() != n || values.iter().any(|x| !x.is_finite()) {
-                return Err(CausalError::Unsupported {
-                    message: "fixed CUPED requires a complete finite pre-assignment covariate",
-                });
-            }
-            adjusted_outcomes = outcomes
-                .iter()
-                .zip(values.iter())
-                .map(|(y, x)| y - coefficient * x)
-                .collect::<Vec<_>>();
-            adjusted_outcomes.as_slice()
-        } else {
-            outcomes
-        };
+        let adjusted_outcomes = self.cuped_adjusted_outcomes(data, outcomes)?;
+        let outcomes = adjusted_outcomes.as_deref().unwrap_or(outcomes);
         let method = RandomizedMethod::of(&self.query);
-        let mut fit = fit_randomized(&self.query, data, outcomes)?;
+        let fit = fit_randomized(&self.query, data, outcomes)?;
         if !fit.effect.is_finite() || !fit.variance.is_finite() || fit.variance < 0.0 {
             return Err(CausalError::Unsupported {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
@@ -175,50 +152,91 @@ impl CheckedRandomizedOperation {
                 extras: IdentifiedExecuteExtras::default(),
             },
         );
-        let (control_units, treatment_units) = (fit.control_units, fit.treatment_units);
-        result.payload =
-            crate::result::ResultPayload::RandomizedEffect(crate::RandomizedEffectEstimate {
-                effect: fit.effect,
-                estimand: Arc::from(method.estimand_label()),
-                intention_to_treat_effect: fit.complier_components.map(|(itt, _)| itt),
-                first_stage_effect: fit.complier_components.map(|(_, stage)| stage),
-                received_treatment: self.query.received_treatment.clone(),
-                randomization_p_value: exact_test.map(|(p, _)| p),
-                randomization_allocations: exact_test.map(|(_, count)| count),
-                second_factor_effect: fit.factorial.map(|f| f.second_factor_effect),
-                factorial_interaction: fit.factorial.map(|f| f.interaction),
-                second_factor_variance: fit.factorial.map(|f| f.second_factor_variance),
-                factorial_interaction_variance: fit.factorial.map(|f| f.interaction_variance),
-                multi_arm_values: std::mem::replace(&mut fit.multi_arm_values, Arc::from([])),
-                variance_upper_bound: fit.variance,
-                standard_error: fit.interval_standard_error,
-                interval_95: fit.interval_95,
-                second_factor_interval_95: fit.second_factor_interval_95,
-                factorial_interaction_interval_95: fit.factorial_interaction_interval_95,
-                multi_arm_intervals_95: std::mem::replace(
-                    &mut fit.multi_arm_intervals_95,
-                    Arc::from([]),
-                ),
-                minimum_assignment_probability: assignment_probability_floor(
-                    &self.query,
-                    matches!(method, RandomizedMethod::Switchback),
-                ),
-                assignment_design: Arc::from(method.design_tag()),
-                blocks: fit.blocks,
-                periods: fit.periods,
-                control_units,
-                treatment_units,
-                uncertainty,
-                assignment_units: Arc::clone(&self.query.assignment_units),
-                outcome_units: Arc::clone(&self.query.outcome_units),
-                treatment_arms: self.query.treatment_arms.clone(),
-            });
+        result.payload = crate::result::ResultPayload::RandomizedEffect(self.randomized_payload(
+            fit,
+            method,
+            exact_test,
+            uncertainty,
+        ));
         if self.graphless_license(&result, method).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         result.rebind_interval(false);
         result.treatment = None;
         Ok(result)
+    }
+
+    /// Outcomes minus the fixed CUPED covariate term, when the query declares one.
+    fn cuped_adjusted_outcomes(
+        &self,
+        data: &TabularData,
+        outcomes: &[f64],
+    ) -> Result<Option<Vec<f64>>, CausalError> {
+        let Some((covariate, coefficient)) = self.query.fixed_cuped else {
+            return Ok(None);
+        };
+        let n = outcomes.len();
+        let values = match data.column(covariate).map_err(CausalError::from)? {
+            antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "fixed CUPED pre-assignment covariate must be continuous",
+                });
+            }
+        };
+        if values.len() != n || values.iter().any(|x| !x.is_finite()) {
+            return Err(CausalError::Unsupported {
+                message: "fixed CUPED requires a complete finite pre-assignment covariate",
+            });
+        }
+        Ok(Some(outcomes.iter().zip(values.iter()).map(|(y, x)| y - coefficient * x).collect()))
+    }
+
+    /// Wire payload of a fitted randomized effect.
+    fn randomized_payload(
+        &self,
+        mut fit: super::randomized_fit::TrialFit,
+        method: RandomizedMethod,
+        exact_test: Option<(f64, u64)>,
+        uncertainty: Arc<str>,
+    ) -> crate::RandomizedEffectEstimate {
+        let (control_units, treatment_units) = (fit.control_units, fit.treatment_units);
+        crate::RandomizedEffectEstimate {
+            effect: fit.effect,
+            estimand: Arc::from(method.estimand_label()),
+            intention_to_treat_effect: fit.complier_components.map(|(itt, _)| itt),
+            first_stage_effect: fit.complier_components.map(|(_, stage)| stage),
+            received_treatment: self.query.received_treatment.clone(),
+            randomization_p_value: exact_test.map(|(p, _)| p),
+            randomization_allocations: exact_test.map(|(_, count)| count),
+            second_factor_effect: fit.factorial.map(|f| f.second_factor_effect),
+            factorial_interaction: fit.factorial.map(|f| f.interaction),
+            second_factor_variance: fit.factorial.map(|f| f.second_factor_variance),
+            factorial_interaction_variance: fit.factorial.map(|f| f.interaction_variance),
+            multi_arm_values: std::mem::replace(&mut fit.multi_arm_values, Arc::from([])),
+            variance_upper_bound: fit.variance,
+            standard_error: fit.interval_standard_error,
+            interval_95: fit.interval_95,
+            second_factor_interval_95: fit.second_factor_interval_95,
+            factorial_interaction_interval_95: fit.factorial_interaction_interval_95,
+            multi_arm_intervals_95: std::mem::replace(
+                &mut fit.multi_arm_intervals_95,
+                Arc::from([]),
+            ),
+            minimum_assignment_probability: assignment_probability_floor(
+                &self.query,
+                matches!(method, RandomizedMethod::Switchback),
+            ),
+            assignment_design: Arc::from(method.design_tag()),
+            blocks: fit.blocks,
+            periods: fit.periods,
+            control_units,
+            treatment_units,
+            uncertainty,
+            assignment_units: Arc::clone(&self.query.assignment_units),
+            outcome_units: Arc::clone(&self.query.outcome_units),
+            treatment_arms: self.query.treatment_arms.clone(),
+        }
     }
 
     /// Graphless licenses are exact design/method/inference claims. A
@@ -471,6 +489,19 @@ impl CheckedPolicyValueOperation {
                 });
             }
         };
+        let evaluation = self.evaluate_policy_value(y)?;
+        let counts = (
+            evaluation.policy_matches,
+            evaluation.reference_matches,
+            evaluation.independent_policy_rows,
+        );
+        let mut result = self.policy_value_result(data, evaluation);
+        self.license_policy_value(&mut result, y.len(), counts);
+        Ok(result)
+    }
+
+    /// Scores, uplift bins, regret and intervals of the declared policy on the outcomes.
+    fn evaluate_policy_value(&self, y: &[f64]) -> Result<PolicyValueEvaluation, CausalError> {
         let multi = self.query.multi_action.as_ref();
         let multi_action_cate = if let Some(policy) = multi {
             antecedent_estimate::policy_value::evaluate_multi_action_cate(y, policy)
@@ -512,36 +543,7 @@ impl CheckedPolicyValueOperation {
         } else {
             Vec::new()
         };
-        let score = if let Some(multi) = multi {
-            antecedent_estimate::policy_value::evaluate_multi_action_policy_value_scores(y, multi)
-        } else if ipw {
-            antecedent_estimate::policy_value::evaluate_policy_value_ipw_scores(
-                y,
-                &antecedent_estimate::policy_value::BinaryPolicyDesign {
-                    assignment: &self.query.assignment,
-                    actions: &self.query.actions,
-                    propensity: &self.query.propensity,
-                    reference: &self.query.reference,
-                    costs: &self.query.costs,
-                    reference_costs: &self.query.reference_costs,
-                },
-            )
-        } else {
-            antecedent_estimate::policy_value::evaluate_policy_value_scores(
-                y,
-                &antecedent_estimate::policy_value::BinaryPolicyDesign {
-                    assignment: &self.query.assignment,
-                    actions: &self.query.actions,
-                    propensity: &self.query.propensity,
-                    reference: &self.query.reference,
-                    costs: &self.query.costs,
-                    reference_costs: &self.query.reference_costs,
-                },
-                &self.query.mu0,
-                &self.query.mu1,
-            )
-        }
-        .map_err(|message| CausalError::Unsupported { message })?;
+        let score = self.policy_value_score(y, multi, ipw)?;
         let (policy_matches, reference_matches) = if let Some(policy) = multi {
             (
                 policy.assignment.iter().zip(policy.actions.iter()).filter(|(a, b)| a == b).count(),
@@ -590,6 +592,69 @@ impl CheckedPolicyValueOperation {
         } else {
             None
         };
+        Ok(PolicyValueEvaluation {
+            multi_action_cate,
+            regret,
+            uplift_bins,
+            score,
+            policy_matches,
+            reference_matches,
+            independent_policy_rows,
+            intervals,
+        })
+    }
+
+    /// Row scores of the declared policy: multi-action IPW, binary IPW, or doubly robust.
+    fn policy_value_score(
+        &self,
+        y: &[f64],
+        multi: Option<&antecedent_core::MultiActionPolicyInputs>,
+        ipw: bool,
+    ) -> Result<antecedent_estimate::policy_value::PolicyValueScores, CausalError> {
+        let score = if let Some(multi) = multi {
+            antecedent_estimate::policy_value::evaluate_multi_action_policy_value_scores(y, multi)
+        } else if ipw {
+            antecedent_estimate::policy_value::evaluate_policy_value_ipw_scores(
+                y,
+                &antecedent_estimate::policy_value::BinaryPolicyDesign {
+                    assignment: &self.query.assignment,
+                    actions: &self.query.actions,
+                    propensity: &self.query.propensity,
+                    reference: &self.query.reference,
+                    costs: &self.query.costs,
+                    reference_costs: &self.query.reference_costs,
+                },
+            )
+        } else {
+            antecedent_estimate::policy_value::evaluate_policy_value_scores(
+                y,
+                &antecedent_estimate::policy_value::BinaryPolicyDesign {
+                    assignment: &self.query.assignment,
+                    actions: &self.query.actions,
+                    propensity: &self.query.propensity,
+                    reference: &self.query.reference,
+                    costs: &self.query.costs,
+                    reference_costs: &self.query.reference_costs,
+                },
+                &self.query.mu0,
+                &self.query.mu1,
+            )
+        }
+        .map_err(|message| CausalError::Unsupported { message })?;
+        Ok(score)
+    }
+
+    /// The policy-value result: not-an-effect estimate with the policy payload attached.
+    fn policy_value_result(
+        &self,
+        data: &TabularData,
+        evaluation: PolicyValueEvaluation,
+    ) -> StudyResult {
+        let PolicyValueEvaluation {
+            multi_action_cate, regret, uplift_bins, score, intervals, ..
+        } = evaluation;
+        let multi = self.query.multi_action.as_ref();
+        let ipw = self.query.mu0.is_empty();
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -676,17 +741,12 @@ impl CheckedPolicyValueOperation {
             multi_action_cate,
             regret,
         });
-        let policy = result.policy_value().expect("policy value was just attached");
-        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
-            multi.is_some(),
-            ipw,
-            !policy.uplift_bins.is_empty(),
-            !policy.multi_action_cate.is_empty(),
-            self.query.regret.is_some(),
-            !ipw && self.query.crossfit_fold_ownership_valid
-                && !self.query.disjoint_training_subjects,
-        );
-        let (treated, control, min_action_rows, min_probability) = if let Some(multi) = multi {
+        result
+    }
+
+    /// Treated and control counts, thinnest action arm and smallest assignment probability.
+    fn policy_assignment_support(&self, rows: usize) -> (usize, usize, usize, f64) {
+        if let Some(multi) = self.query.multi_action.as_ref() {
             let k = multi.action_labels.len();
             (
                 multi.assignment.iter().filter(|&&action| action != 0).count(),
@@ -703,8 +763,8 @@ impl CheckedPolicyValueOperation {
             let treated = self.query.assignment.iter().filter(|&&assigned| assigned).count();
             (
                 treated,
-                y.len() - treated,
-                treated.min(y.len() - treated),
+                rows - treated,
+                treated.min(rows - treated),
                 self.query
                     .propensity
                     .iter()
@@ -712,7 +772,31 @@ impl CheckedPolicyValueOperation {
                     .map(|p| p.min(1.0 - p))
                     .fold(f64::INFINITY, f64::min),
             )
-        };
+        }
+    }
+
+    /// Licenses the graphless cell when the observed assignment support clears its gates.
+    fn license_policy_value(
+        &self,
+        result: &mut StudyResult,
+        rows: usize,
+        counts: (usize, usize, bool),
+    ) {
+        let (policy_matches, reference_matches, independent_policy_rows) = counts;
+        let multi = self.query.multi_action.as_ref();
+        let ipw = self.query.mu0.is_empty();
+        let policy = result.policy_value().expect("policy value was just attached");
+        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
+            multi.is_some(),
+            ipw,
+            !policy.uplift_bins.is_empty(),
+            !policy.multi_action_cate.is_empty(),
+            self.query.regret.is_some(),
+            !ipw && self.query.crossfit_fold_ownership_valid
+                && !self.query.disjoint_training_subjects,
+        );
+        let (treated, control, min_action_rows, min_probability) =
+            self.policy_assignment_support(rows);
         let min_bin_rows =
             policy.uplift_bins.iter().map(|bin| bin.evaluation_rows).min().unwrap_or(0);
         let min_bin_arm_rows = if policy.uplift_bins.is_empty() {
@@ -752,7 +836,7 @@ impl CheckedPolicyValueOperation {
             assignment_unit: "unit",
             treated,
             control,
-            rows: y.len(),
+            rows,
             min_action_rows,
             min_probability,
             interval_95_published: scalar_intervals == 2,
@@ -787,14 +871,26 @@ impl CheckedPolicyValueOperation {
         {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
-        Ok(result)
     }
 }
 
-pub(crate) fn randomized_identification(
+/// Policy scores and the support counts a policy-value result is assembled from.
+struct PolicyValueEvaluation {
+    multi_action_cate: Vec<antecedent_estimate::policy_value::MultiActionCatePoint>,
+    regret: Option<antecedent_estimate::policy_value::FixedCandidateRegret>,
+    uplift_bins: Vec<antecedent_estimate::policy_value::UpliftBinScore>,
+    score: antecedent_estimate::policy_value::PolicyValueScores,
+    policy_matches: usize,
+    reference_matches: usize,
+    independent_policy_rows: bool,
+    intervals: Option<antecedent_estimate::policy_value::PolicyValueIntervals95>,
+}
+
+/// Consistency, positivity, interference and compliance assumptions of a randomized design.
+fn push_randomized_core_assumptions(
     query: &antecedent_core::RandomizedEffectQuery,
-) -> (IdentificationResult, IdentifiedEstimand) {
-    let mut assumptions = antecedent_core::AssumptionSet::default();
+    assumptions: &mut antecedent_core::AssumptionSet,
+) {
     let mut standard = vec![Assumption::Consistency, Assumption::Positivity];
     if !matches!(
         query.design,
@@ -859,6 +955,13 @@ pub(crate) fn randomized_identification(
             status: AssumptionStatus::Declared,
         });
     }
+}
+
+/// Cluster, switchback and known-assignment assumptions of the declared randomization design.
+fn push_randomized_design_assumptions(
+    query: &antecedent_core::RandomizedEffectQuery,
+    assumptions: &mut antecedent_core::AssumptionSet,
+) {
     if matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. }) {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
@@ -914,6 +1017,13 @@ pub(crate) fn randomized_identification(
         scope: AssumptionScope::Identification,
         status: AssumptionStatus::Declared,
     });
+}
+
+/// Fixed CUPED and ANCOVA pre-assignment covariate assumptions.
+fn push_randomized_covariate_assumptions(
+    query: &antecedent_core::RandomizedEffectQuery,
+    assumptions: &mut antecedent_core::AssumptionSet,
+) {
     if query.fixed_cuped.is_some() {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
@@ -936,6 +1046,15 @@ pub(crate) fn randomized_identification(
             status: AssumptionStatus::Declared,
         });
     }
+}
+
+pub(crate) fn randomized_identification(
+    query: &antecedent_core::RandomizedEffectQuery,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let mut assumptions = antecedent_core::AssumptionSet::default();
+    push_randomized_core_assumptions(query, &mut assumptions);
+    push_randomized_design_assumptions(query, &mut assumptions);
+    push_randomized_covariate_assumptions(query, &mut assumptions);
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();

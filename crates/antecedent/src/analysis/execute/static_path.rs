@@ -467,10 +467,6 @@ impl<'a> StaticAteExecution<'a> {
     }
 
     /// Refuses a retained front-door operation whose lowering disagrees with the query.
-    #[expect(
-        clippy::float_cmp,
-        reason = "front-door query intervention values are exact discrete declared values"
-    )]
     fn check_prepared_frontdoor_lowering(
         &self,
         operation: &super::super::prepared::CheckedFrontDoorOperation,
@@ -1801,7 +1797,7 @@ impl super::Study {
             StaticEstimateInput {
                 data: &data_est,
                 estimand: &estimand,
-                query: query,
+                query,
                 bootstrap_replicates: self.bootstrap_replicates,
                 overlap_policy: self.overlap_policy,
                 population_registry: self.population_registry.as_ref(),
@@ -1813,7 +1809,7 @@ impl super::Study {
         let mut extra_diagnostics = Vec::new();
         let estimate = super::super::helpers::attach_average_functional_grid(
             estimate,
-            super::super::helpers::AverageTarget { data: data, query: query, estimand: &estimand },
+            super::super::helpers::AverageTarget { data, query, estimand: &estimand },
             &mut extra_diagnostics,
             estimator_id,
             self,
@@ -1908,8 +1904,8 @@ impl super::Study {
                 &spec,
                 StaticEstimateInput {
                     data: data_est,
-                    estimand: estimand,
-                    query: query,
+                    estimand,
+                    query,
                     bootstrap_replicates: self.bootstrap_replicates,
                     overlap_policy: self.overlap_policy,
                     population_registry: self.population_registry.as_ref(),

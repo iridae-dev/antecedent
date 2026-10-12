@@ -54,44 +54,20 @@ impl super::Study {
         let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
         let witness = response_path::response_witness_ate(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
-        let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_ref()
-        {
-            (Arc::clone(cache), true)
-        } else {
-            (
-                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
-                    gp, &witness, ctx,
-                )?),
-                false,
-            )
-        };
-        if identified.class_atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
-            return Err(CausalError::Compile {
-                message: "class graph-posterior response: no identified class atoms".into(),
-            });
-        }
-
-        let data_est = super::super::helpers::apply_scalar_outcome_functional(
-            data,
-            outcome,
-            &query.outcome_functional,
-        )?;
+        let (identified, identify_cached) =
+            self.class_graph_posterior_response_identification(gp, &witness, ctx)?;
         let options = self.response_options.clone().unwrap_or_default();
-        let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
-            let atom = &identified.class_atoms[i];
-            match &self.inference {
-                InferenceMode::Frequentist => evaluate_class_atom_response_frequentist(
-                    self, &data_est, query, atom, &options, inner,
-                ),
-                InferenceMode::Bayesian(_) => evaluate_class_atom_response_bayesian(
-                    self, &data_est, query, atom, &options, inner,
-                ),
-            }
-        })?;
+        let evals = self.evaluate_class_posterior_response_atoms(
+            data,
+            query,
+            outcome,
+            &identified,
+            &options,
+            ctx,
+        )?;
 
         let unidentified_mass = identified.graphs.unidentified_mass();
-        let mixed = mix_class_posterior_responses(
+        let mut mixed = mix_class_posterior_responses(
             &identified,
             &evals,
             unidentified_mass,
@@ -99,9 +75,8 @@ impl super::Study {
             data.row_count(),
             options.confidence_level,
         )?;
-        let mut identification = mixed.identification;
-        identification.status = resolve_posterior_status(
-            identification.status,
+        mixed.identification.status = resolve_posterior_status(
+            mixed.identification.status,
             mixed.policy,
             PosteriorMassSummary {
                 unidentified: unidentified_mass,
@@ -125,7 +100,124 @@ impl super::Study {
             EstimatorId::default_for_response(&query.functional)
         };
 
-        let mut diagnostics = identification.diagnostics.clone();
+        let mut diagnostics = self.class_graph_posterior_response_diagnostics(&mixed, &class_tag);
+        let (refutations, refute_diags) = self.refute_class_graph_posterior_response(
+            ClassResponseRefuteInput {
+                data,
+                query,
+                identified: &identified,
+                evals: &evals,
+                mixed: &mixed,
+                scalar,
+                standard_error,
+                estimator_id,
+                treatment,
+                outcome,
+            },
+            &mut diagnostics,
+            ctx,
+        )?;
+        diagnostics.extend(refute_diags);
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        diagnostics.extend(mixed.response.support.warnings.iter().cloned());
+
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let MixedClassPosteriorResponse {
+            policy, identification, estimand, response, mixture, ..
+        } = mixed;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.class_graph_posterior_response",
+                    policy.as_str(),
+                )),
+                response: Some(response),
+                structural_response: Some(mixture),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// The prepared class posterior identification cache, or a live build for the witness query.
+    fn class_graph_posterior_response_identification(
+        &self,
+        gp: &GraphPosterior,
+        witness: &AverageEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
+        let (identified, identify_cached) = if let Some(cache) =
+            self.graph_posterior_identification_cache.as_ref()
+        {
+            (Arc::clone(cache), true)
+        } else {
+            (
+                Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, witness, ctx,
+                )?),
+                false,
+            )
+        };
+        if identified.class_atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
+            return Err(CausalError::Compile {
+                message: "class graph-posterior response: no identified class atoms".into(),
+            });
+        }
+        Ok((identified, identify_cached))
+    }
+
+    /// Evaluates every class posterior atom's response on the worker pool.
+    fn evaluate_class_posterior_response_atoms(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        outcome: VariableId,
+        identified: &CachedGraphPosteriorIdentification,
+        options: &antecedent_estimate::ContinuousResponseOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<ClassAtomResponseEval>, CausalError> {
+        let data_est = super::super::helpers::apply_scalar_outcome_functional(
+            data,
+            outcome,
+            &query.outcome_functional,
+        )?;
+        let data_est = &data_est;
+        ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
+            let atom = &identified.class_atoms[i];
+            match &self.inference {
+                InferenceMode::Frequentist => evaluate_class_atom_response_frequentist(
+                    self, data_est, query, atom, options, inner,
+                ),
+                InferenceMode::Bayesian(_) => evaluate_class_atom_response_bayesian(
+                    self, data_est, query, atom, options, inner,
+                ),
+            }
+        })
+    }
+
+    /// Class-envelope, aggregation-policy and withheld-uncertainty disclosures of the response.
+    fn class_graph_posterior_response_diagnostics(
+        &self,
+        mixed: &MixedClassPosteriorResponse,
+        class_tag: &str,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = mixed.identification.diagnostics.clone();
         diagnostics.push(Diagnostic::new(
             "estimate.response.class_graph_posterior",
             DiagnosticKind::Scientific,
@@ -176,19 +268,39 @@ impl super::Study {
                  are not claimed",
             ));
         }
+        diagnostics
+    }
 
+    /// Plugin-level refutation of a class graph-posterior response, per aggregate or per atom.
+    fn refute_class_graph_posterior_response(
+        &self,
+        input: ClassResponseRefuteInput<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let ClassResponseRefuteInput {
+            data,
+            query,
+            identified,
+            evals,
+            mixed,
+            scalar,
+            standard_error,
+            estimator_id,
+            treatment,
+            outcome,
+        } = input;
         let plugin_scalar = match &mixed.conditional {
             Some(ResponseValue::Scalar(value)) => *value,
             _ => scalar,
         };
         let scalar_intervention = plugin_scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        let (refutations, refute_diags) =
-            if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
-                && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
-            {
-                if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
-                    diagnostics.push(Diagnostic::new(
+        if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
+            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+        {
+            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+                diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -196,45 +308,45 @@ impl super::Study {
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      g-comp level",
                 ));
+            }
+            if scalar_intervention
+                && matches!(mixed.policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
+            {
+                let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+                let mut refute_ws = EstimationWorkspace::default();
+                let plugin_estimate = EffectEstimate::new(
+                    plugin_scalar,
+                    standard_error,
+                    mixed.response.assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                );
+                RefutationRun {
+                    data,
+                    estimand: &mixed.estimand,
+                    query: &ate_query,
+                    estimate: &plugin_estimate,
+                    suite: self.refute,
+                    estimator: estimator_id.as_str(),
+                    custom: &self.custom_validators,
+                    temporal: None,
                 }
-                if scalar_intervention
-                    && matches!(mixed.policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                {
-                    let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-                    let mut refute_ws = EstimationWorkspace::default();
-                    let plugin_estimate = EffectEstimate::new(
-                        plugin_scalar,
-                        standard_error,
-                        mixed.response.assumptions.clone(),
-                        OverlapPolicy::ExplicitOverride,
-                    );
-                    RefutationRun {
-                        data,
-                        estimand: &mixed.estimand,
-                        query: &ate_query,
-                        estimate: &plugin_estimate,
-                        suite: self.refute,
+                .plugin_level(&mut refute_ws, ctx)
+            } else {
+                plugin_level_on_class_response_atoms(
+                    self,
+                    data,
+                    identified,
+                    evals,
+                    (treatment, outcome),
+                    ctx,
+                    AtomRefutationPolicy {
+                        aggregation: mixed.policy,
                         estimator: estimator_id.as_str(),
-                        custom: &self.custom_validators,
-                        temporal: None,
-                    }
-                    .plugin_level(&mut refute_ws, ctx)?
-                } else {
-                    plugin_level_on_class_response_atoms(
-                        self,
-                        data,
-                        &identified,
-                        &evals,
-                        (treatment, outcome),
-                        ctx,
-                        AtomRefutationPolicy {
-                            aggregation: mixed.policy,
-                            estimator: estimator_id.as_str(),
-                        },
-                    )?
-                }
-            } else if !matches!(self.refute, RefuteSuite::None) {
-                diagnostics.push(Diagnostic::new(
+                    },
+                )
+            }
+        } else if !matches!(self.refute, RefuteSuite::None) {
+            diagnostics.push(Diagnostic::new(
                 "refute.response.skipped",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
@@ -246,46 +358,26 @@ impl super::Study {
                      response"
                 },
             ));
-                (Vec::new(), Vec::new())
-            } else {
-                (Vec::new(), Vec::new())
-            };
-        diagnostics.extend(refute_diags);
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
+            Ok((Vec::new(), Vec::new()))
+        } else {
+            Ok((Vec::new(), Vec::new()))
         }
-        for warning in &mixed.response.support.warnings {
-            diagnostics.push(warning.clone());
-        }
-
-        let algo =
-            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                mixed.estimand,
-                estimate,
-                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
-                treatment,
-                outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.class_graph_posterior_response",
-                    mixed.policy.as_str(),
-                )),
-                response: Some(mixed.response),
-                structural_response: Some(mixed.mixture),
-                diagnostics: Some(diagnostics),
-                ..Default::default()
-            }),
-        ))
     }
+}
+
+/// Borrowed inputs of the plugin-level refutation of a class graph-posterior response.
+#[derive(Clone, Copy)]
+struct ClassResponseRefuteInput<'a> {
+    data: &'a TabularData,
+    query: &'a ResponseQuery,
+    identified: &'a CachedGraphPosteriorIdentification,
+    evals: &'a [ClassAtomResponseEval],
+    mixed: &'a MixedClassPosteriorResponse,
+    scalar: f64,
+    standard_error: f64,
+    estimator_id: EstimatorId,
+    treatment: VariableId,
+    outcome: VariableId,
 }
 
 struct MixedClassPosteriorResponse {
@@ -465,14 +557,61 @@ fn evaluate_class_atom_response_bayesian(
     })
 }
 
-fn mix_class_posterior_responses(
-    identified: &CachedGraphPosteriorIdentification,
-    evals: &[ClassAtomResponseEval],
-    unidentified_mass: f64,
-    query: &ResponseQuery,
+/// Mass shares a class posterior response resolves its identification status from.
+#[derive(Clone, Copy)]
+struct ClassMass {
+    unidentified: f64,
+    unevaluable: f64,
+    failed: f64,
+}
+
+impl ClassMass {
+    fn summary(self, identified: &CachedGraphPosteriorIdentification) -> PosteriorMassSummary {
+        PosteriorMassSummary {
+            unidentified: self.unidentified,
+            unevaluable: self.unevaluable,
+            failed: self.failed,
+            truncated: identified.class_atoms.iter().any(|atom| atom.truncated_completions > 0),
+            ..PosteriorMassSummary::default()
+        }
+    }
+}
+
+/// Borrowed inputs of the mixed class posterior response.
+#[derive(Clone, Copy)]
+struct ClassPayloadInputs<'a> {
+    identified: &'a CachedGraphPosteriorIdentification,
+    query: &'a ResponseQuery,
+    weighted: &'a [(u64, f64, CausalResponse)],
+    atom_scores: &'a [(f64, antecedent_estimate::ResponseInfluence)],
+    first: &'a CausalResponse,
+    policy: StructuralAggregationPolicy,
+    conditional: &'a Option<ResponseValue>,
+    mixable_scalar: bool,
+    mass: ClassMass,
     row_count: usize,
     confidence_level: f64,
-) -> Result<MixedClassPosteriorResponse, CausalError> {
+}
+
+/// Evaluated atoms of a class posterior response before mixing.
+struct ClassResponseCollected {
+    atoms: Vec<StructuralResponseAtom>,
+    weighted: Vec<(u64, f64, CausalResponse)>,
+    identified_weight: f64,
+    unevaluable_weight: f64,
+    failed_mass: f64,
+    contributing: Vec<IdentifiedEstimand>,
+    any_partial: bool,
+    primary_identification: Option<IdentificationResult>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
+}
+
+/// Weights, atoms and primary claim of the evaluated class posterior atoms.
+fn collect_class_response_atoms(
+    identified: &CachedGraphPosteriorIdentification,
+    evals: &[ClassAtomResponseEval],
+) -> ClassResponseCollected {
     let mut atoms = Vec::new();
     let mut weighted = Vec::new();
     let mut identified_weight = 0.0;
@@ -520,53 +659,47 @@ fn mix_class_posterior_responses(
             response: eval.response.clone(),
         });
     }
+    ClassResponseCollected {
+        atoms,
+        weighted,
+        identified_weight,
+        unevaluable_weight,
+        failed_mass,
+        contributing,
+        any_partial,
+        primary_identification,
+        primary_estimand,
+        atom_scores,
+    }
+}
 
-    append_unidentified_atoms(&mut atoms, &identified.graphs);
-
-    let total = identified.graphs.total_weight();
-    let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
-    let unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
-    let refs: Vec<&IdentifiedEstimand> = contributing.iter().collect();
-    let policy = if refs.is_empty() && any_partial {
-        StructuralAggregationPolicy::IdentifiedSetEnvelope
-    } else {
-        resolve_structural_aggregation(&refs, any_partial)
-    };
-
-    let conditional_values = weighted
-        .iter()
-        .filter_map(|(_, weight, response)| {
-            response_identified_value(response).map(|value| (*weight, value))
-        })
-        .collect::<Vec<_>>();
-    let conditional_refs =
-        conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
-    let mixable_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-        && !conditional_refs.is_empty();
-    let conditional =
-        if mixable_scalar { Some(mix_response_values(&conditional_refs)?) } else { None };
-    let structural_set = response_envelope_from_weighted(&weighted);
-    let first =
-        weighted.first().map(|(_, _, response)| response).ok_or_else(|| CausalError::Compile {
-            message: "class graph-posterior response mix: no evaluable atom values".into(),
-        })?;
-
+/// Mixed response of the evaluated class atoms, with the joint-IF SE when one is licensed.
+fn class_posterior_response_payload(
+    inputs: &ClassPayloadInputs<'_>,
+) -> (CausalResponse, Option<f64>) {
+    let ClassPayloadInputs {
+        identified,
+        query,
+        weighted,
+        atom_scores,
+        first,
+        policy,
+        conditional,
+        mixable_scalar,
+        mass,
+        row_count,
+        confidence_level,
+    } = *inputs;
     let graph_dependent = resolve_posterior_status(
         IdentificationStatus::NonparametricallyIdentified,
         policy,
-        PosteriorMassSummary {
-            unidentified: unidentified_mass,
-            unevaluable: unevaluable_mass,
-            failed: failed_mass,
-            truncated: identified.class_atoms.iter().any(|atom| atom.truncated_completions > 0),
-            ..PosteriorMassSummary::default()
-        },
+        mass.summary(identified),
     ) == IdentificationStatus::GraphDependent;
     let mixed_if_se = (!graph_dependent
         && weighted.len() > 1
         && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
         && matches!(conditional, Some(ResponseValue::Scalar(_))))
-    .then(|| response_path::mixed_response_scalar_se(&atom_scores, row_count))
+    .then(|| response_path::mixed_response_scalar_se(atom_scores, row_count))
     .flatten();
     let uncertainty = if graph_dependent {
         ResponseUncertainty::None
@@ -608,13 +741,7 @@ fn mix_class_posterior_responses(
         identification_status: resolve_posterior_status(
             first.identification_status,
             policy,
-            PosteriorMassSummary {
-                unidentified: unidentified_mass,
-                unevaluable: unevaluable_mass,
-                failed: failed_mass,
-                truncated: identified.class_atoms.iter().any(|atom| atom.truncated_completions > 0),
-                ..PosteriorMassSummary::default()
-            },
+            mass.summary(identified),
         ),
         estimate: estimate_kind,
         uncertainty,
@@ -626,6 +753,76 @@ fn mix_class_posterior_responses(
         horizon_identification: None,
         interaction_structurally_zero: first.interaction_structurally_zero,
     };
+    (response, mixed_if_se)
+}
+
+fn mix_class_posterior_responses(
+    identified: &CachedGraphPosteriorIdentification,
+    evals: &[ClassAtomResponseEval],
+    unidentified_mass: f64,
+    query: &ResponseQuery,
+    row_count: usize,
+    confidence_level: f64,
+) -> Result<MixedClassPosteriorResponse, CausalError> {
+    let ClassResponseCollected {
+        mut atoms,
+        weighted,
+        identified_weight,
+        unevaluable_weight,
+        failed_mass,
+        contributing,
+        any_partial,
+        primary_identification,
+        primary_estimand,
+        atom_scores,
+    } = collect_class_response_atoms(identified, evals);
+    append_unidentified_atoms(&mut atoms, &identified.graphs);
+
+    let total = identified.graphs.total_weight();
+    let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
+    let unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
+    let refs: Vec<&IdentifiedEstimand> = contributing.iter().collect();
+    let policy = if refs.is_empty() && any_partial {
+        StructuralAggregationPolicy::IdentifiedSetEnvelope
+    } else {
+        resolve_structural_aggregation(&refs, any_partial)
+    };
+
+    let conditional_values = weighted
+        .iter()
+        .filter_map(|(_, weight, response)| {
+            response_identified_value(response).map(|value| (*weight, value))
+        })
+        .collect::<Vec<_>>();
+    let conditional_refs =
+        conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
+    let mixable_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
+        && !conditional_refs.is_empty();
+    let conditional =
+        if mixable_scalar { Some(mix_response_values(&conditional_refs)?) } else { None };
+    let structural_set = response_envelope_from_weighted(&weighted);
+    let first =
+        weighted.first().map(|(_, _, response)| response).ok_or_else(|| CausalError::Compile {
+            message: "class graph-posterior response mix: no evaluable atom values".into(),
+        })?;
+
+    let (response, mixed_if_se) = class_posterior_response_payload(&ClassPayloadInputs {
+        identified,
+        query,
+        weighted: &weighted,
+        atom_scores: &atom_scores,
+        first,
+        policy,
+        conditional: &conditional,
+        mixable_scalar,
+        mass: ClassMass {
+            unidentified: unidentified_mass,
+            unevaluable: unevaluable_mass,
+            failed: failed_mass,
+        },
+        row_count,
+        confidence_level,
+    });
 
     let mixture = StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,

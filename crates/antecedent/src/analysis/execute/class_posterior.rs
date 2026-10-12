@@ -79,10 +79,9 @@ impl super::Study {
         })?;
 
         let unidentified_mass = identified.graphs.unidentified_mass();
-        let mixed = mix_class_posterior_evals(&identified, &evals, unidentified_mass)?;
-        let mut identification = mixed.identification;
-        identification.status = resolve_posterior_status(
-            identification.status,
+        let mut mixed = mix_class_posterior_evals(&identified, &evals, unidentified_mass)?;
+        mixed.identification.status = resolve_posterior_status(
+            mixed.identification.status,
             mixed.policy,
             PosteriorMassSummary {
                 unidentified: unidentified_mass,
@@ -92,7 +91,68 @@ impl super::Study {
             },
         );
 
-        let mut diagnostics = identification.diagnostics.clone();
+        let mut diagnostics = self.class_graph_posterior_diagnostics(&mixed, &evals, &class_tag);
+        let estimator_id = match &self.inference {
+            InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+            InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
+        };
+        let (refutations, refute_diagnostics) = refute_class_graph_posterior(
+            self,
+            data,
+            query,
+            &identified,
+            &evals,
+            AtomRefutationPolicy { aggregation: mixed.policy, estimator: estimator_id.as_str() },
+            ctx,
+        )?;
+        diagnostics.extend(refute_diagnostics);
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let MixedClassPosterior {
+            policy,
+            identification,
+            estimand,
+            estimate,
+            posterior,
+            mixture,
+            ..
+        } = mixed;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.class_graph_posterior",
+                    policy.as_str(),
+                )),
+                posterior,
+                diagnostics: Some(diagnostics),
+                structural_response: Some(mixture),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Disclosures of a class graph-posterior effect: withheld posterior, aggregation policy,
+    /// overlap, SE route and published mass.
+    fn class_graph_posterior_diagnostics(
+        &self,
+        mixed: &MixedClassPosterior,
+        evals: &[ClassAtomEval],
+        class_tag: &str,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = mixed.identification.diagnostics.clone();
         if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
@@ -175,48 +235,7 @@ impl super::Study {
                 mixed.mixture.unidentified_mass,
             )),
         );
-
-        let estimator_id = match &self.inference {
-            InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
-            InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
-        };
-        let (refutations, refute_diagnostics) = refute_class_graph_posterior(
-            self,
-            data,
-            query,
-            &identified,
-            &evals,
-            AtomRefutationPolicy { aggregation: mixed.policy, estimator: estimator_id.as_str() },
-            ctx,
-        )?;
-        diagnostics.extend(refute_diagnostics);
-        let algo =
-            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                mixed.estimand,
-                mixed.estimate,
-                Strategy::new(IdentifierId::GeneralizedAdjustment, estimator_id),
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.class_graph_posterior",
-                    mixed.policy.as_str(),
-                )),
-                posterior: mixed.posterior,
-                diagnostics: Some(diagnostics),
-                structural_response: Some(mixed.mixture),
-                ..Default::default()
-            }),
-        ))
+        diagnostics
     }
 }
 
@@ -227,6 +246,50 @@ struct MixedClassPosterior {
     estimate: EffectEstimate,
     posterior: Option<CausalPosterior>,
     mixture: StructuralResponseMixture,
+}
+
+/// One completion's effect: conditional linear adjustment or the configured static estimator.
+fn fit_class_case(
+    study: &Study,
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    atom: &CachedClassPosteriorAtomIdentification,
+    estimand: &IdentifiedEstimand,
+    conditional: bool,
+    ctx: &ExecutionContext,
+) -> Result<EffectEstimate, CausalError> {
+    let estimator_id = if conditional {
+        EstimatorId::ConditionalLinearAdjustment
+    } else {
+        EstimatorId::LinearAdjustmentAte
+    };
+    if conditional {
+        let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
+        ConditionalLinearAdjustment::new()
+            .estimate(data, estimand, &q, ctx)
+            .map_err(CausalError::from)
+    } else {
+        let mut case_ws = StaticEstimateWorkspaces::default();
+        let case_spec = study
+            .estimator_spec
+            .as_deref()
+            .cloned()
+            .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
+        estimate_static_effect(
+            &case_spec,
+            StaticEstimateInput {
+                data,
+                estimand,
+                query,
+                bootstrap_replicates: study.bootstrap_replicates,
+                overlap_policy: study.overlap_policy,
+                population_registry: study.population_registry.as_ref(),
+            },
+            atom.identification.required_assumptions.clone(),
+            ctx,
+            &mut case_ws,
+        )
+    }
 }
 
 fn evaluate_class_atom_frequentist(
@@ -246,42 +309,11 @@ fn evaluate_class_atom_frequentist(
     let mut atom_ifs = Vec::new();
     let mut atom_weights = Vec::new();
     let mut refute_atoms = Vec::new();
-    let estimator_id = if conditional {
-        EstimatorId::ConditionalLinearAdjustment
-    } else {
-        EstimatorId::LinearAdjustmentAte
-    };
     for (i, case) in atom.cases.iter().enumerate() {
         let Some(estimand) = case.estimand.as_ref() else {
             continue;
         };
-        let estimate = if conditional {
-            let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
-            ConditionalLinearAdjustment::new()
-                .estimate(data, estimand, &q, ctx)
-                .map_err(CausalError::from)?
-        } else {
-            let mut case_ws = StaticEstimateWorkspaces::default();
-            let case_spec = study
-                .estimator_spec
-                .as_deref()
-                .cloned()
-                .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
-            estimate_static_effect(
-                &case_spec,
-                StaticEstimateInput {
-                    data: data,
-                    estimand: estimand,
-                    query: query,
-                    bootstrap_replicates: study.bootstrap_replicates,
-                    overlap_policy: study.overlap_policy,
-                    population_registry: study.population_registry.as_ref(),
-                },
-                atom.identification.required_assumptions.clone(),
-                ctx,
-                &mut case_ws,
-            )?
-        };
+        let estimate = fit_class_case(study, data, query, atom, estimand, conditional, ctx)?;
         let w = case.weight;
         if estimate.ate.is_finite() {
             weighted += w * estimate.ate;

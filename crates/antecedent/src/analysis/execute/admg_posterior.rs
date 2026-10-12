@@ -104,8 +104,73 @@ impl super::Study {
             });
         }
 
+        let evals = self.evaluate_admg_atoms(data, query, &identified, ctx)?;
+
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        let mut mixed = mix_admg_posterior_evals(&identified, &evals, unidentified_mass)?;
+        mixed.identification.status = resolve_posterior_status(
+            mixed.identification.status,
+            mixed.policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                ..PosteriorMassSummary::default()
+            },
+        );
+
+        let mut diagnostics = self.admg_graph_posterior_diagnostics(&mixed);
+
+        let (refutations, refute_diagnostics) =
+            refute_admg_graph_posterior(self, data, query, &identified, &evals, mixed.policy, ctx)?;
+        diagnostics.extend(refute_diagnostics);
+
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let MixedAdmgPosterior {
+            policy,
+            identification,
+            estimand,
+            estimate,
+            posterior,
+            mixture,
+            ..
+        } = mixed;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.admg_graph_posterior",
+                    policy.as_str(),
+                )),
+                posterior,
+                diagnostics: Some(diagnostics),
+                structural_response: Some(mixture),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Estimates every identified ADMG atom with `functional.effect` on the worker pool.
+    fn evaluate_admg_atoms(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        identified: &CachedGraphPosteriorIdentification,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<AdmgAtomEval>, CausalError> {
         let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-        let evals = ctx.map_indexed(identified.atoms.len(), |i, inner| {
+        ctx.map_indexed(identified.atoms.len(), |i, inner| {
             let atom = &identified.atoms[i];
             let (estimate, posterior) = self.estimate_functional_effect(
                 data,
@@ -134,21 +199,12 @@ impl super::Study {
                 posterior,
                 refute_atoms,
             })
-        })?;
+        })
+    }
 
-        let unidentified_mass = identified.graphs.unidentified_mass();
-        let mixed = mix_admg_posterior_evals(&identified, &evals, unidentified_mass)?;
-        let mut identification = mixed.identification;
-        identification.status = resolve_posterior_status(
-            identification.status,
-            mixed.policy,
-            PosteriorMassSummary {
-                unidentified: unidentified_mass,
-                ..PosteriorMassSummary::default()
-            },
-        );
-
-        let mut diagnostics = identification.diagnostics.clone();
+    /// Withheld-posterior, class-envelope, aggregation-policy and overlap disclosures.
+    fn admg_graph_posterior_diagnostics(&self, mixed: &MixedAdmgPosterior) -> Vec<Diagnostic> {
+        let mut diagnostics = mixed.identification.diagnostics.clone();
         if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.graph_posterior.posterior_withheld",
@@ -185,38 +241,7 @@ impl super::Study {
             )),
         );
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
-
-        let (refutations, refute_diagnostics) =
-            refute_admg_graph_posterior(self, data, query, &identified, &evals, mixed.policy, ctx)?;
-        diagnostics.extend(refute_diagnostics);
-
-        let algo =
-            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                mixed.estimand,
-                mixed.estimate,
-                Strategy::new(IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.admg_graph_posterior",
-                    mixed.policy.as_str(),
-                )),
-                posterior: mixed.posterior,
-                diagnostics: Some(diagnostics),
-                structural_response: Some(mixed.mixture),
-                ..Default::default()
-            }),
-        ))
+        diagnostics
     }
 }
 
