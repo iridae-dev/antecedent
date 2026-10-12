@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use antecedent_counterfactual::transported_gate::{PopulationRole, RegimeFactorKey};
 use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
-    PathSpecificQuery, SelectionDiagram, SelectionNode, TransportedPathSpecificInput,
+    PathSpecificQuery, PathSpecificSelectionDiagram, SelectionNode, TransportedPathSpecificInput,
     TransportedPathSpecificRefusal, TransportedPathSpecificResult,
     evaluate_transported_path_specific,
 };
@@ -107,8 +107,8 @@ fn evidence() -> BTreeMap<RegimeFactorKey, String> {
         .collect()
 }
 
-fn selection(label: &str, target: &str) -> SelectionDiagram {
-    SelectionDiagram {
+fn selection(label: &str, target: &str) -> PathSpecificSelectionDiagram {
+    PathSpecificSelectionDiagram {
         selections: vec![SelectionNode { label: label.to_owned(), target: target.to_owned() }],
     }
 }
@@ -117,7 +117,7 @@ type Outcome = Result<TransportedPathSpecificResult, Box<TransportedPathSpecific
 
 fn run_full(
     model: &AdditiveLinearScm,
-    diagram: &SelectionDiagram,
+    diagram: &PathSpecificSelectionDiagram,
     source: &CovariateLaw,
     target: &CovariateLaw,
     query: &PathSpecificQuery,
@@ -212,7 +212,7 @@ fn x8t_source_only_answer_differs_from_the_target_answer() {
 
 #[test]
 fn x8t_selection_on_covariate_or_treatment_is_allowed() {
-    let diagram = SelectionDiagram {
+    let diagram = PathSpecificSelectionDiagram {
         selections: vec![
             SelectionNode { label: "S1".to_owned(), target: "z".to_owned() },
             SelectionNode { label: "S2".to_owned(), target: "a".to_owned() },

@@ -180,7 +180,7 @@ pub struct SelectionNode {
 
 /// The finite source/target selection diagram.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct SelectionDiagram {
+pub struct PathSpecificSelectionDiagram {
     /// Selection nodes.
     pub selections: Vec<SelectionNode>,
 }
@@ -242,7 +242,7 @@ pub struct TransportedPathSpecificInput<'a> {
     /// The source structural fit.
     pub model: &'a AdditiveLinearScm,
     /// The selection diagram.
-    pub diagram: &'a SelectionDiagram,
+    pub diagram: &'a PathSpecificSelectionDiagram,
     /// The source covariate law.
     pub source_law: &'a CovariateLaw,
     /// The target covariate law.

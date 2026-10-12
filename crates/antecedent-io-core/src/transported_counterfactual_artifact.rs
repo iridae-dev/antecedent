@@ -39,7 +39,7 @@ use antecedent_core::CanonicalWriter;
 use antecedent_counterfactual::transported_gate::{PopulationRole, RegimeFactorKey};
 use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
-    NonRecoverableWitness, PathSpecificQuery, SelectionDiagram, SelectionNode,
+    NonRecoverableWitness, PathSpecificQuery, PathSpecificSelectionDiagram, SelectionNode,
     TransportedPathSpecificInput, TransportedPathSpecificRefusal, TransportedPathSpecificResult,
     evaluate_transported_path_specific,
 };
@@ -619,7 +619,7 @@ fn evaluate(
     let model = model_of(&request.model);
     let source = law_of(&request.source_law, "source")?;
     let target = law_of(&request.target_law, "target")?;
-    let diagram = SelectionDiagram {
+    let diagram = PathSpecificSelectionDiagram {
         selections: request
             .selections
             .iter()

@@ -32,7 +32,7 @@
 
 pub use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
-    NonRecoverableWitness, PathSpecificQuery, SelectionDiagram, SelectionNode,
+    NonRecoverableWitness, PathSpecificQuery, PathSpecificSelectionDiagram, SelectionNode,
     TransportedPathSpecificInput, TransportedPathSpecificRefusal, TransportedPathSpecificResult,
     evaluate_transported_path_specific,
 };

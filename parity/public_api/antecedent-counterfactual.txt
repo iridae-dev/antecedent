@@ -44,7 +44,7 @@ impl core::clone::Clone for antecedent_counterfactual::transported_path_specific
 impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::LinearMechanism
 impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
 impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
-impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::SelectionDiagram
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::SelectionNode
 impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::TransportedDerivation
 impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
@@ -67,7 +67,7 @@ impl core::cmp::Eq for antecedent_counterfactual::transported_gate::TransportedC
 impl core::cmp::Eq for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
 impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
 impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::EdgeAssignment
-impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::SelectionDiagram
+impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::SelectionNode
 impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::TransportedDerivation
 impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::HistoryId
@@ -110,7 +110,7 @@ impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specif
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::LinearMechanism
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
-impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::SelectionDiagram
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::SelectionNode
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::TransportedDerivation
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
@@ -130,7 +130,7 @@ impl core::default::Default for antecedent_counterfactual::transported_path_spec
 impl core::default::Default for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
 impl core::default::Default for antecedent_counterfactual::transported_path_specific::EdgeAssignment
 impl core::default::Default for antecedent_counterfactual::transported_path_specific::LinearMechanism
-impl core::default::Default for antecedent_counterfactual::transported_path_specific::SelectionDiagram
+impl core::default::Default for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 impl core::error::Error for antecedent_counterfactual::CounterfactualError
 impl core::error::Error for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
 impl core::fmt::Debug for antecedent_counterfactual::AbductionMissingPolicy
@@ -172,7 +172,7 @@ impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::
 impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::LinearMechanism
 impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
 impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
-impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::SelectionDiagram
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::SelectionNode
 impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::TransportedDerivation
 impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
@@ -235,7 +235,7 @@ impl core::marker::Freeze for antecedent_counterfactual::transported_path_specif
 impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
-impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::SelectionDiagram [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
@@ -280,7 +280,7 @@ impl core::marker::Send for antecedent_counterfactual::transported_path_specific
 impl core::marker::Send for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
-impl core::marker::Send for antecedent_counterfactual::transported_path_specific::SelectionDiagram [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
@@ -319,7 +319,7 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::transporte
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::LinearMechanism
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
-impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::SelectionDiagram
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::SelectionNode
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::TransportedDerivation
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
@@ -364,7 +364,7 @@ impl core::marker::Sync for antecedent_counterfactual::transported_path_specific
 impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
-impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::SelectionDiagram [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
@@ -409,7 +409,7 @@ impl core::marker::Unpin for antecedent_counterfactual::transported_path_specifi
 impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
-impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::SelectionDiagram [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
@@ -453,7 +453,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::tran
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::SelectionDiagram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
@@ -497,7 +497,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transpo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::SelectionDiagram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
@@ -651,7 +651,7 @@ pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuer
 pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::outcome: alloc::string::String
 pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::plus: antecedent_counterfactual::transported_path_specific::EdgeAssignment
 pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::treated_value: f64
-pub field antecedent_counterfactual::transported_path_specific::SelectionDiagram::selections: alloc::vec::Vec<antecedent_counterfactual::transported_path_specific::SelectionNode>
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram::selections: alloc::vec::Vec<antecedent_counterfactual::transported_path_specific::SelectionNode>
 pub field antecedent_counterfactual::transported_path_specific::SelectionNode::label: alloc::string::String
 pub field antecedent_counterfactual::transported_path_specific::SelectionNode::target: alloc::string::String
 pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::checked: alloc::vec::Vec<&'static str>
@@ -659,7 +659,7 @@ pub field antecedent_counterfactual::transported_path_specific::TransportedDeriv
 pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::declared: alloc::vec::Vec<&'static str>
 pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::theorem: &'static str
 pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::assumptions: antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
-pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::diagram: &'a antecedent_counterfactual::transported_path_specific::SelectionDiagram
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::diagram: &'a antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::model: &'a antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
 pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::query: &'a antecedent_counterfactual::transported_path_specific::PathSpecificQuery
 pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::source_law: &'a antecedent_counterfactual::transported_path_specific::CovariateLaw
@@ -763,7 +763,7 @@ pub struct antecedent_counterfactual::transported_path_specific::EdgeAssignment
 pub struct antecedent_counterfactual::transported_path_specific::LinearMechanism
 pub struct antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
 pub struct antecedent_counterfactual::transported_path_specific::PathSpecificQuery
-pub struct antecedent_counterfactual::transported_path_specific::SelectionDiagram
+pub struct antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
 pub struct antecedent_counterfactual::transported_path_specific::SelectionNode
 pub struct antecedent_counterfactual::transported_path_specific::TransportedDerivation
 pub struct antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a>
