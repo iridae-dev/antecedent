@@ -198,7 +198,7 @@ class ResultModel(BaseModel):
         lifted = False
         for name in _HANDLE_ATTRS:
             if name in extra:
-                object.__setattr__(self, name, extra.pop(name))
+                coerce_fields(self, **{name: extra.pop(name)})
                 lifted = True
         if lifted:
             coerce_fields(self, __pydantic_extra__=extra or None)

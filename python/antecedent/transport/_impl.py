@@ -109,7 +109,7 @@ class ZTransportQuery:
                 raise CausalValueError(
                     f"zTR {field_name} must be non-empty, distinct variable names"
                 )
-            object.__setattr__(self, field_name, values)
+            coerce_fields(self, **{field_name: values})
         if not set(self.experiment_assignment).issubset(self.controllable):
             raise CausalValueError("zTR experiment assignments must name controllable variables")
         if any(not math.isfinite(value) for value in self.experiment_assignment.values()):

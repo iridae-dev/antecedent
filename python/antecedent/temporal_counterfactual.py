@@ -106,15 +106,16 @@ class UnitHistory:
             _name(self.history, "history")
         coerce_fields(self, times=_times(self.times, "times"))
         for node in TEMPORAL_NODES:
-            object.__setattr__(
+            coerce_fields(
                 self,
-                node,
-                _number(
-                    getattr(self, node),
-                    node,
-                    detail="temporal_counterfactual.non_finite_history",
-                    offending=self.unit,
-                ),
+                **{
+                    node: _number(
+                        getattr(self, node),
+                        node,
+                        detail="temporal_counterfactual.non_finite_history",
+                        offending=self.unit,
+                    )
+                },
             )
 
     def _wire(self) -> dict[str, Any]:

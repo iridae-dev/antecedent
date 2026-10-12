@@ -742,8 +742,8 @@ class ConditionalDoseResponse:
                 )
             if len({group for group, _ in pairs}) != len(pairs):
                 raise CausalValueError(f"{name} must name each baseline group once")
-            object.__setattr__(
-                self, name, tuple(sorted((group, float(dose)) for group, dose in pairs))
+            coerce_fields(
+                self, **{name: tuple(sorted((group, float(dose)) for group, dose in pairs))}
             )
 
 

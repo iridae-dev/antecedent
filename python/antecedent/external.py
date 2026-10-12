@@ -182,7 +182,7 @@ class VerificationProbe:
         if not isinstance(self.kind, str):
             raise CausalTypeError("VerificationProbe.kind must be a string")
         for name in ("observed", "expected", "tolerance"):
-            object.__setattr__(self, name, _real(getattr(self, name), f"VerificationProbe.{name}"))
+            coerce_fields(self, **{name: _real(getattr(self, name), f"VerificationProbe.{name}")})
 
     def _wire(self) -> dict[str, Any]:
         return {

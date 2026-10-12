@@ -110,7 +110,7 @@ class MultiArmExperimentDesign:
         if hold_unresolved(self):
             return
         for name in ("realized_assignment", "action_labels", "assignment_units", "outcome_units"):
-            object.__setattr__(self, name, tuple(getattr(self, name)))
+            coerce_fields(self, **{name: tuple(getattr(self, name))})
         coerce_fields(
             self,
             assignment_probabilities=tuple(tuple(row) for row in self.assignment_probabilities),
@@ -195,7 +195,7 @@ class SwitchbackDesign:
             "period_ids",
             "assignment_probabilities",
         ):
-            object.__setattr__(self, name, tuple(getattr(self, name)))
+            coerce_fields(self, **{name: tuple(getattr(self, name))})
         n = len(self.realized_assignment)
         if n < 2 or any(
             len(getattr(self, name)) != n

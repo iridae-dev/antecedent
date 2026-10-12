@@ -559,7 +559,8 @@ class TemporalIntervalCandidate:
         if row["calibration"] != "unmeasured":
             raise CausalValueError("temporal interval candidate must remain unmeasured")
         result = object.__new__(cls)
-        fields = dict(
+        coerce_fields(
+            result,
             point=row["point"],
             lower=row["lower"],
             upper=row["upper"],
@@ -574,8 +575,6 @@ class TemporalIntervalCandidate:
             replicate_digest=row["replicate_digest"],
             _native=native,
         )
-        for name, value in fields.items():
-            object.__setattr__(result, name, value)
         return result
 
     def export(self) -> bytes:

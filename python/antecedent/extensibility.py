@@ -315,7 +315,7 @@ class CausalProviderSpec:
             values = tuple(getattr(self, field_name))
             if any(not isinstance(value, str) or not value.strip() for value in values):
                 raise ValueError(f"{field_name} entries must be non-empty strings")
-            object.__setattr__(self, field_name, values)
+            coerce_fields(self, **{field_name: values})
         required_text = {
             "query_family": self.query_family,
             "fold_policy": self.fold_policy,

@@ -89,7 +89,7 @@ class StudyCandidate:
             values = tuple(getattr(self, name))
             if any(not isinstance(value, str) for value in values):
                 raise CausalTypeError(f"{name} must be strings")
-            object.__setattr__(self, name, values)
+            coerce_fields(self, **{name: values})
 
 
 def plan_studies(

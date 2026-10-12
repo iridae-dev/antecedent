@@ -258,7 +258,7 @@ class EdgeAssignment:
             children = getattr(self, what)
             if isinstance(children, str):
                 raise CausalTypeError(f"{what} must be a sequence of node names")
-            object.__setattr__(self, what, tuple(_name(c, what) for c in children))
+            coerce_fields(self, **{what: tuple(_name(c, what) for c in children)})
 
     @classmethod
     def natural_direct(

@@ -48,7 +48,7 @@ class PriorSignalSource:
                 raise CausalTypeError(f"{name} must be a sequence of strings")
             if any(not isinstance(v, str) or not v.strip() for v in values):
                 raise CausalValueError(f"{name} must contain nonempty strings")
-            object.__setattr__(self, name, tuple(values))
+            coerce_fields(self, **{name: tuple(values)})
 
 
 @dataclass(frozen=True, slots=True, init=False)
