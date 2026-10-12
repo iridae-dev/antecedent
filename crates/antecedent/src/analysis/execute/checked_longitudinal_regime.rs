@@ -19,7 +19,7 @@ use antecedent_estimate::longitudinal_regime::{
     evaluate_sequential_dr_value_with_subject_scores, g_formula_fixed_q_pointwise_interval_95,
     sequential_dr_pointwise_interval_95,
 };
-use antecedent_estimate::marginal_structural_model::{MsmSummary, fit_binary_msm};
+use antecedent_estimate::marginal_structural_model::{MsmIntervals95, MsmSummary, fit_binary_msm};
 
 pub(crate) type CheckedLongitudinalRegimeOperation =
     RandomizedTrialOperation<antecedent_core::LongitudinalRegimeQuery, ()>;
@@ -100,6 +100,50 @@ impl CheckedLongitudinalRegimeOperation {
                 });
             }
         };
+        let estimation = self.estimate_regime_value(outcome)?;
+        let intervals = self.regime_intervals(&estimation);
+        let (diagnostic, description) = published_diagnostic(&estimation, &intervals);
+        let graphless_licensed = self.graphless_licensed(&estimation.summary, &intervals);
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.identification.clone(),
+                self.estimand.clone(),
+                EffectEstimate::new(
+                    0.0,
+                    f64::NAN,
+                    self.identification.required_assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                ),
+                Strategy::new(IdentifierId::RandomizedDesign, estimation.estimator_id),
+                self.query.outcome,
+                self.query.outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(vec![Diagnostic::new(
+                diagnostic,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                description,
+            )]),
+        );
+        result.estimate = crate::PrimaryEstimate::NotAnEffect;
+        result.treatment = None;
+        if graphless_licensed {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
+        result.payload = crate::result::ResultPayload::LongitudinalRegime(self.regime_payload(
+            &estimation,
+            &intervals,
+            graphless_licensed,
+        ));
+        Ok(result)
+    }
+
+    /// Evaluates the method's point value and keeps the MSM fit or DR subject scores the interval phase needs.
+    fn estimate_regime_value(&self, outcome: &[f64]) -> Result<RegimeEstimation, CausalError> {
         let mut msm: Option<MsmSummary> = None;
         let mut dr_scores: Option<Vec<f64>> = None;
         // The `.expect()`s in the arms below are guaranteed by
@@ -227,12 +271,26 @@ impl CheckedLongitudinalRegimeOperation {
             }
         };
         let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
-        let g_formula_interval = if self.query.method == LongitudinalRegimeMethod::GFormula
+        Ok(RegimeEstimation {
+            summary,
+            estimator_id,
+            method,
+            diagnostic,
+            description,
+            msm,
+            dr_scores,
+        })
+    }
+
+    /// Publishes whichever pointwise 95% intervals the method's support floors allow.
+    fn regime_intervals(&self, estimation: &RegimeEstimation) -> RegimeIntervals {
+        let summary = &estimation.summary;
+        let g_formula = if self.query.method == LongitudinalRegimeMethod::GFormula
             && self.query.known_fixed_outcome_predictions
             && self.query.probabilities_known_by_design
         {
             g_formula_fixed_q_pointwise_interval_95(
-                &summary,
+                summary,
                 self.query
                     .period_outcome_predictions
                     .as_deref()
@@ -243,15 +301,15 @@ impl CheckedLongitudinalRegimeOperation {
         } else {
             None
         };
-        let ipw_interval = if self.query.method == LongitudinalRegimeMethod::Ipw {
-            antecedent_estimate::longitudinal_regime::ipw_pointwise_interval_95(&summary, self.rows)
+        let ipw = if self.query.method == LongitudinalRegimeMethod::Ipw {
+            antecedent_estimate::longitudinal_regime::ipw_pointwise_interval_95(summary, self.rows)
         } else {
             None
         };
-        let msm_intervals = msm.as_ref().and_then(|fit| {
+        let msm = estimation.msm.as_ref().and_then(|fit| {
             antecedent_estimate::marginal_structural_model::pointwise_intervals_95(fit, self.rows)
         });
-        let dr_interval = dr_scores.as_ref().and_then(|scores| {
+        let dr = estimation.dr_scores.as_ref().and_then(|scores| {
             let matched = (0..self.rows)
                 .filter(|&i| {
                     self.query.outcome_observed[i]
@@ -262,15 +320,20 @@ impl CheckedLongitudinalRegimeOperation {
                 })
                 .count();
             sequential_dr_pointwise_interval_95(
-                &summary,
+                summary,
                 scores,
                 self.query.periods,
                 self.query.outcome_observed.iter().filter(|&&observed| observed).count(),
                 matched,
             )
         });
-        let interval_reason = match self.query.method {
-            LongitudinalRegimeMethod::Ipw if ipw_interval.is_none() => {
+        RegimeIntervals { g_formula, ipw, msm, dr }
+    }
+
+    /// Names why the method published no interval, when it did not.
+    fn interval_reason(&self, intervals: &RegimeIntervals) -> Option<&'static str> {
+        match self.query.method {
+            LongitudinalRegimeMethod::Ipw if intervals.ipw.is_none() => {
                 Some("insufficient_independent_subject_support_or_degenerate_score")
             }
             LongitudinalRegimeMethod::GFormula if !self.query.known_fixed_outcome_predictions => {
@@ -279,40 +342,25 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::GFormula if !self.query.probabilities_known_by_design => {
                 Some("known_sequential_randomization_required_for_fixed_q_interval")
             }
-            LongitudinalRegimeMethod::GFormula if g_formula_interval.is_none() => {
+            LongitudinalRegimeMethod::GFormula if intervals.g_formula.is_none() => {
                 Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score")
             }
-            LongitudinalRegimeMethod::SequentialDoublyRobust if dr_interval.is_none() => Some(
-                "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval",
+            LongitudinalRegimeMethod::SequentialDoublyRobust if intervals.dr.is_none() => Some(
+                "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_intervals.dr",
             ),
-            LongitudinalRegimeMethod::MarginalStructuralModel if msm_intervals.is_none() => {
-                Some("insufficient_independent_subject_support_for_msm_intervals")
+            LongitudinalRegimeMethod::MarginalStructuralModel if intervals.msm.is_none() => {
+                Some("insufficient_independent_subject_support_for_intervals.msm")
             }
             _ => None,
-        };
-        let (diagnostic, description) = if ipw_interval.is_some() {
-            (
-                "estimate.longitudinal.ipw_regime.pointwise_95",
-                "sequential randomized regime value with independent-subject Horvitz--Thompson score SE and pointwise 95% interval; requires known treatment/censoring probabilities and calibrated subject support",
-            )
-        } else if msm_intervals.is_some() {
-            (
-                "estimate.longitudinal.marginal_structural_model.pointwise_95",
-                "additive binary MSM intercept and period effects with independent-subject CR1 pointwise 95% intervals; requires known treatment/censoring probabilities and calibrated weighted support",
-            )
-        } else if g_formula_interval.is_some() {
-            (
-                "estimate.longitudinal.g_formula_regime.pointwise_95_conditional_fixed_q",
-                "two-period g-formula value with independent-subject pointwise 95% interval conditional on the caller-declared fixed known Q law; no fitted-Q uncertainty is included",
-            )
-        } else if dr_interval.is_some() {
-            (
-                "estimate.longitudinal.sequential_dr_regime.pointwise_95_conditional_q",
-                "sequential DR value with pointwise 95% independent-subject score interval conditional on caller-declared subject-excluded Q fitting and known randomization; Q training is not verified",
-            )
-        } else {
-            (diagnostic, description)
-        };
+        }
+    }
+
+    /// Decides the graphless license from the published interval plus the exact retained matrix row.
+    fn graphless_licensed(
+        &self,
+        summary: &RegimeValueSummary,
+        intervals: &RegimeIntervals,
+    ) -> bool {
         // The sequential-DR interval only publishes after its narrowed,
         // calibrated subject support holds, so the graphless license is a
         // function of that published interval plus the exact two- or
@@ -322,7 +370,7 @@ impl CheckedLongitudinalRegimeOperation {
         // support so the license cannot exist without a matching matrix row.
         let graphless_dr_licensed = self.query.method
             == LongitudinalRegimeMethod::SequentialDoublyRobust
-            && dr_interval.is_some()
+            && intervals.dr.is_some()
             && matches!(self.query.periods, 2 | 3)
             && crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
@@ -355,7 +403,7 @@ impl CheckedLongitudinalRegimeOperation {
         // finer floors are enforced upstream by the interval and stated in the
         // row's limitations; classify_graphless checks the coarse row support.
         let graphless_g_formula_licensed = self.query.method == LongitudinalRegimeMethod::GFormula
-            && g_formula_interval.is_some()
+            && intervals.g_formula.is_some()
             && self.query.periods == 2
             && crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
@@ -382,7 +430,7 @@ impl CheckedLongitudinalRegimeOperation {
         // SEs are enforced upstream by the intervals and stated in the row.
         let graphless_msm_licensed = self.query.method
             == LongitudinalRegimeMethod::MarginalStructuralModel
-            && msm_intervals.is_some()
+            && intervals.msm.is_some()
             && crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
@@ -402,92 +450,78 @@ impl CheckedLongitudinalRegimeOperation {
                 },
             )
             .is_some();
-        let graphless_licensed =
-            graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
-        let mut result = finish_identified_execute_with_context(
-            &self.result_context,
-            Some(data),
-            IdentifiedExecuteFinish::new(
-                &self.physical,
-                self.identification.clone(),
-                self.estimand.clone(),
-                EffectEstimate::new(
-                    0.0,
-                    f64::NAN,
-                    self.identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                Strategy::new(IdentifierId::RandomizedDesign, estimator_id),
-                self.query.outcome,
-                self.query.outcome,
-            )
-            .identify_cached(true)
-            .extra_diagnostics(vec![Diagnostic::new(
-                diagnostic,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                description,
-            )]),
-        );
-        result.estimate = crate::PrimaryEstimate::NotAnEffect;
-        result.treatment = None;
-        if graphless_licensed {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed
+    }
+
+    /// Assembles the retained regime estimate from the estimation and interval phases.
+    fn regime_payload(
+        &self,
+        estimation: &RegimeEstimation,
+        intervals: &RegimeIntervals,
+        graphless_licensed: bool,
+    ) -> crate::LongitudinalRegimeEstimate {
+        let interval_reason = self.interval_reason(intervals);
+        crate::LongitudinalRegimeEstimate {
+            method: Arc::from(estimation.method),
+            graphless_support_status: graphless_licensed
+                .then_some(crate::support::CellStatus::Licensed),
+            rule_id: self.query.rule_id.clone(),
+            rule_version: self.query.rule_version.clone(),
+            rule_provenance: self.query.rule_provenance.clone(),
+            value: estimation.summary.value,
+            value_standard_error: estimation
+                .msm
+                .as_ref()
+                .map(|fit| fit.intercept_standard_error)
+                .or(estimation.summary.score_standard_error)
+                .or_else(|| intervals.dr.map(|(se, _)| se))
+                .or_else(|| intervals.g_formula.map(|(se, _)| se)),
+            value_interval_95: intervals
+                .ipw
+                .or_else(|| intervals.msm.as_ref().map(|intervals| intervals.intercept))
+                .or_else(|| intervals.dr.map(|(_, bounds)| bounds))
+                .or_else(|| intervals.g_formula.map(|(_, bounds)| bounds)),
+            period_intervals_95: intervals
+                .msm
+                .as_ref()
+                .map(|intervals| Arc::from(intervals.period_effects.as_slice())),
+            interval_reason: interval_reason.map(Arc::from),
+            effective_sample_size: estimation.summary.effective_sample_size,
+            matched_observed_fraction: estimation.summary.matched_observed_fraction,
+            maximum_weight: estimation.summary.maximum_weight,
+            minimum_action_probability: estimation.summary.minimum_action_probability,
+            minimum_censoring_probability: estimation.summary.minimum_censoring_probability,
+            uncertainty: Arc::from(if intervals.msm.is_some() {
+                "pointwise_subject_clustered_cr1_95"
+            } else if estimation.msm.is_some() {
+                "pointwise_subject_clustered_cr1_no_interval"
+            } else if intervals.dr.is_some() {
+                "pointwise_subject_score_conditional_excluded_fold_q_95"
+            } else if intervals.g_formula.is_some() {
+                "pointwise_subject_score_conditional_fixed_known_q_95"
+            } else if intervals.ipw.is_some() {
+                "pointwise_subject_score_95"
+            } else {
+                "point_only_no_interval"
+            }),
+            probability_ownership: Arc::from("known_sequential_randomization"),
+            period_effects: estimation
+                .msm
+                .as_ref()
+                .map(|fit| Arc::from(fit.period_effects.as_slice())),
+            standard_errors: estimation
+                .msm
+                .as_ref()
+                .map(|fit| Arc::from(fit.standard_errors.as_slice())),
+            stabilizing_numerator_probabilities: estimation.msm.as_ref().map(|_| {
+                self.query
+                    .stabilizing_numerator_probabilities
+                    .as_ref()
+                    .expect("validated MSM numerator")
+                    .clone()
+            }),
+            observed_subjects: estimation.msm.as_ref().map(|fit| fit.observed_subjects),
         }
-        result.payload =
-            crate::result::ResultPayload::LongitudinalRegime(crate::LongitudinalRegimeEstimate {
-                method: Arc::from(method),
-                graphless_support_status: graphless_licensed
-                    .then_some(crate::support::CellStatus::Licensed),
-                rule_id: self.query.rule_id.clone(),
-                rule_version: self.query.rule_version.clone(),
-                rule_provenance: self.query.rule_provenance.clone(),
-                value: summary.value,
-                value_standard_error: msm
-                    .as_ref()
-                    .map(|fit| fit.intercept_standard_error)
-                    .or(summary.score_standard_error)
-                    .or_else(|| dr_interval.map(|(se, _)| se))
-                    .or_else(|| g_formula_interval.map(|(se, _)| se)),
-                value_interval_95: ipw_interval
-                    .or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept))
-                    .or_else(|| dr_interval.map(|(_, bounds)| bounds))
-                    .or_else(|| g_formula_interval.map(|(_, bounds)| bounds)),
-                period_intervals_95: msm_intervals
-                    .as_ref()
-                    .map(|intervals| Arc::from(intervals.period_effects.as_slice())),
-                interval_reason: interval_reason.map(Arc::from),
-                effective_sample_size: summary.effective_sample_size,
-                matched_observed_fraction: summary.matched_observed_fraction,
-                maximum_weight: summary.maximum_weight,
-                minimum_action_probability: summary.minimum_action_probability,
-                minimum_censoring_probability: summary.minimum_censoring_probability,
-                uncertainty: Arc::from(if msm_intervals.is_some() {
-                    "pointwise_subject_clustered_cr1_95"
-                } else if msm.is_some() {
-                    "pointwise_subject_clustered_cr1_no_interval"
-                } else if dr_interval.is_some() {
-                    "pointwise_subject_score_conditional_excluded_fold_q_95"
-                } else if g_formula_interval.is_some() {
-                    "pointwise_subject_score_conditional_fixed_known_q_95"
-                } else if ipw_interval.is_some() {
-                    "pointwise_subject_score_95"
-                } else {
-                    "point_only_no_interval"
-                }),
-                probability_ownership: Arc::from("known_sequential_randomization"),
-                period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),
-                standard_errors: msm.as_ref().map(|fit| Arc::from(fit.standard_errors.as_slice())),
-                stabilizing_numerator_probabilities: msm.as_ref().map(|_| {
-                    self.query
-                        .stabilizing_numerator_probabilities
-                        .as_ref()
-                        .expect("validated MSM numerator")
-                        .clone()
-                }),
-                observed_subjects: msm.as_ref().map(|fit| fit.observed_subjects),
-            });
-        Ok(result)
     }
 }
 
@@ -499,6 +533,55 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedLongitudinalRegimeOperation::checked(self, data, physical)?.execute(data, ctx)
+    }
+}
+
+/// Point value of the regime plus the MSM fit or DR subject scores later phases consume.
+struct RegimeEstimation {
+    summary: RegimeValueSummary,
+    estimator_id: EstimatorId,
+    method: &'static str,
+    diagnostic: &'static str,
+    description: &'static str,
+    msm: Option<MsmSummary>,
+    dr_scores: Option<Vec<f64>>,
+}
+
+/// Pointwise 95% intervals each method may publish for the regime value.
+struct RegimeIntervals {
+    g_formula: Option<(f64, [f64; 2])>,
+    ipw: Option<[f64; 2]>,
+    msm: Option<MsmIntervals95>,
+    dr: Option<(f64, [f64; 2])>,
+}
+
+/// Publishes the diagnostic code and description matching the interval the method actually reported.
+fn published_diagnostic(
+    estimation: &RegimeEstimation,
+    intervals: &RegimeIntervals,
+) -> (&'static str, &'static str) {
+    if intervals.ipw.is_some() {
+        (
+            "estimate.longitudinal.ipw_regime.pointwise_95",
+            "sequential randomized regime value with independent-subject Horvitz--Thompson score SE and pointwise 95% interval; requires known treatment/censoring probabilities and calibrated subject support",
+        )
+    } else if intervals.msm.is_some() {
+        (
+            "estimate.longitudinal.marginal_structural_model.pointwise_95",
+            "additive binary MSM intercept and period effects with independent-subject CR1 pointwise 95% intervals; requires known treatment/censoring probabilities and calibrated weighted support",
+        )
+    } else if intervals.g_formula.is_some() {
+        (
+            "estimate.longitudinal.g_formula_regime.pointwise_95_conditional_fixed_q",
+            "two-period g-formula value with independent-subject pointwise 95% interval conditional on the caller-declared fixed known Q law; no fitted-Q uncertainty is included",
+        )
+    } else if intervals.dr.is_some() {
+        (
+            "estimate.longitudinal.sequential_dr_regime.pointwise_95_conditional_q",
+            "sequential DR value with pointwise 95% independent-subject score interval conditional on caller-declared subject-excluded Q fitting and known randomization; Q training is not verified",
+        )
+    } else {
+        (estimation.diagnostic, estimation.description)
     }
 }
 

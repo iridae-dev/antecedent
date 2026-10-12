@@ -60,25 +60,7 @@ impl CheckedAttributionOperation {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
     ) -> Result<Self, CausalError> {
-        let (graph, lag_aligned) = if let Some(dag) = study.graph.as_dag() {
-            (dag.clone(), None)
-        } else if let Some(temporal) = study.graph.as_temporal_dag() {
-            let series = match &study.data {
-                DataInput::Temporal(series) | DataInput::Event(series) => series,
-                _ => {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal attribution requires a time series",
-                    });
-                }
-            };
-            let aligned = super::temporal_attribution::LagAlignedScm::unfold(temporal, series)?;
-            let dag = aligned.dag.clone();
-            (dag, Some(aligned))
-        } else {
-            return Err(CausalError::Unsupported {
-                message: "checked attribution requires a supplied DAG or TemporalDag",
-            });
-        };
+        let (graph, lag_aligned) = attribution_graph(study)?;
         let target = match &study.query {
             CausalQuery::AnomalyAttribution(query) => {
                 query.validate()?;
@@ -100,41 +82,7 @@ impl CheckedAttributionOperation {
                 message: "checked attribution does not support custom validators",
             });
         }
-        let (estimator, procedure) = match (&target, &study.inference) {
-            (_, InferenceMode::Frequentist) => (EstimatorId::GcmFit, AttributionProcedure::Point),
-            (AttributionTarget::Anomaly(_), InferenceMode::Bayesian(config)) => {
-                if config.prior.is_some()
-                    || config.prior_artifact.is_some()
-                    || config.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian attribution uses its shared-row Bayesian bootstrap and does not accept coefficient priors or external prior composition",
-                    });
-                }
-                (
-                    EstimatorId::GcmFitBayesian,
-                    AttributionProcedure::SharedDirichletRowWeights {
-                        draws: bayesian_draw_count(&study.inference)?,
-                    },
-                )
-            }
-            (AttributionTarget::Change(_), InferenceMode::Bayesian(config)) => {
-                if config.prior.is_some()
-                    || config.prior_artifact.is_some()
-                    || config.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian attribution uses its shared-row Bayesian bootstrap and does not accept coefficient priors or external prior composition",
-                    });
-                }
-                (
-                    EstimatorId::GcmAttributionBayesian,
-                    AttributionProcedure::SharedDirichletRowWeights {
-                        draws: bayesian_draw_count(&study.inference)?,
-                    },
-                )
-            }
-        };
+        let (estimator, procedure) = attribution_procedure(&target, study)?;
         if study.structure_source != crate::support::StructureSource::Explicit
             || cache.identification.query != target_query
             || physical.logical.query != target_query
@@ -212,132 +160,140 @@ impl CheckedAttributionOperation {
             });
         }
         match &self.target {
-            AttributionTarget::Anomaly(query) => {
-                let started = Instant::now();
-                let fitted = fit_gcm(self.graph.clone(), data)?;
-                // Score all rows while honoring the query's reference (Empirical / Fixed).
-                let scorer_query = antecedent_core::AnomalyAttributionQuery::new(
-                    query.targets.clone(),
-                    query.max_units,
-                )
-                .with_reference(query.reference);
-                let scores =
-                    anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
-                let outcome = *query.targets.first().ok_or_else(|| CausalError::Compile {
-                    message: "checked anomaly target has no outcome variable".into(),
-                })?;
-                let posterior =
-                    self.anomaly_posterior(query, data, &fitted, &scores, outcome, ctx)?;
-                let (estimate, posterior, mut extra_diagnostics) =
-                    publish_lag_aligned(self.lag_aligned.is_some(), nan_effect(), posterior);
-                if posterior.is_some() {
-                    let disclosure = match query.reference {
-                        antecedent_core::AnomalyReference::Empirical => {
-                            "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional."
-                        }
-                        antecedent_core::AnomalyReference::Fixed { .. } => {
-                            "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)]."
-                        }
-                    };
-                    extra_diagnostics.push(bayesian_attribution_diagnostic(disclosure));
+            AttributionTarget::Anomaly(query) => self.execute_anomaly(query, data, ctx),
+            AttributionTarget::Change(query) => self.execute_change(query, data, ctx),
+        }
+    }
+
+    /// Draw count published on the result: absent for lag-aligned unfoldings and point procedures.
+    fn published_draws(&self) -> Option<u32> {
+        if self.lag_aligned.is_some() {
+            None
+        } else {
+            match self.procedure {
+                AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
                 }
-                Ok(finish_identified_execute_with_context(
-                    &self.result_context,
-                    Some(data),
-                    IdentifiedExecuteFinish::new(
-                        &self.physical,
-                        self.cache.identification.clone(),
-                        self.cache.estimand.clone(),
-                        estimate,
-                        Strategy::new(IdentifierId::GcmParametric, self.estimator),
-                        outcome,
-                        outcome,
-                    )
-                    .identify_cached(true)
-                    .extra_diagnostics(extra_diagnostics)
-                    .wall_time_ns(elapsed_ns(started))
-                    .extras(IdentifiedExecuteExtras {
-                        posterior,
-                        n_draws: if self.lag_aligned.is_some() {
-                            None
-                        } else {
-                            match self.procedure {
-                                AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
-                                }
-                                AttributionProcedure::Point => None,
-                            }
-                        },
-                        gcm: Some(GcmSlot::Anomaly(scores)),
-                        empty_provenance: true,
-                        ..Default::default()
-                    }),
-                ))
-            }
-            AttributionTarget::Change(query) => {
-                let started = Instant::now();
-                let fitted = fit_gcm(self.graph.clone(), data)?;
-                let change = attribute_distribution_change(
-                    &fitted.model,
-                    data,
-                    query,
-                    &antecedent_attribution::DistributionChangeOptions::default(),
-                    ctx,
-                )?;
-                let mut estimate = EffectEstimate::new(
-                    change.total_change,
-                    f64::NAN,
-                    antecedent_core::AssumptionSet::default(),
-                    OverlapPolicy::ExplicitOverride,
-                );
-                let posterior = self.change_posterior(query, data, &fitted.model, ctx)?;
-                if self.lag_aligned.is_none() {
-                    if let Some(posterior) = &posterior {
-                        if let Some(index) = posterior.effect_column() {
-                            estimate.ate = posterior.summaries.mean[index];
-                            estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
-                        }
-                    }
-                }
-                let (estimate, posterior, mut extra_diagnostics) =
-                    publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
-                if posterior.is_some() {
-                    extra_diagnostics.push(bayesian_attribution_diagnostic("Each population has one Dirichlet(1,…,1) row-weight vector per draw shared across mechanisms; total and Shapley components use the same weighted attribution."));
-                }
-                Ok(finish_identified_execute_with_context(
-                    &self.result_context,
-                    Some(data),
-                    IdentifiedExecuteFinish::new(
-                        &self.physical,
-                        self.cache.identification.clone(),
-                        self.cache.estimand.clone(),
-                        estimate,
-                        Strategy::new(IdentifierId::GcmParametric, self.estimator),
-                        query.outcome,
-                        query.outcome,
-                    )
-                    .identify_cached(true)
-                    .extra_diagnostics(extra_diagnostics)
-                    .wall_time_ns(elapsed_ns(started))
-                    .extras(IdentifiedExecuteExtras {
-                        posterior,
-                        n_draws: if self.lag_aligned.is_some() {
-                            None
-                        } else {
-                            match self.procedure {
-                                AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
-                                }
-                                AttributionProcedure::Point => None,
-                            }
-                        },
-                        gcm: Some(GcmSlot::Change(change)),
-                        empty_provenance: true,
-                        ..Default::default()
-                    }),
-                ))
+                AttributionProcedure::Point => None,
             }
         }
+    }
+
+    /// Fits the GCM, scores every row against the query reference, and publishes the anomaly attribution.
+    fn execute_anomaly(
+        &self,
+        query: &antecedent_core::AnomalyAttributionQuery,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let fitted = fit_gcm(self.graph.clone(), data)?;
+        // Score all rows while honoring the query's reference (Empirical / Fixed).
+        let scorer_query =
+            antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
+                .with_reference(query.reference);
+        let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
+        let outcome = *query.targets.first().ok_or_else(|| CausalError::Compile {
+            message: "checked anomaly target has no outcome variable".into(),
+        })?;
+        let posterior = self.anomaly_posterior(query, data, &fitted, &scores, outcome, ctx)?;
+        let (estimate, posterior, mut extra_diagnostics) =
+            publish_lag_aligned(self.lag_aligned.is_some(), nan_effect(), posterior);
+        if posterior.is_some() {
+            let disclosure = match query.reference {
+                antecedent_core::AnomalyReference::Empirical => {
+                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional."
+                }
+                antecedent_core::AnomalyReference::Fixed { .. } => {
+                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)]."
+                }
+            };
+            extra_diagnostics.push(bayesian_attribution_diagnostic(disclosure));
+        }
+        Ok(finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.cache.identification.clone(),
+                self.cache.estimand.clone(),
+                estimate,
+                Strategy::new(IdentifierId::GcmParametric, self.estimator),
+                outcome,
+                outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(extra_diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                posterior,
+                n_draws: self.published_draws(),
+                gcm: Some(GcmSlot::Anomaly(scores)),
+                empty_provenance: true,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Fits the GCM and publishes the distribution-change attribution with its optional posterior.
+    fn execute_change(
+        &self,
+        query: &antecedent_core::ChangeAttributionQuery,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let fitted = fit_gcm(self.graph.clone(), data)?;
+        let change = attribute_distribution_change(
+            &fitted.model,
+            data,
+            query,
+            &antecedent_attribution::DistributionChangeOptions::default(),
+            ctx,
+        )?;
+        let mut estimate = EffectEstimate::new(
+            change.total_change,
+            f64::NAN,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let posterior = self.change_posterior(query, data, &fitted.model, ctx)?;
+        if self.lag_aligned.is_none() {
+            if let Some(posterior) = &posterior {
+                if let Some(index) = posterior.effect_column() {
+                    estimate.ate = posterior.summaries.mean[index];
+                    estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
+                }
+            }
+        }
+        let (estimate, posterior, mut extra_diagnostics) =
+            publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
+        if posterior.is_some() {
+            extra_diagnostics.push(bayesian_attribution_diagnostic("Each population has one Dirichlet(1,…,1) row-weight vector per draw shared across mechanisms; total and Shapley components use the same weighted attribution."));
+        }
+        Ok(finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.cache.identification.clone(),
+                self.cache.estimand.clone(),
+                estimate,
+                Strategy::new(IdentifierId::GcmParametric, self.estimator),
+                query.outcome,
+                query.outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(extra_diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                posterior,
+                n_draws: self.published_draws(),
+                gcm: Some(GcmSlot::Change(change)),
+                empty_provenance: true,
+                ..Default::default()
+            }),
+        ))
     }
 
     fn anomaly_posterior(
@@ -571,6 +527,73 @@ impl Inspect for CheckedAttributionOperation {
             identification_status: self.identification().status,
         }
     }
+}
+
+/// Resolves the static DAG, unfolding a `TemporalDag` over the supplied series when the source graph is temporal.
+fn attribution_graph(
+    study: &Study,
+) -> Result<(Dag, Option<super::temporal_attribution::LagAlignedScm>), CausalError> {
+    Ok(if let Some(dag) = study.graph.as_dag() {
+        (dag.clone(), None)
+    } else if let Some(temporal) = study.graph.as_temporal_dag() {
+        let series = match &study.data {
+            DataInput::Temporal(series) | DataInput::Event(series) => series,
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "temporal attribution requires a time series",
+                });
+            }
+        };
+        let aligned = super::temporal_attribution::LagAlignedScm::unfold(temporal, series)?;
+        let dag = aligned.dag.clone();
+        (dag, Some(aligned))
+    } else {
+        return Err(CausalError::Unsupported {
+            message: "checked attribution requires a supplied DAG or TemporalDag",
+        });
+    })
+}
+
+/// Selects the estimator and inference procedure for the target, refusing prior-bearing Bayesian configurations.
+fn attribution_procedure(
+    target: &AttributionTarget,
+    study: &Study,
+) -> Result<(EstimatorId, AttributionProcedure), CausalError> {
+    Ok(match (target, &study.inference) {
+        (_, InferenceMode::Frequentist) => (EstimatorId::GcmFit, AttributionProcedure::Point),
+        (AttributionTarget::Anomaly(_), InferenceMode::Bayesian(config)) => {
+            if config.prior.is_some()
+                || config.prior_artifact.is_some()
+                || config.external_compose.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian attribution uses its shared-row Bayesian bootstrap and does not accept coefficient priors or external prior composition",
+                });
+            }
+            (
+                EstimatorId::GcmFitBayesian,
+                AttributionProcedure::SharedDirichletRowWeights {
+                    draws: bayesian_draw_count(&study.inference)?,
+                },
+            )
+        }
+        (AttributionTarget::Change(_), InferenceMode::Bayesian(config)) => {
+            if config.prior.is_some()
+                || config.prior_artifact.is_some()
+                || config.external_compose.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian attribution uses its shared-row Bayesian bootstrap and does not accept coefficient priors or external prior composition",
+                });
+            }
+            (
+                EstimatorId::GcmAttributionBayesian,
+                AttributionProcedure::SharedDirichletRowWeights {
+                    draws: bayesian_draw_count(&study.inference)?,
+                },
+            )
+        }
+    })
 }
 
 #[cfg(test)]

@@ -62,10 +62,6 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 impl CheckedCellAipwResponseOperation {
     /// Validate and seal the licensed joint-cell response route on a static
     /// DAG or a `CoDetermined` tier closure.
-    #[expect(
-        clippy::float_cmp,
-        reason = "joint binary intervention levels are exact discrete contract values"
-    )]
     #[allow(
         clippy::too_many_arguments,
         reason = "the frozen premises of a sealed cell-AIPW response, resolved one at a time by the sealer in prepared/ that constructs it"
@@ -95,32 +91,7 @@ impl CheckedCellAipwResponseOperation {
                 message: "checked cell AIPW requires two or three joint binary interventions",
             });
         }
-        let mut treatments = Vec::with_capacity(interventions.len());
-        let mut requested_arm = 0_u32;
-        for (index, intervention) in interventions.iter().enumerate() {
-            let Intervention::Set { variable, value } = intervention else {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW supports hard binary Set interventions only",
-                });
-            };
-            let Some(level) = value.as_f64() else {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW requires numeric binary Set levels",
-                });
-            };
-            if level != 0.0 && level != 1.0 {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW requires Set levels 0 or 1",
-                });
-            }
-            if treatments.contains(variable) {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW requires distinct intervention coordinates",
-                });
-            }
-            requested_arm |= u32::from(level == 1.0) << index;
-            treatments.push(*variable);
-        }
+        let (treatments, requested_arm) = joint_binary_interventions(interventions)?;
         let valid_suite =
             matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full);
         let (expected_identifier, structure_ok) = match structure {
@@ -430,6 +401,43 @@ impl Inspect for CheckedCellAipwResponseOperation {
             within_tier: self.within_tier(),
         }
     }
+}
+
+/// Treatment coordinates and the requested arm bitmask of a hard binary joint intervention.
+#[expect(
+    clippy::float_cmp,
+    reason = "joint binary intervention levels are exact discrete contract values"
+)]
+fn joint_binary_interventions(
+    interventions: &[Intervention],
+) -> Result<(Vec<VariableId>, u32), CausalError> {
+    let mut treatments = Vec::with_capacity(interventions.len());
+    let mut requested_arm = 0_u32;
+    for (index, intervention) in interventions.iter().enumerate() {
+        let Intervention::Set { variable, value } = intervention else {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW supports hard binary Set interventions only",
+            });
+        };
+        let Some(level) = value.as_f64() else {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW requires numeric binary Set levels",
+            });
+        };
+        if level != 0.0 && level != 1.0 {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW requires Set levels 0 or 1",
+            });
+        }
+        if treatments.contains(variable) {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW requires distinct intervention coordinates",
+            });
+        }
+        requested_arm |= u32::from(level == 1.0) << index;
+        treatments.push(*variable);
+    }
+    Ok((treatments, requested_arm))
 }
 
 #[cfg(test)]

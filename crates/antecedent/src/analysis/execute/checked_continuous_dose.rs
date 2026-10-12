@@ -96,78 +96,8 @@ impl CheckedContinuousDoseOperation {
             )
             .map_err(|message| CausalError::Compile { message })?
         };
-        let fixed_policy = self
-            .query
-            .fixed_policy
-            .as_ref()
-            .map(|rule| {
-                let policy = rule
-                    .policy_doses
-                    .iter()
-                    .map(|(group, dose)| (group.to_string(), *dose))
-                    .collect::<Vec<_>>();
-                let reference = rule
-                    .reference_doses
-                    .iter()
-                    .map(|(group, dose)| (group.to_string(), *dose))
-                    .collect::<Vec<_>>();
-                antecedent_estimate::continuous_dose::fixed_dose_policy_value(
-                    &antecedent_estimate::continuous_dose::DoseRows {
-                        outcome: &outcome,
-                        dose: &dose,
-                        groups: &groups,
-                        density: &density,
-                    },
-                    &antecedent_estimate::continuous_dose::DoseRules {
-                        policy: &policy,
-                        reference: &reference,
-                    },
-                    &antecedent_estimate::continuous_dose::DoseWindow {
-                        bandwidth: self.query.bandwidth,
-                        min_local_support: self.query.min_local_support,
-                        density_known: self.query.density_provenance.as_ref() == "known",
-                    },
-                )
-                .map_err(|message| CausalError::Compile { message })
-            })
-            .transpose()?;
-        let licensed_fixed_policy = fixed_policy.as_ref().is_some_and(|value| {
-            let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
-            for group in &groups {
-                *group_rows.entry(group.as_str()).or_default() += 1;
-            }
-            let intervals = [
-                value.policy_interval_95,
-                value.reference_interval_95,
-                value.incremental_interval_95,
-            ];
-            crate::support::license_if_graphless(
-                crate::support::GraphlessSupportKey {
-                    family: "continuous_dose_policy",
-                    design: "fixed_group_kernel",
-                    method: "inverse_density_kernel_paired_scores",
-                    inference_claim: "policy_reference_incremental_pointwise_95_normal_intervals",
-                },
-                crate::support::GraphlessAssignmentSupport {
-                    assignment_unit: "unit",
-                    rows: self.rows,
-                    min_group_rows: group_rows.values().copied().min().unwrap_or(0),
-                    min_local_rows: value.minimum_local_rows,
-                    min_effective_sample_size: value.minimum_effective_sample_size,
-                    max_normalized_weight: value.maximum_normalized_weight,
-                    min_dose_density: value.minimum_dose_density,
-                    interval_95_published: intervals.iter().all(Option::is_some),
-                    reported_intervals: intervals
-                        .iter()
-                        .filter(|interval| interval.is_some())
-                        .count(),
-                    all_reported_intervals: intervals.iter().all(Option::is_some),
-                    known_density: self.query.density_provenance.as_ref() == "known",
-                    ..Default::default()
-                },
-            )
-            .is_some()
-        });
+        let fixed_policy = self.fixed_policy_value(&outcome, &dose, &density, &groups)?;
+        let licensed_fixed_policy = self.licenses_fixed_policy(fixed_policy.as_ref(), &groups);
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -208,6 +138,95 @@ impl CheckedContinuousDoseOperation {
         }
         result.treatment = None;
         Ok(result)
+    }
+
+    /// Kernel-smoothed value of the declared fixed group-to-dose policy against its reference.
+    fn fixed_policy_value(
+        &self,
+        outcome: &[f64],
+        dose: &[f64],
+        density: &[f64],
+        groups: &[String],
+    ) -> Result<Option<antecedent_estimate::continuous_dose::DosePolicyValue>, CausalError> {
+        self.query
+            .fixed_policy
+            .as_ref()
+            .map(|rule| {
+                let policy = rule
+                    .policy_doses
+                    .iter()
+                    .map(|(group, dose)| (group.to_string(), *dose))
+                    .collect::<Vec<_>>();
+                let reference = rule
+                    .reference_doses
+                    .iter()
+                    .map(|(group, dose)| (group.to_string(), *dose))
+                    .collect::<Vec<_>>();
+                antecedent_estimate::continuous_dose::fixed_dose_policy_value(
+                    &antecedent_estimate::continuous_dose::DoseRows {
+                        outcome,
+                        dose,
+                        groups,
+                        density,
+                    },
+                    &antecedent_estimate::continuous_dose::DoseRules {
+                        policy: &policy,
+                        reference: &reference,
+                    },
+                    &antecedent_estimate::continuous_dose::DoseWindow {
+                        bandwidth: self.query.bandwidth,
+                        min_local_support: self.query.min_local_support,
+                        density_known: self.query.density_provenance.as_ref() == "known",
+                    },
+                )
+                .map_err(|message| CausalError::Compile { message })
+            })
+            .transpose()
+    }
+
+    /// Grants the graphless license when all three fixed-policy intervals publish on supported rows.
+    fn licenses_fixed_policy(
+        &self,
+        fixed_policy: Option<&antecedent_estimate::continuous_dose::DosePolicyValue>,
+        groups: &[String],
+    ) -> bool {
+        fixed_policy.is_some_and(|value| {
+            let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
+            for group in groups {
+                *group_rows.entry(group.as_str()).or_default() += 1;
+            }
+            let intervals = [
+                value.policy_interval_95,
+                value.reference_interval_95,
+                value.incremental_interval_95,
+            ];
+            crate::support::license_if_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "continuous_dose_policy",
+                    design: "fixed_group_kernel",
+                    method: "inverse_density_kernel_paired_scores",
+                    inference_claim: "policy_reference_incremental_pointwise_95_normal_intervals",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    rows: self.rows,
+                    min_group_rows: group_rows.values().copied().min().unwrap_or(0),
+                    min_local_rows: value.minimum_local_rows,
+                    min_effective_sample_size: value.minimum_effective_sample_size,
+                    max_normalized_weight: value.maximum_normalized_weight,
+                    min_dose_density: value.minimum_dose_density,
+                    interval_95_published: intervals.iter().all(Option::is_some),
+                    reported_intervals: intervals
+                        .iter()
+                        .filter(|interval| interval.is_some())
+                        .count(),
+                    all_reported_intervals: intervals.iter().all(Option::is_some),
+                    known_density: self.query.density_provenance.as_ref() == "known",
+                    ..Default::default()
+                },
+            )
+            .is_some()
+        })
     }
 }
 

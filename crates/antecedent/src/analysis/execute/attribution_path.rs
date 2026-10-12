@@ -177,82 +177,18 @@ fn execute_checked_counterfactual_plan(
     let (fitted, ite) = plan.operation.execute(data, ctx)?;
     let assignments = format!("{:?}", fitted.assignments);
     let mechanism_assignments = fitted.assignments.clone();
-    let base_model = fitted.model.clone();
+    let refit = CounterfactualRefit {
+        data,
+        fitted: &fitted,
+        contrast: UnitContrast { treatment, outcome, active, control },
+        assumptions: &identification.required_assumptions,
+        status: identification.status,
+    };
     let (estimate, posterior, ite) =
         if let CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws } =
             &plan.procedure
         {
-            let n_draws = *draws;
-            let n_units = ite.unit_effects.len();
-            let mut values = Vec::with_capacity(n_draws);
-            // Column-major `units × draws`: one posterior column per unit, read by
-            // the same summary that publishes the mean-ITE interval.
-            let mut unit_draws = vec![0.0; n_units * n_draws];
-            let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
-            let n = data.row_count();
-            for draw in 0..n_draws {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(CausalError::Cancelled {
-                        stage: super::super::stage::STAGE_ESTIMATE_POINT,
-                    });
-                }
-                let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, n, false);
-                // The same registry the point fit selected from, so every family a
-                // node can have selected is one `refit_weighted` accepts.
-                let store = crate::gcm::MechanismRegistry::with_heterogeneity_families()
-                    .refit_weighted(&base_model, data, &mechanism_assignments, &weights)
-                    .map_err(|e| match e {
-                        crate::gcm::ModelError::NotConverged { .. } => map_mechanism_fit(e),
-                        other => CausalError::rejected(other),
-                    })?;
-                let draw_model = base_model.clone().with_mechanisms(store);
-                let draw_ite =
-                    counterfactual_ite(draw_model, data, treatment, outcome, active, control, ctx)?;
-                if draw_ite.unit_effects.len() != n_units {
-                    return Err(CausalError::Compile {
-                        message: "counterfactual Bayesian draw changed the unit set".into(),
-                    });
-                }
-                values.push(draw_ite.mean_ite);
-                for (unit, effect) in draw_ite.unit_effects.iter().enumerate() {
-                    unit_draws[unit * n_draws + draw] = *effect;
-                }
-            }
-            let posterior = counterfactual_posterior(
-                values,
-                identification.required_assumptions.clone(),
-                identification.status,
-            )?;
-            let eq = posterior.effect_column().ok_or_else(|| CausalError::Compile {
-                message: "counterfactual posterior missing effect column".into(),
-            })?;
-            // Published unit effects stay the plain draw average (sequential sum,
-            // divided once), exactly as before per-unit intervals existed.
-            let scale = n_draws.max(1) as f64;
-            let unit_means: Vec<f64> = (0..n_units)
-                .map(|unit| {
-                    unit_draws[unit * n_draws..(unit + 1) * n_draws].iter().fold(0.0, |s, v| s + v)
-                        / scale
-                })
-                .collect();
-            let unit_summary = unit_effect_posterior_summary(unit_draws, n_units, n_draws)?;
-            let mut ite = ite;
-            ite.unit_effects = std::sync::Arc::from(unit_means);
-            ite.unit_effect_intervals = Some(crate::gcm::UnitEffectIntervals {
-                lower: std::sync::Arc::clone(&unit_summary.q025),
-                upper: std::sync::Arc::clone(&unit_summary.q975),
-                level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
-                method: antecedent_core::IntervalMethod::UnitPosteriorQuantile.as_str(),
-            });
-            ite.mean_ite = posterior.summaries.mean[eq];
-            let mut estimate = EffectEstimate::new(
-                posterior.summaries.mean[eq],
-                posterior.summaries.sd[eq],
-                posterior.assumptions.clone(),
-                OverlapPolicy::ExplicitOverride,
-            );
-            estimate.uncertainty.analytic.se = posterior.summaries.sd[eq];
-            (estimate, Some(posterior), ite)
+            dirichlet_counterfactual_estimate(&refit, ite, *draws, ctx)?
         } else {
             (
                 EffectEstimate::new(
@@ -302,47 +238,9 @@ fn execute_checked_counterfactual_plan(
             ),
         ),
         support.support_diagnostic(min, max, pooled_extrapolative),
-        if posterior.is_some() {
-            Diagnostic::new(
-                "gcm.counterfactual.bayesian",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Both the mean_ite interval and the per-unit intervals carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so a per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
-            )
-        } else {
-            Diagnostic::new(
-                "gcm.counterfactual.uncertainty_unavailable",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable. No Frequentist per-unit interval is published (counterfactual.unit_effect_intervals is None): a unit's ITE Y_i(a)-Y_i(a0) is not identified from data, only computed under the fitted SCM; its value depends jointly on every path mechanism's parameters and on disturbances abducted with those same parameters (or, downstream of a discrete mechanism, on one seeded noise draw); and each mechanism family is selected on this data, so a delta-method interval conditional on the selected family would ignore selection. The refit construction that does carry this uncertainty is the Bayesian cell's Dirichlet mechanism-refit posterior, whose per-unit unit_posterior_quantile intervals are published under inference=Bayesian. For a frequentist pointwise interval on the conditional average effect tau(x) rather than a unit ITE, see DrLearner::fit_pointwise_profiles (uncalibrated).",
-            )
-        },
+        counterfactual_uncertainty_diagnostic(posterior.is_some()),
     ];
-    if let Some(family) = homogeneous {
-        let outcome_name = data
-            .schema()
-            .get(outcome)
-            .map_or_else(|_| format!("v{}", outcome.raw()), |v| v.name.to_string());
-        diagnostics.push(
-            Diagnostic::new(
-                "gcm.counterfactual.unit_effects_homogeneous",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "mechanism family {family:?} for {outcome_name} admits no effect \
-                         modification; unit_effects equal the mechanism slope for every unit"
-                ),
-            )
-            .with_fields([
-                ("outcome", outcome_name),
-                ("family", family.id().to_string()),
-                ("unit_effect", ite.mean_ite.to_string()),
-            ]),
-        );
-    }
-    if let HomogeneityVerdict::Empirical { rejected } = &verdict {
-        diagnostics.push(heterogeneity_rejected_diagnostic(data, rejected));
-    }
+    homogeneity_diagnostics(data, outcome, ite.mean_ite, &verdict, &mut diagnostics);
     Ok(finish_identified_execute_with_context(
         &plan.result_context,
         Some(data),
@@ -371,6 +269,147 @@ fn execute_checked_counterfactual_plan(
             ..Default::default()
         }),
     ))
+}
+
+/// Inputs every Dirichlet row-weight refit of a counterfactual contrast reads.
+struct CounterfactualRefit<'a> {
+    data: &'a TabularData,
+    fitted: &'a crate::gcm::FittedGcm,
+    contrast: UnitContrast,
+    assumptions: &'a antecedent_core::AssumptionSet,
+    status: IdentificationStatus,
+}
+
+/// Bayesian-bootstrap refit of the mechanisms per draw, publishing the mean-ITE posterior and per-unit intervals.
+fn dirichlet_counterfactual_estimate(
+    refit: &CounterfactualRefit<'_>,
+    ite: crate::gcm::IteResult,
+    n_draws: usize,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>, crate::gcm::IteResult), CausalError> {
+    let CounterfactualRefit { data, fitted, contrast, assumptions, status } = *refit;
+    let UnitContrast { treatment, outcome, active, control } = contrast;
+    let base_model = &fitted.model;
+    let mechanism_assignments = &fitted.assignments;
+    let n_units = ite.unit_effects.len();
+    let mut values = Vec::with_capacity(n_draws);
+    // Column-major `units × draws`: one posterior column per unit, read by
+    // the same summary that publishes the mean-ITE interval.
+    let mut unit_draws = vec![0.0; n_units * n_draws];
+    let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
+    let n = data.row_count();
+    for draw in 0..n_draws {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: super::super::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, n, false);
+        // The same registry the point fit selected from, so every family a
+        // node can have selected is one `refit_weighted` accepts.
+        let store = crate::gcm::MechanismRegistry::with_heterogeneity_families()
+            .refit_weighted(base_model, data, mechanism_assignments, &weights)
+            .map_err(|e| match e {
+                crate::gcm::ModelError::NotConverged { .. } => map_mechanism_fit(e),
+                other => CausalError::rejected(other),
+            })?;
+        let draw_model = base_model.clone().with_mechanisms(store);
+        let draw_ite =
+            counterfactual_ite(draw_model, data, treatment, outcome, active, control, ctx)?;
+        if draw_ite.unit_effects.len() != n_units {
+            return Err(CausalError::Compile {
+                message: "counterfactual Bayesian draw changed the unit set".into(),
+            });
+        }
+        values.push(draw_ite.mean_ite);
+        for (unit, effect) in draw_ite.unit_effects.iter().enumerate() {
+            unit_draws[unit * n_draws + draw] = *effect;
+        }
+    }
+    let posterior = counterfactual_posterior(values, assumptions.clone(), status)?;
+    let eq = posterior.effect_column().ok_or_else(|| CausalError::Compile {
+        message: "counterfactual posterior missing effect column".into(),
+    })?;
+    // Published unit effects stay the plain draw average (sequential sum,
+    // divided once), exactly as before per-unit intervals existed.
+    let scale = n_draws.max(1) as f64;
+    let unit_means: Vec<f64> = (0..n_units)
+        .map(|unit| {
+            unit_draws[unit * n_draws..(unit + 1) * n_draws].iter().fold(0.0, |s, v| s + v) / scale
+        })
+        .collect();
+    let unit_summary = unit_effect_posterior_summary(unit_draws, n_units, n_draws)?;
+    let mut ite = ite;
+    ite.unit_effects = std::sync::Arc::from(unit_means);
+    ite.unit_effect_intervals = Some(crate::gcm::UnitEffectIntervals {
+        lower: std::sync::Arc::clone(&unit_summary.q025),
+        upper: std::sync::Arc::clone(&unit_summary.q975),
+        level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+        method: antecedent_core::IntervalMethod::UnitPosteriorQuantile.as_str(),
+    });
+    ite.mean_ite = posterior.summaries.mean[eq];
+    let mut estimate = EffectEstimate::new(
+        posterior.summaries.mean[eq],
+        posterior.summaries.sd[eq],
+        posterior.assumptions.clone(),
+        OverlapPolicy::ExplicitOverride,
+    );
+    estimate.uncertainty.analytic.se = posterior.summaries.sd[eq];
+    Ok((estimate, Some(posterior), ite))
+}
+
+/// Explains why no frequentist interval exists, or what the Bayesian interval does and does not carry.
+fn counterfactual_uncertainty_diagnostic(bayesian: bool) -> Diagnostic {
+    if bayesian {
+        Diagnostic::new(
+            "gcm.counterfactual.bayesian",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Both the mean_ite interval and the per-unit intervals carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so a per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
+        )
+    } else {
+        Diagnostic::new(
+            "gcm.counterfactual.uncertainty_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable. No Frequentist per-unit interval is published (counterfactual.unit_effect_intervals is None): a unit's ITE Y_i(a)-Y_i(a0) is not identified from data, only computed under the fitted SCM; its value depends jointly on every path mechanism's parameters and on disturbances abducted with those same parameters (or, downstream of a discrete mechanism, on one seeded noise draw); and each mechanism family is selected on this data, so a delta-method interval conditional on the selected family would ignore selection. The refit construction that does carry this uncertainty is the Bayesian cell's Dirichlet mechanism-refit posterior, whose per-unit unit_posterior_quantile intervals are published under inference=Bayesian. For a frequentist pointwise interval on the conditional average effect tau(x) rather than a unit ITE, see DrLearner::fit_pointwise_profiles (uncalibrated).",
+        )
+    }
+}
+
+/// Warns when the outcome mechanism admits no effect modification, or records the rejected heterogeneity families.
+fn homogeneity_diagnostics(
+    data: &TabularData,
+    outcome: VariableId,
+    mean_ite: f64,
+    verdict: &HomogeneityVerdict,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let HomogeneityVerdict::Structural(family) = verdict {
+        let outcome_name = data
+            .schema()
+            .get(outcome)
+            .map_or_else(|_| format!("v{}", outcome.raw()), |v| v.name.to_string());
+        diagnostics.push(
+            Diagnostic::new(
+                "gcm.counterfactual.unit_effects_homogeneous",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "mechanism family {family:?} for {outcome_name} admits no effect \
+                         modification; unit_effects equal the mechanism slope for every unit"
+                ),
+            )
+            .with_fields([
+                ("outcome", outcome_name),
+                ("family", family.id().to_string()),
+                ("unit_effect", mean_ite.to_string()),
+            ]),
+        );
+    }
+    if let HomogeneityVerdict::Empirical { rejected } = verdict {
+        diagnostics.push(heterogeneity_rejected_diagnostic(data, rejected));
+    }
 }
 
 /// The result slots of one GCM attribution finish, apart from the plan and clock.
@@ -603,70 +642,7 @@ impl super::Study {
             },
         );
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            let n_draws = bayesian_draw_count(&self.inference)?;
-            let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
-                .map_err(CausalError::rejected)?
-                .len();
-            let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
-                .map_err(CausalError::rejected)?
-                .len();
-            let options = antecedent_attribution::DistributionChangeOptions::default();
-            let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0xC4A6_7A7E);
-            let mut total = Vec::with_capacity(n_draws);
-            let mut components: Option<Vec<(String, Vec<f64>)>> = None;
-            for _ in 0..n_draws {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(CausalError::Cancelled {
-                        stage: super::super::stage::STAGE_ESTIMATE_POINT,
-                    });
-                }
-                let baseline_weights = dirichlet_row_weights(baseline_n, &mut rng);
-                let comparison_weights = dirichlet_row_weights(comparison_n, &mut rng);
-                let draw = antecedent_attribution::distribution_change_with_row_weights(
-                    &fitted.model,
-                    data,
-                    query,
-                    &options,
-                    &baseline_weights,
-                    &comparison_weights,
-                    ctx,
-                )
-                .map_err(CausalError::rejected)?;
-                total.push(draw.total_change);
-                let columns = components.get_or_insert_with(|| {
-                    draw.contributions
-                        .iter()
-                        .map(|c| {
-                            (
-                                format!("component[{}]", c.component.variable().raw()),
-                                Vec::with_capacity(n_draws),
-                            )
-                        })
-                        .collect()
-                });
-                if draw.contributions.len() != columns.len() {
-                    return Err(CausalError::Compile {
-                        message: "Bayesian change attribution draw changed component set".into(),
-                    });
-                }
-                for (column, component) in columns.iter_mut().zip(draw.contributions.iter()) {
-                    column.1.push(component.contribution);
-                }
-            }
-            let mut posterior_columns = vec![("total_change".to_owned(), total)];
-            posterior_columns.extend(components.unwrap_or_default());
-            let (identification, _) = parametric_scm_identification(
-                CausalQuery::ChangeAttribution(query.clone()),
-                query.outcome,
-                query.outcome,
-            );
-            let posterior = attribution_posterior(
-                posterior_columns,
-                identification.required_assumptions,
-                identification.status,
-                super::CHANGE_DIRICHLET_BACKEND,
-                true,
-            )?;
+            let posterior = self.change_attribution_posterior(data, query, &fitted, ctx)?;
             if let Some(index) = posterior.effect_column() {
                 if let Some(estimate) = result.estimate.as_effect_mut() {
                     estimate.ate = posterior.summaries.mean[index];
@@ -680,6 +656,80 @@ impl super::Study {
             ));
         }
         Ok(result)
+    }
+
+    /// Dirichlet row-weight bootstrap of the change attribution: one weight vector per population per draw.
+    fn change_attribution_posterior(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        fitted: &crate::gcm::FittedGcm,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalPosterior, CausalError> {
+        let n_draws = bayesian_draw_count(&self.inference)?;
+        let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
+            .map_err(CausalError::rejected)?
+            .len();
+        let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
+            .map_err(CausalError::rejected)?
+            .len();
+        let options = antecedent_attribution::DistributionChangeOptions::default();
+        let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0xC4A6_7A7E);
+        let mut total = Vec::with_capacity(n_draws);
+        let mut components: Option<Vec<(String, Vec<f64>)>> = None;
+        for _ in 0..n_draws {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_ESTIMATE_POINT,
+                });
+            }
+            let baseline_weights = dirichlet_row_weights(baseline_n, &mut rng);
+            let comparison_weights = dirichlet_row_weights(comparison_n, &mut rng);
+            let draw = antecedent_attribution::distribution_change_with_row_weights(
+                &fitted.model,
+                data,
+                query,
+                &options,
+                &baseline_weights,
+                &comparison_weights,
+                ctx,
+            )
+            .map_err(CausalError::rejected)?;
+            total.push(draw.total_change);
+            let columns = components.get_or_insert_with(|| {
+                draw.contributions
+                    .iter()
+                    .map(|c| {
+                        (
+                            format!("component[{}]", c.component.variable().raw()),
+                            Vec::with_capacity(n_draws),
+                        )
+                    })
+                    .collect()
+            });
+            if draw.contributions.len() != columns.len() {
+                return Err(CausalError::Compile {
+                    message: "Bayesian change attribution draw changed component set".into(),
+                });
+            }
+            for (column, component) in columns.iter_mut().zip(draw.contributions.iter()) {
+                column.1.push(component.contribution);
+            }
+        }
+        let mut posterior_columns = vec![("total_change".to_owned(), total)];
+        posterior_columns.extend(components.unwrap_or_default());
+        let (identification, _) = parametric_scm_identification(
+            CausalQuery::ChangeAttribution(query.clone()),
+            query.outcome,
+            query.outcome,
+        );
+        attribution_posterior(
+            posterior_columns,
+            identification.required_assumptions,
+            identification.status,
+            super::CHANGE_DIRICHLET_BACKEND,
+            true,
+        )
     }
 
     pub(super) fn execute_mechanism_change(

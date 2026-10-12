@@ -17,7 +17,8 @@ use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
 use antecedent_estimate::synthetic_control::{
-    SyntheticConstantEffectMethod, exact_synthetic_constant_effect_test,
+    AugmentedSyntheticControlFit, SyntheticConstantEffectMethod, SyntheticControlFit,
+    SyntheticUnitRandomizationTest, exact_synthetic_constant_effect_test,
 };
 
 pub(crate) type CheckedSyntheticControlOperation =
@@ -131,46 +132,7 @@ impl CheckedSyntheticControlOperation {
             .map_err(|message| CausalError::Compile { message })?
         };
         let effect = augmentation.as_ref().map_or(fit.effect, |augmented| augmented.effect);
-        let randomization = if self.query.uniform_unit_randomization {
-            Some(
-                if let Some(null_effect) = self.query.sharp_null_effect {
-                    exact_synthetic_constant_effect_test(
-                        y,
-                        &units,
-                        &self.query.periods,
-                        &self.query.treated_unit,
-                        self.query.intervention_period,
-                        null_effect,
-                        self.query.augmentation_ridge.map_or(
-                            SyntheticConstantEffectMethod::Control,
-                            |ridge_penalty| SyntheticConstantEffectMethod::AugmentedControl {
-                                ridge_penalty,
-                            },
-                        ),
-                    )
-                } else if let Some(ridge) = self.query.augmentation_ridge {
-                    exact_augmented_synthetic_unit_randomization_test(
-                        y,
-                        &units,
-                        &self.query.periods,
-                        &self.query.treated_unit,
-                        self.query.intervention_period,
-                        ridge,
-                    )
-                } else {
-                    exact_synthetic_unit_randomization_test(
-                        y,
-                        &units,
-                        &self.query.periods,
-                        &self.query.treated_unit,
-                        self.query.intervention_period,
-                    )
-                }
-                .map_err(|message| CausalError::Compile { message })?,
-            )
-        } else {
-            None
-        };
+        let randomization = self.control_randomization_test(y, &units)?;
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
         let effective_donors = if squared_mass > 0.0 { 1.0 / squared_mass } else { 0.0 };
         let estimate = EffectEstimate::new(
@@ -200,53 +162,116 @@ impl CheckedSyntheticControlOperation {
                     ),
                 )]),
         );
-        result.payload =
-            crate::result::ResultPayload::SyntheticControl(crate::SyntheticControlEstimate {
-                effect,
-                pre_treatment_rmse: fit.pre_treatment_rmse,
-                donor_weights: fit
-                    .donor_weights
-                    .into_iter()
-                    .map(|(unit, weight)| (Arc::<str>::from(unit), weight))
-                    .collect(),
-                placebo_effects: fit.placebo_effects.into(),
-                placebo_rank: fit.placebo_rank,
-                effective_donors,
-                n_pre_periods: fit.n_pre_periods,
-                n_post_periods: fit.n_post_periods,
-                uncertainty: Arc::from(if augmentation.is_some() {
-                    if randomization.is_some() {
-                        "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
-                    } else {
-                        "point_only_augmented_no_interval"
-                    }
-                } else if randomization.is_some() {
-                    "point_only_with_exact_unit_randomization_p_value_no_interval"
-                } else {
-                    "point_only_with_unlicensed_placebo_rank"
-                }),
-                randomization_p_value: randomization.as_ref().map(|test| test.p_value),
-                randomization_null_effect: randomization
-                    .as_ref()
-                    .map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
-                randomization_statistics: randomization.map_or_else(
-                    || Arc::from([]),
-                    |test| {
-                        test.statistics
-                            .into_iter()
-                            .map(|(unit, statistic)| (Arc::<str>::from(unit), statistic))
-                            .collect::<Vec<_>>()
-                            .into()
-                    },
-                ),
-                unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
-                outcome_model_correction: augmentation
-                    .as_ref()
-                    .map(|fit| fit.outcome_model_correction),
-                augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
-            });
+        result.payload = crate::result::ResultPayload::SyntheticControl(self.control_payload(
+            fit,
+            augmentation,
+            randomization,
+            effect,
+            effective_donors,
+        ));
         result.treatment = None;
         Ok(result)
+    }
+
+    /// Exact unit-randomization test of the declared sharp null, when uniform assignment was declared.
+    fn control_randomization_test(
+        &self,
+        y: &[f64],
+        units: &[String],
+    ) -> Result<Option<SyntheticUnitRandomizationTest>, CausalError> {
+        Ok(if self.query.uniform_unit_randomization {
+            Some(
+                if let Some(null_effect) = self.query.sharp_null_effect {
+                    exact_synthetic_constant_effect_test(
+                        y,
+                        units,
+                        &self.query.periods,
+                        &self.query.treated_unit,
+                        self.query.intervention_period,
+                        null_effect,
+                        self.query.augmentation_ridge.map_or(
+                            SyntheticConstantEffectMethod::Control,
+                            |ridge_penalty| SyntheticConstantEffectMethod::AugmentedControl {
+                                ridge_penalty,
+                            },
+                        ),
+                    )
+                } else if let Some(ridge) = self.query.augmentation_ridge {
+                    exact_augmented_synthetic_unit_randomization_test(
+                        y,
+                        units,
+                        &self.query.periods,
+                        &self.query.treated_unit,
+                        self.query.intervention_period,
+                        ridge,
+                    )
+                } else {
+                    exact_synthetic_unit_randomization_test(
+                        y,
+                        units,
+                        &self.query.periods,
+                        &self.query.treated_unit,
+                        self.query.intervention_period,
+                    )
+                }
+                .map_err(|message| CausalError::Compile { message })?,
+            )
+        } else {
+            None
+        })
+    }
+
+    /// Assembles the retained synthetic-control estimate from the fit, augmentation, and randomization test.
+    fn control_payload(
+        &self,
+        fit: SyntheticControlFit,
+        augmentation: Option<AugmentedSyntheticControlFit>,
+        randomization: Option<SyntheticUnitRandomizationTest>,
+        effect: f64,
+        effective_donors: f64,
+    ) -> crate::SyntheticControlEstimate {
+        crate::SyntheticControlEstimate {
+            effect,
+            pre_treatment_rmse: fit.pre_treatment_rmse,
+            donor_weights: fit
+                .donor_weights
+                .into_iter()
+                .map(|(unit, weight)| (Arc::<str>::from(unit), weight))
+                .collect(),
+            placebo_effects: fit.placebo_effects.into(),
+            placebo_rank: fit.placebo_rank,
+            effective_donors,
+            n_pre_periods: fit.n_pre_periods,
+            n_post_periods: fit.n_post_periods,
+            uncertainty: Arc::from(if augmentation.is_some() {
+                if randomization.is_some() {
+                    "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+                } else {
+                    "point_only_augmented_no_interval"
+                }
+            } else if randomization.is_some() {
+                "point_only_with_exact_unit_randomization_p_value_no_interval"
+            } else {
+                "point_only_with_unlicensed_placebo_rank"
+            }),
+            randomization_p_value: randomization.as_ref().map(|test| test.p_value),
+            randomization_null_effect: randomization
+                .as_ref()
+                .map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
+            randomization_statistics: randomization.map_or_else(
+                || Arc::from([]),
+                |test| {
+                    test.statistics
+                        .into_iter()
+                        .map(|(unit, statistic)| (Arc::<str>::from(unit), statistic))
+                        .collect::<Vec<_>>()
+                        .into()
+                },
+            ),
+            unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
+            outcome_model_correction: augmentation.as_ref().map(|fit| fit.outcome_model_correction),
+            augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
+        }
     }
 
     fn execute_did(
@@ -362,9 +387,10 @@ impl Study {
     }
 }
 
-pub(crate) fn synthetic_control_identification(
+/// Declared panel-design assumptions, before the method-specific counterfactual assumption is appended.
+fn declared_panel_assumptions(
     query: &antecedent_core::SyntheticControlQuery,
-) -> (IdentificationResult, IdentifiedEstimand) {
+) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     for (id, description) in [
         ("no_anticipation", "intervention does not affect pre-treatment outcomes"),
@@ -424,6 +450,13 @@ pub(crate) fn synthetic_control_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    assumptions
+}
+
+pub(crate) fn synthetic_control_identification(
+    query: &antecedent_core::SyntheticControlQuery,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let mut assumptions = declared_panel_assumptions(query);
     let (method_assumption, method_description, rule, derivation_description) = match query.method {
         SyntheticPanelMethod::Control if query.augmentation_ridge.is_some() => (
             "donor_outcome_model_correction_is_valid",
