@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Intervention, StreamDomain, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, Intervention, StreamDomain, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
@@ -15,9 +15,14 @@ use antecedent_model::{
 
 use crate::error::CounterfactualError;
 
-/// Stream index of the abduction draw within [`StreamDomain::Counterfactual`]
-/// (prediction uses `0xCF_01`).
+/// Stream index of the abduction draw within [`StreamDomain::Counterfactual`].
 const ABDUCTION_STREAM: u64 = 0xAB_D0;
+
+/// Stream index of prediction and of the nested column-frozen pass.
+///
+/// Both evaluations restart this stream, so a one-pass freeze matches the
+/// historical per-unit `predict` restart bit-for-bit.
+const PREDICT_STREAM: u64 = 0xCF_01;
 
 /// Assumption recorded on every result whose abduction drew posterior noise. A
 /// categorical node's law given its parents does not identify unit-level
@@ -366,7 +371,11 @@ impl CounterfactualEngine {
         if exo.kind == NoiseInferenceKind::PosteriorNoise {
             notes.push(Arc::from(RANK_PRESERVING_ASSUMPTION));
         }
-        let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0xCF_01);
+        // Worlds share one generator. Splitting a stream per world would change
+        // every stochastic intervention that follows the first world.
+        let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, PREDICT_STREAM);
+        let mut values_buf = vec![0.0; n_units * n_nodes];
+        let mut parent_buf = Vec::new();
 
         for (wi, world) in worlds.iter().enumerate() {
             if !allow_nested {
@@ -380,52 +389,18 @@ impl CounterfactualEngine {
                 InterventionOverlay::from_interventions(&self.model, &world.interventions)?;
             let unit_filter: Option<&[usize]> = world.unit_rows.as_ref().map(AsRef::as_ref);
 
-            let mut values_buf = vec![0.0; n_units * n_nodes];
+            values_buf.fill(0.0);
             let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
-
-            let mut parent_buf: Vec<f64> = Vec::new();
-            for gather in self.model.parent_gathers.iter() {
-                let node = gather.child;
-                let idx = node.as_usize();
-                let need = gather.n_parents().max(1).saturating_mul(n_units);
-                if parent_buf.len() < need {
-                    parent_buf.resize(need, 0.0);
-                }
-                gather.gather(values.values, n_units, &mut parent_buf);
-                let parents = ParentBatch {
-                    n_rows: n_units,
-                    n_parents: gather.n_parents(),
-                    values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
-                };
-                let out = values.column_mut(idx)?;
-                if let Some(v) = overlay.hard_set[idx] {
-                    out.fill(v);
-                    continue;
-                }
-                if let Some(policy) = &overlay.stochastic[idx] {
-                    sample_stochastic(policy, n_units, &mut rng, out)?;
-                    if overlay.shifts[idx] != 0.0 {
-                        for x in out.iter_mut() {
-                            *x += overlay.shifts[idx];
-                        }
-                    }
-                    continue;
-                }
-                let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
-                let existing = self.model.mechanisms.get(node);
-                let slot = if let Some(soft) = &overlay.soft[idx] {
-                    refuse_cross_family_soft(existing, soft)?;
-                    soft_to_slot(soft, gather.n_parents())?
-                } else {
-                    existing.clone()
-                };
-                evaluate_column(&slot, parents, noise_col, out, ws)?;
-                if overlay.shifts[idx] != 0.0 {
-                    for x in out.iter_mut() {
-                        *x += overlay.shifts[idx];
-                    }
-                }
-            }
+            evaluate_world_into(
+                &self.model,
+                exo,
+                &overlay,
+                None,
+                &mut rng,
+                &mut values,
+                &mut parent_buf,
+                ws,
+            )?;
 
             let base = wi * stored_width * n_units;
             for slot in 0..stored_width {
@@ -825,13 +800,19 @@ pub fn nested_counterfactual_with_exo(
         }
         let start = node * n_units;
         let col = &outer_res.values[start..start + n_units];
-        let first = col.first().copied().unwrap_or(0.0);
-        if col.iter().any(|&v| (v - first).abs() > 1e-12) {
-            need_unitwise = true;
-            break;
+        // A non-finite column is not a constant. `NaN - NaN` is not greater than
+        // the tolerance, so a NaN column used to be frozen as if it were constant.
+        match column_is_finite_constant(col) {
+            Some(first) => {
+                let var = engine.model.output_layout.variables[node];
+                freeze_ivs.push(Intervention::set(var, antecedent_core::Value::f64(first)));
+            }
+            None if col.is_empty() => {}
+            None => {
+                need_unitwise = true;
+                break;
+            }
         }
-        let var = engine.model.output_layout.variables[node];
-        freeze_ivs.push(Intervention::set(var, antecedent_core::Value::f64(first)));
     }
 
     if need_unitwise {
@@ -926,6 +907,79 @@ fn nested_rows_independent(
     Ok(row_independent)
 }
 
+/// `Some(value)` when every entry is finite and within `1e-12` of the first.
+/// An empty column and any non-finite entry are not constants.
+fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
+    let &first = col.first()?;
+    (first.is_finite() && col.iter().all(|&v| (v - first).abs() <= 1e-12)).then_some(first)
+}
+
+/// Evaluate one world's nodes into `values`, in parent-gather order.
+///
+/// `frozen` nodes keep the values already in the batch (the outer counterfactual
+/// columns). The mechanism slot is borrowed unless a soft overlay replaces it.
+/// `rng` is the caller's stream: prediction walks worlds on one `0xCF_01` stream.
+fn evaluate_world_into(
+    model: &CompiledCausalModel,
+    exo: &ExogenousPosterior,
+    overlay: &InterventionOverlay,
+    frozen: Option<&[bool]>,
+    rng: &mut CausalRng,
+    values: &mut ValueBatchMut<'_>,
+    parent_buf: &mut Vec<f64>,
+    ws: &mut MechanismWorkspace,
+) -> Result<(), CounterfactualError> {
+    let n_units = exo.n_units;
+    for gather in model.parent_gathers.iter() {
+        let node = gather.child;
+        let idx = node.as_usize();
+        if frozen.is_some_and(|mask| mask[idx]) {
+            continue;
+        }
+        let need = gather.n_parents().max(1).saturating_mul(n_units);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(values.values, n_units, parent_buf);
+        let parents = ParentBatch {
+            n_rows: n_units,
+            n_parents: gather.n_parents(),
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
+        };
+        let out = values.column_mut(idx)?;
+        if let Some(v) = overlay.hard_set[idx] {
+            out.fill(v);
+            continue;
+        }
+        if let Some(policy) = &overlay.stochastic[idx] {
+            sample_stochastic(policy, n_units, rng, out)?;
+            if overlay.shifts[idx] != 0.0 {
+                for x in out.iter_mut() {
+                    *x += overlay.shifts[idx];
+                }
+            }
+            continue;
+        }
+        let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
+        let existing = model.mechanisms.get(node);
+        let owned;
+        let slot = if let Some(soft) = &overlay.soft[idx] {
+            refuse_cross_family_soft(existing, soft)?;
+            owned = soft_to_slot(soft, gather.n_parents())?;
+            &owned
+        } else {
+            existing
+        };
+        evaluate_column(slot, parents, noise_col, out, ws)?;
+        if overlay.shifts[idx] != 0.0 {
+            for x in out.iter_mut() {
+                *x += overlay.shifts[idx];
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The outer world, the inner overlay and the frozen-node mask a nested evaluation reads.
 #[derive(Clone, Copy)]
 struct FrozenOuter<'a> {
@@ -958,54 +1012,20 @@ fn nested_column_frozen_mean(
     let FrozenOuter { outer_res, overlay, is_frozen } = *frozen;
     let n_units = exo.n_units;
     let n_nodes = exo.n_nodes;
-    let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0xCF_01);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, PREDICT_STREAM);
     let mut values_buf = outer_res.values[..n_nodes * n_units].to_vec();
     let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
-    let mut parent_buf: Vec<f64> = Vec::new();
-    for gather in engine.model.parent_gathers.iter() {
-        let idx = gather.child.as_usize();
-        if is_frozen[idx] {
-            continue; // frozen at its outer column
-        }
-        let need = gather.n_parents().max(1).saturating_mul(n_units);
-        if parent_buf.len() < need {
-            parent_buf.resize(need, 0.0);
-        }
-        gather.gather(values.values, n_units, &mut parent_buf);
-        let parents = ParentBatch {
-            n_rows: n_units,
-            n_parents: gather.n_parents(),
-            values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
-        };
-        let out = values.column_mut(idx)?;
-        if let Some(v) = overlay.hard_set[idx] {
-            out.fill(v);
-            continue;
-        }
-        if let Some(policy) = &overlay.stochastic[idx] {
-            sample_stochastic(policy, n_units, &mut rng, out)?;
-            if overlay.shifts[idx] != 0.0 {
-                for x in out.iter_mut() {
-                    *x += overlay.shifts[idx];
-                }
-            }
-            continue;
-        }
-        let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
-        let existing = engine.model.mechanisms.get(gather.child);
-        let slot = if let Some(soft) = &overlay.soft[idx] {
-            refuse_cross_family_soft(existing, soft)?;
-            soft_to_slot(soft, gather.n_parents())?
-        } else {
-            existing.clone()
-        };
-        evaluate_column(&slot, parents, noise_col, out, ws)?;
-        if overlay.shifts[idx] != 0.0 {
-            for x in out.iter_mut() {
-                *x += overlay.shifts[idx];
-            }
-        }
-    }
+    let mut parent_buf = Vec::new();
+    evaluate_world_into(
+        &engine.model,
+        exo,
+        overlay,
+        Some(is_frozen),
+        &mut rng,
+        &mut values,
+        &mut parent_buf,
+        ws,
+    )?;
     let start = outcome_dense.as_usize() * n_units;
     let mut sum = 0.0;
     let mut count = 0usize;
@@ -1054,6 +1074,15 @@ mod tests {
     use antecedent_model::{
         CompiledMechanismStore, MechanismRegistry, MechanismSlot, SelectionPolicy,
     };
+
+    #[test]
+    fn a_non_finite_column_is_not_a_constant() {
+        assert_eq!(column_is_finite_constant(&[1.0, 1.0]), Some(1.0));
+        assert_eq!(column_is_finite_constant(&[1.0, 1.0 + 2e-12]), None);
+        assert_eq!(column_is_finite_constant(&[f64::NAN, f64::NAN]), None);
+        assert_eq!(column_is_finite_constant(&[1.0, f64::NAN]), None);
+        assert_eq!(column_is_finite_constant(&[]), None);
+    }
 
     fn unit_normal(rng: &mut antecedent_core::CausalRng) -> f64 {
         let u1 = rng.next_f64().clamp(1e-12, 1.0);
