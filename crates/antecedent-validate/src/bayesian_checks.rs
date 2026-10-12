@@ -18,9 +18,7 @@ use antecedent_estimate::{
     SerialDependence, tempering_kappa_from_notes,
 };
 use antecedent_identify::IdentificationStatus;
-use antecedent_kernels::{
-    PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws, standard_normal,
-};
+use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
 use antecedent_prob::{
     ExternalPriorSource, GaussianCoefficientPrior, GaussianVarianceModel, HessianFactorization,
     InferenceDiagnostics, PriorSensitivityFamily, PriorSensitivitySummary, PriorSet, PriorSpec,
@@ -1107,7 +1105,7 @@ fn serial_discrepancy(
 }
 
 /// Default max relative range of effect means across the prior-sensitivity grid.
-pub const DEFAULT_MAX_RELATIVE_PRIOR_RANGE: f64 = 0.5;
+const DEFAULT_MAX_RELATIVE_PRIOR_RANGE: f64 = 0.5;
 
 /// Prior sensitivity grid: isotropic scales, external α multipliers, **or**
 /// variance multipliers around the resolved prior in force.
@@ -1145,7 +1143,7 @@ impl Default for PriorSensitivity {
 }
 
 impl PriorSensitivity {
-    /// Standard isotropic grid `{0.5, 1, 2, 5, 10, 20}` with [`DEFAULT_MAX_RELATIVE_PRIOR_RANGE`].
+    /// Standard isotropic grid `{0.5, 1, 2, 5, 10, 20}` with `DEFAULT_MAX_RELATIVE_PRIOR_RANGE`.
     #[must_use]
     pub fn standard_grid() -> Self {
         Self {
@@ -1648,6 +1646,7 @@ mod tests {
     use antecedent_estimate::{BayesianBackendKind, BayesianGComputationAte};
     use antecedent_expr::{ExprId, IdentifiedEstimand};
     use antecedent_identify::IdentificationStatus;
+    use antecedent_kernels::quantile_type7_sorted;
     use antecedent_prob::{ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec};
 
     #[test]
@@ -2145,22 +2144,13 @@ mod tests {
         assert!(sbc_rank_draws(&states, &diagnostics).is_err());
     }
 
-    /// Calibration-gate tests for defect A: [`SimulationBasedCalibration`] and
-    /// [`PosteriorCalibrationOnSyntheticScm`] are fully implemented but (prior to this
-    /// change) had zero call sites outside the `lib.rs` re-export — the Bayesian
-    /// posterior had no coverage check at all. `#[ignore]`d for the same reason as
+    /// Calibration-gate tests for [`SimulationBasedCalibration`]. The slow gate is
+    /// `#[ignore]`d for the same reason as
     /// `antecedent-estimate/src/calibration_coverage.rs`: many refits per test, too
     /// slow for every `cargo test`. Run via `cargo test -p antecedent-validate
     /// <name> -- --ignored --nocapture`.
     mod calibration_gate {
         use super::*;
-
-        fn coverage_band(n_reps: u32, level: f64) -> (f64, f64) {
-            let se = (level * (1.0 - level) / f64::from(n_reps)).sqrt();
-            let lo = (level - 4.0 * se).max(0.5);
-            let hi = (level + 4.0 * se).min(1.0);
-            (lo, hi)
-        }
 
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -2263,48 +2253,6 @@ mod tests {
                     report.uniformity_stat
                 );
             }
-        }
-
-        #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-        fn posterior_calibration_synthetic_scm_nominal_90_coverage() {
-            let (data, estimand, query) = toy();
-            let bayes = BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 300,
-                seed: 21,
-                prior_scale: 5.0,
-                ..BayesianGComputationAte::new()
-            };
-            let prep = bayes.prepare(&data, &estimand, &query).unwrap();
-            let mut ws = BayesianGCompWorkspace::default();
-            let ctx = ExecutionContext::for_tests(1);
-            let calib = PosteriorCalibrationOnSyntheticScm {
-                n_reps: 200,
-                n_draws: 300,
-                level: 0.9,
-                seed: 77,
-            };
-            let report = calib
-                .check(
-                    &bayes,
-                    &prep,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    &mut ws,
-                    &ctx,
-                )
-                .unwrap();
-            let (lo, hi) = coverage_band(report.n_reps, 0.9);
-            assert!(
-                report.coverage >= lo && report.coverage <= hi,
-                "nominal 90% credible-interval coverage={:.3} outside [{:.3}, {:.3}] \
-                 ({} reps); mean_abs_error={:.3}",
-                report.coverage,
-                lo,
-                hi,
-                report.n_reps,
-                report.mean_abs_error
-            );
         }
     }
 
@@ -2685,16 +2633,6 @@ mod tests {
                 &ctx,
             );
             assert!(matches!(sbc, Err(ValidationError::Cancelled)), "{sbc:?}");
-            let calibration =
-                PosteriorCalibrationOnSyntheticScm { n_reps: 50, n_draws: 99, level: 0.9, seed: 0 }
-                    .check(
-                        &bayes,
-                        &prep,
-                        IdentificationStatus::NonparametricallyIdentified,
-                        &mut ws,
-                        &ctx,
-                    );
-            assert!(matches!(calibration, Err(ValidationError::Cancelled)), "{calibration:?}");
         }
 
         #[test]
@@ -3550,127 +3488,3 @@ impl SimulationBasedCalibration {
 const SBC_CHI2_CRITICAL_9DF_P99: f64 = 21.666;
 /// Chi² 0.99 quantile with four degrees of freedom (five chain-rank bins).
 const SBC_CHI2_CRITICAL_4DF_P99: f64 = 13.277;
-
-/// Posterior calibration on synthetic SCMs: known-ATE credible-interval coverage.
-#[derive(Clone, Debug)]
-pub struct PosteriorCalibrationOnSyntheticScm {
-    /// Monte Carlo replicates.
-    pub n_reps: u32,
-    /// Draws per fit.
-    pub n_draws: usize,
-    /// Nominal coverage level (e.g. 0.9).
-    pub level: f64,
-    /// RNG seed.
-    pub seed: u64,
-}
-
-impl Default for PosteriorCalibrationOnSyntheticScm {
-    fn default() -> Self {
-        Self { n_reps: 40, n_draws: 100, level: 0.9, seed: 0 }
-    }
-}
-
-/// Report for [`PosteriorCalibrationOnSyntheticScm`].
-#[derive(Clone, Debug)]
-pub struct PosteriorCalibrationReport {
-    /// Empirical coverage of equal-tailed credible intervals.
-    pub coverage: f64,
-    /// Mean absolute error of posterior means vs true ATE.
-    pub mean_abs_error: f64,
-    /// Replicates.
-    pub n_reps: u32,
-}
-
-impl PosteriorCalibrationOnSyntheticScm {
-    /// Simulate known ATEs under the design, refit, and measure CI coverage.
-    ///
-    /// # Errors
-    ///
-    /// Fit failures.
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-    )]
-    pub fn check(
-        &self,
-        estimator: &BayesianGComputationAte,
-        problem: &PreparedBayesianProblem,
-        identification: IdentificationStatus,
-        _workspace: &mut BayesianGCompWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<PosteriorCalibrationReport, ValidationError> {
-        let mut rng = CausalRng::from_seed(self.seed);
-        let n = problem.design.nrows;
-        let p = problem.design.ncols;
-        let t_col = problem
-            .design
-            .treatment_column()
-            .ok_or_else(|| ValidationError::estimation_msg("calibration: missing treatment"))?;
-        let mut est = estimator.clone();
-        est.n_draws = self.n_draws;
-        let alpha = ((1.0 - self.level) / 2.0).clamp(0.0, 0.5);
-
-        // The simulated truths share one RNG stream and are drawn in replicate order here; the
-        // refits (seeded from the replicate index) run on the pool.
-        let outcomes = crate::common::map_drawn_replicates(
-            ctx,
-            self.n_reps,
-            |_| {
-                let true_ate = standard_normal(&mut rng);
-                let mut beta = vec![0.0; p];
-                let diff = problem.active - problem.control;
-                beta[t_col] = if diff.abs() > 1e-12 { true_ate / diff } else { true_ate };
-                for c in 0..p {
-                    if c != t_col {
-                        beta[c] = 0.5 * standard_normal(&mut rng);
-                    }
-                }
-                let mut y = vec![0.0; n];
-                for r in 0..n {
-                    let mut eta = 0.0;
-                    for c in 0..p {
-                        eta += problem.design.matrix[c * n + r] * beta[c];
-                    }
-                    y[r] = eta + standard_normal(&mut rng);
-                }
-                Ok((y, true_ate))
-            },
-            BayesianGCompWorkspace::default,
-            |workspace, ctx, rep, (y, true_ate)| {
-                let mut sim = problem.clone();
-                let mut design = sim.design.clone();
-                design.outcome = Arc::from(y.as_slice());
-                sim.design = design;
-                let mut est = est.clone();
-                est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0xC2B2));
-                let post = est.fit(&sim, identification, workspace, ctx).map_err(|e| {
-                    ValidationError::estimation_msg(format!("calibration refit: {e}"))
-                })?;
-                let col = post
-                    .effect_column()
-                    .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
-                let mut draws = post.draws.column(col).map_err(ValidationError::from)?.to_vec();
-                draws.sort_by(f64::total_cmp);
-                let lo = quantile_type7_sorted(&draws, alpha);
-                let hi = quantile_type7_sorted(&draws, 1.0 - alpha);
-                let mean =
-                    reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy)
-                        .unwrap_or(0.0);
-                Ok(((mean - true_ate).abs(), *true_ate >= lo && *true_ate <= hi))
-            },
-        )?;
-        let mut covered = 0u32;
-        let mut abs_err = 0.0;
-        for (err, inside) in outcomes {
-            abs_err += err;
-            if inside {
-                covered += 1;
-            }
-        }
-        Ok(PosteriorCalibrationReport {
-            coverage: f64::from(covered) / f64::from(self.n_reps.max(1)),
-            mean_abs_error: abs_err / f64::from(self.n_reps.max(1)),
-            n_reps: self.n_reps,
-        })
-    }
-}

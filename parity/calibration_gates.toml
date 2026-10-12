@@ -212,11 +212,6 @@ passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "antecedent-validate__bayesian_checks__tests__calibration_gate__posterior_calibration_synthetic_scm_nominal_90_coverage"
-passed = 1
-calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
-
-[[gate]]
 group = "antecedent-validate__bayesian_checks__tests__calibration_gate__sbc_conjugate_gaussian_ranks_are_uniform"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"

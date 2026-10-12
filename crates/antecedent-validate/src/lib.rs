@@ -33,17 +33,15 @@ pub mod unobserved_common_cause;
 pub mod validator;
 
 pub use bayesian_checks::{
-    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, ExternalAlphaSensitivity, McmcDiagnosticsCheck,
-    PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport, PosteriorPredictiveCheck,
-    PredictiveCheckKind, PredictiveCheckReport, PredictiveNoise, PriorPredictiveCheck,
-    PriorSensitivity, SbcReport, SerialDiscrepancy, SimulationBasedCalibration,
-    with_prior_sensitivity,
+    ExternalAlphaSensitivity, McmcDiagnosticsCheck, PosteriorPredictiveCheck, PredictiveCheckKind,
+    PredictiveCheckReport, PredictiveNoise, PriorPredictiveCheck, PriorSensitivity, SbcReport,
+    SerialDiscrepancy, SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
 pub use conflict::{
     ConflictPolicy, ConflictSignals, apply_conflict_and_compose, compose_with_conflict_policy,
-    estimate_conflict_signals, with_conflict_summary,
+    with_conflict_summary,
 };
 pub use custom::CustomEffectValidator;
 pub use data_subset::DataSubsetRefuter;

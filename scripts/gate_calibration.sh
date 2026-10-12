@@ -771,8 +771,6 @@ run_static_remaining mediation_confounded_mediator_probe
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
-run_ignored antecedent-validate \
-  bayesian_checks::tests::calibration_gate::posterior_calibration_synthetic_scm_nominal_90_coverage
 
 echo "== CI Type I / permutation uniformity (antecedent-stats) =="
 run_ignored antecedent-stats robust_parcorr_calibration_gate

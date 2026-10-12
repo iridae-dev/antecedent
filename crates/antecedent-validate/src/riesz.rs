@@ -171,7 +171,6 @@ impl RieszSensitivity {
                 explained_away_at = Some(delta);
                 break;
             }
-            let _ = &y; // y retained for future DR extensions
         }
         // Smallest grid δ that tips the estimate; +∞ if the bound never covers zero.
         let robustness = explained_away_at.unwrap_or(f64::INFINITY);

@@ -336,8 +336,7 @@ impl ValidationSuite {
                     ValidatorId::Overlap if problem.temporal.is_none() => overlap_as_outcome(
                         crate::overlap::OverlapRefuter::new()
                             .refute_with_propensity(problem, propensity),
-                        problem,
-                    ),
+                    )?,
                     ValidatorId::OverlapRule if problem.temporal.is_none() => {
                         ValidationOutcome::Report(
                             OverlapRuleRefuter::new()
@@ -532,10 +531,7 @@ impl ValidationSuite {
                          (propensity uses schema adjustment columns)",
                     ));
                 }
-                Ok(overlap_as_outcome(
-                    run_validator(&OverlapRefuter::new(), problem, workspace, ctx),
-                    problem,
-                ))
+                overlap_as_outcome(run_validator(&OverlapRefuter::new(), problem, workspace, ctx))
             }
             ValidatorId::OverlapRule => {
                 if problem.temporal.is_some() {
@@ -763,22 +759,35 @@ fn computation_outcome(
 }
 
 /// Overlap propensity failures are typed per-validator results, not claim aborts.
+/// Cancellation is not a failure of the validator and still aborts the run.
 fn overlap_as_outcome(
     result: Result<RefutationReport, ValidationError>,
-    _problem: &RefutationProblem<'_>,
-) -> ValidationOutcome {
+) -> Result<ValidationOutcome, ValidationError> {
     match result {
-        Ok(report) => ValidationOutcome::Report(report),
-        Err(err) => ValidationOutcome::Failed {
+        Ok(report) => Ok(ValidationOutcome::Report(report)),
+        Err(ValidationError::Cancelled) => Err(ValidationError::Cancelled),
+        Err(err) => Ok(ValidationOutcome::Failed {
             validator: Arc::from(ValidatorId::Overlap.as_str()),
             reason: Arc::from(err.to_string()),
-        },
+        }),
     }
 }
 
 #[cfg(test)]
 mod failure_tests {
     use super::*;
+
+    #[test]
+    fn overlap_failures_are_typed_but_cancellation_propagates() {
+        assert!(matches!(
+            overlap_as_outcome(Err(ValidationError::Cancelled)),
+            Err(ValidationError::Cancelled)
+        ));
+        assert!(matches!(
+            overlap_as_outcome(Err(ValidationError::estimation_msg("singular fit"))),
+            Ok(ValidationOutcome::Failed { .. })
+        ));
+    }
 
     #[test]
     fn computation_failures_keep_cancellation_and_incompatibility_distinct() {
