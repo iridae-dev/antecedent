@@ -821,7 +821,7 @@ impl super::Study {
         let run = StaticRun { data, graph, query, physical, execution, ctx };
         let (identifier_id, estimator_id) =
             physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
-        if let Some(result) = self.execute_static_specialist(&run, identifier_id, estimator_id) {
+        if let Some(result) = self.execute_static_specialist(&run, estimator_id) {
             return result;
         }
 
@@ -835,11 +835,13 @@ impl super::Study {
         exec.finish(estimate, refutations, na_diagnostics)
     }
 
-    /// Routes estimators that own a dedicated execution path (rd, Bayesian, functional, tiered).
+    /// Routes estimators that own a dedicated execution path (rd, Bayesian, functional).
+    ///
+    /// The tiered background never reaches here: the dispatcher routes it to
+    /// `execute_tiered_average` before choosing a static graph class.
     fn execute_static_specialist(
         &self,
         run: &StaticRun<'_>,
-        identifier_id: IdentifierId,
         estimator_id: EstimatorId,
     ) -> Option<Result<StudyResult, CausalError>> {
         let StaticRun { data, graph, query, physical, execution, ctx } = *run;
@@ -873,15 +875,7 @@ impl super::Study {
         if matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Some(self.execute_functional_ate(data, graph, query, physical, ctx));
         }
-        let background = self.tiered.clone()?;
-        Some(self.execute_tiered_average(
-            data,
-            query,
-            physical,
-            ctx,
-            &background,
-            Strategy::new(identifier_id, estimator_id),
-        ))
+        None
     }
 
     /// Identify + plug-in estimate for an interventional distribution on a
