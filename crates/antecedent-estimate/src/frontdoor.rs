@@ -240,13 +240,8 @@ pub(crate) fn prepare_frontdoor_checked(
     overlap: OverlapPolicy,
     procedure: CheckedFrontDoorProcedure,
 ) -> Result<CheckedFrontDoorPreparation, EstimationError> {
-    let target = identification
-        .estimands
-        .get(estimand_index)
-        .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
-    let claim = identification.claim(estimand_index).ok_or_else(|| {
-        EstimationError::data_msg("selected estimand has no identification claim")
-    })?;
+    let crate::prepare::CheckedSelection { estimand: target, claim } =
+        crate::prepare::CheckedSelection::resolve(identification, estimand_index)?;
     let has_linear_restriction = claim.required_assumptions.entries.iter().any(|record| {
         matches!(
             &record.assumption,

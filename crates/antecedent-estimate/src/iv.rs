@@ -260,13 +260,8 @@ fn prepare_iv_checked(
     procedure: CheckedIvProcedure,
     se_kind: AnalyticSeKind,
 ) -> Result<CheckedIvPreparation, EstimationError> {
-    let target = identification
-        .estimands
-        .get(estimand_index)
-        .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
-    let claim = identification.claim(estimand_index).ok_or_else(|| {
-        EstimationError::data_msg("selected estimand has no identification claim")
-    })?;
+    let crate::prepare::CheckedSelection { estimand: target, claim } =
+        crate::prepare::CheckedSelection::resolve(identification, estimand_index)?;
     if claim.status != IdentificationStatus::IdentifiedUnderParametricRestrictions {
         return Err(EstimationError::data_msg(
             "checked IV requires the selected parametric-restriction identification claim",

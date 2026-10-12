@@ -86,8 +86,16 @@ pub fn build_binary_scores(
     glm_options: &GlmOptions,
     backend: FaerBackend,
 ) -> Result<ScoreTable, EstimationError> {
-    let build =
-        ScoreBuild { treatment, thresholds, folds, glm_options, backend, share: true, ctx: None };
+    let build = ScoreBuild {
+        treatment,
+        thresholds,
+        folds,
+        glm_options,
+        backend,
+        share: true,
+        ctx: None,
+        fold_seed: None,
+    };
     build_binary_scores_in(problem, &build).map(|(table, _)| table)
 }
 
@@ -105,6 +113,8 @@ pub(crate) struct ScoreBuild<'a> {
     /// Context carrying cancellation and parallelism; `None` is a serial context seeded
     /// from the problem's fold seed.
     pub(crate) ctx: Option<&'a ExecutionContext>,
+    /// Fold-plan seed. `None` uses [`PreparedPropensityProblem::fold_seed`].
+    pub(crate) fold_seed: Option<u64>,
 }
 
 /// What the nuisance stage of a score-table build recorded beside the table.
@@ -182,12 +192,14 @@ fn build_scores_pass(
     build: &ScoreBuild<'_>,
     failed: &mut Option<FailedFit>,
 ) -> Result<(ScoreTable, Vec<RidgeFoldSelection>), EstimationError> {
-    let ScoreBuild { treatment, thresholds, folds, glm_options, backend, share, ctx } = *build;
+    let ScoreBuild { treatment, thresholds, folds, glm_options, backend, share, ctx, fold_seed } =
+        *build;
+    let fold_seed = fold_seed.unwrap_or(problem.fold_seed);
     problem.propensity.validate_for_execution()?;
     let penalized = problem.propensity.fold_penalty();
     let share = share && penalized.is_none();
-    let local_ctx = (penalized.is_some() && ctx.is_none())
-        .then(|| ExecutionContext::production(problem.fold_seed, 1));
+    let local_ctx =
+        (penalized.is_some() && ctx.is_none()).then(|| ExecutionContext::production(fold_seed, 1));
     let penalized = penalized.zip(ctx.or(local_ctx.as_ref()));
     if folds < 2 {
         return Err(EstimationError::unsupported("AIPW cross-fitting requires at least two folds"));
@@ -205,12 +217,10 @@ fn build_scores_pass(
     let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
     let source = match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
         (Some(ids), _) => FoldSource::Shared(ids),
-        (None, Some(units)) => FoldSource::Clustered { units, seed: problem.fold_seed },
-        (None, None) => FoldSource::Stratified {
-            strata: &arms,
-            units: &problem.row_index,
-            seed: problem.fold_seed,
-        },
+        (None, Some(units)) => FoldSource::Clustered { units, seed: fold_seed },
+        (None, None) => {
+            FoldSource::Stratified { strata: &arms, units: &problem.row_index, seed: fold_seed }
+        }
     };
     let plan = CrossfitPlan::derive(n, folds, source, &SHARED_FOLD_ID_ERRORS)?;
     let fold_ids = plan.fold_ids();
@@ -317,7 +327,7 @@ fn build_scores_pass(
                         t_train: &t_train,
                         units: &units,
                         fold,
-                        seed: problem.fold_seed,
+                        seed: fold_seed,
                     },
                     ridge_ctx,
                 )?;

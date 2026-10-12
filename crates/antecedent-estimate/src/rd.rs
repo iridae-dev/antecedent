@@ -373,13 +373,8 @@ impl SharpRegressionDiscontinuity {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedRdPreparation, EstimationError> {
-        let target = identification
-            .estimands
-            .get(estimand_index)
-            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
-        let claim = identification.claim(estimand_index).ok_or_else(|| {
-            EstimationError::data_msg("selected estimand has no identification claim")
-        })?;
+        let crate::prepare::CheckedSelection { estimand: target, claim } =
+            crate::prepare::CheckedSelection::resolve(identification, estimand_index)?;
         if claim.status != IdentificationStatus::NonparametricallyIdentified {
             return Err(EstimationError::data_msg(
                 "checked sharp RD requires a nonparametrically identified claim",

@@ -3,7 +3,7 @@
 //! One fitted joint per `(population, regime, intervention world)`. Leaves from
 //! the same sample project this joint; they are never fitted as independent studies.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -564,6 +564,34 @@ pub fn fit_empirical_joint(
     .map_err(|e| EstimationError::data_msg(e.to_string()))
 }
 
+/// First index of each finite level under `f64` equality, including signed zero.
+///
+/// `+0` and `-0` compare equal, so both map to whichever appears first. `NaN` never
+/// matches `==`, so it is omitted. A later duplicate keeps the earlier index, which is
+/// what `position` returns.
+fn categorical_level_index(values: &[Value]) -> HashMap<u64, usize> {
+    let mut index = HashMap::with_capacity(values.len());
+    for (i, value) in values.iter().enumerate() {
+        let Some(level) = value.as_f64() else {
+            continue;
+        };
+        if level.is_nan() {
+            continue;
+        }
+        let key = if level == 0.0 { 0.0_f64.to_bits() } else { level.to_bits() };
+        index.entry(key).or_insert(i);
+    }
+    index
+}
+
+fn categorical_level(index: &HashMap<u64, usize>, value: f64) -> Option<usize> {
+    if value.is_nan() {
+        return None;
+    }
+    let key = if value == 0.0 { 0.0_f64.to_bits() } else { value.to_bits() };
+    index.get(&key).copied()
+}
+
 fn fit_statistical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
@@ -582,15 +610,18 @@ fn fit_statistical_joint(
     )?;
     let indexes: Vec<usize> =
         rows.map_or_else(|| (0..sample.n()).collect(), |r| r.iter().map(|v| *v as usize).collect());
+    let level_index: Vec<HashMap<u64, usize>> =
+        axes.iter().map(|axis| categorical_level_index(&axis.values)).collect();
     let columns = axes
         .iter()
-        .map(|axis| {
+        .zip(&level_index)
+        .map(|(axis, levels)| {
             indexes
                 .iter()
                 .map(|row| {
                     let value = sample.columns[&axis.variable][*row]
                         .ok_or_else(|| EstimationError::data_msg("missing categorical value"))?;
-                    axis.values.iter().position(|v| v.as_f64() == Some(value)).ok_or_else(|| {
+                    categorical_level(levels, value).ok_or_else(|| {
                         EstimationError::data_msg("categorical value outside declared domain")
                     })
                 })
@@ -1077,6 +1108,23 @@ mod tests {
 
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)
+    }
+
+    #[test]
+    fn categorical_level_index_matches_float_equality() {
+        let levels = [
+            Value::f64(1.0),
+            Value::f64(-0.0),
+            Value::f64(0.0),
+            Value::f64(f64::INFINITY),
+            Value::f64(f64::NAN),
+            Value::f64(1.0),
+        ];
+        let index = categorical_level_index(&levels);
+        let position = |value: f64| levels.iter().position(|v| v.as_f64() == Some(value));
+        for value in [1.0, 0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert_eq!(categorical_level(&index, value), position(value), "{value}");
+        }
     }
 
     fn binary_env(identity: &str) -> Environment {

@@ -2,8 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation};
+use antecedent_core::{
+    AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
+};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
+use antecedent_identify::{EstimandClaim, IdentificationResult};
 
 use crate::adjustment::intervention_f64;
 use crate::error::EstimationError;
@@ -23,6 +26,59 @@ pub(crate) fn require_method(
         return Err(EstimationError::IncompatibleEstimand { message });
     }
     Ok(kind)
+}
+
+/// The selected estimand and its identification claim.
+///
+/// The two lookup failures use the strings every checked prepare already returns.
+pub(crate) struct CheckedSelection<'a> {
+    /// Estimand at `estimand_index`.
+    pub estimand: &'a IdentifiedEstimand,
+    /// Claim returned by [`IdentificationResult::claim`] for that index.
+    pub claim: EstimandClaim,
+}
+
+impl<'a> CheckedSelection<'a> {
+    /// Look up `estimand_index` on `identification`.
+    ///
+    /// # Errors
+    ///
+    /// `selected estimand index is out of range` or `selected estimand has no identification claim`.
+    pub(crate) fn resolve(
+        identification: &'a IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<Self, EstimationError> {
+        let estimand = identification
+            .estimands
+            .get(estimand_index)
+            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
+        let claim = identification.claim(estimand_index).ok_or_else(|| {
+            EstimationError::data_msg("selected estimand has no identification claim")
+        })?;
+        Ok(Self { estimand, claim })
+    }
+}
+
+/// Refuse duplicate roles or a role that is also treatment or outcome.
+///
+/// `message` is the caller's existing refusal text. Membership is tested after the same
+/// sort-and-dedup the checked prepares used.
+///
+/// # Errors
+///
+/// `message`, when a role repeats or equals an excluded id.
+pub(crate) fn require_unique_roles(
+    roles: &[VariableId],
+    excluded: &[VariableId],
+    message: &'static str,
+) -> Result<(), EstimationError> {
+    let mut sorted = roles.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    if sorted.len() != roles.len() || excluded.iter().any(|id| sorted.contains(id)) {
+        return Err(EstimationError::data_msg(message));
+    }
+    Ok(())
 }
 
 /// Require an adjustment-shaped estimand (`backdoor.*` / `generalized.adjustment*` / `tiered.*`).

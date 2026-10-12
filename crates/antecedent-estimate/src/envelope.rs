@@ -338,11 +338,16 @@ pub fn aggregate_mixture_functional_envelope(
         ));
     }
     let mut weights = vec![0.0; k];
+    // First match, the same atom `position` returned. Duplicates are already refused.
+    let mut key_at = std::collections::HashMap::with_capacity(k);
+    for (pos, graph) in per_graph.iter().enumerate() {
+        key_at.entry(graph.graph_key).or_insert(pos);
+    }
     for i in 0..graphs.n_samples {
         if graphs.identified[i] != GraphIdentFlag::Identified {
             continue;
         }
-        if let Some(pos) = per_graph.iter().position(|g| g.graph_key == graphs.graph_keys[i]) {
+        if let Some(&pos) = key_at.get(&graphs.graph_keys[i]) {
             weights[pos] += graphs.weights[i];
         }
     }

@@ -510,13 +510,8 @@ impl AipwAte {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedAipwPreparation, EstimationError> {
-        let target = identification
-            .estimands
-            .get(estimand_index)
-            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
-        let claim = identification.claim(estimand_index).ok_or_else(|| {
-            EstimationError::data_msg("selected estimand has no identification claim")
-        })?;
+        let crate::prepare::CheckedSelection { estimand: target, claim } =
+            crate::prepare::CheckedSelection::resolve(identification, estimand_index)?;
         if claim.status != IdentificationStatus::NonparametricallyIdentified {
             return Err(EstimationError::data_msg(format!(
                 "checked AIPW requires a nonparametrically identified claim; got {}",
@@ -534,17 +529,11 @@ impl AipwAte {
                 message: "checked AIPW requires a back-door adjustment target without instrument or mediator roles",
             });
         }
-        let mut adjustment = target.adjustment_set.to_vec();
-        adjustment.sort_unstable();
-        adjustment.dedup();
-        if adjustment.len() != target.adjustment_set.len()
-            || adjustment.contains(&query.treatment)
-            || adjustment.contains(&query.outcome)
-        {
-            return Err(EstimationError::data_msg(
-                "checked AIPW adjustment roles must be unique and exclude treatment and outcome",
-            ));
-        }
+        crate::prepare::require_unique_roles(
+            &target.adjustment_set,
+            &[query.treatment, query.outcome],
+            "checked AIPW adjustment roles must be unique and exclude treatment and outcome",
+        )?;
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
             || query.target_population != TargetPopulation::AllObserved
         {
@@ -951,9 +940,8 @@ impl AipwAte {
         weights: Option<&[f64]>,
         refuse_overlap: bool,
     ) -> Result<EffectEstimate, EstimationError> {
-        let seeded = Self::crossfit_problem(problem, ctx);
-        let problem = &seeded;
-        let (table, nuisance) = self.crossfit_table(problem, true, ctx)?;
+        let fold_seed = ctx.rng.master_seed();
+        let (table, nuisance) = self.crossfit_table(problem, true, ctx, Some(fold_seed))?;
         let crate::crossfit_aipw::NuisanceFit { selections, fallback } = nuisance;
         let n_folds = table.n_folds as usize;
         let report = PenalizedReport {
@@ -1022,7 +1010,7 @@ impl AipwAte {
             // condition of `docs/guides/penalized-aipw.md`) and records which nuisances it
             // selected, which fold selected them, and any fallback that replaced a failed fit.
             result.crossfit.folds = Some(n_folds);
-            result.crossfit.seed = Some(problem.fold_seed);
+            result.crossfit.seed = Some(fold_seed);
             result.crossfit.learner_provenance = penalized_provenance;
         }
         if !report.is_empty() {
@@ -1038,7 +1026,7 @@ impl AipwAte {
             result.scores.inference = None;
             result.scores.influence = None;
             result.crossfit.folds = Some(n_folds);
-            result.crossfit.seed = Some(problem.fold_seed);
+            result.crossfit.seed = Some(fold_seed);
             result.crossfit.learner_provenance =
                 selections.into_iter().map(|s| s.provenance).collect();
             if let Some((se, df)) = cluster_se {
@@ -1076,6 +1064,7 @@ impl AipwAte {
         p: &PreparedPropensityProblem,
         share: bool,
         ctx: &ExecutionContext,
+        fold_seed: Option<u64>,
     ) -> Result<(crate::scores::ScoreTable, crate::crossfit_aipw::NuisanceFit), EstimationError>
     {
         crate::crossfit_aipw::build_binary_scores_in(
@@ -1088,6 +1077,7 @@ impl AipwAte {
                 backend: self.backend,
                 share,
                 ctx: Some(ctx),
+                fold_seed,
             },
         )
     }
@@ -1100,14 +1090,13 @@ impl AipwAte {
         ctx: &ExecutionContext,
         weights: Option<&[f64]>,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let seeded = Self::crossfit_problem(problem, ctx);
-        let problem = &seeded;
+        let fold_seed = ctx.rng.master_seed();
         bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
             let mut p = resampled_problem(problem, idx, weights);
             // The point is the GLM result: a replicate whose GLM fit fails is a failed
             // replicate, never silently a ridge fit.
             p.propensity = PropensityNuisance::default();
-            let Ok((t, _)) = self.crossfit_table(&p, false, ctx) else {
+            let Ok((t, _)) = self.crossfit_table(&p, false, ctx, Some(fold_seed)) else {
                 return Ok(None);
             };
             let ss = t.summarize(p.target_weights.as_deref())?;
@@ -1179,7 +1168,7 @@ impl AipwAte {
                 let idx: Vec<usize> =
                     indexes[r * n..(r + 1) * n].iter().map(|&i| i as usize).collect();
                 let p = resampled_problem(&base, &idx, None);
-                Ok(match self.crossfit_table(&p, false, inner) {
+                Ok(match self.crossfit_table(&p, false, inner, None) {
                     Ok((table, fit)) => match table.summarize(None) {
                         Ok(summary) => {
                             let ate = summary.means[1] - summary.means[0];
@@ -2274,8 +2263,8 @@ mod tests {
             AipwAte::crossfit_problem(&est.prepare(&data, &estimand, &query).unwrap(), &ctx());
         let idx: Vec<usize> = (0..original.nrows).collect();
         let same = resampled_problem(&original, &idx, None);
-        let (a, fit_a) = est.crossfit_table(&original, false, &ctx()).unwrap();
-        let (b, fit_b) = est.crossfit_table(&same, false, &ctx()).unwrap();
+        let (a, fit_a) = est.crossfit_table(&original, false, &ctx(), None).unwrap();
+        let (b, fit_b) = est.crossfit_table(&same, false, &ctx(), None).unwrap();
         let bits = |t: &crate::scores::ScoreTable| -> Vec<u64> {
             t.scores.iter().map(|v| v.to_bits()).collect()
         };
@@ -2303,7 +2292,7 @@ mod tests {
         let n = original.nrows;
         let idx: Vec<usize> = (0..n).map(|k| (k * 7) % (n / 2)).collect();
         let replicate = resampled_problem(&original, &idx, None);
-        let (_, fit) = est.crossfit_table(&replicate, false, &ctx()).unwrap();
+        let (_, fit) = est.crossfit_table(&replicate, false, &ctx(), None).unwrap();
         assert_eq!(fit.selections.len(), 5);
 
         let arms: Vec<u32> = replicate.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
@@ -2371,7 +2360,7 @@ mod tests {
             .collect::<Vec<_>>()
             .into();
         let replicate_b = resampled_problem(&rewritten, &idx, None);
-        let (_, fit_b) = est.crossfit_table(&replicate_b, false, &ctx()).unwrap();
+        let (_, fit_b) = est.crossfit_table(&replicate_b, false, &ctx(), None).unwrap();
         assert_eq!(fit_b.selections, fit.selections);
     }
 }

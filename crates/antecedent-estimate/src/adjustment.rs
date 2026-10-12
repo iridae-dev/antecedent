@@ -35,7 +35,8 @@ pub use crate::effect_estimate::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::{
-    require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
+    CheckedSelection, require_adjustment_shaped, require_unique_roles, treatment_contrast,
+    validate_ate_query_with_targets,
 };
 use crate::se::{AnalyticSeKind, SeSpec, residual_sandwich_coef_se, score_sandwich_coef_se};
 
@@ -410,13 +411,8 @@ impl LinearAdjustmentAte {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
-        let target = identification
-            .estimands
-            .get(estimand_index)
-            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
-        let claim = identification.claim(estimand_index).ok_or_else(|| {
-            EstimationError::data_msg("selected estimand has no identification claim")
-        })?;
+        let CheckedSelection { estimand: target, claim } =
+            CheckedSelection::resolve(identification, estimand_index)?;
         if claim.status != IdentificationStatus::NonparametricallyIdentified {
             return Err(EstimationError::data_msg(format!(
                 "linear adjustment requires a nonparametrically identified claim; got {}",
@@ -437,17 +433,11 @@ impl LinearAdjustmentAte {
                 "adjustment estimand carries incompatible instrument or mediator roles",
             ));
         }
-        let mut roles = target.adjustment_set.to_vec();
-        roles.sort_unstable();
-        roles.dedup();
-        if roles.len() != target.adjustment_set.len()
-            || roles.contains(&query.treatment)
-            || roles.contains(&query.outcome)
-        {
-            return Err(EstimationError::data_msg(
-                "adjustment roles must be unique and exclude treatment and outcome",
-            ));
-        }
+        require_unique_roles(
+            &target.adjustment_set,
+            &[query.treatment, query.outcome],
+            "adjustment roles must be unique and exclude treatment and outcome",
+        )?;
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
             return Err(EstimationError::unsupported(
                 "checked linear adjustment currently supports the mean outcome functional",
