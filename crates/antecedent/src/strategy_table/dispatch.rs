@@ -469,6 +469,10 @@ pub fn estimate_static_effect(
 /// same `bootstrap_replicates` / `overlap_policy` / `population_registry` defaulting
 /// [`estimate_static_effect`] has always applied (byte-identical to the pre-`EstimatorSpec`
 /// behavior).
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per EstimatorId constructing a fresh estimator under the facade's per-estimator bootstrap and overlap defaults (matching and IV deliberately zero the bootstrap) and fitting it in that estimator's own workspace slot"
+)]
 fn estimate_static_effect_default(
     estimator: EstimatorId,
     input: StaticEstimateInput<'_>,

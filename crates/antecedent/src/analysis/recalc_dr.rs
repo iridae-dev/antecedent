@@ -406,6 +406,10 @@ impl DrSession {
 fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))
 }
+/// Prepared study, retained result, fit context and effect-model feature bounds of one DR stage.
+type DrStage =
+    (Arc<PreparedStudy>, Arc<StudyResult>, ExecutionContext, Vec<(VariableId, f64, f64)>);
+
 /// Score-artifact stage: fits and retains the DR study, or reuses the live one, with the effect-model feature bounds.
 fn dr_stage(
     request: &DrRequest,
@@ -413,10 +417,7 @@ fn dr_stage(
     held: Option<&Live>,
     recorder: &mut ReceiptRecorder,
     ctx: &ExecutionContext,
-) -> Result<
-    (Arc<PreparedStudy>, Arc<StudyResult>, ExecutionContext, Vec<(VariableId, f64, f64)>),
-    RecalcRunError,
-> {
+) -> Result<DrStage, RecalcRunError> {
     Ok(if recomputed(plan, Stage::ScoreArtifact) {
         let cache = CrossfitNuisanceCache::new();
         let (((built, score_builds), final_fits), all_fits) = count_resolved_fits(|| {

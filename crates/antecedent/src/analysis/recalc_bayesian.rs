@@ -550,6 +550,14 @@ impl BayesianSession {
         )
     }
 }
+/// Prepared study, retained result, producing context and verified prior of one Bayesian stage.
+type BayesianStage = (
+    std::sync::Arc<crate::PreparedStudy>,
+    std::sync::Arc<crate::StudyResult>,
+    antecedent_core::ExecutionContext,
+    Option<std::sync::Arc<VerifiedBayesianPrior>>,
+);
+
 /// Fits the checked Bayesian study, or projects the retained draws, verifying a bound prior artifact once per likelihood.
 fn bayesian_stage(
     request: &BayesianRequest,
@@ -557,15 +565,7 @@ fn bayesian_stage(
     old: Option<&BayesianLive>,
     recorder: &mut super::recalc_receipt::ReceiptRecorder,
     ctx: &antecedent_core::ExecutionContext,
-) -> Result<
-    (
-        std::sync::Arc<crate::PreparedStudy>,
-        std::sync::Arc<crate::StudyResult>,
-        antecedent_core::ExecutionContext,
-        Option<std::sync::Arc<VerifiedBayesianPrior>>,
-    ),
-    RecalcRunError,
-> {
+) -> Result<BayesianStage, RecalcRunError> {
     use super::recalc_receipt::Counter;
     use antecedent_core::recalc::Stage;
     use antecedent_identify::execution_counts::count_checked_identifications;

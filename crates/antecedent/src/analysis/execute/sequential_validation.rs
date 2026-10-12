@@ -278,9 +278,8 @@ impl SequentialPass<'_> {
         acc: &mut SequentialAccumulators,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
-        let SequentialValidation { data, query, suite, custom, predictive_sims } = self.setup;
+        let SequentialValidation { data, query, suite, custom, .. } = self.setup;
         let bayes = self.bayes;
-        let grid = &self.grid;
         let table = &self.table;
         let average = &self.average;
         let refitter = SequentialRefitter { atom, query, time: data.time_index(), bayes };
@@ -331,71 +330,85 @@ impl SequentialPass<'_> {
             acc.reports.entry(Arc::clone(&report.refuter)).or_default().push((atom.weight, report));
         }
         if let Some(estimator) = bayes.filter(|_| suite != RefuteSuite::None) {
-            // Multi-step prior transfer is refused before fitting, so the isotropic
-            // per-mechanism prior (`prior_scale`) is the prior in force. Refuse rather
-            // than validate against a prior the mechanisms were not fitted under.
-            if estimator.prior.is_some() {
-                return Err(CausalError::Unsupported {
-                    message: "multi-step sustained validation requires isotropic per-mechanism acc.priors",
-                });
-            }
-            for mechanism in &atom.mechanisms {
-                let prior = estimator.prior_in_force(mechanism.prepared.design.ncols);
-                let prior = PriorPredictiveCheck::for_estimator(estimator, ctx)
-                    .with_n_sims(predictive_sims)
-                    .check_with_prior(&mechanism.prepared, &prior, ctx)?;
-                // Mechanism rows are time-ordered: `full` adds the lag-1 residual
-                // autocorrelation discrepancy.
-                let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
-                    .with_n_sims(predictive_sims);
-                let post = if suite == RefuteSuite::Full {
-                    post_check.check_temporal(
-                        &mechanism.prepared,
-                        &mechanism.posterior,
-                        ctx.rng.master_seed(),
-                    )?
-                } else {
-                    post_check.check(&mechanism.prepared, &mechanism.posterior)?
-                };
-                acc.priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
-                acc.posts.entry(mechanism.variable).or_default().push((atom.weight, post));
-            }
-            if suite == RefuteSuite::Full {
-                let mut means = Vec::new();
-                let mut sds = Vec::new();
-                for &scale in grid.scales.iter() {
-                    let mut est = estimator.clone();
-                    est.prior_scale = scale;
-                    let (effect, _) = estimate_sustained_window(
-                        &antecedent_estimate::SequentialProblem {
-                            data,
-                            graph: &atom.graph,
-                            indexer: &atom.indexer,
-                            estimand: &atom.estimand,
-                        },
-                        query,
-                        antecedent_estimate::SequentialInference {
-                            status: atom.status,
-                            assumptions: atom.estimate.provenance.assumptions.clone(),
-                            bootstrap_replicates: 0,
-                            bayesian: Some(&est),
-                        },
-                        ctx,
-                    )?;
-                    means.push(effect.ate);
-                    sds.push(effect.se_analytic());
-                }
-                acc.sensitivity.push((
-                    atom.weight,
-                    antecedent_prob::PriorSensitivitySummary {
-                        family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
-                        prior_scales: Arc::clone(&grid.scales),
-                        effect_means: means.into(),
-                        effect_sds: sds.into(),
-                        ..Default::default()
+            self.check_mechanisms(atom, estimator, acc, ctx)?;
+        }
+        Ok(())
+    }
+
+    /// Prior and posterior predictive checks per mechanism, and under the full suite the prior-scale sensitivity sweep.
+    fn check_mechanisms(
+        &self,
+        atom: &SequentialValidationAtom,
+        estimator: &BayesianGComputationAte,
+        acc: &mut SequentialAccumulators,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        let SequentialValidation { data, query, suite, predictive_sims, .. } = self.setup;
+        let grid = &self.grid;
+        // Multi-step prior transfer is refused before fitting, so the isotropic
+        // per-mechanism prior (`prior_scale`) is the prior in force. Refuse rather
+        // than validate against a prior the mechanisms were not fitted under.
+        if estimator.prior.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "multi-step sustained validation requires isotropic per-mechanism acc.priors",
+            });
+        }
+        for mechanism in &atom.mechanisms {
+            let prior = estimator.prior_in_force(mechanism.prepared.design.ncols);
+            let prior = PriorPredictiveCheck::for_estimator(estimator, ctx)
+                .with_n_sims(predictive_sims)
+                .check_with_prior(&mechanism.prepared, &prior, ctx)?;
+            // Mechanism rows are time-ordered: `full` adds the lag-1 residual
+            // autocorrelation discrepancy.
+            let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
+                .with_n_sims(predictive_sims);
+            let post = if suite == RefuteSuite::Full {
+                post_check.check_temporal(
+                    &mechanism.prepared,
+                    &mechanism.posterior,
+                    ctx.rng.master_seed(),
+                )?
+            } else {
+                post_check.check(&mechanism.prepared, &mechanism.posterior)?
+            };
+            acc.priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
+            acc.posts.entry(mechanism.variable).or_default().push((atom.weight, post));
+        }
+        if suite == RefuteSuite::Full {
+            let mut means = Vec::new();
+            let mut sds = Vec::new();
+            for &scale in grid.scales.iter() {
+                let mut est = estimator.clone();
+                est.prior_scale = scale;
+                let (effect, _) = estimate_sustained_window(
+                    &antecedent_estimate::SequentialProblem {
+                        data,
+                        graph: &atom.graph,
+                        indexer: &atom.indexer,
+                        estimand: &atom.estimand,
                     },
-                ));
+                    query,
+                    antecedent_estimate::SequentialInference {
+                        status: atom.status,
+                        assumptions: atom.estimate.provenance.assumptions.clone(),
+                        bootstrap_replicates: 0,
+                        bayesian: Some(&est),
+                    },
+                    ctx,
+                )?;
+                means.push(effect.ate);
+                sds.push(effect.se_analytic());
             }
+            acc.sensitivity.push((
+                atom.weight,
+                antecedent_prob::PriorSensitivitySummary {
+                    family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
+                    prior_scales: Arc::clone(&grid.scales),
+                    effect_means: means.into(),
+                    effect_sds: sds.into(),
+                    ..Default::default()
+                },
+            ));
         }
         Ok(())
     }

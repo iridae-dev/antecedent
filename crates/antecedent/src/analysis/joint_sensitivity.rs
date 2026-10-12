@@ -270,6 +270,75 @@ fn tipping_wire(
     }
 }
 
+/// The sealed perturbation box: factor bounds, decision threshold, tolerance, frontier size and search limits.
+fn perturbation_wire(
+    result: &JointMechanismSensitivityResult,
+    spec: &JointDeviationSpec,
+) -> JointPerturbationWire {
+    JointPerturbationWire {
+        factors: result
+            .factors
+            .iter()
+            .map(|b| JointFactorWire {
+                factor: b.factor.name().to_owned(),
+                max_fraction: b.max_fraction,
+            })
+            .collect(),
+        decision_threshold: spec.decision_threshold,
+        tolerance: spec.tolerance,
+        frontier_points: spec.frontier_points,
+        operations: spec.limits.operations,
+        depth: spec.limits.depth,
+        memory_bytes: spec.limits.memory_bytes,
+    }
+}
+
+/// The sealed outcome range, minimizing and maximizing strata, axis tipping and frontier points.
+fn outcome_wire(result: &JointMechanismSensitivityResult) -> JointOutcomeWire {
+    JointOutcomeWire {
+        baseline: result.baseline,
+        range: [result.range.minimum, result.range.maximum],
+        minimizing_outcome_by_stratum: result.range.minimizing_outcome_by_stratum.clone(),
+        maximizing_outcome_by_stratum: result.range.maximizing_outcome_by_stratum.clone(),
+        minimizing_parent_level: result.range.minimizing_parent_level,
+        maximizing_parent_level: result.range.maximizing_parent_level,
+        axis: result
+            .axis_tipping
+            .iter()
+            .map(|a| tipping_wire(None, a.factor, a.analytic, a.status, a.bracket))
+            .collect(),
+        frontier: result
+            .frontier
+            .iter()
+            .map(|p| {
+                tipping_wire(
+                    Some(p.parent_fraction),
+                    JointFactor::OutcomeKernel,
+                    None,
+                    p.status,
+                    p.bracket,
+                )
+            })
+            .collect(),
+        unresolved_detail: result.unresolved_detail.map(str::to_owned),
+    }
+}
+
+/// The sealed search receipt: method, box, budget consumption, stop reason and explored sets.
+fn receipt_wire(result: &JointMechanismSensitivityResult) -> JointReceiptWire {
+    JointReceiptWire {
+        method: result.receipt.method.to_owned(),
+        fraction_box: result.receipt.fraction_box,
+        memory_limit_bytes: result.receipt.memory_limit_bytes,
+        operations_consumed: result.receipt.operations_consumed,
+        depth_reached: result.receipt.depth_reached,
+        live_state_bytes: result.receipt.live_state_bytes,
+        stop: result.receipt.stop.map(stop_name),
+        explored: result.receipt.explored.clone(),
+        unevaluated: result.receipt.unevaluated.clone(),
+    }
+}
+
 impl JointSensitivityArtifactWire {
     /// Replay the baseline artifact under the default consumer limits and
     /// build a checked joint sensitivity artifact.
@@ -317,22 +386,7 @@ impl JointSensitivityArtifactWire {
             });
         }
         let body = JointSensitivityBodyWire {
-            perturbation: JointPerturbationWire {
-                factors: result
-                    .factors
-                    .iter()
-                    .map(|b| JointFactorWire {
-                        factor: b.factor.name().to_owned(),
-                        max_fraction: b.max_fraction,
-                    })
-                    .collect(),
-                decision_threshold: spec.decision_threshold,
-                tolerance: spec.tolerance,
-                frontier_points: spec.frontier_points,
-                operations: spec.limits.operations,
-                depth: spec.limits.depth,
-                memory_bytes: spec.limits.memory_bytes,
-            },
+            perturbation: perturbation_wire(&result, spec),
             provenance: JointProvenanceWire {
                 baseline_artifact_digest: CanonicalWriter::digest_bytes_hex(
                     BASELINE_DOMAIN,
@@ -348,44 +402,8 @@ impl JointSensitivityArtifactWire {
                 source_regime: result.source_regime.raw(),
                 query_binding: result.query_binding.clone(),
             },
-            outcome: JointOutcomeWire {
-                baseline: result.baseline,
-                range: [result.range.minimum, result.range.maximum],
-                minimizing_outcome_by_stratum: result.range.minimizing_outcome_by_stratum.clone(),
-                maximizing_outcome_by_stratum: result.range.maximizing_outcome_by_stratum.clone(),
-                minimizing_parent_level: result.range.minimizing_parent_level,
-                maximizing_parent_level: result.range.maximizing_parent_level,
-                axis: result
-                    .axis_tipping
-                    .iter()
-                    .map(|a| tipping_wire(None, a.factor, a.analytic, a.status, a.bracket))
-                    .collect(),
-                frontier: result
-                    .frontier
-                    .iter()
-                    .map(|p| {
-                        tipping_wire(
-                            Some(p.parent_fraction),
-                            JointFactor::OutcomeKernel,
-                            None,
-                            p.status,
-                            p.bracket,
-                        )
-                    })
-                    .collect(),
-                unresolved_detail: result.unresolved_detail.map(str::to_owned),
-            },
-            receipt: JointReceiptWire {
-                method: result.receipt.method.to_owned(),
-                fraction_box: result.receipt.fraction_box,
-                memory_limit_bytes: result.receipt.memory_limit_bytes,
-                operations_consumed: result.receipt.operations_consumed,
-                depth_reached: result.receipt.depth_reached,
-                live_state_bytes: result.receipt.live_state_bytes,
-                stop: result.receipt.stop.map(stop_name),
-                explored: result.receipt.explored.clone(),
-                unevaluated: result.receipt.unevaluated.clone(),
-            },
+            outcome: outcome_wire(&result),
+            receipt: receipt_wire(&result),
             interpretation: result.interpretation.to_owned(),
             inference_claim: result.inference_claim.to_owned(),
             sampling: JointSamplingWire {

@@ -164,7 +164,7 @@ impl CheckedSyntheticControlOperation {
         );
         result.payload = crate::result::ResultPayload::SyntheticControl(self.control_payload(
             fit,
-            augmentation,
+            augmentation.as_ref(),
             randomization,
             effect,
             effective_donors,
@@ -225,7 +225,7 @@ impl CheckedSyntheticControlOperation {
     fn control_payload(
         &self,
         fit: SyntheticControlFit,
-        augmentation: Option<AugmentedSyntheticControlFit>,
+        augmentation: Option<&AugmentedSyntheticControlFit>,
         randomization: Option<SyntheticUnitRandomizationTest>,
         effect: f64,
         effective_donors: f64,
@@ -268,9 +268,9 @@ impl CheckedSyntheticControlOperation {
                         .into()
                 },
             ),
-            unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
-            outcome_model_correction: augmentation.as_ref().map(|fit| fit.outcome_model_correction),
-            augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
+            unadjusted_effect: augmentation.map(|_| fit.effect),
+            outcome_model_correction: augmentation.map(|fit| fit.outcome_model_correction),
+            augmentation_ridge: augmentation.map(|fit| fit.ridge_penalty),
         }
     }
 

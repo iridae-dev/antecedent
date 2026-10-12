@@ -1154,7 +1154,7 @@ fn verify_grid_points(
         match point {
             GridPointWire::Unavailable(expected) => {
                 let evaluated = antecedent_estimate::prepare_exact_transport(
-                    &functional,
+                    functional,
                     data.clone(),
                     at.clone(),
                     point_limits,
@@ -1163,7 +1163,7 @@ fn verify_grid_points(
                 .and_then(|plan| plan.evaluate(ctx));
                 let actual = local_failure(
                     evaluated.err().ok_or_else(|| err("claimed grid failure is executable"))?,
-                    &functional,
+                    functional,
                 )?;
                 if actual != expected.to_failure() {
                     return Err(err("grid support claim mismatch"));

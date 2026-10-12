@@ -877,6 +877,54 @@ fn contrast_outcome(
     })
 }
 
+/// Joint covariance of the covariance-bearing members, in declared order, under the family's one cluster contract.
+fn family_covariance(
+    evaluated: &[Result<Evaluated, MemberFailure>],
+    request: &BatchRetargetRequest,
+) -> Result<Option<FamilyCovariance>, BatchRetargetError> {
+    let bearing: Vec<(usize, &[f64])> = evaluated
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| e.as_ref().ok().and_then(|e| e.influence.as_deref()).map(|x| (i, x)))
+        .collect();
+    Ok(if bearing.is_empty() {
+        None
+    } else {
+        let columns: Vec<&[f64]> = bearing.iter().map(|(_, x)| *x).collect();
+        // One estimator configuration governs the batch, so a cluster-DML family has one set
+        // of declared units: the covariance is then the cluster-summed one, never the iid Gram.
+        let units: Vec<Option<&super::prepared::ClusterUnits>> = bearing
+            .iter()
+            .map(|(i, _)| evaluated[*i].as_ref().ok().and_then(|e| e.cluster.as_ref()))
+            .collect();
+        let matrix = match units.first().copied().flatten() {
+            None if units.iter().all(Option::is_none) => gram(&columns)?,
+            Some(first)
+                if units.iter().all(|u| {
+                    u.is_some_and(|u| u.first == first.first && u.second == first.second)
+                }) =>
+            {
+                first
+                    .spec
+                    .influence_covariance(&columns, &first.first, first.second.as_deref())
+                    .map_err(|e| {
+                        not_supported("batch_retarget.covariance_unavailable", e.to_string())
+                    })?
+            }
+            _ => {
+                return Err(not_supported(
+                    "batch_retarget.covariance_unavailable",
+                    "the family mixes members with and without declared cluster units",
+                ));
+            }
+        };
+        Some(FamilyCovariance {
+            names: bearing.iter().map(|(i, _)| request.claims[*i].name.clone()).collect(),
+            matrix,
+        })
+    })
+}
+
 /// Retarget a declared family over `scores` (see [`super::PreparedBatch::retarget`]).
 pub(crate) fn retarget_family(
     plans: &[PreparedStudy],
@@ -925,48 +973,7 @@ pub(crate) fn retarget_family(
         );
     }
 
-    // Joint covariance of the covariance-bearing members, in declared order.
-    let bearing: Vec<(usize, &[f64])> = evaluated
-        .iter()
-        .enumerate()
-        .filter_map(|(i, e)| e.as_ref().ok().and_then(|e| e.influence.as_deref()).map(|x| (i, x)))
-        .collect();
-    let covariance = if bearing.is_empty() {
-        None
-    } else {
-        let columns: Vec<&[f64]> = bearing.iter().map(|(_, x)| *x).collect();
-        // One estimator configuration governs the batch, so a cluster-DML family has one set
-        // of declared units: the covariance is then the cluster-summed one, never the iid Gram.
-        let units: Vec<Option<&super::prepared::ClusterUnits>> = bearing
-            .iter()
-            .map(|(i, _)| evaluated[*i].as_ref().ok().and_then(|e| e.cluster.as_ref()))
-            .collect();
-        let matrix = match units.first().copied().flatten() {
-            None if units.iter().all(Option::is_none) => gram(&columns)?,
-            Some(first)
-                if units.iter().all(|u| {
-                    u.is_some_and(|u| u.first == first.first && u.second == first.second)
-                }) =>
-            {
-                first
-                    .spec
-                    .influence_covariance(&columns, &first.first, first.second.as_deref())
-                    .map_err(|e| {
-                        not_supported("batch_retarget.covariance_unavailable", e.to_string())
-                    })?
-            }
-            _ => {
-                return Err(not_supported(
-                    "batch_retarget.covariance_unavailable",
-                    "the family mixes members with and without declared cluster units",
-                ));
-            }
-        };
-        Some(FamilyCovariance {
-            names: bearing.iter().map(|(i, _)| request.claims[*i].name.clone()).collect(),
-            matrix,
-        })
-    };
+    let covariance = family_covariance(&evaluated, request)?;
 
     let claims: Vec<ClaimReport> = request
         .claims

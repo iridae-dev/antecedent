@@ -124,21 +124,7 @@ impl super::Study {
         )
         .map_err(CausalError::from)?;
         let mut assumptions = identification.required_assumptions.clone();
-        assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::ParametricRestriction(
-                antecedent_core::ParametricAssumption {
-                    id: Arc::from("transport.known_selection_probabilities"),
-                    description: Arc::from(
-                        "selection and treatment probabilities are treated as known: uncertainty conditions on the supplied probability columns and excludes the estimation error of any fitted participation or propensity model",
-                    ),
-                },
-            ),
-            source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("estimate.transport.trial_ipw"),
-            },
-            scope: antecedent_core::AssumptionScope::Estimation,
-            status: antecedent_core::AssumptionStatus::Declared,
-        });
+        assumptions.push(known_probability_assumption());
         let columns = TrialColumns {
             outcomes: &outcomes,
             treatment: &treatment_bool,
@@ -165,32 +151,9 @@ impl super::Study {
                 )
             }
             InferenceMode::Frequentist => {
-                // Known probabilities: delta-method SE of the ratio-of-means IPW contrast.
-                let se = trial_to_target_ipw_se(
-                    &outcomes,
-                    &treatment_bool,
-                    &trial_bool,
-                    &selection,
-                    &propensity,
-                    transported.ipw,
-                )
-                .map_err(CausalError::from)?;
-                (
-                    EffectEstimate::new(
-                        transported.ipw,
-                        se,
-                        assumptions,
-                        OverlapPolicy::ExplicitOverride,
-                    ),
-                    None,
-                    EstimatorId::TransportTrialIpw,
-                    Diagnostic::new(
-                        "estimate.transport.trial_ipw",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
-                    ),
-                )
+                let (estimate, diagnostic) =
+                    frequentist_transport_estimate(&columns, transported.ipw, assumptions)?;
+                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
             }
         };
         let mut result = self.finish_identified_execute(
@@ -269,13 +232,8 @@ impl super::Study {
                 )
             }
             InferenceMode::Bayesian(cfg) => {
-                let (estimate, posterior, diagnostic) = self.interference_bayesian_estimate(
-                    cfg,
-                    query,
-                    &spec,
-                    identification.status,
-                    ctx,
-                )?;
+                let (estimate, posterior, diagnostic) =
+                    interference_bayesian_estimate(cfg, query, &spec, identification.status, ctx)?;
                 (estimate, Some(posterior), EstimatorId::InterferenceBayesianGaussian, diagnostic)
             }
         };
@@ -297,72 +255,110 @@ impl super::Study {
         result.posterior = posterior;
         Ok(result)
     }
+}
 
-    /// Conjugate-Gaussian finite-network posterior for the exposure contrast under the declared isotropic prior.
-    fn interference_bayesian_estimate(
-        &self,
-        cfg: &BayesianConfig,
-        query: &antecedent_core::InterferenceQuery,
-        spec: &crate::InterferenceSpec,
-        status: IdentificationStatus,
-        ctx: &ExecutionContext,
-    ) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
-        if cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
-            });
-        }
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
-            });
-        }
-        let model = estimate_interference_bayesian(
-            query,
-            &spec.network,
-            &spec.assignment,
-            cfg.n_draws,
-            ctx.rng.stream_for(StreamDomain::Bayesian, 0x1F7E).next_u64(),
-            cfg.prior_scale,
-        )
-        .map_err(CausalError::from)?;
-        let assumptions = interference_bayesian_assumptions(cfg.prior_scale);
-        let schema = antecedent_prob::PosteriorSchema {
-            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-                name: Arc::from("finite_network_exposure_contrast"),
-            }]),
-        };
-        let draws = antecedent_prob::PosteriorDraws::from_column_major(
-            schema,
-            model.contrast_draws.len(),
-            Arc::<[f64]>::from(model.contrast_draws),
-        )?;
-        let posterior = CausalPosterior {
-            summaries: draws.summarize(),
-            draws,
-            identification: status,
-            prior_sensitivity: None,
-            conflict_summary: None,
-            diagnostics: InferenceDiagnostics::analytic("interference.bayesian_gaussian"),
-            assumptions: assumptions.clone(),
-            unidentified_mass: 0.0,
-            subsampled_out_mass: 0.0,
-            unevaluable_mass: 0.0,
-            early_stopped: false,
-            treatment_contrast: None,
-        };
-        let estimate = effect_from_posterior(&posterior)?;
-        Ok((
-            estimate,
-            posterior,
-            Diagnostic::new(
-                "estimate.interference.bayesian_gaussian",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "finite-network posterior under an additive Gaussian potential-outcome model with shared unit disturbances; conditional on fixed network and realized assignment",
-            ),
-        ))
+/// Conjugate-Gaussian finite-network posterior for the exposure contrast under the declared isotropic prior.
+fn interference_bayesian_estimate(
+    cfg: &BayesianConfig,
+    query: &antecedent_core::InterferenceQuery,
+    spec: &crate::InterferenceSpec,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
+    if cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
+        });
     }
+    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
+        });
+    }
+    let model = estimate_interference_bayesian(
+        query,
+        &spec.network,
+        &spec.assignment,
+        cfg.n_draws,
+        ctx.rng.stream_for(StreamDomain::Bayesian, 0x1F7E).next_u64(),
+        cfg.prior_scale,
+    )
+    .map_err(CausalError::from)?;
+    let assumptions = interference_bayesian_assumptions(cfg.prior_scale);
+    let schema = antecedent_prob::PosteriorSchema {
+        quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+            name: Arc::from("finite_network_exposure_contrast"),
+        }]),
+    };
+    let draws = antecedent_prob::PosteriorDraws::from_column_major(
+        schema,
+        model.contrast_draws.len(),
+        Arc::<[f64]>::from(model.contrast_draws),
+    )?;
+    let posterior = CausalPosterior {
+        summaries: draws.summarize(),
+        draws,
+        identification: status,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics: InferenceDiagnostics::analytic("interference.bayesian_gaussian"),
+        assumptions: assumptions.clone(),
+        unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
+        early_stopped: false,
+        treatment_contrast: None,
+    };
+    let estimate = effect_from_posterior(&posterior)?;
+    Ok((
+        estimate,
+        posterior,
+        Diagnostic::new(
+            "estimate.interference.bayesian_gaussian",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "finite-network posterior under an additive Gaussian potential-outcome model with shared unit disturbances; conditional on fixed network and realized assignment",
+        ),
+    ))
+}
+
+/// Estimation-scope assumption that the supplied selection and treatment probabilities are known.
+fn known_probability_assumption() -> antecedent_core::AssumptionRecord {
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("transport.known_selection_probabilities"),
+                description: Arc::from(
+                    "selection and treatment probabilities are treated as known: uncertainty conditions on the supplied probability columns and excludes the estimation error of any fitted participation or propensity model",
+                ),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.transport.trial_ipw"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
+}
+
+/// Delta-method SE of the ratio-of-means IPW contrast under known probabilities.
+fn frequentist_transport_estimate(
+    columns: &TrialColumns<'_>,
+    ipw: f64,
+    assumptions: antecedent_core::AssumptionSet,
+) -> Result<(EffectEstimate, Diagnostic), CausalError> {
+    let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
+    let se = trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
+        .map_err(CausalError::from)?;
+    Ok((
+        EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride),
+        Diagnostic::new(
+            "estimate.transport.trial_ipw",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
+        ),
+    ))
 }
 
 /// The binary trial-to-target columns the IPW estimator and its bootstrap read.

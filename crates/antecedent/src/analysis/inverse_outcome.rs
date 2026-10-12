@@ -724,23 +724,12 @@ fn labels_where(outcomes: &[ActionOutcome], keep: impl Fn(&ActionOutcome) -> boo
     labels
 }
 
-/// Classify every enumerated action against a licensed forward response.
-///
-/// `query` must be a target-mean query; the probability, quantile and
-/// observational-scenario queries are refused before any input is read.
-/// Cancellation is observed once per action and is never a verdict.
-///
-/// # Errors
-/// A typed refusal for an unsupported query kind, an invalid target, action or
-/// forward summary, an exceeded bound, or cancellation.
-pub fn classify_inverse_outcome(
+/// Accepts only a target-mean query and a finite threshold, tolerance and budget, refusing every other target before inputs are read.
+fn licensed_target(
     query: &InverseQuery,
-    forward: &ForwardEvaluation,
-    actions: &[ActionSpec],
-    budget: Option<f64>,
     tolerance: f64,
-    cancel: &CancellationToken,
-) -> Result<InverseOutcomeReport, InverseOutcomeError> {
+    budget: Option<f64>,
+) -> Result<(f64, TargetDirection), InverseOutcomeError> {
     let (threshold, direction) = match *query {
         InverseQuery::TargetMean { threshold, direction } => (threshold, direction),
         InverseQuery::ChanceConstraint { .. } => {
@@ -780,6 +769,27 @@ pub fn classify_inverse_outcome(
             "the budget must be finite and non-negative",
         ));
     }
+    Ok((threshold, direction))
+}
+
+/// Classify every enumerated action against a licensed forward response.
+///
+/// `query` must be a target-mean query; the probability, quantile and
+/// observational-scenario queries are refused before any input is read.
+/// Cancellation is observed once per action and is never a verdict.
+///
+/// # Errors
+/// A typed refusal for an unsupported query kind, an invalid target, action or
+/// forward summary, an exceeded bound, or cancellation.
+pub fn classify_inverse_outcome(
+    query: &InverseQuery,
+    forward: &ForwardEvaluation,
+    actions: &[ActionSpec],
+    budget: Option<f64>,
+    tolerance: f64,
+    cancel: &CancellationToken,
+) -> Result<InverseOutcomeReport, InverseOutcomeError> {
+    let (threshold, direction) = licensed_target(query, tolerance, budget)?;
     let index = validate_forward(forward)?;
     validate_actions(actions, forward.dimension)?;
     let mut outcomes = Vec::with_capacity(actions.len());

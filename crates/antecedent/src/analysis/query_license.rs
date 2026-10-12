@@ -150,6 +150,10 @@ fn temporal_cross_world_refusal() -> CausalError {
 }
 
 /// The one table. Exhaustive over [`CausalQueryKind`]: no wildcard arm.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the single exhaustive CausalQueryKind-to-KindLicense table the prepare-time license is read from: each arm owns its modality slots and refusal text, and the missing wildcard makes a new query kind a compile error here"
+)]
 fn kind_license(kind: CausalQueryKind) -> KindLicense {
     use CausalQueryKind as K;
     match kind {

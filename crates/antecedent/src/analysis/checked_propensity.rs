@@ -104,6 +104,85 @@ pub(crate) struct CheckedPropensityOperation {
     fit: CheckedPropensityFit,
 }
 
+/// Refuses a context outside the licensed DAG, frequentist, mean-effect propensity contract.
+fn refuse_unlicensed_premises(
+    context: &CheckedPropensityContext,
+    query: &AverageEffectQuery,
+) -> Result<(), CausalError> {
+    if context.cache.identification.query != context.source_query
+        || context.cache.identification.status != IdentificationStatus::NonparametricallyIdentified
+        || context.graph_class != GraphClass::Dag
+        || !matches!(
+            context.structure_source,
+            StructureSource::Explicit | StructureSource::Accepted
+        )
+        || !matches!(context.inference, InferenceMode::Frequentist)
+        || !matches!(
+            context.refute,
+            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
+        )
+        || !context.custom_validator_names.is_empty()
+        || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+    {
+        return Err(compile_error(
+            "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
+        ));
+    }
+    Ok(())
+}
+
+/// Selects the identified backdoor adjustment target and its scoped required assumptions.
+fn backdoor_target(
+    context: &CheckedPropensityContext,
+) -> Result<(IdentifiedEstimand, antecedent_core::AssumptionSet), CausalError> {
+    let target = context
+        .cache
+        .identification
+        .estimands
+        .get(context.estimand_index)
+        .cloned()
+        .ok_or_else(|| compile_error("checked propensity estimand index is out of range"))?;
+    let claim = context.cache.identification.claim(context.estimand_index).ok_or_else(|| {
+        compile_error("checked propensity estimand has no scoped identification claim")
+    })?;
+    if claim.status != IdentificationStatus::NonparametricallyIdentified
+        || !target.is_adjustment_shaped()
+        || !target.instruments.is_empty()
+        || !target.mediators.is_empty()
+    {
+        return Err(compile_error(
+            "checked propensity requires a nonparametrically identified backdoor adjustment target",
+        ));
+    }
+    Ok((target, claim.required_assumptions))
+}
+
+/// Requires unique adjustment roles excluding treatment and outcome, and binary active=1, control=0 arms.
+fn binary_backdoor_arms(
+    target: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+) -> Result<(f64, f64), CausalError> {
+    let mut adjustment = target.adjustment_set.to_vec();
+    adjustment.sort_unstable();
+    adjustment.dedup();
+    if adjustment.len() != target.adjustment_set.len()
+        || adjustment.contains(&query.treatment)
+        || adjustment.contains(&query.outcome)
+    {
+        return Err(compile_error(
+            "checked propensity adjustment roles must be unique and exclude treatment and outcome",
+        ));
+    }
+    let active = set_value(&query.active, query.treatment)?;
+    let control = set_value(&query.control, query.treatment)?;
+    if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
+        return Err(compile_error(
+            "checked propensity requires binary active=1 and control=0 treatment arms",
+        ));
+    }
+    Ok((active, control))
+}
+
 impl CheckedPropensityOperation {
     /// Validate a single identified backdoor target and prepare its selected propensity fit.
     pub(crate) fn prepare(
@@ -116,67 +195,9 @@ impl CheckedPropensityOperation {
             CausalQuery::AverageEffect(query) => query.clone(),
             _ => return Err(compile_error("checked propensity requires an AverageEffect query")),
         };
-        if context.cache.identification.query != context.source_query
-            || context.cache.identification.status
-                != IdentificationStatus::NonparametricallyIdentified
-            || context.graph_class != GraphClass::Dag
-            || !matches!(
-                context.structure_source,
-                StructureSource::Explicit | StructureSource::Accepted
-            )
-            || !matches!(context.inference, InferenceMode::Frequentist)
-            || !matches!(
-                context.refute,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
-            || !context.custom_validator_names.is_empty()
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
-        {
-            return Err(compile_error(
-                "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
-            ));
-        }
-        let target = context
-            .cache
-            .identification
-            .estimands
-            .get(context.estimand_index)
-            .cloned()
-            .ok_or_else(|| compile_error("checked propensity estimand index is out of range"))?;
-        let claim =
-            context.cache.identification.claim(context.estimand_index).ok_or_else(|| {
-                compile_error("checked propensity estimand has no scoped identification claim")
-            })?;
-        if claim.status != IdentificationStatus::NonparametricallyIdentified
-            || !target.is_adjustment_shaped()
-            || !target.instruments.is_empty()
-            || !target.mediators.is_empty()
-        {
-            return Err(compile_error(
-                "checked propensity requires a nonparametrically identified backdoor adjustment target",
-            ));
-        }
-        let mut adjustment = target.adjustment_set.to_vec();
-        adjustment.sort_unstable();
-        adjustment.dedup();
-        if adjustment.len() != target.adjustment_set.len()
-            || adjustment.contains(&query.treatment)
-            || adjustment.contains(&query.outcome)
-        {
-            return Err(compile_error(
-                "checked propensity adjustment roles must be unique and exclude treatment and outcome",
-            ));
-        }
-        let active = set_value(&query.active, query.treatment)?;
-        let control = set_value(&query.control, query.treatment)?;
-        if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-            return Err(compile_error(
-                "checked propensity requires binary active=1 and control=0 treatment arms",
-            ));
-        }
+        refuse_unlicensed_premises(&context, &query)?;
+        let (target, required_assumptions) = backdoor_target(&context)?;
+        let (active, control) = binary_backdoor_arms(&target, &query)?;
         let fitter = fitter.into();
         let expected_estimator = estimator_id(&fitter);
         if estimator != expected_estimator || !context.physical.binding().estimator.is(estimator) {
@@ -259,7 +280,7 @@ impl CheckedPropensityOperation {
             program,
             factor_requirements,
             lowering,
-            assumptions: claim.required_assumptions,
+            assumptions: required_assumptions,
             fit,
         })
     }

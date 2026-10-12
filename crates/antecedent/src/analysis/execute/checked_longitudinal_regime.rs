@@ -142,6 +142,54 @@ impl CheckedLongitudinalRegimeOperation {
         Ok(result)
     }
 
+    /// Smallest realized action probability and censoring survival over every decision of every subject.
+    fn probability_floors(&self) -> (f64, f64) {
+        let mut min_action: f64 = 1.0;
+        let mut min_censor: f64 = 1.0;
+        for j in 0..self.query.treatment_history.len() {
+            let p = self.query.treatment_probabilities[j];
+            min_action = min_action.min(if self.query.treatment_history[j] { p } else { 1.0 - p });
+            min_censor = min_censor.min(self.query.censoring_probabilities[j]);
+        }
+        (min_action, min_censor)
+    }
+
+    /// Backward-recursive augmented value with its per-subject scores, from the validated Q predictions and history.
+    fn sequential_dr_value(
+        &self,
+        outcome: &[f64],
+    ) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
+        evaluate_sequential_dr_value_with_subject_scores(
+            outcome,
+            &self.subject_histories(),
+            &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
+                actions: &self.query.regime_actions,
+                observation_history: self
+                    .query
+                    .observation_history
+                    .as_deref()
+                    .expect("validated observation history"),
+                q_predictions: self
+                    .query
+                    .q_predictions
+                    .as_deref()
+                    .expect("validated Q predictions"),
+            },
+        )
+    }
+
+    /// The declared subject histories every estimator of this operation reads.
+    fn subject_histories(&self) -> antecedent_estimate::longitudinal_regime::SubjectHistories<'_> {
+        antecedent_estimate::longitudinal_regime::SubjectHistories {
+            treatment: &self.query.treatment_history,
+            treatment_probability: &self.query.treatment_probabilities,
+            outcome_observed: &self.query.outcome_observed,
+            censoring_probability: &self.query.censoring_probabilities,
+            periods: self.query.periods,
+            minimum_probability: self.query.minimum_probability,
+        }
+    }
+
     /// Evaluates the method's point value and keeps the MSM fit or DR subject scores the interval phase needs.
     fn estimate_regime_value(&self, outcome: &[f64]) -> Result<RegimeEstimation, CausalError> {
         let mut msm: Option<MsmSummary> = None;
@@ -156,14 +204,7 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::Ipw => (
                 evaluate_regime_value(
                     outcome,
-                    &antecedent_estimate::longitudinal_regime::SubjectHistories {
-                        treatment: &self.query.treatment_history,
-                        treatment_probability: &self.query.treatment_probabilities,
-                        outcome_observed: &self.query.outcome_observed,
-                        censoring_probability: &self.query.censoring_probabilities,
-                        periods: self.query.periods,
-                        minimum_probability: self.query.minimum_probability,
-                    },
+                    &self.subject_histories(),
                     &self.query.regime_actions,
                 ),
                 EstimatorId::LongitudinalIpwRegime,
@@ -190,31 +231,7 @@ impl CheckedLongitudinalRegimeOperation {
                 "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
             ),
             LongitudinalRegimeMethod::SequentialDoublyRobust => {
-                let result = evaluate_sequential_dr_value_with_subject_scores(
-                    outcome,
-                    &antecedent_estimate::longitudinal_regime::SubjectHistories {
-                        treatment: &self.query.treatment_history,
-                        treatment_probability: &self.query.treatment_probabilities,
-                        outcome_observed: &self.query.outcome_observed,
-                        censoring_probability: &self.query.censoring_probabilities,
-                        periods: self.query.periods,
-                        minimum_probability: self.query.minimum_probability,
-                    },
-                    &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
-                        actions: &self.query.regime_actions,
-                        observation_history: self
-                            .query
-                            .observation_history
-                            .as_deref()
-                            .expect("validated observation history"),
-                        q_predictions: self
-                            .query
-                            .q_predictions
-                            .as_deref()
-                            .expect("validated Q predictions"),
-                    },
-                )
-                .map(|(summary, scores)| {
+                let result = self.sequential_dr_value(outcome).map(|(summary, scores)| {
                     dr_scores = Some(scores);
                     summary
                 });
@@ -229,28 +246,14 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::MarginalStructuralModel => {
                 let fit = fit_binary_msm(
                     outcome,
-                    &antecedent_estimate::longitudinal_regime::SubjectHistories {
-                        treatment: &self.query.treatment_history,
-                        treatment_probability: &self.query.treatment_probabilities,
-                        outcome_observed: &self.query.outcome_observed,
-                        censoring_probability: &self.query.censoring_probabilities,
-                        periods: self.query.periods,
-                        minimum_probability: self.query.minimum_probability,
-                    },
+                    &self.subject_histories(),
                     self.query
                         .stabilizing_numerator_probabilities
                         .as_deref()
                         .expect("validated MSM numerators"),
                 )
                 .map_err(|message| CausalError::Unsupported { message })?;
-                let mut min_action: f64 = 1.0;
-                let mut min_censor: f64 = 1.0;
-                for j in 0..self.query.treatment_history.len() {
-                    let p = self.query.treatment_probabilities[j];
-                    min_action =
-                        min_action.min(if self.query.treatment_history[j] { p } else { 1.0 - p });
-                    min_censor = min_censor.min(self.query.censoring_probabilities[j]);
-                }
+                let (min_action, min_censor) = self.probability_floors();
                 let summary = RegimeValueSummary {
                     value: fit.intercept,
                     effective_sample_size: fit.effective_sample_size,
@@ -585,9 +588,20 @@ fn published_diagnostic(
     }
 }
 
-fn longitudinal_identification(
+/// Records one user-declared custom identification assumption.
+fn declare_custom(assumptions: &mut antecedent_core::AssumptionSet, id: &str, description: &str) {
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+        source: AssumptionSource::UserDeclared,
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    });
+}
+
+/// Declared sequential-randomization assumptions, plus the nuisance contract of the selected method.
+fn longitudinal_assumptions(
     query: &antecedent_core::LongitudinalRegimeQuery,
-) -> (IdentificationResult, IdentifiedEstimand) {
+) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     for assumption in [Assumption::Consistency, Assumption::NoInterference, Assumption::Positivity]
     {
@@ -612,47 +626,27 @@ fn longitudinal_identification(
             "one outcome row and one fold own every decision in each subject history",
         ),
     ] {
-        assumptions.push(AssumptionRecord {
-            assumption: Assumption::Custom {
-                id: Arc::from(id),
-                description: Arc::from(description),
-            },
-            source: AssumptionSource::UserDeclared,
-            scope: AssumptionScope::Identification,
-            status: AssumptionStatus::Declared,
-        });
+        declare_custom(&mut assumptions, id, description);
     }
     if query.method == LongitudinalRegimeMethod::GFormula {
         if query.known_fixed_outcome_predictions {
-            assumptions.push(AssumptionRecord {
-                assumption: Assumption::Custom {
-                    id: Arc::from("fixed_known_outcome_predictions"),
-                    description: Arc::from("caller declares the conditional period reward law fixed and known before this study, with no fitted or selected Q uncertainty"),
-                },
-                source: AssumptionSource::UserDeclared,
-                scope: AssumptionScope::Identification,
-                status: AssumptionStatus::Declared,
-            });
+            declare_custom(
+                &mut assumptions,
+                "fixed_known_outcome_predictions",
+                "caller declares the conditional period reward law fixed and known before this study, with no fitted or selected Q uncertainty",
+            );
         }
-        assumptions.push(AssumptionRecord {
-            assumption: Assumption::Custom {
-                id: Arc::from("conditional_period_reward_validity"),
-                description: Arc::from("supplied period reward predictions equal conditional means under the prescribed regime given each predecision history"),
-            },
-            source: AssumptionSource::UserDeclared,
-            scope: AssumptionScope::Identification,
-            status: AssumptionStatus::Declared,
-        });
+        declare_custom(
+            &mut assumptions,
+            "conditional_period_reward_validity",
+            "supplied period reward predictions equal conditional means under the prescribed regime given each predecision history",
+        );
         if query.excluded_fold_predictions {
-            assumptions.push(AssumptionRecord {
-                assumption: Assumption::Custom {
-                    id: Arc::from("subject_excluded_fold_predictions"),
-                    description: Arc::from("caller declares that every outcome prediction excludes the subject's entire history fold"),
-                },
-                source: AssumptionSource::UserDeclared,
-                scope: AssumptionScope::Identification,
-                status: AssumptionStatus::Declared,
-            });
+            declare_custom(
+                &mut assumptions,
+                "subject_excluded_fold_predictions",
+                "caller declares that every outcome prediction excludes the subject's entire history fold",
+            );
         }
     }
     if query.method == LongitudinalRegimeMethod::SequentialDoublyRobust {
@@ -670,15 +664,7 @@ fn longitudinal_identification(
                 "dropout is monotone and terminal observation agrees with the final history period",
             ),
         ] {
-            assumptions.push(AssumptionRecord {
-                assumption: Assumption::Custom {
-                    id: Arc::from(id),
-                    description: Arc::from(description),
-                },
-                source: AssumptionSource::UserDeclared,
-                scope: AssumptionScope::Identification,
-                status: AssumptionStatus::Declared,
-            });
+            declare_custom(&mut assumptions, id, description);
         }
     }
     if query.method == LongitudinalRegimeMethod::MarginalStructuralModel {
@@ -696,17 +682,16 @@ fn longitudinal_identification(
                 "the reported CR1 sandwich treats each whole subject history as one independent cluster and does not establish interval coverage",
             ),
         ] {
-            assumptions.push(AssumptionRecord {
-                assumption: Assumption::Custom {
-                    id: Arc::from(id),
-                    description: Arc::from(description),
-                },
-                source: AssumptionSource::UserDeclared,
-                scope: AssumptionScope::Identification,
-                status: AssumptionStatus::Declared,
-            });
+            declare_custom(&mut assumptions, id, description);
         }
     }
+    assumptions
+}
+
+fn longitudinal_identification(
+    query: &antecedent_core::LongitudinalRegimeQuery,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let assumptions = longitudinal_assumptions(query);
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();

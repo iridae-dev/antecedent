@@ -202,15 +202,10 @@ fn execute_checked_counterfactual_plan(
             )
         };
     let verdict = homogeneity_verdict(graph, &mechanism_assignments, treatment, outcome);
-    let homogeneous = match &verdict {
-        HomogeneityVerdict::Structural(family) => Some(*family),
-        _ => None,
-    };
     let mut estimate = estimate;
-    estimate.heterogeneity.unit_effects_homogeneous = homogeneous.is_some();
-    let observed = data.float64_values(treatment)?;
-    let min = observed.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = observed.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    estimate.heterogeneity.unit_effects_homogeneous =
+        matches!(verdict, HomogeneityVerdict::Structural(_));
+    let (min, max) = observed_range(&data.float64_values(treatment)?);
     let pooled_extrapolative = control < min || control > max || active < min || active > max;
     let support = unit_support(
         data,
@@ -269,6 +264,13 @@ fn execute_checked_counterfactual_plan(
             ..Default::default()
         }),
     ))
+}
+
+/// Smallest and largest observed value of a column.
+fn observed_range(values: &[f64]) -> (f64, f64) {
+    let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    (min, max)
 }
 
 /// Inputs every Dirichlet row-weight refit of a counterfactual contrast reads.

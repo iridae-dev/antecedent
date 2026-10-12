@@ -71,19 +71,7 @@ impl CheckedInterferenceOperation {
             message: "checked interference requires a fixed network and realized assignment",
         })?;
         let design = design.bound_to(data)?;
-        if study.structure_source != crate::support::StructureSource::Explicit
-            || study.tiered.is_some()
-            || study.graph_posterior.is_some()
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
-            || design.assignment.len() != data.row_count()
-            || design.network.units().row_count() != data.row_count()
-            || graph.node_count() != data.schema().variables().len()
-        {
-            return Err(CausalError::Unsupported {
-                message: "checked interference is limited to an explicit fixed DAG schema and no validation suite",
-            });
-        }
+        refuse_unsupported_interference_design(study, &design, data, graph)?;
         let (procedure, estimator) = match &study.inference {
             InferenceMode::Frequentist => frequentist_interference_procedure(query, &design)?,
             InferenceMode::Bayesian(config) => {
@@ -584,6 +572,29 @@ type InterferenceArm = (
     EffectEstimate,
     Diagnostic,
 );
+
+/// Refuses studies outside the explicit fixed-DAG, bound-network, no-validation-suite contract.
+fn refuse_unsupported_interference_design(
+    study: &Study,
+    design: &crate::InterferenceSpec,
+    data: &TabularData,
+    graph: &Dag,
+) -> Result<(), CausalError> {
+    if study.structure_source != crate::support::StructureSource::Explicit
+        || study.tiered.is_some()
+        || study.graph_posterior.is_some()
+        || study.refute != RefuteSuite::None
+        || !study.custom_validators.is_empty()
+        || design.assignment.len() != data.row_count()
+        || design.network.units().row_count() != data.row_count()
+        || graph.node_count() != data.schema().variables().len()
+    {
+        return Err(CausalError::Unsupported {
+            message: "checked interference is limited to an explicit fixed DAG schema and no validation suite",
+        });
+    }
+    Ok(())
+}
 
 /// Selects the design-based or observational procedure for the query and validates its design during prepare.
 fn frequentist_interference_procedure(
