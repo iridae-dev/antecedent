@@ -104,6 +104,15 @@ pub(crate) struct IdRun<'a, 'm> {
     meter: &'a mut IdMeter<'m>,
 }
 
+/// One ID subproblem: the sets, the current law, and the free do-labels.
+struct IdQuery<'a> {
+    y: &'a BitSet,
+    x: &'a BitSet,
+    v: &'a BitSet,
+    dist: &'a DistCtx,
+    assign: Assign,
+}
+
 /// Outcome of a recursive ID call.
 #[derive(Clone, Debug)]
 enum IdOutcome {
@@ -197,7 +206,10 @@ pub(crate) fn identify_interventional_metered(
         ws,
         meter: &mut meter,
     };
-    match id_recurse(&mut run, y, x, &active, &DistCtx::Marginal, Arc::from([]))? {
+    match id_recurse(
+        &mut run,
+        IdQuery { y, x, v: &active, dist: &DistCtx::Marginal, assign: Arc::from([]) },
+    )? {
         IdOutcome::Expr(expression) => Ok(MeteredId::Identified { arena, expression }),
         IdOutcome::Fail(hedge) => Ok(MeteredId::Hedge(
             hedge.with_problem(crate::hedge::HedgeProblem::capture(prepared, x, y)?),
@@ -506,7 +518,16 @@ impl IdIdentifier {
                         ws: &mut workspace.graph,
                         meter: &mut IdMeter::unmetered(),
                     };
-                    id_recurse(&mut run, &y_set, &x_set, &active, &DistCtx::Marginal, assign)
+                    id_recurse(
+                        &mut run,
+                        IdQuery {
+                            y: &y_set,
+                            x: &x_set,
+                            v: &active,
+                            dist: &DistCtx::Marginal,
+                            assign,
+                        },
+                    )
                 };
                 let left = match side(
                     Arc::from([(t, active_level)]),
@@ -631,7 +652,10 @@ impl IdIdentifier {
                 ws: &mut workspace.graph,
                 meter: &mut IdMeter::unmetered(),
             };
-            id_recurse(&mut run, &y_set, &x_set, &active_set, &DistCtx::Marginal, assign)
+            id_recurse(
+                &mut run,
+                IdQuery { y: &y_set, x: &x_set, v: &active_set, dist: &DistCtx::Marginal, assign },
+            )
         };
         let left = match side(
             assign_for(active_level),
@@ -720,7 +744,10 @@ impl IdIdentifier {
                     ws: &mut workspace.graph,
                     meter: &mut IdMeter::unmetered(),
                 };
-                match id_recurse(&mut run, y, x, &active, &DistCtx::Marginal, assignments)? {
+                match id_recurse(
+                    &mut run,
+                    IdQuery { y, x, v: &active, dist: &DistCtx::Marginal, assign: assignments },
+                )? {
                     IdOutcome::Expr(functional) => {
                         let estimand = IdentifiedEstimand::new(
                             Arc::from(EstimandMethod::GeneralId.as_str()),
@@ -875,12 +902,9 @@ fn not_identified_with_hedge(
 /// Run ID; returns expression for `P_x(y)` over observational factors in the run's arena.
 fn id_recurse(
     run: &mut IdRun<'_, '_>,
-    y: &BitSet,
-    x: &BitSet,
-    v: &BitSet,
-    dist: &DistCtx,
-    assign: Assign,
+    query: IdQuery<'_>,
 ) -> Result<IdOutcome, IdentificationError> {
+    let IdQuery { y, x, v, dist, assign } = query;
     run.perf.candidates_examined = run.perf.candidates_examined.saturating_add(1);
     let key = SubproblemKey {
         y: y.clone(),
@@ -896,20 +920,14 @@ fn id_recurse(
         return Ok(hit.clone());
     }
 
-    let outcome = id_body(run, y, x, v, dist, assign)?;
+    let outcome = id_body(run, IdQuery { y, x, v, dist, assign })?;
     run.meter.leave();
     run.memo.insert(key, outcome.clone());
     Ok(outcome)
 }
 
-fn id_body(
-    run: &mut IdRun<'_, '_>,
-    y: &BitSet,
-    x: &BitSet,
-    v: &BitSet,
-    dist: &DistCtx,
-    assign: Assign,
-) -> Result<IdOutcome, IdentificationError> {
+fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, IdentificationError> {
+    let IdQuery { y, x, v, dist, assign } = query;
     // Line 1: x = ∅ → ∑_{v\y} of the *current* distribution
     if !x.any() {
         run.derivation.push("general.id.line1", "empty intervention; marginal of current dist");
@@ -926,7 +944,7 @@ fn id_body(
         removed.difference_with(&an_y);
         let dist2 = dist.marginalize(&removed);
         run.derivation.push("general.id.line2", "restrict to ancestral set of Y");
-        return id_recurse(run, y, &x2, &an_y, &dist2, assign);
+        return id_recurse(run, IdQuery { y, x: &x2, v: &an_y, dist: &dist2, assign });
     }
 
     // Line 3: W = (V\X) \ An(Y)_{G_{\bar X}} — only X changes; dist unchanged.
@@ -939,7 +957,7 @@ fn id_body(
         let mut x2 = x.clone();
         x2.union_with(&w);
         run.derivation.push("general.id.line3", "add superfluous interventions");
-        return id_recurse(run, y, &x2, v, dist, assign);
+        return id_recurse(run, IdQuery { y, x: &x2, v, dist, assign });
     }
 
     // Line 4 / 5–7: C-components of G[V\X]
@@ -963,7 +981,7 @@ fn id_body(
         for s_i in &comps {
             let mut x_i = v.clone();
             x_i.difference_with(s_i);
-            match id_recurse(run, s_i, &x_i, v, dist, assign.clone())? {
+            match id_recurse(run, IdQuery { y: s_i, x: &x_i, v, dist, assign: assign.clone() })? {
                 IdOutcome::Expr(e) => factors.push(e),
                 fail @ IdOutcome::Fail(_) => return Ok(fail),
             }
@@ -1001,19 +1019,16 @@ fn id_body(
         return Ok(IdOutcome::Fail(hedge));
     }
 
-    id_lines_5_to_7(run, y, x, v, s, dist, assign)
+    id_lines_5_to_7(run, IdQuery { y, x, v, dist, assign }, s)
 }
 
 /// Lines 6–7 dispatch for the single-C-component case (line 5 handled above).
 fn id_lines_5_to_7(
     run: &mut IdRun<'_, '_>,
-    y: &BitSet,
-    x: &BitSet,
-    v: &BitSet,
+    query: IdQuery<'_>,
     s: &BitSet,
-    dist: &DistCtx,
-    assign: Assign,
 ) -> Result<IdOutcome, IdentificationError> {
+    let IdQuery { y, x, v, dist, assign } = query;
     // Districts of G (on V)
     let g_comps = run.prepared.c_components(v);
     // Line 6: S ∈ C(G) — emit the C-factor of the *current* distribution.
@@ -1049,7 +1064,7 @@ fn id_lines_5_to_7(
         };
         let dist2 =
             DistCtx::CFactor(Arc::new(Law { sumset: BitSet::with_len(v.bit_len()), factors }));
-        return id_recurse(run, y, &x2, s_prime, &dist2, assign);
+        return id_recurse(run, IdQuery { y, x: &x2, v: s_prime, dist: &dist2, assign });
     }
 
     Err(IdentificationError::InvariantViolated {
