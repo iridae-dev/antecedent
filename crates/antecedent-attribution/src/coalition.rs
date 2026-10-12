@@ -13,14 +13,34 @@ use crate::result::CacheStats;
 /// Larger exact games stay on the `HashMap`; 2^22 as a cutoff would be gigabytes.
 pub(crate) const DENSE_MASK_MAX_PLAYERS: usize = 16;
 
-/// Full coalition bitmask for up to 64 players.
-pub(crate) fn full_coalition_mask(n_players: usize) -> Result<u64, AttributionError> {
-    match n_players {
-        0 => Ok(0),
-        1..=63 => Ok((1u64 << n_players) - 1),
-        64 => Ok(u64::MAX),
-        requested => Err(AttributionError::SizeLimit { kind: "components", requested, max: 64 }),
+/// Coalition masks are `u64`, so a game has at most this many players.
+pub(crate) const MAX_COALITION_PLAYERS: usize = 64;
+
+/// Refuse a player count that does not fit in a coalition mask.
+///
+/// # Errors
+///
+/// [`AttributionError::SizeLimit`] when `requested` exceeds [`MAX_COALITION_PLAYERS`].
+pub(crate) fn ensure_player_bitset(requested: usize) -> Result<(), AttributionError> {
+    if requested > MAX_COALITION_PLAYERS {
+        Err(AttributionError::SizeLimit {
+            kind: "components",
+            requested,
+            max: MAX_COALITION_PLAYERS,
+        })
+    } else {
+        Ok(())
     }
+}
+
+/// Full coalition bitmask for up to [`MAX_COALITION_PLAYERS`] players.
+pub(crate) fn full_coalition_mask(n_players: usize) -> Result<u64, AttributionError> {
+    ensure_player_bitset(n_players)?;
+    Ok(match n_players {
+        0 => 0,
+        MAX_COALITION_PLAYERS => u64::MAX,
+        n => (1u64 << n) - 1,
+    })
 }
 
 /// Key for a coalition / substitution evaluation.

@@ -13,7 +13,7 @@ use antecedent_kernels::shuffle;
 use antecedent_stats::{Welford, student_t_ppf};
 
 use crate::change_common::{SHAPLEY_STREAM, attribution_stream};
-use crate::coalition::{CoalitionCache, CoalitionKey};
+use crate::coalition::{CoalitionCache, CoalitionKey, MAX_COALITION_PLAYERS, ensure_player_bitset};
 use crate::error::AttributionError;
 use crate::result::{CacheStats, ComponentContribution, ComputeBudget, InteractionTerm};
 
@@ -110,18 +110,15 @@ pub(crate) fn check_shapley_size(
     n_components: usize,
     config: &ShapleyConfig,
 ) -> Result<(), AttributionError> {
-    if n_components > 64 {
-        return Err(AttributionError::SizeLimit {
-            kind: "components",
-            requested: n_components,
-            max: 64,
-        });
-    }
-    if matches!(config.mode, ShapleyMode::Exact) && n_components >= 64 {
+    ensure_player_bitset(n_components)?;
+    // Exact mode enumerates `2^k` masks. `k == 64` is a legal Monte Carlo width
+    // and an illegal exact width: `1u64 << 64` does not fit, so the refusal is
+    // the next-smaller cap, not the bitset cap.
+    if matches!(config.mode, ShapleyMode::Exact) && n_components >= MAX_COALITION_PLAYERS {
         return Err(AttributionError::SizeLimit {
             kind: "exact Shapley components",
             requested: n_components,
-            max: 63,
+            max: MAX_COALITION_PLAYERS - 1,
         });
     }
     if matches!(config.mode, ShapleyMode::Exact)
@@ -178,13 +175,12 @@ pub(crate) fn check_coalition_sample_budget(
         return Ok(());
     };
     let planned: u128 = match approximation.mode {
-        // Distinct coalitions; `check_shapley_size` separately rejects k >= 64.
-        ShapleyMode::Exact => 1u128 << n_players.min(64),
-        ShapleyMode::MonteCarlo { n_samples } => {
+        // Distinct coalitions. Exact mode rejects `k >= MAX_COALITION_PLAYERS`
+        // in `check_shapley_size`; the shift stays inside the mask width.
+        ShapleyMode::Exact => 1u128 << n_players.min(MAX_COALITION_PLAYERS),
+        ShapleyMode::MonteCarlo { n_samples }
+        | ShapleyMode::Permutation { n_permutations: n_samples } => {
             (n_samples as u128).saturating_mul(n_players as u128 + 1)
-        }
-        ShapleyMode::Permutation { n_permutations } => {
-            (n_permutations as u128).saturating_mul(n_players as u128 + 1)
         }
         // Unknown modes are rejected later by `estimate_shapley`.
         _ => return Ok(()),
@@ -354,11 +350,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     }
     let n = players.len();
     check_shapley_size(n, config)?;
-    if let ShapleyMode::Permutation { n_permutations } = config.mode {
-        let mut cfg = *config;
-        cfg.mode = ShapleyMode::MonteCarlo { n_samples: n_permutations };
-        return estimate_shapley(players, &cfg, payoff, ctx);
-    }
     let mut payoff = Prefetched::new(payoff);
     let payoff = &mut payoff;
 
@@ -449,7 +440,8 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                 cache_stats: cache.stats(),
             })
         }
-        ShapleyMode::MonteCarlo { n_samples } => {
+        ShapleyMode::MonteCarlo { n_samples }
+        | ShapleyMode::Permutation { n_permutations: n_samples } => {
             budget.samples = n_samples as u64;
             let mut rng = attribution_stream(ctx, SHAPLEY_STREAM, config.seed);
             // Per-player Welford accumulators over the sampled permutations (stable when a
@@ -514,9 +506,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                 cache_stats: cache.stats(),
             })
         }
-        ShapleyMode::Permutation { .. } => {
-            unreachable!("permutation mode is rewritten to Monte Carlo above")
-        }
         _ => Err(AttributionError::unsupported("unsupported ShapleyMode variant")),
     }
 }
@@ -551,13 +540,7 @@ pub(crate) fn sequential_allocate<P: CoalitionPayoff>(
     let mut seen = 0u64;
     for &comp in order {
         let idx = player_index(comp).ok_or(AttributionError::UnknownPlayer)?;
-        if idx >= 64 {
-            return Err(AttributionError::SizeLimit {
-                kind: "components",
-                requested: idx + 1,
-                max: 64,
-            });
-        }
+        ensure_player_bitset(idx + 1)?;
         let bit = 1u64 << idx;
         if seen & bit != 0 {
             return Err(AttributionError::invalid_input(
@@ -670,6 +653,32 @@ mod tests {
         let err = estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1))
             .unwrap_err();
         assert!(matches!(err, AttributionError::SizeLimit { requested: 64, max: 63, .. }));
+    }
+
+    #[test]
+    fn permutation_matches_monte_carlo_draws() {
+        let players: Vec<_> = (0..4).map(ComponentId::from_raw).collect();
+        let weights = vec![1.0, 2.0, 3.0, 4.0];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut monte = AdditivePayoff { weights: weights.clone() };
+        let mut permutation = AdditivePayoff { weights };
+        let sampled = estimate_shapley(
+            &players,
+            &ShapleyConfig::monte_carlo(30).with_seed(11),
+            &mut monte,
+            &ctx,
+        )
+        .unwrap();
+        let ordered = estimate_shapley(
+            &players,
+            &ShapleyConfig::permutation(30).with_seed(11),
+            &mut permutation,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(sampled.values, ordered.values);
+        assert_eq!(sampled.component_mc_stderr, ordered.component_mc_stderr);
+        assert_eq!(sampled.budget.samples, ordered.budget.samples);
     }
 
     #[test]

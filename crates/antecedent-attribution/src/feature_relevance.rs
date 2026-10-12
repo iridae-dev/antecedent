@@ -8,6 +8,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_interventional};
 
+use crate::coalition::MAX_COALITION_PLAYERS;
 use crate::error::AttributionError;
 use crate::result::FeatureRelevance;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
@@ -49,11 +50,11 @@ pub fn feature_relevance(
             max: max_features,
         });
     }
-    if features.len() > 64 {
+    if features.len() > MAX_COALITION_PLAYERS {
         return Err(AttributionError::SizeLimit {
             kind: "features",
             requested: features.len(),
-            max: 64,
+            max: MAX_COALITION_PLAYERS,
         });
     }
     let outcome_dense =

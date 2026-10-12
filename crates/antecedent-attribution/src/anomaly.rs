@@ -50,6 +50,7 @@ use antecedent_model::{
     evaluate_batch_topo, reference_noise,
 };
 
+use crate::coalition::ensure_player_bitset;
 use crate::error::AttributionError;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
@@ -231,13 +232,7 @@ pub fn score_anomalies_with(
             .dense_of(target)
             .ok_or_else(|| AttributionError::missing_var("target", target))?;
         let players_dense = ancestor_nodes(model, dense);
-        if players_dense.len() > 64 {
-            return Err(AttributionError::SizeLimit {
-                kind: "components",
-                requested: players_dense.len(),
-                max: 64,
-            });
-        }
+        ensure_player_bitset(players_dense.len())?;
         let players: Vec<ComponentId> = players_dense
             .iter()
             .map(|&d| ComponentId::from_variable(model.output_layout.variables[d.as_usize()]))
