@@ -1046,6 +1046,10 @@ impl AipwAte {
     }
 
     /// The recorded cross-fit seed must govern the fold plan, not only the learners.
+    ///
+    /// Production fits pass that seed into the score table. The tests still build the
+    /// seeded problem so a resample can be compared with the original.
+    #[cfg(test)]
     fn crossfit_problem(
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
@@ -1140,8 +1144,7 @@ impl AipwAte {
             Failed,
             Cancelled,
         }
-        let mut base = Self::crossfit_problem(problem, ctx);
-        base.propensity = nuisance;
+        let base = penalized_bootstrap_base(problem, ctx.rng.master_seed(), nuisance);
         let n = base.nrows;
         let n_rep = self.bootstrap_replicates as usize;
         let len = n.checked_mul(n_rep).ok_or_else(|| {
@@ -1327,6 +1330,25 @@ impl AipwAte {
 
 /// Stream tag of the penalized refit bootstrap's resample plan.
 const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
+
+/// The problem a penalized refit bootstrap resamples.
+///
+/// The fold seed and replicate nuisance are written onto a clone only when they differ
+/// from `problem`. A problem that already carries both matches that clone, so it is reused.
+fn penalized_bootstrap_base<'a>(
+    problem: &'a PreparedPropensityProblem,
+    fold_seed: u64,
+    nuisance: PropensityNuisance,
+) -> std::borrow::Cow<'a, PreparedPropensityProblem> {
+    if problem.fold_seed == fold_seed && problem.propensity == nuisance {
+        std::borrow::Cow::Borrowed(problem)
+    } else {
+        let mut seeded = problem.clone();
+        seeded.fold_seed = fold_seed;
+        seeded.propensity = nuisance;
+        std::borrow::Cow::Owned(seeded)
+    }
+}
 
 /// The prepared problem restricted to the resampled rows `idx`. Copies of one original row
 /// keep that row's identity (and shared fold), so no unit is both in a training set and in
@@ -2270,6 +2292,35 @@ mod tests {
         };
         assert_eq!(bits(&a), bits(&b));
         assert_eq!(fit_a.selections, fit_b.selections);
+    }
+
+    /// The refit bootstrap clones only to install a different fold seed or propensity.
+    #[test]
+    fn penalized_bootstrap_base_clones_only_when_the_seed_or_propensity_differs() {
+        let (data, estimand) = confounded_scm(40, 3);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = ridge_estimator(&[0.5, 5.0], 2);
+        let problem = est.prepare(&data, &estimand, &query).unwrap();
+        let nuisance = est.propensity.clone();
+        assert_eq!(problem.fold_seed, 0);
+        assert_eq!(problem.propensity, nuisance);
+
+        let changed = super::penalized_bootstrap_base(&problem, 7, nuisance.clone());
+        assert!(matches!(changed, std::borrow::Cow::Owned(_)));
+        assert_eq!(changed.fold_seed, 7);
+        assert_eq!(changed.propensity, nuisance);
+
+        let mut seeded = problem.clone();
+        seeded.fold_seed = 7;
+        let same = super::penalized_bootstrap_base(&seeded, 7, nuisance);
+        assert!(matches!(same, std::borrow::Cow::Borrowed(_)));
+        assert!(std::ptr::eq(same.as_ref(), &seeded));
+
+        let swapped = super::penalized_bootstrap_base(&seeded, 7, PropensityNuisance::default());
+        assert!(matches!(swapped, std::borrow::Cow::Owned(_)));
+        assert_eq!(swapped.fold_seed, 7);
+        assert_eq!(swapped.propensity, PropensityNuisance::default());
     }
 
     /// The refit bootstrap's replicate selects every fold's penalty on the resample only.
