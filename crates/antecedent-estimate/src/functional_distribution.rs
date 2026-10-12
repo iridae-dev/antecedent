@@ -1838,7 +1838,14 @@ fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationE
 /// Bounded retained empirical factor fits, shared only under an explicit execution scope.
 #[derive(Default, Debug)]
 pub struct EmpiricalFactorCache {
-    entries: std::sync::Mutex<Vec<RetainedFactorFit>>,
+    state: Mutex<RetainedFactorFits>,
+}
+
+/// The retained fits in insertion order with their running cost, so eviction never re-sums.
+#[derive(Default, Debug)]
+struct RetainedFactorFits {
+    entries: Vec<RetainedFactorFit>,
+    cost: usize,
 }
 thread_local! {static ACTIVE_FACTOR_CACHE:std::cell::RefCell<Option<std::sync::Arc<EmpiricalFactorCache>>>=const{std::cell::RefCell::new(None)};}
 impl EmpiricalFactorCache {
@@ -1862,60 +1869,117 @@ impl EmpiricalFactorCache {
     }
     /// Retained numeric factor identities; these are not identification licenses.
     pub fn identities(&self) -> Vec<antecedent_core::recalc::StageIdentity> {
-        self.entries
+        self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entries
             .iter()
             .map(|entry| entry.0)
             .collect()
     }
 }
+/// The shared, immutable entries of one fitted factor.
+type FactorEntries = Arc<Vec<(Assignment, f64)>>;
+
+/// Most retained fits.
+const MAX_RETAINED_FITS: usize = 64;
+/// Retained-cost budget, in stored values.
+const MAX_RETAINED_VALUES: usize = 1 << 24;
+
 fn cpt_entries(
     columns: &EncodedColumns,
     n: usize,
     vars: &[VariableId],
     cond: &[VariableId],
     weights: Option<&[f64]>,
-) -> Result<Vec<(Assignment, f64)>, EstimationError> {
-    const MAX_VALUES: usize = 1 << 24;
+) -> Result<FactorEntries, EstimationError> {
     let active = ACTIVE_FACTOR_CACHE.with(|active| active.borrow().clone());
     let Some(active) = active else {
-        return cpt_entries_uncached(columns, n, vars, cond, weights);
+        return cpt_entries_uncached(columns, n, vars, cond, weights).map(Arc::new);
     };
-    let mut pieces = vec![format!("{vars:?}:{cond:?}:{:?}", columns.row_ids).into_bytes()];
+    let identity = factor_identity(columns, vars, cond, weights)?;
+    let lock =
+        || active.state.lock().map_err(|_| EstimationError::data_msg("factor cache lock poisoned"));
+    if let Some(entry) = lock()?.entries.iter().find(|entry| entry.0 == identity) {
+        return Ok(Arc::clone(&entry.1));
+    }
+    // The fit runs unlocked: concurrent callers on other keys are not serialized behind it.
+    // Two callers racing on one key both fit; the first to insert wins and both return the
+    // same values.
+    let result = Arc::new(cpt_entries_uncached(columns, n, vars, cond, weights)?);
+    let cost = result
+        .len()
+        .saturating_mul(vars.len().saturating_add(cond.len()).saturating_mul(2).saturating_add(1));
+    let mut state = lock()?;
+    if let Some(entry) = state.entries.iter().find(|entry| entry.0 == identity) {
+        return Ok(Arc::clone(&entry.1));
+    }
+    if cost <= MAX_RETAINED_VALUES {
+        while !state.entries.is_empty()
+            && (state.entries.len() >= MAX_RETAINED_FITS
+                || state.cost.saturating_add(cost) > MAX_RETAINED_VALUES)
+        {
+            let (_, _, evicted) = state.entries.remove(0);
+            state.cost -= evicted;
+        }
+        state.entries.push((identity, Arc::clone(&result), cost));
+        state.cost = state.cost.saturating_add(cost);
+    }
+    Ok(result)
+}
+
+/// Content identity of one factor fit: its variables, the row ids and level codes it reads,
+/// and its weights.
+///
+/// The digested bytes are the `Debug` text of each part (`[0, 1, 2]` for a code vector), so
+/// retained identities are stable; the code lists are written directly instead of through
+/// `format!`, which dominated a cache hit.
+fn factor_identity(
+    columns: &EncodedColumns,
+    vars: &[VariableId],
+    cond: &[VariableId],
+    weights: Option<&[f64]>,
+) -> Result<antecedent_core::recalc::StageIdentity, EstimationError> {
+    let mut pieces: Vec<Vec<u8>> = Vec::with_capacity(vars.len() + cond.len() + 2);
+    let mut head = format!("{vars:?}:{cond:?}:").into_bytes();
+    push_debug_list(&mut head, columns.row_ids.iter().map(|&row| row as u64));
+    pieces.push(head);
     for &id in vars.iter().chain(cond) {
         let column = columns.column(id)?;
-        pieces.push(format!("{:?}:{:?}", column.levels, column.codes).into_bytes());
+        let mut piece = format!("{:?}:", column.levels).into_bytes();
+        push_debug_list(&mut piece, column.codes.iter().map(|&code| u64::from(code)));
+        pieces.push(piece);
     }
     if let Some(weights) = weights {
         pieces.push(weights.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect());
     }
-    let identity = antecedent_core::recalc::StageIdentity::of(
+    Ok(antecedent_core::recalc::StageIdentity::of(
         "empirical.cpt.fit.v1",
         &pieces.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-    );
-    let mut entries = active
-        .entries
-        .lock()
-        .map_err(|_| EstimationError::data_msg("factor cache lock poisoned"))?;
-    if let Some(entry) = entries.iter().find(|entry| entry.0 == identity) {
-        return Ok(entry.1.as_ref().clone());
-    }
-    let result = cpt_entries_uncached(columns, n, vars, cond, weights)?;
-    let cost = result
-        .len()
-        .saturating_mul(vars.len().saturating_add(cond.len()).saturating_mul(2).saturating_add(1));
-    if cost <= MAX_VALUES {
-        while !entries.is_empty()
-            && (entries.len() >= 64
-                || entries.iter().map(|entry| entry.2).sum::<usize>().saturating_add(cost)
-                    > MAX_VALUES)
-        {
-            entries.remove(0);
+    ))
+}
+
+/// Append `values` as `{:?}` prints an integer vector: `[1, 20, 3]`.
+fn push_debug_list(out: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
+    out.reserve(2 + values.len() * 4);
+    out.push(b'[');
+    for (index, mut value) in values.enumerate() {
+        if index > 0 {
+            out.extend_from_slice(b", ");
         }
-        entries.push((identity, std::sync::Arc::new(result.clone()), cost));
+        let mut digits = [0u8; 20];
+        let mut start = digits.len();
+        loop {
+            start -= 1;
+            digits[start] = b'0' + (value % 10) as u8;
+            value /= 10;
+            if value == 0 {
+                break;
+            }
+        }
+        out.extend_from_slice(&digits[start..]);
     }
-    Ok(result)
+    out.push(b']');
 }
 
 fn cpt_entries_uncached(
@@ -2829,5 +2893,118 @@ mod tests {
         };
         let by_hand = g(1.0, 0.0) - g(0.0, 0.0);
         assert!((value - by_hand).abs() < 1e-12, "draw {value} vs by-hand {by_hand}");
+    }
+
+    /// The retained identity is a public digest: the direct code-list writer must emit the
+    /// bytes `Debug` formatting did.
+    #[test]
+    fn factor_identity_matches_the_debug_formatted_digest() {
+        let n = 1_203usize;
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(7));
+        let column = |salt: usize| -> Vec<Option<Value>> {
+            (0..n)
+                .map(|i| match (i * 31 + salt) % 17 {
+                    0 => None,
+                    k => Some(Value::Int64(i64::try_from(k % 12).unwrap())),
+                })
+                .collect()
+        };
+        let columns = EncodedColumns::from_values(HashMap::from([(x, column(1)), (y, column(5))]));
+        let weights: Vec<f64> = (0..n).map(|i| 0.5 + (i % 3) as f64).collect();
+        for (vars, cond, w) in [
+            (vec![y], vec![x], None),
+            (vec![x, y], vec![], Some(weights.as_slice())),
+            (vec![y], vec![], None),
+        ] {
+            let mut pieces = vec![format!("{vars:?}:{cond:?}:{:?}", columns.row_ids).into_bytes()];
+            for &id in vars.iter().chain(&cond) {
+                let column = columns.column(id).unwrap();
+                pieces.push(format!("{:?}:{:?}", column.levels, column.codes).into_bytes());
+            }
+            if let Some(w) = w {
+                pieces.push(w.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect());
+            }
+            let legacy = antecedent_core::recalc::StageIdentity::of(
+                "empirical.cpt.fit.v1",
+                &pieces.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+            );
+            assert_eq!(factor_identity(&columns, &vars, &cond, w).unwrap(), legacy);
+        }
+    }
+
+    /// A hit returns the retained entries themselves, and eviction keeps the byte budget.
+    #[test]
+    fn cached_cpt_entries_share_one_allocation_and_evict_in_insertion_order() {
+        let n = 64usize;
+        let ids: Vec<VariableId> = (0..70).map(VariableId::from_raw).collect();
+        let columns = EncodedColumns::from_values(
+            ids.iter()
+                .map(|&id| {
+                    let cells = (0..n)
+                        .map(|i| {
+                            Some(Value::Int64(i64::try_from((i + id.raw() as usize) % 3).unwrap()))
+                        })
+                        .collect();
+                    (id, cells)
+                })
+                .collect(),
+        );
+        let cache = EmpiricalFactorCache::new();
+        cache.scope(|| {
+            let first = cpt_entries(&columns, n, &[ids[0]], &[], None).unwrap();
+            let again = cpt_entries(&columns, n, &[ids[0]], &[], None).unwrap();
+            assert!(Arc::ptr_eq(&first, &again));
+            for id in &ids[1..] {
+                cpt_entries(&columns, n, &[*id], &[], None).unwrap();
+            }
+        });
+        // 70 distinct fits against a 64-fit cap: the six oldest were evicted.
+        assert_eq!(cache.identities().len(), MAX_RETAINED_FITS);
+        let kept = cache.identities();
+        let oldest = factor_identity(&columns, &[ids[0]], &[], None).unwrap();
+        assert!(!kept.contains(&oldest));
+        let newest = factor_identity(&columns, &[ids[69]], &[], None).unwrap();
+        assert_eq!(kept.last(), Some(&newest));
+    }
+
+    /// The retained factor cache keys every call by the content of its row ids and code
+    /// columns; a hit must cost far less than a refit.
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_cpt_entries_cache() {
+        let n = 100_000usize;
+        let (x, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let column = |salt: usize| -> Vec<Option<Value>> {
+            (0..n)
+                .map(|i| {
+                    Some(Value::Int64(i64::try_from((i * 7 + salt * 13 + i / 5) % 4).unwrap()))
+                })
+                .collect()
+        };
+        let columns = EncodedColumns::from_values(HashMap::from([
+            (x, column(1)),
+            (y, column(2)),
+            (z, column(3)),
+        ]));
+        let (vars, cond) = ([y], [x, z]);
+        let uncached = std::time::Instant::now();
+        for _ in 0..20 {
+            std::hint::black_box(cpt_entries_uncached(&columns, n, &vars, &cond, None).unwrap());
+        }
+        println!(
+            "cpt_entries_uncached n={n}: {:.3} ms/call",
+            uncached.elapsed().as_secs_f64() * 1e3 / 20.0
+        );
+        let cache = EmpiricalFactorCache::new();
+        cache.scope(|| {
+            let miss = std::time::Instant::now();
+            std::hint::black_box(cpt_entries(&columns, n, &vars, &cond, None).unwrap());
+            println!("cpt_entries miss: {:.3} ms", miss.elapsed().as_secs_f64() * 1e3);
+            let hit = std::time::Instant::now();
+            for _ in 0..50 {
+                std::hint::black_box(cpt_entries(&columns, n, &vars, &cond, None).unwrap());
+            }
+            println!("cpt_entries hit: {:.3} ms/call", hit.elapsed().as_secs_f64() * 1e3 / 50.0);
+        });
     }
 }
