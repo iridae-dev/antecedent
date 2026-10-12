@@ -147,14 +147,15 @@ impl EfficientBackdoorIdentifier {
         let y = problem.y;
         let forbidden = &problem.forbidden;
         let mutilated = &problem.mutilated;
-        let candidates = problem.candidates.clone();
+        let mut candidates = problem.candidates.clone();
+        candidates.retain(|id| !problem.exceeds_lag(*id));
 
         let mut examined = 0u64;
 
         // Primary rule: the O-set (optimal adjustment set, Henckel et al.).
         let o_set = optimal_adjustment_set(dag, t, y, &mut workspace.graph);
         examined += 1;
-        if o_set.iter().all(|v| !forbidden.contains(*v))
+        if o_set.iter().all(|v| !forbidden.contains(*v) && !problem.exceeds_lag(*v))
             && is_backdoor_adjustment(mutilated, t, y, &o_set, &mut workspace.dsep)?
         {
             return Self::finish(
@@ -183,7 +184,7 @@ impl EfficientBackdoorIdentifier {
         // Textor 2014). If it fails no set exists and the size-ordered search is not needed;
         // if it passes it is the certified fallback wherever the search cannot finish.
         let constructive: Vec<DenseNodeId> =
-            screen_ancestor_candidates(dag, t, y, forbidden, &problem, false, &mut workspace.graph);
+            screen_ancestor_candidates(dag, t, y, forbidden, &problem, true, &mut workspace.graph);
         examined += 1;
         if !is_backdoor_adjustment(mutilated, t, y, &constructive, &mut workspace.dsep)? {
             let mut assumptions = default_assumptions();
