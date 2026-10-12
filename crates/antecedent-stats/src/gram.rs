@@ -126,17 +126,88 @@ pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
     Some(x)
 }
 
-/// Invert a small dense matrix.
+/// Invert a small dense matrix via Gauss–Jordan; returns `None` on singular pivot.
 ///
-/// Equilibration and the pivot test are [`antecedent_kernels::invert_square`]:
-/// power-of-two diagonal scales, then Gauss-Jordan with partial pivoting and
-/// floor `1e-12` times the equilibrated scale. A well-scaled inverse is the
-/// elimination's inverse. A zero diagonal is not a refusal by itself; a
-/// non-finite entry or a pivot on the floor is. Cholesky keeps a separate
-/// `64 eps` floor.
+/// The matrix is first equilibrated symmetrically, `B = D⁻¹ A D⁻¹` with `Dᵢ = √|aᵢᵢ|` (the
+/// row/column magnitude when the diagonal entry is zero), and singularity is judged on the
+/// pivots of `B`, whose unit-scale rows make the tolerance independent of each column's
+/// unit. A Gram of `[1, x]` with `x` of order `1e6` is therefore inverted (its
+/// equilibrated form is the identity), while a genuinely collinear pair is still refused.
+/// The inverse is un-scaled, `A⁻¹ = D⁻¹ B⁻¹ D⁻¹`. Any non-finite entry returns `None`.
 #[must_use]
 pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
-    antecedent_kernels::invert_square(a_in, ncols)
+    if ncols == 0
+        || a_in.len() < ncols * ncols
+        || a_in[..ncols * ncols].iter().any(|v| !v.is_finite())
+    {
+        return None;
+    }
+    let mut d = vec![0.0_f64; ncols];
+    for i in 0..ncols {
+        let diag = a_in[i * ncols + i].abs();
+        let magnitude = if diag > 0.0 {
+            diag.sqrt()
+        } else {
+            (0..ncols).fold(0.0_f64, |m, j| {
+                m.max(a_in[i * ncols + j].abs().max(a_in[j * ncols + i].abs()))
+            })
+        };
+        if !(magnitude.is_finite() && magnitude > 0.0) {
+            return None;
+        }
+        d[i] = magnitude;
+    }
+    let tol = 1e-12;
+
+    let mut a = vec![0.0; ncols * ncols];
+    for i in 0..ncols {
+        for j in 0..ncols {
+            a[i * ncols + j] = a_in[i * ncols + j] / (d[i] * d[j]);
+        }
+    }
+    let mut inv = vec![0.0; ncols * ncols];
+    for i in 0..ncols {
+        inv[i * ncols + i] = 1.0;
+    }
+    for col in 0..ncols {
+        // Partial pivoting: pick the largest |pivot| in the remaining rows.
+        let mut best = col;
+        for row in (col + 1)..ncols {
+            if a[row * ncols + col].abs() > a[best * ncols + col].abs() {
+                best = row;
+            }
+        }
+        if a[best * ncols + col].abs() < tol {
+            return None;
+        }
+        if best != col {
+            for j in 0..ncols {
+                a.swap(col * ncols + j, best * ncols + j);
+                inv.swap(col * ncols + j, best * ncols + j);
+            }
+        }
+        let pivot = a[col * ncols + col];
+        for j in 0..ncols {
+            a[col * ncols + j] /= pivot;
+            inv[col * ncols + j] /= pivot;
+        }
+        for row in 0..ncols {
+            if row == col {
+                continue;
+            }
+            let factor = a[row * ncols + col];
+            for j in 0..ncols {
+                a[row * ncols + j] -= factor * a[col * ncols + j];
+                inv[row * ncols + j] -= factor * inv[col * ncols + j];
+            }
+        }
+    }
+    for i in 0..ncols {
+        for j in 0..ncols {
+            inv[i * ncols + j] /= d[i] * d[j];
+        }
+    }
+    Some(inv)
 }
 
 #[cfg(test)]

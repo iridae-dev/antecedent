@@ -11,7 +11,6 @@
 
 pub mod cholesky;
 pub mod dispatch;
-pub mod gram;
 pub mod numeric;
 pub mod parcorr;
 pub mod portable;
@@ -28,9 +27,6 @@ pub use cholesky::{
 };
 pub use dispatch::{
     KernelImpl, accumulate_contingency, gather, select_impl, standardize_inplace, weighted_mean,
-};
-pub use gram::{
-    EQUILIBRATED_PIVOT_FLOOR, equilibrate_into, gauss_jordan_solve, invert_square, symmetric_scales,
 };
 pub use numeric::{
     LogWeightError, dot, mean, median_sorted, midranks_into, normalize_log_weights,
