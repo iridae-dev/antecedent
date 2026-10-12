@@ -213,9 +213,71 @@ impl GraphClass {
     }
 }
 
+/// Borrowed, class-tagged view of the graph inside an [`AcceptedGraph`].
+///
+/// The variant is the class: [`Self::class`] is derived from it, so a match arm
+/// receives exactly the graph its class names.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum GraphRef<'a> {
+    /// Fully directed acyclic graph.
+    Dag(&'a Dag),
+    /// Acyclic directed mixed graph.
+    Admg(&'a Admg),
+    /// Completed partial DAG.
+    Cpdag(&'a Cpdag),
+    /// Partial ancestral graph.
+    Pag(&'a Pag),
+    /// Fully directed temporal DAG.
+    TemporalDag(&'a TemporalDag),
+    /// Completed temporal CPDAG.
+    TemporalCpdag(&'a TemporalCpdag),
+    /// Temporal partial ancestral graph.
+    TemporalPag(&'a TemporalPag),
+    /// Lagged ADMG.
+    TemporalAdmg(&'a TemporalAdmg),
+    /// Schema-bound randomized trial contract; carries no causal graph.
+    RandomizedTrial,
+}
+
+impl GraphRef<'_> {
+    /// The static ADMG a mixed-graph route reads: an [`Admg`] as held, or a
+    /// temporal ADMG's functional projection. `None` for every other class.
+    ///
+    /// # Errors
+    ///
+    /// [`CausalError::Compile`] when the temporal ADMG has no functional projection.
+    pub fn projected_admg(&self) -> Result<Option<Admg>, CausalError> {
+        match self {
+            Self::Admg(graph) => Ok(Some((*graph).clone())),
+            Self::TemporalAdmg(graph) => graph
+                .project_preserving_functional()
+                .map(Some)
+                .map_err(|error| CausalError::Compile { message: error.to_string() }),
+            _ => Ok(None),
+        }
+    }
+
+    /// The graph class this view carries.
+    #[must_use]
+    pub const fn class(&self) -> GraphClass {
+        match self {
+            Self::Dag(_) => GraphClass::Dag,
+            Self::Admg(_) => GraphClass::Admg,
+            Self::Cpdag(_) => GraphClass::Cpdag,
+            Self::Pag(_) => GraphClass::Pag,
+            Self::TemporalDag(_) => GraphClass::TemporalDag,
+            Self::TemporalCpdag(_) => GraphClass::TemporalCpdag,
+            Self::TemporalPag(_) => GraphClass::TemporalPag,
+            Self::TemporalAdmg(_) => GraphClass::TemporalAdmg,
+            Self::RandomizedTrial => GraphClass::RandomizedTrial,
+        }
+    }
+}
+
 /// Internal storage: one owned graph per supported class.
 ///
-/// Private — callers only ever observe this through [`AcceptedGraph::class`] and the
+/// Private — callers only ever observe this through [`AcceptedGraph::graph_ref`], [`AcceptedGraph::class`] and the
 /// `as_*` accessors, never by matching on the representation directly.
 #[derive(Clone, Debug)]
 enum GraphKind {
@@ -376,16 +438,26 @@ impl AcceptedGraph {
     /// Which graph class this value holds.
     #[must_use]
     pub fn class(&self) -> GraphClass {
+        self.graph_ref().class()
+    }
+
+    /// Borrow the held graph as a typed view.
+    ///
+    /// Match on this once instead of testing [`Self::class`] and then unwrapping the
+    /// matching `as_*` accessor: the variant carries the graph, so no arm can name a
+    /// class without receiving that class's graph.
+    #[must_use]
+    pub fn graph_ref(&self) -> GraphRef<'_> {
         match &self.kind {
-            GraphKind::Dag(_) => GraphClass::Dag,
-            GraphKind::Admg(_) => GraphClass::Admg,
-            GraphKind::Cpdag(_) => GraphClass::Cpdag,
-            GraphKind::Pag(_) => GraphClass::Pag,
-            GraphKind::TemporalDag(_) => GraphClass::TemporalDag,
-            GraphKind::TemporalCpdag(_) => GraphClass::TemporalCpdag,
-            GraphKind::TemporalPag(_) => GraphClass::TemporalPag,
-            GraphKind::TemporalAdmg(_) => GraphClass::TemporalAdmg,
-            GraphKind::RandomizedTrial => GraphClass::RandomizedTrial,
+            GraphKind::Dag(g) => GraphRef::Dag(g),
+            GraphKind::Admg(g) => GraphRef::Admg(g),
+            GraphKind::Cpdag(g) => GraphRef::Cpdag(g),
+            GraphKind::Pag(g) => GraphRef::Pag(g),
+            GraphKind::TemporalDag(g) => GraphRef::TemporalDag(g),
+            GraphKind::TemporalCpdag(g) => GraphRef::TemporalCpdag(g),
+            GraphKind::TemporalPag(g) => GraphRef::TemporalPag(g),
+            GraphKind::TemporalAdmg(g) => GraphRef::TemporalAdmg(g),
+            GraphKind::RandomizedTrial => GraphRef::RandomizedTrial,
         }
     }
 

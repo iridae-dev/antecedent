@@ -41,7 +41,7 @@ use antecedent_io::cross_world_artifact::{
 use antecedent_model::CompiledCausalModel;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::GraphClass;
+use crate::GraphRef;
 use crate::error::CausalError;
 use crate::gcm::{NestedOutcomeMechanism, fit_nested_mechanisms_polled};
 use crate::support::{IntoGraphInput, StructureSource};
@@ -198,16 +198,16 @@ fn evaluate_effect_probed(
         ));
     }
     let (structure, source) = graph.into_graph_input();
-    let Some(dag) = structure
-        .as_dag()
-        .filter(|_| source == StructureSource::Explicit && structure.class() == GraphClass::Dag)
-    else {
-        return Err(crate::unsupported_reason!(
-            "cell_not_licensed",
-            "cross_world.graph_outside_contract: only a supplied explicit DAG is licensed; \
-             accepted, uncertain, latent-confounded, equivalence-class and temporal structures \
-             are refused"
-        ));
+    let dag = match structure.graph_ref() {
+        GraphRef::Dag(dag) if source == StructureSource::Explicit => dag,
+        _ => {
+            return Err(crate::unsupported_reason!(
+                "cell_not_licensed",
+                "cross_world.graph_outside_contract: only a supplied explicit DAG is licensed; \
+                 accepted, uncertain, latent-confounded, equivalence-class and temporal \
+                 structures are refused"
+            ));
+        }
     };
     if data.schema().variables().len() != dag.node_count() {
         return Err(crate::compile_reason!(

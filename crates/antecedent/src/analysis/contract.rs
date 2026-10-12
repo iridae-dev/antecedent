@@ -45,7 +45,7 @@ use antecedent_io::{
     temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
 };
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::result::{RowWeightsBinding, StudyResult};
@@ -2156,34 +2156,16 @@ fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalError> {
 }
 
 fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, CausalError> {
-    match graph.class() {
-        GraphClass::Dag => {
-            dag_identity(graph.as_dag().expect("Dag class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::Admg => {
-            admg_identity(graph.as_admg().expect("Admg class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::Cpdag => {
-            cpdag_identity(graph.as_cpdag().expect("Cpdag class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::Pag => {
-            pag_identity(graph.as_pag().expect("Pag class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::TemporalDag => {
-            temporal_dag_identity(graph.as_temporal_dag().expect("TemporalDag class"))
-                .map_err(|err| io_err(&err))
-        }
-        GraphClass::TemporalCpdag => {
-            Ok(temporal_cpdag_identity(graph.as_temporal_cpdag().expect("TemporalCpdag class")))
-        }
-        GraphClass::TemporalPag => {
-            Ok(temporal_pag_identity(graph.as_temporal_pag().expect("TemporalPag class")))
-        }
-        GraphClass::TemporalAdmg => {
-            temporal_admg_identity(graph.as_temporal_admg().expect("TemporalAdmg class"))
-                .map_err(|err| io_err(&err))
-        }
-        GraphClass::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
+    match graph.graph_ref() {
+        GraphRef::Dag(g) => dag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::Admg(g) => admg_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::Cpdag(g) => cpdag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::Pag(g) => pag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::TemporalDag(g) => temporal_dag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::TemporalCpdag(g) => Ok(temporal_cpdag_identity(g)),
+        GraphRef::TemporalPag(g) => Ok(temporal_pag_identity(g)),
+        GraphRef::TemporalAdmg(g) => temporal_admg_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
     }
 }
 

@@ -63,7 +63,7 @@ pub(super) fn temporal_class_mediation(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
-        (Some(RouteInput::TemporalEffectDag { query, .. }), Some(cache))
+        (Some(RouteInput::TemporalEffectDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -88,7 +88,7 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
                         message: "prepared temporal effect lacks its horizon proof".into(),
                     })?;
                 let operation = crate::analysis::CheckedTemporalEffectOperation::checked(
-                    analysis.graph.as_temporal_dag().expect("guarded TemporalDag"),
+                    graph,
                     query,
                     member.identification.clone(),
                     member.estimand.clone(),
@@ -115,7 +115,7 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
     let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
-        (Some(RouteInput::TemporalEffectDag { query, .. }), Some(cache))
+        (Some(RouteInput::TemporalEffectDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -138,7 +138,7 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
                     })?;
                 let procedure = EstimatorId::temporal_effect_procedure(query, false);
                 let target = crate::analysis::CheckedTemporalEffectOperation::checked(
-                    analysis.graph.as_temporal_dag().expect("guarded TemporalDag"),
+                    graph,
                     query,
                     member.identification.clone(),
                     member.estimand.clone(),
@@ -208,7 +208,7 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
-        (Some(RouteInput::TemporalResponseDag { query, .. }), Some(cache))
+        (Some(RouteInput::TemporalResponseDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -261,7 +261,7 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let operation = crate::analysis::CheckedTemporalResponseOperation::checked(
-                    analysis.graph.as_temporal_dag().expect("checked TemporalDag response"),
+                    graph,
                     query,
                     evidence,
                     identifier,

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::accepted::GraphClass;
+use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::{DataInput, RefuteSuite};
 use crate::analysis::execute::Study;
 use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
@@ -37,11 +37,9 @@ impl Study {
         {
             return Ok(None);
         }
-        let (graph, identification) = match analysis.graph.class() {
-            GraphClass::Cpdag => {
-                let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
-                else {
+        let (graph, identification) = match analysis.graph.graph_ref() {
+            GraphRef::Cpdag(graph) => {
+                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
                     return Ok(None);
                 };
                 (
@@ -49,7 +47,7 @@ impl Study {
                     StaticClassIdentification::Cpdag(cache.clone()),
                 )
             }
-            GraphClass::Pag => {
+            GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
                     (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {
@@ -528,11 +526,9 @@ impl Study {
         if !crate::analysis::execute::CheckedStaticClassResponse::admits(analysis) {
             return Ok(None);
         }
-        let (graph, identification) = match analysis.graph.class() {
-            GraphClass::Cpdag => {
-                let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
-                else {
+        let (graph, identification) = match analysis.graph.graph_ref() {
+            GraphRef::Cpdag(graph) => {
+                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
                     return Ok(None);
                 };
                 (
@@ -540,7 +536,7 @@ impl Study {
                     StaticClassIdentification::Cpdag(cache.clone()),
                 )
             }
-            GraphClass::Pag => {
+            GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
                     (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {

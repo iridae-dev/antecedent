@@ -3,19 +3,11 @@
 use super::*;
 
 fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
-    match study.graph.class() {
-        GraphClass::Admg => {
-            Ok(study.graph.as_admg().expect("class() == Admg implies as_admg() is Some").clone())
-        }
-        GraphClass::TemporalAdmg => {
-            let temporal = study
-                .graph
-                .as_temporal_admg()
-                .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
-            temporal_admg_projection(temporal)
-        }
-        _ => Err(CausalError::Compile { message: "mixed graph required".into() }),
-    }
+    study
+        .graph
+        .graph_ref()
+        .projected_admg()?
+        .ok_or_else(|| CausalError::Compile { message: "mixed graph required".into() })
 }
 
 fn temporal_response_estimator_id(inference: &InferenceMode) -> &'static str {
@@ -187,7 +179,6 @@ impl super::Study {
                 .compile_logical_class_effect(
                     data,
                     query,
-                    self.graph.class(),
                     classification,
                     "temporal_cpdag_effect",
                     "temporal_pag_effect",
@@ -1043,7 +1034,6 @@ impl super::Study {
         self.compile_logical_class_effect(
             panel_compile_series(panel)?,
             query,
-            self.graph.class(),
             DataClassification::Panel,
             "panel_cpdag_effect",
             "panel_pag_effect",
@@ -1083,19 +1073,19 @@ impl super::Study {
         &self,
         data: &TimeSeriesData,
         query: &TemporalEffectQuery,
-        class: GraphClass,
         classification: DataClassification,
         cpdag_plan: &'static str,
         pag_plan: &'static str,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (plan_id, nodes) = match class {
-            GraphClass::TemporalCpdag => {
-                (cpdag_plan, self.graph.as_temporal_cpdag().expect("TemporalCpdag").nodes())
+        let (plan_id, nodes) = match self.graph.graph_ref() {
+            GraphRef::TemporalCpdag(graph) => (cpdag_plan, graph.nodes()),
+            GraphRef::TemporalPag(graph) => (pag_plan, graph.nodes()),
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "temporal class effect requires a TemporalCpdag or TemporalPag graph"
+                        .into(),
+                });
             }
-            GraphClass::TemporalPag => {
-                (pag_plan, self.graph.as_temporal_pag().expect("TemporalPag").nodes())
-            }
-            _ => unreachable!(),
         };
         let (identifier, estimator) = self.resolve_temporal_class_pair();
         let mut logical = compile_logical_temporal_class_effect(

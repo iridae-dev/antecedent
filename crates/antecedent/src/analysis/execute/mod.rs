@@ -55,7 +55,7 @@ pub(super) use antecedent_validate::{
     with_conflict_summary, with_prior_sensitivity,
 };
 
-pub(super) use crate::accepted::{AcceptedGraph, GraphClass};
+pub(super) use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{

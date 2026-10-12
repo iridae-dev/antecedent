@@ -59,7 +59,7 @@ use antecedent_io::counterfactual_id_artifact::{
     CounterfactualIdQueryWire, counterfactual_id_data_digest,
 };
 
-use crate::GraphClass;
+use crate::GraphRef;
 use crate::error::{CausalError, REASON_PREFIX};
 use crate::support::{IntoGraphInput, StructureSource};
 
@@ -124,20 +124,12 @@ pub fn prepare_counterfactual_id(
         return Err(refusal_error(&CounterfactualIdRefusal::interval_requested()));
     }
     let (structure, source) = graph.into_graph_input();
-    let admg: Admg = match (source, structure.class()) {
-        (StructureSource::Explicit, GraphClass::Admg) => {
-            structure.as_admg().cloned().ok_or_else(|| {
-                refusal_error(&CounterfactualIdRefusal::graph("the ADMG is not available"))
-            })?
-        }
-        (StructureSource::Explicit, GraphClass::Dag) => {
-            let dag = structure.as_dag().ok_or_else(|| {
-                refusal_error(&CounterfactualIdRefusal::graph("the DAG is not available"))
-            })?;
-            antecedent_identify::dag_to_admg(dag).map_err(|e| {
+    let admg: Admg = match (source, structure.graph_ref()) {
+        (StructureSource::Explicit, GraphRef::Admg(admg)) => admg.clone(),
+        (StructureSource::Explicit, GraphRef::Dag(dag)) => antecedent_identify::dag_to_admg(dag)
+            .map_err(|e| {
                 refusal_error(&CounterfactualIdRefusal::graph(format!("the DAG is invalid: {e}")))
-            })?
-        }
+            })?,
         _ => {
             return Err(refusal_error(&CounterfactualIdRefusal::graph(
                 "only a supplied explicit ADMG or DAG is licensed; accepted, uncertain, \

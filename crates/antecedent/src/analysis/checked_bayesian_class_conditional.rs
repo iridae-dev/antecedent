@@ -139,16 +139,14 @@ impl CheckedBayesianClassConditional {
         {
             return Ok(None);
         }
-        let proof = match analysis.graph.class() {
-            crate::GraphClass::Cpdag => {
-                let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
-                else {
+        let proof = match analysis.graph.graph_ref() {
+            crate::GraphRef::Cpdag(graph) => {
+                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
                     return Ok(None);
                 };
                 ConditionalClassProof::Cpdag { graph: graph.clone(), cache: cache.clone() }
             }
-            crate::GraphClass::Pag => {
+            crate::GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
                     (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {

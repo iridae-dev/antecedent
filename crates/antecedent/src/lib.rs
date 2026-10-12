@@ -81,7 +81,7 @@ pub mod query;
 pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
-pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
+pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted};
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
 pub use analysis::{

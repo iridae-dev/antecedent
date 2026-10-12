@@ -7,8 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    AnalysisRoute, CausalError, CausalQuery, DataClassification, DataInput, GraphClass, Study,
-    classify_analysis_route, is_gcm_route,
+    AnalysisRoute, CausalError, CausalQuery, DataClassification, DataInput, GraphClass, GraphRef,
+    Study, classify_analysis_route, is_gcm_route,
 };
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
@@ -244,24 +244,25 @@ impl Study {
     /// this so a sealed route is not refused early by compile admission.
     pub(crate) fn route_input_classified(&self) -> Option<RouteInput<'_>> {
         let route = classify_analysis_route(&self.data, &self.query)?;
-        let class = self.graph.class();
-        Some(match (route, class) {
-            (AnalysisRoute::Response, GraphClass::Dag) => RouteInput::StaticResponseDag {
+        let graph = self.graph.graph_ref();
+        let class = graph.class();
+        Some(match (route, graph) {
+            (AnalysisRoute::Response, GraphRef::Dag(dag)) => RouteInput::StaticResponseDag {
                 data: tabular(self),
                 query: response_query(self),
-                graph: dag(self),
+                graph: dag,
             },
-            (AnalysisRoute::Response, GraphClass::Pag) => RouteInput::StaticResponsePag {
+            (AnalysisRoute::Response, GraphRef::Pag(pag)) => RouteInput::StaticResponsePag {
                 data: tabular(self),
                 query: response_query(self),
-                pag: pag(self),
+                pag: pag,
             },
-            (AnalysisRoute::Response, GraphClass::Cpdag) => RouteInput::StaticResponseCpdag {
+            (AnalysisRoute::Response, GraphRef::Cpdag(cpdag)) => RouteInput::StaticResponseCpdag {
                 data: tabular(self),
                 query: response_query(self),
-                cpdag: cpdag(self),
+                cpdag: cpdag,
             },
-            (AnalysisRoute::Response, GraphClass::Admg)
+            (AnalysisRoute::Response, GraphRef::Admg(admg))
                 if self.tiered.as_ref().is_some_and(|background| {
                     background.within_tier == antecedent_graph::WithinTier::CoDetermined
                 }) =>
@@ -269,195 +270,197 @@ impl Study {
                 RouteInput::CodeterminedJoint {
                     data: tabular(self),
                     query: response_query(self),
-                    admg: admg(self),
+                    admg: admg,
                 }
             }
-            (AnalysisRoute::Response, GraphClass::Admg | GraphClass::TemporalAdmg) => {
+            (AnalysisRoute::Response, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
                 RouteInput::MixedAdmgResponse { data: tabular(self), query: response_query(self) }
             }
-            (AnalysisRoute::StaticAte, GraphClass::Dag) => RouteInput::StaticAteDag {
+            (AnalysisRoute::StaticAte, GraphRef::Dag(dag)) => RouteInput::StaticAteDag {
                 data: tabular(self),
                 query: average_effect(self),
-                graph: dag(self),
+                graph: dag,
             },
-            (AnalysisRoute::StaticAte, GraphClass::Pag) => RouteInput::StaticAtePag {
+            (AnalysisRoute::StaticAte, GraphRef::Pag(pag)) => RouteInput::StaticAtePag {
                 data: tabular(self),
                 query: average_effect(self),
-                pag: pag(self),
+                pag: pag,
             },
-            (AnalysisRoute::StaticAte, GraphClass::Cpdag) => RouteInput::StaticAteCpdag {
+            (AnalysisRoute::StaticAte, GraphRef::Cpdag(cpdag)) => RouteInput::StaticAteCpdag {
                 data: tabular(self),
                 query: average_effect(self),
-                cpdag: cpdag(self),
+                cpdag: cpdag,
             },
-            (AnalysisRoute::StaticAte, GraphClass::Admg | GraphClass::TemporalAdmg) => {
+            (AnalysisRoute::StaticAte, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
                 RouteInput::StaticAteMixed { data: tabular(self), query: average_effect(self) }
             }
-            (AnalysisRoute::Distribution, GraphClass::Dag) => RouteInput::DistributionDag {
+            (AnalysisRoute::Distribution, GraphRef::Dag(dag)) => RouteInput::DistributionDag {
                 data: tabular(self),
                 query: distribution(self),
-                graph: dag(self),
+                graph: dag,
             },
-            (AnalysisRoute::Distribution, GraphClass::Admg | GraphClass::TemporalAdmg) => {
+            (AnalysisRoute::Distribution, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
                 RouteInput::DistributionMixed { data: tabular(self), query: distribution(self) }
             }
-            (AnalysisRoute::PathSpecific, GraphClass::Dag) => RouteInput::PathSpecificDag {
+            (AnalysisRoute::PathSpecific, GraphRef::Dag(dag)) => RouteInput::PathSpecificDag {
                 data: tabular(self),
                 query: path_specific(self),
-                graph: dag(self),
+                graph: dag,
             },
-            (AnalysisRoute::Conditional, GraphClass::Dag) => RouteInput::ConditionalDag {
+            (AnalysisRoute::Conditional, GraphRef::Dag(dag)) => RouteInput::ConditionalDag {
                 data: tabular(self),
                 query: conditional(self),
-                graph: dag(self),
+                graph: dag,
             },
-            (AnalysisRoute::Conditional, GraphClass::Cpdag) => RouteInput::ConditionalCpdag {
+            (AnalysisRoute::Conditional, GraphRef::Cpdag(cpdag)) => RouteInput::ConditionalCpdag {
                 data: tabular(self),
                 query: conditional(self),
-                cpdag: cpdag(self),
+                cpdag: cpdag,
             },
-            (AnalysisRoute::Conditional, GraphClass::Pag) => RouteInput::ConditionalPag {
+            (AnalysisRoute::Conditional, GraphRef::Pag(pag)) => RouteInput::ConditionalPag {
                 data: tabular(self),
                 query: conditional(self),
-                pag: pag(self),
+                pag: pag,
             },
             (
                 AnalysisRoute::TemporalEffect,
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+                GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
             ) => RouteInput::TemporalEffectClass {
                 data: series(self),
                 query: temporal_effect(self),
                 classification: series_classification(self),
             },
-            (AnalysisRoute::TemporalEffect, GraphClass::TemporalDag) => {
+            (AnalysisRoute::TemporalEffect, GraphRef::TemporalDag(temporal_dag)) => {
                 RouteInput::TemporalEffectDag {
                     data: series(self),
                     query: temporal_effect(self),
-                    graph: temporal_dag(self),
+                    graph: temporal_dag,
                     classification: series_classification(self),
                 }
             }
-            (AnalysisRoute::TemporalResponse, GraphClass::TemporalDag) => {
+            (AnalysisRoute::TemporalResponse, GraphRef::TemporalDag(temporal_dag)) => {
                 RouteInput::TemporalResponseDag {
                     data: series(self),
                     query: response_query(self),
-                    graph: temporal_dag(self),
+                    graph: temporal_dag,
                 }
             }
             (
                 AnalysisRoute::TemporalResponse,
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+                GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
             ) => RouteInput::TemporalResponseClass {
                 data: series(self),
                 query: response_query(self),
             },
-            (AnalysisRoute::MultiEnvTemporalEffect, GraphClass::TemporalDag) => {
+            (AnalysisRoute::MultiEnvTemporalEffect, GraphRef::TemporalDag(temporal_dag)) => {
                 RouteInput::MultiEnvTemporalEffect {
                     multi: multi_env(self),
                     query: temporal_effect(self),
-                    graph: temporal_dag(self),
+                    graph: temporal_dag,
                 }
             }
-            (AnalysisRoute::PanelTemporalResponse, GraphClass::TemporalDag) => {
+            (AnalysisRoute::PanelTemporalResponse, GraphRef::TemporalDag(temporal_dag)) => {
                 RouteInput::PanelTemporalResponseDag {
                     panel: panel(self),
                     query: response_query(self),
-                    graph: temporal_dag(self),
+                    graph: temporal_dag,
                 }
             }
             (
                 AnalysisRoute::PanelTemporalResponse,
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+                GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
             ) => RouteInput::PanelTemporalResponseClass {
                 panel: panel(self),
                 query: response_query(self),
             },
             (
                 AnalysisRoute::PanelTemporalEffect,
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+                GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
             ) => RouteInput::PanelTemporalEffectClass {
                 panel: panel(self),
                 query: temporal_effect(self),
             },
-            (AnalysisRoute::PanelTemporalEffect, GraphClass::TemporalDag) => {
+            (AnalysisRoute::PanelTemporalEffect, GraphRef::TemporalDag(temporal_dag)) => {
                 RouteInput::PanelTemporalEffectDag {
                     panel: panel(self),
                     query: temporal_effect(self),
-                    graph: temporal_dag(self),
+                    graph: temporal_dag,
                 }
             }
-            (AnalysisRoute::TemporalMediation, GraphClass::TemporalDag) => {
+            (AnalysisRoute::TemporalMediation, GraphRef::TemporalDag(temporal_dag)) => {
                 RouteInput::TemporalMediationDag {
                     data: series(self),
                     query: mediation(self),
-                    graph: temporal_dag(self),
+                    graph: temporal_dag,
                 }
             }
-            (AnalysisRoute::TemporalMediation, GraphClass::TemporalPag) => {
+            (AnalysisRoute::TemporalMediation, GraphRef::TemporalPag(_)) => {
                 RouteInput::TemporalMediationPag
             }
-            (AnalysisRoute::TemporalMediation, GraphClass::TemporalCpdag) => {
+            (AnalysisRoute::TemporalMediation, GraphRef::TemporalCpdag(_)) => {
                 RouteInput::TemporalMediationCpdag { data: series(self), query: mediation(self) }
             }
-            (AnalysisRoute::StaticMediation, GraphClass::Dag) => RouteInput::StaticMediationDag {
-                data: tabular(self),
-                graph: dag(self),
-                source: static_mediation_source(self),
-            },
-            (AnalysisRoute::Transport, GraphClass::Admg | GraphClass::TemporalAdmg) => {
+            (AnalysisRoute::StaticMediation, GraphRef::Dag(dag)) => {
+                RouteInput::StaticMediationDag {
+                    data: tabular(self),
+                    graph: dag,
+                    source: static_mediation_source(self),
+                }
+            }
+            (AnalysisRoute::Transport, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
                 RouteInput::TransportMixed { data: tabular(self), query: transport(self), class }
             }
-            (AnalysisRoute::Interference, GraphClass::Dag) => RouteInput::InterferenceDag {
+            (AnalysisRoute::Interference, GraphRef::Dag(dag)) => RouteInput::InterferenceDag {
                 data: tabular(self),
                 query: interference(self),
-                graph: dag(self),
+                graph: dag,
             },
-            (AnalysisRoute::RandomizedEffect, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::RandomizedEffect, GraphRef::RandomizedTrial) => {
                 RouteInput::RandomizedEffect { data: tabular(self), query: randomized_effect(self) }
             }
-            (AnalysisRoute::PolicyValue, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::PolicyValue, GraphRef::RandomizedTrial) => {
                 RouteInput::PolicyValue { data: tabular(self), query: policy_value(self) }
             }
-            (AnalysisRoute::PanelDid, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::PanelDid, GraphRef::RandomizedTrial) => {
                 RouteInput::PanelDid { data: tabular(self), query: panel_did(self) }
             }
-            (AnalysisRoute::SyntheticControl, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::SyntheticControl, GraphRef::RandomizedTrial) => {
                 RouteInput::SyntheticControl { data: tabular(self), query: synthetic_control(self) }
             }
-            (AnalysisRoute::ContinuousDoseResponse, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::ContinuousDoseResponse, GraphRef::RandomizedTrial) => {
                 RouteInput::ContinuousDoseResponse {
                     data: tabular(self),
                     query: continuous_dose(self),
                 }
             }
-            (AnalysisRoute::LocalPolynomialRatio, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::LocalPolynomialRatio, GraphRef::RandomizedTrial) => {
                 RouteInput::LocalPolynomialRatio {
                     data: tabular(self),
                     query: local_polynomial_ratio(self),
                 }
             }
-            (AnalysisRoute::Survival, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::Survival, GraphRef::RandomizedTrial) => {
                 RouteInput::Survival { data: tabular(self), query: survival(self) }
             }
-            (AnalysisRoute::LongitudinalRegime, GraphClass::RandomizedTrial) => {
+            (AnalysisRoute::LongitudinalRegime, GraphRef::RandomizedTrial) => {
                 RouteInput::LongitudinalRegime {
                     data: tabular(self),
                     query: longitudinal_regime(self),
                 }
             }
-            (route, GraphClass::Dag) if is_gcm_route(route) => {
-                RouteInput::GcmDag { data: tabular(self), route, graph: dag(self) }
+            (route, GraphRef::Dag(dag)) if is_gcm_route(route) => {
+                RouteInput::GcmDag { data: tabular(self), route, graph: dag }
             }
             (
                 AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution,
-                GraphClass::TemporalDag,
+                GraphRef::TemporalDag(_),
             ) => RouteInput::GcmTemporal { data: series(self) },
             (
                 AnalysisRoute::TemporalCrossWorld,
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+                GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
             ) => RouteInput::TemporalCrossWorldClass { data: series(self), class },
-            (AnalysisRoute::TemporalCrossWorld, GraphClass::TemporalDag) => {
-                RouteInput::TemporalCrossWorldDag { data: series(self), graph: temporal_dag(self) }
+            (AnalysisRoute::TemporalCrossWorld, GraphRef::TemporalDag(temporal_dag)) => {
+                RouteInput::TemporalCrossWorldDag { data: series(self), graph: temporal_dag }
             }
             _ => return None,
         })
@@ -582,24 +585,4 @@ fn static_mediation_source(study: &Study) -> StaticMediationSource<'_> {
         CausalQuery::NestedCounterfactual(query) => StaticMediationSource::Nested(query),
         _ => unreachable!(),
     }
-}
-
-fn dag(study: &Study) -> &Dag {
-    study.graph.as_dag().expect("class() == Dag implies as_dag() is Some")
-}
-
-fn pag(study: &Study) -> &Pag {
-    study.graph.as_pag().expect("class() == Pag implies as_pag() is Some")
-}
-
-fn cpdag(study: &Study) -> &Cpdag {
-    study.graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some")
-}
-
-fn admg(study: &Study) -> &Admg {
-    study.graph.as_admg().expect("class() == Admg implies as_admg() is Some")
-}
-
-fn temporal_dag(study: &Study) -> &TemporalDag {
-    study.graph.as_temporal_dag().expect("class() == TemporalDag implies as_temporal_dag() is Some")
 }

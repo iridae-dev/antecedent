@@ -21,7 +21,7 @@ use antecedent_identify::{
     TemporalClassEnvelope,
 };
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::strategy_table::{
     self, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_IDENTIFIER_ID,
@@ -233,9 +233,8 @@ fn identify_with_source(
     ) {
         crate::support::refuse_if_not_applicable(cell)?;
     }
-    match structure.class() {
-        GraphClass::Dag => {
-            let dag = structure.as_dag().expect("class() == Dag implies as_dag() is Some");
+    match structure.graph_ref() {
+        GraphRef::Dag(dag) => {
             let id_query = static_identify_query(query);
             let result = identify_static_query(strategy, dag, &id_query)?;
             Ok(Identification::Point {
@@ -245,8 +244,7 @@ fn identify_with_source(
                 structure_version,
             })
         }
-        GraphClass::Cpdag => {
-            let cpdag = structure.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
+        GraphRef::Cpdag(cpdag) => {
             let envelope = if let CausalQuery::Response(response) = query {
                 strategy_table::identify_cpdag_response(strategy, cpdag, response)?
             } else {
@@ -254,8 +252,7 @@ fn identify_with_source(
             };
             Ok(Identification::CpdagEnvelope { envelope, strategy, structure_version })
         }
-        GraphClass::Pag => {
-            let pag = structure.as_pag().expect("class() == Pag implies as_pag() is Some");
+        GraphRef::Pag(pag) => {
             let envelope = if let CausalQuery::Response(response) = query {
                 strategy_table::identify_pag_response(strategy, pag, response)?
             } else {
@@ -263,8 +260,7 @@ fn identify_with_source(
             };
             Ok(Identification::Envelope { envelope, strategy, structure_version })
         }
-        GraphClass::Admg => {
-            let admg = structure.as_admg().expect("class() == Admg implies as_admg() is Some");
+        GraphRef::Admg(admg) => {
             let CausalQuery::AverageEffect(average_effect) = query else {
                 return Err(CausalError::Unsupported {
                     message: "ADMG identification supports only CausalQuery::AverageEffect",
@@ -278,10 +274,7 @@ fn identify_with_source(
                 structure_version,
             })
         }
-        GraphClass::TemporalAdmg => {
-            let temporal = structure
-                .as_temporal_admg()
-                .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
+        GraphRef::TemporalAdmg(temporal) => {
             let admg = temporal
                 .project_preserving_functional()
                 .map_err(|error| CausalError::Compile { message: error.to_string() })?;
@@ -299,10 +292,7 @@ fn identify_with_source(
                 structure_version,
             })
         }
-        GraphClass::TemporalDag => {
-            let dag = structure
-                .as_temporal_dag()
-                .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+        GraphRef::TemporalDag(dag) => {
             let CausalQuery::TemporalEffect(q) = query else {
                 return Err(CausalError::Unsupported {
                     message: "TemporalDag identification supports only CausalQuery::TemporalEffect",
@@ -319,20 +309,14 @@ fn identify_with_source(
                 structure_version,
             })
         }
-        GraphClass::TemporalCpdag => {
-            let cpdag = structure
-                .as_temporal_cpdag()
-                .expect("class() == TemporalCpdag implies as_temporal_cpdag() is Some");
+        GraphRef::TemporalCpdag(cpdag) => {
             let q = temporal_class_identify_query(query, "TemporalCpdag")?;
             let mut envelope = identify_temporal_cpdag(strategy, cpdag, &q)?;
             refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
             audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
             Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
         }
-        GraphClass::TemporalPag => {
-            let pag = structure
-                .as_temporal_pag()
-                .expect("class() == TemporalPag implies as_temporal_pag() is Some");
+        GraphRef::TemporalPag(pag) => {
             if matches!(query, CausalQuery::Mediation(_)) {
                 return Err(CausalError::Unsupported {
                     message: "Latent-confounded TemporalPag natural mediation is outside the \
@@ -345,7 +329,7 @@ fn identify_with_source(
             audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
             Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
         }
-        GraphClass::RandomizedTrial => Err(CausalError::Unsupported {
+        GraphRef::RandomizedTrial => Err(CausalError::Unsupported {
             message: "randomized trial queries are identified by the dedicated experiment route",
         }),
     }
@@ -465,14 +449,16 @@ fn audit_temporal_class_horizons(
         }
         let mut qh = witness.clone();
         qh.horizon_steps = horizon;
-        let mut local = if let Some(graph) = structure.as_temporal_cpdag() {
-            identify_temporal_cpdag(strategy, graph, &qh)?
-        } else {
-            identify_temporal_pag(
-                strategy,
-                structure.as_temporal_pag().expect("temporal class"),
-                &qh,
-            )?
+        let mut local = match structure.graph_ref() {
+            GraphRef::TemporalCpdag(graph) => identify_temporal_cpdag(strategy, graph, &qh)?,
+            GraphRef::TemporalPag(graph) => identify_temporal_pag(strategy, graph, &qh)?,
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "temporal class horizon audit requires a TemporalCpdag or \
+                              TemporalPag"
+                        .into(),
+                });
+            }
         };
         refine_temporal_class_identification(&mut local, query, horizon)?;
         primary.envelope.truncated_completions =

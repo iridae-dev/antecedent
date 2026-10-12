@@ -14,10 +14,10 @@ use antecedent_identify::IdentificationEnvelope;
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
-use crate::AcceptedGraph;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::support::StructureSource;
+use crate::{AcceptedGraph, GraphRef};
 
 impl Study {
     /// Structure was supplied explicitly or accepted from review, not
@@ -68,35 +68,31 @@ pub(crate) fn same_accepted_graph(retained: &AcceptedGraph, current: &AcceptedGr
         && retained.version() == current.version()
         && retained.algorithm_id() == current.algorithm_id()
         && retained.variable_names() == current.variable_names()
-        && retained.as_dag() == current.as_dag()
-        && retained.as_admg() == current.as_admg()
-        && retained.as_cpdag() == current.as_cpdag()
-        && retained.as_pag() == current.as_pag()
-        && retained.as_temporal_dag() == current.as_temporal_dag()
-        && retained.as_temporal_cpdag() == current.as_temporal_cpdag()
-        && retained.as_temporal_pag() == current.as_temporal_pag()
-        && same_temporal_admg(retained.as_temporal_admg(), current.as_temporal_admg())
+        && match (retained.graph_ref(), current.graph_ref()) {
+            (GraphRef::Dag(a), GraphRef::Dag(b)) => a == b,
+            (GraphRef::Admg(a), GraphRef::Admg(b)) => a == b,
+            (GraphRef::Cpdag(a), GraphRef::Cpdag(b)) => a == b,
+            (GraphRef::Pag(a), GraphRef::Pag(b)) => a == b,
+            (GraphRef::TemporalDag(a), GraphRef::TemporalDag(b)) => a == b,
+            (GraphRef::TemporalCpdag(a), GraphRef::TemporalCpdag(b)) => a == b,
+            (GraphRef::TemporalPag(a), GraphRef::TemporalPag(b)) => a == b,
+            (GraphRef::TemporalAdmg(a), GraphRef::TemporalAdmg(b)) => same_temporal_admg(a, b),
+            (GraphRef::RandomizedTrial, GraphRef::RandomizedTrial) => true,
+            _ => false,
+        }
 }
 
 fn same_temporal_admg(
-    retained: Option<&antecedent_graph::TemporalAdmg>,
-    current: Option<&antecedent_graph::TemporalAdmg>,
+    a: &antecedent_graph::TemporalAdmg,
+    b: &antecedent_graph::TemporalAdmg,
 ) -> bool {
-    match (retained, current) {
-        (None, None) => true,
-        (Some(a), Some(b)) => {
-            a.nodes() == b.nodes()
-                && (0..a.node_count()).all(|i| {
-                    let id = antecedent_graph::DenseNodeId::from_raw(
-                        u32::try_from(i).unwrap_or(u32::MAX),
-                    );
-                    a.children(id) == b.children(id)
-                        && a.parents(id) == b.parents(id)
-                        && a.bidirected_neighbors(id) == b.bidirected_neighbors(id)
-                })
-        }
-        _ => false,
-    }
+    a.nodes() == b.nodes()
+        && (0..a.node_count()).all(|i| {
+            let id = antecedent_graph::DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+            a.children(id) == b.children(id)
+                && a.parents(id) == b.parents(id)
+                && a.bidirected_neighbors(id) == b.bidirected_neighbors(id)
+        })
 }
 
 /// Completion count and identified / unidentified mass of an envelope.

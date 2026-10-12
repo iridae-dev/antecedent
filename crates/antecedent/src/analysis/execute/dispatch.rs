@@ -736,35 +736,26 @@ impl super::Study {
             }
             AnalysisRoute::Response => {
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                match self.graph.class() {
-                    GraphClass::Dag => {
-                        let graph = self.require_execute_dag(
-                            "Response execute requires a supplied static DAG",
-                        )?;
-                        self.execute_response(
-                            data,
-                            graph,
-                            q,
-                            physical,
-                            execution.response_curve(),
-                            ctx,
-                        )
-                    }
-                    GraphClass::Cpdag | GraphClass::Pag => {
+                match self.graph.graph_ref() {
+                    GraphRef::Dag(graph) => self.execute_response(
+                        data,
+                        graph,
+                        q,
+                        physical,
+                        execution.response_curve(),
+                        ctx,
+                    ),
+                    GraphRef::Cpdag(_) | GraphRef::Pag(_) => {
                         self.execute_class_response(data, q, physical, ctx)
                     }
-                    GraphClass::Admg
+                    GraphRef::Admg(_)
                         if self.tiered.as_ref().is_some_and(|b| {
                             b.within_tier == antecedent_graph::WithinTier::CoDetermined
                         }) =>
                     {
                         self.execute_codetermined_joint_response(data, q, physical, ctx)
                     }
-                    GraphClass::Admg => {
-                        let admg = self
-                            .graph
-                            .as_admg()
-                            .expect("class() == Admg implies as_admg() is Some");
+                    GraphRef::Admg(admg) => {
                         if admg_has_bidirected(admg) {
                             self.execute_admg_response(data, admg, q, physical, ctx)
                         } else {
@@ -776,11 +767,8 @@ impl super::Study {
                             self.execute_response(data, graph, q, physical, None, ctx)
                         }
                     }
-                    GraphClass::TemporalAdmg => {
-                        let admg =
-                            temporal_admg_projection(self.graph.as_temporal_admg().expect(
-                                "class() == TemporalAdmg implies as_temporal_admg() is Some",
-                            ))?;
+                    GraphRef::TemporalAdmg(temporal) => {
+                        let admg = temporal_admg_projection(temporal)?;
                         if admg_has_bidirected(&admg) {
                             self.execute_admg_response(data, &admg, q, physical, ctx)
                         } else {
@@ -813,35 +801,21 @@ impl super::Study {
                         estimator,
                     );
                 }
-                match self.graph.class() {
-                    GraphClass::Dag => {
-                        let graph =
-                            self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                        self.execute_static(
-                            data,
-                            graph,
-                            q,
-                            physical,
-                            execution.linear_operation(),
-                            execution.aipw_operation(),
-                            execution.frontdoor_linear(),
-                            execution.bayesian_gcomp(),
-                            execution.iv(),
-                            ctx,
-                        )
-                    }
-                    GraphClass::Cpdag => {
-                        let cpdag = self
-                            .graph
-                            .as_cpdag()
-                            .expect("class() == Cpdag implies as_cpdag() is Some");
-                        self.execute_cpdag(data, cpdag, q, physical, ctx)
-                    }
-                    GraphClass::Admg => {
-                        let admg = self
-                            .graph
-                            .as_admg()
-                            .expect("class() == Admg implies as_admg() is Some");
+                match self.graph.graph_ref() {
+                    GraphRef::Dag(graph) => self.execute_static(
+                        data,
+                        graph,
+                        q,
+                        physical,
+                        execution.linear_operation(),
+                        execution.aipw_operation(),
+                        execution.frontdoor_linear(),
+                        execution.bayesian_gcomp(),
+                        execution.iv(),
+                        ctx,
+                    ),
+                    GraphRef::Cpdag(cpdag) => self.execute_cpdag(data, cpdag, q, physical, ctx),
+                    GraphRef::Admg(admg) => {
                         if admg_has_bidirected(admg) {
                             self.execute_admg(data, admg, q, physical, ctx)
                         } else {
@@ -864,17 +838,14 @@ impl super::Study {
                             )
                         }
                     }
-                    GraphClass::Pag => {
+                    GraphRef::Pag(_) => {
                         let pag = physical.static_pag().ok_or(CausalError::Compile {
                             message: "Ready PAG plan missing resolved static PAG".into(),
                         })?;
                         self.execute_pag(data, pag, q, physical, ctx)
                     }
-                    GraphClass::TemporalAdmg => {
-                        let admg =
-                            temporal_admg_projection(self.graph.as_temporal_admg().expect(
-                                "class() == TemporalAdmg implies as_temporal_admg() is Some",
-                            ))?;
+                    GraphRef::TemporalAdmg(temporal) => {
+                        let admg = temporal_admg_projection(temporal)?;
                         if admg_has_bidirected(&admg) {
                             self.execute_admg(data, &admg, q, physical, ctx)
                         } else {
@@ -897,50 +868,37 @@ impl super::Study {
                             )
                         }
                     }
-                    GraphClass::TemporalDag
-                    | GraphClass::TemporalCpdag
-                    | GraphClass::TemporalPag => Err(CausalError::Unsupported {
+                    GraphRef::TemporalDag(_)
+                    | GraphRef::TemporalCpdag(_)
+                    | GraphRef::TemporalPag(_) => Err(CausalError::Unsupported {
                         message: "static ATE execute requires a static graph class",
                     }),
-                    GraphClass::RandomizedTrial => Err(CausalError::Unsupported {
+                    GraphRef::RandomizedTrial => Err(CausalError::Unsupported {
                         message: "randomized trial queries require the dedicated experiment execute route",
                     }),
                 }
             }
             AnalysisRoute::Distribution => {
                 let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
-                match self.graph.class() {
-                    GraphClass::Dag => {
-                        let graph = self.require_execute_dag(
-                            "Distribution execute requires a supplied static DAG",
-                        )?;
-                        self.execute_distribution(
-                            data,
-                            super::static_path::DistributionGraph::Dag(graph),
-                            q,
-                            physical,
-                            execution.distribution(),
-                            ctx,
-                        )
-                    }
-                    GraphClass::Admg => {
-                        let admg = self.graph.as_admg().ok_or(CausalError::Compile {
-                            message: "Distribution ADMG execute missing ADMG".into(),
-                        })?;
-                        self.execute_distribution(
-                            data,
-                            super::static_path::DistributionGraph::Admg(admg),
-                            q,
-                            physical,
-                            execution.distribution(),
-                            ctx,
-                        )
-                    }
-                    GraphClass::TemporalAdmg => {
-                        let admg =
-                            temporal_admg_projection(self.graph.as_temporal_admg().expect(
-                                "class() == TemporalAdmg implies as_temporal_admg() is Some",
-                            ))?;
+                match self.graph.graph_ref() {
+                    GraphRef::Dag(graph) => self.execute_distribution(
+                        data,
+                        super::static_path::DistributionGraph::Dag(graph),
+                        q,
+                        physical,
+                        execution.distribution(),
+                        ctx,
+                    ),
+                    GraphRef::Admg(admg) => self.execute_distribution(
+                        data,
+                        super::static_path::DistributionGraph::Admg(admg),
+                        q,
+                        physical,
+                        execution.distribution(),
+                        ctx,
+                    ),
+                    GraphRef::TemporalAdmg(temporal) => {
+                        let admg = temporal_admg_projection(temporal)?;
                         self.execute_distribution(
                             data,
                             super::static_path::DistributionGraph::Admg(&admg),

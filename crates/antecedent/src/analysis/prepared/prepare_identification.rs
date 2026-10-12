@@ -7,7 +7,7 @@ use super::{
     CachedTemporalClassIdentification, CachedTemporalHorizonIdentification,
     CachedTemporalIdentification, discrete_set_treatments,
 };
-use crate::accepted::GraphClass;
+use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -228,15 +228,7 @@ impl Study {
                 if matches!(self.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg) {
                     use crate::strategy_table::identify_admg;
 
-                    let admg = match self.graph.class() {
-                        GraphClass::Admg => self.graph.as_admg().cloned(),
-                        GraphClass::TemporalAdmg => self
-                            .graph
-                            .as_temporal_admg()
-                            .map(|graph| crate::analysis::execute::temporal_admg_projection(graph))
-                            .transpose()?,
-                        _ => None,
-                    };
+                    let admg = self.graph.graph_ref().projected_admg()?;
                     let Some(admg) = admg else {
                         return Err(CausalError::Compile {
                             message: "ADMG prepare missing supplied graph".into(),
@@ -248,10 +240,10 @@ impl Study {
                         return Ok(Some(CachedStaticIdentification { identification, estimand }));
                     }
                 }
-                let graph = match self.graph.class() {
-                    GraphClass::Dag => self.graph.as_dag().cloned(),
-                    GraphClass::Admg | GraphClass::TemporalAdmg => plan.static_graph().cloned(),
-                    GraphClass::Cpdag => return Ok(None),
+                let graph = match self.graph.graph_ref() {
+                    GraphRef::Dag(dag) => Some(dag.clone()),
+                    GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) => plan.static_graph().cloned(),
+                    GraphRef::Cpdag(_) => return Ok(None),
                     _ => None,
                 };
                 let Some(graph) = graph else {
@@ -308,15 +300,7 @@ impl Study {
                     )?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
-                let response_admg = match self.graph.class() {
-                    GraphClass::Admg => self.graph.as_admg().cloned(),
-                    GraphClass::TemporalAdmg => self
-                        .graph
-                        .as_temporal_admg()
-                        .map(|graph| crate::analysis::execute::temporal_admg_projection(graph))
-                        .transpose()?,
-                    _ => None,
-                };
+                let response_admg = self.graph.graph_ref().projected_admg()?;
                 if let Some(admg) = response_admg
                     .as_ref()
                     .filter(|admg| crate::analysis::execute::admg_has_bidirected(admg))
@@ -361,16 +345,9 @@ impl Study {
                     let estimand = select_estimand(&identification, estimator_id)?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
-                let graph = match (self.graph.as_dag(), plan.static_graph()) {
-                    (Some(dag), _) => Some(dag.clone()),
-                    (None, Some(dag))
-                        if matches!(
-                            self.graph.class(),
-                            GraphClass::Admg | GraphClass::TemporalAdmg
-                        ) =>
-                    {
-                        Some(dag.clone())
-                    }
+                let graph = match (self.graph.graph_ref(), plan.static_graph()) {
+                    (GraphRef::Dag(dag), _) => Some(dag.clone()),
+                    (GraphRef::Admg(_) | GraphRef::TemporalAdmg(_), Some(dag)) => Some(dag.clone()),
                     _ => None,
                 };
                 let Some(graph) = graph else {
@@ -388,8 +365,10 @@ impl Study {
                 })?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
-            CausalQuery::Mediation(query) if self.graph.class() == GraphClass::Dag => {
-                let graph = self.graph.as_dag().expect("Dag");
+            CausalQuery::Mediation(query) => {
+                let GraphRef::Dag(graph) = self.graph.graph_ref() else {
+                    return Ok(None);
+                };
                 let identification = identify_static_query(
                     IdentifierId::PathSpecificNatural,
                     graph,
@@ -434,15 +413,14 @@ impl Study {
                 let (identifier_id, estimator_id) =
                     plan.binding().resolve(RouteDefaults::DISTRIBUTION)?;
                 let projected;
-                let graph = if let Some(admg) = self.graph.as_admg() {
-                    DistributionGraph::Admg(admg)
-                } else if let Some(temporal) = self.graph.as_temporal_admg() {
-                    projected = crate::analysis::execute::temporal_admg_projection(temporal)?;
-                    DistributionGraph::Admg(&projected)
-                } else if let Some(dag) = self.graph.as_dag() {
-                    DistributionGraph::Dag(dag)
-                } else {
-                    return Ok(None);
+                let graph = match self.graph.graph_ref() {
+                    GraphRef::Admg(admg) => DistributionGraph::Admg(admg),
+                    GraphRef::TemporalAdmg(temporal) => {
+                        projected = crate::analysis::execute::temporal_admg_projection(temporal)?;
+                        DistributionGraph::Admg(&projected)
+                    }
+                    GraphRef::Dag(dag) => DistributionGraph::Dag(dag),
+                    _ => return Ok(None),
                 };
                 let identification = graph.identify(identifier_id, query)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
@@ -491,12 +469,9 @@ impl Study {
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
         };
-        if self.graph.class() != GraphClass::Cpdag {
+        let GraphRef::Cpdag(cpdag) = self.graph.graph_ref() else {
             return Ok(None);
-        }
-        let cpdag = self.graph.as_cpdag().ok_or_else(|| CausalError::Compile {
-            message: "CPDAG prepare missing supplied graph".into(),
-        })?;
+        };
         let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG)?;
         let envelope = if let CausalQuery::Response(response) = &self.query {
             crate::strategy_table::identify_cpdag_response(identifier_id, cpdag, response)?
@@ -528,12 +503,9 @@ impl Study {
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
         use crate::strategy_table::{EstimatorId, select_estimand};
-        if self.graph.class() != GraphClass::TemporalDag {
+        let GraphRef::TemporalDag(graph) = self.graph.graph_ref() else {
             return Ok(None);
-        }
-        let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
-            message: "temporal prepare requires TemporalDag".into(),
-        })?;
+        };
         match &self.query {
             CausalQuery::Response(query) => {
                 let Some(temporal) = query.temporal.as_ref() else {
@@ -646,12 +618,9 @@ impl Study {
         let CausalQuery::Mediation(query) = &self.query else {
             return Ok(None);
         };
-        if self.graph.class() != GraphClass::TemporalDag {
+        let GraphRef::TemporalDag(graph) = self.graph.graph_ref() else {
             return Ok(None);
-        }
-        let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
-            message: "temporal mediation prepare requires TemporalDag".into(),
-        })?;
+        };
         Ok(Some(identify_temporal_mediation_horizons(
             graph,
             query,

@@ -4,7 +4,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
-use crate::accepted::GraphClass;
 use crate::analysis::builder::RefuteSuite;
 use crate::analysis::execute::CheckedStaticCommon;
 use crate::analysis::execute::RouteInput;
@@ -208,17 +207,10 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                     message: "ADMG response curve has no grid members".into(),
                 });
             }
-            let admg = match analysis.graph.class() {
-                GraphClass::Admg => analysis.graph.as_admg().cloned(),
-                GraphClass::TemporalAdmg => analysis
-                    .graph
-                    .as_temporal_admg()
-                    .map(crate::analysis::execute::temporal_admg_projection)
-                    .transpose()?,
-                _ => None,
-            }
-            .ok_or_else(|| CausalError::Compile {
-                message: "ADMG response operation lacks an ADMG graph".into(),
+            let admg = analysis.graph.graph_ref().projected_admg()?.ok_or_else(|| {
+                CausalError::Compile {
+                    message: "ADMG response operation lacks an ADMG graph".into(),
+                }
             })?;
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
             fitter.bootstrap_replicates = analysis.bootstrap_replicates;

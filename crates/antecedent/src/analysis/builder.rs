@@ -23,7 +23,7 @@ use antecedent_graph::{
 };
 use antecedent_validate::CustomEffectValidator;
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::estimator_spec::EstimatorSpec;
 use crate::inference::InferenceMode;
@@ -473,16 +473,16 @@ pub(super) fn data_schema(data: &DataInput) -> &CausalSchema {
 /// (`Dag`, `Admg`, `Cpdag`, `Pag`) are positional — node `i` *is* variable `i` — so
 /// their node count is directly comparable to a schema's variable count.
 fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
-    match graph.class() {
-        GraphClass::Dag => graph.as_dag().map(Dag::node_count),
-        GraphClass::Admg => graph.as_admg().map(Admg::node_count),
-        GraphClass::Cpdag => graph.as_cpdag().map(Cpdag::node_count),
-        GraphClass::Pag => graph.as_pag().map(Pag::node_count),
-        GraphClass::TemporalDag
-        | GraphClass::TemporalCpdag
-        | GraphClass::TemporalPag
-        | GraphClass::TemporalAdmg
-        | GraphClass::RandomizedTrial => None,
+    match graph.graph_ref() {
+        GraphRef::Dag(g) => Some(g.node_count()),
+        GraphRef::Admg(g) => Some(g.node_count()),
+        GraphRef::Cpdag(g) => Some(g.node_count()),
+        GraphRef::Pag(g) => Some(g.node_count()),
+        GraphRef::TemporalDag(_)
+        | GraphRef::TemporalCpdag(_)
+        | GraphRef::TemporalPag(_)
+        | GraphRef::TemporalAdmg(_)
+        | GraphRef::RandomizedTrial => None,
     }
 }
 

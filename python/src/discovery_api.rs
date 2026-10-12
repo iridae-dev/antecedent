@@ -7,6 +7,7 @@
 )]
 
 use crate::*;
+use antecedent::GraphRef;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -264,25 +265,23 @@ pub(crate) fn accepted_graph_object(
     names: &[String],
 ) -> PyResult<Py<PyAny>> {
     let names = names.to_vec();
-    if let Some(g) = accepted.as_dag() {
-        return Ok(Py::new(py, graphs::Dag { dag: g.clone(), names })?.into_any());
+    match accepted.graph_ref() {
+        GraphRef::Dag(g) => Ok(Py::new(py, graphs::Dag { dag: g.clone(), names })?.into_any()),
+        GraphRef::Cpdag(g) => {
+            Ok(Py::new(py, graphs::Cpdag { cpdag: g.clone(), names })?.into_any())
+        }
+        GraphRef::Pag(g) => Ok(Py::new(py, graphs::Pag { pag: g.clone(), names })?.into_any()),
+        GraphRef::TemporalDag(g) => {
+            Ok(Py::new(py, graphs::TemporalDag { dag: g.clone(), names })?.into_any())
+        }
+        GraphRef::TemporalCpdag(g) => {
+            Ok(Py::new(py, graphs::TemporalCpdag { cpdag: g.clone(), names })?.into_any())
+        }
+        GraphRef::TemporalPag(g) => {
+            Ok(Py::new(py, graphs::TemporalPag { pag: g.clone(), names })?.into_any())
+        }
+        _ => Err(PyValueError::new_err("accepted structure has no holdable graph object")),
     }
-    if let Some(g) = accepted.as_cpdag() {
-        return Ok(Py::new(py, graphs::Cpdag { cpdag: g.clone(), names })?.into_any());
-    }
-    if let Some(g) = accepted.as_pag() {
-        return Ok(Py::new(py, graphs::Pag { pag: g.clone(), names })?.into_any());
-    }
-    if let Some(g) = accepted.as_temporal_dag() {
-        return Ok(Py::new(py, graphs::TemporalDag { dag: g.clone(), names })?.into_any());
-    }
-    if let Some(g) = accepted.as_temporal_cpdag() {
-        return Ok(Py::new(py, graphs::TemporalCpdag { cpdag: g.clone(), names })?.into_any());
-    }
-    if let Some(g) = accepted.as_temporal_pag() {
-        return Ok(Py::new(py, graphs::TemporalPag { pag: g.clone(), names })?.into_any());
-    }
-    Err(PyValueError::new_err("accepted structure has no holdable graph object"))
 }
 
 #[pymethods]
@@ -1339,16 +1338,16 @@ fn accept_rpcmci(
             .map_err(py_err)?;
         crate::accept_rpcmci_review(&result, accept_discovered).map_err(py_err)
     })?;
-    if let Some(dag) = accepted.as_temporal_dag() {
-        return Ok(
-            Py::new(py, graphs::TemporalDag { dag: dag.clone(), names: out_names })?.into_any()
-        );
+    match accepted.graph_ref() {
+        GraphRef::TemporalDag(dag) => {
+            Ok(Py::new(py, graphs::TemporalDag { dag: dag.clone(), names: out_names })?.into_any())
+        }
+        GraphRef::TemporalCpdag(cpdag) => {
+            Ok(Py::new(py, graphs::TemporalCpdag { cpdag: cpdag.clone(), names: out_names })?
+                .into_any())
+        }
+        _ => Err(PyValueError::new_err("RPCMCI acceptance produced no temporal graph")),
     }
-    if let Some(cpdag) = accepted.as_temporal_cpdag() {
-        return Ok(Py::new(py, graphs::TemporalCpdag { cpdag: cpdag.clone(), names: out_names })?
-            .into_any());
-    }
-    Err(PyValueError::new_err("RPCMCI acceptance produced no temporal graph"))
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -27,7 +27,7 @@ use antecedent_graph::{
     Admg, Cpdag, Dag, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
 };
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -944,23 +944,23 @@ fn naming_class(matrix: &str) -> Option<GraphClass> {
 /// reason), so there is no Dag-equivalent Pag case.
 #[must_use]
 pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) -> GraphClass {
-    match (graph.class(), query) {
-        (GraphClass::Admg, CausalQuery::AverageEffect(_)) => {
-            let admg = graph.as_admg().expect("class() == Admg implies as_admg() is Some");
-            if admg.has_bidirected() { GraphClass::Admg } else { GraphClass::Dag }
+    match (graph.graph_ref(), query) {
+        (GraphRef::Admg(admg), CausalQuery::AverageEffect(_)) => {
+            if admg.has_bidirected() {
+                GraphClass::Admg
+            } else {
+                GraphClass::Dag
+            }
         }
-        (GraphClass::TemporalAdmg, CausalQuery::AverageEffect(_)) => {
-            let temporal = graph
-                .as_temporal_admg()
-                .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
+        (GraphRef::TemporalAdmg(temporal), CausalQuery::AverageEffect(_)) => {
             match temporal.project_preserving_functional() {
                 Ok(admg) if admg.has_bidirected() => GraphClass::TemporalAdmg,
                 Ok(_) => GraphClass::Dag,
                 Err(_) => GraphClass::TemporalAdmg,
             }
         }
-        (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => GraphClass::Cpdag,
-        (class, _) => class,
+        (GraphRef::Cpdag(_), CausalQuery::AverageEffect(_)) => GraphClass::Cpdag,
+        (graph, _) => graph.class(),
     }
 }
 

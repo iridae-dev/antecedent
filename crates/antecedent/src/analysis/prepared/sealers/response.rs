@@ -17,7 +17,7 @@ use std::sync::Arc;
 pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
     let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_ref()) {
-        (Some(query), Some(cache))
+        (Some((query, graph)), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && analysis.refute == RefuteSuite::None
@@ -40,7 +40,7 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
         {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
             Some(crate::analysis::execute::CheckedDerivativeResponseOperation::checked(
-                analysis.graph.as_dag().expect("checked Dag response"),
+                graph,
                 query,
                 cache,
                 identifier,
@@ -57,7 +57,7 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
     let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_ref()) {
-        (Some(query), Some(cache))
+        (Some((query, graph)), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -101,7 +101,7 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                     )
             {
                 Some(crate::analysis::execute::CheckedStaticDagResponseOperation::checked(
-                    analysis.graph.as_dag().expect("checked DAG response"),
+                    graph,
                     query,
                     cache,
                     identifier,
@@ -122,7 +122,7 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, ctx, .. } = *cx;
     let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
-        (Some(RouteInput::StaticResponseDag { query, .. }), Some(cache))
+        (Some(RouteInput::StaticResponseDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && matches!(
@@ -139,9 +139,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                 && matches!(analysis.inference, InferenceMode::Frequentist)
             {
                 Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
-                    &crate::analysis::execute::CellAipwStructure::Dag(
-                        analysis.graph.as_dag().expect("checked DAG response").clone(),
-                    ),
+                    &crate::analysis::execute::CellAipwStructure::Dag(graph.clone()),
                     query,
                     cache,
                     identifier,
@@ -197,7 +195,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
     let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_ref()) {
-        (Some(query), Some(cache))
+        (Some((query, _)), Some(cache))
             if query.temporal.is_none()
                 && query.observation == antecedent_core::ObservationSpec::Complete
                 && query.target_population == TargetPopulation::AllObserved

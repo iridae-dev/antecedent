@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::AcceptedGraph;
 use crate::GraphClass;
+use crate::GraphRef;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
@@ -76,11 +77,14 @@ impl CheckedTemporalClassEffectOperation {
         custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
-        if !matches!(source_graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
-            return Err(CausalError::Compile {
-                message: "temporal class effect requires a TemporalCpdag or TemporalPag proof"
-                    .into(),
-            });
+        let wrong_class = || CausalError::Compile {
+            message: "temporal class effect requires a TemporalCpdag or TemporalPag proof".into(),
+        };
+        if !matches!(
+            source_graph.graph_ref(),
+            GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_)
+        ) {
+            return Err(wrong_class());
         }
         if identifier != IdentifierId::GeneralizedAdjustment {
             return Err(CausalError::Compile {
@@ -108,24 +112,18 @@ impl CheckedTemporalClassEffectOperation {
         if let Some(max) = max_completions {
             config.max_completions = max;
         }
-        let expected = match source_graph.class() {
-            GraphClass::TemporalCpdag => crate::strategy_table::identify_temporal_cpdag_configured(
-                identifier,
-                source_graph.as_temporal_cpdag().ok_or_else(|| CausalError::Compile {
-                    message: "retained TemporalCpdag class lost its source graph".into(),
-                })?,
-                query,
-                config,
-            )?,
-            GraphClass::TemporalPag => crate::strategy_table::identify_temporal_pag_configured(
-                identifier,
-                source_graph.as_temporal_pag().ok_or_else(|| CausalError::Compile {
-                    message: "retained TemporalPag class lost its source graph".into(),
-                })?,
-                query,
-                config,
-            )?,
-            _ => unreachable!("class checked above"),
+        let expected = match source_graph.graph_ref() {
+            GraphRef::TemporalCpdag(graph) => {
+                crate::strategy_table::identify_temporal_cpdag_configured(
+                    identifier, graph, query, config,
+                )?
+            }
+            GraphRef::TemporalPag(graph) => {
+                crate::strategy_table::identify_temporal_pag_configured(
+                    identifier, graph, query, config,
+                )?
+            }
+            _ => return Err(wrong_class()),
         };
         if !same_temporal_class_proof(&expected, &bundle.envelope) {
             return Err(CausalError::Compile {

@@ -13,7 +13,7 @@ use antecedent_estimate::{ContinuousResponseOptions, OverlapPolicy};
 use antecedent_graph::TieredBackground;
 use antecedent_validate::CustomEffectValidator;
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::estimator_spec::EstimatorSpec;
 use crate::inference::InferenceMode;
@@ -774,11 +774,11 @@ fn cache_cell_aipw(
                 message: "CoDetermined joint cells require estimator cell.aipw",
             });
         }
-        let identification = match graph.as_admg() {
-            Some(admg) => {
+        let identification = match graph.graph_ref() {
+            GraphRef::Admg(admg) => {
                 antecedent_identify::identify_tiered_joint_on(background, admg, response)?
             }
-            None => antecedent_identify::identify_tiered_joint(
+            _ => antecedent_identify::identify_tiered_joint(
                 background,
                 data_schema(&carry.data),
                 response,
@@ -1116,18 +1116,10 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
                     message: "interference network is not used by TransportQuery",
                 });
             }
-            let admg = match spine.graph.class() {
-                GraphClass::Admg => spine.graph.as_admg().cloned(),
-                GraphClass::TemporalAdmg => spine
-                    .graph
-                    .as_temporal_admg()
-                    .map(|temporal| super::super::execute::temporal_admg_projection(temporal))
-                    .transpose()?,
-                _ => None,
-            }
-            .ok_or(CausalError::Unsupported {
-                message: "TransportQuery requires a supplied Admg or TemporalAdmg",
-            })?;
+            let admg =
+                spine.graph.graph_ref().projected_admg()?.ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires a supplied Admg or TemporalAdmg",
+                })?;
             let targets = carry.selection_targets.clone().unwrap_or_default();
             let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)
                 .map_err(|e| CausalError::Compile { message: e.to_string() })?;

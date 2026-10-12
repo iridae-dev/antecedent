@@ -37,6 +37,7 @@ mod temporal;
 use super::{ExecutionKind, PreparedExecution};
 use crate::analysis::execute::{RouteInput, StaticMediationSource, Study};
 use crate::error::CausalError;
+use crate::graph::Dag;
 use crate::planner::{PhysicalExecutionPlan, PlanBinding};
 use antecedent_core::{
     AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, InterventionalDistributionQuery,
@@ -97,10 +98,10 @@ impl<'a> SealContext<'a> {
         }
     }
 
-    /// The query of a tabular static response study over a DAG.
-    pub(super) fn static_response_dag(&self) -> Option<&'a ResponseQuery> {
+    /// The query and graph of a tabular static response study over a DAG.
+    pub(super) fn static_response_dag(&self) -> Option<(&'a ResponseQuery, &'a Dag)> {
         match self.route {
-            Some(RouteInput::StaticResponseDag { query, .. }) => Some(query),
+            Some(RouteInput::StaticResponseDag { query, graph, .. }) => Some((query, graph)),
             _ => None,
         }
     }
