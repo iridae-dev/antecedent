@@ -63,7 +63,7 @@ impl LearnerFactory for NeuralNetLearner {
         if matches!(self.task, PredictionTask::BinaryProbability) {
             crate::dense::require_binary_labels(&gathered_y)?;
         }
-        let mut rng = ctx.rng.stream_for(StreamDomain::Learner, 0x4E45_5500);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::NEURAL);
         let seed = rng.next_u64();
         let binary = matches!(self.task, PredictionTask::BinaryProbability);
         let model = antecedent_learn_burn::train(
@@ -79,7 +79,7 @@ impl LearnerFactory for NeuralNetLearner {
                 seed,
             },
         )
-        .map_err(LearnError::Backend)?;
+        .map_err(|error| LearnError::Backend(error.to_string()))?;
         Ok(Box::new(NeuralNetPredictor { model, task: self.task }))
     }
 }
@@ -100,7 +100,9 @@ impl FittedPredictor for NeuralNetPredictor {
         if out.len() != nrows {
             return Err(LearnError::Shape { message: "predict out length != logical rows" });
         }
-        self.model.predict(&design, nrows, ncols, out).map_err(LearnError::Backend)
+        self.model
+            .predict(&design, nrows, ncols, out)
+            .map_err(|error| LearnError::Backend(error.to_string()))
     }
 
     fn provenance(&self) -> LearnerProvenance {

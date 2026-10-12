@@ -40,9 +40,6 @@ pub struct NuisanceDiagnostics {
     pub challenger_loss: Option<f64>,
 }
 
-/// Stream index of the fold shuffle within [`StreamDomain::Learner`].
-const FOLD_STREAM: u64 = 0xF01D;
-
 /// Assign each physical row to one of `folds` folds through a seeded shuffle.
 ///
 /// Fold membership is *not* a function of row position: an `i % folds` rule makes any
@@ -109,7 +106,7 @@ pub(crate) fn cross_fit(
         });
     }
     let strata = binary_strata(factory.task(), y.values());
-    let mut fold_rng = ctx.rng.stream_for(StreamDomain::Learner, FOLD_STREAM);
+    let mut fold_rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::FOLD_SHUFFLE);
     let fold_assignment =
         assign_folds(x.physical_nrows(), folds, &mut fold_rng, strata.as_deref())?;
     cross_fit_with_folds(factory, x, y, fold_assignment, ctx, transformer)
@@ -269,7 +266,7 @@ pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagno
         PredictionTask::BinaryProbability => {
             let mut logloss = 0.0;
             for i in 0..n {
-                let p = pred[i].clamp(1e-9, 1.0 - 1e-9);
+                let p = crate::learner::clip_probability(pred[i]);
                 let yi = y[i].clamp(0.0, 1.0);
                 logloss -= yi * p.ln() + (1.0 - yi) * (1.0 - p).ln();
             }

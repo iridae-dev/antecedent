@@ -209,7 +209,7 @@ impl FittedPredictor for PortablePredictor {
                     if *logistic {
                         *value = sigmoid(*value);
                     } else if *probability {
-                        *value = value.clamp(1e-9, 1.0 - 1e-9);
+                        *value = crate::learner::clip_probability(*value);
                     }
                 }
             }
@@ -233,7 +233,7 @@ impl FittedPredictor for PortablePredictor {
 
 /// The stable logistic with the provider's explicit probability clip.
 fn sigmoid(value: f64) -> f64 {
-    antecedent_kernels::sigmoid(value).clamp(1e-9, 1.0 - 1e-9)
+    crate::learner::clip_probability(antecedent_kernels::sigmoid(value))
 }
 
 #[cfg(test)]

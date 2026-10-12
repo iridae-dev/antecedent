@@ -115,3 +115,20 @@ pub trait FittedPredictor: Send + Sync {
     /// Implementation provenance.
     fn provenance(&self) -> LearnerProvenance;
 }
+
+/// faer provenance already reported by the linear, ridge, and logistic learners.
+///
+/// Provenance only. Coefficients do not depend on this string.
+pub(crate) const FAER_VERSION: &str = "0.24";
+
+/// Coordinate descent owned by this crate. Not a faer release.
+pub(crate) const COORDINATE_DESCENT_VERSION: &str = "1";
+
+/// Shared clip for binary probabilities so a logit never sees 0 or 1.
+pub(crate) const PROB_CLIP: f64 = 1e-9;
+
+/// Clamp `p` into `[PROB_CLIP, 1 - PROB_CLIP]`.
+#[must_use]
+pub(crate) fn clip_probability(p: f64) -> f64 {
+    p.clamp(PROB_CLIP, 1.0 - PROB_CLIP)
+}

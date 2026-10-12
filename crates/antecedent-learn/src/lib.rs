@@ -13,6 +13,7 @@ pub mod auto;
 pub mod bayesian_basis;
 pub mod bayesian_basis_regression;
 pub mod categorical;
+mod coefficient;
 pub mod crossfit;
 pub mod nested_markov_bayesian;
 pub use categorical::FiniteJoint;
@@ -38,6 +39,7 @@ pub mod neural;
 pub mod posterior_prediction;
 pub mod ridge;
 pub mod spec;
+mod streams;
 pub mod transform;
 
 #[cfg(test)]
@@ -351,6 +353,7 @@ mod tests {
         let fitted = LinearLearner.fit(view, TargetView::new(&y), None, &ctx).unwrap();
         assert_eq!(fitted.provenance().implementation, "faer");
         assert_eq!(fitted.provenance().spec, "linear");
+        assert_eq!(fitted.provenance().version, learner::FAER_VERSION);
         let mut out = vec![0.0; n];
         fitted.predict(view, &mut out, &ctx).unwrap();
         for i in 0..n {

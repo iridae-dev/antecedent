@@ -23,14 +23,10 @@ use antecedent_core::ExecutionContext;
 use antecedent_kernels::{sigmoid, softplus};
 use antecedent_stats::first_col_is_exact_ones;
 
-use crate::dense::{
-    gather_physical, materialize_dense_colmajor, predict_linear, require_binary_labels,
-};
+use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
-use crate::learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
-};
+use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, PredictionTask};
 
 /// Proximal-Newton outer iterations.
 const MAX_NEWTON: usize = 200;
@@ -291,46 +287,13 @@ impl LearnerFactory for LassoLogisticLearner {
         }
         let intercept = first_col_is_exact_ones(&design, nrows);
         let coefficients = solve(&design, nrows, ncols, &gathered_y, self.lambda, intercept)?;
-        Ok(Box::new(LassoLogisticPredictor { coefficients }))
-    }
-}
-
-struct LassoLogisticPredictor {
-    coefficients: Vec<f64>,
-}
-
-impl FittedPredictor for LassoLogisticPredictor {
-    fn predict(
-        &self,
-        x: DesignView<'_>,
-        out: &mut [f64],
-        _ctx: &ExecutionContext,
-    ) -> Result<(), LearnError> {
-        predict_linear(&self.coefficients, x, out)?;
-        for slot in out.iter_mut() {
-            *slot = sigmoid(*slot).clamp(1e-9, 1.0 - 1e-9);
-        }
-        Ok(())
-    }
-
-    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
-        Ok(crate::PortablePredictor {
-            version: 1,
-            columns: self.coefficients.len(),
-            provenance: self.provenance(),
-            model: crate::PredictionMap::Linear {
-                coefficients: self.coefficients.clone(),
-                logistic: true,
-            },
-        })
-    }
-
-    fn provenance(&self) -> LearnerProvenance {
-        LearnerProvenance {
-            spec: "lasso_logistic".into(),
-            implementation: "proximal_newton_coordinate_descent".into(),
-            version: "1".into(),
-        }
+        Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
+            coefficients,
+            true,
+            "lasso_logistic",
+            "proximal_newton_coordinate_descent",
+            crate::learner::COORDINATE_DESCENT_VERSION,
+        )))
     }
 }
 

@@ -75,7 +75,7 @@ impl LearnerFactory for GbtLearner {
         // Forust exposes a global-pool boolean, not a bounded thread lease.
         // Outer folds own the ExecutionContext parallelism budget.
         let parallel = false;
-        let mut seed_rng = ctx.rng.stream_for(StreamDomain::Learner, 1);
+        let mut seed_rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::GBT);
         let objective = match self.task {
             PredictionTask::Regression => ObjectiveType::SquaredLoss,
             PredictionTask::BinaryProbability => ObjectiveType::LogLoss,
@@ -133,7 +133,7 @@ impl FittedPredictor for GbtPredictor {
             PredictionTask::Regression => out.copy_from_slice(&preds),
             PredictionTask::BinaryProbability => {
                 for (slot, raw) in out.iter_mut().zip(preds) {
-                    *slot = antecedent_kernels::sigmoid(raw).clamp(1e-9, 1.0 - 1e-9);
+                    *slot = crate::learner::clip_probability(antecedent_kernels::sigmoid(raw));
                 }
             }
         }

@@ -14,7 +14,7 @@
 
 #![allow(clippy::needless_range_loop, reason = "fixed-size eleven-coordinate algebra")]
 use antecedent_core::{CausalRng, ExecutionContext, RngFactory, StreamDomain};
-use antecedent_kernels::{quantile_type7_sorted, standard_normal};
+use antecedent_kernels::{quantile_type7_sorted, sample_gamma};
 use antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics;
 use serde::{Deserialize, Serialize};
 
@@ -229,23 +229,21 @@ impl Work<'_> {
 fn uniform(rng: &mut CausalRng) -> f64 {
     rng.next_f64().max(1.0 / 9_007_199_254_740_992.0)
 }
-// Bounded Marsaglia-Tsang gamma; existing kernel has unbounded inner loops, so it
-// cannot supply this candidate's cancellation/proposal contract.
+/// Rate-1 gamma via [`sample_gamma`].
+///
+/// One budget unit is spent before the draw so cancellation and the proposal cap are
+/// visible. The kernel's rejection loop does not check the budget; a hit limit refuses
+/// the next draw rather than a proposal inside this one. Draws match the kernel.
 fn gamma(shape: f64, rng: &mut CausalRng, work: &mut Work<'_>) -> Result<f64, BayesianRefusal> {
-    let d = shape - 1.0 / 3.0;
-    let c = 1.0 / (9.0 * d).sqrt();
-    loop {
-        work.spend()?;
-        let x = standard_normal(rng);
-        let root = 1.0 + c * x;
-        if root <= 0.0 {
-            continue;
-        }
-        let v = root * root * root;
-        let u = uniform(rng);
-        if u < 1.0 - 0.0331 * x.powi(4) || u.ln() < 0.5 * x * x + d * (1.0 - v + v.ln()) {
-            return Ok(d * v);
-        }
+    if !(shape.is_finite() && shape > 0.0) {
+        return Err(BayesianRefusal::Numerical("gamma shape"));
+    }
+    work.spend()?;
+    let draw = sample_gamma(shape, 1.0, rng);
+    if draw.is_finite() && draw > 0.0 {
+        Ok(draw)
+    } else {
+        Err(BayesianRefusal::Numerical("gamma draw"))
     }
 }
 fn beta(a: f64, b: f64, rng: &mut CausalRng, work: &mut Work<'_>) -> Result<f64, BayesianRefusal> {
@@ -455,6 +453,21 @@ fn summarize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn gamma_matches_kernel_sampler() {
+        let ctx = ExecutionContext::for_tests(7);
+        let mut work = Work { used: 0, limit: 10_000, ctx: &ctx };
+        for shape in [0.5, 2.5] {
+            let mut local = ctx.rng.stream_for(StreamDomain::Learner, 0);
+            let mut kernel = ctx.rng.stream_for(StreamDomain::Learner, 0);
+            for _ in 0..8 {
+                let draw = gamma(shape, &mut local, &mut work).unwrap();
+                let reference = antecedent_kernels::sample_gamma(shape, 1.0, &mut kernel);
+                assert_eq!(draw.to_bits(), reference.to_bits(), "shape {shape}");
+            }
+        }
+    }
+
     #[test]
     fn model_is_original_eleven_dimensional_law() {
         let p = [0.3, 0.2, 0.8, 0.4, 0.6, 0.3, 0.7, 0.15, 0.25, 0.2, 0.4];

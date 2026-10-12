@@ -8,14 +8,10 @@ use antecedent_stats::{
     fit_glm_ridge,
 };
 
-use crate::dense::{
-    gather_physical, materialize_dense_colmajor, predict_linear, require_binary_labels,
-};
+use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
-use crate::learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
-};
+use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, PredictionTask};
 
 /// Logistic regression via [`fit_glm`] (`BinomialLogit`).
 #[derive(Clone, Copy, Debug, Default)]
@@ -127,7 +123,13 @@ impl LearnerFactory for LogisticLearner {
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
         let fit = fit_logistic(x, y, weights, None)?;
-        Ok(Box::new(LogisticPredictor { fit, implementation: "faer" }))
+        Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
+            fit.coefficients,
+            true,
+            "logistic",
+            "faer",
+            crate::learner::FAER_VERSION,
+        )))
     }
 }
 
@@ -148,46 +150,12 @@ impl LearnerFactory for RidgeLogisticLearner {
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
         let fit = fit_logistic(x, y, weights, Some(self.lambda))?;
-        Ok(Box::new(LogisticPredictor { fit, implementation: "faer_ridge" }))
-    }
-}
-
-struct LogisticPredictor {
-    fit: GlmFit,
-    implementation: &'static str,
-}
-
-impl FittedPredictor for LogisticPredictor {
-    fn predict(
-        &self,
-        x: DesignView<'_>,
-        out: &mut [f64],
-        _ctx: &ExecutionContext,
-    ) -> Result<(), LearnError> {
-        predict_linear(&self.fit.coefficients, x, out)?;
-        for slot in out.iter_mut() {
-            *slot = antecedent_kernels::sigmoid(*slot).clamp(1e-9, 1.0 - 1e-9);
-        }
-        Ok(())
-    }
-
-    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
-        Ok(crate::PortablePredictor {
-            version: 1,
-            columns: self.fit.coefficients.len(),
-            provenance: self.provenance(),
-            model: crate::PredictionMap::Linear {
-                coefficients: self.fit.coefficients.clone(),
-                logistic: true,
-            },
-        })
-    }
-
-    fn provenance(&self) -> LearnerProvenance {
-        LearnerProvenance {
-            spec: "logistic".into(),
-            implementation: self.implementation.into(),
-            version: "0.24".into(),
-        }
+        Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
+            fit.coefficients,
+            true,
+            "logistic",
+            "faer_ridge",
+            crate::learner::FAER_VERSION,
+        )))
     }
 }
