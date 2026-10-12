@@ -3,6 +3,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::execute::CheckedGraphPosteriorResponseInfo;
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -254,5 +257,29 @@ impl CheckedTemporalGraphPosteriorResponse {
                 && candidate.lag_masks.as_deref() == self.posterior.lag_masks.as_deref()
                 && candidate.mark_masks.as_deref() == self.posterior.mark_masks.as_deref()
         })
+    }
+}
+
+/// Frozen temporal response posterior: atom keys, weights, identification
+/// flags, and the selected inference and validation. The retained fields are
+/// those of [`CheckedGraphPosteriorResponseInfo`].
+pub type CheckedTemporalGraphPosteriorResponseInfo = CheckedGraphPosteriorResponseInfo;
+
+impl Inspect for CheckedTemporalGraphPosteriorResponse {
+    type Info = CheckedTemporalGraphPosteriorResponseInfo;
+
+    fn info(&self) -> CheckedTemporalGraphPosteriorResponseInfo {
+        let (graph_keys, weights, identified) = self.atom_weights();
+        CheckedGraphPosteriorResponseInfo {
+            query: self.query().clone(),
+            atom_kind: self.posterior().atom_kind,
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            identifier: self.identifier(),
+            estimator: self.estimator(),
+            inference: inference_label(self.inference()),
+            validation: self.validation(),
+        }
     }
 }

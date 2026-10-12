@@ -1,6 +1,7 @@
 //! Retained target and estimation procedure for a static DAG conditional effect.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use crate::planner::RouteDefaults;
 use std::sync::Arc;
 
@@ -353,4 +354,64 @@ fn rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, CausalEr
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(kept.into())
+}
+
+/// Read-only checked target and procedure for a frequentist static conditional effect.
+#[derive(Clone, Debug)]
+pub struct CheckedConditionalEffectInfo {
+    /// Exact conditional query, including modifiers, arms, and outcome functional.
+    pub query: antecedent_core::ConditionalEffectQuery,
+    /// Source graph class retained with the identification proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Actual scalar or distribution score procedure.
+    pub procedure: std::sync::Arc<str>,
+    /// Invariant adjustment variables retained by the checked proof.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Number of class completions checked, or `None` for a fixed DAG.
+    pub completion_count: Option<usize>,
+    /// Identified completion mass for a class proof.
+    pub identified_mass: Option<f64>,
+    /// Unresolved completion mass for a class proof.
+    pub unresolved_mass: Option<f64>,
+    /// Prepared refutation suite.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Variables in the physical design, retaining their semantic IDs.
+    pub design_roles: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Complete source row indices at preparation or latest refresh.
+    pub source_rows: std::sync::Arc<[u32]>,
+}
+
+impl Inspect for CheckedConditionalOperation {
+    type Info = CheckedConditionalEffectInfo;
+
+    fn info(&self) -> CheckedConditionalEffectInfo {
+        let (completion_count, identified_mass, unresolved_mass) =
+            self.class_proof.as_ref().map_or((None, None, None), |proof| {
+                let (count, identified, unresolved) = proof.completion_mass();
+                (Some(count), Some(identified), Some(unresolved))
+            });
+        CheckedConditionalEffectInfo {
+            query: self.query.clone(),
+            graph_class: self.graph_class(),
+            identifier: self.identifier,
+            estimator: self.estimator,
+            procedure: Arc::from(match self.procedure {
+                ConditionalProcedure::LinearInteraction => "linear_interaction_plugin",
+                ConditionalProcedure::CrossfitAipwDistribution => {
+                    "crossfit_aipw_distribution_scores"
+                }
+            }),
+            adjustment_set: Arc::clone(&self.estimand.adjustment_set),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
+            validation: self.refute,
+            design_roles: Arc::clone(&self.design_roles),
+            source_rows: Arc::clone(&self.source_rows),
+        }
+    }
 }

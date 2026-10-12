@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
 /// One frozen mediation target, identification, row design, and uncertainty procedure.
@@ -224,4 +225,44 @@ fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, Cau
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Into::into)
+}
+
+/// Read-only target, graph, and procedure of a checked static mediation plan.
+#[derive(Clone, Debug)]
+pub struct CheckedStaticMediationInfo {
+    /// Complete contrast, mediators, intervention levels, and population.
+    pub query: antecedent_core::MediationQuery,
+    /// Prepare-time identifier.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Prepare-time estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Identified adjustment roles used by the model.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Source and executable functional root identifiers.
+    pub functional_roots: (u32, u32),
+    /// Canonical supplied DAG edges.
+    pub graph_edges: std::sync::Arc<[(u32, u32)]>,
+    /// Bootstrap replicate budget, including zero for point-only execution.
+    pub bootstrap_replicates: u32,
+    /// Prepare-time validation suite.
+    pub validation: crate::analysis::builder::RefuteSuite,
+}
+
+impl Inspect for CheckedStaticMediationOperation {
+    type Info = CheckedStaticMediationInfo;
+
+    fn info(&self) -> CheckedStaticMediationInfo {
+        let (query, estimand, program, bootstrap_replicates, validation, graph) = self.inspect();
+        let edges = graph.directed_edge_pairs_sorted();
+        CheckedStaticMediationInfo {
+            query: query.clone(),
+            identifier: IdentifierId::PathSpecificNatural,
+            estimator: EstimatorId::StaticMediationLinear,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            functional_roots: (program.mapping().source.raw(), program.mapping().executable.raw()),
+            graph_edges: edges.into(),
+            bootstrap_replicates,
+            validation,
+        }
+    }
 }

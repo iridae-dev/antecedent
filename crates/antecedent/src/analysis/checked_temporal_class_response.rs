@@ -3,10 +3,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use antecedent_core::{
     CausalQuery, ObservationSpec, OutcomeFunctional, ResponseQuery, TargetPopulation,
     TemporalEffectQuery, TemporalNodeKey,
 };
+use std::sync::Arc;
 
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
@@ -263,5 +266,61 @@ impl CheckedTemporalClassResponseOperation {
             .map_or((0.0, 0.0), |(_, envelope)| {
                 (envelope.envelope.identified_weight.0, envelope.envelope.unidentified_weight.0)
             })
+    }
+}
+
+/// Read-only source graph, completion proof, and procedure of a retained
+/// TemporalCpdag/TemporalPag response.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassResponseInfo {
+    /// Exact response functional, policy, and requested horizons.
+    pub query: antecedent_core::ResponseQuery,
+    /// Source class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference mode label fixed during preparation.
+    pub inference: std::sync::Arc<str>,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+    /// Ordered requested horizons, each with a retained completion envelope.
+    pub horizons: std::sync::Arc<[u32]>,
+    /// Number of completion atoms retained for the first requested horizon.
+    pub completion_count: usize,
+    /// Maximum number of class completions searched, when configured.
+    pub completion_limit: Option<usize>,
+    /// Identified enumeration mass retained for the first requested horizon.
+    pub identified_mass: f64,
+    /// Unidentified enumeration mass retained for the first requested horizon.
+    pub unidentified_mass: f64,
+    /// Source graph version sealed with the proof.
+    pub graph_version: u64,
+}
+
+impl Inspect for CheckedTemporalClassResponseOperation {
+    type Info = CheckedTemporalClassResponseInfo;
+
+    fn info(&self) -> CheckedTemporalClassResponseInfo {
+        let (identifier, estimator, bootstrap_replicates, validation) = self.procedure();
+        let (identified_mass, unidentified_mass) = self.enumeration_mass();
+        CheckedTemporalClassResponseInfo {
+            query: self.query().clone(),
+            graph_class: self.graph_class(),
+            identifier,
+            estimator,
+            inference: inference_label(self.inference()),
+            validation,
+            bootstrap_replicates,
+            horizons: Arc::from(self.horizons()),
+            completion_count: self.completion_count(),
+            completion_limit: self.max_completions(),
+            identified_mass,
+            unidentified_mass,
+            graph_version: u64::from(self.structure_version()),
+        }
     }
 }

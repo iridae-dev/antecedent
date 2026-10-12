@@ -59,6 +59,20 @@ mod program;
 mod static_route;
 mod temporal;
 
+/// A sealed operation that has a public inspection record.
+///
+/// The record is built by the operation itself, from the state it retains, and
+/// the public `checked_*_info` accessors of [`PreparedStudy`] are generated
+/// from the list that binds each accessor to its sealed route. An operation
+/// without a public record does not implement this trait.
+pub(crate) trait Inspect {
+    /// The public `Checked*Info` record of this operation.
+    type Info;
+
+    /// Read the record from the retained operation.
+    fn info(&self) -> Self::Info;
+}
+
 /// A retained, checked operation of a prepared handle.
 ///
 /// The three control hooks are required so each operation states how it holds

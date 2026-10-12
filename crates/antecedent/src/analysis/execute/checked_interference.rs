@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum InterferenceProcedure {
@@ -866,6 +867,37 @@ fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::Assumpti
         status: AssumptionStatus::Declared,
     });
     assumptions
+}
+
+/// Read-only target and fixed design for checked interference execution.
+#[derive(Clone, Debug)]
+pub struct CheckedInterferenceInfo {
+    /// Exposure contrast, assignment mechanism, and outcome.
+    pub query: antecedent_core::InterferenceQuery,
+    /// Identifier selected during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator selected during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Number of units in the fixed network.
+    pub unit_count: usize,
+    /// Number of directed network edges.
+    pub network_edge_count: usize,
+}
+
+impl Inspect for CheckedInterferenceOperation {
+    type Info = CheckedInterferenceInfo;
+
+    fn info(&self) -> CheckedInterferenceInfo {
+        let (identifier, estimator) = self.procedure();
+        let (unit_count, network_edge_count) = self.counts();
+        CheckedInterferenceInfo {
+            query: self.query().clone(),
+            identifier,
+            estimator,
+            unit_count,
+            network_edge_count,
+        }
+    }
 }
 
 #[cfg(test)]

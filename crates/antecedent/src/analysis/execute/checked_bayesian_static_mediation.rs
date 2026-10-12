@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
 /// Frozen mediation proof, executable functional, mechanism prior configuration,
@@ -282,6 +283,25 @@ fn bind_mediation_rows(
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Into::into)
+}
+
+impl Inspect for CheckedBayesianStaticMediationOperation {
+    type Info = CheckedStaticMediationInfo;
+
+    fn info(&self) -> CheckedStaticMediationInfo {
+        let (query, estimand, program, validation) = self.inspect();
+        let edges = self.graph().directed_edge_pairs_sorted();
+        CheckedStaticMediationInfo {
+            query: query.clone(),
+            identifier: IdentifierId::PathSpecificNatural,
+            estimator: EstimatorId::StaticMediationLinear,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            functional_roots: (program.mapping().source.raw(), program.mapping().executable.raw()),
+            graph_edges: edges.into(),
+            bootstrap_replicates: 0,
+            validation,
+        }
+    }
 }
 
 #[cfg(test)]

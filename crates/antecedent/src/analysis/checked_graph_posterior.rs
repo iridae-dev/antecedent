@@ -8,6 +8,9 @@
 //! procedure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::accepted::GraphClass;
+use crate::analysis::prepared::Inspect;
+use crate::strategy_table::IdentifierId;
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, PopulationRegistry, ResponseQuery};
@@ -412,6 +415,122 @@ impl CheckedGraphPosteriorEffect {
             &self.posterior.weights,
             &self.identification.graphs.identified,
         )
+    }
+}
+
+/// Read-only checked target and procedure for a static CPDAG/PAG average effect.
+#[derive(Clone, Debug)]
+pub struct CheckedStaticClassEffectInfo {
+    /// Exact average-effect target sealed at preparation.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Source graph class retained with the completion envelope.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference settings (including any Bayesian prior and backend) retained by preparation.
+    pub inference: crate::inference::InferenceMode,
+    /// Prepared refutation suite.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Number of class completions in the retained envelope.
+    pub completion_count: usize,
+    /// Identified completion mass in the retained envelope.
+    pub identified_mass: f64,
+    /// Unresolved completion mass in the retained envelope.
+    pub unresolved_mass: f64,
+}
+
+impl Inspect for CheckedStaticClassEffect {
+    type Info = CheckedStaticClassEffectInfo;
+
+    fn info(&self) -> CheckedStaticClassEffectInfo {
+        let graph_class = match self.identification() {
+            StaticClassIdentification::Cpdag(_) => GraphClass::Cpdag,
+            StaticClassIdentification::Pag(_) => GraphClass::Pag,
+        };
+        let (completion_count, identified_mass, unresolved_mass) =
+            self.identification().envelope_summary();
+        CheckedStaticClassEffectInfo {
+            query: self.query().clone(),
+            graph_class,
+            identifier: IdentifierId::GeneralizedAdjustment,
+            estimator: self.procedure().id(),
+            inference: self.inference().clone(),
+            validation: self.validation(),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
+        }
+    }
+}
+
+/// Read-only graph atoms, frozen weights and procedure retained for a
+/// frequentist DAG graph-posterior effect.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedGraphPosteriorEffectInfo {
+    /// Average-effect query every posterior atom was identified for.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Whether the sealed click estimates a conditional effect over the atoms.
+    pub conditional: bool,
+    /// Static estimator used for every identified atom.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite applied to the atom-wise estimates.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Opaque graph identity per posterior sample.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior weight per graph sample.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Identification status per graph sample, preserving unknown graph mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Procedure-specific bootstrap count retained by preparation.
+    pub bootstrap_replicates: u32,
+}
+
+impl Inspect for CheckedGraphPosteriorEffect {
+    type Info = CheckedGraphPosteriorEffectInfo;
+
+    fn info(&self) -> CheckedGraphPosteriorEffectInfo {
+        let (graph_keys, weights, identified) = self.atom_weights();
+        CheckedGraphPosteriorEffectInfo {
+            query: self.query().clone(),
+            conditional: self.target().is_conditional(),
+            estimator: self.estimator(),
+            validation: self.validation(),
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            bootstrap_replicates: self.bootstrap_replicates(),
+        }
+    }
+}
+
+/// Frozen ADMG response posterior, including atom weights and identification flags.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedAdmgGraphPosteriorResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Frozen graph identity per posterior atom.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior weight per atom.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Identified and unidentified atom status, preserving unresolved mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Validation suite fixed at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+}
+
+impl Inspect for CheckedAdmgGraphPosteriorResponse {
+    type Info = CheckedAdmgGraphPosteriorResponseInfo;
+
+    fn info(&self) -> CheckedAdmgGraphPosteriorResponseInfo {
+        CheckedAdmgGraphPosteriorResponseInfo {
+            query: self.query().clone(),
+            graph_keys: Arc::clone(&self.identification().graphs.graph_keys),
+            weights: Arc::clone(&self.identification().graphs.weights),
+            identified: Arc::clone(&self.identification().graphs.identified),
+            validation: self.validation(),
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 
 /// Checked class envelope together with its result and physical contracts.
 #[derive(Clone)]
@@ -106,5 +107,59 @@ impl CheckedTemporalClassEffectExecution {
             point_only,
             super::finish_identified_execute_with_context(&self.result_context, None, args),
         ))
+    }
+}
+
+/// Read-only source graph, completion proof, and procedure for a temporal
+/// Cpdag/Pag pulse or sustained effect.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassEffectInfo {
+    /// Exact policy, intervention levels, horizon, and target population.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Source class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+    /// Number of completion atoms retained by the checked proof.
+    pub completion_count: usize,
+    /// Maximum number of class completions searched, when configured.
+    pub completion_limit: Option<usize>,
+    /// Identified and unresolved enumeration mass retained by the proof.
+    pub identified_mass: f64,
+    /// Unidentified enumeration mass retained by the proof.
+    pub unidentified_mass: f64,
+    /// Number of completions whose enumeration was cut off.
+    pub truncated_completions: usize,
+    /// Source graph version sealed with the proof.
+    pub graph_version: u64,
+}
+
+impl Inspect for CheckedTemporalClassEffectExecution {
+    type Info = CheckedTemporalClassEffectInfo;
+
+    fn info(&self) -> CheckedTemporalClassEffectInfo {
+        let operation = self.operation();
+        let (identifier, estimator, bootstrap_replicates, _, validation, _) = operation.procedure();
+        let envelope = &operation.bundle().envelope.envelope;
+        CheckedTemporalClassEffectInfo {
+            query: operation.query().clone(),
+            graph_class: operation.graph_class(),
+            identifier,
+            estimator,
+            validation,
+            bootstrap_replicates,
+            completion_count: envelope.cases.len(),
+            completion_limit: operation.max_completions(),
+            identified_mass: envelope.identified_weight.0,
+            unidentified_mass: envelope.unidentified_weight.0,
+            truncated_completions: envelope.truncated_completions,
+            graph_version: u64::from(operation.structure_version()),
+        }
     }
 }

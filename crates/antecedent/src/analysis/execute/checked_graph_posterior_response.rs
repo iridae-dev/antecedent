@@ -11,6 +11,8 @@
 use super::response_path::{graph_posterior_response_supported, response_witness_ate};
 use super::*;
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 
 /// Frozen response route over a DAG, CPDAG or PAG graph posterior.
 #[derive(Clone, Debug)]
@@ -199,6 +201,49 @@ impl super::Study {
                 message: "checked graph-posterior response retained an unsupported atom kind"
                     .into(),
             }),
+        }
+    }
+}
+
+/// Frozen static or temporal graph-posterior response: atom keys, weights,
+/// identification flags, and the selected procedure, inference and validation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedGraphPosteriorResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Atom kind of the frozen posterior.
+    pub atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    /// Identifier fixed at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference procedure label (`frequentist` or `bayesian:<backend>`).
+    pub inference: std::sync::Arc<str>,
+    /// Frozen graph identity per posterior atom.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior weight per atom.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Identified and unidentified atom status, preserving unresolved mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Validation suite fixed at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+}
+
+impl Inspect for CheckedGraphPosteriorResponse {
+    type Info = CheckedGraphPosteriorResponseInfo;
+
+    fn info(&self) -> CheckedGraphPosteriorResponseInfo {
+        let (identifier, estimator) = self.procedure();
+        CheckedGraphPosteriorResponseInfo {
+            query: self.query().clone(),
+            atom_kind: self.posterior().atom_kind,
+            identifier,
+            estimator,
+            inference: inference_label(self.inference()),
+            graph_keys: Arc::clone(&self.identification().graphs.graph_keys),
+            weights: Arc::clone(&self.identification().graphs.weights),
+            identified: Arc::clone(&self.identification().graphs.identified),
+            validation: self.validation(),
         }
     }
 }

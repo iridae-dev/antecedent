@@ -7,6 +7,7 @@ use super::temporal_mediation_core::{
 };
 use super::temporal_path::MediationHorizonClick;
 use super::*;
+use crate::analysis::prepared::Inspect;
 use antecedent_data::LaggedColumn;
 use antecedent_graph::TemporalDag;
 
@@ -282,6 +283,56 @@ fn adjustment_for_horizon(
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Into::into)
+}
+
+/// Read-only target and procedure for a checked temporal mediation family.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalMediationInfo {
+    /// Exact mediation target and requested horizon family.
+    pub query: antecedent_core::MediationQuery,
+    /// Signature of the fixed TemporalDag.
+    pub graph_signature: std::sync::Arc<str>,
+    /// Validation suite selected at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Horizon members retained in order.
+    pub horizons: std::sync::Arc<[u32]>,
+    /// Estimator family fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Graph-derived adjustment node keys retained at each horizon.
+    pub adjustment_sets:
+        std::sync::Arc<[(u32, std::sync::Arc<[antecedent_core::TemporalNodeKey]>)]>,
+}
+
+impl Inspect for CheckedTemporalMediationOperation {
+    type Info = CheckedTemporalMediationInfo;
+
+    fn info(&self) -> CheckedTemporalMediationInfo {
+        let (query, graph, validation, horizons) = self.inspect();
+        CheckedTemporalMediationInfo {
+            query: query.clone(),
+            graph_signature: Arc::from(
+                crate::analysis::checked_temporal_effect::temporal_dag_signature(graph),
+            ),
+            validation,
+            horizons: Arc::from(horizons),
+            estimator: self.estimator(),
+            adjustment_sets: Arc::from(
+                self.horizon_contracts()
+                    .map(|(horizon, _, _, _, design)| {
+                        let keys = design
+                            .iter()
+                            .map(|column| antecedent_core::TemporalNodeKey {
+                                variable: column.variable,
+                                offset: -i32::try_from(column.lag.raw())
+                                    .expect("checked temporal mediation lags fit i32"),
+                            })
+                            .collect::<Vec<_>>();
+                        (horizon, Arc::from(keys))
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        }
+    }
 }
 
 #[cfg(test)]

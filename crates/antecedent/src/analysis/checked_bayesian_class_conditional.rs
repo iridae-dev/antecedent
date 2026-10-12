@@ -7,12 +7,14 @@
 //! fields, so no builder state can change the procedure after preparation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use antecedent_core::{
     CausalQuery, ConditionalEffectQuery, ExecutionContext, OutcomeFunctional, TargetPopulation,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationStatus;
+use std::sync::Arc;
 
 use super::builder::DataInput;
 use super::checked_conditional::ConditionalClassProof;
@@ -227,5 +229,50 @@ impl CheckedBayesianClassConditional {
             &click.data,
         );
         Ok(result)
+    }
+}
+
+/// Read-only checked target and procedure for a Bayesian static class conditional effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianClassConditionalInfo {
+    /// Exact conditional query, including modifiers and arms.
+    pub query: antecedent_core::ConditionalEffectQuery,
+    /// Source graph class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Bayesian prior and inference settings retained by preparation.
+    pub inference: crate::inference::InferenceMode,
+    /// Prepared refutation suite.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Invariant adjustment variables shared by every completion.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Number of class completions checked.
+    pub completion_count: usize,
+    /// Identified completion mass for the class proof.
+    pub identified_mass: f64,
+    /// Unresolved completion mass for the class proof.
+    pub unresolved_mass: f64,
+}
+
+impl Inspect for CheckedBayesianClassConditional {
+    type Info = CheckedBayesianClassConditionalInfo;
+
+    fn info(&self) -> CheckedBayesianClassConditionalInfo {
+        let (completion_count, identified_mass, unresolved_mass) = self.proof().completion_mass();
+        CheckedBayesianClassConditionalInfo {
+            query: self.query().clone(),
+            graph_class: self.proof().graph_class(),
+            identifier: self.identifier(),
+            estimator: EstimatorId::BayesianConditional,
+            inference: self.inference().clone(),
+            validation: self.validation(),
+            adjustment_set: Arc::clone(&self.estimand().adjustment_set),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
+        }
     }
 }

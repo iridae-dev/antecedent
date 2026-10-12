@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use antecedent_core::CausalQuery;
 
 use super::builder::{DataInput, RefuteSuite};
@@ -155,6 +156,63 @@ fn checked_settings(
         "checked Bayesian temporal class operation requires Bayesian inference",
         "checked Bayesian temporal class operation supports none, cheap, or full validation",
     )
+}
+
+/// Read-only source graph, completion proof, and Bayesian model settings for a
+/// temporal Cpdag/Pag pulse or sustained effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianTemporalClassEffectInfo {
+    /// Exact policy, intervention levels, horizon, and target population.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Source class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Requested posterior draws.
+    pub posterior_draws: usize,
+    /// Whether a caller-supplied class mass was sealed with the operation.
+    pub class_prior_supplied: bool,
+    /// Number of completion atoms retained by the checked proof.
+    pub completion_count: usize,
+    /// Maximum number of class completions searched, when configured.
+    pub completion_limit: Option<usize>,
+    /// Identified enumeration mass retained by the proof.
+    pub identified_mass: f64,
+    /// Unidentified enumeration mass retained by the proof.
+    pub unidentified_mass: f64,
+    /// Number of completions whose enumeration was cut off.
+    pub truncated_completions: usize,
+    /// Source graph version sealed with the proof.
+    pub graph_version: u64,
+}
+
+impl Inspect for CheckedBayesianTemporalClassEffectOperation {
+    type Info = CheckedBayesianTemporalClassEffectInfo;
+
+    fn info(&self) -> CheckedBayesianTemporalClassEffectInfo {
+        let target = self.target();
+        let (identifier, _, _, _, _, _) = target.procedure();
+        let envelope = &target.bundle().envelope.envelope;
+        CheckedBayesianTemporalClassEffectInfo {
+            query: target.query().clone(),
+            graph_class: target.graph_class(),
+            identifier,
+            estimator: self.estimator(),
+            validation: self.validation(),
+            posterior_draws: self.config().n_draws,
+            class_prior_supplied: self.class_prior().is_some(),
+            completion_count: envelope.cases.len(),
+            completion_limit: target.max_completions(),
+            identified_mass: envelope.identified_weight.0,
+            unidentified_mass: envelope.unidentified_weight.0,
+            truncated_completions: envelope.truncated_completions,
+            graph_version: u64::from(target.structure_version()),
+        }
+    }
 }
 
 #[cfg(test)]

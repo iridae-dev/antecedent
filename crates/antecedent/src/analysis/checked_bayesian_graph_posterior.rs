@@ -2,6 +2,8 @@
 //! DAG posterior.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
 use antecedent_core::AverageEffectQuery;
@@ -111,5 +113,43 @@ impl CheckedBayesianGraphPosteriorAte {
     }
     pub(crate) const fn latency_mode(&self) -> Option<super::latency::LatencyMode> {
         self.latency_mode
+    }
+}
+
+/// Read-only target and atom identities retained for Bayesian DAG graph-posterior ATE.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianGraphPosteriorAteInfo {
+    /// Average-effect query every posterior atom was identified for.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Whether the sealed click estimates a conditional effect over the atoms.
+    pub conditional: bool,
+    /// Bayesian estimator applied to each identified atom.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite frozen at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Frozen graph identity per posterior sample.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Posterior weight per graph sample.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Identification state per sample, retaining failed atom mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Backend label for the frozen Bayesian configuration.
+    pub inference: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedBayesianGraphPosteriorAte {
+    type Info = CheckedBayesianGraphPosteriorAteInfo;
+
+    fn info(&self) -> CheckedBayesianGraphPosteriorAteInfo {
+        CheckedBayesianGraphPosteriorAteInfo {
+            query: self.query().clone(),
+            conditional: self.target().is_conditional(),
+            estimator: self.procedure().id(),
+            validation: self.validation(),
+            graph_keys: Arc::clone(&self.identification().graphs.graph_keys),
+            weights: Arc::clone(&self.identification().graphs.weights),
+            identified: Arc::clone(&self.identification().graphs.identified),
+            inference: inference_label(self.inference()),
+        }
     }
 }

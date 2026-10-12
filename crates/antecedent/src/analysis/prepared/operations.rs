@@ -9,6 +9,7 @@ use crate::analysis::helpers::{
     AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
     run_plugin_level_refuters, run_refuters,
 };
+use crate::analysis::prepared::Inspect;
 use crate::analysis::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -1680,4 +1681,36 @@ pub(crate) struct CheckedUnknownTieredAverageOperation {
     pub(super) identifier: crate::strategy_table::IdentifierId,
     pub(super) estimator: crate::strategy_table::EstimatorId,
     pub(super) physical: PhysicalExecutionPlan,
+}
+
+/// Public inspection of the retained two-scenario Unknown-tier ATE operation.
+#[derive(Clone, Debug)]
+pub struct CheckedUnknownTieredAverageInfo {
+    /// Frozen average-effect target.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Number of declared tiers.
+    pub tier_count: usize,
+    /// Canonical identified scenarios retained by the checked operation.
+    pub scenario_count: usize,
+    /// Selected identifier.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// The prepared physical plan identity.
+    pub plan_id: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedUnknownTieredAverageOperation {
+    type Info = CheckedUnknownTieredAverageInfo;
+
+    fn info(&self) -> CheckedUnknownTieredAverageInfo {
+        CheckedUnknownTieredAverageInfo {
+            query: self.query.clone(),
+            tier_count: self.background.tiers.len(),
+            scenario_count: self.identification.estimands.len(),
+            identifier: self.identifier,
+            estimator: self.estimator,
+            plan_id: Arc::clone(&self.physical.record.plan_id),
+        }
+    }
 }

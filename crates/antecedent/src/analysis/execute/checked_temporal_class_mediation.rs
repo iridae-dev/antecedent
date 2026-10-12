@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 use crate::analysis::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassIdentification,
     CachedTemporalClassPosteriorIdentification,
@@ -601,5 +602,58 @@ fn middle_tag(middle: antecedent_graph::MiddleMark) -> char {
         antecedent_graph::MiddleMark::Right => 'R',
         antecedent_graph::MiddleMark::Both => '!',
         antecedent_graph::MiddleMark::Empty => '-',
+    }
+}
+
+/// Read-only target, structural proof, and procedure for a checked
+/// TemporalCpdag class-envelope or temporal graph-posterior mediation family.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassMediationInfo {
+    /// Exact mediation target and requested horizon family.
+    pub query: antecedent_core::MediationQuery,
+    /// Class of the fixed source graph or of the posterior's atoms.
+    pub graph_class: crate::accepted::GraphClass,
+    /// How the structure was supplied: explicit, accepted, or a graph posterior.
+    pub structure_source: crate::support::StructureSource,
+    /// Identifier recorded by the checked physical plan.
+    pub identifier: std::sync::Arc<str>,
+    /// Estimator family fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite selected at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Circular-block bootstrap budget fixed at preparation.
+    pub bootstrap_replicates: u32,
+    /// Horizon members retained in order.
+    pub horizons: std::sync::Arc<[u32]>,
+    /// Completion atoms (fixed class) or posterior atoms (graph posterior)
+    /// retained by the proof.
+    pub atom_count: usize,
+    /// Enumeration or posterior mass that identified.
+    pub identified_mass: f64,
+    /// Enumeration or posterior mass that stays unidentified.
+    pub unidentified_mass: f64,
+    /// Signature of the retained source graph or frozen posterior.
+    pub proof_signature: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedTemporalClassMediationOperation {
+    type Info = CheckedTemporalClassMediationInfo;
+
+    fn info(&self) -> CheckedTemporalClassMediationInfo {
+        let (atom_count, identified_mass, unidentified_mass) = self.proof_mass();
+        CheckedTemporalClassMediationInfo {
+            query: self.query().clone(),
+            graph_class: self.graph_class(),
+            structure_source: self.structure_source(),
+            identifier: self.identifier(),
+            estimator: self.estimator(),
+            validation: self.validation(),
+            bootstrap_replicates: self.bootstrap_replicates(),
+            horizons: Arc::clone(&self.query().horizons),
+            atom_count,
+            identified_mass,
+            unidentified_mass,
+            proof_signature: self.proof_signature(),
+        }
     }
 }

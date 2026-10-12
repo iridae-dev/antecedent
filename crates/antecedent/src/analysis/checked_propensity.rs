@@ -4,6 +4,7 @@
 //! different fit procedures and uncertainty products.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -403,6 +404,51 @@ fn set_value(
         _ => Err(compile_error(
             "checked propensity query arms must intervene on the declared treatment",
         )),
+    }
+}
+
+/// Read-only target and uncertainty binding for a prepared propensity route.
+#[derive(Clone, Debug)]
+pub struct CheckedPropensityInfo {
+    /// The selected weighting or matching estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Adjustment variables in the checked target.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Population targeted by the bound design.
+    pub population: antecedent_core::TargetPopulation,
+    /// Source rows retained by the propensity preparation.
+    pub source_rows: std::sync::Arc<[u32]>,
+    /// Named uncertainty procedure.
+    pub uncertainty: std::sync::Arc<str>,
+    /// Bootstrap count only when the weighting procedure can use it.
+    pub bootstrap_replicates: Option<u32>,
+}
+
+impl Inspect for CheckedPropensityOperation {
+    type Info = CheckedPropensityInfo;
+
+    fn info(&self) -> CheckedPropensityInfo {
+        let lowering = self.lowering();
+        // The procedure is paired with its uncertainty when the operation is
+        // prepared, so the uncertainty alone names the estimator.
+        let (estimator, uncertainty, bootstrap_replicates) = match lowering.uncertainty {
+            CheckedPropensityUncertainty::HajekAnalyticAndBootstrap { bootstrap_replicates } => (
+                EstimatorId::PropensityWeighting,
+                Arc::from("hajek_analytic_and_optional_bootstrap"),
+                Some(bootstrap_replicates),
+            ),
+            CheckedPropensityUncertainty::AbadieImbensAnalytic { .. } => {
+                (EstimatorId::PropensityMatching, Arc::from("abadie_imbens_analytic"), None)
+            }
+        };
+        CheckedPropensityInfo {
+            estimator,
+            adjustment_set: Arc::clone(&lowering.adjustment),
+            population: lowering.population.clone(),
+            source_rows: Arc::clone(&lowering.source_rows),
+            uncertainty,
+            bootstrap_replicates,
+        }
     }
 }
 

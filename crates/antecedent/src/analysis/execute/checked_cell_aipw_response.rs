@@ -2,6 +2,7 @@
 //! DAG or on a CoDetermined tier closure.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -386,6 +387,47 @@ fn graph_contains(
         })
         && graph.edges().all(|edge| edge.a.as_usize() < count && edge.b.as_usize() < count)
         && graph.edges().all(|edge| edge.at_a != antecedent_graph::Endpoint::Arrow)
+}
+
+/// Inspect the sealed joint-cell AIPW response route retained by preparation.
+#[derive(Clone, Debug)]
+pub struct CheckedCellAipwResponseInfo {
+    /// The complete intervention-response query.
+    pub query: antecedent_core::ResponseQuery,
+    /// The checked identifier selected at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// The checked estimator selected at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Refutation suite carried by the operation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Whether the graph was explicit or accepted.
+    pub origin: crate::analysis::execute::DagResponseOrigin,
+    /// Binary joint-cell index evaluated by this route.
+    pub requested_arm: u32,
+    /// Covariate roles retained for adjustment.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Tier interpretation when the cell was sealed on a tier closure rather
+    /// than a plain DAG.
+    pub within_tier: Option<antecedent_graph::WithinTier>,
+}
+
+impl Inspect for CheckedCellAipwResponseOperation {
+    type Info = CheckedCellAipwResponseInfo;
+
+    fn info(&self) -> CheckedCellAipwResponseInfo {
+        let (_, estimand) = self.target();
+        let (identifier, estimator) = self.procedure();
+        CheckedCellAipwResponseInfo {
+            query: self.query().clone(),
+            identifier,
+            estimator,
+            validation: self.validation(),
+            origin: self.origin(),
+            requested_arm: self.requested_arm(),
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            within_tier: self.within_tier(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 
 /// Checked operation together with the immutable logical/physical result context.
 ///
@@ -280,6 +281,41 @@ fn lag_aligned_rows(
         data.row_count().saturating_sub(usize::try_from(span.saturating_sub(1)).unwrap_or(0)),
     )
     .unwrap_or(u64::MAX)
+}
+
+/// Read-only inspection of a retained TemporalDag response operation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedTemporalDagResponseInfo {
+    /// Exact response functional, policy, and requested horizons.
+    pub query: antecedent_core::ResponseQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Interval procedure and replicate count.
+    pub uncertainty: std::sync::Arc<str>,
+    /// Ordered response grid.
+    pub grid_members: std::sync::Arc<[f64]>,
+    /// Ordered horizon members.
+    pub horizons: std::sync::Arc<[u32]>,
+}
+
+impl Inspect for CheckedTemporalResponseExecution {
+    type Info = CheckedTemporalDagResponseInfo;
+
+    fn info(&self) -> CheckedTemporalDagResponseInfo {
+        let operation = self.operation();
+        let (identifier, estimator, uncertainty, _) = operation.procedure();
+        CheckedTemporalDagResponseInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            uncertainty: Arc::from(uncertainty),
+            grid_members: Arc::from(operation.grid()),
+            // The sealed evidence is one member per requested horizon, in order.
+            horizons: operation.evidence().iter().map(|member| member.horizon()).collect(),
+        }
+    }
 }
 
 #[cfg(test)]

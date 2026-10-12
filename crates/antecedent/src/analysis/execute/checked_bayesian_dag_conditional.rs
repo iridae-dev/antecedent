@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 
 const PPC_ALPHA: f64 = 0.05;
 
@@ -337,5 +338,64 @@ impl CheckedBayesianConditionalOperation {
                 ..Default::default()
             }),
         ))
+    }
+}
+
+/// Inspection receipt for a prepared Bayesian DAG conditional-effect route.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianConditionalInfo {
+    query: antecedent_core::ConditionalEffectQuery,
+    inference: crate::inference::InferenceMode,
+    validation: crate::analysis::builder::RefuteSuite,
+    modifier_roles: std::sync::Arc<[antecedent_core::VariableId]>,
+    identification_status: antecedent_identify::IdentificationStatus,
+    estimand: antecedent_expr::IdentifiedEstimand,
+}
+
+impl CheckedBayesianConditionalInfo {
+    /// Conditional causal target retained by preparation.
+    #[must_use]
+    pub fn query(&self) -> &antecedent_core::ConditionalEffectQuery {
+        &self.query
+    }
+    /// Bayesian prior and inference settings retained by preparation.
+    #[must_use]
+    pub fn inference(&self) -> &crate::inference::InferenceMode {
+        &self.inference
+    }
+    /// Validation suite retained by preparation.
+    #[must_use]
+    pub fn validation(&self) -> crate::analysis::builder::RefuteSuite {
+        self.validation
+    }
+    /// Semantic modifier variables retained by preparation.
+    #[must_use]
+    pub fn modifier_roles(&self) -> &[antecedent_core::VariableId] {
+        &self.modifier_roles
+    }
+    /// Identification status retained with the target.
+    #[must_use]
+    pub fn identification_status(&self) -> antecedent_identify::IdentificationStatus {
+        self.identification_status
+    }
+    /// Identified target functional and adjustment roles.
+    #[must_use]
+    pub fn estimand(&self) -> &antecedent_expr::IdentifiedEstimand {
+        &self.estimand
+    }
+}
+
+impl Inspect for CheckedBayesianConditionalOperation {
+    type Info = CheckedBayesianConditionalInfo;
+
+    fn info(&self) -> CheckedBayesianConditionalInfo {
+        CheckedBayesianConditionalInfo {
+            query: self.query().clone(),
+            inference: self.inference().clone(),
+            validation: self.validation(),
+            modifier_roles: Arc::from(self.modifier_roles()),
+            identification_status: self.identification().status,
+            estimand: self.estimand().clone(),
+        }
     }
 }

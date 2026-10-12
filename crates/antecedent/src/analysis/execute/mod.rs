@@ -413,13 +413,28 @@ pub(crate) use dispatch::{
 pub(crate) use static_path::DistributionGraph;
 pub(crate) use transport_interference_path::live_transport_identification;
 
+pub use checked_attribution::CheckedAttributionInfo;
+pub use checked_bayesian_basis_ate::CheckedBayesianBasisAteInfo;
+pub use checked_bayesian_dag_conditional::CheckedBayesianConditionalInfo;
+pub use checked_bayesian_robust_ate::CheckedBayesianRobustAteInfo;
 pub use checked_bayesian_specialist::CheckedBayesianSpecialistInfo;
 pub(crate) use checked_bayesian_specialist::CheckedBayesianSpecialistOperation;
+pub use checked_cell_aipw_response::CheckedCellAipwResponseInfo;
+pub use checked_graph_posterior_response::CheckedGraphPosteriorResponseInfo;
+pub use checked_interference::CheckedInterferenceInfo;
+pub use checked_static_class_response::CheckedStaticClassResponseInfo;
+pub use checked_static_mediation::CheckedStaticMediationInfo;
+pub use checked_temporal_class_effect::CheckedTemporalClassEffectInfo;
+pub use checked_temporal_class_mediation::CheckedTemporalClassMediationInfo;
+pub use checked_temporal_effect::CheckedTemporalDagEffectInfo;
+pub use checked_temporal_mediation::CheckedTemporalMediationInfo;
 pub use checked_transport_trial::CheckedTransportTrialInfo;
 pub(crate) use checked_transport_trial::CheckedTransportTrialOperation;
+pub use response_path::{CheckedDerivativeResponseInfo, CheckedStaticDagResponseInfo};
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
 };
+pub use temporal_path::checked_temporal_response::CheckedTemporalDagResponseInfo;
 pub(crate) use temporal_posterior_response::dbn_posterior_response_supported;
 
 #[cfg(test)]

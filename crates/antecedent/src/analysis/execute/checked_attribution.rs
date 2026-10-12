@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 
 #[derive(Clone, Debug)]
 enum AttributionTarget {
@@ -184,10 +185,6 @@ impl CheckedAttributionOperation {
 
     pub(crate) fn identification(&self) -> &IdentificationResult {
         &self.identification
-    }
-
-    pub(crate) fn procedure(&self) -> (&'static str, &'static str) {
-        (IdentifierId::GcmParametric.as_str(), self.estimator.as_str())
     }
 
     pub(crate) fn execute(
@@ -541,6 +538,36 @@ impl AttributionTarget {
     }
 }
 
+/// Read-only target and procedure retained by a checked GCM attribution plan.
+#[derive(Clone, Debug)]
+pub struct CheckedAttributionInfo {
+    /// Exact anomaly or distribution-change target.
+    pub query: CausalQuery,
+    /// Prepare-time identifier and estimator.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Prepare-time estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Canonical supplied DAG edges.
+    pub graph_edges: std::sync::Arc<[(u32, u32)]>,
+    /// Identification status fixed at preparation.
+    pub identification_status: antecedent_identify::IdentificationStatus,
+}
+
+impl Inspect for CheckedAttributionOperation {
+    type Info = CheckedAttributionInfo;
+
+    fn info(&self) -> CheckedAttributionInfo {
+        let edges = self.graph().directed_edge_pairs_sorted();
+        CheckedAttributionInfo {
+            query: self.query(),
+            identifier: IdentifierId::GcmParametric,
+            estimator: self.estimator,
+            graph_edges: edges.into(),
+            identification_status: self.identification().status,
+        }
+    }
+}
+
 #[cfg(test)]
 mod bayesian_checked_attribution_tests {
     use super::*;
@@ -603,7 +630,8 @@ mod bayesian_checked_attribution_tests {
             crate::analysis::prepared::CachedStaticIdentification { identification, estimand };
         let operation = CheckedAttributionOperation::checked(&study, &physical, &cache)
             .expect("Bayesian attribution plan");
-        assert_eq!(operation.procedure(), ("gcm.parametric", estimator.as_str()));
+        let info = operation.info();
+        assert_eq!((info.identifier, info.estimator), (IdentifierId::GcmParametric, estimator));
         drop(study);
         operation
     }

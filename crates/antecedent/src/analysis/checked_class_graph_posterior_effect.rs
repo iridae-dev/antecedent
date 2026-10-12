@@ -6,6 +6,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, PopulationRegistry};
@@ -258,6 +260,52 @@ fn identified_case_status(status: antecedent_core::IdentificationStatus) -> bool
             | antecedent_core::IdentificationStatus::PartiallyIdentified
             | antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions
     )
+}
+
+/// Read-only CPDAG/PAG posterior samples and completion envelopes retained for
+/// a frequentist average effect.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedClassGraphPosteriorEffectInfo {
+    /// Average-effect query every posterior atom was identified for.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Whether the sealed click estimates a conditional effect over the atoms.
+    pub conditional: bool,
+    /// Inference label frozen at preparation (`frequentist` or `bayesian:<backend>`).
+    pub inference: std::sync::Arc<str>,
+    /// Static estimator used inside each identified completion.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite applied to the atom-wise estimates.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Posterior sample key, including repeated and unidentified samples.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior sample weights.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Sample-level identification flags, preserving unidentified mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Number of identified CPDAG/PAG completion envelopes retained.
+    pub class_atom_count: usize,
+    /// Procedure-specific bootstrap count.
+    pub bootstrap_replicates: u32,
+}
+
+impl Inspect for CheckedClassGraphPosteriorEffect {
+    type Info = CheckedClassGraphPosteriorEffectInfo;
+
+    fn info(&self) -> CheckedClassGraphPosteriorEffectInfo {
+        let (graph_keys, weights, identified) = self.sample_mass();
+        CheckedClassGraphPosteriorEffectInfo {
+            query: self.query().clone(),
+            conditional: self.target().is_conditional(),
+            inference: inference_label(self.inference()),
+            estimator: self.procedure().id(),
+            validation: self.validation(),
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            class_atom_count: self.class_atoms().len(),
+            bootstrap_replicates: self.bootstrap_replicates(),
+        }
+    }
 }
 
 #[cfg(test)]

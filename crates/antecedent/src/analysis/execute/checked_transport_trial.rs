@@ -6,6 +6,7 @@ use super::transport_interference_path::{
     transport_primary_pair, transport_sid_identification,
 };
 use super::*;
+use crate::analysis::prepared::Inspect;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_identify::TransportIdentification;
 
@@ -146,27 +147,6 @@ impl CheckedTransportTrialOperation {
         })))
     }
 
-    pub(crate) fn info(&self) -> CheckedTransportTrialInfo {
-        let rule = match &self.transport {
-            TransportIdentification::Transportable { certificate, .. } => {
-                Arc::from(certificate.rule.as_ref())
-            }
-            TransportIdentification::NotCertified(_)
-            | TransportIdentification::MissingEvidence(_) => Arc::from("uncertified"),
-        };
-        CheckedTransportTrialInfo {
-            query: self.query.clone(),
-            identifier: IdentifierId::TransportSid,
-            estimator: self.estimator,
-            rule,
-            posterior_draws: match self.procedure {
-                TransportTrialProcedure::KnownProbabilityIpw => None,
-                TransportTrialProcedure::BayesianBootstrap { draws } => Some(draws),
-            },
-            plan_id: Arc::clone(&self.physical.record.plan_id),
-        }
-    }
-
     /// Execute the retained transport contrast on `data` through the study's
     /// result context.
     ///
@@ -209,5 +189,30 @@ impl CheckedTransportTrialOperation {
             },
             ctx,
         )
+    }
+}
+
+impl Inspect for CheckedTransportTrialOperation {
+    type Info = CheckedTransportTrialInfo;
+
+    fn info(&self) -> CheckedTransportTrialInfo {
+        let rule = match &self.transport {
+            TransportIdentification::Transportable { certificate, .. } => {
+                Arc::from(certificate.rule.as_ref())
+            }
+            TransportIdentification::NotCertified(_)
+            | TransportIdentification::MissingEvidence(_) => Arc::from("uncertified"),
+        };
+        CheckedTransportTrialInfo {
+            query: self.query.clone(),
+            identifier: IdentifierId::TransportSid,
+            estimator: self.estimator,
+            rule,
+            posterior_draws: match self.procedure {
+                TransportTrialProcedure::KnownProbabilityIpw => None,
+                TransportTrialProcedure::BayesianBootstrap { draws } => Some(draws),
+            },
+            plan_id: Arc::clone(&self.physical.record.plan_id),
+        }
     }
 }

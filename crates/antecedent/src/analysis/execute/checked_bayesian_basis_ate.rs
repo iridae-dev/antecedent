@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     ParametricAssumption, PriorAssumption, TargetPopulation, VariableId,
@@ -157,15 +158,6 @@ impl CheckedBayesianBasisAteExecution {
                     .collect::<Vec<_>>(),
             ),
         })
-    }
-
-    pub(crate) fn info(&self) -> super::super::prepared::CheckedBayesianBasisAteInfo {
-        super::super::prepared::CheckedBayesianBasisAteInfo {
-            query: self.query.clone(),
-            adjustment_set: Arc::clone(&self.estimand.adjustment_set),
-            posterior_draws: self.config.n_draws,
-            prior_scale: self.config.prior_scale,
-        }
     }
 
     pub(crate) fn inference(&self) -> InferenceMode {
@@ -356,5 +348,31 @@ impl CheckedBayesianBasisAteExecution {
             ..Default::default()
         });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
+    }
+}
+
+/// Inspection receipt for the checked Bayesian quadratic-basis ATE route.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianBasisAteInfo {
+    /// Target query retained by preparation.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Back-door adjustment variables used by the basis model.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Number of posterior draws used by execution.
+    pub posterior_draws: usize,
+    /// Isotropic coefficient-prior scale retained by preparation.
+    pub prior_scale: f64,
+}
+
+impl Inspect for CheckedBayesianBasisAteExecution {
+    type Info = CheckedBayesianBasisAteInfo;
+
+    fn info(&self) -> CheckedBayesianBasisAteInfo {
+        CheckedBayesianBasisAteInfo {
+            query: self.query.clone(),
+            adjustment_set: Arc::clone(&self.estimand.adjustment_set),
+            posterior_draws: self.config.n_draws,
+            prior_scale: self.config.prior_scale,
+        }
     }
 }

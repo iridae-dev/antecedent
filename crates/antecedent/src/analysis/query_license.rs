@@ -308,7 +308,10 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
 
 /// The rule `Study::prepare` enforces for `query` on `modality`, or `None` when
 /// the pair is not licensed at all (refuse with [`unlicensed_combination`]).
-pub(crate) fn prepared_rule(query: &CausalQuery, modality: DataModality) -> Option<PreparedRule> {
+pub(in crate::analysis) fn prepared_rule(
+    query: &CausalQuery,
+    modality: DataModality,
+) -> Option<PreparedRule> {
     let license = kind_license(query.kind());
     match modality {
         DataModality::Tabular => match query {
@@ -329,7 +332,7 @@ pub(crate) fn prepared_rule(query: &CausalQuery, modality: DataModality) -> Opti
 /// The graph classes `query` is licensed on over `modality`; empty when the
 /// pair is not licensed.
 #[cfg(test)]
-pub(crate) fn licensed_graph_classes(
+pub(in crate::analysis) fn licensed_graph_classes(
     query: &CausalQuery,
     modality: DataModality,
 ) -> &'static [GraphClass] {

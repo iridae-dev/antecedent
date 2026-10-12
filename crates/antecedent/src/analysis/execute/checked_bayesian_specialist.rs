@@ -6,6 +6,7 @@ use super::bayesian_specialist_path::{
 };
 use super::*;
 use crate::RdConfig;
+use crate::analysis::prepared::Inspect;
 use crate::strategy_table::{
     EstimatorId, IdentifierId, identify_static_query, require_identified, select_estimand,
 };
@@ -162,26 +163,6 @@ impl CheckedBayesianSpecialistOperation {
         })))
     }
 
-    pub(crate) fn info(&self) -> CheckedBayesianSpecialistInfo {
-        let (identifier, estimator, rd) = match self.family {
-            BayesianSpecialistFamily::IvJointLinear => {
-                (IdentifierId::Iv, EstimatorId::BayesianIvJointLinear, None)
-            }
-            BayesianSpecialistFamily::RdLocalLinear(rd) => {
-                (IdentifierId::RdSharp, EstimatorId::BayesianRdLocalLinear, Some(rd))
-            }
-        };
-        CheckedBayesianSpecialistInfo {
-            query: self.query.clone(),
-            identifier,
-            estimator,
-            n_draws: self.config.n_draws,
-            prior_scale: self.config.prior_scale,
-            rd,
-            plan_id: Arc::clone(&self.physical.record.plan_id),
-        }
-    }
-
     /// Execute the retained model on `data` through the study's result context.
     ///
     /// # Errors
@@ -223,6 +204,30 @@ impl CheckedBayesianSpecialistOperation {
                 inputs,
                 ctx,
             ),
+        }
+    }
+}
+
+impl Inspect for CheckedBayesianSpecialistOperation {
+    type Info = CheckedBayesianSpecialistInfo;
+
+    fn info(&self) -> CheckedBayesianSpecialistInfo {
+        let (identifier, estimator, rd) = match self.family {
+            BayesianSpecialistFamily::IvJointLinear => {
+                (IdentifierId::Iv, EstimatorId::BayesianIvJointLinear, None)
+            }
+            BayesianSpecialistFamily::RdLocalLinear(rd) => {
+                (IdentifierId::RdSharp, EstimatorId::BayesianRdLocalLinear, Some(rd))
+            }
+        };
+        CheckedBayesianSpecialistInfo {
+            query: self.query.clone(),
+            identifier,
+            estimator,
+            n_draws: self.config.n_draws,
+            prior_scale: self.config.prior_scale,
+            rd,
+            plan_id: Arc::clone(&self.physical.record.plan_id),
         }
     }
 }

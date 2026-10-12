@@ -11,6 +11,8 @@
 
 use super::response_path::class_aware_response_supported;
 use super::*;
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use crate::analysis::route_guards::mean_all_observed;
 use crate::analysis::{StaticClassGraph, StaticClassIdentification};
 
@@ -201,5 +203,48 @@ impl super::Study {
             }
         }
         bound.execute_class_response(data, operation.query(), operation.physical(), ctx)
+    }
+}
+
+/// Frozen explicit/accepted CPDAG or PAG response route.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedStaticClassResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Graph class the completion envelope was enumerated for.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference procedure label (`frequentist` or `bayesian:<backend>`).
+    pub inference: std::sync::Arc<str>,
+    /// Validation suite fixed at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Completions retained in the frozen envelope.
+    pub completion_count: usize,
+    /// Identified completion mass retained in the frozen envelope.
+    pub identified_mass: f64,
+    /// Unidentified completion mass retained in the frozen envelope.
+    pub unidentified_mass: f64,
+}
+
+impl Inspect for CheckedStaticClassResponse {
+    type Info = CheckedStaticClassResponseInfo;
+
+    fn info(&self) -> CheckedStaticClassResponseInfo {
+        let (identifier, estimator) = self.procedure();
+        let (completion_count, identified_mass, unidentified_mass) = self.envelope_summary();
+        CheckedStaticClassResponseInfo {
+            query: self.query().clone(),
+            graph_class: self.graph_class(),
+            identifier,
+            estimator,
+            inference: inference_label(self.inference()),
+            validation: self.validation(),
+            completion_count,
+            identified_mass,
+            unidentified_mass,
+        }
     }
 }

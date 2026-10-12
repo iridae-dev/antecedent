@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
 use antecedent_core::{CausalQuery, TemporalEffectQuery};
@@ -314,6 +316,55 @@ fn validate_proof_binding(
         });
     }
     Ok(())
+}
+
+/// Read-only frozen samples, per-atom proof counts, and procedure retained for
+/// a pulse or sustained effect over a temporal graph posterior.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedTemporalGraphPosteriorEffectInfo {
+    /// Exact policy, intervention levels, horizon, and target population.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Atom kind of the frozen posterior (TemporalDag, TemporalCpdag, or TemporalPag).
+    pub atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Inference label frozen at preparation.
+    pub inference: std::sync::Arc<str>,
+    /// Posterior sample key, including repeated and unidentified samples.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior sample weights.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Sample-level identification flags, preserving unidentified mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Number of identified atoms carrying a retained proof.
+    pub identified_atom_count: usize,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+}
+
+impl Inspect for CheckedTemporalGraphPosteriorEffect {
+    type Info = CheckedTemporalGraphPosteriorEffectInfo;
+
+    fn info(&self) -> CheckedTemporalGraphPosteriorEffectInfo {
+        let (graph_keys, weights, identified) = self.sample_mass();
+        CheckedTemporalGraphPosteriorEffectInfo {
+            query: self.query().clone(),
+            atom_kind: self.posterior().atom_kind,
+            identifier: self.identifier(),
+            estimator: self.estimator(),
+            validation: self.validation(),
+            inference: inference_label(self.inference()),
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            identified_atom_count: self.identified_atom_count(),
+            bootstrap_replicates: self.bootstrap_replicates(),
+        }
+    }
 }
 
 #[cfg(test)]

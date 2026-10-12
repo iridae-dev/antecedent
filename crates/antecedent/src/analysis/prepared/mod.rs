@@ -31,6 +31,7 @@ pub(crate) use execution_accessors::*;
 pub use info::*;
 pub use operations::*;
 pub(crate) use prepare_identification::*;
+pub(crate) use sealed::Inspect;
 pub(crate) use support::*;
 
 use crate::analysis::execute::Study;

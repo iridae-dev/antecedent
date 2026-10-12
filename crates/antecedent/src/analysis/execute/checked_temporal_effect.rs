@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 
 #[derive(Clone)]
 pub(crate) struct CheckedTemporalEffectExecution {
@@ -93,5 +94,48 @@ impl CheckedTemporalEffectExecution {
             point_only,
             super::finish_identified_execute_with_context(&self.result_context, None, args),
         ))
+    }
+}
+
+/// Read-only target, proof, and procedure of a prepared TemporalDag effect.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalDagEffectInfo {
+    /// Exact temporal policy, intervention levels, horizon, and population.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+    /// Graph-derived adjustment variables in the unfolded proof.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::TemporalNodeKey]>,
+    /// Canonical node and edge signature of the prepared temporal graph.
+    pub graph_signature: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedTemporalEffectExecution {
+    type Info = CheckedTemporalDagEffectInfo;
+
+    fn info(&self) -> CheckedTemporalDagEffectInfo {
+        let operation = self.operation();
+        let (identifier, estimator, validation, bootstrap_replicates) = operation.procedure();
+        let adjustment_set = operation
+            .estimand()
+            .adjustment_set
+            .iter()
+            .filter_map(|id| operation.indexer().key_of(id.raw()).ok())
+            .collect::<Vec<_>>();
+        CheckedTemporalDagEffectInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            validation,
+            bootstrap_replicates,
+            adjustment_set: adjustment_set.into(),
+            graph_signature: Arc::from(operation.graph_signature()),
+        }
     }
 }

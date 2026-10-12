@@ -8,12 +8,7 @@ use super::{
     CheckedIvOperation, CheckedLinearOperation, CheckedPathSpecificEffectOperation,
     CheckedProgramBinding, CheckedStaticResponseCurve, PreparedExecution,
 };
-use crate::analysis::checked_propensity::CheckedPropensityOperation;
 use crate::analysis::execute::Study;
-use crate::analysis::{
-    CheckedAdmgGraphPosteriorResponse, CheckedClassGraphPosteriorEffect,
-    CheckedConditionalOperation, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
-};
 use crate::error::CausalError;
 use antecedent_data::TabularData;
 use antecedent_estimate::AipwAte;
@@ -95,34 +90,9 @@ typed_accessors! {
     functional_effect_operation -> CheckedFunctionalEffectOperation = FunctionalEffect;
     path_specific_effect_operation -> CheckedPathSpecificEffectOperation = PathSpecificEffect;
     admg_response_curve -> CheckedAdmgResponseCurveOperation = AdmgResponseCurve;
-    admg_graph_posterior_response -> CheckedAdmgGraphPosteriorResponse = AdmgGraphPosteriorResponse;
-    static_class_response -> crate::analysis::execute::CheckedStaticClassResponse = StaticClassResponse;
-    graph_posterior_response -> crate::analysis::execute::CheckedGraphPosteriorResponse = GraphPosteriorResponse;
-    bayesian_conditional -> crate::analysis::execute::CheckedBayesianConditionalOperation = BayesianConditional;
     response_curve -> CheckedStaticResponseCurve = StaticResponseCurve;
-    static_dag_response -> crate::analysis::execute::CheckedStaticDagResponseOperation = StaticDagResponse;
-    static_mediation -> crate::analysis::execute::CheckedStaticMediationOperation = StaticMediation;
-    bayesian_static_mediation -> crate::analysis::execute::CheckedBayesianStaticMediationOperation = BayesianStaticMediation;
-    attribution -> crate::analysis::execute::CheckedAttributionOperation = Attribution;
-    temporal_dag_response -> crate::analysis::execute::CheckedTemporalResponseExecution = TemporalDagResponse;
-    temporal_class_response -> crate::analysis::CheckedTemporalClassResponseOperation = TemporalClassResponse;
-    temporal_graph_posterior_response -> crate::analysis::CheckedTemporalGraphPosteriorResponse = TemporalGraphPosteriorResponse;
-    temporal_dag_effect -> crate::analysis::execute::CheckedTemporalEffectExecution = TemporalDagEffect;
-    bayesian_temporal_dag_effect -> crate::analysis::CheckedBayesianTemporalEffectOperation = BayesianTemporalDagEffect;
-    temporal_mediation -> crate::analysis::execute::CheckedTemporalMediationOperation = TemporalMediation;
-    temporal_class_mediation -> crate::analysis::execute::CheckedTemporalClassMediationOperation = TemporalClassMediation;
-    interference -> crate::analysis::execute::CheckedInterferenceOperation = Interference;
-    temporal_class_effect -> crate::analysis::execute::CheckedTemporalClassEffectExecution = TemporalClassEffect;
-    propensity -> CheckedPropensityOperation = CheckedPropensity;
-    conditional -> CheckedConditionalOperation = CheckedConditional;
-    bayesian_class_conditional -> crate::analysis::CheckedBayesianClassConditional = BayesianClassConditional;
-    static_class_effect -> CheckedStaticClassEffect = StaticClassEffect;
-    graph_posterior_effect -> CheckedGraphPosteriorEffect = GraphPosteriorEffect;
-    class_graph_posterior_effect -> CheckedClassGraphPosteriorEffect = ClassGraphPosteriorEffect;
     frontdoor_linear -> CheckedFrontDoorOperation = FrontDoorLinear;
     iv -> CheckedIvOperation = Iv;
-    bayesian_temporal_class_effect -> crate::analysis::CheckedBayesianTemporalClassEffectOperation = BayesianTemporalClassEffect;
-    temporal_graph_posterior_effect -> crate::analysis::CheckedTemporalGraphPosteriorEffect = TemporalGraphPosteriorEffect;
 }
 
 pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {

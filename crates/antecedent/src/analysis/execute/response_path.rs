@@ -2,6 +2,7 @@
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::*;
+use crate::analysis::prepared::Inspect;
 use crate::planner::RouteDefaults;
 
 const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
@@ -684,6 +685,71 @@ impl super::Study {
             started,
             Some(table),
         )
+    }
+}
+
+/// Read-only inspection of a retained checked derivative-response plan.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedDerivativeResponseInfo {
+    /// Exact response functional and evaluation coordinates.
+    pub query: antecedent_core::ResponseQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Adjustment variables retained by the checked target.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Maximum derivative coordinates the operation may materialize.
+    pub max_derivative_cells: usize,
+}
+
+impl Inspect for CheckedDerivativeResponseOperation {
+    type Info = CheckedDerivativeResponseInfo;
+
+    fn info(&self) -> CheckedDerivativeResponseInfo {
+        let (_, estimand) = self.target();
+        let (identifier, estimator) = self.procedure();
+        CheckedDerivativeResponseInfo {
+            query: self.query().clone(),
+            identifier,
+            estimator,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            max_derivative_cells: self.max_derivative_cells(),
+        }
+    }
+}
+
+/// Read-only inspection of a retained static DAG response operation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedStaticDagResponseInfo {
+    /// Exact mean-curve or intervention query, including its member values.
+    pub query: antecedent_core::ResponseQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Ordered curve grid. Empty for intervention-response queries.
+    pub grid_members: std::sync::Arc<[f64]>,
+    /// Inference procedure label fixed during preparation
+    /// (`frequentist` or `bayesian:<backend>`).
+    pub inference: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedStaticDagResponseOperation {
+    type Info = CheckedStaticDagResponseInfo;
+
+    fn info(&self) -> CheckedStaticDagResponseInfo {
+        let (identifier, estimator, validation) = self.procedure();
+        CheckedStaticDagResponseInfo {
+            query: self.query().clone(),
+            identifier,
+            estimator,
+            validation,
+            grid_members: Arc::from(self.curve_grid()),
+            inference: crate::analysis::route_guards::inference_label(self.inference()),
+        }
     }
 }
 

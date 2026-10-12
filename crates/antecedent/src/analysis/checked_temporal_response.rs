@@ -132,7 +132,6 @@ impl TemporalResponseHorizonEvidence {
 
     /// Requested horizon retained by this proof member.
     #[must_use]
-    #[cfg(test)]
     pub(crate) const fn horizon(&self) -> u32 {
         self.horizon
     }

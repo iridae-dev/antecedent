@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::prepared::Inspect;
 use antecedent_estimate::bayesian_robust_ate::{
     BayesianRobustAteInput, BayesianRobustAteOptions, estimate_bayesian_robust_ate,
     plan_bayesian_robust_ate_folds,
@@ -303,4 +304,33 @@ fn input_and_folds_note(folds: &[u16]) -> String {
     format!(
         "linear weighted ridge outcome and logistic weighted ridge propensity nuisances, {count}"
     )
+}
+
+/// Target and fixed row/fold bindings for the checked robust Bayesian ATE.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianRobustAteInfo {
+    /// Mean binary ATE retained by preparation.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Number of bootstrap pushforward draws requested.
+    pub posterior_draws: usize,
+    /// Back-door adjustment variables bound to the nuisance design.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Stable row identities bound to the prepared fold plan.
+    pub row_ids: std::sync::Arc<[u64]>,
+    /// Treatment-stratified fold identity in row order.
+    pub fold_ids: std::sync::Arc<[u16]>,
+}
+
+impl Inspect for CheckedBayesianRobustAteExecution {
+    type Info = CheckedBayesianRobustAteInfo;
+
+    fn info(&self) -> CheckedBayesianRobustAteInfo {
+        CheckedBayesianRobustAteInfo {
+            query: self.query().clone(),
+            posterior_draws: self.posterior_draws(),
+            adjustment_set: Arc::from(self.adjustment_set()),
+            row_ids: Arc::from(self.row_ids()),
+            fold_ids: Arc::from(self.fold_ids()),
+        }
+    }
 }
