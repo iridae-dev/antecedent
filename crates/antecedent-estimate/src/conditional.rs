@@ -25,7 +25,7 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::adjustment::{intervention_f64, EffectEstimate};
 use crate::error::EstimationError;
 use crate::gcomp::linear_predictors;
 use crate::overlap::OverlapPolicy;
@@ -299,7 +299,11 @@ impl ConditionalLinearAdjustment {
             .backend
             .least_squares(&design, n, ncols, &y, &mut ws)
             .map_err(crate::util::stats_err)?;
+        // QR residuals are `y − Xβ` in the same order `ols_sigma2` sums, so RSS / (n−p)
+        // matches that helper without a second pass over the design.
+        let sigma2 = fit.rss / (n.saturating_sub(ncols)).max(1) as f64;
         let coef = fit.coefficients;
+        let residuals = fit.residuals;
 
         let inv = crate::util::xtx_inverse(&design, n, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
@@ -313,7 +317,6 @@ impl ConditionalLinearAdjustment {
         // averages the CATE over the modifier distribution, so its IF carries
         // δ·β_{T×W}·(w_i − w̄) (asymptotically uncorrelated with the OLS
         // score term). Treating w̄ as fixed under-covers whenever β_{T×W} ≠ 0.
-        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, &y, &coef);
         let mut g = vec![0.0; ncols];
         g[1] = delta;
         g[3] = delta * w_bar;
@@ -325,11 +328,6 @@ impl ConditionalLinearAdjustment {
         let se_analytic =
             (se_coef * se_coef + modifier_term * modifier_term * w_var_of_mean).sqrt();
 
-        let residuals: Vec<f64> = linear_predictors(&design, n, ncols, &coef)
-            .iter()
-            .zip(&y)
-            .map(|(pred, y)| y - pred)
-            .collect();
         let contrast_leverage = inverse_weighted_leverage(&inv, &design, n, ncols, &g);
         let influence: Vec<f64> = contrast_leverage
             .iter()
