@@ -18,7 +18,7 @@ use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, distance_correlation,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, dcor::DistanceY, distance_correlation,
 };
 
 use crate::constraints::DiscoveryConstraints;
@@ -171,12 +171,14 @@ impl DirectLingam {
                     return Err(DiscoveryError::Cancelled);
                 }
                 let mut score = 0.0;
+                // `cols[j]` is residualized after this round, so the cache dies with `j`.
+                let y = DistanceY::new(&cols[j]);
                 for &i in &remaining {
                     if i == j {
                         continue;
                     }
                     let resid = regress_residual(&cols[i], &cols[j]);
-                    let d = distance_correlation(&resid, &cols[j]);
+                    let d = y.correlate(&resid);
                     if !d.is_finite() {
                         return Err(DiscoveryError::stats_msg(
                             "DirectLiNGAM independence score is non-finite",

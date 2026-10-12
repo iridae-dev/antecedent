@@ -899,6 +899,7 @@ impl<'a> core::marker::Freeze for antecedent_stats::IvBlocks<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::SandwichKind<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::BlockTest<'a> [auto]
@@ -908,6 +909,7 @@ impl<'a> core::marker::Send for antecedent_stats::IvBlocks<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::SandwichKind<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::BlockTest<'a> [auto]
@@ -917,6 +919,7 @@ impl<'a> core::marker::Sync for antecedent_stats::IvBlocks<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::SandwichKind<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::BlockTest<'a> [auto]
@@ -926,6 +929,7 @@ impl<'a> core::marker::Unpin for antecedent_stats::IvBlocks<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::SandwichKind<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BlockTest<'a> [auto]
@@ -935,6 +939,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::IvBlocks<
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::BlockTest<'a> [auto]
@@ -944,6 +949,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::IvBlocks<'a>
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 2]
@@ -1315,6 +1321,8 @@ pub fn <antecedent_stats::StatsError>::fn glm_boundary_margin(&self) -> core::op
 pub fn <antecedent_stats::SymbolicCmi>::fn new() -> Self
 pub fn <antecedent_stats::WeightedPartialCorrelation>::fn aligned_to_series_end(weights: alloc::vec::Vec<f64>) -> Self
 pub fn <antecedent_stats::WeightedPartialCorrelation>::fn new(weights: alloc::vec::Vec<f64>) -> Self
+pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn correlate(&self, x: &[f64]) -> f64
+pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn new(y: &'a [f64]) -> Self
 pub fn antecedent_stats::accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64])
 pub fn antecedent_stats::adjust_pvalues(p_values: &[f64], method: antecedent_stats::MultipleTestingMethod) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::anderson_rubin_confidence_set(blocks: &antecedent_stats::IvBlocks<'_>, y: &[f64], t: &[f64], level: f64, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<(core::option::Option<(f64, f64, f64)>, core::option::Option<&'static str>), antecedent_stats::StatsError>
@@ -1533,6 +1541,8 @@ pub struct antecedent_stats::StandardizedColumn
 pub struct antecedent_stats::SymbolicCmi
 pub struct antecedent_stats::TwoSlsFit
 pub struct antecedent_stats::WeightedPartialCorrelation
+pub struct antecedent_stats::dcor::DistanceY has private fields
+pub struct antecedent_stats::dcor::DistanceY<'a>
 pub struct antecedent_stats::longitudinal_regime::RegimeValueSummary
 pub struct antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 pub struct antecedent_stats::longitudinal_regime::SubjectHistories<'a>

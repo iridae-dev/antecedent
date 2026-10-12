@@ -154,6 +154,72 @@ pub fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
     (dxy.max(0.0) / (dxx * dyy).sqrt()).sqrt()
 }
 
+/// Sort order, absolute-difference row sums, and row-sum total of one regressand.
+///
+/// `S₁` still depends on both series. Only `y`'s sort, row sums, and their total are reused.
+pub struct DistanceY<'a> {
+    y: &'a [f64],
+    row_sums: Vec<f64>,
+    row_sum_total: f64,
+    dyy: f64,
+}
+
+impl<'a> DistanceY<'a> {
+    /// Precompute `y`. A later [`Self::correlate`] matches [`distance_correlation`] against this `y`.
+    #[must_use]
+    pub fn new(y: &'a [f64]) -> Self {
+        let order = sorted_order(y);
+        let row_sums = if y.len() >= 2 && y.iter().all(|v| v.is_finite()) {
+            abs_diff_row_sums(y, &order)
+        } else {
+            Vec::new()
+        };
+        let row_sum_total = row_sums.iter().sum();
+        let dyy =
+            if row_sums.is_empty() { 0.0 } else { distance_covariance_sq(y, y, &order, &order) };
+        Self { y, row_sums, row_sum_total, dyy }
+    }
+
+    /// Distance correlation of `x` with the prepared `y`.
+    ///
+    /// Bit-identical to [`distance_correlation`]`(x, y)` for the slice passed to [`Self::new`].
+    #[must_use]
+    pub fn correlate(&self, x: &[f64]) -> f64 {
+        let y = self.y;
+        let n = x.len();
+        if n < 2 || y.len() != n {
+            return 0.0;
+        }
+        if x.iter().chain(y).any(|v| !v.is_finite()) {
+            return f64::NAN;
+        }
+        let order_x = sorted_order(x);
+        let dxx = distance_covariance_sq(x, x, &order_x, &order_x);
+        if dxx <= 0.0 || self.dyy <= 0.0 {
+            return 0.0;
+        }
+        let dxy =
+            distance_covariance_sq_with_y_rows(x, y, &order_x, &self.row_sums, self.row_sum_total);
+        (dxy.max(0.0) / (dxx * self.dyy).sqrt()).sqrt()
+    }
+}
+
+/// `dCov²(x, y)` using `y`'s already computed row sums and their total.
+fn distance_covariance_sq_with_y_rows(
+    x: &[f64],
+    y: &[f64],
+    order_x: &[usize],
+    ay: &[f64],
+    ay_sum: f64,
+) -> f64 {
+    let nf = x.len() as f64;
+    let ax = abs_diff_row_sums(x, order_x);
+    let s1 = cross_abs_diff_sum(x, y, order_x) / (nf * nf);
+    let s2 = (ax.iter().sum::<f64>() / (nf * nf)) * (ay_sum / (nf * nf));
+    let s3 = ax.iter().zip(ay).map(|(a, b)| a * b).sum::<f64>() / (nf * nf * nf);
+    s1 + s2 - 2.0 * s3
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +293,39 @@ mod tests {
         assert!((distance_correlation(&x, &x) - 1.0).abs() < 1e-12);
         assert_eq!(distance_correlation(&x, &vec![2.0; 30]), 0.0);
         assert!(distance_correlation(&[1.0, f64::NAN, 3.0], &[1.0, 2.0, 3.0]).is_nan());
+    }
+
+    #[test]
+    fn prepared_y_matches_distance_correlation_bits() {
+        let pairs: Vec<(Vec<f64>, Vec<f64>)> = vec![
+            series(5, 1, false),
+            series(17, 2, false),
+            series(40, 3, false),
+            series(17, 4, true),
+            series(40, 5, true),
+            {
+                let (x, _) = series(30, 9, false);
+                let y = x.clone();
+                (x, y)
+            },
+            {
+                let (x, _) = series(30, 9, false);
+                (x, vec![2.0; 30])
+            },
+            (vec![1.0, f64::NAN, 3.0], vec![1.0, 2.0, 3.0]),
+            (vec![1.0, 2.0, 3.0], vec![1.0, f64::NAN, 3.0]),
+            (vec![1.0], vec![2.0]),
+            (vec![1.0, 2.0], vec![3.0]),
+        ];
+        for (x, y) in pairs {
+            let prepared = DistanceY::new(&y);
+            assert_eq!(prepared.correlate(&x).to_bits(), distance_correlation(&x, &y).to_bits());
+            let (other, _) = series(y.len().max(2), 11, true);
+            let other = if other.len() == y.len() { other } else { y.clone() };
+            assert_eq!(
+                prepared.correlate(&other).to_bits(),
+                distance_correlation(&other, &y).to_bits()
+            );
+        }
     }
 }
