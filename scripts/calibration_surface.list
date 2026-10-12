@@ -425,9 +425,7 @@ allow design crates/antecedent/src/analysis/execute/checked_static_class_respons
 allow design crates/antecedent/src/analysis/execute/checked_static_mediation.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/checked_survival.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/checked_synthetic_control.rs antecedent_core
-allow design crates/antecedent/src/analysis/execute/checked_temporal_class_effect.rs finish
 allow design crates/antecedent/src/analysis/execute/checked_temporal_class_mediation.rs antecedent_core
-allow design crates/antecedent/src/analysis/execute/checked_temporal_effect.rs antecedent_core prepare
 allow design crates/antecedent/src/analysis/execute/checked_temporal_mediation.rs antecedent_core build
 allow design crates/antecedent/src/analysis/execute/checked_temporal_response.rs antecedent_core build
 allow design crates/antecedent/src/analysis/execute/checked_transport_trial.rs antecedent_core
@@ -439,6 +437,7 @@ allow design crates/antecedent/src/analysis/execute/dbn_mediation_frequentist.rs
 allow design crates/antecedent/src/analysis/execute/dispatch.rs antecedent_core prepare
 allow design crates/antecedent/src/analysis/execute/execute_helpers.rs antecedent_core prepare
 allow design crates/antecedent/src/analysis/execute/identified_set_diagnostics.rs antecedent_core
+allow design crates/antecedent/src/analysis/execute/mediation_streams.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/mod.rs antecedent_core antecedent_io build finish prepare
 allow design crates/antecedent/src/analysis/execute/pag_path.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/panel_path.rs antecedent_core finish prepare
@@ -448,6 +447,8 @@ allow design crates/antecedent/src/analysis/execute/static_path.rs antecedent_co
 allow design crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/temporal_class_posterior.rs antecedent_core names prepare
 allow design crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs antecedent_core
+allow design crates/antecedent/src/analysis/execute/temporal_effect_core.rs antecedent_core names prepare
+allow design crates/antecedent/src/analysis/execute/temporal_mediation_core.rs antecedent_core
 allow design crates/antecedent/src/analysis/execute/temporal_path.rs antecedent_core finish names prepare
 allow design crates/antecedent/src/analysis/execute/temporal_posterior_response.rs antecedent_core names prepare
 allow design crates/antecedent/src/analysis/execute/transport_interference_path.rs antecedent_core
