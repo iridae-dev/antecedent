@@ -6,6 +6,7 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 
 ### Changed
 
+- Bayesian interference on a fixed network scales the Gaussian likelihood by the observed residual variance of the additive exposure regression, reported as `BayesianInterferenceEstimate::residual_variance`. An exact fit is a point mass at the least-squares contrast. Credibility now follows the outcome units.
 - Public-API narrowing (`antecedent-*` crates other than the facade, core, contract, io-core and io). Items with no reference outside their crate (checked across crates, python, benches, examples, fuzz, docs, parity and scripts) are now `pub(crate)`, and those unused even inside the crate are removed. Each lists the items now crate-private, then `removed:` ones. The surface is snapshotted per crate in `parity/public_api/` and gated by `scripts/gate_public_api.sh`.
   - `antecedent-attribution`: `CoalitionCache`, `CoalitionKey`, `MAX_COALITION_SAMPLE_BUDGET`, `aggregate_model_collection_ranks`, `check_shapley_size`, `contribution_posterior_from_rows`, `detect_mechanism_changes_with_correction`, `distribution_change_with_fit_uncertainty`, `posterior_contribution_ranks`, `sequential_allocate`, `subset_table`; removed: `distribution_change_shapley`, `multi_env_series`, `resolve_multi_env_rows`, `structure_change_shapley`.
   - `antecedent-counterfactual`: `simultaneous_hard_counterfactual_with_exo`; removed: `CounterfactualTrajectoryRequest`, `TrajectoryArm`, `TrajectoryResult`, `evaluate_trajectories`, `mean_at`.

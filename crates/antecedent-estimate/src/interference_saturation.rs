@@ -8,7 +8,9 @@ use antecedent_core::{
     AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
 };
 use antecedent_data::{NetworkData, TableView};
-use antecedent_stats::{ExposureProbabilityMethod, RandomizationContrast, exposures};
+use antecedent_stats::{
+    ExposureProbabilityMethod, RandomizationContrast, exposures, randomization_mean,
+};
 
 use crate::{EstimationError, InterferenceEstimate};
 
@@ -125,8 +127,12 @@ pub fn estimate_saturation_interference(
     }
     let positions = clusters
         .iter()
-        .map(|id| ids.binary_search(id).expect("collected cluster"))
-        .collect::<Vec<_>>();
+        .map(|id| {
+            ids.binary_search(id).map_err(|_| {
+                EstimationError::data_msg("cluster id missing from the collected cluster index")
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut observed_cluster_saturation: Vec<Option<f64>> = vec![None; k];
     for (i, &position) in positions.iter().enumerate() {
         let value = realized_saturation[i];
@@ -186,7 +192,7 @@ pub fn estimate_saturation_interference(
         high_share,
         &query.exposure,
         from,
-    );
+    )?;
     let to_p = level_probabilities(
         &incoming,
         *low_probability,
@@ -194,7 +200,7 @@ pub fn estimate_saturation_interference(
         high_share,
         &query.exposure,
         to,
-    );
+    )?;
     let observed = exposures(assignment, &incoming, &query.exposure)?;
     let baseline = weighted_mean(&outcomes, clusters, &observed, from, &from_p)?;
     let active = weighted_mean(&outcomes, clusters, &observed, to, &to_p)?;
@@ -345,11 +351,15 @@ fn level_probabilities(
     high_share: f64,
     mapping: &ExposureMapping,
     level: ExposureLevel,
-) -> Vec<f64> {
-    (0..incoming.len()).map(|unit| {
+) -> Result<Vec<f64>, EstimationError> {
+    let mut probabilities = Vec::with_capacity(incoming.len());
+    for unit in 0..incoming.len() {
         let mut probability = 0.0;
         for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
-            #[allow(clippy::float_cmp, reason = "exposure own-level is a categorical 0.0/1.0 flag, not a measured quantity")]
+            #[allow(
+                clippy::float_cmp,
+                reason = "exposure own-level is a categorical 0.0/1.0 flag, not a measured quantity"
+            )]
             let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
             let neighbors = &incoming[unit];
             let mut neighbor_mass = 0.0;
@@ -367,16 +377,35 @@ fn level_probabilities(
                 }
                 let exposure = match mapping {
                     ExposureMapping::NeighborCount => treated,
-                    ExposureMapping::NeighborFraction => if neighbors.is_empty() { 0.0 } else { treated / neighbors.len() as f64 },
-                    ExposureMapping::WeightedNeighborExposure => if total_weight == 0.0 { 0.0 } else { treated_weight / total_weight },
-                    _ => unreachable!("mapping checked"),
+                    ExposureMapping::NeighborFraction => {
+                        if neighbors.is_empty() {
+                            0.0
+                        } else {
+                            treated / neighbors.len() as f64
+                        }
+                    }
+                    ExposureMapping::WeightedNeighborExposure => {
+                        if total_weight == 0.0 {
+                            0.0
+                        } else {
+                            treated_weight / total_weight
+                        }
+                    }
+                    ExposureMapping::OwnTreatment | ExposureMapping::Custom(_) => {
+                        return Err(EstimationError::unsupported(
+                            "saturation effects require a built-in neighbor exposure mapping",
+                        ));
+                    }
                 };
-                if (exposure - level.neighbors).abs() <= 1e-12 { neighbor_mass += mass; }
+                if (exposure - level.neighbors).abs() <= 1e-12 {
+                    neighbor_mass += mass;
+                }
             }
             probability += saturation_mass * own_mass * neighbor_mass;
         }
-        probability
-    }).collect()
+        probabilities.push(probability);
+    }
+    Ok(probabilities)
 }
 
 struct WeightedMean {
@@ -392,6 +421,11 @@ struct WeightedMean {
 /// Cauchy-bounded variance and the per-cluster totals of that level. Not the arithmetic
 /// weighted mean of `antecedent_kernels::weighted_mean`: the weights are inverse exposure
 /// probabilities of a requested level, and the outputs carry the design-based variance.
+///
+/// Positivity and an absent level are refused with the saturation messages before the
+/// stats mean is read. HT and Hájek then come from `randomization_mean`. The variance
+/// stays the Cauchy bound `(Σ |y| √(1−π) / π)² / n²`, not that kernel's Young diagonal,
+/// and the per-cluster totals stay here.
 fn weighted_mean(
     outcomes: &[f64],
     clusters: &[u32],
@@ -400,7 +434,6 @@ fn weighted_mean(
     probabilities: &[f64],
 ) -> Result<WeightedMean, EstimationError> {
     let n = outcomes.len() as f64;
-    let mut total = 0.0;
     let mut weights = 0.0;
     let mut variance = 0.0;
     let mut units = 0;
@@ -413,11 +446,8 @@ fn weighted_mean(
                 "saturation exposure positivity failure for a requested level",
             ));
         }
-        if (observed[i].own - level.own).abs() <= 1e-12
-            && (observed[i].neighbors - level.neighbors).abs() <= 1e-12
-        {
+        if crate::interference::exposure_levels_approx_eq(observed[i], level) {
             let weight = 1.0 / p;
-            total += outcomes[i] * weight;
             *cluster_totals.entry(clusters[i]).or_insert(0.0) += outcomes[i] * weight;
             weights += weight;
             // Cauchy bounds every unknown pairwise covariance of the observed
@@ -432,11 +462,14 @@ fn weighted_mean(
             "requested saturation exposure is absent from realized assignments",
         ));
     }
+    // HT and Hájek come from the stats randomization mean. This loop keeps the
+    // Cauchy variance and per-cluster totals that kernel does not return.
+    let aligned = randomization_mean(outcomes, observed, probabilities, level)?;
     Ok(WeightedMean {
-        ht: total / n,
-        hajek: total / weights,
+        ht: aligned.horvitz_thompson,
+        hajek: aligned.hajek,
         variance: variance.powi(2) / n.powi(2),
-        units,
+        units: aligned.exposed_units,
         clusters: observed_clusters.len(),
         cluster_totals,
     })
@@ -644,7 +677,8 @@ mod tests {
                 ExposureLevel { own: 1.0, neighbors: 1.0 / 3.0 },
             ),
         ] {
-            let observed = super::level_probabilities(&incoming, 0.2, 0.8, 0.5, &mapping, level)[0];
+            let observed =
+                super::level_probabilities(&incoming, 0.2, 0.8, 0.5, &mapping, level).unwrap()[0];
             let mut expected = 0.0;
             for high_a in [false, true] {
                 for high_b in [false, true] {

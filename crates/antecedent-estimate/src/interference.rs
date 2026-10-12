@@ -2,7 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExposureLevel, InterferenceFunctional, InterferenceQuery};
+use antecedent_core::{
+    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, InterferenceFunctional, InterferenceQuery,
+};
 use antecedent_data::{NetworkData, TableView};
 use antecedent_prob::{LaplaceWorkspace, sample_gaussian_mvn};
 use antecedent_stats::{
@@ -12,6 +14,15 @@ use antecedent_stats::{
 use std::collections::BTreeMap;
 
 use crate::EstimationError;
+
+/// Closed exposure match at [`EXPOSURE_LEVEL_TOLERANCE`] (`1e-12`).
+///
+/// Same predicate as interference-query validation and `randomization_mean`.
+#[must_use]
+pub(crate) fn exposure_levels_approx_eq(a: ExposureLevel, b: ExposureLevel) -> bool {
+    (a.own - b.own).abs() <= EXPOSURE_LEVEL_TOLERANCE
+        && (a.neighbors - b.neighbors).abs() <= EXPOSURE_LEVEL_TOLERANCE
+}
 
 /// Complete design-based estimate for an exposure contrast.
 #[derive(Clone, Debug, PartialEq)]
@@ -58,8 +69,10 @@ pub struct BayesianInterferenceEstimate {
 /// finite-network target is the mean potential-outcome contrast over these units.
 /// This is model based and does not inherit the design-based HT guarantee. The
 /// prior is independent `Normal(0, prior_sd²)` on all three coefficients, and the
-/// residual variance is fixed to one. A full-rank observed design and empirical
-/// support for both requested exposure levels are required.
+/// residual variance stays fixed at one. A fitted `σ²` would reweight that prior
+/// and move the posterior mean, so exposing it waits on a calibration pin
+/// (B1-12). A full-rank observed design and empirical support for both requested
+/// exposure levels are required.
 pub fn estimate_interference_bayesian(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -94,9 +107,12 @@ pub fn estimate_interference_bayesian(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let observed = exposures(assignment, &incoming, &query.exposure)?;
+    // Strict `<` tolerance. The closed helper used for realized-unit matching
+    // would accept a level exactly one tolerance away, which this refusal excluded.
     let level_supported = |level: ExposureLevel| {
         observed.iter().any(|e| {
-            (e.own - level.own).abs() < 1e-12 && (e.neighbors - level.neighbors).abs() < 1e-12
+            (e.own - level.own).abs() < EXPOSURE_LEVEL_TOLERANCE
+                && (e.neighbors - level.neighbors).abs() < EXPOSURE_LEVEL_TOLERANCE
         })
     };
     if !level_supported(from) || !level_supported(to) {
@@ -105,6 +121,7 @@ pub fn estimate_interference_bayesian(
         ));
     }
     // X = [1, own treatment, treated-neighbor count], row-major for local algebra.
+    // Likelihood precision is 1 (residual variance fixed). See the function docs.
     let x: Vec<[f64; 3]> = observed.iter().map(|e| [1.0, e.own, e.neighbors]).collect();
     let mut precision = [[0.0; 3]; 3];
     let mut rhs = [0.0; 3];
@@ -725,6 +742,55 @@ mod tests {
         // independent finite-sample target contrast is 3 - 4 = -1.
         assert!((result.mean + 1.0).abs() < 0.08, "posterior mean {}", result.mean);
         assert_eq!(result.contrast_draws.len(), 20_000);
+    }
+
+    #[test]
+    fn bayesian_interference_spread_scales_with_the_outcome_removed() {
+        let fit = |outcomes: &[f64]| {
+            let table = TabularData::from_f64_columns([("y", outcomes)]).unwrap();
+            let data = NetworkData::try_new(
+                table,
+                [
+                    antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: 0, to: 2, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: 0, to: 3, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: 2, to: 3, weight: 1.0 },
+                ],
+            )
+            .unwrap();
+            let query = InterferenceQuery::new(
+                AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+                ExposureMapping::NeighborCount,
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+                    to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+                },
+            );
+            estimate_interference_bayesian(
+                &query,
+                &data,
+                &[true, false, true, false],
+                4_000,
+                9,
+                100.0,
+            )
+            .unwrap()
+        };
+        let base = fit(&[5.0, 7.0, 8.0, 12.0]);
+        let scaled = fit(&[20.0, 28.0, 32.0, 48.0]);
+        assert!(base.residual_variance > 0.0, "the noisy design must have a residual");
+        let variance_ratio = scaled.residual_variance / base.residual_variance;
+        assert!((variance_ratio - 16.0).abs() < 1e-8, "residual variance ratio {variance_ratio}");
+        let spread = |draws: &[f64]| {
+            let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+            (draws.iter().map(|d| (d - mean) * (d - mean)).sum::<f64>() / draws.len() as f64).sqrt()
+        };
+        let spread_ratio = spread(&scaled.contrast_draws) / spread(&base.contrast_draws);
+        assert!(
+            (spread_ratio - 4.0).abs() < 0.35,
+            "draw spread ratio {spread_ratio} should track the outcome scale"
+        );
     }
 
     #[test]
