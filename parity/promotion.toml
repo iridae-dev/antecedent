@@ -3382,7 +3382,7 @@ routes = [
 ]
 fixtures = [
   { id = "support.coordinate.known_truth.positive", role = "positive", intent = "Three ordered doses with local ESS [40,0,35]: only the middle dose is non-supported, the point labels are [supported, weak_overlap, supported], the summary is the worst label, and the local ESS stays aligned to dose order under relabeling.", evidence_test = "crates/antecedent-estimate/src/response/support.rs", evidence_assertion = "three_doses_exclude_only_the_middle_and_keep_local_ess_aligned" },
-  { id = "support.coordinate.wrong_contract.negative", role = "negative", intent = "A missing evidence factor is its own weakest label, distinct from zero overlap, and a summary that hides it as a support failure or as support is refused.", evidence_test = "crates/antecedent-core/src/response.rs", evidence_assertion = "missing_evidence_is_not_relabeled_as_a_support_failure" },
+  { id = "support.coordinate.wrong_contract.negative", role = "negative", intent = "A missing evidence factor is its own weakest label, distinct from zero overlap, and a summary that hides it as a support failure or as support is refused.", evidence_test = "crates/antecedent-contract/src/support_labels.rs", evidence_assertion = "missing_evidence_is_not_relabeled_as_a_support_failure" },
   { id = "support.coordinate.fresh_replay.artifact", role = "artifact", intent = "A fresh reader of an exported static response preserves the per-point labels, the ordered grid and the per-coordinate and global diagnostic scopes.", evidence_test = "python/tests/test_support_artifact.py", evidence_assertion = "test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordinates" },
 ]
 

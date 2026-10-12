@@ -348,7 +348,11 @@ class JointDistributionArtifact:
     ) -> None:
         if claimed_trust is not None and trust is not None:
             raise CausalValueError("pass claimed_trust once")
-        raw = "unverified" if claimed_trust is None and trust is None else (claimed_trust or trust)
+        raw = (
+            "unverified"
+            if claimed_trust is None and trust is None
+            else (claimed_trust or trust or "")
+        )
         try:
             parsed = ProviderTrust(raw)
         except ValueError as error:
