@@ -421,9 +421,10 @@ impl GlmAdjustmentAte {
             ctx,
             0xC17A_u64,
             n,
-            || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
-            |(ws, x_boot, y_boot), idx| {
+            || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n], vec![0.0; n]),
+            |(ws, x_boot, y_boot, t_boot), idx| {
                 crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
                 crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
                 let Ok(fit) = fit_glm(
                     problem.family,
@@ -447,8 +448,7 @@ impl GlmAdjustmentAte {
                     control: problem.control,
                 }
                 .diffs(&fit.coefficients);
-                let t_boot: Vec<f64> = idx.iter().map(|&src| problem.treatment[src]).collect();
-                match average_gcomp_for_target(&diffs, &t_boot, &problem.target_population) {
+                match average_gcomp_for_target(&diffs, t_boot, &problem.target_population) {
                     Ok(ate) => Ok(Some(ate)),
                     Err(_) => Ok(None),
                 }

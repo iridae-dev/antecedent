@@ -250,14 +250,20 @@ impl Columns {
         self.a.len()
     }
 
-    fn resample(&self, idx: &[usize]) -> Self {
-        let pick = |c: &[f64]| idx.iter().map(|&i| c[i]).collect::<Vec<f64>>();
-        Self {
-            a: pick(&self.a),
-            m: pick(&self.m),
-            y: pick(&self.y),
-            x: self.x.iter().map(|c| pick(c)).collect(),
+    /// Overwrite `out` with the rows `idx` names. Every column is rewritten before return.
+    fn resample_into(&self, idx: &[usize], out: &mut Self) {
+        let fill = |dst: &mut Vec<f64>, src: &[f64]| {
+            dst.clear();
+            dst.extend(idx.iter().map(|&i| src[i]));
+        };
+        fill(&mut out.a, &self.a);
+        fill(&mut out.m, &self.m);
+        fill(&mut out.y, &self.y);
+        out.x.resize_with(self.x.len(), Vec::new);
+        for (dst, src) in out.x.iter_mut().zip(&self.x) {
+            fill(dst, src);
         }
+        out.x.truncate(self.x.len());
     }
 }
 
@@ -737,12 +743,15 @@ fn run_bootstrap(
     let n64 = u64::try_from(n).unwrap_or(u64::MAX).max(1);
     let (mut d, mut i_, mut t) = (Vec::new(), Vec::new(), Vec::new());
     let mut failed = Vec::new();
+    let mut idx = vec![0usize; n];
+    let mut sample = Columns { a: Vec::new(), m: Vec::new(), y: Vec::new(), x: Vec::new() };
     for r in 0..config.bootstrap_replicates {
         let id = u64::from(r);
         let mut state = seed_mix(config.seed ^ mix64(id.wrapping_add(1)));
-        let idx: Vec<usize> =
-            (0..n).map(|_| usize::try_from(splitmix64(&mut state) % n64).unwrap_or(0)).collect();
-        let sample = cols.resample(&idx);
+        for slot in &mut idx {
+            *slot = usize::try_from(splitmix64(&mut state) % n64).unwrap_or(0);
+        }
+        cols.resample_into(&idx, &mut sample);
         let fitted = fit_model(&sample, config.outcome_degree);
         match fitted {
             Ok(fit) => {

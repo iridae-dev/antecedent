@@ -693,10 +693,10 @@ impl FrontDoorTwoStage {
             .map_err(stats_err)
     }
 
-    fn fit_stage2(
+    fn fit_stage2<M: AsRef<[f64]>>(
         &self,
         treatment: &[f64],
-        mediators: &[Arc<[f64]>],
+        mediators: &[M],
         outcome: &[f64],
         workspace: &mut FrontDoorWorkspace,
     ) -> Result<antecedent_stats::LeastSquaresFit, EstimationError> {
@@ -736,13 +736,11 @@ impl FrontDoorTwoStage {
                         m_boot[j][r] = mcol[src];
                     }
                 }
-                let mediators: Vec<Arc<[f64]>> =
-                    m_boot.iter().map(|m| Arc::<[f64]>::from(m.as_slice())).collect();
-                let Ok(stage2) = self.fit_stage2(t_boot, &mediators, y_boot, ws) else {
+                let Ok(stage2) = self.fit_stage2(t_boot, m_boot, y_boot, ws) else {
                     return Ok(None);
                 };
                 let mut path_sum = 0.0;
-                for (j, m_j) in mediators.iter().enumerate() {
+                for (j, m_j) in m_boot.iter().enumerate() {
                     let Ok(s1) = self.fit_stage1(t_boot, m_j, ws) else {
                         return Ok(None);
                     };
@@ -789,7 +787,7 @@ fn stage1_matrix(treatment: &[f64]) -> Vec<f64> {
 }
 
 /// Build the column-major `[1, T, M₁…Mₖ]` stage-2 design.
-fn stage2_matrix(treatment: &[f64], mediators: &[Arc<[f64]>]) -> Vec<f64> {
+fn stage2_matrix<M: AsRef<[f64]>>(treatment: &[f64], mediators: &[M]) -> Vec<f64> {
     let n = treatment.len();
     let ncols = 2 + mediators.len();
     let mut x = vec![0.0; n * ncols];
@@ -797,7 +795,7 @@ fn stage2_matrix(treatment: &[f64], mediators: &[Arc<[f64]>]) -> Vec<f64> {
     x[n..2 * n].copy_from_slice(treatment);
     for (j, m) in mediators.iter().enumerate() {
         let base = (STAGE2_FIRST_MEDIATOR_COL + j) * n;
-        x[base..base + n].copy_from_slice(m);
+        x[base..base + n].copy_from_slice(m.as_ref());
     }
     let _ = STAGE2_TREATMENT_COL;
     x
